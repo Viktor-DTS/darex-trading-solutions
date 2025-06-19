@@ -1674,6 +1674,20 @@ function App() {
       .catch(() => setServerMsg('Сервер недоступний...'))
   }, []);
 
+  // Додаю seed-адміна при першому запуску
+  if (!localStorage.getItem('users')) {
+    localStorage.setItem('users', JSON.stringify([
+      {
+        login: 'admin',
+        password: 'admin123',
+        role: 'admin',
+        name: 'Адміністратор',
+        region: 'Україна',
+        id: Date.now()
+      }
+    ]));
+  }
+
   if (!user) {
     return <Login onLogin={u => { setUser(u); setCurrentArea(u.role); }} />
   }
