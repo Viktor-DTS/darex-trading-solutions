@@ -10,11 +10,13 @@ import Login from './Login'
 import Sidebar from './Sidebar'
 import ModalTaskForm, { fields as allTaskFields } from './ModalTaskForm'
 import TaskTable from './components/TaskTable'
+import ExcelImportModal from './components/ExcelImportModal'
 // Підключення кастомного шрифту Roboto для jsPDF відбувається через <script src="/Roboto-normal.js"></script> у public/index.html
 
 // Додаю імпорт на початку файлу
 import AccountantArea from './areas/AccountantArea';
 import WarehouseArea from './areas/WarehouseArea';
+import * as XLSX from 'xlsx';
 
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
@@ -2520,6 +2522,34 @@ function AdminBackupArea() {
     const saved = localStorage.getItem('lastAutoBackup');
     return saved ? new Date(saved) : null;
   });
+  const [showExcelImport, setShowExcelImport] = useState(false);
+
+  // --- Функція для експорту всіх завдань в Excel ---
+  const handleExportToExcel = () => {
+    const tasksToExport = JSON.parse(localStorage.getItem('tasks') || '[]');
+
+    if (tasksToExport.length === 0) {
+      alert('Немає завдань для експорту.');
+      return;
+    }
+
+    // Використовуємо українські назви з allTaskFields для заголовків
+    const headers = allTaskFields.map(field => field.label);
+    
+    // Формуємо дані для рядків
+    const data = tasksToExport.map(task => {
+      return allTaskFields.map(field => task[field.name] || '');
+    });
+
+    // Створюємо робочий аркуш
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Усі завдання');
+
+    // Запускаємо завантаження файлу
+    XLSX.writeFile(workbook, 'export_all_tasks.xlsx');
+  };
+
   // --- Додаю створення бекапу ---
   const createBackup = () => {
     const now = new Date();
@@ -2535,12 +2565,14 @@ function AdminBackupArea() {
     setLastAutoBackup(now);
     localStorage.setItem('lastAutoBackup', now.toISOString());
   };
+
   // --- Видалення бекапу ---
   const deleteBackup = id => {
     const newBackups = backups.filter(b => b.id !== id);
     setBackups(newBackups);
     localStorage.setItem('backups', JSON.stringify(newBackups));
   };
+
   // --- Автоматичний бекап ---
   useEffect(() => {
     if (!lastAutoBackup) return;
@@ -2553,11 +2585,13 @@ function AdminBackupArea() {
     if (now >= nextBackup) createBackup();
     // eslint-disable-next-line
   }, [autoInterval, lastAutoBackup]);
+
   // --- Зміна інтервалу ---
   const handleIntervalChange = e => {
     setAutoInterval(e.target.value);
     localStorage.setItem('backupInterval', e.target.value);
   };
+
   // --- Відновлення з бекапу ---
   const restoreBackup = backup => {
     if (window.confirm('Відновити дані з цього бекапу? Поточні дані будуть замінені.')) {
@@ -2569,40 +2603,163 @@ function AdminBackupArea() {
       }
     }
   };
+
+  // --- Обробка імпорту Excel ---
+  const handleExcelImport = (importedTasks) => {
+    try {
+      // Отримуємо поточні завдання
+      const currentTasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+      
+      // Додаємо нові завдання
+      const updatedTasks = [...currentTasks, ...importedTasks];
+      
+      // Зберігаємо в localStorage
+      localStorage.setItem('tasks', JSON.stringify(updatedTasks));
+      
+      // Створюємо бекап перед імпортом
+      createBackup();
+      
+      alert(`Успішно імпортовано ${importedTasks.length} завдань!`);
+      
+      // Оновлюємо сторінку для відображення нових завдань
+      window.location.reload();
+    } catch (error) {
+      console.error('Помилка імпорту:', error);
+      alert('Помилка при імпорті завдань. Спробуйте ще раз.');
+    }
+  };
+
   return (
     <div style={{padding:32}}>
       <h2>Відновлення даних</h2>
-      <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24}}>
-        <button onClick={createBackup} style={{background:'#00bfff',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}>Створити бекап</button>
-        <label>Автоматичний бекап:
-          <select value={autoInterval} onChange={handleIntervalChange} style={{marginLeft:8}}>
+      
+      {/* Кнопки імпорту та бекапу */}
+      <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24,flexWrap:'wrap'}}>
+        <button 
+          onClick={() => setShowExcelImport(true)} 
+          style={{
+            background:'#28a745',
+            color:'#fff',
+            border:'none',
+            borderRadius:6,
+            padding:'10px 32px',
+            fontWeight:600,
+            cursor:'pointer'
+          }}
+        >
+          📊 Завантажити дані з Excel
+        </button>
+        <button 
+          onClick={handleExportToExcel}
+          style={{
+            background:'#ff8c00',
+            color:'#fff',
+            border:'none',
+            borderRadius:6,
+            padding:'10px 32px',
+            fontWeight:600,
+            cursor:'pointer'
+          }}
+        >
+          📤 Експорт в Excel
+        </button>
+        <button 
+          onClick={createBackup} 
+          style={{
+            background:'#00bfff',
+            color:'#fff',
+            border:'none',
+            borderRadius:6,
+            padding:'10px 32px',
+            fontWeight:600,
+            cursor:'pointer'
+          }}
+        >
+          💾 Створити бекап
+        </button>
+        <label style={{display:'flex',alignItems:'center',gap:8}}>
+          Автоматичний бекап:
+          <select value={autoInterval} onChange={handleIntervalChange} style={{padding:'4px 8px'}}>
             <option value="day">Кожен день</option>
             <option value="3days">Кожні 3 дні</option>
             <option value="week">Кожен тиждень</option>
             <option value="month">Кожен місяць</option>
           </select>
         </label>
-        <span style={{marginLeft:16}}>Останній бекап: {lastAutoBackup ? new Date(lastAutoBackup).toLocaleString() : '—'}</span>
+        <span style={{color:'#666'}}>
+          Останній бекап: {lastAutoBackup ? new Date(lastAutoBackup).toLocaleString() : '—'}
+        </span>
       </div>
+
+      {/* Інформація про імпорт */}
+      <div style={{
+        background:'#e8f5e8',
+        border:'1px solid #28a745',
+        borderRadius:6,
+        padding:16,
+        marginBottom:24
+      }}>
+        <h3 style={{margin:'0 0 8px 0',color:'#155724'}}>📊 Імпорт з Excel</h3>
+        <p style={{margin:0,color:'#155724'}}>
+          Завантажте Excel файл з виконаними завданнями. Система автоматично розпізнає колонки 
+          та дозволить налаштувати залежність між полями Excel та полями системи. 
+          Імпортовані завдання будуть додані до бази даних та розподілені по відповідних вкладках.
+        </p>
+      </div>
+
+      {/* Таблиця бекапів */}
+      <h3 style={{marginBottom:16,color:'#22334a'}}>Історія бекапів</h3>
       <table style={{width:'100%',background:'#22334a',color:'#fff',borderRadius:8,overflow:'hidden'}}>
         <thead>
           <tr>
-            <th>Дата бекапу</th>
-            <th>Дія</th>
+            <th style={{padding:12,textAlign:'left'}}>Дата бекапу</th>
+            <th style={{padding:12,textAlign:'left'}}>Дія</th>
           </tr>
         </thead>
         <tbody>
           {backups.slice().reverse().map(b => (
             <tr key={b.id}>
-              <td>{new Date(b.date).toLocaleString()}</td>
-              <td>
-                <button onClick={()=>restoreBackup(b)} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:4,padding:'4px 12px',cursor:'pointer',marginRight:8}}>Відновити</button>
-                <button onClick={()=>deleteBackup(b.id)} style={{background:'#f66',color:'#fff',border:'none',borderRadius:4,padding:'4px 12px',cursor:'pointer'}}>Видалити</button>
+              <td style={{padding:12}}>{new Date(b.date).toLocaleString()}</td>
+              <td style={{padding:12}}>
+                <button 
+                  onClick={()=>restoreBackup(b)} 
+                  style={{
+                    background:'#43a047',
+                    color:'#fff',
+                    border:'none',
+                    borderRadius:4,
+                    padding:'4px 12px',
+                    cursor:'pointer',
+                    marginRight:8
+                  }}
+                >
+                  Відновити
+                </button>
+                <button 
+                  onClick={()=>deleteBackup(b.id)} 
+                  style={{
+                    background:'#f66',
+                    color:'#fff',
+                    border:'none',
+                    borderRadius:4,
+                    padding:'4px 12px',
+                    cursor:'pointer'
+                  }}
+                >
+                  Видалити
+                </button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {/* Модальне вікно імпорту Excel */}
+      <ExcelImportModal
+        open={showExcelImport}
+        onClose={() => setShowExcelImport(false)}
+        onImport={handleExcelImport}
+      />
     </div>
   );
 }
