@@ -250,8 +250,32 @@ export default function TaskTable({
               ));
             })()}
           </div>
-          {/* Окремий контейнер для таблиці з горизонтальним скролом */}
+          {/* Окремий контейнер для таблиці з sticky-заголовками */}
           <style>{`
+            .table-scroll {
+              max-height: 60vh;
+              overflow: auto;
+              width: 100%;
+            }
+            .sticky-table {
+              min-width: 2000px;
+              width: 100%;
+              background: #22334a;
+              color: #fff;
+              border-radius: 8px;
+              border-spacing: 0;
+              table-layout: auto;
+            }
+            .sticky-table thead th {
+              position: sticky;
+              top: 0;
+              z-index: 2;
+              background: #1976d2;
+              white-space: nowrap;
+            }
+            .sticky-table th, .sticky-table td {
+              white-space: nowrap;
+            }
             .table-scroll::-webkit-scrollbar {
               height: 12px;
               background: #22334a;
@@ -260,17 +284,19 @@ export default function TaskTable({
               background: #00bfff;
               border-radius: 6px;
             }
+            .table-scroll::-webkit-scrollbar-track {
+              background: #22334a;
+            }
             .table-scroll {
               scrollbar-color: #00bfff #22334a;
               scrollbar-width: thin;
             }
           `}</style>
-          <div className="table-scroll" style={{overflowX:'auto', width:'100%', marginBottom:24}}>
-            <table style={{minWidth:'2000px', width:'max-content', background:'#22334a', color:'#fff', borderRadius:8, overflow:'hidden', marginBottom:24}}>
+          <div className="table-scroll">
+            <table className="sticky-table">
               <thead>
                 <tr>
                   <th>Дія</th>
-                  {/* Для ролі warehouse/regional/accountant — підтвердження одразу після Дія */}
                   {(role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && approveField && <th>Підтвердження</th>}
                   {visibleColumns.map((col, idx) => (
                     <th
@@ -285,9 +311,7 @@ export default function TaskTable({
                     </th>
                   ))}
                   <th>Статус</th>
-                  {/* Для ролі admin — додаємо Дата підтвердження */}
                   {role === 'admin' && <th>Дата підтвердження</th>}
-                  {/* Для інших ролей — як було */}
                   {role !== 'warehouse' && role !== 'regional' && role !== 'accountant' && role !== 'regionalManager' && role !== 'admin' && approveField && <th>Підтвердження</th>}
                   {commentField && <th>Коментар</th>}
                 </tr>
@@ -309,14 +333,13 @@ export default function TaskTable({
                         <button onClick={()=>onEdit && onEdit(t)}>Редагувати</button>
                       )}
                     </td>
-                    {/* Для ролі warehouse/regional/accountant — підтвердження одразу після Дія */}
                     {(role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && approveField && (
                       <td style={getRowColor(t) ? {color:'#111'} : {}}>
                         {t.status === 'Виконано' ? (
                           <>
-                            <button onClick={()=>{console.log('[LOG] TaskTable onApprove Підтвердити', t.id, 'Підтверджено'); onApprove(t.id, 'Підтверджено', '');}} style={{background:'#0a0',color:'#fff',marginRight:8}}>Підтвердити</button>
+                            <button onClick={()=>{onApprove(t.id, 'Підтверджено', '');}} style={{background:'#0a0',color:'#fff',marginRight:8}}>Підтвердити</button>
                             <button onClick={()=>setRejectModal({ open: true, taskId: t.id, comment: '' })} style={{background:'#f66',color:'#fff',marginRight:8}}>Відхилити</button>
-                            <button onClick={()=>{console.log('[LOG] TaskTable onApprove На розгляді', t.id, 'На розгляді'); onApprove(t.id, 'На розгляді', '');}} style={{background:'#ffe066',color:'#22334a',marginRight:8}}>На розгляді</button>
+                            <button onClick={()=>{onApprove(t.id, 'На розгляді', '');}} style={{background:'#ffe066',color:'#22334a',marginRight:8}}>На розгляді</button>
                             <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600} : t[approveField] === 'Відмова' ? {color:'#f00', fontWeight:600} : {color:'#aaa'}}>
                               {t[approveField] === 'Підтверджено' ? 'Підтверджено' : t[approveField] === 'Відмова' ? 'Відхилено' : 'На розгляді'}
                             </span>
@@ -327,15 +350,13 @@ export default function TaskTable({
                     {visibleColumns.map(col => <td key={col.key} style={getRowColor(t) ? {color:'#111'} : {}}>{
                       col.key === 'approvedByWarehouse' ? (t.approvedByWarehouse === 'Підтверджено' ? 'Підтверджено' : t.approvedByWarehouse === 'Відмова' ? 'Відмова' : 'На розгляді') :
                       col.key === 'approvedByAccountant' ? (t.approvedByAccountant === 'Підтверджено' ? 'Підтверджено' : t.approvedByAccountant === 'Відмова' ? 'Відмова' : 'На розгляді') :
-                      col.key === 'approvedByRegionalManager' ? (t.approvedByRegionalManager === 'Підтверджено' ? 'Підтверджено' : t.approvedByRegionalManager === 'Відмова' ? 'Відмова' : 'На розгляді') :
+                      col.key === 'approvedByRegionalManager' ? (t.approvedByRegionalManager === 'Підтверджено' ? 'Підтверджено' : t.approvedByRegionalManager === 'Відмова' ? 'Відхилено' : 'На розгляді') :
                       t[col.key]
                     }</td>)}
                     <td style={getRowColor(t) ? {color:'#111'} : {}}>{t.status}</td>
-                    {/* Для ролі admin — додаємо Дата підтвердження */}
                     {role === 'admin' && <td style={getRowColor(t) ? {color:'#111'} : {}}>
                       {(t.bonusApprovalDate || t.approvalDate || '')}
                       <button style={{marginLeft:8}} onClick={() => {
-                        // Витягуємо місяць і рік з поточної дати, якщо є
                         let mm = '', yyyy = '';
                         const val = t.bonusApprovalDate || t.approvalDate || '';
                         if (/^\d{2}\.\d{4}$/.test(val)) {
@@ -349,14 +370,13 @@ export default function TaskTable({
                         setEditDateModal({ open: true, taskId: t.id, month: mm, year: yyyy });
                       }}>Змінити</button>
                     </td>}
-                    {/* Для інших ролей — як було */}
                     {role !== 'warehouse' && role !== 'regional' && role !== 'accountant' && role !== 'regionalManager' && role !== 'admin' && approveField && (
                       <td style={getRowColor(t) ? {color:'#111'} : {}}>
                         {t.status === 'Виконано' ? (
                           <>
-                            <button onClick={()=>{console.log('[LOG] TaskTable onApprove Підтвердити', t.id, 'Підтверджено'); onApprove(t.id, 'Підтверджено', '');}} style={{background:'#0a0',color:'#fff',marginRight:8}}>Підтвердити</button>
+                            <button onClick={()=>{onApprove(t.id, 'Підтверджено', '');}} style={{background:'#0a0',color:'#fff',marginRight:8}}>Підтвердити</button>
                             <button onClick={()=>setRejectModal({ open: true, taskId: t.id, comment: '' })} style={{background:'#f66',color:'#fff',marginRight:8}}>Відхилити</button>
-                            <button onClick={()=>{console.log('[LOG] TaskTable onApprove На розгляді', t.id, 'На розгляді'); onApprove(t.id, 'На розгляді', '');}} style={{background:'#ffe066',color:'#22334a',marginRight:8}}>На розгляді</button>
+                            <button onClick={()=>{onApprove(t.id, 'На розгляді', '');}} style={{background:'#ffe066',color:'#22334a',marginRight:8}}>На розгляді</button>
                             <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600} : t[approveField] === 'Відмова' ? {color:'#f00', fontWeight:600} : {color:'#aaa'}}>
                               {t[approveField] === 'Підтверджено' ? 'Підтверджено' : t[approveField] === 'Відмова' ? 'Відхилено' : 'На розгляді'}
                             </span>
@@ -368,7 +388,7 @@ export default function TaskTable({
                       <td style={getRowColor(t) ? {color:'#111'} : {}}>
                         <input
                           value={t[commentField]||''}
-                          onChange={e => {console.log('onApprove Коментар', t.id, t[approveField], e.target.value); onApprove(t.id, t[approveField], e.target.value);}}
+                          onChange={e => {onApprove(t.id, t[approveField], e.target.value);}}
                           placeholder="Коментар"
                           style={getRowColor(t) ? {width:120, color:'#111', background:'#fff'} : {width:120}}
                           disabled={t[approveField] !== false}
@@ -379,6 +399,29 @@ export default function TaskTable({
                 ))}
               </tbody>
             </table>
+          </div>
+          {/* Індикатор кількості рядків та кнопка "На початок" */}
+          <div style={{padding:'8px 16px', background:'#22334a', color:'#fff', borderTop:'1px solid #444', fontSize:'14px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+            <span>Всього рядків: {sortedTasks.length}</span>
+            <button 
+              onClick={() => {
+                const container = document.querySelector('.table-scroll');
+                if (container) {
+                  container.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+                }
+              }}
+              style={{
+                background:'#00bfff',
+                color:'#fff',
+                border:'none',
+                padding:'4px 12px',
+                borderRadius:'4px',
+                cursor:'pointer',
+                fontSize:'12px'
+              }}
+            >
+              ↑ На початок
+            </button>
           </div>
           {showInfo && infoTask && (
             <InfoModal task={infoTask} onClose={()=>setShowInfo(false)} history={getClientHistory(infoTask.client).filter(h=>h.status === 'Виконано')} />
