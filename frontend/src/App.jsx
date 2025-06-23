@@ -425,12 +425,12 @@ function ServiceArea() {
   const filtered = tasks.filter(t =>
     (region === '' || region === 'Україна' || t.serviceRegion === region) &&
     (!filters.requestDate || (t.requestDate && t.requestDate.includes(filters.requestDate))) &&
-    (!filters.requestDesc || t.requestDesc.toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
-    (!filters.serviceRegion || t.serviceRegion.toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
-    (!filters.address || t.address.toLowerCase().includes(filters.address.toLowerCase())) &&
-    (!filters.equipmentSerial || t.equipmentSerial.toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
-    (!filters.equipment || t.equipment.toLowerCase().includes(filters.equipment.toLowerCase())) &&
-    (!filters.work || t.work.toLowerCase().includes(filters.work.toLowerCase())) &&
+    (!filters.requestDesc || (t.requestDesc || '').toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
+    (!filters.serviceRegion || (t.serviceRegion || '').toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
+    (!filters.address || (t.address || '').toLowerCase().includes(filters.address.toLowerCase())) &&
+    (!filters.equipmentSerial || (t.equipmentSerial || '').toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
+    (!filters.equipment || (t.equipment || '').toLowerCase().includes(filters.equipment.toLowerCase())) &&
+    (!filters.work || (t.work || '').toLowerCase().includes(filters.work.toLowerCase())) &&
     (!filters.client || (t.client && t.client.toLowerCase().includes(filters.client.toLowerCase()))) &&
     (!filters.serviceTotal || (t.serviceTotal && String(t.serviceTotal).includes(filters.serviceTotal))) &&
     (!filters.edrpou || (t.edrpou && t.edrpou.toLowerCase().includes(filters.edrpou.toLowerCase()))) &&
@@ -559,14 +559,14 @@ function OperatorArea() {
     'Заблоковано': 4,
   };
   const filtered = tasks.filter(t =>
-    (!filters.requestDate || t.requestDate.includes(filters.requestDate)) &&
-    (!filters.requestDesc || t.requestDesc.toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
-    (!filters.serviceRegion || t.serviceRegion.toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
-    (!filters.address || t.address.toLowerCase().includes(filters.address.toLowerCase())) &&
-    (!filters.equipmentSerial || t.equipmentSerial.toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
-    (!filters.equipment || t.equipment.toLowerCase().includes(filters.equipment.toLowerCase())) &&
-    (!filters.work || t.work.toLowerCase().includes(filters.work.toLowerCase())) &&
-    (!filters.date || t.date.includes(filters.date)) &&
+    (!filters.requestDate || (t.requestDate && t.requestDate.includes(filters.requestDate))) &&
+    (!filters.requestDesc || (t.requestDesc || '').toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
+    (!filters.serviceRegion || (t.serviceRegion || '').toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
+    (!filters.address || (t.address || '').toLowerCase().includes(filters.address.toLowerCase())) &&
+    (!filters.equipmentSerial || (t.equipmentSerial || '').toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
+    (!filters.equipment || (t.equipment || '').toLowerCase().includes(filters.equipment.toLowerCase())) &&
+    (!filters.work || (t.work || '').toLowerCase().includes(filters.work.toLowerCase())) &&
+    (!filters.date || (t.date && t.date.includes(filters.date))) &&
     (!dateRange.from || (t.date && new Date(t.date) >= new Date(dateRange.from))) &&
     (!dateRange.to || (t.date && new Date(t.date) <= new Date(dateRange.to)))
   );
@@ -684,13 +684,13 @@ function RegionalManagerArea({ tab, onOpenReport, setTab }) {
 
   // Add filtered tasks definition
   const filtered = tasks.filter(t =>
-    (!filters.requestDesc || t.requestDesc.toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
-    (!filters.serviceRegion || t.serviceRegion.toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
-    (!filters.address || t.address.toLowerCase().includes(filters.address.toLowerCase())) &&
-    (!filters.equipmentSerial || t.equipmentSerial.toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
-    (!filters.equipment || t.equipment.toLowerCase().includes(filters.equipment.toLowerCase())) &&
-    (!filters.work || t.work.toLowerCase().includes(filters.work.toLowerCase())) &&
-    (!filters.date || t.date.includes(filters.date)) &&
+    (!filters.requestDesc || (t.requestDesc || '').toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
+    (!filters.serviceRegion || (t.serviceRegion || '').toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
+    (!filters.address || (t.address || '').toLowerCase().includes(filters.address.toLowerCase())) &&
+    (!filters.equipmentSerial || (t.equipmentSerial || '').toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
+    (!filters.equipment || (t.equipment || '').toLowerCase().includes(filters.equipment.toLowerCase())) &&
+    (!filters.work || (t.work || '').toLowerCase().includes(filters.work.toLowerCase())) &&
+    (!filters.date || (t.date && t.date.includes(filters.date))) &&
     (!dateRange.from || (t.date && t.date >= dateRange.from)) &&
     (!dateRange.to || (t.date && t.date <= dateRange.to))
   );

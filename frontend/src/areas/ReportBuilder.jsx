@@ -46,14 +46,14 @@ export default function ReportBuilder() {
 
   const generateReport = () => {
     const filtered = tasks.filter(t =>
-      (!filters.requestDate || t.requestDate.includes(filters.requestDate)) &&
-      (!filters.requestDesc || t.requestDesc.toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
-      (!filters.serviceRegion || t.serviceRegion.toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
-      (!filters.address || t.address.toLowerCase().includes(filters.address.toLowerCase())) &&
-      (!filters.equipmentSerial || t.equipmentSerial.toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
-      (!filters.equipment || t.equipment.toLowerCase().includes(filters.equipment.toLowerCase())) &&
-      (!filters.work || t.work.toLowerCase().includes(filters.work.toLowerCase())) &&
-      (!filters.date || t.date.includes(filters.date))
+      (!filters.requestDate || (t.requestDate && t.requestDate.includes(filters.requestDate))) &&
+      (!filters.requestDesc || (t.requestDesc || '').toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
+      (!filters.serviceRegion || (t.serviceRegion || '').toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
+      (!filters.address || (t.address || '').toLowerCase().includes(filters.address.toLowerCase())) &&
+      (!filters.equipmentSerial || (t.equipmentSerial || '').toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
+      (!filters.equipment || (t.equipment || '').toLowerCase().includes(filters.equipment.toLowerCase())) &&
+      (!filters.work || (t.work || '').toLowerCase().includes(filters.work.toLowerCase())) &&
+      (!filters.date || (t.date && t.date.includes(filters.date)))
     );
 
     let grouped = filtered;
