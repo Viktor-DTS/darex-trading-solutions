@@ -128,6 +128,9 @@ const labelAboveFields = [
   'approvedByRegionalManager', 'regionalManagerComment'
 ];
 
+// Додаю визначення isRegionReadOnly
+const isRegionReadOnly = user && user.region && user.region !== 'Україна';
+
 export default function ModalTaskForm({ open, onClose, onSave, initialData = {}, mode = 'service', user }) {
   function toSelectString(val) {
     if (val === true) return 'Підтверджено';
@@ -237,11 +240,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   const [missingFields, setMissingFields] = useState([]);
   const [showMissingModal, setShowMissingModal] = useState(false);
 
-  // Додаю визначення isRegionReadOnly
-  const isRegionReadOnly = user && user.region && user.region !== 'Україна';
-
-  console.log('user.region:', user?.region, 'isRegionReadOnly:', isRegionReadOnly);
-
   useEffect(() => {
     const f = { ...initialData };
     if ('approvedByWarehouse' in f) f.approvedByWarehouse = toSelectString(f.approvedByWarehouse);
@@ -289,7 +287,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   useEffect(() => {
     if (open) {
       const saved = localStorage.getItem('regions');
-      console.log('ModalTaskForm: localStorage.regions =', saved);
       setRegions(saved ? JSON.parse(saved) : ['Київський', 'Одеський', 'Львівський']);
     }
   }, [open]);
@@ -303,6 +300,27 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       setForm(f => ({ ...f, serviceRegion: user.region }));
     }
   }, [user, form.serviceRegion, initialData.serviceRegion]);
+
+  // Очищаємо поля інженерів при зміні регіону заявки
+  useEffect(() => {
+    if (form.serviceRegion) {
+      const currentEngineers = users.filter(u => u.role === 'service');
+      const availableEngineers = currentEngineers.filter(u => {
+        if (form.serviceRegion === 'Україна') return true;
+        return u.region === form.serviceRegion;
+      });
+      
+      // Якщо вибраний інженер1 не доступний у новому регіоні, очищаємо поле
+      if (form.engineer1 && !availableEngineers.some(u => u.name === form.engineer1)) {
+        setForm(f => ({ ...f, engineer1: '' }));
+      }
+      
+      // Якщо вибраний інженер2 не доступний у новому регіоні, очищаємо поле
+      if (form.engineer2 && !availableEngineers.some(u => u.name === form.engineer2)) {
+        setForm(f => ({ ...f, engineer2: '' }));
+      }
+    }
+  }, [form.serviceRegion, users]);
 
   if (!open) return null;
 
@@ -487,7 +505,19 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     (parseFloat(form.transportSum)||0)
   );
 
-  const serviceEngineers = users.filter(u => u.role === 'service');
+  const serviceEngineers = users.filter(u => {
+    // Фільтруємо тільки користувачів з роллю 'service'
+    if (u.role !== 'service') return false;
+    
+    // Якщо регіон заявки не встановлений, показуємо всіх інженерів
+    if (!form.serviceRegion) return true;
+    
+    // Якщо регіон заявки "Україна", показуємо всіх інженерів
+    if (form.serviceRegion === 'Україна') return true;
+    
+    // Інакше показуємо тільки інженерів з того ж регіону
+    return u.region === form.serviceRegion;
+  });
 
   return (
     <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto'}}>
