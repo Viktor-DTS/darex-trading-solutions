@@ -2,18 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import ModalTaskForm from '../ModalTaskForm';
 import { columnsSettingsAPI } from '../utils/columnsSettingsAPI';
 
-function ColumnSettings({ allColumns, selected, onChange, onClose, onReset, user, onExport, onImport, onSave }) {
+function ColumnSettings({ allColumns, selected, onChange, onClose, onSave }) {
   return (
     <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:2000,display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{background:'#fff',color:'#111',padding:32,borderRadius:8,minWidth:320,maxWidth:500}}>
         <h3>Налаштування колонок</h3>
-        {user && (
-          <div style={{marginBottom:16,fontSize:'14px',color:'#666',padding:'8px 12px',background:'#f5f5f5',borderRadius:'4px'}}>
-            <strong>Користувач:</strong> {user.name || user.login} ({user.role})
-          </div>
-        )}
         <div style={{marginBottom:16,fontSize:'14px',color:'#666'}}>
-          Виберіть колонки для відображення та їх порядок
+          Виберіть колонки для відображення
           <br />
           <small style={{color:'#888'}}>
             Вибрано: {selected.length} з {allColumns.length} колонок
@@ -35,15 +30,9 @@ function ColumnSettings({ allColumns, selected, onChange, onClose, onReset, user
           ))}
         </div>
         <div style={{display:'flex',gap:12,marginTop:24}}>
-          <button onClick={onReset} style={{flex:1,background:'#ff9800',color:'#fff',border:'none',padding:'8px',borderRadius:'4px',cursor:'pointer'}}>
-            Скинути до стандартних
-          </button>
           <button onClick={() => { onSave(selected); onClose(); }} style={{flex:1,background:'#1976d2',color:'#fff',border:'none',padding:'8px',borderRadius:'4px',cursor:'pointer'}}>
             Зберегти
           </button>
-        </div>
-        <div style={{marginTop:16,padding:'12px',background:'#f9f9f9',borderRadius:'4px',fontSize:'12px',color:'#666'}}>
-          <strong>💡 Порада:</strong> Ви можете експортувати свої налаштування для збереження або перенесення на інший комп'ютер.
         </div>
       </div>
     </div>
@@ -75,8 +64,6 @@ export default function TaskTable({
   const [showSettings, setShowSettings] = useState(false);
   const [infoTask, setInfoTask] = useState(null);
   const [showInfo, setShowInfo] = useState(false);
-  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
-  const [savedSettingsCount, setSavedSettingsCount] = useState(0);
   const [sortField, setSortField] = useState('requestDate');
   const [sortDirection, setSortDirection] = useState('desc');
   const [filter, setFilter] = useState('');
@@ -104,7 +91,6 @@ export default function TaskTable({
     const loadUserSettings = async () => {
       console.log('[DEBUG] Виклик loadSettings для', userLogin, area);
       if (user?.login && area && columns.length > 0) {
-        setIsLoadingSettings(true);
         try {
           const settings = await columnsSettingsAPI.loadSettings(userLogin, area);
           console.log('[DEBUG] loadSettings повернув:', settings, 'для', userLogin, area);
@@ -127,15 +113,12 @@ export default function TaskTable({
           if (isMounted) {
             setSelected(defaultKeys);
           }
-        } finally {
-          if (isMounted) setIsLoadingSettings(false);
         }
       } else {
         // Якщо немає користувача, області або колонок, встановлюємо стандартні
         if (isMounted) {
           console.log('[DEBUG] Немає користувача/області/колонок, встановлюємо стандартні:', defaultKeys);
           setSelected(defaultKeys);
-          setIsLoadingSettings(false);
         }
       }
     };
@@ -143,31 +126,12 @@ export default function TaskTable({
     return () => { isMounted = false; };
   }, [user?.login, area, columns]);
   
-  // Завантаження кількості збережених налаштувань
-  useEffect(() => {
-    const loadSettingsCount = async () => {
-      try {
-        const users = await columnsSettingsAPI.getAllUsers();
-        let count = 0;
-        users.forEach(user => {
-          if (user.columnsSettings) {
-            count += Object.keys(user.columnsSettings).length;
-          }
-        });
-        setSavedSettingsCount(count);
-      } catch (error) {
-        console.error('Помилка завантаження кількості налаштувань:', error);
-      }
-    };
-    loadSettingsCount();
-  }, []);
-  
   const visibleColumns = selected
     .map(key => allColumns.find(c => c.key === key))
     .filter(Boolean);
     
   // Додаємо перевірку завантаження налаштувань
-  if (isLoadingSettings || selected.length === 0) {
+  if (selected.length === 0) {
     return (
       <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'200px',color:'#666'}}>
         <div style={{textAlign:'center'}}>
@@ -194,150 +158,17 @@ export default function TaskTable({
           alert('Помилка збереження налаштувань. Спробуйте ще раз.');
         } else {
           console.log('[DEBUG] Налаштування успішно збережено!');
-          // Оновлюємо лічильник збережених налаштувань
-          const users = await columnsSettingsAPI.getAllUsers();
-          let count = 0;
-          users.forEach(user => {
-            if (user.columnsSettings) {
-              count += Object.keys(user.columnsSettings).length;
-            }
-          });
-          setSavedSettingsCount(count);
-          console.log('[DEBUG] Оновлено лічильник налаштувань:', count);
         }
       } catch (error) {
-        console.error('Помилка збереження налаштувань:', error);
-        alert('Помилка збереження налаштувань: ' + error.message);
+        console.error('[DEBUG] Помилка збереження:', error);
+        alert('Помилка збереження налаштувань. Спробуйте ще раз.');
       }
     } else {
-      console.error('[DEBUG] Не можна зберегти - відсутні user.login або area');
-      console.error('[DEBUG] user?.login:', user?.login);
-      console.error('[DEBUG] area:', area);
+      console.log('[DEBUG] Не можна зберегти - відсутні user.login або area');
+      console.log('[DEBUG] user?.login:', user?.login);
+      console.log('[DEBUG] area:', area);
     }
     setShowSettings(false);
-  };
-  
-  const handleResetSettings = async () => {
-    setSelected(defaultKeys);
-    if (user?.login && area) {
-      try {
-        const success = await columnsSettingsAPI.saveSettings(userLogin, area, defaultKeys, defaultKeys);
-        if (!success) {
-          console.error('Помилка збереження стандартних налаштувань');
-          alert('Помилка збереження стандартних налаштувань. Спробуйте ще раз.');
-        }
-      } catch (error) {
-        console.error('Помилка збереження стандартних налаштувань:', error);
-        alert('Помилка збереження стандартних налаштувань: ' + error.message);
-      }
-    }
-    setShowSettings(false);
-  };
-  
-  const handleExportSettings = () => {
-    const settings = {
-      user: user?.login || 'default',
-      area: area,
-      visible: selected,
-      order: selected,
-      exportDate: new Date().toISOString()
-    };
-    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `table-settings-${user?.login || 'default'}-${area}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-  
-  const handleImportSettings = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const settings = JSON.parse(e.target.result);
-        if (settings.user === (user?.login || 'default') && settings.area === area) {
-          // Перевіряємо, чи всі ключі є у columns
-          if (Array.isArray(settings.visible) && settings.visible.every(k => columns.some(c => c.key === k))) {
-            setSelected(settings.visible);
-            if (user?.login && area) {
-              const success = await columnsSettingsAPI.saveSettings(userLogin, area, settings.visible, settings.order || settings.visible);
-              if (success) {
-                alert('Налаштування успішно імпортовано та збережено!');
-              } else {
-                alert('Налаштування імпортовано, але виникла помилка збереження');
-              }
-            } else {
-              alert('Налаштування успішно імпортовано!');
-            }
-          } else {
-            alert('Помилка: деякі колонки не знайдено в поточній конфігурації');
-          }
-        } else {
-          alert('Помилка: файл налаштувань не відповідає поточному користувачу або області');
-        }
-      } catch (error) {
-        alert('Помилка при імпорті налаштувань: ' + error.message);
-      }
-    };
-    reader.readAsText(file);
-    event.target.value = ''; // Очищаємо input
-  };
-  
-  const handleViewAllSettings = async () => {
-    try {
-      const users = await columnsSettingsAPI.getAllUsers();
-      const allSettings = [];
-      
-      users.forEach(user => {
-        if (user.columnsSettings) {
-          Object.entries(user.columnsSettings).forEach(([area, settings]) => {
-            allSettings.push({
-              user: user.login,
-              area: area,
-              count: settings.visible ? settings.visible.length : 0
-            });
-          });
-        }
-      });
-      
-      const settingsText = allSettings.map(s => 
-        `${s.user} (${s.area}): ${s.count} колонок`
-      ).join('\n');
-      
-      alert(`Збережені налаштування:\n\n${settingsText || 'Налаштування не знайдено'}`);
-    } catch (error) {
-      alert('Помилка отримання налаштувань: ' + error.message);
-    }
-  };
-  
-  const handleClearAllSettings = async () => {
-    if (confirm('Ви впевнені, що хочете очистити всі збережені налаштування колонок для всіх користувачів?')) {
-      try {
-        const users = await columnsSettingsAPI.getAllUsers();
-        let clearedCount = 0;
-        
-        for (const user of users) {
-          if (user.columnsSettings) {
-            user.columnsSettings = {};
-            const success = await columnsSettingsAPI.saveUser(user);
-            if (success) clearedCount++;
-          }
-        }
-        
-        alert(`Очищено налаштування для ${clearedCount} користувачів`);
-        
-        // Скидаємо поточні налаштування до стандартних
-        setSelected(defaultKeys);
-      } catch (error) {
-        alert('Помилка очищення налаштувань: ' + error.message);
-      }
-    }
   };
   
   const statusOrder = {
@@ -476,9 +307,9 @@ export default function TaskTable({
     <>
       {/* Вкладки, фільтри, кнопки — окремий контейнер */}
       <div style={{marginBottom: 24}}>
-        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12,flexWrap:'wrap'}}>
+        <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:16}}>
           <button 
-            onClick={()=>setShowSettings(true)} 
+            onClick={()=>setShowSettings(true)}
             style={{
               background:'#1976d2',
               color:'#fff',
@@ -486,137 +317,18 @@ export default function TaskTable({
               padding:'8px 16px',
               borderRadius:'4px',
               cursor:'pointer',
-              display:'flex',
-              alignItems:'center',
-              gap:8
+              fontSize:'14px'
             }}
-            disabled={isLoadingSettings}
           >
-            <span>⚙️</span>
-            <span>Налаштувати колонки</span>
-            {isLoadingSettings && <span style={{fontSize:'12px'}}>⏳</span>}
-            {!isLoadingSettings && selected.length !== defaultKeys.length && (
-              <span style={{background:'#ff9800',color:'#fff',padding:'2px 6px',borderRadius:'10px',fontSize:'10px'}}>
-                Персоналізовано
-              </span>
-            )}
+            ⚙️ Налаштувати колонки
           </button>
-          
-          {/* Група кнопок для персоналізованих налаштувань */}
-          {selected.length !== defaultKeys.length && (
-            <div style={{display:'flex',gap:8,alignItems:'center'}}>
-              <span style={{fontSize:'12px',color:'#666'}}>|</span>
-              <button 
-                onClick={handleResetSettings}
-                style={{
-                  background:'#ff9800',
-                  color:'#fff',
-                  border:'none',
-                  padding:'6px 12px',
-                  borderRadius:'4px',
-                  cursor:'pointer',
-                  fontSize:'12px'
-                }}
-              >
-                Скинути
-              </button>
-              <button 
-                onClick={handleExportSettings}
-                style={{
-                  background:'#4caf50',
-                  color:'#fff',
-                  border:'none',
-                  padding:'6px 12px',
-                  borderRadius:'4px',
-                  cursor:'pointer',
-                  fontSize:'12px'
-                }}
-                title="Експортувати налаштування"
-              >
-                📤 Експорт
-              </button>
-            </div>
-          )}
-          
-          {/* Група кнопок для імпорту та адміністративних функцій */}
-          <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            <span style={{fontSize:'12px',color:'#666'}}>|</span>
-            <label style={{
-              background:'#2196f3',
-              color:'#fff',
-              border:'none',
-              padding:'6px 12px',
-              borderRadius:'4px',
-              cursor:'pointer',
-              fontSize:'12px',
-              display:'inline-block'
-            }}>
-              📥 Імпорт
-              <input 
-                type="file" 
-                accept=".json" 
-                onChange={handleImportSettings} 
-                style={{display:'none'}}
-              />
-            </label>
-            <button 
-              onClick={handleViewAllSettings}
-              style={{
-                background:'#9c27b0',
-                color:'#fff',
-                border:'none',
-                padding:'6px 12px',
-                borderRadius:'4px',
-                cursor:'pointer',
-                fontSize:'12px'
-              }}
-              title="Переглянути всі збережені налаштування"
-            >
-              👁️ Переглянути
-            </button>
-            <button 
-              onClick={handleClearAllSettings}
-              style={{
-                background:'#f44336',
-                color:'#fff',
-                border:'none',
-                padding:'6px 12px',
-                borderRadius:'4px',
-                cursor:'pointer',
-                fontSize:'12px'
-              }}
-              title="Очистити всі налаштування"
-            >
-              🗑️ Очистити
-            </button>
-          </div>
         </div>
-        {user && (
-          <div style={{marginBottom:12,padding:'8px 12px',background:'#e3f2fd',borderRadius:'4px',fontSize:'12px',color:'#1976d2'}}>
-            <strong>👤 Персоналізація:</strong> Налаштування зберігаються окремо для користувача <strong>{user.name || user.login}</strong> 
-            в області <strong>{area === 'service' ? 'Сервісний відділ' : 
-                           area === 'operator' ? 'Оператор' : 
-                           area === 'warehouse' ? 'Склад' : 
-                           area === 'accountant' ? 'Бухгалтерія' : 
-                           area === 'regionalManager' ? 'Регіональний менеджер' : 
-                           area === 'admin' ? 'Адміністратор' : area}</strong>
-            <br />
-            <small style={{color:'#666'}}>
-              💾 В системі збережено: <strong>{savedSettingsCount}</strong> налаштувань користувачів
-              {isLoadingSettings && <span style={{marginLeft:8}}>⏳ Завантаження...</span>}
-            </small>
-          </div>
-        )}
         {showSettings && (
           <ColumnSettings
             allColumns={allColumns}
             selected={selected}
             onChange={setSelected}
             onClose={()=>setShowSettings(false)}
-            onReset={handleResetSettings}
-            user={user}
-            onExport={handleExportSettings}
-            onImport={handleImportSettings}
             onSave={handleSettingsSave}
           />
         )}

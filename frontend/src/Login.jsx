@@ -71,33 +71,6 @@ export default function Login({ onLogin }) {
       setIsLoading(false);
     }
   };
-  
-  const handleNoPassword = async () => {
-    setIsLoading(true);
-    try {
-      // Ініціалізуємо користувачів якщо потрібно
-      await fetch('http://localhost:3001/api/initialize-users', { method: 'POST' });
-      
-      // Авторизуємося без пароля (для тестування)
-      const response = await fetch('http://localhost:3001/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ login: 'admin', password: 'admin123' })
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        onLogin(result.user);
-      } else {
-        alert('Помилка авторизації');
-      }
-    } catch (error) {
-      console.error('Помилка:', error);
-      alert('Помилка підключення до сервера');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
     <>
@@ -115,85 +88,6 @@ export default function Login({ onLogin }) {
             {isLoading ? '⏳ Вхід...' : 'Увійти'}
           </button>
         </form>
-        
-        {/* Тимчасова кнопка для тестування */}
-        <div style={{ marginTop: 24, padding: '16px', background: '#ff9800', borderRadius: 8, textAlign: 'center' }}>
-          <div style={{ marginBottom: 12, fontSize: '14px', fontWeight: 600 }}>
-            🚨 ТИМЧАСОВИЙ ДОСТУП ДЛЯ ТЕСТУВАННЯ
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <button 
-              onClick={() => onLogin({ login: 'admin', role: 'admin', name: 'Адміністратор', region: 'Україна' })}
-              style={{ 
-                background: '#1976d2', 
-                color: '#fff', 
-                border: 'none', 
-                padding: '8px 16px', 
-                borderRadius: 4, 
-                cursor: 'pointer',
-                fontSize: '12px'
-              }}
-            >
-              Адміністратор
-            </button>
-            <button 
-              onClick={() => onLogin({ login: 'service', role: 'service', name: 'Сервісна служба', region: 'Київський' })}
-              style={{ 
-                background: '#4caf50', 
-                color: '#fff', 
-                border: 'none', 
-                padding: '8px 16px', 
-                borderRadius: 4, 
-                cursor: 'pointer',
-                fontSize: '12px'
-              }}
-            >
-              Сервісна служба
-            </button>
-            <button 
-              onClick={() => onLogin({ login: 'warehouse', role: 'warehouse', name: 'Зав. склад', region: 'Київський' })}
-              style={{ 
-                background: '#ff9800', 
-                color: '#fff', 
-                border: 'none', 
-                padding: '8px 16px', 
-                borderRadius: 4, 
-                cursor: 'pointer',
-                fontSize: '12px'
-              }}
-            >
-              Зав. склад
-            </button>
-            <button 
-              onClick={() => onLogin({ login: 'accountant', role: 'accountant', name: 'Бухгалтер', region: 'Київський' })}
-              style={{ 
-                background: '#9c27b0', 
-                color: '#fff', 
-                border: 'none', 
-                padding: '8px 16px', 
-                borderRadius: 4, 
-                cursor: 'pointer',
-                fontSize: '12px'
-              }}
-            >
-              Бухгалтер
-            </button>
-            <button 
-              onClick={() => onLogin({ login: 'regional', role: 'regional', name: 'Регіональний керівник', region: 'Київський' })}
-              style={{ 
-                background: '#607d8b', 
-                color: '#fff', 
-                border: 'none', 
-                padding: '8px 16px', 
-                borderRadius: 4, 
-                cursor: 'pointer',
-                fontSize: '12px'
-              }}
-            >
-              Регіональний керівник
-            </button>
-          </div>
-        </div>
       </div>
     </>
   );
