@@ -128,10 +128,9 @@ const labelAboveFields = [
   'approvedByRegionalManager', 'regionalManagerComment'
 ];
 
-// Додаю визначення isRegionReadOnly
-const isRegionReadOnly = user && user.region && user.region !== 'Україна';
-
 export default function ModalTaskForm({ open, onClose, onSave, initialData = {}, mode = 'service', user }) {
+  const isRegionReadOnly = user && user.region && user.region !== 'Україна';
+
   function toSelectString(val) {
     if (val === true) return 'Підтверджено';
     if (val === false) return 'Відмова';
