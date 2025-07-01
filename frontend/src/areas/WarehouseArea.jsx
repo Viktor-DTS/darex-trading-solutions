@@ -52,21 +52,28 @@ const initialTask = {
   transportSum: '',
 };
 
-export default function WarehouseArea() {
-  console.log('WarehouseArea рендериться');
+export default function WarehouseArea({ user }) {
   const [tasks, setTasks] = useState(() => {
     const saved = localStorage.getItem('tasks');
     return saved ? JSON.parse(saved) : [];
   });
-  const [filters, setFilters] = useState({
-    requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: ''
-  });
+  // Ініціалізую filters з усіма можливими ключами для фільтрації
+  const allFilterKeys = allTaskFields
+    .map(f => f.name)
+    .reduce((acc, key) => {
+      acc[key] = '';
+      if (["date", "requestDate"].includes(key)) {
+        acc[key + 'From'] = '';
+        acc[key + 'To'] = '';
+      }
+      return acc;
+    }, {});
+  const [filters, setFilters] = useState(allFilterKeys);
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
   const [tab, setTab] = useState('pending');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
   const [report, setReport] = useState(null);
+  const region = user?.region || '';
 
   useEffect(() => {
     localStorage.setItem('tasks', JSON.stringify(tasks));
@@ -82,12 +89,12 @@ export default function WarehouseArea() {
 
   const handleApprove = (id, approved, comment) => {
     const updatedTasks = tasks.map(t => t.id === id ? { ...t, approvedByWarehouse: approved, warehouseComment: comment !== undefined ? comment : t.warehouseComment } : t);
-    console.log('Warehouse handleApprove', {id, approved, comment, updatedTasks});
     setTasks(updatedTasks);
     localStorage.setItem('tasks', JSON.stringify(updatedTasks));
   };
   const handleFilter = e => {
-    setFilters({ ...filters, [e.target.name]: e.target.value });
+    const newFilters = { ...filters, [e.target.name]: e.target.value };
+    setFilters(newFilters);
   };
   const handleEdit = t => {
     setEditTask(t);
@@ -99,15 +106,38 @@ export default function WarehouseArea() {
     } : t));
     setEditTask(null);
   };
-  const filtered = tasks.filter(t =>
-    (!filters.requestDesc || t.requestDesc.toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
-    (!filters.serviceRegion || t.serviceRegion.toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
-    (!filters.address || t.address.toLowerCase().includes(filters.address.toLowerCase())) &&
-    (!filters.equipmentSerial || t.equipmentSerial.toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
-    (!filters.equipment || t.equipment.toLowerCase().includes(filters.equipment.toLowerCase())) &&
-    (!filters.work || t.work.toLowerCase().includes(filters.work.toLowerCase())) &&
-    (!filters.date || t.date.includes(filters.date))
-  );
+  const filtered = tasks.filter(t => {
+    for (const key in filters) {
+      const value = filters[key];
+      if (!value) continue;
+      if (key.endsWith('From')) {
+        const field = key.replace('From', '');
+        if (!t[field] || t[field] < value) return false;
+      } else if (key.endsWith('To')) {
+        const field = key.replace('To', '');
+        if (!t[field] || t[field] > value) return false;
+      } else if ([
+        'approvedByRegionalManager', 'approvedByWarehouse', 'approvedByAccountant', 'paymentType', 'status'
+      ].includes(key)) {
+        if (t[key]?.toString() !== value.toString()) return false;
+      } else if ([
+        'airFilterCount', 'airFilterPrice', 'serviceBonus'
+      ].includes(key)) {
+        if (Number(t[key]) !== Number(value)) return false;
+      } else if ([
+        'approvalDate', 'bonusApprovalDate'
+      ].includes(key)) {
+        if (t[key] !== value) return false;
+      } else if ([
+        'regionalManagerComment', 'airFilterName'
+      ].includes(key)) {
+        if (!t[key] || !t[key].toString().toLowerCase().includes(value.toLowerCase())) return false;
+      } else if (typeof t[key] === 'string' || typeof t[key] === 'number') {
+        if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
+      }
+    }
+    return true;
+  });
   const pending = filtered.filter(t => t.status === 'Виконано' && (
     t.approvedByWarehouse === null ||
     t.approvedByWarehouse === undefined ||
@@ -133,18 +163,17 @@ export default function WarehouseArea() {
   const columns = allTaskFields.map(f => ({
     key: f.name,
     label: f.label,
-    filter: [
-      'requestDate', 'requestDesc', 'serviceRegion', 'client', 'address', 'equipmentSerial', 'equipment', 'work', 'date', 'serviceTotal'
-    ].includes(f.name)
+    filter: true
   }));
+  console.log('[LOG] WarehouseArea columns:', columns);
 
   // --- Формування звіту ---
   const handleFormReport = () => {
     // Фільтруємо виконані заявки за діапазоном дат
     const filteredTasks = tasks.filter(t => {
       if (t.status !== 'Виконано') return false;
-      if (dateFrom && (!t.date || t.date < dateFrom)) return false;
-      if (dateTo && (!t.date || t.date > dateTo)) return false;
+      if (filters.dateFrom && (!t.date || t.date < filters.dateFrom)) return false;
+      if (filters.dateTo && (!t.date || t.date > filters.dateTo)) return false;
       return true;
     });
     // Деталізація по кожній заявці
@@ -191,7 +220,7 @@ export default function WarehouseArea() {
         </style>
       </head>
       <body>
-        <h2>Звіт по складу за період ${dateFrom || '...'} — ${dateTo || '...'}</h2>
+        <h2>Звіт по складу за період {filters.dateFrom || '...'} — {filters.dateTo || '...'}</h2>
         <h3>Деталізація виконаних робіт</h3>
         <table>
           <thead>
@@ -251,10 +280,10 @@ export default function WarehouseArea() {
       <div style={{display:'flex',alignItems:'center',gap:24,background:'#fff',border:'3px solid #1976d2',borderRadius:16,padding:'24px 40px',margin:'24px 0 32px 0',boxShadow:'0 4px 24px #0002',flexWrap:'wrap',justifyContent:'flex-start'}}>
         <span style={{fontSize:32,fontWeight:900,color:'#1976d2',letterSpacing:2,marginRight:24}}>ЗВІТ ПО МАТЕРІАЛАМ</span>
         <label style={{color:'#22334a',fontWeight:600,fontSize:18}}>З:
-          <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{marginLeft:8,padding:8,fontSize:18,borderRadius:8,border:'1px solid #bbb'}} />
+          <input type="date" name="dateFrom" value={filters.dateFrom} onChange={handleFilter} style={{marginLeft:8,padding:8,fontSize:18,borderRadius:8,border:'1px solid #bbb'}} />
         </label>
         <label style={{color:'#22334a',fontWeight:600,fontSize:18}}>По:
-          <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{marginLeft:8,padding:8,fontSize:18,borderRadius:8,border:'1px solid #bbb'}} />
+          <input type="date" name="dateTo" value={filters.dateTo} onChange={handleFilter} style={{marginLeft:8,padding:8,fontSize:18,borderRadius:8,border:'1px solid #bbb'}} />
         </label>
         <button onClick={handleFormReport} style={{background:'#00bfff',color:'#fff',border:'none',borderRadius:10,padding:'16px 40px',fontWeight:700,fontSize:22,cursor:'pointer',boxShadow:'0 2px 8px #0001',marginLeft:24}}>Сформувати звіт</button>
       </div>
@@ -264,7 +293,7 @@ export default function WarehouseArea() {
       </div>
       {/* --- Відображення звіту (залишаю для тесту, але можна прибрати) --- */}
       {/* {report && ...} */}
-      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || initialTask} mode="warehouse" />
+      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || initialTask} mode="warehouse" user={user} />
       <TaskTable
         tasks={tableData}
         allTasks={tasks}
@@ -277,6 +306,7 @@ export default function WarehouseArea() {
         allColumns={allTaskFields.map(f => ({ key: f.name, label: f.label }))}
         approveField="approvedByWarehouse"
         commentField="warehouseComment"
+        user={user}
       />
     </div>
   );

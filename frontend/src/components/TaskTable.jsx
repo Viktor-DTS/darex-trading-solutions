@@ -1,23 +1,49 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ModalTaskForm from '../ModalTaskForm';
+import { columnsSettingsAPI } from '../utils/columnsSettingsAPI';
 
-function ColumnSettings({ allColumns, selected, onChange, onClose }) {
+function ColumnSettings({ allColumns, selected, onChange, onClose, onReset, user, onExport, onImport, onSave }) {
   return (
     <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:2000,display:'flex',alignItems:'center',justifyContent:'center'}}>
-      <div style={{background:'#fff',color:'#111',padding:32,borderRadius:8,minWidth:320}}>
+      <div style={{background:'#fff',color:'#111',padding:32,borderRadius:8,minWidth:320,maxWidth:500}}>
         <h3>Налаштування колонок</h3>
-        <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:400,overflowY:'auto'}}>
+        {user && (
+          <div style={{marginBottom:16,fontSize:'14px',color:'#666',padding:'8px 12px',background:'#f5f5f5',borderRadius:'4px'}}>
+            <strong>Користувач:</strong> {user.name || user.login} ({user.role})
+          </div>
+        )}
+        <div style={{marginBottom:16,fontSize:'14px',color:'#666'}}>
+          Виберіть колонки для відображення та їх порядок
+          <br />
+          <small style={{color:'#888'}}>
+            Вибрано: {selected.length} з {allColumns.length} колонок
+          </small>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:400,overflowY:'auto',marginBottom:16}}>
           {allColumns.map(col => (
-            <label key={col.key} style={{fontWeight:600}}>
-              <input type="checkbox" checked={selected.includes(col.key)} onChange={e => {
-                if (e.target.checked) onChange([...selected, col.key]);
-                else onChange(selected.filter(k => k !== col.key));
-              }} /> {col.label}
+            <label key={col.key} style={{fontWeight:600,display:'flex',alignItems:'center',gap:8,padding:'4px 0'}}>
+              <input 
+                type="checkbox" 
+                checked={selected.includes(col.key)} 
+                onChange={e => {
+                  if (e.target.checked) onChange([...selected, col.key]);
+                  else onChange(selected.filter(k => k !== col.key));
+                }} 
+              /> 
+              <span>{col.label}</span>
             </label>
           ))}
         </div>
         <div style={{display:'flex',gap:12,marginTop:24}}>
-          <button onClick={onClose} style={{flex:1}}>OK</button>
+          <button onClick={onReset} style={{flex:1,background:'#ff9800',color:'#fff',border:'none',padding:'8px',borderRadius:'4px',cursor:'pointer'}}>
+            Скинути до стандартних
+          </button>
+          <button onClick={() => { onSave(selected); onClose(); }} style={{flex:1,background:'#1976d2',color:'#fff',border:'none',padding:'8px',borderRadius:'4px',cursor:'pointer'}}>
+            Зберегти
+          </button>
+        </div>
+        <div style={{marginTop:16,padding:'12px',background:'#f9f9f9',borderRadius:'4px',fontSize:'12px',color:'#666'}}>
+          <strong>💡 Порада:</strong> Ви можете експортувати свої налаштування для збереження або перенесення на інший комп'ютер.
         </div>
       </div>
     </div>
@@ -42,30 +68,278 @@ export default function TaskTable({
   setDateRange,
   user,
 }) {
-  console.log('TaskTable props', {onApprove});
+  console.log('[LOG] TaskTable received columns:', columns);
+  console.log('[LOG] TaskTable role:', role);
+  
+  // Всі хуки повинні бути на початку компонента
   const [showSettings, setShowSettings] = useState(false);
   const [infoTask, setInfoTask] = useState(null);
   const [showInfo, setShowInfo] = useState(false);
-  const storageKey = role + 'TableColumns';
-  const allColumns = columns;
-  const defaultKeys = columns.map(c => c.key);
-  const [selected, setSelected] = useState(() => {
-    const saved = localStorage.getItem(storageKey);
-    if (saved) return JSON.parse(saved);
-    return defaultKeys;
-  });
-  const visibleColumns = selected.map(key => allColumns.find(c => c.key === key)).filter(Boolean);
-  const handleSettingsSave = (cols) => {
-    setSelected(cols);
-    localStorage.setItem(storageKey, JSON.stringify(cols));
-    setShowSettings(false);
-  };
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [savedSettingsCount, setSavedSettingsCount] = useState(0);
   const [sortField, setSortField] = useState('requestDate');
   const [sortDirection, setSortDirection] = useState('desc');
   const [filter, setFilter] = useState('');
   const [rejectModal, setRejectModal] = useState({ open: false, taskId: null, comment: '' });
   const [editDateModal, setEditDateModal] = useState({ open: false, taskId: null, month: '', year: '' });
-
+  
+  // Персоналізований ключ для кожного користувача
+  const userLogin = user?.login || 'default';
+  const area = role; // Використовуємо role як область
+  
+  const allColumns = columns;
+  const defaultKeys = useMemo(() => columns.map(c => c.key), [columns]);
+  
+  // Змінюємо ініціалізацію стану - не встановлюємо defaultKeys одразу
+  const [selected, setSelected] = useState([]);
+  
+  // Додаємо логування при зміні selected
+  useEffect(() => {
+    console.log('[LOG] Стан selected змінився:', { selected, length: selected.length });
+  }, [selected]);
+  
+  // Завантаження налаштувань з сервера при ініціалізації
+  useEffect(() => {
+    let isMounted = true;
+    const loadUserSettings = async () => {
+      console.log('[DEBUG] Виклик loadSettings для', userLogin, area);
+      if (user?.login && area && columns.length > 0) {
+        setIsLoadingSettings(true);
+        try {
+          const settings = await columnsSettingsAPI.loadSettings(userLogin, area);
+          console.log('[DEBUG] loadSettings повернув:', settings, 'для', userLogin, area);
+          
+          if (isMounted) {
+            // Перевіряємо, чи всі ключі з налаштувань існують у поточних колонках
+            if (settings.visible && 
+                settings.visible.length > 0 && 
+                settings.visible.every(k => columns.some(c => c.key === k))) {
+              console.log('[DEBUG] Встановлюємо збережені налаштування:', settings.visible);
+              setSelected(settings.visible);
+            } else {
+              // Якщо налаштування невалідні, встановлюємо стандартні
+              console.log('[DEBUG] Скидаємо на стандартні (defaultKeys):', defaultKeys);
+              setSelected(defaultKeys);
+            }
+          }
+        } catch (error) {
+          console.error('[DEBUG] Помилка завантаження налаштувань:', error);
+          if (isMounted) {
+            setSelected(defaultKeys);
+          }
+        } finally {
+          if (isMounted) setIsLoadingSettings(false);
+        }
+      } else {
+        // Якщо немає користувача, області або колонок, встановлюємо стандартні
+        if (isMounted) {
+          console.log('[DEBUG] Немає користувача/області/колонок, встановлюємо стандартні:', defaultKeys);
+          setSelected(defaultKeys);
+          setIsLoadingSettings(false);
+        }
+      }
+    };
+    loadUserSettings();
+    return () => { isMounted = false; };
+  }, [user?.login, area, columns]);
+  
+  // Завантаження кількості збережених налаштувань
+  useEffect(() => {
+    const loadSettingsCount = async () => {
+      try {
+        const users = await columnsSettingsAPI.getAllUsers();
+        let count = 0;
+        users.forEach(user => {
+          if (user.columnsSettings) {
+            count += Object.keys(user.columnsSettings).length;
+          }
+        });
+        setSavedSettingsCount(count);
+      } catch (error) {
+        console.error('Помилка завантаження кількості налаштувань:', error);
+      }
+    };
+    loadSettingsCount();
+  }, []);
+  
+  const visibleColumns = selected
+    .map(key => allColumns.find(c => c.key === key))
+    .filter(Boolean);
+    
+  // Додаємо перевірку завантаження налаштувань
+  if (isLoadingSettings || selected.length === 0) {
+    return (
+      <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'200px',color:'#666'}}>
+        <div style={{textAlign:'center'}}>
+          <div style={{fontSize:'24px',marginBottom:'8px'}}>⏳</div>
+          <div>Завантаження налаштувань колонок...</div>
+        </div>
+      </div>
+    );
+  }
+  
+  const handleSettingsSave = async (cols) => {
+    console.log('[DEBUG] Виклик saveSettings для', userLogin, area, cols);
+    console.log('[DEBUG] user:', user);
+    console.log('[DEBUG] user?.login:', user?.login);
+    console.log('[DEBUG] area:', area);
+    setSelected(cols);
+    if (user?.login && area) {
+      try {
+        console.log('[DEBUG] Відправляємо запит на збереження...');
+        const success = await columnsSettingsAPI.saveSettings(userLogin, area, cols, cols);
+        console.log('[DEBUG] saveSettings результат:', success);
+        if (!success) {
+          console.error('Помилка збереження налаштувань');
+          alert('Помилка збереження налаштувань. Спробуйте ще раз.');
+        } else {
+          console.log('[DEBUG] Налаштування успішно збережено!');
+          // Оновлюємо лічильник збережених налаштувань
+          const users = await columnsSettingsAPI.getAllUsers();
+          let count = 0;
+          users.forEach(user => {
+            if (user.columnsSettings) {
+              count += Object.keys(user.columnsSettings).length;
+            }
+          });
+          setSavedSettingsCount(count);
+          console.log('[DEBUG] Оновлено лічильник налаштувань:', count);
+        }
+      } catch (error) {
+        console.error('Помилка збереження налаштувань:', error);
+        alert('Помилка збереження налаштувань: ' + error.message);
+      }
+    } else {
+      console.error('[DEBUG] Не можна зберегти - відсутні user.login або area');
+      console.error('[DEBUG] user?.login:', user?.login);
+      console.error('[DEBUG] area:', area);
+    }
+    setShowSettings(false);
+  };
+  
+  const handleResetSettings = async () => {
+    setSelected(defaultKeys);
+    if (user?.login && area) {
+      try {
+        const success = await columnsSettingsAPI.saveSettings(userLogin, area, defaultKeys, defaultKeys);
+        if (!success) {
+          console.error('Помилка збереження стандартних налаштувань');
+          alert('Помилка збереження стандартних налаштувань. Спробуйте ще раз.');
+        }
+      } catch (error) {
+        console.error('Помилка збереження стандартних налаштувань:', error);
+        alert('Помилка збереження стандартних налаштувань: ' + error.message);
+      }
+    }
+    setShowSettings(false);
+  };
+  
+  const handleExportSettings = () => {
+    const settings = {
+      user: user?.login || 'default',
+      area: area,
+      visible: selected,
+      order: selected,
+      exportDate: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `table-settings-${user?.login || 'default'}-${area}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+  
+  const handleImportSettings = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const settings = JSON.parse(e.target.result);
+        if (settings.user === (user?.login || 'default') && settings.area === area) {
+          // Перевіряємо, чи всі ключі є у columns
+          if (Array.isArray(settings.visible) && settings.visible.every(k => columns.some(c => c.key === k))) {
+            setSelected(settings.visible);
+            if (user?.login && area) {
+              const success = await columnsSettingsAPI.saveSettings(userLogin, area, settings.visible, settings.order || settings.visible);
+              if (success) {
+                alert('Налаштування успішно імпортовано та збережено!');
+              } else {
+                alert('Налаштування імпортовано, але виникла помилка збереження');
+              }
+            } else {
+              alert('Налаштування успішно імпортовано!');
+            }
+          } else {
+            alert('Помилка: деякі колонки не знайдено в поточній конфігурації');
+          }
+        } else {
+          alert('Помилка: файл налаштувань не відповідає поточному користувачу або області');
+        }
+      } catch (error) {
+        alert('Помилка при імпорті налаштувань: ' + error.message);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = ''; // Очищаємо input
+  };
+  
+  const handleViewAllSettings = async () => {
+    try {
+      const users = await columnsSettingsAPI.getAllUsers();
+      const allSettings = [];
+      
+      users.forEach(user => {
+        if (user.columnsSettings) {
+          Object.entries(user.columnsSettings).forEach(([area, settings]) => {
+            allSettings.push({
+              user: user.login,
+              area: area,
+              count: settings.visible ? settings.visible.length : 0
+            });
+          });
+        }
+      });
+      
+      const settingsText = allSettings.map(s => 
+        `${s.user} (${s.area}): ${s.count} колонок`
+      ).join('\n');
+      
+      alert(`Збережені налаштування:\n\n${settingsText || 'Налаштування не знайдено'}`);
+    } catch (error) {
+      alert('Помилка отримання налаштувань: ' + error.message);
+    }
+  };
+  
+  const handleClearAllSettings = async () => {
+    if (confirm('Ви впевнені, що хочете очистити всі збережені налаштування колонок для всіх користувачів?')) {
+      try {
+        const users = await columnsSettingsAPI.getAllUsers();
+        let clearedCount = 0;
+        
+        for (const user of users) {
+          if (user.columnsSettings) {
+            user.columnsSettings = {};
+            const success = await columnsSettingsAPI.saveUser(user);
+            if (success) clearedCount++;
+          }
+        }
+        
+        alert(`Очищено налаштування для ${clearedCount} користувачів`);
+        
+        // Скидаємо поточні налаштування до стандартних
+        setSelected(defaultKeys);
+      } catch (error) {
+        alert('Помилка очищення налаштувань: ' + error.message);
+      }
+    }
+  };
+  
   const statusOrder = {
     'Новий': 1,
     'В роботі': 2,
@@ -148,34 +422,32 @@ export default function TaskTable({
   };
 
   // --- Drag and drop для колонок ---
-  const userLogin = user?.login || 'default';
-  const columnsOrderKey = `${role}_columnsOrder_${userLogin}`;
-
-  useEffect(() => {
-    const savedOrder = localStorage.getItem(columnsOrderKey);
-    if (savedOrder) {
-      const order = JSON.parse(savedOrder);
-      // Перевіряємо, чи всі ключі є у columns
-      if (Array.isArray(order) && order.every(k => columns.some(c => c.key === k))) {
-        setSelected(order);
-      }
-    }
-    // eslint-disable-next-line
-  }, [columnsOrderKey, columns.length]);
-
   const handleDragStart = (e, idx) => {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('colIdx', idx);
   };
-  const handleDrop = (e, idx) => {
+  
+  const handleDrop = async (e, idx) => {
     const fromIdx = +e.dataTransfer.getData('colIdx');
     if (fromIdx === idx) return;
     const newOrder = [...selected];
     const [removed] = newOrder.splice(fromIdx, 1);
     newOrder.splice(idx, 0, removed);
     setSelected(newOrder);
-    localStorage.setItem(columnsOrderKey, JSON.stringify(newOrder));
+    
+    // Зберігаємо новий порядок через API
+    if (user?.login && area) {
+      try {
+        const success = await columnsSettingsAPI.saveSettings(userLogin, area, newOrder, newOrder);
+        if (!success) {
+          console.error('Помилка збереження порядку колонок');
+        }
+      } catch (error) {
+        console.error('Помилка збереження порядку колонок:', error);
+      }
+    }
   };
+  
   const handleDragOver = e => e.preventDefault();
 
   // --- ФУНКЦІЯ для збереження нової дати підтвердження ---
@@ -204,52 +476,152 @@ export default function TaskTable({
     <>
       {/* Вкладки, фільтри, кнопки — окремий контейнер */}
       <div style={{marginBottom: 24}}>
-        <button onClick={()=>setShowSettings(true)} style={{marginBottom:12}}>Налаштувати колонки</button>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12,flexWrap:'wrap'}}>
+          <button 
+            onClick={()=>setShowSettings(true)} 
+            style={{
+              background:'#1976d2',
+              color:'#fff',
+              border:'none',
+              padding:'8px 16px',
+              borderRadius:'4px',
+              cursor:'pointer',
+              display:'flex',
+              alignItems:'center',
+              gap:8
+            }}
+            disabled={isLoadingSettings}
+          >
+            <span>⚙️</span>
+            <span>Налаштувати колонки</span>
+            {isLoadingSettings && <span style={{fontSize:'12px'}}>⏳</span>}
+            {!isLoadingSettings && selected.length !== defaultKeys.length && (
+              <span style={{background:'#ff9800',color:'#fff',padding:'2px 6px',borderRadius:'10px',fontSize:'10px'}}>
+                Персоналізовано
+              </span>
+            )}
+          </button>
+          
+          {/* Група кнопок для персоналізованих налаштувань */}
+          {selected.length !== defaultKeys.length && (
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              <span style={{fontSize:'12px',color:'#666'}}>|</span>
+              <button 
+                onClick={handleResetSettings}
+                style={{
+                  background:'#ff9800',
+                  color:'#fff',
+                  border:'none',
+                  padding:'6px 12px',
+                  borderRadius:'4px',
+                  cursor:'pointer',
+                  fontSize:'12px'
+                }}
+              >
+                Скинути
+              </button>
+              <button 
+                onClick={handleExportSettings}
+                style={{
+                  background:'#4caf50',
+                  color:'#fff',
+                  border:'none',
+                  padding:'6px 12px',
+                  borderRadius:'4px',
+                  cursor:'pointer',
+                  fontSize:'12px'
+                }}
+                title="Експортувати налаштування"
+              >
+                📤 Експорт
+              </button>
+            </div>
+          )}
+          
+          {/* Група кнопок для імпорту та адміністративних функцій */}
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <span style={{fontSize:'12px',color:'#666'}}>|</span>
+            <label style={{
+              background:'#2196f3',
+              color:'#fff',
+              border:'none',
+              padding:'6px 12px',
+              borderRadius:'4px',
+              cursor:'pointer',
+              fontSize:'12px',
+              display:'inline-block'
+            }}>
+              📥 Імпорт
+              <input 
+                type="file" 
+                accept=".json" 
+                onChange={handleImportSettings} 
+                style={{display:'none'}}
+              />
+            </label>
+            <button 
+              onClick={handleViewAllSettings}
+              style={{
+                background:'#9c27b0',
+                color:'#fff',
+                border:'none',
+                padding:'6px 12px',
+                borderRadius:'4px',
+                cursor:'pointer',
+                fontSize:'12px'
+              }}
+              title="Переглянути всі збережені налаштування"
+            >
+              👁️ Переглянути
+            </button>
+            <button 
+              onClick={handleClearAllSettings}
+              style={{
+                background:'#f44336',
+                color:'#fff',
+                border:'none',
+                padding:'6px 12px',
+                borderRadius:'4px',
+                cursor:'pointer',
+                fontSize:'12px'
+              }}
+              title="Очистити всі налаштування"
+            >
+              🗑️ Очистити
+            </button>
+          </div>
+        </div>
+        {user && (
+          <div style={{marginBottom:12,padding:'8px 12px',background:'#e3f2fd',borderRadius:'4px',fontSize:'12px',color:'#1976d2'}}>
+            <strong>👤 Персоналізація:</strong> Налаштування зберігаються окремо для користувача <strong>{user.name || user.login}</strong> 
+            в області <strong>{area === 'service' ? 'Сервісний відділ' : 
+                           area === 'operator' ? 'Оператор' : 
+                           area === 'warehouse' ? 'Склад' : 
+                           area === 'accountant' ? 'Бухгалтерія' : 
+                           area === 'regionalManager' ? 'Регіональний менеджер' : 
+                           area === 'admin' ? 'Адміністратор' : area}</strong>
+            <br />
+            <small style={{color:'#666'}}>
+              💾 В системі збережено: <strong>{savedSettingsCount}</strong> налаштувань користувачів
+              {isLoadingSettings && <span style={{marginLeft:8}}>⏳ Завантаження...</span>}
+            </small>
+          </div>
+        )}
         {showSettings && (
           <ColumnSettings
             allColumns={allColumns}
             selected={selected}
             onChange={setSelected}
             onClose={()=>setShowSettings(false)}
+            onReset={handleResetSettings}
+            user={user}
+            onExport={handleExportSettings}
+            onImport={handleImportSettings}
+            onSave={handleSettingsSave}
           />
         )}
         {/* СПІЛЬНИЙ КОНТЕЙНЕР для фільтрів і таблиці */}
         <div style={{width:'97vw',maxWidth:'none',margin:'0 auto'}}>
-          <div style={{display:'flex', flexDirection:'column', gap:4, marginBottom:12}}>
-            {(() => {
-              // Збираємо всі фільтри в масив
-              const filterInputs = visibleColumns.filter(col => col.filter).map(col => (
-                <input
-                  key={col.key}
-                  name={col.key}
-                  placeholder={col.label}
-                  value={filters[col.key] || ''}
-                  onChange={onFilterChange}
-                  style={{flex:'1 1 120px'}}
-                />
-              ));
-              // Ділимо на три рядки
-              const chunkSize = Math.ceil(filterInputs.length / 3);
-              const rows = [
-                filterInputs.slice(0, chunkSize),
-                filterInputs.slice(chunkSize, chunkSize * 2),
-                filterInputs.slice(chunkSize * 2)
-              ];
-              return rows.map((row, i) => (
-                <div key={i} style={{display:'flex', gap:12, flexWrap:'wrap', marginBottom:2}}>
-                  {row}
-                  {/* Додаю діапазон дати у перший рядок */}
-                  {i === 0 && typeof dateRange !== 'undefined' && typeof setDateRange === 'function' && (
-                    <label style={{display:'flex',alignItems:'center',gap:4,marginLeft:8}}>
-                      Дата проведення робіт (з - по):
-                      <input type="date" value={dateRange.from} onChange={e => setDateRange(r => ({...r, from: e.target.value}))} />
-                      <input type="date" value={dateRange.to} onChange={e => setDateRange(r => ({...r, to: e.target.value}))} />
-                    </label>
-                  )}
-                </div>
-              ));
-            })()}
-          </div>
           {/* Окремий контейнер для таблиці з sticky-заголовками */}
           <style>{`
             .table-scroll {
@@ -272,6 +644,22 @@ export default function TaskTable({
               z-index: 2;
               background: #1976d2;
               white-space: nowrap;
+              padding: 8px 4px;
+              vertical-align: top;
+              min-width: 120px;
+            }
+            .sticky-table thead th input {
+              background: #fff;
+              color: #333;
+              border: 1px solid #ccc;
+              border-radius: 2px;
+              font-size: 10px;
+              padding: 2px;
+            }
+            .sticky-table thead th input:focus {
+              outline: none;
+              border-color: #00bfff;
+              box-shadow: 0 0 2px #00bfff;
             }
             .sticky-table th, .sticky-table td {
               white-space: nowrap;
@@ -307,7 +695,23 @@ export default function TaskTable({
                       onDragOver={handleDragOver}
                       style={{cursor:'move',background:'#1976d2'}}
                     >
-                      {col.label}
+                      <div style={{marginBottom:4}}>{col.label}</div>
+                      {col.filter && (
+                        col.key === 'date' || col.key === 'requestDate' ? (
+                          <div style={{display:'flex',flexDirection:'column',minWidth:120}}>
+                            <input type="date" name={col.key+"From"} value={filters[col.key+"From"] || ''} onChange={onFilterChange} style={{marginBottom:2}} />
+                            <input type="date" name={col.key+"To"} value={filters[col.key+"To"] || ''} onChange={onFilterChange} />
+                          </div>
+                        ) : (
+                          <input
+                            name={col.key}
+                            placeholder={col.label}
+                            value={filters[col.key] || ''}
+                            onChange={onFilterChange}
+                            style={{width:'100%'}}
+                          />
+                        )
+                      )}
                     </th>
                   ))}
                   <th>Статус</th>

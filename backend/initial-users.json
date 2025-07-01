@@ -1,0 +1,56 @@
+[
+  {
+    "id": 1,
+    "login": "admin",
+    "password": "admin123",
+    "role": "admin",
+    "name": "Адміністратор",
+    "region": "Україна",
+    "columnsSettings": {}
+  },
+  {
+    "id": 2,
+    "login": "service",
+    "password": "service123",
+    "role": "service",
+    "name": "Сервісна служба",
+    "region": "Київський",
+    "columnsSettings": {}
+  },
+  {
+    "id": 3,
+    "login": "operator",
+    "password": "operator123",
+    "role": "operator",
+    "name": "Оператор",
+    "region": "Київський",
+    "columnsSettings": {}
+  },
+  {
+    "id": 4,
+    "login": "warehouse",
+    "password": "warehouse123",
+    "role": "warehouse",
+    "name": "Зав. склад",
+    "region": "Київський",
+    "columnsSettings": {}
+  },
+  {
+    "id": 5,
+    "login": "accountant",
+    "password": "accountant123",
+    "role": "accountant",
+    "name": "Бухгалтер",
+    "region": "Київський",
+    "columnsSettings": {}
+  },
+  {
+    "id": 6,
+    "login": "regional",
+    "password": "regional123",
+    "role": "regional",
+    "name": "Регіональний керівник",
+    "region": "Київський",
+    "columnsSettings": {}
+  }
+] 

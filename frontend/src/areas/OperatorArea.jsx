@@ -52,20 +52,29 @@ const initialTask = {
   transportSum: '',
 };
 
-export default function OperatorArea() {
+export default function OperatorArea({ user }) {
   const [tasks, setTasks] = useState(() => {
     const saved = localStorage.getItem('tasks');
     return saved ? JSON.parse(saved) : [];
   });
   const [modalOpen, setModalOpen] = useState(false);
-  const [filters, setFilters] = useState({
-    requestDate: '', requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: ''
-  });
+  const allFilterKeys = allTaskFields
+    .map(f => f.name)
+    .reduce((acc, key) => {
+      acc[key] = '';
+      if (["date", "requestDate"].includes(key)) {
+        acc[key + 'From'] = '';
+        acc[key + 'To'] = '';
+      }
+      return acc;
+    }, {});
+  const [filters, setFilters] = useState(allFilterKeys);
   const [editTask, setEditTask] = useState(null);
   const [tab, setTab] = useState(() => {
     const savedTab = localStorage.getItem('operatorTab');
     return savedTab || 'pending';
   });
+  const region = user?.region || '';
 
   useEffect(() => {
     localStorage.setItem('operatorTab', tab);
@@ -105,26 +114,47 @@ export default function OperatorArea() {
   const columns = allTaskFields.map(f => ({
     key: f.name,
     label: f.label,
-    filter: [
-      'requestDate', 'requestDesc', 'serviceRegion', 'client', 'address', 'equipmentSerial', 'equipment', 'work', 'date', 'serviceTotal'
-    ].includes(f.name)
+    filter: true
   }));
+  console.log('[LOG] OperatorArea columns:', columns);
   const statusOrder = {
     'Новий': 1,
     'В роботі': 2,
     'Виконано': 3,
     'Заблоковано': 4,
   };
-  const filtered = tasks.filter(t =>
-    (!filters.requestDate || t.requestDate.includes(filters.requestDate)) &&
-    (!filters.requestDesc || t.requestDesc.toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
-    (!filters.serviceRegion || t.serviceRegion.toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
-    (!filters.address || t.address.toLowerCase().includes(filters.address.toLowerCase())) &&
-    (!filters.equipmentSerial || t.equipmentSerial.toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
-    (!filters.equipment || t.equipment.toLowerCase().includes(filters.equipment.toLowerCase())) &&
-    (!filters.work || t.work.toLowerCase().includes(filters.work.toLowerCase())) &&
-    (!filters.date || t.date.includes(filters.date))
-  );
+  const filtered = tasks.filter(t => {
+    for (const key in filters) {
+      const value = filters[key];
+      if (!value) continue;
+      if (key.endsWith('From')) {
+        const field = key.replace('From', '');
+        if (!t[field] || t[field] < value) return false;
+      } else if (key.endsWith('To')) {
+        const field = key.replace('To', '');
+        if (!t[field] || t[field] > value) return false;
+      } else if ([
+        'approvedByRegionalManager', 'approvedByWarehouse', 'approvedByAccountant', 'paymentType', 'status'
+      ].includes(key)) {
+        if (t[key]?.toString() !== value.toString()) return false;
+      } else if ([
+        'airFilterCount', 'airFilterPrice', 'serviceBonus'
+      ].includes(key)) {
+        if (Number(t[key]) !== Number(value)) return false;
+      } else if ([
+        'approvalDate', 'bonusApprovalDate'
+      ].includes(key)) {
+        if (t[key] !== value) return false;
+      } else if ([
+        'regionalManagerComment', 'airFilterName'
+      ].includes(key)) {
+        if (!t[key] || !t[key].toString().toLowerCase().includes(value.toLowerCase())) return false;
+      } else if (typeof t[key] === 'string' || typeof t[key] === 'number') {
+        if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
+      }
+    }
+    return true;
+  });
   const sortedTasks = [...filtered].sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
 
   const handleApprove = (id, approved, comment) => {
@@ -167,7 +197,7 @@ export default function OperatorArea() {
         <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
       </div>
       <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16}}>Додати заявку</button>
-      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask||initialTask} mode="operator" />
+      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask||initialTask} mode="operator" user={user} />
       <TaskTable
         tasks={tableData}
         allTasks={tasks}
@@ -181,6 +211,7 @@ export default function OperatorArea() {
         role="operator"
         approveField="approvedByOperator"
         commentField="operatorComment"
+        user={user}
       />
     </div>
   );

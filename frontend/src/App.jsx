@@ -1,5 +1,5 @@
 import React from 'react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import './App.css'
 import './i18n'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +17,7 @@ import ExcelImportModal from './components/ExcelImportModal'
 import AccountantArea from './areas/AccountantArea';
 import WarehouseArea from './areas/WarehouseArea';
 import * as XLSX from 'xlsx';
+import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
@@ -171,10 +172,8 @@ function AccessRulesModal({ open, onClose }) {
 }
 
 function AdminSystemParamsArea() {
-  const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('users');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [users, setUsers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [form, setForm] = useState({ login: '', password: '', role: 'service', name: '', region: '' });
   const [regions, setRegions] = useState(() => {
     const saved = localStorage.getItem('regions');
@@ -197,9 +196,21 @@ function AdminSystemParamsArea() {
   const [editUser, setEditUser] = useState(null);
   const [showAccessModal, setShowAccessModal] = useState(false);
 
+  // Завантаження користувачів з API
   useEffect(() => {
-    localStorage.setItem('users', JSON.stringify(users));
-  }, [users]);
+    const loadUsers = async () => {
+      setIsLoading(true);
+      try {
+        const usersData = await columnsSettingsAPI.getAllUsers();
+        setUsers(usersData);
+      } catch (error) {
+        console.error('Помилка завантаження користувачів:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadUsers();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('regions', JSON.stringify(regions));
@@ -209,20 +220,11 @@ function AdminSystemParamsArea() {
     localStorage.setItem('rolesList', JSON.stringify(rolesList));
   }, [rolesList]);
 
-  useEffect(() => {
-    const sync = () => {
-      const saved = localStorage.getItem('users');
-      setUsers(saved ? JSON.parse(saved) : []);
-    };
-    window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
-  }, []);
-
   const handleChange = e => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleAdd = e => {
+  const handleAdd = async (e) => {
     e.preventDefault();
     
     if (!form.login || !form.password || !form.role || !form.name || !form.region) {
@@ -240,18 +242,39 @@ function AdminSystemParamsArea() {
       id: Date.now()
     };
 
-    setUsers(prevUsers => [...prevUsers, newUser]);
-    setForm({
-      login: '',
-      password: '',
-      role: rolesList[0]?.value || '',
-      name: '',
-      region: regions[0] || ''
-    });
+    try {
+      const success = await columnsSettingsAPI.saveUser(newUser);
+      if (success) {
+        setUsers(prevUsers => [...prevUsers, newUser]);
+        setForm({
+          login: '',
+          password: '',
+          role: rolesList[0]?.value || '',
+          name: '',
+          region: regions[0] || ''
+        });
+      } else {
+        alert('Помилка збереження користувача');
+      }
+    } catch (error) {
+      alert('Помилка збереження користувача: ' + error.message);
+    }
   };
 
-  const handleDelete = id => {
-    setUsers(users.filter(u => u.id !== id));
+  const handleDelete = async (id) => {
+    const userToDelete = users.find(u => u.id === id);
+    if (!userToDelete) return;
+
+    try {
+      const success = await columnsSettingsAPI.deleteUser(userToDelete.login);
+      if (success) {
+        setUsers(users.filter(u => u.id !== id));
+      } else {
+        alert('Помилка видалення користувача');
+      }
+    } catch (error) {
+      alert('Помилка видалення користувача: ' + error.message);
+    }
   };
 
   const handleAddRegion = () => {
@@ -260,6 +283,7 @@ function AdminSystemParamsArea() {
       setNewRegion('');
     }
   };
+  
   const handleAddRole = () => {
     if (newRole && !rolesList.some(r => r.value === newRole)) {
       setRolesList([...rolesList, { value: newRole, label: newRole }]);
@@ -273,13 +297,24 @@ function AdminSystemParamsArea() {
     setEditMode(true);
   };
 
-  const handleSaveEdit = (e) => {
+  const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (!form.login || !form.password || !form.role || !form.name || !form.region) return;
-    setUsers(users.map(u => u.id === editUser.id ? { ...form, id: editUser.id } : u));
-    setEditMode(false);
-    setEditUser(null);
-    setForm({ login: '', password: '', role: rolesList[0]?.value || '', name: '', region: regions[0] || '' });
+    
+    try {
+      const updatedUser = { ...form, id: editUser.id };
+      const success = await columnsSettingsAPI.saveUser(updatedUser);
+      if (success) {
+        setUsers(users.map(u => u.id === editUser.id ? updatedUser : u));
+        setEditMode(false);
+        setEditUser(null);
+        setForm({ login: '', password: '', role: rolesList[0]?.value || '', name: '', region: regions[0] || '' });
+      } else {
+        alert('Помилка збереження користувача');
+      }
+    } catch (error) {
+      alert('Помилка збереження користувача: ' + error.message);
+    }
   };
 
   return (
@@ -312,62 +347,70 @@ function AdminSystemParamsArea() {
         {editMode && <button type="button" onClick={() => { setEditMode(false); setEditUser(null); setForm({ login: '', password: '', role: rolesList[0]?.value || '', name: '', region: regions[0] || '' }); }} style={{flex:'1 1 100px', minWidth:100, background:'#f66', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer'}}>Скасувати</button>}
       </form>
       <h3>Список працівників</h3>
-      <table style={{width:'100%', background:'#22334a', color:'#fff', borderRadius:8, overflow:'hidden'}}>
-        <thead>
-          <tr>
-            <th>Логін</th>
-            <th>Роль</th>
-            <th>ПІБ</th>
-            <th>Регіон</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map(u => (
-            <tr key={u.id}>
-              <td>{u.login}</td>
-              <td>{rolesList.find(r => r.value === u.role)?.label || u.role}</td>
-              <td>{u.name}</td>
-              <td>{u.region}</td>
-              <td>
-                <button onClick={() => handleEdit(u)} style={{background:'#4CAF50', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer', marginRight:8}}>Редагувати</button>
-                <button onClick={() => handleDelete(u.id)} style={{background:'#f66', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer'}}>Видалити</button>
-              </td>
+      {isLoading ? (
+        <div style={{textAlign: 'center', padding: '20px', color: '#666'}}>
+          ⏳ Завантаження користувачів...
+        </div>
+      ) : (
+        <table style={{width:'100%', background:'#22334a', color:'#fff', borderRadius:8, overflow:'hidden'}}>
+          <thead>
+            <tr>
+              <th>Логін</th>
+              <th>Роль</th>
+              <th>ПІБ</th>
+              <th>Регіон</th>
+              <th></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {users.map(u => (
+              <tr key={u.id}>
+                <td>{u.login}</td>
+                <td>{rolesList.find(r => r.value === u.role)?.label || u.role}</td>
+                <td>{u.name}</td>
+                <td>{u.region}</td>
+                <td>
+                  <button onClick={() => handleEdit(u)} style={{background:'#4CAF50', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer', marginRight:8}}>Редагувати</button>
+                  <button onClick={() => handleDelete(u.id)} style={{background:'#f66', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer'}}>Видалити</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       {showAccessModal && <AccessRulesModal open={showAccessModal} onClose={()=>setShowAccessModal(false)} />}
     </div>
   );
 }
 
-function ServiceArea() {
+function ServiceArea({ user }) {
+  const region = user?.region || '';
   const [tasks, setTasks] = useState(() => {
     const saved = localStorage.getItem('tasks');
     return saved ? JSON.parse(saved) : [];
   });
   const [modalOpen, setModalOpen] = useState(false);
+  const allFilterKeys = allTaskFields
+    .map(f => f.name)
+    .reduce((acc, key) => {
+      acc[key] = '';
+      if (["date", "requestDate"].includes(key)) {
+        acc[key + 'From'] = '';
+        acc[key + 'To'] = '';
+      }
+      return acc;
+    }, {});
+  const [filters, setFilters] = useState(allFilterKeys);
   const [editTask, setEditTask] = useState(null);
   const [tab, setTab] = useState('notDone');
-  const [filters, setFilters] = useState({
-    requestDate: '',
-    requestDesc: '',
-    serviceRegion: '',
-    address: '',
-    equipmentSerial: '',
-    equipment: '',
-    work: '',
-    client: '',
-    serviceTotal: '',
-    date: ''
-  });
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
-  // Додаю region для фільтрації (з localStorage або '' за замовчуванням)
-  const [region, setRegion] = useState(() => {
-    const saved = localStorage.getItem('region');
-    return saved !== null && saved !== undefined ? saved : '';
-  });
+
+  // Кешуємо колонки за допомогою useMemo
+  const columns = useMemo(() => allTaskFields.map(f => ({
+    key: f.name,
+    label: f.label,
+    filter: true
+  })), []);
 
   useEffect(() => {
     localStorage.setItem('tasks', JSON.stringify(tasks));
@@ -422,21 +465,43 @@ function ServiceArea() {
   const handleFilter = e => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
-  const filtered = tasks.filter(t =>
-    (region === '' || region === 'Україна' || t.serviceRegion === region) &&
-    (!filters.requestDate || (t.requestDate && t.requestDate.includes(filters.requestDate))) &&
-    (!filters.requestDesc || (t.requestDesc || '').toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
-    (!filters.serviceRegion || (t.serviceRegion || '').toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
-    (!filters.address || (t.address || '').toLowerCase().includes(filters.address.toLowerCase())) &&
-    (!filters.equipmentSerial || (t.equipmentSerial || '').toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
-    (!filters.equipment || (t.equipment || '').toLowerCase().includes(filters.equipment.toLowerCase())) &&
-    (!filters.work || (t.work || '').toLowerCase().includes(filters.work.toLowerCase())) &&
-    (!filters.client || (t.client && t.client.toLowerCase().includes(filters.client.toLowerCase()))) &&
-    (!filters.serviceTotal || (t.serviceTotal && String(t.serviceTotal).includes(filters.serviceTotal))) &&
-    (!filters.edrpou || (t.edrpou && t.edrpou.toLowerCase().includes(filters.edrpou.toLowerCase()))) &&
-    (!dateRange.from || (t.date && t.date >= dateRange.from)) &&
-    (!dateRange.to || (t.date && t.date <= dateRange.to))
-  );
+  const filtered = tasks.filter(t => {
+    // Region filtering
+    if (region !== '' && region !== 'Україна' && t.serviceRegion !== region) return false;
+    
+    // Comprehensive field filtering
+    for (const key in filters) {
+      const value = filters[key];
+      if (!value) continue;
+      
+      if (key.endsWith('From')) {
+        const field = key.replace('From', '');
+        if (!t[field] || t[field] < value) return false;
+      } else if (key.endsWith('To')) {
+        const field = key.replace('To', '');
+        if (!t[field] || t[field] > value) return false;
+      } else if ([
+        'approvedByRegionalManager', 'approvedByWarehouse', 'approvedByAccountant', 'paymentType', 'status'
+      ].includes(key)) {
+        if (t[key]?.toString() !== value.toString()) return false;
+      } else if ([
+        'airFilterCount', 'airFilterPrice', 'serviceBonus'
+      ].includes(key)) {
+        if (Number(t[key]) !== Number(value)) return false;
+      } else if ([
+        'approvalDate', 'bonusApprovalDate'
+      ].includes(key)) {
+        if (t[key] !== value) return false;
+      } else if ([
+        'regionalManagerComment', 'airFilterName'
+      ].includes(key)) {
+        if (!t[key] || !t[key].toString().toLowerCase().includes(value.toLowerCase())) return false;
+      } else if (typeof t[key] === 'string' || typeof t[key] === 'number') {
+        if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
+      }
+    }
+    return true;
+  });
   const notDone = filtered.filter(t => t.status === 'Заявка' || t.status === 'В роботі');
   const pending = filtered.filter(t => t.status === 'Виконано' && (
     t.approvedByWarehouse === null ||
@@ -461,13 +526,6 @@ function ServiceArea() {
   if (tab === 'pending') tableData = pending;
   if (tab === 'done') tableData = done;
   if (tab === 'blocked') tableData = blocked;
-  const columns = allTaskFields.map(f => ({
-    key: f.name,
-    label: f.label,
-    filter: [
-      'requestDate', 'requestDesc', 'serviceRegion', 'client', 'address', 'equipmentSerial', 'equipment', 'work', 'edrpou'
-    ].includes(f.name)
-  }));
   return (
     <div style={{padding:32}}>
       <h2>Заявки сервісної служби</h2>
@@ -478,6 +536,7 @@ function ServiceArea() {
         onSave={handleSave} 
         initialData={editTask||initialTask} 
         mode={tab === 'done' ? 'admin' : 'service'} 
+        user={user}
       />
       <div style={{display:'flex',gap:8,marginBottom:24,justifyContent:'flex-start'}}>
         <button onClick={()=>setTab('notDone')} style={{width:220,padding:'10px 0',background:tab==='notDone'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='notDone'?700:400,cursor:'pointer'}}>Невиконані заявки</button>
@@ -498,20 +557,29 @@ function ServiceArea() {
         role="service"
         dateRange={dateRange}
         setDateRange={setDateRange}
+        user={user}
       />
     </div>
   );
 }
 
-function OperatorArea() {
+function OperatorArea({ user }) {
   const [tasks, setTasks] = useState(() => {
     const saved = localStorage.getItem('tasks');
     return saved ? JSON.parse(saved) : [];
   });
   const [modalOpen, setModalOpen] = useState(false);
-  const [filters, setFilters] = useState({
-    requestDate: '', requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: ''
-  });
+  const allFilterKeys = allTaskFields
+    .map(f => f.name)
+    .reduce((acc, key) => {
+      acc[key] = '';
+      if (["date", "requestDate"].includes(key)) {
+        acc[key + 'From'] = '';
+        acc[key + 'To'] = '';
+      }
+      return acc;
+    }, {});
+  const [filters, setFilters] = useState(allFilterKeys);
   const [editTask, setEditTask] = useState(null);
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
 
@@ -545,37 +613,60 @@ function OperatorArea() {
   const handleDelete = id => {
     setTasks(tasks.filter(t => t.id !== id));
   };
-  const columns = allTaskFields.map(f => ({
+  
+  // Кешуємо колонки за допомогою useMemo
+  const columns = useMemo(() => allTaskFields.map(f => ({
     key: f.name,
     label: f.label,
-    filter: [
-      'requestDate', 'requestDesc', 'serviceRegion', 'client', 'address', 'equipmentSerial', 'equipment', 'work', 'edrpou'
-    ].includes(f.name)
-  }));
+    filter: true
+  })), []);
+  
   const statusOrder = {
     'Новий': 1,
     'В роботі': 2,
     'Виконано': 3,
     'Заблоковано': 4,
   };
-  const filtered = tasks.filter(t =>
-    (!filters.requestDate || (t.requestDate && t.requestDate.includes(filters.requestDate))) &&
-    (!filters.requestDesc || (t.requestDesc || '').toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
-    (!filters.serviceRegion || (t.serviceRegion || '').toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
-    (!filters.address || (t.address || '').toLowerCase().includes(filters.address.toLowerCase())) &&
-    (!filters.equipmentSerial || (t.equipmentSerial || '').toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
-    (!filters.equipment || (t.equipment || '').toLowerCase().includes(filters.equipment.toLowerCase())) &&
-    (!filters.work || (t.work || '').toLowerCase().includes(filters.work.toLowerCase())) &&
-    (!filters.date || (t.date && t.date.includes(filters.date))) &&
-    (!dateRange.from || (t.date && new Date(t.date) >= new Date(dateRange.from))) &&
-    (!dateRange.to || (t.date && new Date(t.date) <= new Date(dateRange.to)))
-  );
+  const filtered = tasks.filter(t => {
+    // Comprehensive field filtering
+    for (const key in filters) {
+      const value = filters[key];
+      if (!value) continue;
+      
+      if (key.endsWith('From')) {
+        const field = key.replace('From', '');
+        if (!t[field] || t[field] < value) return false;
+      } else if (key.endsWith('To')) {
+        const field = key.replace('To', '');
+        if (!t[field] || t[field] > value) return false;
+      } else if ([
+        'approvedByRegionalManager', 'approvedByWarehouse', 'approvedByAccountant', 'paymentType', 'status'
+      ].includes(key)) {
+        if (t[key]?.toString() !== value.toString()) return false;
+      } else if ([
+        'airFilterCount', 'airFilterPrice', 'serviceBonus'
+      ].includes(key)) {
+        if (Number(t[key]) !== Number(value)) return false;
+      } else if ([
+        'approvalDate', 'bonusApprovalDate'
+      ].includes(key)) {
+        if (t[key] !== value) return false;
+      } else if ([
+        'regionalManagerComment', 'airFilterName'
+      ].includes(key)) {
+        if (!t[key] || !t[key].toString().toLowerCase().includes(value.toLowerCase())) return false;
+      } else if (typeof t[key] === 'string' || typeof t[key] === 'number') {
+        if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
+      }
+    }
+    return true;
+  });
   const sortedTasks = [...filtered].sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
   return (
     <div style={{padding:32}}>
       <h2>Заявки оператора</h2>
       <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16}}>Додати заявку</button>
-      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask||initialTask} mode="operator" />
+      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask||initialTask} mode="operator" user={user} />
       <TaskTable
         tasks={sortedTasks}
         allTasks={tasks}
@@ -589,19 +680,28 @@ function OperatorArea() {
         role="operator"
         dateRange={dateRange}
         setDateRange={setDateRange}
+        user={user}
       />
     </div>
   );
 }
 
-function RegionalManagerArea({ tab, onOpenReport, setTab }) {
+function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
   const { t } = useTranslation();
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
   const [taskTab, setTaskTab] = useState('pending');
-  const [filters, setFilters] = useState({
-    requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: ''
-  });
+  const allFilterKeys = allTaskFields
+    .map(f => f.name)
+    .reduce((acc, key) => {
+      acc[key] = '';
+      if (["date", "requestDate"].includes(key)) {
+        acc[key + 'From'] = '';
+        acc[key + 'To'] = '';
+      }
+      return acc;
+    }, {});
+  const [filters, setFilters] = useState(allFilterKeys);
   const [tasks, setTasks] = useState(() => {
     const saved = localStorage.getItem('tasks');
     return saved ? JSON.parse(saved) : [];
@@ -647,9 +747,7 @@ function RegionalManagerArea({ tab, onOpenReport, setTab }) {
   const columns = allTaskFields.map(f => ({
     key: f.name,
     label: f.label,
-    filter: [
-      'requestDate', 'requestDesc', 'serviceRegion', 'client', 'address', 'equipmentSerial', 'equipment', 'work', 'edrpou'
-    ].includes(f.name)
+    filter: true
   }));
   // Переміщаю колонку 'Підтвердження' на друге місце
   const columnsWithApprove = [
@@ -683,17 +781,43 @@ function RegionalManagerArea({ tab, onOpenReport, setTab }) {
   }
 
   // Add filtered tasks definition
-  const filtered = tasks.filter(t =>
-    (!filters.requestDesc || (t.requestDesc || '').toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
-    (!filters.serviceRegion || (t.serviceRegion || '').toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
-    (!filters.address || (t.address || '').toLowerCase().includes(filters.address.toLowerCase())) &&
-    (!filters.equipmentSerial || (t.equipmentSerial || '').toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
-    (!filters.equipment || (t.equipment || '').toLowerCase().includes(filters.equipment.toLowerCase())) &&
-    (!filters.work || (t.work || '').toLowerCase().includes(filters.work.toLowerCase())) &&
-    (!filters.date || (t.date && t.date.includes(filters.date))) &&
-    (!dateRange.from || (t.date && t.date >= dateRange.from)) &&
-    (!dateRange.to || (t.date && t.date <= dateRange.to))
-  );
+  const filtered = tasks.filter(t => {
+    // Region filtering
+    if (region !== '' && region !== 'Україна' && t.serviceRegion !== region) return false;
+    
+    // Comprehensive field filtering
+    for (const key in filters) {
+      const value = filters[key];
+      if (!value) continue;
+      
+      if (key.endsWith('From')) {
+        const field = key.replace('From', '');
+        if (!t[field] || t[field] < value) return false;
+      } else if (key.endsWith('To')) {
+        const field = key.replace('To', '');
+        if (!t[field] || t[field] > value) return false;
+      } else if ([
+        'approvedByRegionalManager', 'approvedByWarehouse', 'approvedByAccountant', 'paymentType', 'status'
+      ].includes(key)) {
+        if (t[key]?.toString() !== value.toString()) return false;
+      } else if ([
+        'airFilterCount', 'airFilterPrice', 'serviceBonus'
+      ].includes(key)) {
+        if (Number(t[key]) !== Number(value)) return false;
+      } else if ([
+        'approvalDate', 'bonusApprovalDate'
+      ].includes(key)) {
+        if (t[key] !== value) return false;
+      } else if ([
+        'regionalManagerComment', 'airFilterName'
+      ].includes(key)) {
+        if (!t[key] || !t[key].toString().toLowerCase().includes(value.toLowerCase())) return false;
+      } else if (typeof t[key] === 'string' || typeof t[key] === 'number') {
+        if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
+      }
+    }
+    return true;
+  });
 
   // --- Додаю month, year, storageKey для табеля ---
   const storageKey = `timesheetData_${year}_${month}`;
@@ -1209,6 +1333,7 @@ function RegionalManagerArea({ tab, onOpenReport, setTab }) {
               onSave={handleSave} 
               initialData={editTask || {}} 
               mode="regional" 
+              user={user}
             />
             <TaskTable
               tasks={taskTab === 'pending' ? filtered.filter(t => t.status === 'Виконано' && (
@@ -1228,6 +1353,7 @@ function RegionalManagerArea({ tab, onOpenReport, setTab }) {
                 allColumns={columnsWithApprove}
                 approveField="approvedByRegionalManager"
                 commentField="regionalManagerComment"
+                user={user}
               />
         </>
       )}
@@ -1630,12 +1756,12 @@ function RegionalManagerTabs({ tab, setTab }) {
 }
 
 const areaByRole = {
-  admin: AdminArea,
+  admin: (props) => <AdminArea {...props} />,
   service: ServiceArea,
   operator: OperatorArea,
   warehouse: WarehouseArea,
   accountant: (props) => <AccountantArea {...props} />,
-  regional: RegionalManagerArea,
+  regional: (props) => <RegionalManagerArea {...props} />,
   reports: ReportBuilder,
 };
 
@@ -2380,7 +2506,7 @@ function ReportBuilder() {
 }
 
 // 2. Додаю компонент для редагування заявок адміністратором
-function AdminEditTasksArea() {
+function AdminEditTasksArea({ user }) {
   const [tasks, setTasks] = useState(() => {
     const saved = localStorage.getItem('tasks');
     return saved ? JSON.parse(saved) : [];
@@ -2473,7 +2599,7 @@ function AdminEditTasksArea() {
         <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
         <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
       </div>
-      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="admin" />
+      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="admin" user={user} />
       <TaskTable
         tasks={tableData}
         allTasks={tasks}
@@ -2492,7 +2618,7 @@ function AdminEditTasksArea() {
 }
 
 // 3. Оновлюю AdminArea для підвкладок
-function AdminArea() {
+function AdminArea({ user }) {
   const [tab, setTab] = useState('system');
   return (
     <div style={{padding:32}}>
@@ -2502,7 +2628,7 @@ function AdminArea() {
         <button onClick={()=>setTab('backup')} style={{padding:'10px 32px',background:tab==='backup'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='backup'?700:400,cursor:'pointer'}}>Відновлення даних</button>
       </div>
       {tab === 'system' && <AdminSystemParamsArea />}
-      {tab === 'edit' && <AdminEditTasksArea />}
+      {tab === 'edit' && <AdminEditTasksArea user={user} />}
       {tab === 'backup' && <AdminBackupArea />}
     </div>
   );

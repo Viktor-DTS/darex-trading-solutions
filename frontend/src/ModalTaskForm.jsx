@@ -123,7 +123,7 @@ const labelAboveFields = [
   'approvedByRegionalManager', 'regionalManagerComment'
 ];
 
-export default function ModalTaskForm({ open, onClose, onSave, initialData = {}, mode = 'service' }) {
+export default function ModalTaskForm({ open, onClose, onSave, initialData = {}, mode = 'service', user }) {
   function toSelectString(val) {
     if (val === true) return 'Підтверджено';
     if (val === false) return 'Відмова';
@@ -232,6 +232,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   const [missingFields, setMissingFields] = useState([]);
   const [showMissingModal, setShowMissingModal] = useState(false);
 
+  // Додаю визначення isRegionReadOnly
+  const isRegionReadOnly = user && user.region && user.region !== 'Україна';
+
+  console.log('user.region:', user?.region, 'isRegionReadOnly:', isRegionReadOnly);
+
   useEffect(() => {
     const f = { ...initialData };
     if ('approvedByWarehouse' in f) f.approvedByWarehouse = toSelectString(f.approvedByWarehouse);
@@ -284,6 +289,12 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     window.addEventListener('storage', sync);
     return () => window.removeEventListener('storage', sync);
   }, []);
+
+  useEffect(() => {
+    if (user && user.region && user.region !== 'Україна' && (!form.serviceRegion || form.serviceRegion !== user.region)) {
+      setForm(f => ({ ...f, serviceRegion: user.region }));
+    }
+  }, [user, form.serviceRegion]);
 
   if (!open) return null;
 
@@ -980,7 +991,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           return (
               <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                 <label>{f.label}</label>
-                <select name={f.name} value={value} onChange={handleChange} disabled={isReadOnly(f.name)}>
+                <select name={f.name} value={value} onChange={handleChange} disabled={isRegionReadOnly}>
                   <option value="">Виберіть регіон</option>
                   {regions.map(r => (
                     <option key={r} value={r}>{r}</option>
