@@ -651,8 +651,8 @@ function ServiceArea({ user }) {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
   const filtered = tasks.filter(t => {
-    // Region filtering
-    if (region !== '' && region !== 'Україна' && t.serviceRegion !== region) return false;
+    // Region filtering - використовуємо user.region замість змінної region
+    if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) return false;
     
     // Comprehensive field filtering
     for (const key in filters) {
@@ -926,7 +926,21 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
   const [reportResultByPeriod, setReportResultByPeriod] = useState(null);
 
   // --- Масив співробітників для табеля ---
-  const filteredUsers = users.filter(u => u.role === 'service' && (region === '' || region === 'Україна' || u.region === region));
+  const filteredUsers = users.filter(u => {
+    // Якщо користувач має роль 'service'
+    if (u.role !== 'service') return false;
+    
+    // Якщо регіон користувача "Україна" - показуємо всіх
+    if (user?.region === 'Україна') return true;
+    
+    // Якщо регіон користувача не "Україна" - показуємо тільки його регіон
+    if (user?.region && user.region !== 'Україна') {
+      return u.region === user.region;
+    }
+    
+    // Якщо регіон користувача не встановлений - показуємо всіх
+    return true;
+  });
 
   // --- Колонки для TaskTable ---
   const columns = allTaskFields.map(f => ({
@@ -967,8 +981,8 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
 
   // Add filtered tasks definition
   const filtered = tasks.filter(t => {
-    // Region filtering
-    if (region !== '' && region !== 'Україна' && t.serviceRegion !== region) return false;
+    // Region filtering - використовуємо user.region замість змінної region
+    if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) return false;
     
     // Comprehensive field filtering
     for (const key in filters) {
@@ -1154,7 +1168,23 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
   };
 
   const handleGenerateReport = () => {
-    const filteredUsers = users.filter(u => u.role === 'service' && (!region || u.region === region));
+    // Використовуємо ту ж логіку фільтрації, що й для основного filteredUsers
+    const filteredUsers = users.filter(u => {
+      // Якщо користувач має роль 'service'
+      if (u.role !== 'service') return false;
+      
+      // Якщо регіон користувача "Україна" - показуємо всіх
+      if (user?.region === 'Україна') return true;
+      
+      // Якщо регіон користувача не "Україна" - показуємо тільки його регіон
+      if (user?.region && user.region !== 'Україна') {
+        return u.region === user.region;
+      }
+      
+      // Якщо регіон користувача не встановлений - показуємо всіх
+      return true;
+    });
+    
     const storageKey = `timesheetData_${reportYear}_${reportMonth}`;
     const data = JSON.parse(localStorage.getItem(storageKey) || '{}');
     const summaryKey = `timesheetSummary_${reportYear}_${reportMonth}`;
@@ -1537,13 +1567,13 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
               user={user}
             />
             <TaskTable
-              tasks={taskTab === 'pending' ? filteredAppDebug.filter(t => t.status === 'Виконано' && (
+              tasks={taskTab === 'pending' ? filtered.filter(t => t.status === 'Виконано' && (
               t.approvedByRegionalManager === null ||
               t.approvedByRegionalManager === undefined ||
               t.approvedByRegionalManager === 'На розгляді' ||
               t.approvedByRegionalManager === false ||
               t.approvedByRegionalManager === 'Відмова'
-              )) : filteredAppDebug.filter(t => t.status === 'Виконано' && (t.approvedByRegionalManager === true || t.approvedByRegionalManager === 'Підтверджено'))}
+              )) : filtered.filter(t => t.status === 'Виконано' && (t.approvedByRegionalManager === true || t.approvedByRegionalManager === 'Підтверджено'))}
                 allTasks={tasks}
                 onApprove={handleApprove}
                 onEdit={handleEdit}
@@ -1572,15 +1602,7 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
                 {years.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </label>
-              <label style={{color:'#fff'}}>Регіон:
-              <select value={region} onChange={e => setRegion(e.target.value)} style={{marginLeft:8}}>
-                <option value="">Україна</option>
-                {Array.from(new Set(users.map(u => u.region).filter(Boolean))).map(r => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-            </label>
-                        </div>
+          </div>
           <button
             onClick={handleFormTimeReport}
             style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer',marginBottom:16}}
@@ -1743,14 +1765,6 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
                   {years.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
                           </label>
-                          <label style={{color:'#222'}}>Регіон:
-                            <select value={region} onChange={e => setRegion(e.target.value)} style={{marginLeft:8}}>
-                              <option value="">Україна</option>
-                              {Array.from(new Set(users.map(u => u.region).filter(Boolean))).map(r => (
-                                <option key={r} value={r}>{r}</option>
-                              ))}
-                            </select>
-                          </label>
                           <label style={{color:'#222', marginLeft: 16, display:'flex', alignItems:'center', fontSize:16}}>
                             <input type="checkbox" checked={reportWithDetails} onChange={e => setReportWithDetails(e.target.checked)} style={{marginRight:8}} /> з деталіровкою
                           </label>
@@ -1788,14 +1802,6 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
             </label>
                           <label style={{color:'#222'}}>Кінець періоду:
                             <input type="date" value={reportPeriodEnd} onChange={e => setReportPeriodEnd(e.target.value)} style={{marginLeft:8}} />
-                          </label>
-                          <label style={{color:'#222'}}>Регіон:
-                            <select value={region} onChange={e => setRegion(e.target.value)} style={{marginLeft:8}}>
-                              <option value="">Україна</option>
-                              {Array.from(new Set(users.map(u => u.region).filter(Boolean))).map(r => (
-                                <option key={r} value={r}>{r}</option>
-                              ))}
-                            </select>
                           </label>
                           <label style={{color:'#222', marginLeft: 16, display:'flex', alignItems:'center', fontSize:16}}>
                             <input type="checkbox" checked={reportWithDetails} onChange={e => setReportWithDetails(e.target.checked)} style={{marginRight:8}} /> з деталіровкою
