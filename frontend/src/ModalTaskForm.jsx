@@ -7,7 +7,7 @@ export const fields = [
   { name: 'company', label: 'Компанія виконавець', type: 'select', options: ['', 'ДТС', 'Дарекс Енерго', 'інша'] },
   { name: 'edrpou', label: 'ЄДРПОУ', type: 'text' },
   { name: 'requestDesc', label: 'Опис заявки', type: 'textarea' },
-  { name: 'serviceRegion', label: 'Регіон сервісного відділу', type: 'select', options: ['', 'Київський', 'Одеський', 'Львівський'] },
+  { name: 'serviceRegion', label: 'Регіон сервісного відділу', type: 'select' },
   { name: 'client', label: 'Замовник', type: 'text' },
   { name: 'invoice', label: 'Номер рахунку', type: 'text' },
   { name: 'paymentType', label: 'Вид оплати', type: 'select', options: ['не вибрано', 'Безготівка', 'Готівка', 'Інше'] },
@@ -83,7 +83,7 @@ const airFilterGroup = ['airFilterName', 'airFilterCount', 'airFilterPrice', 'ai
 const antifreezeGroup = ['antifreezeType', 'antifreezeL', 'antifreezePrice', 'antifreezeSum'];
 const transportGroup = ['carNumber', 'transportKm', 'transportSum', 'workPrice'];
 const expensesGroup = ['perDiem', 'living', 'otherExp', 'bonusApprovalDate'];
-const statusGroup = ['status', 'requestDate', 'serviceRegion', 'company'];
+const statusGroup = ['status', 'requestDate', 'company'];
 const regionClientGroup = ['edrpou', 'client', 'address', 'invoice'];
 const paymentEquipmentGroup = ['paymentType', 'serviceTotal', 'equipment', 'equipmentSerial'];
 const workEngineersGroup = ['date', 'work', 'engineer1', 'engineer2'];
@@ -92,9 +92,14 @@ const warehouseGroup = ['approvedByWarehouse', 'warehouseComment'];
 const accountantGroup = ['approvedByAccountant', 'accountantComment'];
 const regionalManagerGroup = ['approvedByRegionalManager', 'regionalManagerComment'];
 
+// Додаю групу для першого рядка
+const mainHeaderGroup = ['status', 'requestDate', 'company', 'serviceRegion'];
+
+// Додаю mainHeaderRow для першого рядку
+const mainHeaderRow = ['status', 'requestDate', 'company', 'serviceRegion'];
+
 // Новий порядок полів
 const orderedFields = [
-  ...statusGroup,
   'requestDesc',
   ...regionClientGroup,
   ...paymentEquipmentGroup,
@@ -282,19 +287,22 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   }, [initialData, open]);
 
   useEffect(() => {
-    const sync = () => {
+    if (open) {
       const saved = localStorage.getItem('regions');
+      console.log('ModalTaskForm: localStorage.regions =', saved);
       setRegions(saved ? JSON.parse(saved) : ['Київський', 'Одеський', 'Львівський']);
-    };
-    window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
-  }, []);
+    }
+  }, [open]);
 
   useEffect(() => {
-    if (user && user.region && user.region !== 'Україна' && (!form.serviceRegion || form.serviceRegion !== user.region)) {
+    // Підставляти регіон лише якщо створюється нова заявка (form.serviceRegion порожнє і initialData.serviceRegion порожнє)
+    if (
+      user && user.region && user.region !== 'Україна' &&
+      !form.serviceRegion && !initialData.serviceRegion
+    ) {
       setForm(f => ({ ...f, serviceRegion: user.region }));
     }
-  }, [user, form.serviceRegion]);
+  }, [user, form.serviceRegion, initialData.serviceRegion]);
 
   if (!open) return null;
 
@@ -519,16 +527,57 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           margin-bottom: 4px;
           font-weight: 600;
         }
+        .modal-task-form .main-header-group {
+          display: flex;
+          flex-direction: row;
+          gap: 16px;
+          margin-bottom: 24px;
+        }
       `}</style>
       <form className="modal-task-form" onSubmit={handleSubmit} style={{background:'#1a2636',padding:32,paddingBottom:48,borderRadius:0,width:'90vw',maxWidth:1100,maxHeight:'90vh',color:'#fff',boxShadow:'0 4px 32px #0008',overflowY:'auto',display:'flex',flexDirection:'column',justifyContent:'flex-start',marginTop:48,position:'relative'}}>
         <button type="button" onClick={onClose} style={{position:'absolute',top:40,right:24,fontSize:28,background:'none',border:'none',color:'#fff',cursor:'pointer',zIndex:10}} aria-label="Закрити">×</button>
         <h2 style={{marginTop:0}}>Завдання</h2>
         {error && <div style={{color:'#ff6666',marginBottom:16,fontWeight:600}}>{error}</div>}
-        {/* Відображаємо поля у потрібному порядку та групах */}
+        <div style={{display:'flex',gap:16,marginBottom:24}}>
+          {mainHeaderRow.map(n => {
+            const f = fields.find(f=>f.name===n);
+            if (!f) return null;
+            let value = form[f.name] || '';
+            if (f.name === 'serviceRegion') {
+              return (
+                <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'} style={{flex:1}}>
+                  <label>{f.label}</label>
+                  <select name={f.name} value={value} onChange={handleChange} disabled={isRegionReadOnly}>
+                    <option value="">Виберіть регіон</option>
+                    {regions.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+              );
+            }
+            if (f.type === 'select') {
+              return (
+                <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'} style={{flex:1}}>
+                  <label>{f.label}</label>
+                  <select name={f.name} value={value} onChange={handleChange} disabled={isReadOnly(f.name)}>
+                    {(f.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </div>
+              );
+            }
+            return (
+              <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'} style={{flex:1}}>
+                <label>{f.label}</label>
+                <input type={f.type} name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} />
+              </div>
+            );
+          })}
+        </div>
         {orderedFields.map((name, idx) => {
           // Пропускаємо дублікати групових полів (окрім першого елемента кожної групи)
           if ([
-            ...statusGroup.slice(1),
+            ...statusGroup.slice(1).filter(n => n !== 'serviceRegion'),
             ...regionClientGroup.slice(1),
             ...paymentEquipmentGroup.slice(1),
             ...workEngineersGroup.slice(1),
@@ -556,7 +605,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                       <label>{f.label}</label>
                       {f.type === 'select' ? (
                         <select name={f.name} value={form[f.name] || ''} onChange={handleChange} disabled={isReadOnly(f.name)}>
-                          {f.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                          {(f.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
                       ) : (
                         <input type={f.type} name={f.name} value={form[f.name] || ''} onChange={handleChange} readOnly={isReadOnly(f.name)} />
@@ -611,7 +660,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                       <label>{f.label}</label>
                       {f.type === 'select' ? (
                         <select name={f.name} value={form[f.name] || ''} onChange={handleChange} disabled={isReadOnly(f.name)}>
-                          {f.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                          {(f.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
                       ) : (
                         <input type={f.type} name={f.name} value={value} onChange={handleChange} readOnly={f.name==='serviceTotal' || isReadOnly(f.name)} />
@@ -849,6 +898,20 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           // Інші поля — стандартно
           const f = fields.find(f=>f.name===name);
           if (!f) return null;
+          let value = form[f.name] || '';
+          if (f.name === 'serviceRegion') {
+            return (
+              <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
+                <label>{f.label}</label>
+                <select name={f.name} value={value} onChange={handleChange} disabled={isRegionReadOnly}>
+                  <option value="">Виберіть регіон</option>
+                  {regions.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+            );
+          }
           if (name === 'date') {
             return (
               <div className="group" key="workEngineersGroup">
@@ -923,7 +986,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
                       <select name={f.name} value={value} onChange={handleChange} disabled={isReadOnly(f.name)}>
-                        {f.options.map(opt => (
+                        {(f.options || []).map(opt => (
                           <option key={opt} value={opt}>{opt === '' ? 'Оберіть компанію' : opt}</option>
                         ))}
                       </select>
@@ -952,7 +1015,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
                       <select name={f.name} value={value} onChange={handleChange} disabled={isReadOnly(f.name)}>
-                        {f.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        {(f.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                       </select>
                     </div>
                   );
@@ -979,24 +1042,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
                       <select name={f.name} value={value} onChange={handleChange} disabled={isReadOnly(f.name)}>
-                        {f.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        {(f.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                       </select>
                     </div>
                   );
                 })}
-              </div>
-            );
-          }
-          if (f.name === 'serviceRegion') {
-          return (
-              <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
-                <label>{f.label}</label>
-                <select name={f.name} value={value} onChange={handleChange} disabled={isRegionReadOnly}>
-                  <option value="">Виберіть регіон</option>
-                  {regions.map(r => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
               </div>
             );
           }
@@ -1005,7 +1055,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
               <label>{f.label}</label>
               {f.type === 'select' ? (
                 <select name={f.name} value={form[f.name] || ''} onChange={handleChange} disabled={isReadOnly(f.name)}>
-                  {f.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  {(f.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               ) : (
                 <input type={f.type} name={f.name} value={form[f.name] || ''} onChange={handleChange} readOnly={isReadOnly(f.name)} />

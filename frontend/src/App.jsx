@@ -80,20 +80,9 @@ const initialTask = {
 };
 
 // --- Додаю компонент для керування доступом до вкладок ---
-const defaultAccess = {
-  admin: {service: 'full', operator: 'full', warehouse: 'full', accountant: 'full', regional: 'full', admin: 'full', reports: 'full'},
-  service: {service: 'full', operator: 'none', warehouse: 'none', accountant: 'none', regional: 'none', admin: 'none', reports: 'read'},
-  operator: {service: 'none', operator: 'full', warehouse: 'none', accountant: 'none', regional: 'none', admin: 'none', reports: 'read'},
-  warehouse: {service: 'none', operator: 'none', warehouse: 'full', accountant: 'none', regional: 'none', admin: 'none', reports: 'read'},
-  accountant: {service: 'none', operator: 'none', warehouse: 'none', accountant: 'full', regional: 'none', admin: 'none', reports: 'read'},
-  regional: {service: 'none', operator: 'none', warehouse: 'none', accountant: 'none', regional: 'full', admin: 'none', reports: 'read'},
-};
-function AccessRulesModal({ open, onClose }) {
-  const [access, setAccess] = React.useState(() => {
-    const saved = localStorage.getItem('accessRules');
-    return saved ? JSON.parse(saved) : defaultAccess;
-  });
-  const roles = [
+const getDefaultAccess = () => {
+  const savedRoles = localStorage.getItem('rolesList');
+  const roles = savedRoles ? JSON.parse(savedRoles) : [
     { value: 'admin', label: 'Адміністратор' },
     { value: 'service', label: 'Сервісна служба' },
     { value: 'operator', label: 'Оператор' },
@@ -101,6 +90,62 @@ function AccessRulesModal({ open, onClose }) {
     { value: 'accountant', label: 'Бухгалтер' },
     { value: 'regional', label: 'Регіональний керівник' },
   ];
+  
+  const tabs = [
+    { key: 'service', label: 'Сервісна служба' },
+    { key: 'operator', label: 'Оператор' },
+    { key: 'warehouse', label: 'Зав. склад' },
+    { key: 'accountant', label: 'Бухгалтер' },
+    { key: 'regional', label: 'Регіональний керівник' },
+    { key: 'admin', label: 'Адміністратор' },
+    { key: 'reports', label: 'Звіти' },
+  ];
+  
+  const defaultAccess = {};
+  
+  // Створюємо права доступу для кожної ролі
+  roles.forEach(role => {
+    defaultAccess[role.value] = {};
+    tabs.forEach(tab => {
+      // За замовчуванням кожна роль має доступ тільки до своєї вкладки
+      if (role.value === tab.key) {
+        defaultAccess[role.value][tab.key] = 'full';
+      } else if (role.value === 'admin') {
+        // Адміністратор має повний доступ до всього
+        defaultAccess[role.value][tab.key] = 'full';
+      } else if (tab.key === 'reports') {
+        // Всі ролі мають доступ для читання до звітів
+        defaultAccess[role.value][tab.key] = 'read';
+      } else {
+        // Для інших вкладок - немає доступу
+        defaultAccess[role.value][tab.key] = 'none';
+      }
+    });
+  });
+  
+  return defaultAccess;
+};
+
+function AccessRulesModal({ open, onClose }) {
+  const [access, setAccess] = React.useState(() => {
+    const saved = localStorage.getItem('accessRules');
+    return saved ? JSON.parse(saved) : getDefaultAccess();
+  });
+  
+  // Отримуємо поточний список ролей з localStorage
+  const getCurrentRoles = () => {
+    const savedRoles = localStorage.getItem('rolesList');
+    return savedRoles ? JSON.parse(savedRoles) : [
+      { value: 'admin', label: 'Адміністратор' },
+      { value: 'service', label: 'Сервісна служба' },
+      { value: 'operator', label: 'Оператор' },
+      { value: 'warehouse', label: 'Зав. склад' },
+      { value: 'accountant', label: 'Бухгалтер' },
+      { value: 'regional', label: 'Регіональний керівник' },
+    ];
+  };
+  
+  const roles = getCurrentRoles();
   const tabs = [
     { key: 'service', label: 'Сервісна служба' },
     { key: 'operator', label: 'Оператор' },
@@ -115,15 +160,62 @@ function AccessRulesModal({ open, onClose }) {
     { value: 'read', label: 'Тільки для читання' },
     { value: 'none', label: 'Немає доступу' },
   ];
-  const [selectedRole, setSelectedRole] = React.useState(roles[0].value);
+  const [selectedRole, setSelectedRole] = React.useState(roles[0]?.value || 'admin');
+  
+  // Оновлюємо права доступу при зміні списку ролей
+  React.useEffect(() => {
+    const currentRoles = getCurrentRoles();
+    const currentRoleValues = currentRoles.map(r => r.value);
+    const savedAccess = localStorage.getItem('accessRules');
+    const currentAccess = savedAccess ? JSON.parse(savedAccess) : getDefaultAccess();
+    
+    // Додаємо нові ролі з правами за замовчуванням
+    let updatedAccess = { ...currentAccess };
+    let hasChanges = false;
+    
+    currentRoles.forEach(role => {
+      if (!updatedAccess[role.value]) {
+        updatedAccess[role.value] = {};
+        tabs.forEach(tab => {
+          if (role.value === tab.key) {
+            updatedAccess[role.value][tab.key] = 'full';
+          } else if (role.value === 'admin') {
+            updatedAccess[role.value][tab.key] = 'full';
+          } else if (tab.key === 'reports') {
+            updatedAccess[role.value][tab.key] = 'read';
+          } else {
+            updatedAccess[role.value][tab.key] = 'none';
+          }
+        });
+        hasChanges = true;
+      }
+    });
+    
+    // Видаляємо права для ролей, які більше не існують
+    Object.keys(updatedAccess).forEach(roleKey => {
+      if (!currentRoleValues.includes(roleKey)) {
+        delete updatedAccess[roleKey];
+        hasChanges = true;
+      }
+    });
+    
+    if (hasChanges) {
+      setAccess(updatedAccess);
+      localStorage.setItem('accessRules', JSON.stringify(updatedAccess));
+    }
+  }, []);
+  
   const handleChange = (role, tab, value) => {
     setAccess(a => ({ ...a, [role]: { ...a[role], [tab]: value } }));
   };
+  
   const handleSave = () => {
     localStorage.setItem('accessRules', JSON.stringify(access));
     onClose();
   };
+  
   if (!open) return null;
+  
   return (
     <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{background:'#fff',color:'#111',padding:32,borderRadius:8,minWidth:400,maxWidth:600}}>
@@ -279,15 +371,72 @@ function AdminSystemParamsArea() {
 
   const handleAddRegion = () => {
     if (newRegion && !regions.includes(newRegion)) {
-      setRegions([...regions, newRegion]);
+      const updatedRegions = [...regions, newRegion];
+      setRegions(updatedRegions);
+      localStorage.setItem('regions', JSON.stringify(updatedRegions));
+      console.log('Admin: localStorage.regions =', localStorage.getItem('regions'));
+      window.dispatchEvent(new Event('storage'));
       setNewRegion('');
     }
   };
   
   const handleAddRole = () => {
     if (newRole && !rolesList.some(r => r.value === newRole)) {
-      setRolesList([...rolesList, { value: newRole, label: newRole }]);
+      const updatedRolesList = [...rolesList, { value: newRole, label: newRole }];
+      setRolesList(updatedRolesList);
+      
+      // Автоматично оновлюємо права доступу для нової ролі
+      const savedAccess = localStorage.getItem('accessRules');
+      const currentAccess = savedAccess ? JSON.parse(savedAccess) : getDefaultAccess();
+      
+      // Додаємо права для нової ролі
+      const tabs = [
+        { key: 'service', label: 'Сервісна служба' },
+        { key: 'operator', label: 'Оператор' },
+        { key: 'warehouse', label: 'Зав. склад' },
+        { key: 'accountant', label: 'Бухгалтер' },
+        { key: 'regional', label: 'Регіональний керівник' },
+        { key: 'admin', label: 'Адміністратор' },
+        { key: 'reports', label: 'Звіти' },
+      ];
+      
+      currentAccess[newRole] = {};
+      tabs.forEach(tab => {
+        if (newRole === tab.key) {
+          currentAccess[newRole][tab.key] = 'full';
+        } else if (newRole === 'admin') {
+          currentAccess[newRole][tab.key] = 'full';
+        } else if (tab.key === 'reports') {
+          currentAccess[newRole][tab.key] = 'read';
+        } else {
+          currentAccess[newRole][tab.key] = 'none';
+        }
+      });
+      
+      localStorage.setItem('accessRules', JSON.stringify(currentAccess));
       setNewRole('');
+    }
+  };
+
+  const handleDeleteRole = (roleToDelete) => {
+    // Перевіряємо, чи є користувачі з цією роллю
+    const usersWithRole = users.filter(u => u.role === roleToDelete);
+    if (usersWithRole.length > 0) {
+      alert(`Не можна видалити роль "${roleToDelete}" - є користувачі з цією роллю: ${usersWithRole.map(u => u.login).join(', ')}`);
+      return;
+    }
+    
+    // Видаляємо роль зі списку
+    const updatedRolesList = rolesList.filter(r => r.value !== roleToDelete);
+    setRolesList(updatedRolesList);
+    
+    // Видаляємо права доступу для цієї ролі
+    const savedAccess = localStorage.getItem('accessRules');
+    const currentAccess = savedAccess ? JSON.parse(savedAccess) : getDefaultAccess();
+    
+    if (currentAccess[roleToDelete]) {
+      delete currentAccess[roleToDelete];
+      localStorage.setItem('accessRules', JSON.stringify(currentAccess));
     }
   };
 
@@ -319,34 +468,70 @@ function AdminSystemParamsArea() {
 
   return (
     <div style={{padding:32}}>
-      <h2>Додавання працівника</h2>
+      <h2 style={{color: '#333'}}>Додавання працівника</h2>
       <button onClick={()=>setShowAccessModal(true)} style={{marginBottom:16,background:'#1976d2',color:'#fff',padding:'10px 24px',border:'none',borderRadius:6,fontWeight:600}}>Встановити правила доступу</button>
       <form onSubmit={editMode ? handleSaveEdit : handleAdd} style={{display:'flex', gap:16, flexWrap:'wrap', marginBottom:24}}>
-        <input name="login" placeholder="Логін" value={form.login} onChange={handleChange} style={{flex:'1 1 120px'}} />
-        <input name="password" placeholder="Пароль" type="password" value={form.password} onChange={handleChange} style={{flex:'1 1 120px'}} />
+        <input name="login" placeholder="Логін" value={form.login} onChange={handleChange} style={{flex:'1 1 120px', color: '#333'}} />
+        <input name="password" placeholder="Пароль" type="password" value={form.password} onChange={handleChange} style={{flex:'1 1 120px', color: '#333'}} />
         <div style={{display:'flex',flexDirection:'column',minWidth:140}}>
-          <select name="role" value={form.role} onChange={handleChange} style={{flex:'1 1 140px'}}>
+          <select name="role" value={form.role} onChange={handleChange} style={{flex:'1 1 140px', color: '#333'}}>
             {rolesList.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
           </select>
           <div style={{display:'flex',marginTop:4}}>
-            <input value={newRole} onChange={e=>setNewRole(e.target.value)} placeholder="Додати роль" style={{flex:1,minWidth:0}} />
-            <button type="button" onClick={handleAddRole} style={{marginLeft:4}}>+</button>
+            <input value={newRole} onChange={e=>setNewRole(e.target.value)} placeholder="Додати роль" style={{flex:1,minWidth:0, color: '#333'}} />
+            <button type="button" onClick={handleAddRole} style={{marginLeft:4, color: '#333'}}>+</button>
           </div>
         </div>
-        <input name="name" placeholder="ПІБ" value={form.name} onChange={handleChange} style={{flex:'2 1 180px'}} />
+        <input name="name" placeholder="ПІБ" value={form.name} onChange={handleChange} style={{flex:'2 1 180px', color: '#333'}} />
         <div style={{display:'flex',flexDirection:'column',minWidth:120}}>
-          <select name="region" value={form.region} onChange={handleChange} style={{flex:'1 1 120px'}}>
+          <select name="region" value={form.region} onChange={handleChange} style={{flex:'1 1 120px', color: '#333'}}>
             {regions.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
           <div style={{display:'flex',marginTop:4}}>
-            <input value={newRegion} onChange={e=>setNewRegion(e.target.value)} placeholder="Додати регіон" style={{flex:1,minWidth:0}} />
-            <button type="button" onClick={handleAddRegion} style={{marginLeft:4}}>+</button>
+            <input value={newRegion} onChange={e=>setNewRegion(e.target.value)} placeholder="Додати регіон" style={{flex:1,minWidth:0, color: '#333'}} />
+            <button type="button" onClick={handleAddRegion} style={{marginLeft:4, color: '#333'}}>+</button>
           </div>
         </div>
-        <button type="submit" style={{flex:'1 1 100px', minWidth:100}}>{editMode ? 'Зберегти' : 'Додати'}</button>
+        <button type="submit" style={{flex:'1 1 100px', minWidth:100, color: '#333'}}>{editMode ? 'Зберегти' : 'Додати'}</button>
         {editMode && <button type="button" onClick={() => { setEditMode(false); setEditUser(null); setForm({ login: '', password: '', role: rolesList[0]?.value || '', name: '', region: regions[0] || '' }); }} style={{flex:'1 1 100px', minWidth:100, background:'#f66', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer'}}>Скасувати</button>}
       </form>
-      <h3>Список працівників</h3>
+      
+      {/* Секція управління ролями */}
+      <div style={{marginBottom: 24, padding: 16, background: '#f5f5f5', borderRadius: 8}}>
+        <h3 style={{marginTop: 0, marginBottom: 16, color: '#333'}}>Управління ролями</h3>
+        <div style={{display: 'flex', flexWrap: 'wrap', gap: 8}}>
+          {rolesList.map(role => (
+            <div key={role.value} style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 12px',
+              background: '#fff',
+              borderRadius: 4,
+              border: '1px solid #ddd'
+            }}>
+              <span style={{fontWeight: 600, color: '#333'}}>{role.label}</span>
+              <button 
+                onClick={() => handleDeleteRole(role.value)}
+                style={{
+                  background: '#f66',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 2,
+                  padding: '2px 6px',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+                title="Видалити роль"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      <h3 style={{color: '#333'}}>Список працівників</h3>
       {isLoading ? (
         <div style={{textAlign: 'center', padding: '20px', color: '#666'}}>
           ⏳ Завантаження користувачів...
@@ -1317,6 +1502,22 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
     win.document.close();
   };
 
+  // Діагностика
+  const regionAppDebug = user?.region || '';
+  console.log('[DEBUG][APP] user.region:', regionAppDebug);
+  console.log('[DEBUG][APP] tasks.map(serviceRegion):', tasks.map(t => t.serviceRegion));
+  // Додаю фільтрацію як у areas/RegionalManagerArea.jsx
+  const filteredAppDebug = tasks.filter(t => {
+    if (
+      regionAppDebug !== '' &&
+      regionAppDebug !== 'Україна' &&
+      (typeof t.serviceRegion !== 'string' ||
+        t.serviceRegion.trim().toLowerCase() !== regionAppDebug.trim().toLowerCase())
+    ) return false;
+    return true;
+  });
+  console.log('[DEBUG][APP] filtered:', filteredAppDebug.map(t => ({id: t.id, serviceRegion: t.serviceRegion})));
+
   return (
     <>
     <div style={{padding:32}}>
@@ -1336,13 +1537,13 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
               user={user}
             />
             <TaskTable
-              tasks={taskTab === 'pending' ? filtered.filter(t => t.status === 'Виконано' && (
+              tasks={taskTab === 'pending' ? filteredAppDebug.filter(t => t.status === 'Виконано' && (
               t.approvedByRegionalManager === null ||
               t.approvedByRegionalManager === undefined ||
               t.approvedByRegionalManager === 'На розгляді' ||
               t.approvedByRegionalManager === false ||
               t.approvedByRegionalManager === 'Відмова'
-              )) : filtered.filter(t => t.status === 'Виконано' && (t.approvedByRegionalManager === true || t.approvedByRegionalManager === 'Підтверджено'))}
+              )) : filteredAppDebug.filter(t => t.status === 'Виконано' && (t.approvedByRegionalManager === true || t.approvedByRegionalManager === 'Підтверджено'))}
                 allTasks={tasks}
                 onApprove={handleApprove}
                 onEdit={handleEdit}
@@ -1777,13 +1978,13 @@ function App() {
   // Додаю accessRules у стан
   const [accessRules, setAccessRules] = useState(() => {
     const saved = localStorage.getItem('accessRules');
-    return saved ? JSON.parse(saved) : defaultAccess;
+    return saved ? JSON.parse(saved) : getDefaultAccess();
   });
   // Синхронізую з localStorage при зміні в інших вкладках
   useEffect(() => {
     const sync = () => {
       const saved = localStorage.getItem('accessRules');
-      setAccessRules(saved ? JSON.parse(saved) : defaultAccess);
+      setAccessRules(saved ? JSON.parse(saved) : getDefaultAccess());
     };
     window.addEventListener('storage', sync);
     return () => window.removeEventListener('storage', sync);

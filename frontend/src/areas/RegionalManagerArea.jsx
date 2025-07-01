@@ -108,7 +108,20 @@ export default function RegionalManagerArea({ user }) {
     }, 100);
     setEditTask(null);
   };
+  const region = user?.region || '';
+
+  // Діагностика
+  console.log('[DEBUG] user.region:', region);
+  console.log('[DEBUG] tasks.map(serviceRegion):', tasks.map(t => t.serviceRegion));
+
   const filtered = tasks.filter(t => {
+    if (
+      region !== '' &&
+      region !== 'Україна' &&
+      (typeof t.serviceRegion !== 'string' ||
+        t.serviceRegion.trim().toLowerCase() !== region.trim().toLowerCase())
+    ) return false;
+    
     for (const key in filters) {
       const value = filters[key];
       if (!value) continue;
@@ -140,6 +153,10 @@ export default function RegionalManagerArea({ user }) {
     }
     return true;
   });
+
+  // Логую відфільтровані заявки
+  console.log('[DEBUG] filtered:', filtered.map(t => ({id: t.id, serviceRegion: t.serviceRegion})));
+
   const pending = filtered.filter(t => t.status === 'Виконано' && (
     t.approvedByRegionalManager === null ||
     t.approvedByRegionalManager === undefined ||
