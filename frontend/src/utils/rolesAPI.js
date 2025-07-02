@@ -8,7 +8,13 @@ export const rolesAPI = {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return await response.json();
+      const rolesData = await response.json();
+      
+      // Трансформуємо з формату {name} у формат {value, label} для select
+      return rolesData.map(role => ({
+        value: role.name,
+        label: role.name
+      }));
     } catch (error) {
       console.error('Помилка отримання ролей:', error);
       return [
@@ -25,12 +31,15 @@ export const rolesAPI = {
   // Зберегти ролі
   async save(roles) {
     try {
+      // Трансформуємо з формату {value, label} у формат {name} для бекенду
+      const rolesToSave = roles.map(role => ({ name: role.value }));
+      
       const response = await fetch(`${API_BASE_URL}/roles`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(roles),
+        body: JSON.stringify(rolesToSave),
       });
       
       if (!response.ok) {
