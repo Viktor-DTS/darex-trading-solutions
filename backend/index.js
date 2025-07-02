@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const { getFile, createOrUpdateFile } = require('./githubStorage');
 
 const app = express();
 const PORT = 3001;
@@ -238,47 +239,68 @@ function writeTasks(tasks) {
 }
 
 // --- API для заявок ---
-app.get('/api/tasks', (req, res) => {
-  res.json(readTasks());
-});
-
-app.post('/api/tasks', (req, res) => {
+app.get('/api/tasks', async (req, res) => {
   try {
-    const tasks = readTasks();
-    const newTask = { ...req.body, id: Date.now() };
-    tasks.push(newTask);
-    writeTasks(tasks);
-    res.json({ success: true, task: newTask });
+    const { content } = await getFile('backend/data/tasks.json');
+    if (content) {
+      res.json(JSON.parse(content));
+    } else {
+      res.json([]);
+    }
   } catch (error) {
-    console.error('Помилка додавання заявки:', error);
-    res.status(500).json({ error: 'Помилка додавання заявки: ' + error.message });
+    res.status(500).json({ error: 'GitHub read error: ' + error.message });
   }
 });
 
-app.put('/api/tasks/:id', (req, res) => {
+app.post('/api/tasks', async (req, res) => {
   try {
-    const tasks = readTasks();
+    const { content } = await getFile('backend/data/tasks.json');
+    const tasks = content ? JSON.parse(content) : [];
+    const newTask = { ...req.body, id: Date.now() };
+    tasks.push(newTask);
+    await createOrUpdateFile(
+      'backend/data/tasks.json',
+      JSON.stringify(tasks, null, 2),
+      'Add task via API'
+    );
+    res.json({ success: true, task: newTask });
+  } catch (error) {
+    res.status(500).json({ error: 'GitHub write error: ' + error.message });
+  }
+});
+
+app.put('/api/tasks/:id', async (req, res) => {
+  try {
+    const { content } = await getFile('backend/data/tasks.json');
+    let tasks = content ? JSON.parse(content) : [];
     const idx = tasks.findIndex(t => String(t.id) === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'Task not found' });
     tasks[idx] = { ...tasks[idx], ...req.body };
-    writeTasks(tasks);
+    await createOrUpdateFile(
+      'backend/data/tasks.json',
+      JSON.stringify(tasks, null, 2),
+      'Update task via API'
+    );
     res.json({ success: true, task: tasks[idx] });
   } catch (error) {
-    console.error('Помилка оновлення заявки:', error);
-    res.status(500).json({ error: 'Помилка оновлення заявки: ' + error.message });
+    res.status(500).json({ error: 'GitHub write error: ' + error.message });
   }
 });
 
-app.delete('/api/tasks/:id', (req, res) => {
+app.delete('/api/tasks/:id', async (req, res) => {
   try {
-    let tasks = readTasks();
+    const { content } = await getFile('backend/data/tasks.json');
+    let tasks = content ? JSON.parse(content) : [];
     const before = tasks.length;
     tasks = tasks.filter(t => String(t.id) !== req.params.id);
-    writeTasks(tasks);
+    await createOrUpdateFile(
+      'backend/data/tasks.json',
+      JSON.stringify(tasks, null, 2),
+      'Delete task via API'
+    );
     res.json({ success: true, removed: before - tasks.length });
   } catch (error) {
-    console.error('Помилка видалення заявки:', error);
-    res.status(500).json({ error: 'Помилка видалення заявки: ' + error.message });
+    res.status(500).json({ error: 'GitHub write error: ' + error.message });
   }
 });
 
@@ -295,12 +317,29 @@ function writeJson(file, data) {
 }
 
 // --- API для accessRules ---
-app.get('/api/accessRules', (req, res) => {
-  res.json(readJson(accessRulesFile) || {});
+app.get('/api/accessRules', async (req, res) => {
+  try {
+    const { content } = await getFile('backend/data/accessRules.json');
+    if (content) {
+      res.json(JSON.parse(content));
+    } else {
+      res.json({});
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'GitHub read error: ' + error.message });
+  }
 });
-app.post('/api/accessRules', (req, res) => {
-  writeJson(accessRulesFile, req.body);
-  res.json({ success: true });
+app.post('/api/accessRules', async (req, res) => {
+  try {
+    await createOrUpdateFile(
+      'backend/data/accessRules.json',
+      JSON.stringify(req.body, null, 2),
+      'Update accessRules.json via API'
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'GitHub write error: ' + error.message });
+  }
 });
 
 // --- API для roles ---
