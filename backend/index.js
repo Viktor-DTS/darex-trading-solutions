@@ -212,7 +212,8 @@ app.get('/api/regions', async (req, res) => {
 app.post('/api/regions', async (req, res) => {
   try {
     await Region.deleteMany({});
-    await Region.insertMany(req.body);
+    const regions = Array.isArray(req.body) ? req.body : [req.body];
+    await Region.insertMany(regions);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
