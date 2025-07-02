@@ -11,7 +11,7 @@ export const regionsAPI = {
       return await response.json();
     } catch (error) {
       console.error('Помилка отримання регіонів:', error);
-      return ['Київський', 'Одеський', 'Львівський'];
+      return [];
     }
   },
 

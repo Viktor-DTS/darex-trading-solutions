@@ -157,7 +157,8 @@ app.post('/api/regions', async (req, res) => {
     await Region.insertMany(regions);
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Помилка при збереженні регіонів:', error, 'Дані:', req.body);
+    res.status(500).json({ error: error.message, details: error, data: req.body });
   }
 });
 
