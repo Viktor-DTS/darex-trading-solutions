@@ -4,7 +4,7 @@ export const accessRulesAPI = {
   // Отримати всі правила доступу
   async getAll() {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/accessRules`);
+      const response = await fetch(`${API_BASE_URL}/accessRules`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -18,7 +18,7 @@ export const accessRulesAPI = {
   // Зберегти правила доступу
   async save(accessRules) {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/accessRules`, {
+      const response = await fetch(`${API_BASE_URL}/accessRules`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

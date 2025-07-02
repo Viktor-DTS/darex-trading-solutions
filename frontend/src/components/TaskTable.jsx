@@ -21,8 +21,8 @@ function ColumnSettings({ allColumns, selected, onChange, onClose, onSave }) {
                 type="checkbox" 
                 checked={selected.includes(col.key)} 
                 onChange={e => {
-                  if (e.target.checked) onChange([...selected, col.key]);
-                  else onChange(selected.filter(k => k !== col.key));
+                if (e.target.checked) onChange([...selected, col.key]);
+                else onChange(selected.filter(k => k !== col.key));
                 }} 
               /> 
               <span>{col.label}</span>
@@ -170,7 +170,7 @@ export default function TaskTable({
     }
     setShowSettings(false);
   };
-  
+
   const statusOrder = {
     'Новий': 1,
     'В роботі': 2,
@@ -409,22 +409,22 @@ export default function TaskTable({
                     >
                       <div style={{marginBottom:4}}>{col.label}</div>
                       {col.filter && (
-                        col.key === 'date' || col.key === 'requestDate' ? (
-                          <div style={{display:'flex',flexDirection:'column',minWidth:120}}>
-                            <input type="date" name={col.key+"From"} value={filters[col.key+"From"] || ''} onChange={onFilterChange} style={{marginBottom:2}} />
-                            <input type="date" name={col.key+"To"} value={filters[col.key+"To"] || ''} onChange={onFilterChange} />
-                          </div>
-                        ) : (
-                          <input
-                            name={col.key}
-                            placeholder={col.label}
-                            value={filters[col.key] || ''}
-                            onChange={onFilterChange}
-                            style={{width:'100%'}}
-                          />
-                        )
+                          col.key === 'date' || col.key === 'requestDate' ? (
+                            <div style={{display:'flex',flexDirection:'column',minWidth:120}}>
+                              <input type="date" name={col.key+"From"} value={filters[col.key+"From"] || ''} onChange={onFilterChange} style={{marginBottom:2}} />
+                              <input type="date" name={col.key+"To"} value={filters[col.key+"To"] || ''} onChange={onFilterChange} />
+                            </div>
+                          ) : (
+                            <input
+                              name={col.key}
+                              placeholder={col.label}
+                              value={filters[col.key] || ''}
+                              onChange={onFilterChange}
+                              style={{width:'100%'}}
+                            />
+                          )
                       )}
-                    </th>
+                      </th>
                   ))}
                   <th>Статус</th>
                   {role === 'admin' && <th>Дата підтвердження</th>}

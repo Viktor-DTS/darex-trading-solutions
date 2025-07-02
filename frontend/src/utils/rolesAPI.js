@@ -4,7 +4,7 @@ export const rolesAPI = {
   // Отримати всі ролі
   async getAll() {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/roles`);
+      const response = await fetch(`${API_BASE_URL}/roles`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -25,7 +25,7 @@ export const rolesAPI = {
   // Зберегти ролі
   async save(roles) {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/roles`, {
+      const response = await fetch(`${API_BASE_URL}/roles`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

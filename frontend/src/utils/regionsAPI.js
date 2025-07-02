@@ -4,7 +4,7 @@ export const regionsAPI = {
   // Отримати всі регіони
   async getAll() {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/regions`);
+      const response = await fetch(`${API_BASE_URL}/regions`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -18,7 +18,7 @@ export const regionsAPI = {
   // Зберегти регіони
   async save(regions) {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/regions`, {
+      const response = await fetch(`${API_BASE_URL}/regions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
