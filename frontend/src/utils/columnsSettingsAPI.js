@@ -1,5 +1,5 @@
 // Утиліта для роботи з налаштуваннями колонок через API
-const API_BASE_URL = 'http://localhost:3001/api';
+import API_BASE_URL from '../config.js';
 
 export const columnsSettingsAPI = {
   // Завантажити налаштування колонок для користувача та області

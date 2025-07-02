@@ -18,6 +18,7 @@ import AccountantArea from './areas/AccountantArea';
 import WarehouseArea from './areas/WarehouseArea';
 import * as XLSX from 'xlsx';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
+import API_BASE_URL from './config.js';
 
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
@@ -2003,7 +2004,7 @@ function App() {
   }, [regionalTab]);
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/ping')
+    fetch(`${API_BASE_URL}/ping`)
       .then(res => res.json())
       .then(data => setServerMsg(data.message))
       .catch(() => setServerMsg('Сервер недоступний...'))

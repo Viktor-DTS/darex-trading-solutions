@@ -700,5 +700,69 @@
         ]
       }
     }
+  },
+  {
+    "login": "operator",
+    "password": "1906",
+    "role": "operator",
+    "name": "Росарио А.",
+    "region": "Україна",
+    "id": 1751380482673
+  },
+  {
+    "login": "buhdts",
+    "password": "0620",
+    "role": "accountant",
+    "name": "Іващенко А.",
+    "region": "Україна",
+    "id": 1751380526963
+  },
+  {
+    "login": "srvzv",
+    "password": "2519",
+    "role": "regional",
+    "name": "Запорожець В.",
+    "region": "Київський",
+    "id": 1751380570442
+  },
+  {
+    "login": "srvbo",
+    "password": "1519",
+    "role": "service",
+    "name": "Бобриков О.",
+    "region": "Київський",
+    "id": 1751380611498
+  },
+  {
+    "login": "zsga",
+    "password": "2215",
+    "role": "warehouse",
+    "name": "Гутнікова А.",
+    "region": "Київський",
+    "id": 1751380666730
+  },
+  {
+    "login": "srvfr",
+    "password": "1924",
+    "role": "service",
+    "name": "Філь Р.",
+    "region": "Київський",
+    "id": 1751380691994
+  },
+  {
+    "login": "srvmv",
+    "password": "2519",
+    "role": "service",
+    "name": "Михайлишин В.",
+    "region": "Київський",
+    "id": 1751380726386
+  },
+  {
+    "login": "srvga",
+    "password": "191629",
+    "role": "service",
+    "name": "Грибакін О.",
+    "region": "Київський",
+    "id": 1751380761433
   }
 ]

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import API_BASE_URL from './config.js';
 
 const initial = {
   status: '',
@@ -121,7 +122,7 @@ export default function FinancialReport() {
       serviceTotal: calcServiceTotal(),
     };
     try {
-      const res = await fetch('http://localhost:3001/api/report', {
+      const res = await fetch(`${API_BASE_URL}/report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

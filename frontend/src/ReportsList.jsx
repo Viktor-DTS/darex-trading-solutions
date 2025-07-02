@@ -1,13 +1,20 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import API_BASE_URL from './config.js';
 
 export default function ReportsList() {
   const [reports, setReports] = useState([]);
   const [selected, setSelected] = useState(null);
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/reports')
-      .then(res => res.json())
-      .then(setReports);
+    try {
+      const response = await fetch(`${API_BASE_URL}/reports`);
+      if (response.ok) {
+        const data = await response.json();
+        setReports(data);
+      }
+    } catch (error) {
+      console.error('Помилка завантаження звітів:', error);
+    }
   }, []);
 
   if (selected) {

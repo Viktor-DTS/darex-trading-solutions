@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
+import API_BASE_URL from './config.js';
 
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
@@ -51,10 +52,12 @@ export default function Login({ onLogin }) {
     
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/auth', {
+      const response = await fetch(`${API_BASE_URL}/auth`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ login, password })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ login, password }),
       });
       
       if (response.ok) {
