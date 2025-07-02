@@ -101,113 +101,73 @@ app.post('/api/auth', (req, res) => {
   }
 });
 
-// API для отримання всіх користувачів
-app.get('/api/users', (req, res) => {
-  const users = loadUsers();
-  res.json(users);
-});
-
-// API для отримання конкретного користувача
-app.get('/api/users/:login', (req, res) => {
-  const { login } = req.params;
-  const users = loadUsers();
-  const user = users.find(u => u.login === login);
-  
-  if (user) {
-    res.json(user);
-  } else {
-    res.status(404).json({ error: 'Користувача не знайдено' });
+// --- USERS через GitHub ---
+app.get('/api/users', async (req, res) => {
+  try {
+    const { content } = await getFile('backend/data/users.json');
+    if (content) {
+      res.json(JSON.parse(content));
+    } else {
+      res.json([]);
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'GitHub read error: ' + error.message });
   }
 });
 
-// API для оновлення налаштувань колонок користувача
-app.post('/api/users/:login/columns-settings', (req, res) => {
-  const { login } = req.params;
-  const { area, visible, order } = req.body;
-  
-  if (!area || !visible || !order) {
-    return res.status(400).json({ error: 'Відсутні обов\'язкові поля: area, visible, order' });
-  }
-  
-  const users = loadUsers();
-  const userIndex = users.findIndex(u => u.login === login);
-  
-  if (userIndex === -1) {
-    return res.status(404).json({ error: 'Користувача не знайдено' });
-  }
-  
-  // Ініціалізуємо columnsSettings якщо його немає
-  if (!users[userIndex].columnsSettings) {
-    users[userIndex].columnsSettings = {};
-  }
-  
-  // Оновлюємо налаштування для конкретної області
-  users[userIndex].columnsSettings[area] = {
-    visible: visible,
-    order: order
-  };
-  
-  if (saveUsers(users)) {
-    res.json({ success: true, message: 'Налаштування збережено' });
-  } else {
-    res.status(500).json({ error: 'Помилка збереження налаштувань' });
+app.get('/api/users/:login', async (req, res) => {
+  try {
+    const { content } = await getFile('backend/data/users.json');
+    const users = content ? JSON.parse(content) : [];
+    const user = users.find(u => u.login === req.params.login);
+    if (user) {
+      res.json(user);
+    } else {
+      res.status(404).json({ error: 'Користувача не знайдено' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'GitHub read error: ' + error.message });
   }
 });
 
-// API для отримання налаштувань колонок користувача
-app.get('/api/users/:login/columns-settings/:area', (req, res) => {
-  const { login, area } = req.params;
-  const users = loadUsers();
-  const user = users.find(u => u.login === login);
-  
-  if (!user) {
-    return res.status(404).json({ error: 'Користувача не знайдено' });
-  }
-  
-  const settings = user.columnsSettings?.[area];
-  if (settings) {
-    res.json(settings);
-  } else {
-    res.json({ visible: [], order: [] });
-  }
-});
-
-// API для створення/оновлення користувача
-app.post('/api/users', (req, res) => {
-  const userData = req.body;
-  const users = loadUsers();
-  
-  const existingUserIndex = users.findIndex(u => u.login === userData.login);
-  
-  if (existingUserIndex !== -1) {
-    // Оновлюємо існуючого користувача
-    users[existingUserIndex] = { ...users[existingUserIndex], ...userData };
-  } else {
-    // Додаємо нового користувача
-    users.push({ ...userData, id: Date.now() });
-  }
-  
-  if (saveUsers(users)) {
+app.post('/api/users', async (req, res) => {
+  try {
+    const { content } = await getFile('backend/data/users.json');
+    let users = content ? JSON.parse(content) : [];
+    const userData = req.body;
+    const existingUserIndex = users.findIndex(u => u.login === userData.login);
+    if (existingUserIndex !== -1) {
+      users[existingUserIndex] = { ...users[existingUserIndex], ...userData };
+    } else {
+      users.push({ ...userData, id: Date.now() });
+    }
+    await createOrUpdateFile(
+      'backend/data/users.json',
+      JSON.stringify(users, null, 2),
+      'Update users.json via API'
+    );
     res.json({ success: true, message: 'Користувача збережено' });
-  } else {
-    res.status(500).json({ error: 'Помилка збереження користувача' });
+  } catch (error) {
+    res.status(500).json({ error: 'GitHub write error: ' + error.message });
   }
 });
 
-// API для видалення користувача
-app.delete('/api/users/:login', (req, res) => {
-  const { login } = req.params;
-  const users = loadUsers();
-  const filteredUsers = users.filter(u => u.login !== login);
-  
-  if (filteredUsers.length === users.length) {
-    return res.status(404).json({ error: 'Користувача не знайдено' });
-  }
-  
-  if (saveUsers(filteredUsers)) {
+app.delete('/api/users/:login', async (req, res) => {
+  try {
+    const { content } = await getFile('backend/data/users.json');
+    let users = content ? JSON.parse(content) : [];
+    const filteredUsers = users.filter(u => u.login !== req.params.login);
+    if (filteredUsers.length === users.length) {
+      return res.status(404).json({ error: 'Користувача не знайдено' });
+    }
+    await createOrUpdateFile(
+      'backend/data/users.json',
+      JSON.stringify(filteredUsers, null, 2),
+      'Delete user via API'
+    );
     res.json({ success: true, message: 'Користувача видалено' });
-  } else {
-    res.status(500).json({ error: 'Помилка видалення користувача' });
+  } catch (error) {
+    res.status(500).json({ error: 'GitHub write error: ' + error.message });
   }
 });
 
@@ -342,22 +302,56 @@ app.post('/api/accessRules', async (req, res) => {
   }
 });
 
-// --- API для roles ---
-app.get('/api/roles', (req, res) => {
-  res.json(readJson(rolesFile) || []);
+// --- ROLES через GitHub ---
+app.get('/api/roles', async (req, res) => {
+  try {
+    const { content } = await getFile('backend/data/roles.json');
+    if (content) {
+      res.json(JSON.parse(content));
+    } else {
+      res.json([]);
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'GitHub read error: ' + error.message });
+  }
 });
-app.post('/api/roles', (req, res) => {
-  writeJson(rolesFile, req.body);
-  res.json({ success: true });
+app.post('/api/roles', async (req, res) => {
+  try {
+    await createOrUpdateFile(
+      'backend/data/roles.json',
+      JSON.stringify(req.body, null, 2),
+      'Update roles.json via API'
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'GitHub write error: ' + error.message });
+  }
 });
 
-// --- API для regions ---
-app.get('/api/regions', (req, res) => {
-  res.json(readJson(regionsFile) || []);
+// --- REGIONS через GitHub ---
+app.get('/api/regions', async (req, res) => {
+  try {
+    const { content } = await getFile('backend/data/regions.json');
+    if (content) {
+      res.json(JSON.parse(content));
+    } else {
+      res.json([]);
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'GitHub read error: ' + error.message });
+  }
 });
-app.post('/api/regions', (req, res) => {
-  writeJson(regionsFile, req.body);
-  res.json({ success: true });
+app.post('/api/regions', async (req, res) => {
+  try {
+    await createOrUpdateFile(
+      'backend/data/regions.json',
+      JSON.stringify(req.body, null, 2),
+      'Update regions.json via API'
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'GitHub write error: ' + error.message });
+  }
 });
 
 app.listen(PORT, () => {
