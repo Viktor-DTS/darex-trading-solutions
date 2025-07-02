@@ -585,7 +585,7 @@ function AdminSystemParamsArea() {
         <input name="name" placeholder="ПІБ" value={form.name} onChange={handleChange} style={{flex:'2 1 180px', color: '#333'}} />
         <div style={{display:'flex',flexDirection:'column',minWidth:120}}>
           <select name="region" value={form.region} onChange={handleChange} style={{flex:'1 1 120px', color: '#333'}}>
-            {regions.map(r => <option key={r} value={r}>{r}</option>)}
+            {regions.map(r => <option key={r._id || r.name} value={r.name}>{r.name}</option>)}
           </select>
           <div style={{display:'flex',marginTop:4}}>
             <input value={newRegion} onChange={e=>setNewRegion(e.target.value)} placeholder="Додати регіон" style={{flex:1,minWidth:0, color: '#333'}} />
