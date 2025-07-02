@@ -17,6 +17,18 @@ const accessRulesFile = path.join(__dirname, 'data', 'accessRules.json');
 const rolesFile = path.join(__dirname, 'data', 'roles.json');
 const regionsFile = path.join(__dirname, 'data', 'regions.json');
 
+// Функція для створення директорії data якщо вона не існує
+const ensureDataDirectory = () => {
+  const dataDir = path.join(__dirname, 'data');
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+    console.log('Створено директорію data');
+  }
+};
+
+// Викликаємо функцію при запуску сервера
+ensureDataDirectory();
+
 // Функція для завантаження користувачів
 const loadUsers = () => {
   try {
@@ -221,6 +233,7 @@ function readTasks() {
 }
 
 function writeTasks(tasks) {
+  ensureDataDirectory();
   fs.writeFileSync(tasksFile, JSON.stringify(tasks, null, 2));
 }
 
@@ -230,28 +243,43 @@ app.get('/api/tasks', (req, res) => {
 });
 
 app.post('/api/tasks', (req, res) => {
-  const tasks = readTasks();
-  const newTask = { ...req.body, id: Date.now() };
-  tasks.push(newTask);
-  writeTasks(tasks);
-  res.json({ success: true, task: newTask });
+  try {
+    const tasks = readTasks();
+    const newTask = { ...req.body, id: Date.now() };
+    tasks.push(newTask);
+    writeTasks(tasks);
+    res.json({ success: true, task: newTask });
+  } catch (error) {
+    console.error('Помилка додавання заявки:', error);
+    res.status(500).json({ error: 'Помилка додавання заявки: ' + error.message });
+  }
 });
 
 app.put('/api/tasks/:id', (req, res) => {
-  const tasks = readTasks();
-  const idx = tasks.findIndex(t => String(t.id) === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Task not found' });
-  tasks[idx] = { ...tasks[idx], ...req.body };
-  writeTasks(tasks);
-  res.json({ success: true, task: tasks[idx] });
+  try {
+    const tasks = readTasks();
+    const idx = tasks.findIndex(t => String(t.id) === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Task not found' });
+    tasks[idx] = { ...tasks[idx], ...req.body };
+    writeTasks(tasks);
+    res.json({ success: true, task: tasks[idx] });
+  } catch (error) {
+    console.error('Помилка оновлення заявки:', error);
+    res.status(500).json({ error: 'Помилка оновлення заявки: ' + error.message });
+  }
 });
 
 app.delete('/api/tasks/:id', (req, res) => {
-  let tasks = readTasks();
-  const before = tasks.length;
-  tasks = tasks.filter(t => String(t.id) !== req.params.id);
-  writeTasks(tasks);
-  res.json({ success: true, removed: before - tasks.length });
+  try {
+    let tasks = readTasks();
+    const before = tasks.length;
+    tasks = tasks.filter(t => String(t.id) !== req.params.id);
+    writeTasks(tasks);
+    res.json({ success: true, removed: before - tasks.length });
+  } catch (error) {
+    console.error('Помилка видалення заявки:', error);
+    res.status(500).json({ error: 'Помилка видалення заявки: ' + error.message });
+  }
 });
 
 function readJson(file) {
@@ -262,6 +290,7 @@ function readJson(file) {
   }
 }
 function writeJson(file, data) {
+  ensureDataDirectory();
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
