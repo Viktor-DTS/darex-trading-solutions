@@ -235,6 +235,27 @@ app.get('/api/reports', (req, res) => {
   res.json(reports);
 });
 
+// API для авторизації користувача
+app.post('/api/auth', async (req, res) => {
+  const { login, password } = req.body;
+
+  if (!login || !password) {
+    return res.status(400).json({ error: 'Відсутні логін або пароль' });
+  }
+
+  try {
+    const user = await User.findOne({ login, password });
+    if (user) {
+      const { password: _, ...userWithoutPassword } = user.toObject();
+      res.json({ success: true, user: userWithoutPassword });
+    } else {
+      res.status(401).json({ error: 'Невірний логін або пароль' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Сервер запущено на http://localhost:${PORT}`);
 }); 
