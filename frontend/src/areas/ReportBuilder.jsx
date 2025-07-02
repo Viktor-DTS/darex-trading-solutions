@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { tasksAPI } from '../utils/tasksAPI';
 
 export default function ReportBuilder() {
-  const [tasks, setTasks] = useState(() => {
-    const saved = localStorage.getItem('tasks');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     requestDate: '', requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: ''
   });
@@ -32,12 +31,8 @@ export default function ReportBuilder() {
   ]);
 
   useEffect(() => {
-    const sync = () => {
-      const saved = localStorage.getItem('tasks');
-      setTasks(saved ? JSON.parse(saved) : []);
-    };
-    window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
+    setLoading(true);
+    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
 
   const handleFilter = e => {
@@ -134,6 +129,7 @@ export default function ReportBuilder() {
       maxWidth: '1200px'
     }}>
       <h2>Конструктор звітів</h2>
+      {loading && <div style={{color: '#fff', marginBottom: '16px'}}>Завантаження...</div>}
       <div style={{marginBottom: '16px'}}>
         <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
           {availableFields.map(field => (

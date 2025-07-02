@@ -746,10 +746,8 @@ function ServiceArea({ user }) {
 }
 
 function OperatorArea({ user }) {
-  const [tasks, setTasks] = useState(() => {
-    const saved = localStorage.getItem('tasks');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const allFilterKeys = allTaskFields
     .map(f => f.name)
@@ -766,24 +764,21 @@ function OperatorArea({ user }) {
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
 
   useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-  }, [tasks]);
-  useEffect(() => {
-    const sync = () => {
-      const saved = localStorage.getItem('tasks');
-      setTasks(saved ? JSON.parse(saved) : []);
-    };
-    window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
+    setLoading(true);
+    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
 
-  const handleSave = (task) => {
+  const handleSave = async (task) => {
+    setLoading(true);
     if (editTask) {
-      setTasks(tasks.map(t => t.id === editTask.id ? { ...task, id: editTask.id } : t));
+      const updated = await tasksAPI.update(editTask.id, task);
+      setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
     } else {
-      setTasks([...tasks, { ...initialTask, ...task, id: Date.now() }]);
+      const added = await tasksAPI.add({ ...initialTask, ...task });
+      setTasks(tasks => [...tasks, added]);
     }
     setEditTask(null);
+    setLoading(false);
   };
   const handleFilter = e => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
@@ -792,8 +787,11 @@ function OperatorArea({ user }) {
     setEditTask(t);
     setModalOpen(true);
   };
-  const handleDelete = id => {
-    setTasks(tasks.filter(t => t.id !== id));
+  const handleDelete = async id => {
+    setLoading(true);
+    await tasksAPI.remove(id);
+    setTasks(tasks => tasks.filter(t => t.id !== id));
+    setLoading(false);
   };
   
   // Кешуємо колонки за допомогою useMemo
@@ -847,6 +845,7 @@ function OperatorArea({ user }) {
   return (
     <div style={{padding:32}}>
       <h2>Заявки оператора</h2>
+      {loading && <div>Завантаження...</div>}
       <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16}}>Додати заявку</button>
       <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask||initialTask} mode="operator" user={user} />
       <TaskTable
@@ -884,10 +883,8 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
       return acc;
     }, {});
   const [filters, setFilters] = useState(allFilterKeys);
-  const [tasks, setTasks] = useState(() => {
-    const saved = localStorage.getItem('tasks');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState(() => {
     const saved = localStorage.getItem('users');
     return saved ? JSON.parse(saved) : [];
@@ -907,6 +904,12 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
   const [selectReportOpen, setSelectReportOpen] = useState(false);
   const [reportType, setReportType] = useState('month');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
+
+  // Завантаження завдань з API
+  useEffect(() => {
+    setLoading(true);
+    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
+  }, []);
 
   // --- Додаю month, year, storageKey для табеля ---
   const now = new Date();
@@ -966,14 +969,17 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
   }
 
   // --- Функція handleApprove для підтвердження задач ---
-  function handleApprove(id, approved, comment) {
-    const updatedTasks = tasks.map(t => t.id === id ? { 
-      ...t, 
-      approvedByRegionalManager: approved, 
-      regionalManagerComment: comment !== undefined ? comment : t.regionalManagerComment 
-    } : t);
-    setTasks(updatedTasks);
-    localStorage.setItem('tasks', JSON.stringify(updatedTasks));
+  async function handleApprove(id, approved, comment) {
+    setLoading(true);
+    const t = tasks.find(t => t.id === id);
+    if (!t) return;
+    const updated = await tasksAPI.update(id, {
+      ...t,
+      approvedByRegionalManager: approved,
+      regionalManagerComment: comment !== undefined ? comment : t.regionalManagerComment
+    });
+    setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
+    setLoading(false);
   }
 
   // Add filtered tasks definition
@@ -1187,7 +1193,7 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
     const summaryKey = `timesheetSummary_${reportYear}_${reportMonth}`;
     const summary = JSON.parse(localStorage.getItem(summaryKey) || '{}');
     const payData = JSON.parse(localStorage.getItem(`payData_${reportYear}_${reportMonth}`) || '{}');
-    const tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+    // Використовуємо завдання з API замість localStorage
     const isApproved = v => v === true || v === 'Підтверджено';
     const monthStr = String(reportMonth).padStart(2, '0');
     const yearStr = String(reportYear);
@@ -1679,7 +1685,7 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
                       const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
                       const overtimePay = overtime * overtimeRate;
                       const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
-                      const tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+                      // Використовуємо завдання з API замість localStorage
                       const isApproved = v => v === true || v === 'Підтверджено';
                       const engineerName = u.name;
                       const monthStr = String(month).padStart(2, '0');
@@ -2715,10 +2721,8 @@ function ReportBuilder() {
 
 // 2. Додаю компонент для редагування заявок адміністратором
 function AdminEditTasksArea({ user }) {
-  const [tasks, setTasks] = useState(() => {
-    const saved = localStorage.getItem('tasks');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: ''
   });
@@ -2734,28 +2738,21 @@ function AdminEditTasksArea({ user }) {
   }, [tab]);
 
   useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  useEffect(() => {
-    const sync = () => {
-      const saved = localStorage.getItem('tasks');
-      setTasks(saved ? JSON.parse(saved) : []);
-    };
-    window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
+    setLoading(true);
+    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
 
-  const handleApprove = (id, approved, comment) => {
-    const updatedTasks = tasks.map(t => 
-      t.id === id ? { 
-        ...t, 
-        approvedByAccountant: approved, 
-        accountantComment: comment !== undefined ? comment : t.accountantComment 
-      } : t
-    );
-    setTasks(updatedTasks);
-    localStorage.setItem('tasks', JSON.stringify(updatedTasks));
+  const handleApprove = async (id, approved, comment) => {
+    setLoading(true);
+    const t = tasks.find(t => t.id === id);
+    if (!t) return;
+    const updated = await tasksAPI.update(id, {
+      ...t,
+      approvedByAccountant: approved,
+      accountantComment: comment !== undefined ? comment : t.accountantComment
+    });
+    setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
+    setLoading(false);
   };
   const handleFilter = e => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
@@ -2764,13 +2761,12 @@ function AdminEditTasksArea({ user }) {
     setEditTask(t);
     setModalOpen(true);
   };
-  const handleSave = (task) => {
-    const updatedTasks = tasks.map(t => t.id === task.id ? {
-      ...task
-    } : t);
-    setTasks(updatedTasks);
-    localStorage.setItem('tasks', JSON.stringify(updatedTasks));
+  const handleSave = async (task) => {
+    setLoading(true);
+    const updated = await tasksAPI.update(task.id, task);
+    setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
     setEditTask(null);
+    setLoading(false);
   };
   const filtered = tasks.filter(t =>
     (!filters.requestDesc || t.requestDesc.toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
@@ -2803,6 +2799,7 @@ function AdminEditTasksArea({ user }) {
   return (
     <div style={{padding:32}}>
       <h2>Редагування заявок (Адміністратор)</h2>
+      {loading && <div>Завантаження...</div>}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
         <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
         <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
@@ -2859,45 +2856,56 @@ function AdminBackupArea() {
   const [showExcelImport, setShowExcelImport] = useState(false);
 
   // --- Функція для експорту всіх завдань в Excel ---
-  const handleExportToExcel = () => {
-    const tasksToExport = JSON.parse(localStorage.getItem('tasks') || '[]');
+  const handleExportToExcel = async () => {
+    try {
+      const tasksToExport = await tasksAPI.getAll();
 
-    if (tasksToExport.length === 0) {
-      alert('Немає завдань для експорту.');
-      return;
+      if (tasksToExport.length === 0) {
+        alert('Немає завдань для експорту.');
+        return;
+      }
+
+      // Використовуємо українські назви з allTaskFields для заголовків
+      const headers = allTaskFields.map(field => field.label);
+      
+      // Формуємо дані для рядків
+      const data = tasksToExport.map(task => {
+        return allTaskFields.map(field => task[field.name] || '');
+      });
+
+      // Створюємо робочий аркуш
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Усі завдання');
+
+      // Запускаємо завантаження файлу
+      XLSX.writeFile(workbook, 'export_all_tasks.xlsx');
+    } catch (error) {
+      console.error('Помилка експорту:', error);
+      alert('Помилка при експорті завдань. Спробуйте ще раз.');
     }
-
-    // Використовуємо українські назви з allTaskFields для заголовків
-    const headers = allTaskFields.map(field => field.label);
-    
-    // Формуємо дані для рядків
-    const data = tasksToExport.map(task => {
-      return allTaskFields.map(field => task[field.name] || '');
-    });
-
-    // Створюємо робочий аркуш
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Усі завдання');
-
-    // Запускаємо завантаження файлу
-    XLSX.writeFile(workbook, 'export_all_tasks.xlsx');
   };
 
   // --- Додаю створення бекапу ---
-  const createBackup = () => {
-    const now = new Date();
-    const backup = {
-      id: Date.now(),
-      date: now.toISOString(),
-      data: localStorage.getItem('tasks') // можна додати інші дані
-    };
-    let newBackups = [...backups, backup];
-    if (newBackups.length > 50) newBackups = newBackups.slice(newBackups.length - 50);
-    setBackups(newBackups);
-    localStorage.setItem('backups', JSON.stringify(newBackups));
-    setLastAutoBackup(now);
-    localStorage.setItem('lastAutoBackup', now.toISOString());
+  const createBackup = async () => {
+    try {
+      const now = new Date();
+      const tasksData = await tasksAPI.getAll();
+      const backup = {
+        id: Date.now(),
+        date: now.toISOString(),
+        data: JSON.stringify(tasksData) // зберігаємо дані завдань з API
+      };
+      let newBackups = [...backups, backup];
+      if (newBackups.length > 50) newBackups = newBackups.slice(newBackups.length - 50);
+      setBackups(newBackups);
+      localStorage.setItem('backups', JSON.stringify(newBackups));
+      setLastAutoBackup(now);
+      localStorage.setItem('lastAutoBackup', now.toISOString());
+    } catch (error) {
+      console.error('Помилка створення бекапу:', error);
+      alert('Помилка при створенні бекапу. Спробуйте ще раз.');
+    }
   };
 
   // --- Видалення бекапу ---
@@ -2927,11 +2935,25 @@ function AdminBackupArea() {
   };
 
   // --- Відновлення з бекапу ---
-  const restoreBackup = backup => {
+  const restoreBackup = async backup => {
     if (window.confirm('Відновити дані з цього бекапу? Поточні дані будуть замінені.')) {
       if (backup.data) {
-        localStorage.setItem('tasks', backup.data);
-        alert('Дані успішно відновлено! Оновіть сторінку для застосування змін.');
+        try {
+          const tasksData = JSON.parse(backup.data);
+          // Очищаємо поточні завдання
+          const currentTasks = await tasksAPI.getAll();
+          for (const task of currentTasks) {
+            await tasksAPI.remove(task.id);
+          }
+          // Додаємо завдання з бекапу
+          for (const task of tasksData) {
+            await tasksAPI.add(task);
+          }
+          alert('Дані успішно відновлено! Оновіть сторінку для застосування змін.');
+        } catch (error) {
+          console.error('Помилка відновлення:', error);
+          alert('Помилка при відновленні даних. Спробуйте ще раз.');
+        }
       } else {
         alert('У цьому бекапі немає даних для відновлення.');
       }
@@ -2939,19 +2961,15 @@ function AdminBackupArea() {
   };
 
   // --- Обробка імпорту Excel ---
-  const handleExcelImport = (importedTasks) => {
+  const handleExcelImport = async (importedTasks) => {
     try {
-      // Отримуємо поточні завдання
-      const currentTasks = JSON.parse(localStorage.getItem('tasks') || '[]');
-      
-      // Додаємо нові завдання
-      const updatedTasks = [...currentTasks, ...importedTasks];
-      
-      // Зберігаємо в localStorage
-      localStorage.setItem('tasks', JSON.stringify(updatedTasks));
+      // Додаємо нові завдання через API
+      for (const task of importedTasks) {
+        await tasksAPI.add(task);
+      }
       
       // Створюємо бекап перед імпортом
-      createBackup();
+      await createBackup();
       
       alert(`Успішно імпортовано ${importedTasks.length} завдань!`);
       
