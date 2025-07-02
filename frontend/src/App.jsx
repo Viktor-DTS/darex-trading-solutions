@@ -21,6 +21,8 @@ import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import API_BASE_URL from './config.js';
 import { tasksAPI } from './utils/tasksAPI';
 import { accessRulesAPI } from './utils/accessRulesAPI';
+import { rolesAPI } from './utils/rolesAPI';
+import { regionsAPI } from './utils/regionsAPI';
 
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
@@ -83,9 +85,8 @@ const initialTask = {
 };
 
 // --- Додаю компонент для керування доступом до вкладок ---
-const getDefaultAccess = () => {
-  const savedRoles = localStorage.getItem('rolesList');
-  const roles = savedRoles ? JSON.parse(savedRoles) : [
+const getDefaultAccess = (rolesList = []) => {
+  const roles = rolesList.length > 0 ? rolesList : [
     { value: 'admin', label: 'Адміністратор' },
     { value: 'service', label: 'Сервісна служба' },
     { value: 'operator', label: 'Оператор' },
@@ -132,21 +133,26 @@ const getDefaultAccess = () => {
 function AccessRulesModal({ open, onClose }) {
   const [access, setAccess] = React.useState({});
   const [loading, setLoading] = React.useState(true);
+  const [roles, setRoles] = React.useState([]);
   
-  // Отримуємо поточний список ролей з localStorage
-  const getCurrentRoles = () => {
-    const savedRoles = localStorage.getItem('rolesList');
-    return savedRoles ? JSON.parse(savedRoles) : [
-      { value: 'admin', label: 'Адміністратор' },
-      { value: 'service', label: 'Сервісна служба' },
-      { value: 'operator', label: 'Оператор' },
-      { value: 'warehouse', label: 'Зав. склад' },
-      { value: 'accountant', label: 'Бухгалтер' },
-      { value: 'regional', label: 'Регіональний керівник' },
-    ];
+  // Отримуємо поточний список ролей з API
+  const getCurrentRoles = async () => {
+    try {
+      const rolesData = await rolesAPI.getAll();
+      return rolesData;
+    } catch (error) {
+      console.error('Помилка отримання ролей:', error);
+      return [
+        { value: 'admin', label: 'Адміністратор' },
+        { value: 'service', label: 'Сервісна служба' },
+        { value: 'operator', label: 'Оператор' },
+        { value: 'warehouse', label: 'Зав. склад' },
+        { value: 'accountant', label: 'Бухгалтер' },
+        { value: 'regional', label: 'Регіональний керівник' },
+      ];
+    }
   };
   
-  const roles = getCurrentRoles();
   const tabs = [
     { key: 'service', label: 'Сервісна служба' },
     { key: 'operator', label: 'Оператор' },
@@ -161,17 +167,23 @@ function AccessRulesModal({ open, onClose }) {
     { value: 'read', label: 'Тільки для читання' },
     { value: 'none', label: 'Немає доступу' },
   ];
-  const [selectedRole, setSelectedRole] = React.useState(roles[0]?.value || 'admin');
+  const [selectedRole, setSelectedRole] = React.useState('admin');
   
   // Завантаження правил доступу з API
   React.useEffect(() => {
     const loadAccessRules = async () => {
       setLoading(true);
       try {
+        // Завантажуємо ролі
+        const rolesData = await getCurrentRoles();
+        setRoles(rolesData);
+        setSelectedRole(rolesData[0]?.value || 'admin');
+        
+        // Завантажуємо правила доступу
         const serverRules = await accessRulesAPI.getAll();
         if (Object.keys(serverRules).length === 0) {
           // Якщо на сервері немає правил, використовуємо за замовчуванням
-          const defaultRules = getDefaultAccess();
+          const defaultRules = getDefaultAccess(rolesData);
           await accessRulesAPI.save(defaultRules);
           setAccess(defaultRules);
         } else {
@@ -180,7 +192,17 @@ function AccessRulesModal({ open, onClose }) {
       } catch (error) {
         console.error('Помилка завантаження правил доступу:', error);
         // Використовуємо правила за замовчуванням при помилці
-        setAccess(getDefaultAccess());
+        const defaultRoles = [
+          { value: 'admin', label: 'Адміністратор' },
+          { value: 'service', label: 'Сервісна служба' },
+          { value: 'operator', label: 'Оператор' },
+          { value: 'warehouse', label: 'Зав. склад' },
+          { value: 'accountant', label: 'Бухгалтер' },
+          { value: 'regional', label: 'Регіональний керівник' },
+        ];
+        setRoles(defaultRoles);
+        setSelectedRole('admin');
+        setAccess(getDefaultAccess(defaultRoles));
       } finally {
         setLoading(false);
       }
@@ -193,14 +215,13 @@ function AccessRulesModal({ open, onClose }) {
   
   // Оновлюємо права доступу при зміні списку ролей
   React.useEffect(() => {
-    const currentRoles = getCurrentRoles();
-    const currentRoleValues = currentRoles.map(r => r.value);
+    const currentRoleValues = roles.map(r => r.value);
     
     // Додаємо нові ролі з правами за замовчуванням
     let updatedAccess = { ...access };
     let hasChanges = false;
     
-    currentRoles.forEach(role => {
+    roles.forEach(role => {
       if (!updatedAccess[role.value]) {
         updatedAccess[role.value] = {};
         tabs.forEach(tab => {
@@ -231,7 +252,7 @@ function AccessRulesModal({ open, onClose }) {
       // Зберігаємо на сервері
       accessRulesAPI.save(updatedAccess);
     }
-  }, []);
+  }, [roles]);
   
   const handleChange = (role, tab, value) => {
     setAccess(a => ({ ...a, [role]: { ...a[role], [tab]: value } }));
@@ -313,21 +334,8 @@ function AdminSystemParamsArea() {
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [form, setForm] = useState({ login: '', password: '', role: 'service', name: '', region: '' });
-  const [regions, setRegions] = useState(() => {
-    const saved = localStorage.getItem('regions');
-    return saved ? JSON.parse(saved) : ['Київський', 'Одеський', 'Львівський'];
-  });
-  const [rolesList, setRolesList] = useState(() => {
-    const saved = localStorage.getItem('rolesList');
-    return saved ? JSON.parse(saved) : [
-      { value: 'admin', label: 'Адміністратор' },
-      { value: 'service', label: 'Сервісна служба' },
-      { value: 'operator', label: 'Оператор' },
-      { value: 'warehouse', label: 'Зав. склад' },
-      { value: 'accountant', label: 'Бухгалтер' },
-      { value: 'regional', label: 'Регіональний керівник' },
-    ];
-  });
+  const [regions, setRegions] = useState([]);
+  const [rolesList, setRolesList] = useState([]);
   const [newRegion, setNewRegion] = useState('');
   const [newRole, setNewRole] = useState('');
   const [editMode, setEditMode] = useState(false);
@@ -350,13 +358,31 @@ function AdminSystemParamsArea() {
     loadUsers();
   }, []);
 
+  // Завантаження регіонів з API
   useEffect(() => {
-    localStorage.setItem('regions', JSON.stringify(regions));
-  }, [regions]);
+    const loadRegions = async () => {
+      try {
+        const regionsData = await regionsAPI.getAll();
+        setRegions(regionsData);
+      } catch (error) {
+        console.error('Помилка завантаження регіонів:', error);
+      }
+    };
+    loadRegions();
+  }, []);
 
+  // Завантаження ролей з API
   useEffect(() => {
-    localStorage.setItem('rolesList', JSON.stringify(rolesList));
-  }, [rolesList]);
+    const loadRoles = async () => {
+      try {
+        const rolesData = await rolesAPI.getAll();
+        setRolesList(rolesData);
+      } catch (error) {
+        console.error('Помилка завантаження ролей:', error);
+      }
+    };
+    loadRoles();
+  }, []);
 
   const handleChange = e => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -415,52 +441,65 @@ function AdminSystemParamsArea() {
     }
   };
 
-  const handleAddRegion = () => {
+  const handleAddRegion = async () => {
     if (newRegion && !regions.includes(newRegion)) {
       const updatedRegions = [...regions, newRegion];
-      setRegions(updatedRegions);
-      localStorage.setItem('regions', JSON.stringify(updatedRegions));
-      console.log('Admin: localStorage.regions =', localStorage.getItem('regions'));
-      window.dispatchEvent(new Event('storage'));
-      setNewRegion('');
+      try {
+        const success = await regionsAPI.save(updatedRegions);
+        if (success) {
+          setRegions(updatedRegions);
+          setNewRegion('');
+        } else {
+          alert('Помилка збереження регіону');
+        }
+      } catch (error) {
+        alert('Помилка збереження регіону: ' + error.message);
+      }
     }
   };
   
   const handleAddRole = async () => {
     if (newRole && !rolesList.some(r => r.value === newRole)) {
       const updatedRolesList = [...rolesList, { value: newRole, label: newRole }];
-      setRolesList(updatedRolesList);
       
-      // Автоматично оновлюємо права доступу для нової ролі
       try {
-        const currentAccess = await accessRulesAPI.getAll();
-        
-        // Додаємо права для нової ролі
-        const tabs = [
-          { key: 'service', label: 'Сервісна служба' },
-          { key: 'operator', label: 'Оператор' },
-          { key: 'warehouse', label: 'Зав. склад' },
-          { key: 'accountant', label: 'Бухгалтер' },
-          { key: 'regional', label: 'Регіональний керівник' },
-          { key: 'admin', label: 'Адміністратор' },
-          { key: 'reports', label: 'Звіти' },
-        ];
-        
-        currentAccess[newRole] = {};
-        tabs.forEach(tab => {
-          if (newRole === tab.key) {
-            currentAccess[newRole][tab.key] = 'full';
-          } else if (newRole === 'admin') {
-            currentAccess[newRole][tab.key] = 'full';
-          } else if (tab.key === 'reports') {
-            currentAccess[newRole][tab.key] = 'read';
-          } else {
-            currentAccess[newRole][tab.key] = 'none';
-          }
-        });
-        
-        await accessRulesAPI.save(currentAccess);
-        setNewRole('');
+        // Зберігаємо нову роль
+        const rolesSuccess = await rolesAPI.save(updatedRolesList);
+        if (rolesSuccess) {
+          setRolesList(updatedRolesList);
+          
+          // Автоматично оновлюємо права доступу для нової ролі
+          const currentAccess = await accessRulesAPI.getAll();
+          
+          // Додаємо права для нової ролі
+          const tabs = [
+            { key: 'service', label: 'Сервісна служба' },
+            { key: 'operator', label: 'Оператор' },
+            { key: 'warehouse', label: 'Зав. склад' },
+            { key: 'accountant', label: 'Бухгалтер' },
+            { key: 'regional', label: 'Регіональний керівник' },
+            { key: 'admin', label: 'Адміністратор' },
+            { key: 'reports', label: 'Звіти' },
+          ];
+          
+          currentAccess[newRole] = {};
+          tabs.forEach(tab => {
+            if (newRole === tab.key) {
+              currentAccess[newRole][tab.key] = 'full';
+            } else if (newRole === 'admin') {
+              currentAccess[newRole][tab.key] = 'full';
+            } else if (tab.key === 'reports') {
+              currentAccess[newRole][tab.key] = 'read';
+            } else {
+              currentAccess[newRole][tab.key] = 'none';
+            }
+          });
+          
+          await accessRulesAPI.save(currentAccess);
+          setNewRole('');
+        } else {
+          alert('Помилка збереження ролі');
+        }
       } catch (error) {
         console.error('Помилка оновлення правил доступу:', error);
         setNewRole('');
@@ -478,15 +517,21 @@ function AdminSystemParamsArea() {
     
     // Видаляємо роль зі списку
     const updatedRolesList = rolesList.filter(r => r.value !== roleToDelete);
-    setRolesList(updatedRolesList);
     
-    // Видаляємо права доступу для цієї ролі
     try {
-      const currentAccess = await accessRulesAPI.getAll();
-      
-      if (currentAccess[roleToDelete]) {
-        delete currentAccess[roleToDelete];
-        await accessRulesAPI.save(currentAccess);
+      const rolesSuccess = await rolesAPI.save(updatedRolesList);
+      if (rolesSuccess) {
+        setRolesList(updatedRolesList);
+        
+        // Видаляємо права доступу для цієї ролі
+        const currentAccess = await accessRulesAPI.getAll();
+        
+        if (currentAccess[roleToDelete]) {
+          delete currentAccess[roleToDelete];
+          await accessRulesAPI.save(currentAccess);
+        }
+      } else {
+        alert('Помилка видалення ролі');
       }
     } catch (error) {
       console.error('Помилка видалення правил доступу:', error);
@@ -2044,10 +2089,14 @@ function App() {
     const loadAccessRules = async () => {
       setLoadingAccessRules(true);
       try {
+        // Спочатку завантажуємо ролі
+        const rolesData = await rolesAPI.getAll();
+        
+        // Потім завантажуємо правила доступу
         const serverRules = await accessRulesAPI.getAll();
         if (Object.keys(serverRules).length === 0) {
           // Якщо на сервері немає правил, створюємо за замовчуванням
-          const defaultRules = getDefaultAccess();
+          const defaultRules = getDefaultAccess(rolesData);
           await accessRulesAPI.save(defaultRules);
           setAccessRules(defaultRules);
         } else {
@@ -2056,11 +2105,20 @@ function App() {
       } catch (error) {
         console.error('Помилка завантаження правил доступу:', error);
         // Використовуємо правила за замовчуванням при помилці
-        setAccessRules(getDefaultAccess());
+        const defaultRoles = [
+          { value: 'admin', label: 'Адміністратор' },
+          { value: 'service', label: 'Сервісна служба' },
+          { value: 'operator', label: 'Оператор' },
+          { value: 'warehouse', label: 'Зав. склад' },
+          { value: 'accountant', label: 'Бухгалтер' },
+          { value: 'regional', label: 'Регіональний керівник' },
+        ];
+        setAccessRules(getDefaultAccess(defaultRoles));
       } finally {
         setLoadingAccessRules(false);
       }
     };
+    
     
     loadAccessRules();
   }, []);
