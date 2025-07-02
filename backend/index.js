@@ -124,22 +124,23 @@ app.post('/api/initialize-users', (req, res) => {
 });
 
 // API для авторизації користувача
-app.post('/api/auth', (req, res) => {
+app.post('/api/auth', async (req, res) => {
   const { login, password } = req.body;
-  
+
   if (!login || !password) {
     return res.status(400).json({ error: 'Відсутні логін або пароль' });
   }
-  
-  const users = loadUsers();
-  const user = users.find(u => u.login === login && u.password === password);
-  
-  if (user) {
-    // Повертаємо користувача без пароля
-    const { password: _, ...userWithoutPassword } = user;
-    res.json({ success: true, user: userWithoutPassword });
-  } else {
-    res.status(401).json({ error: 'Невірний логін або пароль' });
+
+  try {
+    const user = await User.findOne({ login, password });
+    if (user) {
+      const { password: _, ...userWithoutPassword } = user.toObject();
+      res.json({ success: true, user: userWithoutPassword });
+    } else {
+      res.status(401).json({ error: 'Невірний логін або пароль' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
