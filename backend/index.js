@@ -152,8 +152,13 @@ app.get('/api/regions', async (req, res) => {
 });
 app.post('/api/regions', async (req, res) => {
   try {
+    let regions = req.body;
+    if (!Array.isArray(regions)) regions = [regions];
+    // Валідація: всі елементи мають бути об'єктами з полем name
+    if (!regions.length || !regions.every(r => typeof r === 'object' && r.name && typeof r.name === 'string')) {
+      return res.status(400).json({ error: 'Дані мають бути масивом обʼєктів з полем name (рядок)' });
+    }
     await Region.deleteMany({});
-    const regions = Array.isArray(req.body) ? req.body : [req.body];
     await Region.insertMany(regions);
     res.json({ success: true });
   } catch (error) {
@@ -252,6 +257,36 @@ app.post('/api/auth', async (req, res) => {
     } else {
       res.status(401).json({ error: 'Невірний логін або пароль' });
     }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- COLUMNS SETTINGS через MongoDB ---
+// Отримати налаштування колонок для користувача і області
+app.get('/api/users/:login/columns-settings/:area', async (req, res) => {
+  try {
+    const user = await User.findOne({ login: req.params.login });
+    if (!user || !user.columnsSettings || !user.columnsSettings[req.params.area]) {
+      return res.status(404).json({ error: 'Налаштування не знайдено' });
+    }
+    res.json(user.columnsSettings[req.params.area]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+// Зберегти налаштування колонок для користувача і області
+app.post('/api/users/:login/columns-settings', async (req, res) => {
+  try {
+    const { area, visible, order } = req.body;
+    let user = await User.findOne({ login: req.params.login });
+    if (!user) {
+      return res.status(404).json({ error: 'Користувача не знайдено' });
+    }
+    if (!user.columnsSettings) user.columnsSettings = {};
+    user.columnsSettings[area] = { visible, order };
+    await user.save();
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
