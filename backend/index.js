@@ -12,8 +12,22 @@ const MONGODB_URI = process.env.MONGODB_URI;
 mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-}).then(() => {
+}).then(async () => {
   console.log('MongoDB connected');
+  // --- Додаємо дефолтного адміністратора, якщо його немає ---
+  const adminLogin = 'bugai';
+  const adminUser = await User.findOne({ login: adminLogin });
+  if (!adminUser) {
+    await User.create({
+      login: adminLogin,
+      password: 'admin', // Змініть пароль після першого входу!
+      role: 'admin',
+      name: 'Бугай В.',
+      region: 'Україна',
+      id: Date.now(),
+    });
+    console.log('Дефолтного адміністратора створено!');
+  }
 }).catch((err) => {
   console.error('MongoDB connection error:', err);
 });
