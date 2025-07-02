@@ -444,8 +444,10 @@ function AdminSystemParamsArea() {
   const handleAddRegion = async () => {
     if (newRegion && !regions.includes(newRegion)) {
       const updatedRegions = [...regions, newRegion];
+      // Формуємо масив об'єктів з полем name
+      const regionsToSave = updatedRegions.map(r => ({ name: r }));
       try {
-        const success = await regionsAPI.save(updatedRegions);
+        const success = await regionsAPI.save(regionsToSave);
         if (success) {
           setRegions(updatedRegions);
           setNewRegion('');
