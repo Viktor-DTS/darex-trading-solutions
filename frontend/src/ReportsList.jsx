@@ -6,15 +6,18 @@ export default function ReportsList() {
   const [selected, setSelected] = useState(null);
 
   useEffect(() => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/reports`);
-      if (response.ok) {
-        const data = await response.json();
-        setReports(data);
+    const fetchReports = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/reports`);
+        if (response.ok) {
+          const data = await response.json();
+          setReports(data);
+        }
+      } catch (error) {
+        console.error('Помилка завантаження звітів:', error);
       }
-    } catch (error) {
-      console.error('Помилка завантаження звітів:', error);
-    }
+    };
+    fetchReports();
   }, []);
 
   if (selected) {
