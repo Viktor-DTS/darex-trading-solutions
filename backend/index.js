@@ -2,10 +2,54 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { getFile, createOrUpdateFile } = require('./githubStorage');
+const mongoose = require('mongoose');
 
 const app = express();
 const PORT = 3001;
+
+const MONGODB_URI = process.env.MONGODB_URI;
+
+mongoose.connect(MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+}).then(() => {
+  console.log('MongoDB connected');
+}).catch((err) => {
+  console.error('MongoDB connection error:', err);
+});
+
+// --- Схеми ---
+const userSchema = new mongoose.Schema({
+  login: String,
+  password: String,
+  role: String,
+  name: String,
+  region: String,
+  columnsSettings: Object,
+  id: Number,
+});
+const User = mongoose.model('User', userSchema);
+
+const roleSchema = new mongoose.Schema({
+  name: String,
+  permissions: Object,
+});
+const Role = mongoose.model('Role', roleSchema);
+
+const regionSchema = new mongoose.Schema({
+  name: String,
+});
+const Region = mongoose.model('Region', regionSchema);
+
+const taskSchema = new mongoose.Schema({
+  // Додайте потрібні поля для задачі
+}, { strict: false });
+const Task = mongoose.model('Task', taskSchema);
+
+const accessRulesSchema = new mongoose.Schema({
+  rules: Object,
+}, { strict: false });
+const AccessRules = mongoose.model('AccessRules', accessRulesSchema);
 
 app.use(cors());
 app.use(express.json());
@@ -13,22 +57,6 @@ app.use(express.json());
 const reports = [];
 const USERS_FILE = path.join(__dirname, 'users.json');
 const INITIAL_USERS_FILE = path.join(__dirname, 'initial-users.json');
-const tasksFile = path.join(__dirname, 'data', 'tasks.json');
-const accessRulesFile = path.join(__dirname, 'data', 'accessRules.json');
-const rolesFile = path.join(__dirname, 'data', 'roles.json');
-const regionsFile = path.join(__dirname, 'data', 'regions.json');
-
-// Функція для створення директорії data якщо вона не існує
-const ensureDataDirectory = () => {
-  const dataDir = path.join(__dirname, 'data');
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-    console.log('Створено директорію data');
-  }
-};
-
-// Викликаємо функцію при запуску сервера
-ensureDataDirectory();
 
 // Функція для завантаження користувачів
 const loadUsers = () => {
@@ -101,73 +129,153 @@ app.post('/api/auth', (req, res) => {
   }
 });
 
-// --- USERS через GitHub ---
+// --- USERS через MongoDB ---
 app.get('/api/users', async (req, res) => {
   try {
-    const { content } = await getFile('backend/data/users.json');
-    if (content) {
-      res.json(JSON.parse(content));
-    } else {
-      res.json([]);
-    }
+    const users = await User.find();
+    res.json(users);
   } catch (error) {
-    res.status(500).json({ error: 'GitHub read error: ' + error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.get('/api/users/:login', async (req, res) => {
   try {
-    const { content } = await getFile('backend/data/users.json');
-    const users = content ? JSON.parse(content) : [];
-    const user = users.find(u => u.login === req.params.login);
+    const user = await User.findOne({ login: req.params.login });
     if (user) {
       res.json(user);
     } else {
       res.status(404).json({ error: 'Користувача не знайдено' });
     }
   } catch (error) {
-    res.status(500).json({ error: 'GitHub read error: ' + error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.post('/api/users', async (req, res) => {
   try {
-    const { content } = await getFile('backend/data/users.json');
-    let users = content ? JSON.parse(content) : [];
     const userData = req.body;
-    const existingUserIndex = users.findIndex(u => u.login === userData.login);
-    if (existingUserIndex !== -1) {
-      users[existingUserIndex] = { ...users[existingUserIndex], ...userData };
+    let user = await User.findOne({ login: userData.login });
+    if (user) {
+      Object.assign(user, userData);
+      await user.save();
     } else {
-      users.push({ ...userData, id: Date.now() });
+      user = new User({ ...userData, id: Date.now() });
+      await user.save();
     }
-    await createOrUpdateFile(
-      'backend/data/users.json',
-      JSON.stringify(users, null, 2),
-      'Update users.json via API'
-    );
     res.json({ success: true, message: 'Користувача збережено' });
   } catch (error) {
-    res.status(500).json({ error: 'GitHub write error: ' + error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.delete('/api/users/:login', async (req, res) => {
   try {
-    const { content } = await getFile('backend/data/users.json');
-    let users = content ? JSON.parse(content) : [];
-    const filteredUsers = users.filter(u => u.login !== req.params.login);
-    if (filteredUsers.length === users.length) {
+    const result = await User.deleteOne({ login: req.params.login });
+    if (result.deletedCount === 0) {
       return res.status(404).json({ error: 'Користувача не знайдено' });
     }
-    await createOrUpdateFile(
-      'backend/data/users.json',
-      JSON.stringify(filteredUsers, null, 2),
-      'Delete user via API'
-    );
     res.json({ success: true, message: 'Користувача видалено' });
   } catch (error) {
-    res.status(500).json({ error: 'GitHub write error: ' + error.message });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- ROLES через MongoDB ---
+app.get('/api/roles', async (req, res) => {
+  try {
+    const roles = await Role.find();
+    res.json(roles);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+app.post('/api/roles', async (req, res) => {
+  try {
+    await Role.deleteMany({});
+    await Role.insertMany(req.body);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- REGIONS через MongoDB ---
+app.get('/api/regions', async (req, res) => {
+  try {
+    const regions = await Region.find();
+    res.json(regions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+app.post('/api/regions', async (req, res) => {
+  try {
+    await Region.deleteMany({});
+    await Region.insertMany(req.body);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- TASKS через MongoDB ---
+app.get('/api/tasks', async (req, res) => {
+  try {
+    const tasks = await Task.find();
+    res.json(tasks);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+app.post('/api/tasks', async (req, res) => {
+  try {
+    const newTask = new Task({ ...req.body, id: Date.now() });
+    await newTask.save();
+    res.json({ success: true, task: newTask });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+app.put('/api/tasks/:id', async (req, res) => {
+  try {
+    const task = await Task.findOne({ id: req.params.id });
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+    Object.assign(task, req.body);
+    await task.save();
+    res.json({ success: true, task });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+app.delete('/api/tasks/:id', async (req, res) => {
+  try {
+    const result = await Task.deleteOne({ id: req.params.id });
+    res.json({ success: true, removed: result.deletedCount });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- ACCESS RULES через MongoDB ---
+app.get('/api/accessRules', async (req, res) => {
+  try {
+    let doc = await AccessRules.findOne();
+    if (!doc) doc = await AccessRules.create({ rules: {} });
+    res.json(doc.rules || {});
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+app.post('/api/accessRules', async (req, res) => {
+  try {
+    let doc = await AccessRules.findOne();
+    if (!doc) doc = new AccessRules({ rules: req.body });
+    else doc.rules = req.body;
+    await doc.save();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -183,175 +291,6 @@ app.get('/api/ping', (req, res) => {
 
 app.get('/api/reports', (req, res) => {
   res.json(reports);
-});
-
-function readTasks() {
-  try {
-    return JSON.parse(fs.readFileSync(tasksFile, 'utf8'));
-  } catch {
-    return [];
-  }
-}
-
-function writeTasks(tasks) {
-  ensureDataDirectory();
-  fs.writeFileSync(tasksFile, JSON.stringify(tasks, null, 2));
-}
-
-// --- API для заявок ---
-app.get('/api/tasks', async (req, res) => {
-  try {
-    const { content } = await getFile('backend/data/tasks.json');
-    if (content) {
-      res.json(JSON.parse(content));
-    } else {
-      res.json([]);
-    }
-  } catch (error) {
-    res.status(500).json({ error: 'GitHub read error: ' + error.message });
-  }
-});
-
-app.post('/api/tasks', async (req, res) => {
-  try {
-    const { content } = await getFile('backend/data/tasks.json');
-    const tasks = content ? JSON.parse(content) : [];
-    const newTask = { ...req.body, id: Date.now() };
-    tasks.push(newTask);
-    await createOrUpdateFile(
-      'backend/data/tasks.json',
-      JSON.stringify(tasks, null, 2),
-      'Add task via API'
-    );
-    res.json({ success: true, task: newTask });
-  } catch (error) {
-    res.status(500).json({ error: 'GitHub write error: ' + error.message });
-  }
-});
-
-app.put('/api/tasks/:id', async (req, res) => {
-  try {
-    const { content } = await getFile('backend/data/tasks.json');
-    let tasks = content ? JSON.parse(content) : [];
-    const idx = tasks.findIndex(t => String(t.id) === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: 'Task not found' });
-    tasks[idx] = { ...tasks[idx], ...req.body };
-    await createOrUpdateFile(
-      'backend/data/tasks.json',
-      JSON.stringify(tasks, null, 2),
-      'Update task via API'
-    );
-    res.json({ success: true, task: tasks[idx] });
-  } catch (error) {
-    res.status(500).json({ error: 'GitHub write error: ' + error.message });
-  }
-});
-
-app.delete('/api/tasks/:id', async (req, res) => {
-  try {
-    const { content } = await getFile('backend/data/tasks.json');
-    let tasks = content ? JSON.parse(content) : [];
-    const before = tasks.length;
-    tasks = tasks.filter(t => String(t.id) !== req.params.id);
-    await createOrUpdateFile(
-      'backend/data/tasks.json',
-      JSON.stringify(tasks, null, 2),
-      'Delete task via API'
-    );
-    res.json({ success: true, removed: before - tasks.length });
-  } catch (error) {
-    res.status(500).json({ error: 'GitHub write error: ' + error.message });
-  }
-});
-
-function readJson(file) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return null;
-  }
-}
-function writeJson(file, data) {
-  ensureDataDirectory();
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
-}
-
-// --- API для accessRules ---
-app.get('/api/accessRules', async (req, res) => {
-  try {
-    const { content } = await getFile('backend/data/accessRules.json');
-    if (content) {
-      res.json(JSON.parse(content));
-    } else {
-      res.json({});
-    }
-  } catch (error) {
-    res.status(500).json({ error: 'GitHub read error: ' + error.message });
-  }
-});
-app.post('/api/accessRules', async (req, res) => {
-  try {
-    await createOrUpdateFile(
-      'backend/data/accessRules.json',
-      JSON.stringify(req.body, null, 2),
-      'Update accessRules.json via API'
-    );
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: 'GitHub write error: ' + error.message });
-  }
-});
-
-// --- ROLES через GitHub ---
-app.get('/api/roles', async (req, res) => {
-  try {
-    const { content } = await getFile('backend/data/roles.json');
-    if (content) {
-      res.json(JSON.parse(content));
-    } else {
-      res.json([]);
-    }
-  } catch (error) {
-    res.status(500).json({ error: 'GitHub read error: ' + error.message });
-  }
-});
-app.post('/api/roles', async (req, res) => {
-  try {
-    await createOrUpdateFile(
-      'backend/data/roles.json',
-      JSON.stringify(req.body, null, 2),
-      'Update roles.json via API'
-    );
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: 'GitHub write error: ' + error.message });
-  }
-});
-
-// --- REGIONS через GitHub ---
-app.get('/api/regions', async (req, res) => {
-  try {
-    const { content } = await getFile('backend/data/regions.json');
-    if (content) {
-      res.json(JSON.parse(content));
-    } else {
-      res.json([]);
-    }
-  } catch (error) {
-    res.status(500).json({ error: 'GitHub read error: ' + error.message });
-  }
-});
-app.post('/api/regions', async (req, res) => {
-  try {
-    await createOrUpdateFile(
-      'backend/data/regions.json',
-      JSON.stringify(req.body, null, 2),
-      'Update regions.json via API'
-    );
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: 'GitHub write error: ' + error.message });
-  }
 });
 
 app.listen(PORT, () => {
