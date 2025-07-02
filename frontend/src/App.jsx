@@ -20,6 +20,7 @@ import * as XLSX from 'xlsx';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import API_BASE_URL from './config.js';
 import { tasksAPI } from './utils/tasksAPI';
+import { accessRulesAPI } from './utils/accessRulesAPI';
 
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
@@ -129,10 +130,8 @@ const getDefaultAccess = () => {
 };
 
 function AccessRulesModal({ open, onClose }) {
-  const [access, setAccess] = React.useState(() => {
-    const saved = localStorage.getItem('accessRules');
-    return saved ? JSON.parse(saved) : getDefaultAccess();
-  });
+  const [access, setAccess] = React.useState({});
+  const [loading, setLoading] = React.useState(true);
   
   // Отримуємо поточний список ролей з localStorage
   const getCurrentRoles = () => {
@@ -164,15 +163,41 @@ function AccessRulesModal({ open, onClose }) {
   ];
   const [selectedRole, setSelectedRole] = React.useState(roles[0]?.value || 'admin');
   
+  // Завантаження правил доступу з API
+  React.useEffect(() => {
+    const loadAccessRules = async () => {
+      setLoading(true);
+      try {
+        const serverRules = await accessRulesAPI.getAll();
+        if (Object.keys(serverRules).length === 0) {
+          // Якщо на сервері немає правил, використовуємо за замовчуванням
+          const defaultRules = getDefaultAccess();
+          await accessRulesAPI.save(defaultRules);
+          setAccess(defaultRules);
+        } else {
+          setAccess(serverRules);
+        }
+      } catch (error) {
+        console.error('Помилка завантаження правил доступу:', error);
+        // Використовуємо правила за замовчуванням при помилці
+        setAccess(getDefaultAccess());
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (open) {
+      loadAccessRules();
+    }
+  }, [open]);
+  
   // Оновлюємо права доступу при зміні списку ролей
   React.useEffect(() => {
     const currentRoles = getCurrentRoles();
     const currentRoleValues = currentRoles.map(r => r.value);
-    const savedAccess = localStorage.getItem('accessRules');
-    const currentAccess = savedAccess ? JSON.parse(savedAccess) : getDefaultAccess();
     
     // Додаємо нові ролі з правами за замовчуванням
-    let updatedAccess = { ...currentAccess };
+    let updatedAccess = { ...access };
     let hasChanges = false;
     
     currentRoles.forEach(role => {
@@ -203,7 +228,8 @@ function AccessRulesModal({ open, onClose }) {
     
     if (hasChanges) {
       setAccess(updatedAccess);
-      localStorage.setItem('accessRules', JSON.stringify(updatedAccess));
+      // Зберігаємо на сервері
+      accessRulesAPI.save(updatedAccess);
     }
   }, []);
   
@@ -211,12 +237,30 @@ function AccessRulesModal({ open, onClose }) {
     setAccess(a => ({ ...a, [role]: { ...a[role], [tab]: value } }));
   };
   
-  const handleSave = () => {
-    localStorage.setItem('accessRules', JSON.stringify(access));
-    onClose();
+  const handleSave = async () => {
+    try {
+      const success = await accessRulesAPI.save(access);
+      if (success) {
+        onClose();
+      } else {
+        alert('Помилка збереження правил доступу');
+      }
+    } catch (error) {
+      alert('Помилка збереження правил доступу: ' + error.message);
+    }
   };
   
   if (!open) return null;
+  
+  if (loading) {
+    return (
+      <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <div style={{background:'#fff',color:'#111',padding:32,borderRadius:8,minWidth:400}}>
+          <div style={{textAlign:'center'}}>Завантаження правил доступу...</div>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -382,45 +426,49 @@ function AdminSystemParamsArea() {
     }
   };
   
-  const handleAddRole = () => {
+  const handleAddRole = async () => {
     if (newRole && !rolesList.some(r => r.value === newRole)) {
       const updatedRolesList = [...rolesList, { value: newRole, label: newRole }];
       setRolesList(updatedRolesList);
       
       // Автоматично оновлюємо права доступу для нової ролі
-      const savedAccess = localStorage.getItem('accessRules');
-      const currentAccess = savedAccess ? JSON.parse(savedAccess) : getDefaultAccess();
-      
-      // Додаємо права для нової ролі
-      const tabs = [
-        { key: 'service', label: 'Сервісна служба' },
-        { key: 'operator', label: 'Оператор' },
-        { key: 'warehouse', label: 'Зав. склад' },
-        { key: 'accountant', label: 'Бухгалтер' },
-        { key: 'regional', label: 'Регіональний керівник' },
-        { key: 'admin', label: 'Адміністратор' },
-        { key: 'reports', label: 'Звіти' },
-      ];
-      
-      currentAccess[newRole] = {};
-      tabs.forEach(tab => {
-        if (newRole === tab.key) {
-          currentAccess[newRole][tab.key] = 'full';
-        } else if (newRole === 'admin') {
-          currentAccess[newRole][tab.key] = 'full';
-        } else if (tab.key === 'reports') {
-          currentAccess[newRole][tab.key] = 'read';
-        } else {
-          currentAccess[newRole][tab.key] = 'none';
-        }
-      });
-      
-      localStorage.setItem('accessRules', JSON.stringify(currentAccess));
-      setNewRole('');
+      try {
+        const currentAccess = await accessRulesAPI.getAll();
+        
+        // Додаємо права для нової ролі
+        const tabs = [
+          { key: 'service', label: 'Сервісна служба' },
+          { key: 'operator', label: 'Оператор' },
+          { key: 'warehouse', label: 'Зав. склад' },
+          { key: 'accountant', label: 'Бухгалтер' },
+          { key: 'regional', label: 'Регіональний керівник' },
+          { key: 'admin', label: 'Адміністратор' },
+          { key: 'reports', label: 'Звіти' },
+        ];
+        
+        currentAccess[newRole] = {};
+        tabs.forEach(tab => {
+          if (newRole === tab.key) {
+            currentAccess[newRole][tab.key] = 'full';
+          } else if (newRole === 'admin') {
+            currentAccess[newRole][tab.key] = 'full';
+          } else if (tab.key === 'reports') {
+            currentAccess[newRole][tab.key] = 'read';
+          } else {
+            currentAccess[newRole][tab.key] = 'none';
+          }
+        });
+        
+        await accessRulesAPI.save(currentAccess);
+        setNewRole('');
+      } catch (error) {
+        console.error('Помилка оновлення правил доступу:', error);
+        setNewRole('');
+      }
     }
   };
 
-  const handleDeleteRole = (roleToDelete) => {
+  const handleDeleteRole = async (roleToDelete) => {
     // Перевіряємо, чи є користувачі з цією роллю
     const usersWithRole = users.filter(u => u.role === roleToDelete);
     if (usersWithRole.length > 0) {
@@ -433,12 +481,15 @@ function AdminSystemParamsArea() {
     setRolesList(updatedRolesList);
     
     // Видаляємо права доступу для цієї ролі
-    const savedAccess = localStorage.getItem('accessRules');
-    const currentAccess = savedAccess ? JSON.parse(savedAccess) : getDefaultAccess();
-    
-    if (currentAccess[roleToDelete]) {
-      delete currentAccess[roleToDelete];
-      localStorage.setItem('accessRules', JSON.stringify(currentAccess));
+    try {
+      const currentAccess = await accessRulesAPI.getAll();
+      
+      if (currentAccess[roleToDelete]) {
+        delete currentAccess[roleToDelete];
+        await accessRulesAPI.save(currentAccess);
+      }
+    } catch (error) {
+      console.error('Помилка видалення правил доступу:', error);
     }
   };
 
@@ -1985,18 +2036,33 @@ function App() {
     return stored === null || stored === undefined || stored === '' ? 'tasks' : stored;
   });
   // Додаю accessRules у стан
-  const [accessRules, setAccessRules] = useState(() => {
-    const saved = localStorage.getItem('accessRules');
-    return saved ? JSON.parse(saved) : getDefaultAccess();
-  });
-  // Синхронізую з localStorage при зміні в інших вкладках
+  const [accessRules, setAccessRules] = useState({});
+  const [loadingAccessRules, setLoadingAccessRules] = useState(true);
+
+  // Завантаження правил доступу з API
   useEffect(() => {
-    const sync = () => {
-      const saved = localStorage.getItem('accessRules');
-      setAccessRules(saved ? JSON.parse(saved) : getDefaultAccess());
+    const loadAccessRules = async () => {
+      setLoadingAccessRules(true);
+      try {
+        const serverRules = await accessRulesAPI.getAll();
+        if (Object.keys(serverRules).length === 0) {
+          // Якщо на сервері немає правил, створюємо за замовчуванням
+          const defaultRules = getDefaultAccess();
+          await accessRulesAPI.save(defaultRules);
+          setAccessRules(defaultRules);
+        } else {
+          setAccessRules(serverRules);
+        }
+      } catch (error) {
+        console.error('Помилка завантаження правил доступу:', error);
+        // Використовуємо правила за замовчуванням при помилці
+        setAccessRules(getDefaultAccess());
+      } finally {
+        setLoadingAccessRules(false);
+      }
     };
-    window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
+    
+    loadAccessRules();
   }, []);
 
   console.log('user:', user, 'currentArea:', currentArea);
@@ -2028,6 +2094,14 @@ function App() {
 
   if (!user) {
     return <Login onLogin={u => { setUser(u); setCurrentArea(u.role); }} />
+  }
+
+  if (loadingAccessRules) {
+    return (
+      <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh'}}>
+        <div>Завантаження правил доступу...</div>
+      </div>
+    );
   }
 
   const Area = areaByRole[currentArea] || (() => <div>Оберіть область</div>);
