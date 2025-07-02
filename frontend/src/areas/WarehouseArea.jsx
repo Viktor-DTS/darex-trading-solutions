@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
+import { tasksAPI } from '../utils/tasksAPI';
 
 const initialTask = {
   id: null,
@@ -53,10 +54,8 @@ const initialTask = {
 };
 
 export default function WarehouseArea({ user }) {
-  const [tasks, setTasks] = useState(() => {
-    const saved = localStorage.getItem('tasks');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
   // Ініціалізую filters з усіма можливими ключами для фільтрації
   const allFilterKeys = allTaskFields
     .map(f => f.name)
@@ -76,21 +75,21 @@ export default function WarehouseArea({ user }) {
   const region = user?.region || '';
 
   useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-  }, [tasks]);
-  useEffect(() => {
-    const sync = () => {
-      const saved = localStorage.getItem('tasks');
-      setTasks(saved ? JSON.parse(saved) : []);
-    };
-    window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
+    setLoading(true);
+    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
 
-  const handleApprove = (id, approved, comment) => {
-    const updatedTasks = tasks.map(t => t.id === id ? { ...t, approvedByWarehouse: approved, warehouseComment: comment !== undefined ? comment : t.warehouseComment } : t);
-    setTasks(updatedTasks);
-    localStorage.setItem('tasks', JSON.stringify(updatedTasks));
+  const handleApprove = async (id, approved, comment) => {
+    setLoading(true);
+    const t = tasks.find(t => t.id === id);
+    if (!t) return;
+    const updated = await tasksAPI.update(id, {
+      ...t,
+      approvedByWarehouse: approved,
+      warehouseComment: comment !== undefined ? comment : t.warehouseComment
+    });
+    setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
+    setLoading(false);
   };
   const handleFilter = e => {
     const newFilters = { ...filters, [e.target.name]: e.target.value };
@@ -100,11 +99,12 @@ export default function WarehouseArea({ user }) {
     setEditTask(t);
     setModalOpen(true);
   };
-  const handleSave = (task) => {
-    setTasks(tasks.map(t => t.id === task.id ? {
-      ...task
-    } : t));
+  const handleSave = async (task) => {
+    setLoading(true);
+    const updated = await tasksAPI.update(task.id, task);
+    setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
     setEditTask(null);
+    setLoading(false);
   };
   const filtered = tasks.filter(t => {
     for (const key in filters) {
@@ -165,7 +165,6 @@ export default function WarehouseArea({ user }) {
     label: f.label,
     filter: true
   }));
-  console.log('[LOG] WarehouseArea columns:', columns);
 
   // --- Формування звіту ---
   const handleFormReport = () => {
@@ -198,101 +197,33 @@ export default function WarehouseArea({ user }) {
     const allMaterials = details.flatMap(d => d.materials);
     const summary = {};
     allMaterials.forEach(m => {
-      if (!m.type) return;
-      // Ключ для групування — label+type, щоб не змішувати різні категорії з однаковим типом
-      const key = (m.label || '') + '||' + m.type;
-      if (!summary[key]) summary[key] = { qty: 0, sum: 0, price: m.price, label: m.label, type: m.type };
-      summary[key].qty += Number(m.qty)||0;
-      summary[key].sum += (Number(m.qty)||0) * (Number(m.price)||0) || Number(m.price)||0;
+      const key = `${m.label} - ${m.type}`;
+      if (!summary[key]) {
+        summary[key] = { label: m.label, type: m.type, totalQty: 0, totalPrice: 0 };
+      }
+      summary[key].totalQty += m.qty || 0;
+      summary[key].totalPrice += m.price || 0;
     });
-    // --- Формуємо HTML для нового вікна ---
-    const html = `
-      <html>
-      <head>
-        <title>Звіт по складу</title>
-        <style>
-          body { font-family: Arial, sans-serif; background: #f8fafc; color: #222; padding: 24px; }
-          h2 { color: #1976d2; }
-          table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
-          th, td { border: 1px solid #bbb; padding: 6px 10px; text-align: center; }
-          th { background: #ffe600; color: #222; }
-          .summary th { background: #b6ffb6; }
-        </style>
-      </head>
-      <body>
-        <h2>Звіт по складу за період {filters.dateFrom || '...'} — {filters.dateTo || '...'}</h2>
-        <h3>Деталізація виконаних робіт</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Дата</th>
-              <th>Компанія</th>
-              <th>Найменування робіт</th>
-              <th>Сервісні інженери</th>
-              <th>Матеріали (тип, к-сть, ціна)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${details.map(d => `
-              <tr>
-                <td>${d.date || ''}</td>
-                <td>${d.company || ''}</td>
-                <td>${d.work || ''}</td>
-                <td>${d.engineers || ''}</td>
-                <td>
-                  ${d.materials.map(m => `${m.label ? m.label + ': ' : ''}${m.type} ${m.qty!==''?`(${m.qty})`:''} ${m.price?`x ${m.price}`:''}`).join('<br/>')}
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        <h3>Підсумок по матеріалах за період</h3>
-        <table class="summary">
-          <thead>
-            <tr>
-              <th>Матеріал</th>
-              <th>Загальна к-сть</th>
-              <th>Сума</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${Object.values(summary).map(s => `
-              <tr>
-                <td>${s.label ? (s.label === 'Інші матеріали' ? `Інші матеріали: ${s.type}` : `${s.label}: ${s.type}`) : s.type}</td>
-                <td>${s.qty}</td>
-                <td>${s.sum.toFixed(2)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </body>
-      </html>
-    `;
-    const win = window.open('', '_blank');
-    win.document.write(html);
-    win.document.close();
+    setReport({ details, summary });
   };
 
   return (
     <div style={{padding:32}}>
-      <h2>Завдання для затвердження (Склад/Оператор)</h2>
-      {/* --- Форма для звіту --- */}
-      <div style={{display:'flex',alignItems:'center',gap:24,background:'#fff',border:'3px solid #1976d2',borderRadius:16,padding:'24px 40px',margin:'24px 0 32px 0',boxShadow:'0 4px 24px #0002',flexWrap:'wrap',justifyContent:'flex-start'}}>
-        <span style={{fontSize:32,fontWeight:900,color:'#1976d2',letterSpacing:2,marginRight:24}}>ЗВІТ ПО МАТЕРІАЛАМ</span>
-        <label style={{color:'#22334a',fontWeight:600,fontSize:18}}>З:
-          <input type="date" name="dateFrom" value={filters.dateFrom} onChange={handleFilter} style={{marginLeft:8,padding:8,fontSize:18,borderRadius:8,border:'1px solid #bbb'}} />
-        </label>
-        <label style={{color:'#22334a',fontWeight:600,fontSize:18}}>По:
-          <input type="date" name="dateTo" value={filters.dateTo} onChange={handleFilter} style={{marginLeft:8,padding:8,fontSize:18,borderRadius:8,border:'1px solid #bbb'}} />
-        </label>
-        <button onClick={handleFormReport} style={{background:'#00bfff',color:'#fff',border:'none',borderRadius:10,padding:'16px 40px',fontWeight:700,fontSize:22,cursor:'pointer',boxShadow:'0 2px 8px #0001',marginLeft:24}}>Сформувати звіт</button>
-      </div>
-      <div style={{display:'flex',gap:8,marginBottom:16,alignItems:'center'}}>
+      <h2>Завдання для затвердження (Зав. склад)</h2>
+      {loading && <div>Завантаження...</div>}
+      <div style={{display:'flex',gap:8,marginBottom:16}}>
         <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
         <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
       </div>
-      {/* --- Відображення звіту (залишаю для тесту, але можна прибрати) --- */}
-      {/* {report && ...} */}
+      <div style={{display:'flex',gap:8,marginBottom:16}}>
+        <label style={{display:'flex',alignItems:'center',gap:4}}>
+          Дата виконаних робіт з:
+          <input type="date" name="dateFrom" value={filters.dateFrom} onChange={handleFilter} />
+          по
+          <input type="date" name="dateTo" value={filters.dateTo} onChange={handleFilter} />
+        </label>
+        <button onClick={handleFormReport} style={{background:'#00bfff',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Сформувати звіт</button>
+      </div>
       <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || initialTask} mode="warehouse" user={user} />
       <TaskTable
         tasks={tableData}
@@ -306,8 +237,71 @@ export default function WarehouseArea({ user }) {
         allColumns={allTaskFields.map(f => ({ key: f.name, label: f.label }))}
         approveField="approvedByWarehouse"
         commentField="warehouseComment"
+        dateRange={{ from: filters.dateFrom, to: filters.dateTo }}
+        setDateRange={r => setFilters(f => ({ ...f, dateFrom: r.from, dateTo: r.to }))}
         user={user}
       />
+      {report && (
+        <div style={{marginTop:32,background:'#f8fafc',border:'2px solid #1976d2',borderRadius:12,padding:'18px 18px 8px 18px',boxShadow:'0 2px 12px #0001'}}>
+          <div style={{fontWeight:700,fontSize:20,marginBottom:16,color:'#1976d2',letterSpacing:1}}>Звіт по матеріалах</div>
+          <div style={{marginBottom:24}}>
+            <h3 style={{color:'#222',marginBottom:12}}>Підсумок по матеріалах:</h3>
+            <table style={{width:'100%',color:'#222',background:'#fff',borderRadius:8,overflow:'hidden',fontSize:'1rem'}}>
+              <thead>
+                <tr style={{background:'#ffe600',color:'#222',fontWeight:700}}>
+                  <th>Матеріал</th>
+                  <th>Тип</th>
+                  <th>Загальна кількість</th>
+                  <th>Загальна вартість</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.values(report.summary).map((item, idx) => (
+                  <tr key={idx}>
+                    <td>{item.label}</td>
+                    <td>{item.type}</td>
+                    <td>{item.totalQty}</td>
+                    <td style={{fontWeight:600,background:'#b6ffb6'}}>{item.totalPrice}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h3 style={{color:'#222',marginBottom:12}}>Деталізація по заявках:</h3>
+            {report.details.map((detail, idx) => (
+              <div key={idx} style={{background:'#fff',borderRadius:8,padding:16,marginBottom:16,boxShadow:'0 1px 4px #0001'}}>
+                <div style={{fontWeight:600,marginBottom:8,color:'#1976d2'}}>
+                  {detail.date} - {detail.company} - {detail.work}
+                </div>
+                <div style={{marginBottom:8,color:'#666'}}>Інженери: {detail.engineers}</div>
+                {detail.materials.length > 0 && (
+                  <table style={{width:'100%',fontSize:'0.9rem',color:'#222'}}>
+                    <thead>
+                      <tr style={{background:'#f0f0f0'}}>
+                        <th>Матеріал</th>
+                        <th>Тип</th>
+                        <th>Кількість</th>
+                        <th>Вартість</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail.materials.map((material, matIdx) => (
+                        <tr key={matIdx}>
+                          <td>{material.label}</td>
+                          <td>{material.type}</td>
+                          <td>{material.qty}</td>
+                          <td>{material.price}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

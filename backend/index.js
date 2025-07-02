@@ -12,6 +12,10 @@ app.use(express.json());
 const reports = [];
 const USERS_FILE = path.join(__dirname, 'users.json');
 const INITIAL_USERS_FILE = path.join(__dirname, 'initial-users.json');
+const tasksFile = path.join(__dirname, 'data', 'tasks.json');
+const accessRulesFile = path.join(__dirname, 'data', 'accessRules.json');
+const rolesFile = path.join(__dirname, 'data', 'roles.json');
+const regionsFile = path.join(__dirname, 'data', 'regions.json');
 
 // Функція для завантаження користувачів
 const loadUsers = () => {
@@ -206,6 +210,86 @@ app.get('/api/ping', (req, res) => {
 
 app.get('/api/reports', (req, res) => {
   res.json(reports);
+});
+
+function readTasks() {
+  try {
+    return JSON.parse(fs.readFileSync(tasksFile, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+function writeTasks(tasks) {
+  fs.writeFileSync(tasksFile, JSON.stringify(tasks, null, 2));
+}
+
+// --- API для заявок ---
+app.get('/api/tasks', (req, res) => {
+  res.json(readTasks());
+});
+
+app.post('/api/tasks', (req, res) => {
+  const tasks = readTasks();
+  const newTask = { ...req.body, id: Date.now() };
+  tasks.push(newTask);
+  writeTasks(tasks);
+  res.json({ success: true, task: newTask });
+});
+
+app.put('/api/tasks/:id', (req, res) => {
+  const tasks = readTasks();
+  const idx = tasks.findIndex(t => String(t.id) === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Task not found' });
+  tasks[idx] = { ...tasks[idx], ...req.body };
+  writeTasks(tasks);
+  res.json({ success: true, task: tasks[idx] });
+});
+
+app.delete('/api/tasks/:id', (req, res) => {
+  let tasks = readTasks();
+  const before = tasks.length;
+  tasks = tasks.filter(t => String(t.id) !== req.params.id);
+  writeTasks(tasks);
+  res.json({ success: true, removed: before - tasks.length });
+});
+
+function readJson(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+function writeJson(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+
+// --- API для accessRules ---
+app.get('/api/accessRules', (req, res) => {
+  res.json(readJson(accessRulesFile) || {});
+});
+app.post('/api/accessRules', (req, res) => {
+  writeJson(accessRulesFile, req.body);
+  res.json({ success: true });
+});
+
+// --- API для roles ---
+app.get('/api/roles', (req, res) => {
+  res.json(readJson(rolesFile) || []);
+});
+app.post('/api/roles', (req, res) => {
+  writeJson(rolesFile, req.body);
+  res.json({ success: true });
+});
+
+// --- API для regions ---
+app.get('/api/regions', (req, res) => {
+  res.json(readJson(regionsFile) || []);
+});
+app.post('/api/regions', (req, res) => {
+  writeJson(regionsFile, req.body);
+  res.json({ success: true });
 });
 
 app.listen(PORT, () => {

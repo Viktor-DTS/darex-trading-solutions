@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
+import { tasksAPI } from '../utils/tasksAPI';
 
 const initialTask = {
   id: null,
@@ -53,10 +54,8 @@ const initialTask = {
 };
 
 export default function AccountantArea({ user }) {
-  const [tasks, setTasks] = useState(() => {
-    const saved = localStorage.getItem('tasks');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
   // Ініціалізую filters з усіма можливими ключами для фільтрації
   const allFilterKeys = allTaskFields
     .map(f => f.name)
@@ -71,46 +70,25 @@ export default function AccountantArea({ user }) {
   const [filters, setFilters] = useState(allFilterKeys);
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
-  const [tab, setTab] = useState(() => {
-    const savedTab = localStorage.getItem('accountantTab');
-    return savedTab || 'pending';
-  });
+  const [tab, setTab] = useState('pending');
   const region = user?.region || '';
 
   useEffect(() => {
-    localStorage.setItem('accountantTab', tab);
-  }, [tab]);
-
-  useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  useEffect(() => {
-    const sync = () => {
-      const saved = localStorage.getItem('tasks');
-      setTasks(saved ? JSON.parse(saved) : []);
-    };
-    window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
+    setLoading(true);
+    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
 
-  const handleApprove = (id, approved, comment) => {
-    console.log('[LOG] AccountantArea handleApprove function called!', { id, approved, comment });
-    const updatedTasks = tasks.map(t => 
-      t.id === id ? { 
-        ...t, 
-        approvedByAccountant: approved, 
-        accountantComment: comment !== undefined ? comment : t.accountantComment 
-      } : t
-    );
-    console.log('[LOG] Accountant updatedTasks after approve:', updatedTasks);
-    setTasks(updatedTasks);
-    localStorage.setItem('tasks', JSON.stringify(updatedTasks));
-    // Перевіряємо, що збереглося у localStorage
-    setTimeout(() => {
-      const saved = localStorage.getItem('tasks');
-      console.log('[LOG] Accountant localStorage after approve:', saved);
-    }, 100);
+  const handleApprove = async (id, approved, comment) => {
+    setLoading(true);
+    const t = tasks.find(t => t.id === id);
+    if (!t) return;
+    const updated = await tasksAPI.update(id, {
+      ...t,
+      approvedByAccountant: approved,
+      accountantComment: comment !== undefined ? comment : t.accountantComment
+    });
+    setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
+    setLoading(false);
   };
   const handleFilter = e => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
@@ -119,19 +97,12 @@ export default function AccountantArea({ user }) {
     setEditTask(t);
     setModalOpen(true);
   };
-  const handleSave = (task) => {
-    console.log('[LOG] Accountant handleSave called', task);
-    const updatedTasks = tasks.map(t => t.id === task.id ? {
-      ...task
-    } : t);
-    console.log('[LOG] Accountant updatedTasks after save:', updatedTasks);
-    setTasks(updatedTasks);
-    localStorage.setItem('tasks', JSON.stringify(updatedTasks));
-    setTimeout(() => {
-      const saved = localStorage.getItem('tasks');
-      console.log('[LOG] Accountant localStorage after save:', saved);
-    }, 100);
+  const handleSave = async (task) => {
+    setLoading(true);
+    const updated = await tasksAPI.update(task.id, task);
+    setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
     setEditTask(null);
+    setLoading(false);
   };
   const filtered = tasks.filter(t => {
     for (const key in filters) {
@@ -183,13 +154,10 @@ export default function AccountantArea({ user }) {
     filter: true
   }));
 
-  // Лог після оголошення всіх функцій
-  console.log('[LOG] AccountantArea render, handleApprove ref:', handleApprove);
-  console.log('[LOG] AccountantArea columns:', columns);
-
   return (
     <div style={{padding:32}}>
       <h2>Завдання для затвердження (Бухгалтер)</h2>
+      {loading && <div>Завантаження...</div>}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
         <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
         <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>

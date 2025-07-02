@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
+import { tasksAPI } from '../utils/tasksAPI';
 
 const initialTask = {
   id: null,
@@ -53,10 +54,8 @@ const initialTask = {
 };
 
 export default function OperatorArea({ user }) {
-  const [tasks, setTasks] = useState(() => {
-    const saved = localStorage.getItem('tasks');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const allFilterKeys = allTaskFields
     .map(f => f.name)
@@ -70,36 +69,25 @@ export default function OperatorArea({ user }) {
     }, {});
   const [filters, setFilters] = useState(allFilterKeys);
   const [editTask, setEditTask] = useState(null);
-  const [tab, setTab] = useState(() => {
-    const savedTab = localStorage.getItem('operatorTab');
-    return savedTab || 'pending';
-  });
+  const [tab, setTab] = useState('pending');
   const region = user?.region || '';
 
   useEffect(() => {
-    localStorage.setItem('operatorTab', tab);
-  }, [tab]);
-
-  useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  useEffect(() => {
-    const sync = () => {
-      const saved = localStorage.getItem('tasks');
-      setTasks(saved ? JSON.parse(saved) : []);
-    };
-    window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
+    setLoading(true);
+    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
 
-  const handleSave = (task) => {
+  const handleSave = async (task) => {
+    setLoading(true);
     if (editTask) {
-      setTasks(tasks.map(t => t.id === editTask.id ? { ...task, id: editTask.id } : t));
+      const updated = await tasksAPI.update(editTask.id, task);
+      setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
     } else {
-      setTasks([...tasks, { ...initialTask, ...task, id: Date.now() }]);
+      const added = await tasksAPI.add({ ...initialTask, ...task });
+      setTasks(tasks => [...tasks, added]);
     }
     setEditTask(null);
+    setLoading(false);
   };
   const handleFilter = e => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
@@ -108,15 +96,17 @@ export default function OperatorArea({ user }) {
     setEditTask(t);
     setModalOpen(true);
   };
-  const handleDelete = id => {
-    setTasks(tasks.filter(t => t.id !== id));
+  const handleDelete = async id => {
+    setLoading(true);
+    await tasksAPI.remove(id);
+    setTasks(tasks => tasks.filter(t => t.id !== id));
+    setLoading(false);
   };
   const columns = allTaskFields.map(f => ({
     key: f.name,
     label: f.label,
     filter: true
   }));
-  console.log('[LOG] OperatorArea columns:', columns);
   const statusOrder = {
     'Новий': 1,
     'В роботі': 2,
@@ -157,17 +147,18 @@ export default function OperatorArea({ user }) {
   });
   const sortedTasks = [...filtered].sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
 
-  const handleApprove = (id, approved, comment) => {
-    const updatedTasks = tasks.map(t => 
-      t.id === id ? { 
-        ...t, 
-        approvedByOperator: approved, 
-        operatorComment: comment !== undefined ? comment : t.operatorComment,
-        status: approved === true ? 'Виконано' : t.status
-      } : t
-    );
-    setTasks(updatedTasks);
-    localStorage.setItem('tasks', JSON.stringify(updatedTasks));
+  const handleApprove = async (id, approved, comment) => {
+    setLoading(true);
+    const t = tasks.find(t => t.id === id);
+    if (!t) return;
+    const updated = await tasksAPI.update(id, {
+      ...t,
+      approvedByOperator: approved,
+      operatorComment: comment !== undefined ? comment : t.operatorComment,
+      status: approved === true ? 'Виконано' : t.status
+    });
+    setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
+    setLoading(false);
   };
 
   const pending = filtered.filter(t => 
@@ -192,6 +183,7 @@ export default function OperatorArea({ user }) {
   return (
     <div style={{padding:32}}>
       <h2>Заявки оператора</h2>
+      {loading && <div>Завантаження...</div>}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
         <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Завдання на підтвердженні</button>
         <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
@@ -202,15 +194,15 @@ export default function OperatorArea({ user }) {
         tasks={tableData}
         allTasks={tasks}
         onEdit={handleEdit}
+        onStatusChange={()=>{}}
         onDelete={handleDelete}
-        onApprove={handleApprove}
         columns={columns}
         allColumns={allTaskFields.map(f => ({ key: f.name, label: f.label }))}
         filters={filters}
         onFilterChange={handleFilter}
         role="operator"
-        approveField="approvedByOperator"
-        commentField="operatorComment"
+        dateRange={{}}
+        setDateRange={()=>{}}
         user={user}
       />
     </div>

@@ -19,6 +19,7 @@ import WarehouseArea from './areas/WarehouseArea';
 import * as XLSX from 'xlsx';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import API_BASE_URL from './config.js';
+import { tasksAPI } from './utils/tasksAPI';
 
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
@@ -571,10 +572,8 @@ function AdminSystemParamsArea() {
 
 function ServiceArea({ user }) {
   const region = user?.region || '';
-  const [tasks, setTasks] = useState(() => {
-    const saved = localStorage.getItem('tasks');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const allFilterKeys = allTaskFields
     .map(f => f.name)
@@ -599,26 +598,21 @@ function ServiceArea({ user }) {
   })), []);
 
   useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-  }, [tasks]);
-  useEffect(() => {
-    const sync = () => {
-      const saved = localStorage.getItem('tasks');
-      setTasks(saved ? JSON.parse(saved) : []);
-    };
-    window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
+    setLoading(true);
+    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
 
-  const handleSave = (task) => {
-    let newTasks;
+  const handleSave = async (task) => {
+    setLoading(true);
     if (editTask) {
-      newTasks = tasks.map(t => t.id === editTask.id ? { ...task, id: editTask.id } : t);
+      const updated = await tasksAPI.update(editTask.id, task);
+      setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
     } else {
-      newTasks = [...tasks, { ...task, id: Date.now() }];
+      const added = await tasksAPI.add(task);
+      setTasks(tasks => [...tasks, added]);
     }
-    setTasks(newTasks);
     setEditTask(null);
+    setLoading(false);
     if (task.status === 'Новий' || task.status === 'В роботі') setTab('notDone');
     else if (task.status === 'Виконано' && (!task.approvedByWarehouse || !task.approvedByAccountant || !task.approvedByRegionalManager)) setTab('pending');
     else if (task.status === 'Виконано' && task.approvedByWarehouse && task.approvedByAccountant && task.approvedByRegionalManager) setTab('done');
@@ -628,38 +622,39 @@ function ServiceArea({ user }) {
     setEditTask(t);
     setModalOpen(true);
   };
-  const handleStatus = (id, status) => {
-    setTasks(tasks.map(t => {
-      if (t.id === id) {
-        if (status === 'Виконано') {
-          return {
-            ...t,
-            status,
-            approvedByWarehouse: false,
-            approvedByAccountant: false,
-            approvedByRegionalManager: false,
-          };
-        }
-        return { ...t, status };
-      }
-      return t;
-    }));
+  const handleStatus = async (id, status) => {
+    setLoading(true);
+    const t = tasks.find(t => t.id === id);
+    if (!t) return;
+    let updated;
+    if (status === 'Виконано') {
+      updated = await tasksAPI.update(id, {
+        ...t,
+        status,
+        approvedByWarehouse: false,
+        approvedByAccountant: false,
+        approvedByRegionalManager: false,
+      });
+    } else {
+      updated = await tasksAPI.update(id, { ...t, status });
+    }
+    setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
+    setLoading(false);
   };
-  const handleDelete = id => {
-    setTasks(tasks.filter(t => t.id !== id));
+  const handleDelete = async id => {
+    setLoading(true);
+    await tasksAPI.remove(id);
+    setTasks(tasks => tasks.filter(t => t.id !== id));
+    setLoading(false);
   };
   const handleFilter = e => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
   const filtered = tasks.filter(t => {
-    // Region filtering - використовуємо user.region замість змінної region
     if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) return false;
-    
-    // Comprehensive field filtering
     for (const key in filters) {
       const value = filters[key];
       if (!value) continue;
-      
       if (key.endsWith('From')) {
         const field = key.replace('From', '');
         if (!t[field] || t[field] < value) return false;
@@ -715,6 +710,7 @@ function ServiceArea({ user }) {
   return (
     <div style={{padding:32}}>
       <h2>Заявки сервісної служби</h2>
+      {loading && <div>Завантаження...</div>}
       <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16}}>Додати заявку</button>
       <ModalTaskForm 
         open={modalOpen} 
@@ -2308,16 +2304,19 @@ function PersonnelTimesheet() {
 
 // Додаю компонент ReportBuilder
 function ReportBuilder() {
-  const [tasks, setTasks] = useState(() => {
-    const saved = localStorage.getItem('tasks');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedFields, setSelectedFields] = useState([]);
   const [groupByField, setGroupByField] = useState('');
   const [filters, setFilters] = useState({});
   const [reportData, setReportData] = useState([]);
   // Використовуємо всі поля з форми
   const availableFields = allTaskFields;
+
+  useEffect(() => {
+    setLoading(true);
+    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
+  }, []);
 
   const handleFieldToggle = (field) => {
     setSelectedFields(prev => prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]);
@@ -2454,6 +2453,7 @@ function ReportBuilder() {
   return (
     <div style={{padding:32}}>
       <h2>Конструктор звітів</h2>
+      {loading && <div>Завантаження...</div>}
       <div style={{marginBottom:24}}>
         <h3>Виберіть поля для звіту:</h3>
         <div style={{
