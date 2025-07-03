@@ -185,6 +185,8 @@ export default function AccountantArea({ user }) {
         company: t.company,
         work: t.work,
         engineers: [t.engineer1, t.engineer2].filter(Boolean).join(', '),
+        workPrice: Number(t.workPrice) || 0,
+        serviceTotal: Number(t.serviceTotal) || 0,
         materials,
       };
     });
@@ -273,6 +275,8 @@ export default function AccountantArea({ user }) {
               ${detail.date} - ${detail.region} - ${detail.company} - ${detail.work}
             </div>
             <div style="margin-bottom:8px;color:#666;">Інженери: ${detail.engineers}</div>
+            <div style="margin-bottom:8px;color:#666;">Вартість робіт: ${detail.workPrice} грн.</div>
+            <div style="margin-bottom:8px;color:#666;">Загальна сума послуги: ${detail.serviceTotal} грн.</div>
             ${detail.materials.length > 0 ? `
               <table>
                 <thead>
