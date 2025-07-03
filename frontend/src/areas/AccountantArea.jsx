@@ -187,6 +187,11 @@ export default function AccountantArea({ user }) {
         engineers: [t.engineer1, t.engineer2].filter(Boolean).join(', '),
         workPrice: Number(t.workPrice) || 0,
         serviceTotal: Number(t.serviceTotal) || 0,
+        perDiem: Number(t.perDiem) || 0,
+        living: Number(t.living) || 0,
+        otherExp: Number(t.otherExp) || 0,
+        otherSum: Number(t.otherSum) || 0,
+        otherMaterials: t.otherMaterials || '',
         materials,
       };
     });
@@ -277,6 +282,11 @@ export default function AccountantArea({ user }) {
             <div style="margin-bottom:8px;color:#666;">Інженери: ${detail.engineers}</div>
             <div style="margin-bottom:8px;color:#666;">Вартість робіт: ${detail.workPrice} грн.</div>
             <div style="margin-bottom:8px;color:#666;">Загальна сума послуги: ${detail.serviceTotal} грн.</div>
+            ${detail.perDiem > 0 ? `<div style="margin-bottom:8px;color:#666;">Добові: ${detail.perDiem} грн.</div>` : ''}
+            ${detail.living > 0 ? `<div style="margin-bottom:8px;color:#666;">Проживання: ${detail.living} грн.</div>` : ''}
+            ${detail.otherExp > 0 ? `<div style="margin-bottom:8px;color:#666;">Інші витрати: ${detail.otherExp} грн.</div>` : ''}
+            ${detail.otherSum > 0 ? `<div style="margin-bottom:8px;color:#666;">Загальна ціна інших матеріалів: ${detail.otherSum} грн.</div>` : ''}
+            ${detail.otherMaterials ? `<div style="margin-bottom:8px;color:#666;">Опис інших матеріалів: ${detail.otherMaterials}</div>` : ''}
             ${detail.materials.length > 0 ? `
               <table>
                 <thead>
