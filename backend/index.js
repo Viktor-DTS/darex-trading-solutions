@@ -217,10 +217,15 @@ app.get('/api/accessRules', async (req, res) => {
 });
 app.post('/api/accessRules', async (req, res) => {
   try {
+    console.log('[ACCESS RULES] Отримано для збереження:', JSON.stringify(req.body, null, 2));
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).length === 0) {
+      return res.status(400).json({ error: 'Некоректний обʼєкт accessRules' });
+    }
     let doc = await AccessRules.findOne();
     if (!doc) doc = new AccessRules({ rules: req.body });
     else doc.rules = req.body;
     await doc.save();
+    console.log('[ACCESS RULES] Збережено:', JSON.stringify(doc.rules, null, 2));
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
