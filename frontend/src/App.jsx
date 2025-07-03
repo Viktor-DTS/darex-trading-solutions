@@ -2198,7 +2198,7 @@ function calcTotal(row) {
   return [row.d1, row.d2, row.d3, row.d4, row.d5].reduce((sum, v) => sum + (isNaN(Number(v)) ? 0 : Number(v)), 0);
 }
 
-function PersonnelTimesheet() {
+function PersonnelTimesheet({ user }) {
   const [users, setUsers] = useState([]);
   const allRegions = Array.from(new Set(users.map(u => u.region).filter(Boolean)));
   const [region, setRegion] = useState('');
@@ -2208,6 +2208,7 @@ function PersonnelTimesheet() {
     const loadUsers = async () => {
       try {
         const usersData = await columnsSettingsAPI.getAllUsers();
+        console.log('[DEBUG][PersonnelTimesheet] usersData from API:', usersData);
         setUsers(usersData);
       } catch (error) {
         console.error('Помилка завантаження користувачів:', error);
@@ -2217,7 +2218,14 @@ function PersonnelTimesheet() {
     loadUsers();
   }, []);
 
-  const serviceUsers = users.filter(u => u.role === 'service');
+  const serviceUsers = users.filter(u => {
+    if (u.role !== 'service') return false;
+    if (user?.region === 'Україна') return true;
+    if (user?.region && user.region !== 'Україна') {
+      return u.region === user.region;
+    }
+    return true;
+  });
 
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1); // 1-12
