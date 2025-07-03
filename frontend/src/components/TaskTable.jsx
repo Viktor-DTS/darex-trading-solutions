@@ -440,7 +440,7 @@ export default function TaskTable({
                       {(role === 'service' || role === 'operator' || role === 'admin') && (
                         <>
                           <button onClick={()=>onEdit && onEdit(t)} style={{marginRight:8}}>Редагувати</button>
-                          {role === 'service' && (
+                          {role === 'service' && t.id && (
                           <button onClick={()=>{
                             if (t.id && onDelete) {
                               onDelete(t.id);
