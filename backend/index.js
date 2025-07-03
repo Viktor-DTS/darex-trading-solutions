@@ -5,31 +5,48 @@ const path = require('path');
 const mongoose = require('mongoose');
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
-mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-}).then(async () => {
-  console.log('MongoDB connected');
-  // --- Додаємо дефолтного адміністратора, якщо його немає ---
-  const adminLogin = 'bugai';
-  const adminUser = await User.findOne({ login: adminLogin });
-  if (!adminUser) {
-    await User.create({
-      login: adminLogin,
-      password: 'admin', // Змініть пароль після першого входу!
-      role: 'admin',
-      name: 'Бугай В.',
-      region: 'Україна',
-      id: Date.now(),
-    });
-    console.log('Дефолтного адміністратора створено!');
+// Функція для підключення до MongoDB
+async function connectToMongoDB() {
+  if (!MONGODB_URI) {
+    console.error('MONGODB_URI не встановлено!');
+    return false;
   }
-}).catch((err) => {
-  console.error('MongoDB connection error:', err);
+  
+  try {
+    await mongoose.connect(MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log('MongoDB connected successfully');
+    return true;
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+    return false;
+  }
+}
+
+// Підключаємося до MongoDB
+connectToMongoDB().then(async (connected) => {
+  if (connected) {
+    // --- Додаємо дефолтного адміністратора, якщо його немає ---
+    const adminLogin = 'bugai';
+    const adminUser = await User.findOne({ login: adminLogin });
+    if (!adminUser) {
+      await User.create({
+        login: adminLogin,
+        password: 'admin', // Змініть пароль після першого входу!
+        role: 'admin',
+        name: 'Бугай В.',
+        region: 'Україна',
+        id: Date.now(),
+      });
+      console.log('Дефолтного адміністратора створено!');
+    }
+  }
 });
 
 // --- Схеми ---
@@ -66,10 +83,45 @@ const accessRulesSchema = new mongoose.Schema({
 const AccessRules = mongoose.model('AccessRules', accessRulesSchema);
 
 app.use(cors({
-  origin: ['https://darex-trading-solutions-f.onrender.com', 'http://localhost:3000'],
-  credentials: true
+  origin: [
+    'https://darex-trading-solutions-f.onrender.com', 
+    'https://darex-trading-solutions.onrender.com',
+    'http://localhost:3000',
+    'http://localhost:3001'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
+
+// Логування запитів
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
+});
+
+// Обробка помилок
+app.use((err, req, res, next) => {
+  console.error('Помилка сервера:', err);
+  res.status(500).json({ error: 'Внутрішня помилка сервера' });
+});
+
+// Middleware для перевірки стану MongoDB
+app.use((req, res, next) => {
+  if (req.path === '/api/ping') {
+    return next(); // Пропускаємо ping запити
+  }
+  
+  if (mongoose.connection.readyState !== 1) {
+    console.error('MongoDB не підключена! ReadyState:', mongoose.connection.readyState);
+    return res.status(503).json({ 
+      error: 'База даних недоступна', 
+      readyState: mongoose.connection.readyState 
+    });
+  }
+  next();
+});
 
 const reports = [];
 
@@ -242,7 +294,14 @@ app.post('/api/report', (req, res) => {
 });
 
 app.get('/api/ping', (req, res) => {
-  res.json({ message: 'Сервер працює!' });
+  res.json({ 
+    message: 'Сервер працює!',
+    timestamp: new Date().toISOString(),
+    mongodb: {
+      connected: mongoose.connection.readyState === 1,
+      readyState: mongoose.connection.readyState
+    }
+  });
 });
 
 app.get('/api/reports', (req, res) => {
