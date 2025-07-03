@@ -71,7 +71,6 @@ export default function WarehouseArea({ user }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
   const [tab, setTab] = useState('pending');
-  const [report, setReport] = useState(null);
   const region = user?.region || '';
 
   useEffect(() => {
@@ -209,7 +208,79 @@ export default function WarehouseArea({ user }) {
       summary[key].totalQty += m.qty || 0;
       summary[key].totalPrice += m.price || 0;
     });
-    setReport({ details, summary });
+    // --- Формуємо HTML для нового вікна ---
+    let html = `
+      <html>
+      <head>
+        <title>Звіт по матеріалах</title>
+        <style>
+          body { font-family: Arial, sans-serif; background: #f8fafc; color: #222; padding: 24px; }
+          h2 { color: #1976d2; }
+          table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
+          th, td { border: 1px solid #bbb; padding: 6px 10px; text-align: center; }
+          th { background: #ffe600; color: #222; }
+        </style>
+      </head>
+      <body>
+        <h2>Звіт по матеріалах</h2>
+        <h3>Підсумок по матеріалах:</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Матеріал</th>
+              <th>Тип</th>
+              <th>Загальна кількість</th>
+              <th>Загальна вартість</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${Object.values(summary).map(item => `
+              <tr>
+                <td>${item.label}</td>
+                <td>${item.type}</td>
+                <td>${item.totalQty}</td>
+                <td>${item.totalPrice}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <h3>Деталізація по заявках:</h3>
+        ${details.map(detail => `
+          <div style="margin-bottom:24px;">
+            <div style="font-weight:600;margin-bottom:8px;color:#1976d2;">
+              ${detail.date} - ${detail.company} - ${detail.work}
+            </div>
+            <div style="margin-bottom:8px;color:#666;">Інженери: ${detail.engineers}</div>
+            ${detail.materials.length > 0 ? `
+              <table>
+                <thead>
+                  <tr>
+                    <th>Матеріал</th>
+                    <th>Тип</th>
+                    <th>Кількість</th>
+                    <th>Вартість</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${detail.materials.map(material => `
+                    <tr>
+                      <td>${material.label}</td>
+                      <td>${material.type}</td>
+                      <td>${material.qty}</td>
+                      <td>${material.price}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            ` : ''}
+          </div>
+        `).join('')}
+      </body>
+      </html>
+    `;
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
   };
 
   return (
@@ -246,67 +317,6 @@ export default function WarehouseArea({ user }) {
         setDateRange={r => setFilters(f => ({ ...f, dateFrom: r.from, dateTo: r.to }))}
         user={user}
       />
-      {report && (
-        <div style={{marginTop:32,background:'#f8fafc',border:'2px solid #1976d2',borderRadius:12,padding:'18px 18px 8px 18px',boxShadow:'0 2px 12px #0001'}}>
-          <div style={{fontWeight:700,fontSize:20,marginBottom:16,color:'#1976d2',letterSpacing:1}}>Звіт по матеріалах</div>
-          <div style={{marginBottom:24}}>
-            <h3 style={{color:'#222',marginBottom:12}}>Підсумок по матеріалах:</h3>
-            <table style={{width:'100%',color:'#222',background:'#fff',borderRadius:8,overflow:'hidden',fontSize:'1rem'}}>
-              <thead>
-                <tr style={{background:'#ffe600',color:'#222',fontWeight:700}}>
-                  <th>Матеріал</th>
-                  <th>Тип</th>
-                  <th>Загальна кількість</th>
-                  <th>Загальна вартість</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.values(report.summary).map((item, idx) => (
-                  <tr key={idx}>
-                    <td>{item.label}</td>
-                    <td>{item.type}</td>
-                    <td>{item.totalQty}</td>
-                    <td style={{fontWeight:600,background:'#b6ffb6'}}>{item.totalPrice}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div>
-            <h3 style={{color:'#222',marginBottom:12}}>Деталізація по заявках:</h3>
-            {report.details.map((detail, idx) => (
-              <div key={idx} style={{background:'#fff',borderRadius:8,padding:16,marginBottom:16,boxShadow:'0 1px 4px #0001'}}>
-                <div style={{fontWeight:600,marginBottom:8,color:'#1976d2'}}>
-                  {detail.date} - {detail.company} - {detail.work}
-                </div>
-                <div style={{marginBottom:8,color:'#666'}}>Інженери: {detail.engineers}</div>
-                {detail.materials.length > 0 && (
-                  <table style={{width:'100%',fontSize:'0.9rem',color:'#222'}}>
-                    <thead>
-                      <tr style={{background:'#f0f0f0'}}>
-                        <th>Матеріал</th>
-                        <th>Тип</th>
-                        <th>Кількість</th>
-                        <th>Вартість</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detail.materials.map((material, matIdx) => (
-                        <tr key={matIdx}>
-                          <td>{material.label}</td>
-                          <td>{material.type}</td>
-                          <td>{material.qty}</td>
-                          <td>{material.price}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 } 
