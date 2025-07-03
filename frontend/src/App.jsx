@@ -1034,6 +1034,20 @@ function RegionalManagerArea({ tab: propTab, user }) {
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
 
+  // Додаю useEffect для завантаження користувачів з бази
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const usersData = await columnsSettingsAPI.getAllUsers();
+        setUsers(usersData);
+      } catch (error) {
+        setUsers([]);
+        console.error('Помилка завантаження користувачів:', error);
+      }
+    };
+    loadUsers();
+  }, []);
+
   // --- Додаю month, year, storageKey для табеля ---
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1); // 1-12
