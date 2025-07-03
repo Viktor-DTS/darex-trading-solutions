@@ -16,6 +16,9 @@ export const tasksAPI = {
     return (await res.json()).task;
   },
   async update(id, task) {
+    if (!id || id === undefined || id === null) {
+      throw new Error('ID заявки не може бути порожнім');
+    }
     const res = await fetch(`${API_BASE_URL}/tasks/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -25,6 +28,9 @@ export const tasksAPI = {
     return (await res.json()).task;
   },
   async remove(id) {
+    if (!id || id === undefined || id === null) {
+      throw new Error('ID заявки не може бути порожнім');
+    }
     const res = await fetch(`${API_BASE_URL}/tasks/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Помилка видалення заявки');
     return (await res.json()).removed;

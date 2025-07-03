@@ -55,8 +55,8 @@ const initialTask = {
   warehouseComment: '',
   approvedByAccountant: null,
   accountantComment: '',
-  approvedByRegional: null,
-  regionalComment: '',
+  approvedByRegionalManager: null,
+  regionalManagerComment: '',
   oilType: '',
   oilUsed: '',
   oilPrice: '',
@@ -85,6 +85,21 @@ const initialTask = {
 };
 
 // --- Додаю компонент для керування доступом до вкладок ---
+// Функція для перевірки статусу підтвердження
+function isApproved(value) {
+  return value === true || value === 'Підтверджено';
+}
+
+// Функція для перевірки статусу відмови
+function isRejected(value) {
+  return value === false || value === 'Відмова';
+}
+
+// Функція для перевірки статусу на розгляді
+function isPending(value) {
+  return value === null || value === undefined || value === 'На розгляді';
+}
+
 const getDefaultAccess = (rolesList = []) => {
   const roles = rolesList.length > 0 ? rolesList : [
     { value: 'admin', label: 'Адміністратор' },
@@ -787,23 +802,18 @@ function ServiceArea({ user }) {
   });
   const notDone = filtered.filter(t => t.status === 'Заявка' || t.status === 'В роботі');
   const pending = filtered.filter(t => t.status === 'Виконано' && (
-    t.approvedByWarehouse === null ||
-    t.approvedByWarehouse === undefined ||
-    t.approvedByWarehouse === 'На розгляді' ||
-    t.approvedByWarehouse === false ||
-    t.approvedByWarehouse === 'Відмова' ||
-    t.approvedByAccountant === null ||
-    t.approvedByAccountant === undefined ||
-    t.approvedByAccountant === 'На розгляді' ||
-    t.approvedByAccountant === false ||
-    t.approvedByAccountant === 'Відмова' ||
-    t.approvedByRegionalManager === null ||
-    t.approvedByRegionalManager === undefined ||
-    t.approvedByRegionalManager === 'На розгляді' ||
-    t.approvedByRegionalManager === false ||
-    t.approvedByRegionalManager === 'Відмова'
+    isPending(t.approvedByWarehouse) ||
+    isPending(t.approvedByAccountant) ||
+    isPending(t.approvedByRegionalManager) ||
+    isRejected(t.approvedByWarehouse) ||
+    isRejected(t.approvedByAccountant) ||
+    isRejected(t.approvedByRegionalManager)
   ));
-  const done = filtered.filter(t => t.status === 'Виконано' && t.approvedByWarehouse && t.approvedByAccountant && t.approvedByRegionalManager);
+  const done = filtered.filter(t => t.status === 'Виконано' && 
+    isApproved(t.approvedByWarehouse) && 
+    isApproved(t.approvedByAccountant) && 
+    isApproved(t.approvedByRegionalManager)
+  );
   const blocked = filtered.filter(t => t.status === 'Заблоковано');
   let tableData = notDone;
   if (tab === 'pending') tableData = pending;
@@ -1672,13 +1682,7 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
               user={user}
             />
             <TaskTable
-              tasks={taskTab === 'pending' ? filtered.filter(t => t.status === 'Виконано' && (
-              t.approvedByRegionalManager === null ||
-              t.approvedByRegionalManager === undefined ||
-              t.approvedByRegionalManager === 'На розгляді' ||
-              t.approvedByRegionalManager === false ||
-              t.approvedByRegionalManager === 'Відмова'
-              )) : filtered.filter(t => t.status === 'Виконано' && (t.approvedByRegionalManager === true || t.approvedByRegionalManager === 'Підтверджено'))}
+              tasks={taskTab === 'pending' ? filtered.filter(t => t.status === 'Виконано' && isPending(t.approvedByRegionalManager)) : filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByRegionalManager))}
                 allTasks={tasks}
                 onApprove={handleApprove}
                 onEdit={handleEdit}
@@ -2482,9 +2486,9 @@ function ReportBuilder() {
         let bonus = 0;
         if (
           task.status === 'Виконано' &&
-          (task.approvedByWarehouse === true || task.approvedByWarehouse === 'Підтверджено') &&
-          (task.approvedByAccountant === true || task.approvedByAccountant === 'Підтверджено') &&
-          (task.approvedByRegionalManager === true || task.approvedByRegionalManager === 'Підтверджено')
+          isApproved(task.approvedByWarehouse) &&
+          isApproved(task.approvedByAccountant) &&
+          isApproved(task.approvedByRegionalManager)
         ) {
           const workPrice = parseFloat(task.workPrice) || 0;
           if (task.engineer1 && task.engineer2) {
@@ -2742,105 +2746,7 @@ function ReportBuilder() {
           style={{padding:'12px 24px',background:'#00bfff',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>
           Сформувати звіт
         </button>
-        {/* Кнопка 'Експорт в CSV' видалена за вимогою */}
       </div>
-      {/* Модальне вікно для звіту */}
-      {reportModalOpen && (
-        <div
-          style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'stretch',justifyContent:'center',overflow:'auto',padding:0}}
-          onClick={handleCloseReport}
-        >
-          <div
-            style={{background:'#fff',borderRadius:0,padding:'48px 32px 32px 32px',minWidth:'100vw',minHeight:'100vh',maxWidth:'100vw',maxHeight:'100vh',overflow:'auto',boxShadow:'none',position:'relative',margin:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-start'}}
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              onClick={handleCloseReport}
-              aria-label="Закрити звіт"
-              style={{position:'absolute',top:24,right:32,fontSize:36,background:'none',border:'none',cursor:'pointer',color:'#1976d2',zIndex:10}}
-            >
-              ×
-            </button>
-            {/* Порожній контейнер для відступу зверху */}
-            <div style={{height:48}}></div>
-            {/* Кнопки експорту і друку */}
-            <div style={{display:'flex',gap:16,marginBottom:24,marginLeft:0,marginTop:0,justifyContent:'flex-end',width:'100%',maxWidth:1200}}>
-              <button
-                onClick={exportToCSV}
-                style={{padding:'8px 20px',background:'#22334a',color:'#fff',border:'none',borderRadius:6,fontWeight:600,cursor:'pointer',fontSize:18,boxShadow:'0 2px 8px #0001'}}
-              >
-                Експорт в CSV
-              </button>
-              <button
-                onClick={()=>window.print()}
-                style={{padding:'8px 20px',background:'#00bfff',color:'#fff',border:'none',borderRadius:6,fontWeight:600,cursor:'pointer',fontSize:18,boxShadow:'0 2px 8px #0001'}}
-              >
-                Друк
-              </button>
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:32,marginTop:0,width:'100%',maxWidth:1200}}>
-              {reportData.map((group, groupIndex) => (
-                <div
-                  key={groupIndex}
-                  style={{
-                    background:'#fff',
-                    border:'2px solid #1976d2',
-                    borderRadius:12,
-                    margin:'0 auto',
-                    boxShadow:'0 2px 12px #0001',
-                    maxWidth:1200,
-                    width:'100%',
-                    padding:'18px 18px 8px 18px',
-                    position:'relative'
-                  }}
-                >
-                  <div style={{fontWeight:700,fontSize:22,marginBottom:12,color:'#1976d2',letterSpacing:1}}>
-                    {groupByField ? group.group : 'Звіт'}
-                  </div>
-                  <div style={{overflowX:'auto',width:'100%'}}>
-                    <table style={{width:'100%', minWidth:1200, color:'#222', background:'#fff', borderRadius:8, overflow:'hidden', fontSize:'1rem', marginBottom:0}}>
-                      <thead>
-                        <tr style={{background:'#ffe600', color:'#222', fontWeight:700}}>
-                          {selectedFields.map(field => (
-                            <th key={field} style={{padding:'8px 6px'}}>
-                              {availableFields.find(f => f.name === field)?.label || field}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.items.map((item, itemIndex) => (
-                          <tr key={itemIndex}>
-                            {selectedFields.map(field => {
-                              const isTotal = field === 'serviceTotal' || field.toLowerCase().includes('сума');
-                              return (
-                                <td
-                                  key={field}
-                                  style={{
-                                    fontWeight: isTotal ? 700 : 400,
-                                    background: isTotal ? '#b6ffb6' : undefined,
-                                    color: isTotal ? '#222' : undefined,
-                                    padding:'8px 6px',
-                                    textAlign: typeof item[field] === 'number' ? 'right' : 'left'
-                                  }}
-                                >
-                                  {typeof item[field] === 'boolean'
-                                    ? (item[field] ? 'Так' : 'Ні')
-                                    : item[field] || ''}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -2903,16 +2809,7 @@ function AdminEditTasksArea({ user }) {
     (!filters.work || t.work.toLowerCase().includes(filters.work.toLowerCase())) &&
     (!filters.date || t.date.includes(filters.date))
   );
-  const pending = filtered.filter(t => t.status === 'Виконано' && (
-    t.approvedByAccountant === null ||
-    t.approvedByAccountant === undefined ||
-    t.approvedByAccountant === 'На розгляді' ||
-    t.approvedByAccountant === false ||
-    t.approvedByAccountant === 'Відмова'
-  ));
-  function isApproved(v) {
-    return v === true || v === 'Підтверджено';
-  }
+  const pending = filtered.filter(t => t.status === 'Виконано' && isPending(t.approvedByAccountant));
   const archive = filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByAccountant));
   const tableData = tab === 'pending' ? pending : archive;
   const columns = allTaskFields.map(f => ({
