@@ -273,22 +273,37 @@ app.post('/api/tasks', async (req, res) => {
 });
 app.put('/api/tasks/:id', async (req, res) => {
   try {
+    console.log('[DEBUG] PUT /api/tasks/:id - отримано запит для ID:', req.params.id);
+    console.log('[DEBUG] PUT /api/tasks/:id - дані для оновлення:', JSON.stringify(req.body, null, 2));
+    
     // Шукаємо завдання за _id (якщо id виглядає як ObjectId) або за числовим id
     let task;
     if (/^[0-9a-fA-F]{24}$/.test(req.params.id)) {
       // Якщо id виглядає як ObjectId
+      console.log('[DEBUG] PUT /api/tasks/:id - шукаємо за ObjectId:', req.params.id);
       task = await Task.findById(req.params.id);
     } else {
       // Якщо id числовий
+      console.log('[DEBUG] PUT /api/tasks/:id - шукаємо за числовим id:', Number(req.params.id));
       task = await Task.findOne({ id: Number(req.params.id) });
     }
     
-    if (!task) return res.status(404).json({ error: 'Task not found' });
+    if (!task) {
+      console.error('[ERROR] PUT /api/tasks/:id - завдання не знайдено для ID:', req.params.id);
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    console.log('[DEBUG] PUT /api/tasks/:id - знайдено завдання:', task._id);
     
     // Видаляємо поле id з оновлення, якщо воно є
     const { id, ...updateData } = req.body;
+    console.log('[DEBUG] PUT /api/tasks/:id - дані для оновлення (без id):', JSON.stringify(updateData, null, 2));
+    
     Object.assign(task, updateData);
+    console.log('[DEBUG] PUT /api/tasks/:id - застосовано зміни до об\'єкта');
+    
     await task.save();
+    console.log('[DEBUG] PUT /api/tasks/:id - завдання збережено успішно');
     
     // Повертаємо заявку з числовим id для сумісності
     const responseTask = {
@@ -296,8 +311,11 @@ app.put('/api/tasks/:id', async (req, res) => {
       id: task._id.toString()
     };
     
+    console.log('[DEBUG] PUT /api/tasks/:id - повертаємо оновлене завдання з ID:', responseTask.id);
     res.json({ success: true, task: responseTask });
   } catch (error) {
+    console.error('[ERROR] PUT /api/tasks/:id - помилка:', error);
+    console.error('[ERROR] PUT /api/tasks/:id - стек помилки:', error.stack);
     res.status(500).json({ error: error.message });
   }
 });

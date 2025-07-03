@@ -720,12 +720,25 @@ function ServiceArea({ user }) {
   }, []);
 
   const handleSave = async (task) => {
+    console.log('[DEBUG] handleSave called with task:', task);
+    console.log('[DEBUG] handleSave - editTask:', editTask);
+    
     setLoading(true);
     if (editTask && editTask.id) {
+      console.log('[DEBUG] handleSave - оновлюємо існуючу заявку з ID:', editTask.id);
       const updated = await tasksAPI.update(editTask.id, task);
-      setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
+      console.log('[DEBUG] handleSave - отримано оновлену заявку:', updated);
+      
+      setTasks(tasks => {
+        console.log('[DEBUG] handleSave - поточні заявки:', tasks.length);
+        const newTasks = tasks.map(t => t.id === updated.id ? updated : t);
+        console.log('[DEBUG] handleSave - оновлені заявки:', newTasks.length);
+        return newTasks;
+      });
     } else {
+      console.log('[DEBUG] handleSave - додаємо нову заявку');
       const added = await tasksAPI.add(task);
+      console.log('[DEBUG] handleSave - отримано нову заявку:', added);
       setTasks(tasks => [...tasks, added]);
     }
     setEditTask(null);
@@ -2794,12 +2807,25 @@ function AdminEditTasksArea({ user }) {
     setModalOpen(true);
   };
   const handleSave = async (task) => {
+    console.log('[DEBUG] handleSave called with task:', task);
+    console.log('[DEBUG] handleSave - editTask:', editTask);
+    
     setLoading(true);
     if (editTask && editTask.id) {
+      console.log('[DEBUG] handleSave - оновлюємо існуючу заявку з ID:', editTask.id);
       const updated = await tasksAPI.update(editTask.id, task);
-      setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
+      console.log('[DEBUG] handleSave - отримано оновлену заявку:', updated);
+      
+      setTasks(tasks => {
+        console.log('[DEBUG] handleSave - поточні заявки:', tasks.length);
+        const newTasks = tasks.map(t => t.id === updated.id ? updated : t);
+        console.log('[DEBUG] handleSave - оновлені заявки:', newTasks.length);
+        return newTasks;
+      });
     } else {
+      console.log('[DEBUG] handleSave - додаємо нову заявку');
       const added = await tasksAPI.add(task);
+      console.log('[DEBUG] handleSave - отримано нову заявку:', added);
       setTasks(tasks => [...tasks, added]);
     }
     setEditTask(null);

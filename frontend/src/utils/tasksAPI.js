@@ -39,17 +39,35 @@ export const tasksAPI = {
   },
   async update(id, task) {
     console.log('[DEBUG] tasksAPI.update called with:', { id, taskId: task?.id });
+    console.log('[DEBUG] tasksAPI.update - дані для оновлення:', JSON.stringify(task, null, 2));
+    
     if (!id || id === undefined || id === null) {
       console.error('[ERROR] ID заявки не може бути порожнім:', { id, taskId: task?.id });
       throw new Error('ID заявки не може бути порожнім');
     }
-    const res = await fetch(`${API_BASE_URL}/tasks/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(task)
-    });
-    if (!res.ok) throw new Error('Помилка оновлення заявки');
-    return (await res.json()).task;
+    
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(task)
+      });
+      
+      console.log('[DEBUG] tasksAPI.update - відповідь сервера:', res.status, res.statusText);
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('[ERROR] tasksAPI.update - помилка сервера:', errorText);
+        throw new Error(`Помилка оновлення заявки: ${res.status} ${res.statusText}`);
+      }
+      
+      const result = await res.json();
+      console.log('[DEBUG] tasksAPI.update - успішний результат:', result);
+      return result.task;
+    } catch (error) {
+      console.error('[ERROR] tasksAPI.update - виняток:', error);
+      throw error;
+    }
   },
   async remove(id) {
     console.log('[DEBUG] tasksAPI.remove called with id:', id);
