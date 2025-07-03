@@ -2358,6 +2358,17 @@ function PersonnelTimesheet({ user }) {
   const years = [];
   for (let y = now.getFullYear() - 2; y <= now.getFullYear() + 1; y++) years.push(y);
 
+  useEffect(() => {
+    if (serviceUsers.length === 0) {
+      // Очищаємо всі дані табеля, виплат і підсумків для всіх місяців/років
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('timesheetData_') || key.startsWith('payData_') || key.startsWith('timesheetSummary_')) {
+          localStorage.removeItem(key);
+        }
+      });
+    }
+  }, [serviceUsers.length]);
+
   return (
     <div style={{overflowX: 'auto', width: '100%', maxWidth: '100vw', boxSizing: 'border-box'}}>
       <div style={{background: 'rgba(34,51,74,0.85)', borderRadius: 8, padding: '24px 16px', marginBottom: 24, maxWidth: '100%', boxSizing: 'border-box'}}>
