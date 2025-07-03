@@ -189,6 +189,8 @@ export default function WarehouseArea({ user }) {
       if (t.airFilterName && t.airFilterCount) materials.push({ label: 'Фільтр повітряний', type: t.airFilterName, qty: Number(t.airFilterCount), price: Number(t.airFilterPrice)||0 });
       if (t.antifreezeType && t.antifreezeL) materials.push({ label: 'Антифриз', type: t.antifreezeType, qty: Number(t.antifreezeL), price: Number(t.antifreezePrice)||0 });
       if (t.otherMaterials) materials.push({ label: 'Інші матеріали', type: t.otherMaterials, qty: '', price: Number(t.otherSum)||0 });
+      // Додаю totalSum для кожного матеріалу
+      materials.forEach(m => { m.totalSum = (Number(m.qty) || 0) * (Number(m.price) || 0); });
       return {
         date: t.date,
         company: t.company,
@@ -197,16 +199,17 @@ export default function WarehouseArea({ user }) {
         materials,
       };
     });
-    // Підсумок по матеріалах
+    // Підсумок по матеріалах (сума totalSum по кожній унікальній номенклатурі)
     const allMaterials = details.flatMap(d => d.materials);
     const summary = {};
     allMaterials.forEach(m => {
       const key = `${m.label} - ${m.type}`;
       if (!summary[key]) {
-        summary[key] = { label: m.label, type: m.type, totalQty: 0, totalPrice: 0 };
+        summary[key] = { label: m.label, type: m.type, totalQty: 0, totalPrice: 0, totalSum: 0 };
       }
-      summary[key].totalQty += m.qty || 0;
-      summary[key].totalPrice += m.price || 0;
+      summary[key].totalQty += Number(m.qty) || 0;
+      summary[key].totalPrice += Number(m.price) || 0;
+      summary[key].totalSum += (Number(m.qty) || 0) * (Number(m.price) || 0);
     });
     // --- Формуємо HTML для нового вікна ---
     let html = `
@@ -231,6 +234,7 @@ export default function WarehouseArea({ user }) {
               <th>Тип</th>
               <th>Загальна кількість</th>
               <th>Загальна вартість</th>
+              <th>Загальна вартість, грн.</th>
             </tr>
           </thead>
           <tbody>
@@ -240,6 +244,7 @@ export default function WarehouseArea({ user }) {
                 <td>${item.type}</td>
                 <td>${item.totalQty}</td>
                 <td>${item.totalPrice}</td>
+                <td>${item.totalSum}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -259,6 +264,7 @@ export default function WarehouseArea({ user }) {
                     <th>Тип</th>
                     <th>Кількість</th>
                     <th>Вартість</th>
+                    <th>Загальна вартість, грн.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -268,6 +274,7 @@ export default function WarehouseArea({ user }) {
                       <td>${material.type}</td>
                       <td>${material.qty}</td>
                       <td>${material.price}</td>
+                      <td>${material.totalSum}</td>
                     </tr>
                   `).join('')}
                 </tbody>
