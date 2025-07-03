@@ -299,11 +299,12 @@ app.put('/api/tasks/:id', async (req, res) => {
     const { id, _id, ...updateData } = req.body;
     console.log('[DEBUG] PUT /api/tasks/:id - дані для оновлення (без id та _id):', JSON.stringify(updateData, null, 2));
     
-    Object.assign(task, updateData);
-    console.log('[DEBUG] PUT /api/tasks/:id - застосовано зміни до об\'єкта');
+    // Оновлюємо поля через set
+    task.set(updateData);
+    console.log('[DEBUG] PUT /api/tasks/:id - застосовано зміни через set()');
     
     await task.save();
-    console.log('[DEBUG] PUT /api/tasks/:id - завдання збережено успішно');
+    console.log('[DEBUG] PUT /api/tasks/:id - завдання збережено успішно:', task);
     
     // Повертаємо заявку з числовим id для сумісності
     const responseTask = {
@@ -311,7 +312,7 @@ app.put('/api/tasks/:id', async (req, res) => {
       id: task._id.toString()
     };
     
-    console.log('[DEBUG] PUT /api/tasks/:id - повертаємо оновлене завдання з ID:', responseTask.id);
+    console.log('[DEBUG] PUT /api/tasks/:id - повертаємо оновлене завдання з ID:', responseTask.id, 'Дані:', responseTask);
     res.json({ success: true, task: responseTask });
   } catch (error) {
     console.error('[ERROR] PUT /api/tasks/:id - помилка:', error);
