@@ -65,7 +65,10 @@ const accessRulesSchema = new mongoose.Schema({
 }, { strict: false });
 const AccessRules = mongoose.model('AccessRules', accessRulesSchema);
 
-app.use(cors());
+app.use(cors({
+  origin: ['https://darex-trading-solutions-f.onrender.com', 'http://localhost:3000'],
+  credentials: true
+}));
 app.use(express.json());
 
 const reports = [];

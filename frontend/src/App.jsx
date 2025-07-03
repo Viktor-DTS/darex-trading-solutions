@@ -415,7 +415,7 @@ function AdminSystemParamsArea() {
           password: '',
           role: rolesList[0]?.value || '',
           name: '',
-          region: regions[0] || ''
+          region: regions[0]?.name || ''
         });
       } else {
         alert('Помилка збереження користувача');
@@ -539,9 +539,15 @@ function AdminSystemParamsArea() {
   };
 
   const handleEdit = (user) => {
-    setEditUser(user);
-    setForm({ ...user });
     setEditMode(true);
+    setEditUser(user);
+    setForm({
+      login: user.login,
+      password: user.password,
+      role: user.role,
+      name: user.name,
+      region: user.region
+    });
   };
 
   const handleSaveEdit = async (e) => {
@@ -555,7 +561,7 @@ function AdminSystemParamsArea() {
         setUsers(users.map(u => u.id === editUser.id ? updatedUser : u));
         setEditMode(false);
         setEditUser(null);
-        setForm({ login: '', password: '', role: rolesList[0]?.value || '', name: '', region: regions[0] || '' });
+        setForm({ login: '', password: '', role: rolesList[0]?.value || '', name: '', region: regions[0]?.name || '' });
       } else {
         alert('Помилка збереження користувача');
       }
@@ -591,7 +597,7 @@ function AdminSystemParamsArea() {
           </div>
         </div>
         <button type="submit" style={{flex:'1 1 100px', minWidth:100, color: '#333'}}>{editMode ? 'Зберегти' : 'Додати'}</button>
-        {editMode && <button type="button" onClick={() => { setEditMode(false); setEditUser(null); setForm({ login: '', password: '', role: rolesList[0]?.value || '', name: '', region: regions[0] || '' }); }} style={{flex:'1 1 100px', minWidth:100, background:'#f66', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer'}}>Скасувати</button>}
+        {editMode && <button type="button" onClick={() => { setEditMode(false); setEditUser(null); setForm({ login: '', password: '', role: rolesList[0]?.value || '', name: '', region: regions[0]?.name || '' }); }} style={{flex:'1 1 100px', minWidth:100, background:'#f66', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer'}}>Скасувати</button>}
       </form>
       
       {/* Секція управління ролями */}
@@ -2136,20 +2142,6 @@ function App() {
       .catch(() => setServerMsg('Сервер недоступний...'))
   }, []);
 
-  // Додаю seed-адміна при першому запуску
-  if (!localStorage.getItem('users')) {
-    localStorage.setItem('users', JSON.stringify([
-      {
-        login: 'admin',
-        password: 'admin123',
-        role: 'admin',
-        name: 'Адміністратор',
-        region: 'Україна',
-        id: Date.now()
-      }
-    ]));
-  }
-
   if (!user) {
     return <Login onLogin={u => { setUser(u); setCurrentArea(u.role); }} />
   }
@@ -2190,20 +2182,22 @@ function calcTotal(row) {
 }
 
 function PersonnelTimesheet() {
-  const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('users');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [users, setUsers] = useState([]);
   const allRegions = Array.from(new Set(users.map(u => u.region).filter(Boolean)));
   const [region, setRegion] = useState('');
 
+  // Завантаження користувачів з MongoDB
   useEffect(() => {
-    const sync = () => {
-      const saved = localStorage.getItem('users');
-      setUsers(saved ? JSON.parse(saved) : []);
+    const loadUsers = async () => {
+      try {
+        const usersData = await columnsSettingsAPI.getAllUsers();
+        setUsers(usersData);
+      } catch (error) {
+        console.error('Помилка завантаження користувачів:', error);
+        setUsers([]);
+      }
     };
-    window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
+    loadUsers();
   }, []);
 
   const serviceUsers = users.filter(u => u.role === 'service');
