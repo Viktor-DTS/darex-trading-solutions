@@ -181,7 +181,6 @@ export default function WarehouseArea({ user }) {
     });
     // Деталізація по кожній заявці
     const details = filteredTasks.map(t => {
-      // Масив матеріалів для цієї заявки
       const materials = [];
       if (t.oilType && t.oilUsed) materials.push({ label: 'Олива', type: t.oilType, qty: Number(t.oilUsed), price: Number(t.oilPrice)||0 });
       if (t.filterName && t.filterCount) materials.push({ label: 'Фільтр масл', type: t.filterName, qty: Number(t.filterCount), price: Number(t.filterPrice)||0 });
@@ -189,7 +188,6 @@ export default function WarehouseArea({ user }) {
       if (t.airFilterName && t.airFilterCount) materials.push({ label: 'Фільтр повітряний', type: t.airFilterName, qty: Number(t.airFilterCount), price: Number(t.airFilterPrice)||0 });
       if (t.antifreezeType && t.antifreezeL) materials.push({ label: 'Антифриз', type: t.antifreezeType, qty: Number(t.antifreezeL), price: Number(t.antifreezePrice)||0 });
       if (t.otherMaterials) materials.push({ label: 'Інші матеріали', type: t.otherMaterials, qty: '', price: Number(t.otherSum)||0 });
-      // Додаю totalSum для кожного матеріалу
       materials.forEach(m => { m.totalSum = (Number(m.qty) || 0) * (Number(m.price) || 0); });
       return {
         date: t.date,
@@ -199,17 +197,24 @@ export default function WarehouseArea({ user }) {
         materials,
       };
     });
-    // Підсумок по матеріалах (сума totalSum по кожній унікальній номенклатурі)
-    const allMaterials = details.flatMap(d => d.materials);
-    const summary = {};
-    allMaterials.forEach(m => {
-      const key = `${m.label} - ${m.type}`;
-      if (!summary[key]) {
-        summary[key] = { label: m.label, type: m.type, totalQty: 0, totalPrice: 0, totalSum: 0 };
-      }
-      summary[key].totalQty += Number(m.qty) || 0;
-      summary[key].totalPrice += Number(m.price) || 0;
-      summary[key].totalSum += (Number(m.qty) || 0) * (Number(m.price) || 0);
+    // --- Підсумки по матеріалах для кожної компанії ---
+    const companyGroups = {};
+    details.forEach(d => {
+      const company = d.company || 'Невідомо';
+      if (!companyGroups[company]) companyGroups[company] = [];
+      companyGroups[company].push(...d.materials);
+    });
+    // Для кожної компанії: підсумок по матеріалах
+    const companySummaries = {};
+    Object.entries(companyGroups).forEach(([company, mats]) => {
+      const summary = {};
+      mats.forEach(m => {
+        const key = `${m.label} - ${m.type}`;
+        if (!summary[key]) summary[key] = { label: m.label, type: m.type, totalQty: 0, totalSum: 0 };
+        summary[key].totalQty += Number(m.qty) || 0;
+        summary[key].totalSum += (Number(m.qty) || 0) * (Number(m.price) || 0);
+      });
+      companySummaries[company] = summary;
     });
     // --- Формуємо HTML для нового вікна ---
     let html = `
@@ -226,29 +231,32 @@ export default function WarehouseArea({ user }) {
       </head>
       <body>
         <h2>Звіт по матеріалах</h2>
-        <h3>Підсумок по матеріалах:</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Матеріал</th>
-              <th>Тип</th>
-              <th>Загальна кількість</th>
-              <th>Загальна вартість</th>
-              <th>Загальна вартість, грн.</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${Object.values(summary).map(item => `
-              <tr>
-                <td>${item.label}</td>
-                <td>${item.type}</td>
-                <td>${item.totalQty}</td>
-                <td>${item.totalPrice}</td>
-                <td>${item.totalSum}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+        <h3>Підсумок по матеріалах (по компаніях):</h3>
+        ${Object.entries(companySummaries).map(([company, summary]) => `
+          <div style="margin-bottom:24px;">
+            <div style="font-weight:600;margin-bottom:8px;color:#1976d2;">${company}</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Матеріал</th>
+                  <th>Тип</th>
+                  <th>Загальна кількість</th>
+                  <th>Загальна вартість, грн.</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${Object.values(summary).map(item => `
+                  <tr>
+                    <td>${item.label}</td>
+                    <td>${item.type}</td>
+                    <td>${item.totalQty}</td>
+                    <td>${item.totalSum}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `).join('')}
         <h3>Деталізація по заявках:</h3>
         ${details.map(detail => `
           <div style="margin-bottom:24px;">
