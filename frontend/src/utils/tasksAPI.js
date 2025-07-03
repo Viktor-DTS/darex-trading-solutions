@@ -7,13 +7,35 @@ export const tasksAPI = {
     return await res.json();
   },
   async add(task) {
-    const res = await fetch(`${API_BASE_URL}/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(task)
-    });
-    if (!res.ok) throw new Error('Помилка додавання заявки');
-    return (await res.json()).task;
+    console.log('[DEBUG] tasksAPI.add called with:', task);
+    
+    if (!task) {
+      console.error('[ERROR] tasksAPI.add - відсутні дані заявки');
+      throw new Error('Відсутні дані заявки');
+    }
+    
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(task)
+      });
+      
+      console.log('[DEBUG] tasksAPI.add - відповідь сервера:', res.status, res.statusText);
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('[ERROR] tasksAPI.add - помилка сервера:', errorText);
+        throw new Error(`Помилка додавання заявки: ${res.status} ${res.statusText}`);
+      }
+      
+      const result = await res.json();
+      console.log('[DEBUG] tasksAPI.add - успішний результат:', result);
+      return result.task;
+    } catch (error) {
+      console.error('[ERROR] tasksAPI.add - виняток:', error);
+      throw error;
+    }
   },
   async update(id, task) {
     console.log('[DEBUG] tasksAPI.update called with:', { id, taskId: task?.id });
@@ -30,11 +52,30 @@ export const tasksAPI = {
     return (await res.json()).task;
   },
   async remove(id) {
+    console.log('[DEBUG] tasksAPI.remove called with id:', id);
+    
     if (!id || id === undefined || id === null) {
+      console.error('[ERROR] tasksAPI.remove - ID заявки не може бути порожнім:', { id });
       throw new Error('ID заявки не може бути порожнім');
     }
-    const res = await fetch(`${API_BASE_URL}/tasks/${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('Помилка видалення заявки');
-    return (await res.json()).removed;
+    
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${id}`, { method: 'DELETE' });
+      
+      console.log('[DEBUG] tasksAPI.remove - відповідь сервера:', res.status, res.statusText);
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('[ERROR] tasksAPI.remove - помилка сервера:', errorText);
+        throw new Error(`Помилка видалення заявки: ${res.status} ${res.statusText}`);
+      }
+      
+      const result = await res.json();
+      console.log('[DEBUG] tasksAPI.remove - успішний результат:', result);
+      return result.removed;
+    } catch (error) {
+      console.error('[ERROR] tasksAPI.remove - виняток:', error);
+      throw error;
+    }
   }
 }; 

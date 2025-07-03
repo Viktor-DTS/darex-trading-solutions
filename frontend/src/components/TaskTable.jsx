@@ -441,7 +441,13 @@ export default function TaskTable({
                         <>
                           <button onClick={()=>onEdit && onEdit(t)} style={{marginRight:8}}>Редагувати</button>
                           {role === 'service' && (
-                          <button onClick={()=>onDelete && onDelete(t.id)} style={{background:'#f66',color:'#fff'}}>Видалити</button>
+                          <button onClick={()=>{
+                            if (t.id && onDelete) {
+                              onDelete(t.id);
+                            } else {
+                              console.error('[ERROR] Неможливо видалити заявку: ID відсутній або onDelete не передано', { taskId: t.id, hasOnDelete: !!onDelete });
+                            }
+                          }} style={{background:'#f66',color:'#fff'}}>Видалити</button>
                           )}
                         </>
                       )}

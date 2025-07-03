@@ -233,10 +233,27 @@ app.get('/api/tasks', async (req, res) => {
 });
 app.post('/api/tasks', async (req, res) => {
   try {
-    const newTask = new Task({ ...req.body, id: Date.now() });
+    console.log('[DEBUG] POST /api/tasks - отримано дані:', JSON.stringify(req.body, null, 2));
+    
+    // Перевіряємо, чи є необхідні поля
+    if (!req.body) {
+      console.error('[ERROR] POST /api/tasks - відсутні дані');
+      return res.status(400).json({ error: 'Відсутні дані заявки' });
+    }
+    
+    const taskData = { ...req.body, id: Date.now() };
+    console.log('[DEBUG] POST /api/tasks - дані для збереження:', JSON.stringify(taskData, null, 2));
+    
+    const newTask = new Task(taskData);
+    console.log('[DEBUG] POST /api/tasks - створено новий Task об\'єкт');
+    
     await newTask.save();
+    console.log('[DEBUG] POST /api/tasks - заявка збережена успішно, ID:', newTask.id);
+    
     res.json({ success: true, task: newTask });
   } catch (error) {
+    console.error('[ERROR] POST /api/tasks - помилка:', error);
+    console.error('[ERROR] POST /api/tasks - стек помилки:', error.stack);
     res.status(500).json({ error: error.message });
   }
 });
