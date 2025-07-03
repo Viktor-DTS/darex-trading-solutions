@@ -329,6 +329,16 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     }
   }, [open]);
 
+  // --- Список сервісних інженерів для вибору ---
+  const serviceEngineers = users.filter(u => {
+    if (u.role !== 'service') return false;
+    if (user?.region === 'Україна') return true;
+    if (user?.region && user.region !== 'Україна') {
+      return u.region === user.region;
+    }
+    return true;
+  });
+
   if (!open) return null;
 
   // Визначаємо, які поля заблоковані
