@@ -721,7 +721,7 @@ function ServiceArea({ user }) {
 
   const handleSave = async (task) => {
     setLoading(true);
-    if (editTask) {
+    if (editTask && editTask.id) {
       const updated = await tasksAPI.update(editTask.id, task);
       setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
     } else {
@@ -882,7 +882,7 @@ function OperatorArea({ user }) {
 
   const handleSave = async (task) => {
     setLoading(true);
-    if (editTask) {
+    if (editTask && editTask.id) {
       const updated = await tasksAPI.update(editTask.id, task);
       setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
     } else {
@@ -2795,10 +2795,19 @@ function AdminEditTasksArea({ user }) {
   };
   const handleSave = async (task) => {
     setLoading(true);
-    const updated = await tasksAPI.update(task.id, task);
-    setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
+    if (editTask && editTask.id) {
+      const updated = await tasksAPI.update(editTask.id, task);
+      setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
+    } else {
+      const added = await tasksAPI.add(task);
+      setTasks(tasks => [...tasks, added]);
+    }
     setEditTask(null);
     setLoading(false);
+    if (task.status === 'Новий' || task.status === 'В роботі') setTab('notDone');
+    else if (task.status === 'Виконано' && (!task.approvedByWarehouse || !task.approvedByAccountant || !task.approvedByRegionalManager)) setTab('pending');
+    else if (task.status === 'Виконано' && task.approvedByWarehouse && task.approvedByAccountant && task.approvedByRegionalManager) setTab('done');
+    else if (task.status === 'Заблоковано') setTab('blocked');
   };
   const filtered = tasks.filter(t =>
     (!filters.requestDesc || t.requestDesc.toLowerCase().includes(filters.requestDesc.toLowerCase())) &&

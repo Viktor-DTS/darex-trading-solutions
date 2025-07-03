@@ -101,8 +101,13 @@ export default function WarehouseArea({ user }) {
   };
   const handleSave = async (task) => {
     setLoading(true);
-    const updated = await tasksAPI.update(task.id, task);
-    setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
+    if (editTask && editTask.id) {
+      const updated = await tasksAPI.update(editTask.id, task);
+      setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
+    } else {
+      const added = await tasksAPI.add(task);
+      setTasks(tasks => [...tasks, added]);
+    }
     setEditTask(null);
     setLoading(false);
   };

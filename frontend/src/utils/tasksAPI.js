@@ -16,7 +16,9 @@ export const tasksAPI = {
     return (await res.json()).task;
   },
   async update(id, task) {
+    console.log('[DEBUG] tasksAPI.update called with:', { id, taskId: task?.id });
     if (!id || id === undefined || id === null) {
+      console.error('[ERROR] ID заявки не може бути порожнім:', { id, taskId: task?.id });
       throw new Error('ID заявки не може бути порожнім');
     }
     const res = await fetch(`${API_BASE_URL}/tasks/${id}`, {
