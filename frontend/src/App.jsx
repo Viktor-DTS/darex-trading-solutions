@@ -992,8 +992,9 @@ function OperatorArea({ user }) {
   );
 }
 
-function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
+function RegionalManagerArea({ tab: propTab, user }) {
   const { t } = useTranslation();
+  const [tab, setTab] = useState(propTab || 'tasks');
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
   const [taskTab, setTaskTab] = useState('pending');
@@ -1678,9 +1679,12 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
 
   return (
     <>
-    <div style={{padding:32}}>
-      {tab === 'tasks' && (
-        <>
+      <div style={{display:'flex',gap:8,marginBottom:8}}>
+        <RegionalManagerTabs tab={tab} setTab={setTab} />
+      </div>
+      <div style={{padding:32}}>
+        {tab === 'tasks' && (
+          <>
             <h2>Завдання для регіонального керівника</h2>
             <div style={{display:'flex',gap:8,marginBottom:16}}>
               <button onClick={()=>setTaskTab('pending')} style={{width:220,padding:'10px 0',background:taskTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
@@ -1708,246 +1712,246 @@ function RegionalManagerArea({ tab, onOpenReport, setTab, user }) {
                 commentField="regionalManagerComment"
                 user={user}
               />
-        </>
-      )}
-      {tab === 'report' && (
-        <>
-          <h3>Табель персоналу</h3>
-          <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:16}}>
-              <label style={{color:'#fff'}}>Місяць:
-              <select value={month} onChange={e => setMonth(Number(e.target.value))} style={{marginLeft:8}}>
-                {months.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-              </select>
-            </label>
-              <label style={{color:'#fff'}}>Рік:
-              <select value={year} onChange={e => setYear(Number(e.target.value))} style={{marginLeft:8}}>
-                {years.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-            </label>
-          </div>
-          <button
-            onClick={handleFormTimeReport}
-            style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer',marginBottom:16}}
-          >
-            Сформувати звіт
-          </button>
-          {showTimeReport && timeReportContent}
-          <div style={{overflowX: 'auto', width: '100%', maxWidth: '100vw', boxSizing: 'border-box'}}>
-            <div style={{background: 'rgba(34,51,74,0.85)', borderRadius: 8, padding: '24px 16px', marginBottom: 24, maxWidth: '100%', boxSizing: 'border-box'}}>
-              <div className="horizontal-scroll">
-                <table className="timesheet-table">
-                  <thead>
-                    <tr>
-                      <th style={{width:40, background:'#ffe600', color:'#222'}}>№</th>
-                      <th style={{width:160, minWidth:120, maxWidth:220, background:'#ffe600', color:'#222'}}>ПІБ</th>
-                      {days.map(d => {
-                        const date = new Date(year, month - 1, d);
-                        const dayOfWeek = date.getDay();
-                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                        return (
-                          <th key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : '#ffe600', color: isWeekend ? '#fff' : '#222'}}>{d}</th>
-                        );
-                      })}
-                      <th style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222'}}>Всього годин</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                      {filteredUsers.map((u, idx) => (
-                      <tr key={u.id}>
-                        <td style={{background:'#ffe600', color:'#222', fontWeight:600}}>{idx+1}</td>
-                        <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
+          </>
+        )}
+        {tab === 'report' && (
+          <>
+            <h3>Табель персоналу</h3>
+            <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:16}}>
+                <label style={{color:'#fff'}}>Місяць:
+                <select value={month} onChange={e => setMonth(Number(e.target.value))} style={{marginLeft:8}}>
+                  {months.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                </select>
+              </label>
+                <label style={{color:'#fff'}}>Рік:
+                <select value={year} onChange={e => setYear(Number(e.target.value))} style={{marginLeft:8}}>
+                  {years.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </label>
+            </div>
+            <button
+              onClick={handleFormTimeReport}
+              style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer',marginBottom:16}}
+            >
+              Сформувати звіт
+            </button>
+            {showTimeReport && timeReportContent}
+            <div style={{overflowX: 'auto', width: '100%', maxWidth: '100vw', boxSizing: 'border-box'}}>
+              <div style={{background: 'rgba(34,51,74,0.85)', borderRadius: 8, padding: '24px 16px', marginBottom: 24, maxWidth: '100%', boxSizing: 'border-box'}}>
+                <div className="horizontal-scroll">
+                  <table className="timesheet-table">
+                    <thead>
+                      <tr>
+                        <th style={{width:40, background:'#ffe600', color:'#222'}}>№</th>
+                        <th style={{width:160, minWidth:120, maxWidth:220, background:'#ffe600', color:'#222'}}>ПІБ</th>
                         {days.map(d => {
                           const date = new Date(year, month - 1, d);
                           const dayOfWeek = date.getDay();
                           const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                           return (
-                            <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
-                              <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
-                            </td>
+                            <th key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : '#ffe600', color: isWeekend ? '#fff' : '#222'}}>{d}</th>
                           );
                         })}
-                        <td style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222', fontWeight:600}}>{data[u.id]?.total || 0}</td>
+                        <th style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222'}}>Всього годин</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div style={{display:'flex',gap:24,alignItems:'center',margin:'24px 0 8px 0'}}>
-                <div style={{background:'#ffe600',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
-                  Кількість робочих днів у місяці: {summary.workDays}
+                    </thead>
+                    <tbody>
+                        {filteredUsers.map((u, idx) => (
+                        <tr key={u.id}>
+                          <td style={{background:'#ffe600', color:'#222', fontWeight:600}}>{idx+1}</td>
+                          <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
+                          {days.map(d => {
+                            const date = new Date(year, month - 1, d);
+                            const dayOfWeek = date.getDay();
+                            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                            return (
+                              <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
+                                <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
+                              </td>
+                            );
+                          })}
+                          <td style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222', fontWeight:600}}>{data[u.id]?.total || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <div style={{background:'#b6ffb6',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
-                  Норма робочих годин у місяці: {summary.workHours}
+                <div style={{display:'flex',gap:24,alignItems:'center',margin:'24px 0 8px 0'}}>
+                  <div style={{background:'#ffe600',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
+                    Кількість робочих днів у місяці: {summary.workDays}
+                  </div>
+                  <div style={{background:'#b6ffb6',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
+                    Норма робочих годин у місяці: {summary.workHours}
+                  </div>
                 </div>
-              </div>
-              <div style={{marginTop:32}}>
-                <table style={{width:'100%', color:'#222', background:'#fff', borderRadius:8, overflow:'hidden', fontSize:'1rem'}}>
-                  <thead>
-                    <tr style={{background:'#ffe600', color:'#222', fontWeight:700}}>
-                      <th>ПІБ</th>
-                      <th>Ставка</th>
-                      <th>Фактично відпрацьовано годин</th>
-                      <th>Понаднормові роботи, год</th>
-                      <th>Ціна за год, понаднормові</th>
-                      <th>Доплата за понаднормові</th>
-                      <th>Відпрацьована ставка, грн</th>
-                      <th>Премія за виконання сервісних робіт, грн</th>
-                      <th>Загальна сума по оплаті за місяць</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map(u => {
-                      const total = data[u.id]?.total || 0;
-                      const salary = Number(payData[u.id]?.salary) || 25000;
-                      const bonus = Number(payData[u.id]?.bonus) || 0;
-                      const overtime = Math.max(0, total - summary.workHours);
-                      const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
-                      const overtimePay = overtime * overtimeRate;
-                      const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
-                      // Використовуємо завдання з API замість localStorage
-                      const isApproved = v => v === true || v === 'Підтверджено';
-                      const engineerName = u.name;
-                      const monthStr = String(month).padStart(2, '0');
-                      const yearStr = String(year);
-                      let engineerBonus = 0;
-                      tasks.forEach(t => {
-                        if (
-                          t.status === 'Виконано' &&
-                          isApproved(t.approvedByWarehouse) &&
-                          isApproved(t.approvedByAccountant) &&
-                          isApproved(t.approvedByRegionalManager)
-                        ) {
-                          const tDate = t.date;
-                          if (tDate) {
-                            const d = new Date(tDate);
-                            const tMonth = String(d.getMonth() + 1).padStart(2, '0');
-                            const tYear = String(d.getFullYear());
-                            if (tMonth === monthStr && tYear === yearStr) {
-                              const workPrice = parseFloat(t.workPrice) || 0;
-                              const bonus = workPrice * 0.25;
-                              if (t.engineer1 === engineerName && t.engineer2) {
-                                engineerBonus += bonus / 2;
-                              } else if (t.engineer2 === engineerName && t.engineer1) {
-                                engineerBonus += bonus / 2;
-                              } else if (t.engineer1 === engineerName && !t.engineer2) {
-                                engineerBonus += bonus;
+                <div style={{marginTop:32}}>
+                  <table style={{width:'100%', color:'#222', background:'#fff', borderRadius:8, overflow:'hidden', fontSize:'1rem'}}>
+                    <thead>
+                      <tr style={{background:'#ffe600', color:'#222', fontWeight:700}}>
+                        <th>ПІБ</th>
+                        <th>Ставка</th>
+                        <th>Фактично відпрацьовано годин</th>
+                        <th>Понаднормові роботи, год</th>
+                        <th>Ціна за год, понаднормові</th>
+                        <th>Доплата за понаднормові</th>
+                        <th>Відпрацьована ставка, грн</th>
+                        <th>Премія за виконання сервісних робіт, грн</th>
+                        <th>Загальна сума по оплаті за місяць</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.map(u => {
+                        const total = data[u.id]?.total || 0;
+                        const salary = Number(payData[u.id]?.salary) || 25000;
+                        const bonus = Number(payData[u.id]?.bonus) || 0;
+                        const overtime = Math.max(0, total - summary.workHours);
+                        const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
+                        const overtimePay = overtime * overtimeRate;
+                        const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
+                        // Використовуємо завдання з API замість localStorage
+                        const isApproved = v => v === true || v === 'Підтверджено';
+                        const engineerName = u.name;
+                        const monthStr = String(month).padStart(2, '0');
+                        const yearStr = String(year);
+                        let engineerBonus = 0;
+                        tasks.forEach(t => {
+                          if (
+                            t.status === 'Виконано' &&
+                            isApproved(t.approvedByWarehouse) &&
+                            isApproved(t.approvedByAccountant) &&
+                            isApproved(t.approvedByRegionalManager)
+                          ) {
+                            const tDate = t.date;
+                            if (tDate) {
+                              const d = new Date(tDate);
+                              const tMonth = String(d.getMonth() + 1).padStart(2, '0');
+                              const tYear = String(d.getFullYear());
+                              if (tMonth === monthStr && tYear === yearStr) {
+                                const workPrice = parseFloat(t.workPrice) || 0;
+                                const bonus = workPrice * 0.25;
+                                if (t.engineer1 === engineerName && t.engineer2) {
+                                  engineerBonus += bonus / 2;
+                                } else if (t.engineer2 === engineerName && t.engineer1) {
+                                  engineerBonus += bonus / 2;
+                                } else if (t.engineer1 === engineerName && !t.engineer2) {
+                                  engineerBonus += bonus;
+                                }
                               }
                             }
                           }
-                        }
-                      });
-                      const payout = basePay + overtimePay + bonus + engineerBonus;
-                      return (
-                        <tr key={u.id}>
-                          <td>{u.name}</td>
-                          <td><input type="number" value={payData[u.id]?.salary || 25000} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
-                          <td>{total}</td>
-                          <td>{overtime}</td>
-                          <td>{overtimeRate.toFixed(2)}</td>
-                          <td>{overtimePay.toFixed(2)}</td>
-                          <td>{basePay}</td>
-                          <td style={{fontWeight:600, background:'#ffe066'}}>{engineerBonus.toFixed(2)}</td>
-                          <td style={{fontWeight:700, background:'#b6ffb6'}}>{payout}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                        });
+                        const payout = basePay + overtimePay + bonus + engineerBonus;
+                        return (
+                          <tr key={u.id}>
+                            <td>{u.name}</td>
+                            <td><input type="number" value={payData[u.id]?.salary || 25000} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
+                            <td>{total}</td>
+                            <td>{overtime}</td>
+                            <td>{overtimeRate.toFixed(2)}</td>
+                            <td>{overtimePay.toFixed(2)}</td>
+                            <td>{basePay}</td>
+                            <td style={{fontWeight:600, background:'#ffe066'}}>{engineerBonus.toFixed(2)}</td>
+                            <td style={{fontWeight:700, background:'#b6ffb6'}}>{payout}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
-            {reportDialogOpen && (
-              <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto'}}>
-                <div style={{background:'#fff',borderRadius:12,padding:32,minWidth:400,maxWidth:'90vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 32px #0008',position:'relative',marginTop:48}}>
-                  <button onClick={() => { setReportDialogOpen(false); setReportResult(null); setReportResultOpen(false); }} style={{position:'absolute',top:40,right:16,fontSize:24,background:'none',border:'none',cursor:'pointer',color:'#1976d2'}}>×</button>
-                  <div style={{marginBottom:32}}>
-                    <h2 style={{marginBottom:24}}>Звіт по нарахуванню премії</h2>
-                    <div style={{marginBottom:24, display:'flex', gap:32, alignItems:'center'}}>
-                      <label style={{fontWeight:600, fontSize:16, color:'#222'}}>
-                        <input type="radio" name="reportType" value="month" checked={reportType==='month'}
-                          onChange={() => { setReportType('month'); setReportResult(null); setReportResultByPeriod(null); setReportResultOpen(false); }}
-                          style={{marginRight:8}} /> Звіт за місяць
-              </label>
-                      <label style={{fontWeight:600, fontSize:16, color:'#222'}}>
-                        <input type="radio" name="reportType" value="period" checked={reportType==='period'}
-                          onChange={() => { setReportType('period'); setReportResult(null); setReportResultByPeriod(null); setReportResultOpen(false); }}
-                          style={{marginRight:8}} /> Звіт за період
-              </label>
-            </div>
-                    {reportType === 'month' && (
-                      <>
-                        <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24}}>
-                          <label style={{color:'#222'}}>Місяць:
-                            <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))} style={{marginLeft:8}}>
-                  {months.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-                </select>
-                          </label>
-                          <label style={{color:'#222'}}>Рік:
-                            <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))} style={{marginLeft:8}}>
-                  {years.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
-                          </label>
-                          <label style={{color:'#222', marginLeft: 16, display:'flex', alignItems:'center', fontSize:16}}>
-                            <input type="checkbox" checked={reportWithDetails} onChange={e => setReportWithDetails(e.target.checked)} style={{marginRight:8}} /> з деталіровкою
-                          </label>
-              </div>
-                        <div style={{display:'flex',gap:16,marginBottom:24}}>
-                          <button style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
-                            onClick={() => { handleFormReport('month'); setReportMode('month'); setReportModalOpen(true); }}
-                          >
-                            Сформувати звіт
-                          </button>
-                          <div style={{position:'relative',display:'inline-block'}}>
-                            <button style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
-                              onClick={()=>setExportMenuOpen(e=>!e)}
+              {reportDialogOpen && (
+                <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto'}}>
+                  <div style={{background:'#fff',borderRadius:12,padding:32,minWidth:400,maxWidth:'90vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 32px #0008',position:'relative',marginTop:48}}>
+                    <button onClick={() => { setReportDialogOpen(false); setReportResult(null); setReportResultOpen(false); }} style={{position:'absolute',top:40,right:16,fontSize:24,background:'none',border:'none',cursor:'pointer',color:'#1976d2'}}>×</button>
+                    <div style={{marginBottom:32}}>
+                      <h2 style={{marginBottom:24}}>Звіт по нарахуванню премії</h2>
+                      <div style={{marginBottom:24, display:'flex', gap:32, alignItems:'center'}}>
+                        <label style={{fontWeight:600, fontSize:16, color:'#222'}}>
+                          <input type="radio" name="reportType" value="month" checked={reportType==='month'}
+                            onChange={() => { setReportType('month'); setReportResult(null); setReportResultByPeriod(null); setReportResultOpen(false); }}
+                            style={{marginRight:8}} /> Звіт за місяць
+                </label>
+                        <label style={{fontWeight:600, fontSize:16, color:'#222'}}>
+                          <input type="radio" name="reportType" value="period" checked={reportType==='period'}
+                            onChange={() => { setReportType('period'); setReportResult(null); setReportResultByPeriod(null); setReportResultOpen(false); }}
+                            style={{marginRight:8}} /> Звіт за період
+                </label>
+                      </div>
+                      {reportType === 'month' && (
+                        <>
+                          <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24}}>
+                            <label style={{color:'#222'}}>Місяць:
+                              <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))} style={{marginLeft:8}}>
+                    {months.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                  </select>
+                            </label>
+                            <label style={{color:'#222'}}>Рік:
+                              <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))} style={{marginLeft:8}}>
+                    {years.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                            </label>
+                            <label style={{color:'#222', marginLeft: 16, display:'flex', alignItems:'center', fontSize:16}}>
+                              <input type="checkbox" checked={reportWithDetails} onChange={e => setReportWithDetails(e.target.checked)} style={{marginRight:8}} /> з деталіровкою
+                            </label>
+                </div>
+                          <div style={{display:'flex',gap:16,marginBottom:24}}>
+                            <button style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
+                              onClick={() => { handleFormReport('month'); setReportMode('month'); setReportModalOpen(true); }}
                             >
-                              Експорт
+                              Сформувати звіт
                             </button>
-                            {exportMenuOpen && (
-                              <div style={{position:'absolute',top:'110%',left:0,background:'#fff',border:'1px solid #bbb',borderRadius:8,boxShadow:'0 2px 12px #0002',zIndex:10,minWidth:180}}>
-                                <button style={{width:'100%',padding:'10px 0',border:'none',background:'none',color:'#222',fontWeight:600,cursor:'pointer'}} onClick={handleExportCSV}>Експорт у Excel (CSV)</button>
-                                <button style={{width:'100%',padding:'10px 0',border:'none',background:'none',color:'#222',fontWeight:600,cursor:'pointer'}} onClick={handleExportXLSX}>Експорт у Excel (XLSX)</button>
-              </div>
-            )}
+                            <div style={{position:'relative',display:'inline-block'}}>
+                              <button style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
+                                onClick={()=>setExportMenuOpen(e=>!e)}
+                              >
+                                Експорт
+                              </button>
+                              {exportMenuOpen && (
+                                <div style={{position:'absolute',top:'110%',left:0,background:'#fff',border:'1px solid #bbb',borderRadius:8,boxShadow:'0 2px 12px #0002',zIndex:10,minWidth:180}}>
+                                  <button style={{width:'100%',padding:'10px 0',border:'none',background:'none',color:'#222',fontWeight:600,cursor:'pointer'}} onClick={handleExportCSV}>Експорт у Excel (CSV)</button>
+                                  <button style={{width:'100%',padding:'10px 0',border:'none',background:'none',color:'#222',fontWeight:600,cursor:'pointer'}} onClick={handleExportXLSX}>Експорт у Excel (XLSX)</button>
+                    </div>
+                  )}
+                            </div>
                           </div>
-                        </div>
-                        <div id='regional-report-print-block' style={{marginTop:16}}>
-                          {reportMode === 'month' && reportResultOpen && reportResult}
-                        </div>
-                      </>
-                    )}
-                    {reportType === 'period' && (
-                      <>
-                        <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24}}>
-                          <label style={{color:'#222'}}>Початок періоду:
-                            <input type="date" value={reportPeriodStart} onChange={e => setReportPeriodStart(e.target.value)} style={{marginLeft:8}} />
-            </label>
-                          <label style={{color:'#222'}}>Кінець періоду:
-                            <input type="date" value={reportPeriodEnd} onChange={e => setReportPeriodEnd(e.target.value)} style={{marginLeft:8}} />
-                          </label>
-                          <label style={{color:'#222', marginLeft: 16, display:'flex', alignItems:'center', fontSize:16}}>
-                            <input type="checkbox" checked={reportWithDetails} onChange={e => setReportWithDetails(e.target.checked)} style={{marginRight:8}} /> з деталіровкою
-                          </label>
-            </div>
-                        <div style={{display:'flex',gap:16,marginBottom:24}}>
-                          <button style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
-                            onClick={() => { handleFormReport('period'); setReportMode('period'); setReportModalOpen(true); }}
-                          >
-                            Сформувати звіт
-                          </button>
-          </div>
-                        <div id='regional-report-print-block-period' style={{marginTop:16}}>
-                          {reportMode === 'period' && reportResultOpen && reportResultByPeriod}
-        </div>
-                      </>
-                    )}
+                          <div id='regional-report-print-block' style={{marginTop:16}}>
+                            {reportMode === 'month' && reportResultOpen && reportResult}
+                          </div>
+                        </>
+                      )}
+                      {reportType === 'period' && (
+                        <>
+                          <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24}}>
+                            <label style={{color:'#222'}}>Початок періоду:
+                              <input type="date" value={reportPeriodStart} onChange={e => setReportPeriodStart(e.target.value)} style={{marginLeft:8}} />
+                  </label>
+                            <label style={{color:'#222'}}>Кінець періоду:
+                              <input type="date" value={reportPeriodEnd} onChange={e => setReportPeriodEnd(e.target.value)} style={{marginLeft:8}} />
+                            </label>
+                            <label style={{color:'#222', marginLeft: 16, display:'flex', alignItems:'center', fontSize:16}}>
+                              <input type="checkbox" checked={reportWithDetails} onChange={e => setReportWithDetails(e.target.checked)} style={{marginRight:8}} /> з деталіровкою
+                            </label>
                   </div>
+                          <div style={{display:'flex',gap:16,marginBottom:24}}>
+                            <button style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
+                              onClick={() => { handleFormReport('period'); setReportMode('period'); setReportModalOpen(true); }}
+                            >
+                              Сформувати звіт
+                            </button>
+            </div>
+                          <div id='regional-report-print-block-period' style={{marginTop:16}}>
+                            {reportMode === 'period' && reportResultOpen && reportResultByPeriod}
           </div>
-        </div>
-            )}
-          </>
-      )}
-    </div>
+                        </>
+                      )}
+                    </div>
+            </div>
+          </div>
+              )}
+            </>
+        )}
+      </div>
       {/* Модальне вікно для звіту */}
       {reportModalOpen && (
         <div
@@ -2180,13 +2184,9 @@ function App() {
         <Sidebar role={user.role} onSelect={setCurrentArea} current={currentArea} accessRules={accessRules} />
         <div style={{ flex: 1 }}>
           <h1 style={{marginLeft:24}}>{t('company_name')}</h1>
-          {(user.role === 'regional' || (user.role === 'admin' && currentArea === 'regional')) && (
-            <div style={{display:'flex',gap:8,marginLeft:24,marginBottom:8}}>
-              <RegionalManagerTabs tab={regionalTab} setTab={setRegionalTab} />
-            </div>
-          )}
+          {(user.role === 'regional' || (user.role === 'admin' && currentArea === 'regional')) && false /* <RegionalManagerTabs tab={regionalTab} setTab={setRegionalTab} /> */}
           <div style={{marginLeft:0,marginRight:'6%'}}>
-            <Area tab={regionalTab} user={user} />
+            <Area user={user} />
           </div>
         </div>
       </div>
