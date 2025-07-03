@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 
 export const fields = [
   { name: 'status', label: 'Статус заявки', type: 'select', options: ['', 'Заявка', 'В роботі', 'Виконано', 'Заблоковано'] },
@@ -321,6 +322,13 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     }
   }, [form.serviceRegion, users]);
 
+  // --- Завантаження користувачів з бази ---
+  useEffect(() => {
+    if (open) {
+      columnsSettingsAPI.getAllUsers().then(setUsers).catch(() => setUsers([]));
+    }
+  }, [open]);
+
   if (!open) return null;
 
   // Визначаємо, які поля заблоковані
@@ -503,20 +511,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     (parseFloat(form.otherExp)||0)+
     (parseFloat(form.transportSum)||0)
   );
-
-  const serviceEngineers = users.filter(u => {
-    // Фільтруємо тільки користувачів з роллю 'service'
-    if (u.role !== 'service') return false;
-    
-    // Якщо регіон заявки не встановлений, показуємо всіх інженерів
-    if (!form.serviceRegion) return true;
-    
-    // Якщо регіон заявки "Україна", показуємо всіх інженерів
-    if (form.serviceRegion === 'Україна') return true;
-    
-    // Інакше показуємо тільки інженерів з того ж регіону
-    return u.region === form.serviceRegion;
-  });
 
   return (
     <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto'}}>
