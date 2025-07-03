@@ -187,7 +187,7 @@ app.post('/api/tasks', async (req, res) => {
 });
 app.put('/api/tasks/:id', async (req, res) => {
   try {
-    const task = await Task.findOne({ id: req.params.id });
+    const task = await Task.findOne({ id: Number(req.params.id) });
     if (!task) return res.status(404).json({ error: 'Task not found' });
     Object.assign(task, req.body);
     await task.save();
@@ -198,7 +198,7 @@ app.put('/api/tasks/:id', async (req, res) => {
 });
 app.delete('/api/tasks/:id', async (req, res) => {
   try {
-    const result = await Task.deleteOne({ id: req.params.id });
+    const result = await Task.deleteOne({ id: Number(req.params.id) });
     res.json({ success: true, removed: result.deletedCount });
   } catch (error) {
     res.status(500).json({ error: error.message });
