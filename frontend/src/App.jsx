@@ -1011,10 +1011,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
   const [filters, setFilters] = useState(allFilterKeys);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('users');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [users, setUsers] = useState([]);
   const [region, setRegion] = useState('');
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportWithDetails, setReportWithDetails] = useState(false);
