@@ -2383,40 +2383,44 @@ function PersonnelTimesheet({ user }) {
           <button onClick={exportToCSV} style={{background:'#00bfff',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
         </div>
         <div className="horizontal-scroll">
-          <table className="timesheet-table">
-            <thead>
-              <tr>
-                <th style={{width:160, minWidth:120, maxWidth:220}}>ПІБ</th>
-                {days.map(d => {
-                  const date = new Date(year, month - 1, d);
-                  const dayOfWeek = date.getDay();
-                  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                  return (
-                    <th key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined, color: isWeekend ? '#fff' : undefined}}>{d}</th>
-                  );
-                })}
-                <th style={{width:80, minWidth:60}}>Всього годин</th>
-              </tr>
-            </thead>
-            <tbody>
-              {serviceUsers.map(u => (
-                <tr key={u.id}>
-                  <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
+          {serviceUsers.length === 0 ? (
+            <div style={{color:'#fff',padding:'24px',fontSize:'1.2em'}}>Немає працівників з ролью service</div>
+          ) : (
+            <table className="timesheet-table">
+              <thead>
+                <tr>
+                  <th style={{width:160, minWidth:120, maxWidth:220}}>ПІБ</th>
                   {days.map(d => {
                     const date = new Date(year, month - 1, d);
                     const dayOfWeek = date.getDay();
                     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                     return (
-                      <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
-                        <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
-                      </td>
+                      <th key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined, color: isWeekend ? '#fff' : undefined}}>{d}</th>
                     );
                   })}
-                  <td style={{width:80, minWidth:60}}>{data[u.id]?.total || 0}</td>
+                  <th style={{width:80, minWidth:60}}>Всього годин</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {serviceUsers.map(u => (
+                  <tr key={u.id}>
+                    <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
+                    {days.map(d => {
+                      const date = new Date(year, month - 1, d);
+                      const dayOfWeek = date.getDay();
+                      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                      return (
+                        <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
+                          <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
+                        </td>
+                      );
+                    })}
+                    <td style={{width:80, minWidth:60}}>{data[u.id]?.total || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
         {/* Підсумковий блок */}
         <div style={{background: 'transparent', borderRadius: 8, padding: 0, marginTop: 24}}>
