@@ -295,9 +295,9 @@ app.put('/api/tasks/:id', async (req, res) => {
     
     console.log('[DEBUG] PUT /api/tasks/:id - знайдено завдання:', task._id);
     
-    // Видаляємо поле id з оновлення, якщо воно є
-    const { id, ...updateData } = req.body;
-    console.log('[DEBUG] PUT /api/tasks/:id - дані для оновлення (без id):', JSON.stringify(updateData, null, 2));
+    // Видаляємо поля id та _id з оновлення, якщо вони є
+    const { id, _id, ...updateData } = req.body;
+    console.log('[DEBUG] PUT /api/tasks/:id - дані для оновлення (без id та _id):', JSON.stringify(updateData, null, 2));
     
     Object.assign(task, updateData);
     console.log('[DEBUG] PUT /api/tasks/:id - застосовано зміни до об\'єкта');
