@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
 import { tasksAPI } from '../utils/tasksAPI';
+import * as XLSX from 'xlsx';
 
 const initialTask = {
   id: null,
@@ -359,6 +360,25 @@ export default function AccountantArea({ user }) {
     win.document.close();
   };
 
+  // --- Експорт у Excel для "Заявка на підтвердженні" ---
+  const exportPendingToExcel = () => {
+    // Вибираємо лише заявки на підтвердженні
+    const exportData = pending.map(task => {
+      const row = {};
+      allTaskFields.forEach(field => {
+        row[field.label] = task[field.name] ?? '';
+      });
+      return row;
+    });
+    // Формуємо worksheet
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    // Формуємо workbook
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Заявки на підтвердженні');
+    // Завантажуємо файл
+    XLSX.writeFile(workbook, 'Заявки_на_підтвердженні.xlsx');
+  };
+
   return (
     <div style={{padding:32}}>
       <h2>Завдання для затвердження (Бухгалтер)</h2>
@@ -366,6 +386,9 @@ export default function AccountantArea({ user }) {
       <div style={{display:'flex',gap:8,marginBottom:16}}>
         <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
         <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
+        {tab === 'pending' && (
+          <button onClick={exportPendingToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
+        )}
       </div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
         <label style={{display:'flex',alignItems:'center',gap:4}}>
