@@ -158,27 +158,15 @@ export default function WarehouseArea({ user }) {
     }
     return true;
   });
-  const pending = filtered.filter(t => t.status === 'Виконано' && (
-    t.approvedByWarehouse === null ||
-    t.approvedByWarehouse === undefined ||
-    t.approvedByWarehouse === 'На розгляді' ||
-    t.approvedByWarehouse === false ||
-    t.approvedByWarehouse === 'Відмова' ||
-    t.approvedByAccountant === null ||
-    t.approvedByAccountant === undefined ||
-    t.approvedByAccountant === 'На розгляді' ||
-    t.approvedByAccountant === false ||
-    t.approvedByAccountant === 'Відмова' ||
-    t.approvedByRegionalManager === null ||
-    t.approvedByRegionalManager === undefined ||
-    t.approvedByRegionalManager === 'На розгляді' ||
-    t.approvedByRegionalManager === false ||
-    t.approvedByRegionalManager === 'Відмова'
-  ));
+  const pending = filtered.filter(
+    t => t.status === 'Виконано' && t.approvedByWarehouse !== 'Підтверджено'
+  );
   function isApproved(v) {
     return v === true || v === 'Підтверджено';
   }
-  const archive = filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant) && isApproved(t.approvedByRegionalManager));
+  const archive = filtered.filter(
+    t => t.status === 'Виконано' && t.approvedByWarehouse === 'Підтверджено'
+  );
   const tableData = tab === 'pending' ? pending : archive;
   const columns = allTaskFields.map(f => ({
     key: f.name,
