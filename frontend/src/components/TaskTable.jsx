@@ -77,7 +77,8 @@ export default function TaskTable({
   const allColumns = columns;
   const defaultKeys = useMemo(() => columns.map(c => c.key), [columns]);
   
-  // Змінюємо ініціалізацію стану - НЕ встановлюємо defaultKeys одразу
+  // Додаємо стан для завантаження налаштувань
+  const [loadingSettings, setLoadingSettings] = useState(true);
   const [selected, setSelected] = useState([]);
   
   // Додаємо логування при зміні selected
@@ -89,6 +90,7 @@ export default function TaskTable({
   useEffect(() => {
     let isMounted = true;
     const loadUserSettings = async () => {
+      setLoadingSettings(true);
       console.log('[DEBUG] === ПОЧАТОК ЗАВАНТАЖЕННЯ НАЛАШТУВАНЬ ===');
       console.log('[DEBUG] userLogin:', userLogin);
       console.log('[DEBUG] area:', area);
@@ -133,6 +135,7 @@ export default function TaskTable({
         }
       }
       console.log('[DEBUG] === КІНЕЦЬ ЗАВАНТАЖЕННЯ НАЛАШТУВАНЬ ===');
+      if (isMounted) setLoadingSettings(false);
     };
     loadUserSettings();
     return () => { isMounted = false; };
@@ -142,8 +145,8 @@ export default function TaskTable({
     .map(key => allColumns.find(c => c.key === key))
     .filter(Boolean);
     
-  // Додаємо перевірку завантаження налаштувань
-  if (selected.length === 0) {
+  // Рендеримо спінер, поки налаштування не завантажено
+  if (loadingSettings || selected.length === 0) {
     return (
       <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'200px',color:'#666'}}>
         <div style={{textAlign:'center'}}>
