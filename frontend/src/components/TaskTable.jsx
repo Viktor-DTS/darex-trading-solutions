@@ -77,8 +77,8 @@ export default function TaskTable({
   const allColumns = columns;
   const defaultKeys = useMemo(() => columns.map(c => c.key), [columns]);
   
-  // Змінюємо ініціалізацію стану - не встановлюємо defaultKeys одразу
-  const [selected, setSelected] = useState([]);
+  // Змінюємо ініціалізацію стану - встановлюємо defaultKeys як початкове значення
+  const [selected, setSelected] = useState(defaultKeys);
   
   // Додаємо логування при зміні selected
   useEffect(() => {
@@ -114,17 +114,22 @@ export default function TaskTable({
             setSelected(defaultKeys);
           }
         }
-      } else {
+      } else if (isMounted) {
         // Якщо немає користувача, області або колонок, встановлюємо стандартні
-        if (isMounted) {
-          console.log('[DEBUG] Немає користувача/області/колонок, встановлюємо стандартні:', defaultKeys);
-          setSelected(defaultKeys);
-        }
+        console.log('[DEBUG] Немає користувача/області/колонок, встановлюємо стандартні:', defaultKeys);
+        setSelected(defaultKeys);
       }
     };
     loadUserSettings();
     return () => { isMounted = false; };
-  }, [user?.login, area, columns]);
+  }, [user?.login, area]); // Видаляємо columns з залежностей
+  
+  // Оновлюємо selected при зміні columns (якщо налаштування ще не завантажені)
+  useEffect(() => {
+    if (columns.length > 0 && selected.length === 0) {
+      setSelected(defaultKeys);
+    }
+  }, [columns, defaultKeys, selected.length]);
   
   const visibleColumns = selected
     .map(key => allColumns.find(c => c.key === key))
@@ -269,9 +274,12 @@ export default function TaskTable({
     // Зберігаємо новий порядок через API
     if (user?.login && area) {
       try {
+        console.log('[DEBUG] Зберігаємо новий порядок колонок:', newOrder);
         const success = await columnsSettingsAPI.saveSettings(userLogin, area, newOrder, newOrder);
         if (!success) {
           console.error('Помилка збереження порядку колонок');
+        } else {
+          console.log('[DEBUG] Порядок колонок успішно збережено');
         }
       } catch (error) {
         console.error('Помилка збереження порядку колонок:', error);
