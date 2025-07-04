@@ -284,7 +284,7 @@ export default function TaskTable({
   // --- ФУНКЦІЯ для збереження нової дати підтвердження ---
   const handleSaveBonusDate = () => {
     if (!editDateModal.taskId || !editDateModal.month || !editDateModal.year) return;
-    const newDate = `${editDateModal.month.padStart(2, '0')}.${editDateModal.year}`;
+    const newDate = `${editDateModal.month.padStart(2, '0')}-${editDateModal.year}`;
     if (onEdit) {
       // Знаходимо завдання та викликаємо onEdit з оновленим полем bonusApprovalDate
       const task = tasks.find(t => t.id === editDateModal.taskId);
@@ -481,8 +481,8 @@ export default function TaskTable({
                       <button style={{marginLeft:8}} onClick={() => {
                         let mm = '', yyyy = '';
                         const val = t.bonusApprovalDate || t.approvalDate || '';
-                        if (/^\d{2}\.\d{4}$/.test(val)) {
-                          [mm, yyyy] = val.split('.');
+                        if (/^\d{2}-\d{4}$/.test(val)) {
+                          [mm, yyyy] = val.split('-');
                         } else if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
                           yyyy = val.slice(0,4); mm = val.slice(5,7);
                         } else {
