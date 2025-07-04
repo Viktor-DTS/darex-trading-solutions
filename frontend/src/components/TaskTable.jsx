@@ -77,8 +77,8 @@ export default function TaskTable({
   const allColumns = columns;
   const defaultKeys = useMemo(() => columns.map(c => c.key), [columns]);
   
-  // Змінюємо ініціалізацію стану - встановлюємо defaultKeys як початкове значення
-  const [selected, setSelected] = useState(defaultKeys);
+  // Змінюємо ініціалізацію стану - НЕ встановлюємо defaultKeys одразу
+  const [selected, setSelected] = useState([]);
   
   // Додаємо логування при зміні selected
   useEffect(() => {
@@ -136,14 +136,7 @@ export default function TaskTable({
     };
     loadUserSettings();
     return () => { isMounted = false; };
-  }, [user?.login, area]); // Видаляємо columns з залежностей
-  
-  // Оновлюємо selected при зміні columns (якщо налаштування ще не завантажені)
-  useEffect(() => {
-    if (columns.length > 0 && selected.length === 0) {
-      setSelected(defaultKeys);
-    }
-  }, [columns, defaultKeys, selected.length]);
+  }, [user?.login, area, defaultKeys]); // Додаємо defaultKeys в залежності
   
   const visibleColumns = selected
     .map(key => allColumns.find(c => c.key === key))
