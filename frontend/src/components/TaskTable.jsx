@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ModalTaskForm from '../ModalTaskForm';
 import { columnsSettingsAPI } from '../utils/columnsSettingsAPI';
 
@@ -75,11 +75,28 @@ export default function TaskTable({
   const area = role; // Використовуємо role як область
   
   const allColumns = columns;
-  const defaultKeys = useMemo(() => {
-    const keys = columns.map(c => c.key);
-    console.log('[DEBUG] defaultKeys recalculated:', keys.length, 'keys');
-    return keys;
-  }, [columns.map(c => c.key).join(',')]); // Використовуємо рядок ключів як залежність
+  
+  // Використовуємо useRef для стабільних значень
+  const defaultKeysRef = useRef(null);
+  const userLoginRef = useRef(null);
+  const areaRef = useRef(null);
+  
+  // Оновлюємо refs тільки коли дійсно змінюються
+  if (defaultKeysRef.current === null || 
+      JSON.stringify(defaultKeysRef.current) !== JSON.stringify(columns.map(c => c.key))) {
+    defaultKeysRef.current = columns.map(c => c.key);
+    console.log('[DEBUG] defaultKeysRef оновлено:', defaultKeysRef.current.length, 'keys');
+  }
+  
+  if (userLoginRef.current !== userLogin) {
+    userLoginRef.current = userLogin;
+    console.log('[DEBUG] userLoginRef оновлено:', userLogin);
+  }
+  
+  if (areaRef.current !== area) {
+    areaRef.current = area;
+    console.log('[DEBUG] areaRef оновлено:', area);
+  }
   
   // Додаємо стан для завантаження налаштувань
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -93,17 +110,23 @@ export default function TaskTable({
   
   // Скидаємо settingsLoaded при зміні користувача або області
   useEffect(() => {
-    console.log('[DEBUG] Користувач або область змінилася, скидаємо settingsLoaded');
-    setSettingsLoaded(false);
-    setSelected([]);
-    setLoadingSettings(true);
+    const prevUserLogin = userLoginRef.current;
+    const prevArea = areaRef.current;
+    
+    if (prevUserLogin !== userLogin || prevArea !== area) {
+      console.log('[DEBUG] Користувач або область змінилася, скидаємо settingsLoaded');
+      console.log('[DEBUG] Попередній userLogin:', prevUserLogin, 'новий:', userLogin);
+      console.log('[DEBUG] Попередня area:', prevArea, 'нова:', area);
+      setSettingsLoaded(false);
+      setSelected([]);
+      setLoadingSettings(true);
+    }
   }, [userLogin, area]);
   
   // Завантаження налаштувань з сервера при ініціалізації
   useEffect(() => {
     // Якщо налаштування вже завантажені і ми маємо selected, не завантажуємо знову
-    // Але тільки якщо не змінився користувач або область
-    if (settingsLoaded && selected.length > 0 && !loadingSettings) {
+    if (settingsLoaded && selected.length > 0) {
       console.log('[DEBUG] Налаштування вже завантажені, пропускаємо повторне завантаження');
       return;
     }
@@ -112,17 +135,17 @@ export default function TaskTable({
     const loadUserSettings = async () => {
       setLoadingSettings(true);
       console.log('[DEBUG] === ПОЧАТОК ЗАВАНТАЖЕННЯ НАЛАШТУВАНЬ ===');
-      console.log('[DEBUG] userLogin:', userLogin);
-      console.log('[DEBUG] area:', area);
+      console.log('[DEBUG] userLogin:', userLoginRef.current);
+      console.log('[DEBUG] area:', areaRef.current);
       console.log('[DEBUG] user:', user);
       console.log('[DEBUG] columns.length:', columns.length);
-      console.log('[DEBUG] defaultKeys:', defaultKeys);
+      console.log('[DEBUG] defaultKeys:', defaultKeysRef.current);
       
-      if (user?.login && area && columns.length > 0) {
+      if (userLoginRef.current && areaRef.current && columns.length > 0) {
         try {
           console.log('[DEBUG] Викликаємо loadSettings...');
-          const settings = await columnsSettingsAPI.loadSettings(userLogin, area);
-          console.log('[DEBUG] loadSettings повернув:', settings, 'для', userLogin, area);
+          const settings = await columnsSettingsAPI.loadSettings(userLoginRef.current, areaRef.current);
+          console.log('[DEBUG] loadSettings повернув:', settings, 'для', userLoginRef.current, areaRef.current);
           
           if (isMounted) {
             // Перевіряємо, чи всі ключі з налаштувань існують у поточних колонках
@@ -133,27 +156,27 @@ export default function TaskTable({
               setSelected(settings.visible);
             } else {
               // Якщо налаштування невалідні, встановлюємо стандартні
-              console.log('[DEBUG] ⚠️ Скидаємо на стандартні (defaultKeys):', defaultKeys);
-              setSelected(defaultKeys);
+              console.log('[DEBUG] ⚠️ Скидаємо на стандартні (defaultKeys):', defaultKeysRef.current);
+              setSelected(defaultKeysRef.current);
             }
             setSettingsLoaded(true);
           }
         } catch (error) {
           console.error('[DEBUG] ❌ Помилка завантаження налаштувань:', error);
           if (isMounted) {
-            console.log('[DEBUG] ⚠️ Встановлюємо стандартні через помилку:', defaultKeys);
-            setSelected(defaultKeys);
+            console.log('[DEBUG] ⚠️ Встановлюємо стандартні через помилку:', defaultKeysRef.current);
+            setSelected(defaultKeysRef.current);
             setSettingsLoaded(true);
           }
         }
       } else {
         // Якщо немає користувача, області або колонок, встановлюємо стандартні
-        console.log('[DEBUG] ⚠️ Немає користувача/області/колонок, встановлюємо стандартні:', defaultKeys);
-        console.log('[DEBUG] user?.login:', user?.login);
-        console.log('[DEBUG] area:', area);
+        console.log('[DEBUG] ⚠️ Немає користувача/області/колонок, встановлюємо стандартні:', defaultKeysRef.current);
+        console.log('[DEBUG] userLoginRef.current:', userLoginRef.current);
+        console.log('[DEBUG] areaRef.current:', areaRef.current);
         console.log('[DEBUG] columns.length:', columns.length);
         if (isMounted) {
-          setSelected(defaultKeys);
+          setSelected(defaultKeysRef.current);
           setSettingsLoaded(true);
         }
       }
@@ -162,7 +185,7 @@ export default function TaskTable({
     };
     loadUserSettings();
     return () => { isMounted = false; };
-  }, [userLogin, area, defaultKeys, settingsLoaded]); // Додаємо settingsLoaded в залежності
+  }, [userLoginRef.current, areaRef.current, defaultKeysRef.current, settingsLoaded]); // Використовуємо refs як залежності
   
   const visibleColumns = selected
     .map(key => allColumns.find(c => c.key === key))
@@ -182,17 +205,17 @@ export default function TaskTable({
   
   const handleSettingsSave = async (cols) => {
     console.log('[DEBUG] === ПОЧАТОК ЗБЕРЕЖЕННЯ НАЛАШТУВАНЬ ===');
-    console.log('[DEBUG] Виклик saveSettings для', userLogin, area, cols);
+    console.log('[DEBUG] Виклик saveSettings для', userLoginRef.current, areaRef.current, cols);
     console.log('[DEBUG] user:', user);
     console.log('[DEBUG] user?.login:', user?.login);
-    console.log('[DEBUG] area:', area);
+    console.log('[DEBUG] area:', areaRef.current);
     console.log('[DEBUG] cols:', cols);
     
     setSelected(cols);
-    if (user?.login && area) {
+    if (user?.login && areaRef.current) {
       try {
         console.log('[DEBUG] Відправляємо запит на збереження...');
-        const success = await columnsSettingsAPI.saveSettings(userLogin, area, cols, cols);
+        const success = await columnsSettingsAPI.saveSettings(userLoginRef.current, areaRef.current, cols, cols);
         console.log('[DEBUG] saveSettings результат:', success);
         if (!success) {
           console.error('❌ Помилка збереження налаштувань');
@@ -207,7 +230,7 @@ export default function TaskTable({
     } else {
       console.log('[DEBUG] ❌ Не можна зберегти - відсутні user.login або area');
       console.log('[DEBUG] user?.login:', user?.login);
-      console.log('[DEBUG] area:', area);
+      console.log('[DEBUG] area:', areaRef.current);
     }
     console.log('[DEBUG] === КІНЕЦЬ ЗБЕРЕЖЕННЯ НАЛАШТУВАНЬ ===');
     setShowSettings(false);
@@ -309,10 +332,10 @@ export default function TaskTable({
     setSelected(newOrder);
     
     // Зберігаємо новий порядок через API
-    if (user?.login && area) {
+    if (user?.login && areaRef.current) {
       try {
         console.log('[DEBUG] Зберігаємо новий порядок колонок:', newOrder);
-        const success = await columnsSettingsAPI.saveSettings(userLogin, area, newOrder, newOrder);
+        const success = await columnsSettingsAPI.saveSettings(userLoginRef.current, areaRef.current, newOrder, newOrder);
         if (!success) {
           console.error('Помилка збереження порядку колонок');
         } else {
