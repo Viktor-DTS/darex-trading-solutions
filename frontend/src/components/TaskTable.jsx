@@ -123,11 +123,49 @@ function TaskTableComponent({
     }
   }, [userLogin, area]);
   
+  // Функція для отримання кешованих налаштувань
+  const getCachedSettings = () => {
+    try {
+      const cacheKey = `columnSettings_${userLogin}_${area}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        console.log('[DEBUG] Знайдено кешовані налаштування:', parsed);
+        return parsed;
+      }
+    } catch (error) {
+      console.log('[DEBUG] Помилка при читанні кешу:', error);
+    }
+    return null;
+  };
+  
+  // Функція для збереження налаштувань в кеш
+  const cacheSettings = (settings) => {
+    try {
+      const cacheKey = `columnSettings_${userLogin}_${area}`;
+      localStorage.setItem(cacheKey, JSON.stringify(settings));
+      console.log('[DEBUG] Налаштування збережено в кеш:', settings);
+    } catch (error) {
+      console.log('[DEBUG] Помилка при збереженні кешу:', error);
+    }
+  };
+  
   // Завантаження налаштувань з сервера при ініціалізації
   useEffect(() => {
     // Якщо налаштування вже завантажені і ми маємо selected, не завантажуємо знову
-    if (settingsLoaded && selected.length > 0) {
+    // Але тільки якщо не змінився користувач або область
+    if (settingsLoaded && selected.length > 0 && !loadingSettings) {
       console.log('[DEBUG] Налаштування вже завантажені, пропускаємо повторне завантаження');
+      return;
+    }
+    
+    // Спочатку перевіряємо кеш
+    const cachedSettings = getCachedSettings();
+    if (cachedSettings && cachedSettings.visible && cachedSettings.visible.length > 0) {
+      console.log('[DEBUG] Використовуємо кешовані налаштування');
+      setSelected(cachedSettings.visible);
+      setSettingsLoaded(true);
+      setLoadingSettings(false);
       return;
     }
     
@@ -154,19 +192,30 @@ function TaskTableComponent({
                 settings.visible.every(k => columns.some(c => c.key === k))) {
               console.log('[DEBUG] ✅ Встановлюємо збережені налаштування:', settings.visible);
               setSelected(settings.visible);
+              setSettingsLoaded(true);
+              setLoadingSettings(false);
+              
+              // Зберігаємо в кеш
+              cacheSettings(settings);
             } else {
               // Якщо налаштування невалідні, встановлюємо стандартні
               console.log('[DEBUG] ⚠️ Скидаємо на стандартні (defaultKeys):', defaultKeysRef.current);
               setSelected(defaultKeysRef.current);
+              setSettingsLoaded(true);
+              
+              // Зберігаємо дефолтні налаштування в кеш
+              cacheSettings({ visible: defaultKeysRef.current, order: defaultKeysRef.current });
             }
-            setSettingsLoaded(true);
           }
         } catch (error) {
-          console.error('[DEBUG] ❌ Помилка завантаження налаштувань:', error);
+          console.error('[ERROR] Помилка при завантаженні налаштувань:', error);
           if (isMounted) {
             console.log('[DEBUG] ⚠️ Встановлюємо стандартні через помилку:', defaultKeysRef.current);
             setSelected(defaultKeysRef.current);
             setSettingsLoaded(true);
+            
+            // Зберігаємо дефолтні налаштування в кеш
+            cacheSettings({ visible: defaultKeysRef.current, order: defaultKeysRef.current });
           }
         }
       } else {
@@ -178,6 +227,9 @@ function TaskTableComponent({
         if (isMounted) {
           setSelected(defaultKeysRef.current);
           setSettingsLoaded(true);
+          
+          // Зберігаємо дефолтні налаштування в кеш
+          cacheSettings({ visible: defaultKeysRef.current, order: defaultKeysRef.current });
         }
       }
       console.log('[DEBUG] === КІНЕЦЬ ЗАВАНТАЖЕННЯ НАЛАШТУВАНЬ ===');
@@ -203,37 +255,32 @@ function TaskTableComponent({
     );
   }
   
-  const handleSettingsSave = async (cols) => {
+  const saveSettings = async (cols) => {
     console.log('[DEBUG] === ПОЧАТОК ЗБЕРЕЖЕННЯ НАЛАШТУВАНЬ ===');
-    console.log('[DEBUG] Виклик saveSettings для', userLoginRef.current, areaRef.current, cols);
-    console.log('[DEBUG] user:', user);
-    console.log('[DEBUG] user?.login:', user?.login);
-    console.log('[DEBUG] area:', areaRef.current);
-    console.log('[DEBUG] cols:', cols);
+    console.log('[DEBUG] Виклик saveSettings для', userLogin, area, cols);
     
-    setSelected(cols);
-    if (user?.login && areaRef.current) {
-      try {
-        console.log('[DEBUG] Відправляємо запит на збереження...');
-        const success = await columnsSettingsAPI.saveSettings(userLoginRef.current, areaRef.current, cols, cols);
-        console.log('[DEBUG] saveSettings результат:', success);
-        if (!success) {
-          console.error('❌ Помилка збереження налаштувань');
-          alert('Помилка збереження налаштувань. Спробуйте ще раз.');
-        } else {
-          console.log('[DEBUG] ✅ Налаштування успішно збережено!');
-        }
-      } catch (error) {
-        console.error('[DEBUG] ❌ Помилка збереження:', error);
-        alert('Помилка збереження налаштувань. Спробуйте ще раз.');
+    try {
+      const result = await columnsSettingsAPI.saveSettings(userLogin, area, cols);
+      console.log('[DEBUG] saveSettings результат:', result);
+      
+      if (result) {
+        console.log('[DEBUG] ✅ Налаштування успішно збережено!');
+        
+        // Зберігаємо в кеш
+        cacheSettings({ visible: cols, order: cols });
+        
+        console.log('[DEBUG] === КІНЕЦЬ ЗБЕРЕЖЕННЯ НАЛАШТУВАНЬ ===');
+        return true;
+      } else {
+        console.log('[DEBUG] ❌ Помилка збереження налаштувань');
+        console.log('[DEBUG] === КІНЕЦЬ ЗБЕРЕЖЕННЯ НАЛАШТУВАНЬ ===');
+        return false;
       }
-    } else {
-      console.log('[DEBUG] ❌ Не можна зберегти - відсутні user.login або area');
-      console.log('[DEBUG] user?.login:', user?.login);
-      console.log('[DEBUG] area:', areaRef.current);
+    } catch (error) {
+      console.error('[ERROR] Помилка при збереженні налаштувань:', error);
+      console.log('[DEBUG] === КІНЕЦЬ ЗБЕРЕЖЕННЯ НАЛАШТУВАНЬ ===');
+      return false;
     }
-    console.log('[DEBUG] === КІНЕЦЬ ЗБЕРЕЖЕННЯ НАЛАШТУВАНЬ ===');
-    setShowSettings(false);
   };
 
   const statusOrder = {
@@ -397,7 +444,7 @@ function TaskTableComponent({
             selected={selected}
             onChange={setSelected}
             onClose={()=>setShowSettings(false)}
-            onSave={handleSettingsSave}
+            onSave={saveSettings}
           />
         )}
         {/* СПІЛЬНИЙ КОНТЕЙНЕР для фільтрів і таблиці */}
