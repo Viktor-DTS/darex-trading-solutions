@@ -1599,6 +1599,20 @@ function RegionalManagerArea({ tab: propTab, user }) {
 
   // Функція формування звіту у новому вікні
   const handleFormTimeReport = () => {
+    console.log('[DEBUG][REPORT] month:', month, 'year:', year);
+    console.log('[DEBUG][REPORT] filteredUsers:', filteredUsers);
+    console.log('[DEBUG][REPORT] data:', data);
+    console.log('[DEBUG][REPORT] payData:', payData);
+    console.log('[DEBUG][REPORT] summary:', summary);
+    console.log('[DEBUG][REPORT] tasks:', tasks);
+    // Додатковий лог по bonusApprovalDate
+    tasks.forEach((t, i) => {
+      if (!t.bonusApprovalDate) {
+        console.warn(`[WARN][REPORT] Task #${i} (id=${t.id}) has no bonusApprovalDate`, t);
+      } else if (!/^\d{2}-\d{4}$/.test(t.bonusApprovalDate)) {
+        console.error(`[ERROR][REPORT] Task #${i} (id=${t.id}) has invalid bonusApprovalDate format:`, t.bonusApprovalDate, t);
+      }
+    });
     const monthName = months[month - 1];
     const reportTitle = `Звіт по табелю часу та виконаних робіт за ${monthName} ${year}`;
     // Формування таблиці нарахувань
@@ -1774,10 +1788,13 @@ function RegionalManagerArea({ tab: propTab, user }) {
                 bonusYear = workYear;
               } else {
                 // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
-                const prevMonth = new Date(approvalDate);
-                prevMonth.setMonth(prevMonth.getMonth() - 1);
-                bonusMonth = prevMonth.getMonth() + 1;
-                bonusYear = prevMonth.getFullYear();
+                if (approvalMonth === 1) {
+                  bonusMonth = 12;
+                  bonusYear = approvalYear - 1;
+                } else {
+                  bonusMonth = approvalMonth - 1;
+                  bonusYear = approvalYear;
+                }
               }
               
               return bonusMonth === month && bonusYear === year;
