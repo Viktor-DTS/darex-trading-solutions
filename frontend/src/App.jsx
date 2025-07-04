@@ -158,13 +158,13 @@ function AccessRulesModal({ open, onClose }) {
     } catch (error) {
       console.error('Помилка отримання ролей:', error);
       return [
-        { value: 'admin', label: 'Адміністратор' },
-        { value: 'service', label: 'Сервісна служба' },
-        { value: 'operator', label: 'Оператор' },
-        { value: 'warehouse', label: 'Зав. склад' },
-        { value: 'accountant', label: 'Бухгалтер' },
-        { value: 'regional', label: 'Регіональний керівник' },
-      ];
+    { value: 'admin', label: 'Адміністратор' },
+    { value: 'service', label: 'Сервісна служба' },
+    { value: 'operator', label: 'Оператор' },
+    { value: 'warehouse', label: 'Зав. склад' },
+    { value: 'accountant', label: 'Бухгалтер' },
+    { value: 'regional', label: 'Регіональний керівник' },
+  ];
     }
   };
   
@@ -277,7 +277,7 @@ function AccessRulesModal({ open, onClose }) {
     try {
       const success = await accessRulesAPI.save(access);
       if (success) {
-        onClose();
+    onClose();
       } else {
         alert('Помилка збереження правил доступу');
       }
@@ -424,12 +424,12 @@ function AdminSystemParamsArea() {
     try {
       const success = await columnsSettingsAPI.saveUser(newUser);
       if (success) {
-        setUsers(prevUsers => [...prevUsers, newUser]);
-        setForm({
-          login: '',
-          password: '',
-          role: rolesList[0]?.value || '',
-          name: '',
+    setUsers(prevUsers => [...prevUsers, newUser]);
+    setForm({
+      login: '',
+      password: '',
+      role: rolesList[0]?.value || '',
+      name: '',
           region: regions[0]?.name || ''
         });
       } else {
@@ -447,7 +447,7 @@ function AdminSystemParamsArea() {
     try {
       const success = await columnsSettingsAPI.deleteUser(userToDelete.login);
       if (success) {
-        setUsers(users.filter(u => u.id !== id));
+    setUsers(users.filter(u => u.id !== id));
       } else {
         alert('Помилка видалення користувача');
       }
@@ -463,7 +463,7 @@ function AdminSystemParamsArea() {
         const success = await regionsAPI.save(updatedRegions);
         if (success) {
           setRegions(updatedRegions);
-          setNewRegion('');
+      setNewRegion('');
         } else {
           alert('Помилка збереження регіону');
         }
@@ -511,7 +511,7 @@ function AdminSystemParamsArea() {
           });
           
           await accessRulesAPI.save(currentAccess);
-          setNewRole('');
+      setNewRole('');
         } else {
           alert('Помилка збереження ролі');
         }
@@ -574,8 +574,8 @@ function AdminSystemParamsArea() {
       const success = await columnsSettingsAPI.saveUser(updatedUser);
       if (success) {
         setUsers(users.map(u => u.id === editUser.id ? updatedUser : u));
-        setEditMode(false);
-        setEditUser(null);
+    setEditMode(false);
+    setEditUser(null);
         setForm({ login: '', password: '', role: rolesList[0]?.value || '', name: '', region: regions[0]?.name || '' });
       } else {
         alert('Помилка збереження користувача');
@@ -656,31 +656,31 @@ function AdminSystemParamsArea() {
           ⏳ Завантаження користувачів...
         </div>
       ) : (
-        <table style={{width:'100%', background:'#22334a', color:'#fff', borderRadius:8, overflow:'hidden'}}>
-          <thead>
-            <tr>
-              <th>Логін</th>
-              <th>Роль</th>
-              <th>ПІБ</th>
-              <th>Регіон</th>
-              <th></th>
+      <table style={{width:'100%', background:'#22334a', color:'#fff', borderRadius:8, overflow:'hidden'}}>
+        <thead>
+          <tr>
+            <th>Логін</th>
+            <th>Роль</th>
+            <th>ПІБ</th>
+            <th>Регіон</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {users.map(u => (
+            <tr key={u.id}>
+              <td>{u.login}</td>
+              <td>{rolesList.find(r => r.value === u.role)?.label || u.role}</td>
+              <td>{u.name}</td>
+              <td>{u.region}</td>
+              <td>
+                <button onClick={() => handleEdit(u)} style={{background:'#4CAF50', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer', marginRight:8}}>Редагувати</button>
+                <button onClick={() => handleDelete(u.id)} style={{background:'#f66', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer'}}>Видалити</button>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {users.map(u => (
-              <tr key={u.id}>
-                <td>{u.login}</td>
-                <td>{rolesList.find(r => r.value === u.role)?.label || u.role}</td>
-                <td>{u.name}</td>
-                <td>{u.region}</td>
-                <td>
-                  <button onClick={() => handleEdit(u)} style={{background:'#4CAF50', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer', marginRight:8}}>Редагувати</button>
-                  <button onClick={() => handleDelete(u.id)} style={{background:'#f66', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer'}}>Видалити</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          ))}
+        </tbody>
+      </table>
       )}
       {showAccessModal && <AccessRulesModal open={showAccessModal} onClose={()=>setShowAccessModal(false)} />}
     </div>
@@ -757,13 +757,13 @@ function ServiceArea({ user }) {
     const t = tasks.find(t => t.id === id);
     if (!t) return;
     let updated;
-    if (status === 'Виконано') {
+        if (status === 'Виконано') {
       updated = await tasksAPI.update(id, {
-        ...t,
-        status,
-        approvedByWarehouse: false,
-        approvedByAccountant: false,
-        approvedByRegionalManager: false,
+            ...t,
+            status,
+            approvedByWarehouse: false,
+            approvedByAccountant: false,
+            approvedByRegionalManager: false,
       });
     } else {
       updated = await tasksAPI.update(id, { ...t, status });
@@ -1111,9 +1111,9 @@ function RegionalManagerArea({ tab: propTab, user }) {
     const t = tasks.find(t => t.id === id);
     if (!t) return;
     const updated = await tasksAPI.update(id, {
-      ...t,
-      approvedByRegionalManager: approved,
-      regionalManagerComment: comment !== undefined ? comment : t.regionalManagerComment
+      ...t, 
+      approvedByRegionalManager: approved, 
+      regionalManagerComment: comment !== undefined ? comment : t.regionalManagerComment 
     });
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);
@@ -1693,9 +1693,9 @@ function RegionalManagerArea({ tab: propTab, user }) {
       <div style={{display:'flex',gap:8,marginBottom:8}}>
         <RegionalManagerTabs tab={tab} setTab={setTab} />
       </div>
-      <div style={{padding:32}}>
-        {tab === 'tasks' && (
-          <>
+    <div style={{padding:32}}>
+      {tab === 'tasks' && (
+        <>
             <h2>Завдання для регіонального керівника</h2>
             <div style={{display:'flex',gap:8,marginBottom:16}}>
               <button onClick={()=>setTaskTab('pending')} style={{width:220,padding:'10px 0',background:taskTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
@@ -1723,246 +1723,246 @@ function RegionalManagerArea({ tab: propTab, user }) {
                 commentField="regionalManagerComment"
                 user={user}
               />
-          </>
-        )}
-        {tab === 'report' && (
-          <>
-            <h3>Табель персоналу</h3>
-            <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:16}}>
-                <label style={{color:'#fff'}}>Місяць:
-                <select value={month} onChange={e => setMonth(Number(e.target.value))} style={{marginLeft:8}}>
-                  {months.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-                </select>
-              </label>
-                <label style={{color:'#fff'}}>Рік:
-                <select value={year} onChange={e => setYear(Number(e.target.value))} style={{marginLeft:8}}>
-                  {years.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </label>
-            </div>
-            <button
-              onClick={handleFormTimeReport}
-              style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer',marginBottom:16}}
-            >
-              Сформувати звіт
-            </button>
-            {showTimeReport && timeReportContent}
-            <div style={{overflowX: 'auto', width: '100%', maxWidth: '100vw', boxSizing: 'border-box'}}>
-              <div style={{background: 'rgba(34,51,74,0.85)', borderRadius: 8, padding: '24px 16px', marginBottom: 24, maxWidth: '100%', boxSizing: 'border-box'}}>
-                <div className="horizontal-scroll">
-                  <table className="timesheet-table">
-                    <thead>
-                      <tr>
-                        <th style={{width:40, background:'#ffe600', color:'#222'}}>№</th>
-                        <th style={{width:160, minWidth:120, maxWidth:220, background:'#ffe600', color:'#222'}}>ПІБ</th>
+        </>
+      )}
+      {tab === 'report' && (
+        <>
+          <h3>Табель персоналу</h3>
+          <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:16}}>
+              <label style={{color:'#fff'}}>Місяць:
+              <select value={month} onChange={e => setMonth(Number(e.target.value))} style={{marginLeft:8}}>
+                {months.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+              </select>
+            </label>
+              <label style={{color:'#fff'}}>Рік:
+              <select value={year} onChange={e => setYear(Number(e.target.value))} style={{marginLeft:8}}>
+                {years.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </label>
+                        </div>
+          <button
+            onClick={handleFormTimeReport}
+            style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer',marginBottom:16}}
+          >
+            Сформувати звіт
+          </button>
+          {showTimeReport && timeReportContent}
+          <div style={{overflowX: 'auto', width: '100%', maxWidth: '100vw', boxSizing: 'border-box'}}>
+            <div style={{background: 'rgba(34,51,74,0.85)', borderRadius: 8, padding: '24px 16px', marginBottom: 24, maxWidth: '100%', boxSizing: 'border-box'}}>
+              <div className="horizontal-scroll">
+                <table className="timesheet-table">
+                  <thead>
+                    <tr>
+                      <th style={{width:40, background:'#ffe600', color:'#222'}}>№</th>
+                      <th style={{width:160, minWidth:120, maxWidth:220, background:'#ffe600', color:'#222'}}>ПІБ</th>
+                      {days.map(d => {
+                        const date = new Date(year, month - 1, d);
+                        const dayOfWeek = date.getDay();
+                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                        return (
+                          <th key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : '#ffe600', color: isWeekend ? '#fff' : '#222'}}>{d}</th>
+                        );
+                      })}
+                      <th style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222'}}>Всього годин</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                      {filteredUsers.map((u, idx) => (
+                      <tr key={u.id}>
+                        <td style={{background:'#ffe600', color:'#222', fontWeight:600}}>{idx+1}</td>
+                        <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
                         {days.map(d => {
                           const date = new Date(year, month - 1, d);
                           const dayOfWeek = date.getDay();
                           const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                           return (
-                            <th key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : '#ffe600', color: isWeekend ? '#fff' : '#222'}}>{d}</th>
+                            <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
+                              <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
+                            </td>
                           );
                         })}
-                        <th style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222'}}>Всього годин</th>
+                        <td style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222', fontWeight:600}}>{data[u.id]?.total || 0}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                        {filteredUsers.map((u, idx) => (
-                        <tr key={u.id}>
-                          <td style={{background:'#ffe600', color:'#222', fontWeight:600}}>{idx+1}</td>
-                          <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
-                          {days.map(d => {
-                            const date = new Date(year, month - 1, d);
-                            const dayOfWeek = date.getDay();
-                            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                            return (
-                              <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
-                                <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
-                              </td>
-                            );
-                          })}
-                          <td style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222', fontWeight:600}}>{data[u.id]?.total || 0}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{display:'flex',gap:24,alignItems:'center',margin:'24px 0 8px 0'}}>
+                <div style={{background:'#ffe600',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
+                  Кількість робочих днів у місяці: {summary.workDays}
                 </div>
-                <div style={{display:'flex',gap:24,alignItems:'center',margin:'24px 0 8px 0'}}>
-                  <div style={{background:'#ffe600',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
-                    Кількість робочих днів у місяці: {summary.workDays}
-                  </div>
-                  <div style={{background:'#b6ffb6',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
-                    Норма робочих годин у місяці: {summary.workHours}
-                  </div>
+                <div style={{background:'#b6ffb6',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
+                  Норма робочих годин у місяці: {summary.workHours}
                 </div>
-                <div style={{marginTop:32}}>
-                  <table style={{width:'100%', color:'#222', background:'#fff', borderRadius:8, overflow:'hidden', fontSize:'1rem'}}>
-                    <thead>
-                      <tr style={{background:'#ffe600', color:'#222', fontWeight:700}}>
-                        <th>ПІБ</th>
-                        <th>Ставка</th>
-                        <th>Фактично відпрацьовано годин</th>
-                        <th>Понаднормові роботи, год</th>
-                        <th>Ціна за год, понаднормові</th>
-                        <th>Доплата за понаднормові</th>
-                        <th>Відпрацьована ставка, грн</th>
-                        <th>Премія за виконання сервісних робіт, грн</th>
-                        <th>Загальна сума по оплаті за місяць</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredUsers.map(u => {
-                        const total = data[u.id]?.total || 0;
-                        const salary = Number(payData[u.id]?.salary) || 25000;
-                        const bonus = Number(payData[u.id]?.bonus) || 0;
-                        const overtime = Math.max(0, total - summary.workHours);
-                        const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
-                        const overtimePay = overtime * overtimeRate;
-                        const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
+              </div>
+              <div style={{marginTop:32}}>
+                <table style={{width:'100%', color:'#222', background:'#fff', borderRadius:8, overflow:'hidden', fontSize:'1rem'}}>
+                  <thead>
+                    <tr style={{background:'#ffe600', color:'#222', fontWeight:700}}>
+                      <th>ПІБ</th>
+                      <th>Ставка</th>
+                      <th>Фактично відпрацьовано годин</th>
+                      <th>Понаднормові роботи, год</th>
+                      <th>Ціна за год, понаднормові</th>
+                      <th>Доплата за понаднормові</th>
+                      <th>Відпрацьована ставка, грн</th>
+                      <th>Премія за виконання сервісних робіт, грн</th>
+                      <th>Загальна сума по оплаті за місяць</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUsers.map(u => {
+                      const total = data[u.id]?.total || 0;
+                      const salary = Number(payData[u.id]?.salary) || 25000;
+                      const bonus = Number(payData[u.id]?.bonus) || 0;
+                      const overtime = Math.max(0, total - summary.workHours);
+                      const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
+                      const overtimePay = overtime * overtimeRate;
+                      const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
                         // Використовуємо завдання з API замість localStorage
-                        const isApproved = v => v === true || v === 'Підтверджено';
-                        const engineerName = u.name;
-                        const monthStr = String(month).padStart(2, '0');
-                        const yearStr = String(year);
-                        let engineerBonus = 0;
-                        tasks.forEach(t => {
-                          if (
-                            t.status === 'Виконано' &&
-                            isApproved(t.approvedByWarehouse) &&
-                            isApproved(t.approvedByAccountant) &&
-                            isApproved(t.approvedByRegionalManager)
-                          ) {
-                            const tDate = t.date;
-                            if (tDate) {
-                              const d = new Date(tDate);
-                              const tMonth = String(d.getMonth() + 1).padStart(2, '0');
-                              const tYear = String(d.getFullYear());
-                              if (tMonth === monthStr && tYear === yearStr) {
-                                const workPrice = parseFloat(t.workPrice) || 0;
-                                const bonus = workPrice * 0.25;
-                                if (t.engineer1 === engineerName && t.engineer2) {
-                                  engineerBonus += bonus / 2;
-                                } else if (t.engineer2 === engineerName && t.engineer1) {
-                                  engineerBonus += bonus / 2;
-                                } else if (t.engineer1 === engineerName && !t.engineer2) {
-                                  engineerBonus += bonus;
-                                }
+                      const isApproved = v => v === true || v === 'Підтверджено';
+                      const engineerName = u.name;
+                      const monthStr = String(month).padStart(2, '0');
+                      const yearStr = String(year);
+                      let engineerBonus = 0;
+                      tasks.forEach(t => {
+                        if (
+                          t.status === 'Виконано' &&
+                          isApproved(t.approvedByWarehouse) &&
+                          isApproved(t.approvedByAccountant) &&
+                          isApproved(t.approvedByRegionalManager)
+                        ) {
+                          const tDate = t.date;
+                          if (tDate) {
+                            const d = new Date(tDate);
+                            const tMonth = String(d.getMonth() + 1).padStart(2, '0');
+                            const tYear = String(d.getFullYear());
+                            if (tMonth === monthStr && tYear === yearStr) {
+                              const workPrice = parseFloat(t.workPrice) || 0;
+                              const bonus = workPrice * 0.25;
+                              if (t.engineer1 === engineerName && t.engineer2) {
+                                engineerBonus += bonus / 2;
+                              } else if (t.engineer2 === engineerName && t.engineer1) {
+                                engineerBonus += bonus / 2;
+                              } else if (t.engineer1 === engineerName && !t.engineer2) {
+                                engineerBonus += bonus;
                               }
                             }
                           }
-                        });
-                        const payout = basePay + overtimePay + bonus + engineerBonus;
-                        return (
-                          <tr key={u.id}>
-                            <td>{u.name}</td>
-                            <td><input type="number" value={payData[u.id]?.salary || 25000} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
-                            <td>{total}</td>
-                            <td>{overtime}</td>
-                            <td>{overtimeRate.toFixed(2)}</td>
-                            <td>{overtimePay.toFixed(2)}</td>
-                            <td>{basePay}</td>
-                            <td style={{fontWeight:600, background:'#ffe066'}}>{engineerBonus.toFixed(2)}</td>
-                            <td style={{fontWeight:700, background:'#b6ffb6'}}>{payout}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                        }
+                      });
+                      const payout = basePay + overtimePay + bonus + engineerBonus;
+                      return (
+                        <tr key={u.id}>
+                          <td>{u.name}</td>
+                          <td><input type="number" value={payData[u.id]?.salary || 25000} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
+                          <td>{total}</td>
+                          <td>{overtime}</td>
+                          <td>{overtimeRate.toFixed(2)}</td>
+                          <td>{overtimePay.toFixed(2)}</td>
+                          <td>{basePay}</td>
+                          <td style={{fontWeight:600, background:'#ffe066'}}>{engineerBonus.toFixed(2)}</td>
+                          <td style={{fontWeight:700, background:'#b6ffb6'}}>{payout}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
-              {reportDialogOpen && (
-                <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto'}}>
-                  <div style={{background:'#fff',borderRadius:12,padding:32,minWidth:400,maxWidth:'90vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 32px #0008',position:'relative',marginTop:48}}>
-                    <button onClick={() => { setReportDialogOpen(false); setReportResult(null); setReportResultOpen(false); }} style={{position:'absolute',top:40,right:16,fontSize:24,background:'none',border:'none',cursor:'pointer',color:'#1976d2'}}>×</button>
-                    <div style={{marginBottom:32}}>
-                      <h2 style={{marginBottom:24}}>Звіт по нарахуванню премії</h2>
-                      <div style={{marginBottom:24, display:'flex', gap:32, alignItems:'center'}}>
-                        <label style={{fontWeight:600, fontSize:16, color:'#222'}}>
-                          <input type="radio" name="reportType" value="month" checked={reportType==='month'}
-                            onChange={() => { setReportType('month'); setReportResult(null); setReportResultByPeriod(null); setReportResultOpen(false); }}
-                            style={{marginRight:8}} /> Звіт за місяць
-                </label>
-                        <label style={{fontWeight:600, fontSize:16, color:'#222'}}>
-                          <input type="radio" name="reportType" value="period" checked={reportType==='period'}
-                            onChange={() => { setReportType('period'); setReportResult(null); setReportResultByPeriod(null); setReportResultOpen(false); }}
-                            style={{marginRight:8}} /> Звіт за період
-                </label>
-                      </div>
-                      {reportType === 'month' && (
-                        <>
-                          <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24}}>
-                            <label style={{color:'#222'}}>Місяць:
-                              <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))} style={{marginLeft:8}}>
-                    {months.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-                  </select>
-                            </label>
-                            <label style={{color:'#222'}}>Рік:
-                              <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))} style={{marginLeft:8}}>
-                    {years.map(y => <option key={y} value={y}>{y}</option>)}
-                  </select>
-                            </label>
-                            <label style={{color:'#222', marginLeft: 16, display:'flex', alignItems:'center', fontSize:16}}>
-                              <input type="checkbox" checked={reportWithDetails} onChange={e => setReportWithDetails(e.target.checked)} style={{marginRight:8}} /> з деталіровкою
-                            </label>
-                </div>
-                          <div style={{display:'flex',gap:16,marginBottom:24}}>
-                            <button style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
-                              onClick={() => { handleFormReport('month'); setReportMode('month'); setReportModalOpen(true); }}
+          </div>
+            {reportDialogOpen && (
+              <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto'}}>
+                <div style={{background:'#fff',borderRadius:12,padding:32,minWidth:400,maxWidth:'90vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 32px #0008',position:'relative',marginTop:48}}>
+                  <button onClick={() => { setReportDialogOpen(false); setReportResult(null); setReportResultOpen(false); }} style={{position:'absolute',top:40,right:16,fontSize:24,background:'none',border:'none',cursor:'pointer',color:'#1976d2'}}>×</button>
+                  <div style={{marginBottom:32}}>
+                    <h2 style={{marginBottom:24}}>Звіт по нарахуванню премії</h2>
+                    <div style={{marginBottom:24, display:'flex', gap:32, alignItems:'center'}}>
+                      <label style={{fontWeight:600, fontSize:16, color:'#222'}}>
+                        <input type="radio" name="reportType" value="month" checked={reportType==='month'}
+                          onChange={() => { setReportType('month'); setReportResult(null); setReportResultByPeriod(null); setReportResultOpen(false); }}
+                          style={{marginRight:8}} /> Звіт за місяць
+              </label>
+                      <label style={{fontWeight:600, fontSize:16, color:'#222'}}>
+                        <input type="radio" name="reportType" value="period" checked={reportType==='period'}
+                          onChange={() => { setReportType('period'); setReportResult(null); setReportResultByPeriod(null); setReportResultOpen(false); }}
+                          style={{marginRight:8}} /> Звіт за період
+              </label>
+            </div>
+                    {reportType === 'month' && (
+                      <>
+                        <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24}}>
+                          <label style={{color:'#222'}}>Місяць:
+                            <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))} style={{marginLeft:8}}>
+                  {months.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                </select>
+                          </label>
+                          <label style={{color:'#222'}}>Рік:
+                            <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))} style={{marginLeft:8}}>
+                  {years.map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                          </label>
+                          <label style={{color:'#222', marginLeft: 16, display:'flex', alignItems:'center', fontSize:16}}>
+                            <input type="checkbox" checked={reportWithDetails} onChange={e => setReportWithDetails(e.target.checked)} style={{marginRight:8}} /> з деталіровкою
+                          </label>
+              </div>
+                        <div style={{display:'flex',gap:16,marginBottom:24}}>
+                          <button style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
+                            onClick={() => { handleFormReport('month'); setReportMode('month'); setReportModalOpen(true); }}
+                          >
+                            Сформувати звіт
+                          </button>
+                          <div style={{position:'relative',display:'inline-block'}}>
+                            <button style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
+                              onClick={()=>setExportMenuOpen(e=>!e)}
                             >
-                              Сформувати звіт
+                              Експорт
                             </button>
-                            <div style={{position:'relative',display:'inline-block'}}>
-                              <button style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
-                                onClick={()=>setExportMenuOpen(e=>!e)}
-                              >
-                                Експорт
-                              </button>
-                              {exportMenuOpen && (
-                                <div style={{position:'absolute',top:'110%',left:0,background:'#fff',border:'1px solid #bbb',borderRadius:8,boxShadow:'0 2px 12px #0002',zIndex:10,minWidth:180}}>
-                                  <button style={{width:'100%',padding:'10px 0',border:'none',background:'none',color:'#222',fontWeight:600,cursor:'pointer'}} onClick={handleExportCSV}>Експорт у Excel (CSV)</button>
-                                  <button style={{width:'100%',padding:'10px 0',border:'none',background:'none',color:'#222',fontWeight:600,cursor:'pointer'}} onClick={handleExportXLSX}>Експорт у Excel (XLSX)</button>
-                    </div>
-                  )}
-                            </div>
+                            {exportMenuOpen && (
+                              <div style={{position:'absolute',top:'110%',left:0,background:'#fff',border:'1px solid #bbb',borderRadius:8,boxShadow:'0 2px 12px #0002',zIndex:10,minWidth:180}}>
+                                <button style={{width:'100%',padding:'10px 0',border:'none',background:'none',color:'#222',fontWeight:600,cursor:'pointer'}} onClick={handleExportCSV}>Експорт у Excel (CSV)</button>
+                                <button style={{width:'100%',padding:'10px 0',border:'none',background:'none',color:'#222',fontWeight:600,cursor:'pointer'}} onClick={handleExportXLSX}>Експорт у Excel (XLSX)</button>
+              </div>
+            )}
                           </div>
-                          <div id='regional-report-print-block' style={{marginTop:16}}>
-                            {reportMode === 'month' && reportResultOpen && reportResult}
-                          </div>
-                        </>
-                      )}
-                      {reportType === 'period' && (
-                        <>
-                          <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24}}>
-                            <label style={{color:'#222'}}>Початок періоду:
-                              <input type="date" value={reportPeriodStart} onChange={e => setReportPeriodStart(e.target.value)} style={{marginLeft:8}} />
-                  </label>
-                            <label style={{color:'#222'}}>Кінець періоду:
-                              <input type="date" value={reportPeriodEnd} onChange={e => setReportPeriodEnd(e.target.value)} style={{marginLeft:8}} />
-                            </label>
-                            <label style={{color:'#222', marginLeft: 16, display:'flex', alignItems:'center', fontSize:16}}>
-                              <input type="checkbox" checked={reportWithDetails} onChange={e => setReportWithDetails(e.target.checked)} style={{marginRight:8}} /> з деталіровкою
-                            </label>
+                        </div>
+                        <div id='regional-report-print-block' style={{marginTop:16}}>
+                          {reportMode === 'month' && reportResultOpen && reportResult}
+                        </div>
+                      </>
+                    )}
+                    {reportType === 'period' && (
+                      <>
+                        <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24}}>
+                          <label style={{color:'#222'}}>Початок періоду:
+                            <input type="date" value={reportPeriodStart} onChange={e => setReportPeriodStart(e.target.value)} style={{marginLeft:8}} />
+            </label>
+                          <label style={{color:'#222'}}>Кінець періоду:
+                            <input type="date" value={reportPeriodEnd} onChange={e => setReportPeriodEnd(e.target.value)} style={{marginLeft:8}} />
+                          </label>
+                          <label style={{color:'#222', marginLeft: 16, display:'flex', alignItems:'center', fontSize:16}}>
+                            <input type="checkbox" checked={reportWithDetails} onChange={e => setReportWithDetails(e.target.checked)} style={{marginRight:8}} /> з деталіровкою
+                          </label>
+            </div>
+                        <div style={{display:'flex',gap:16,marginBottom:24}}>
+                          <button style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
+                            onClick={() => { handleFormReport('period'); setReportMode('period'); setReportModalOpen(true); }}
+                          >
+                            Сформувати звіт
+                          </button>
+          </div>
+                        <div id='regional-report-print-block-period' style={{marginTop:16}}>
+                          {reportMode === 'period' && reportResultOpen && reportResultByPeriod}
+        </div>
+                      </>
+                    )}
                   </div>
-                          <div style={{display:'flex',gap:16,marginBottom:24}}>
-                            <button style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
-                              onClick={() => { handleFormReport('period'); setReportMode('period'); setReportModalOpen(true); }}
-                            >
-                              Сформувати звіт
-                            </button>
-            </div>
-                          <div id='regional-report-print-block-period' style={{marginTop:16}}>
-                            {reportMode === 'period' && reportResultOpen && reportResultByPeriod}
           </div>
-                        </>
-                      )}
-                    </div>
-            </div>
-          </div>
-              )}
-            </>
-        )}
-      </div>
+        </div>
+            )}
+          </>
+      )}
+    </div>
       {/* Модальне вікно для звіту */}
       {reportModalOpen && (
         <div
@@ -2408,40 +2408,40 @@ function PersonnelTimesheet({ user }) {
           {serviceUsers.length === 0 ? (
             <div style={{color:'#fff',padding:'24px',fontSize:'1.2em'}}>Немає працівників з ролью service</div>
           ) : (
-            <table className="timesheet-table">
-              <thead>
-                <tr>
-                  <th style={{width:160, minWidth:120, maxWidth:220}}>ПІБ</th>
+          <table className="timesheet-table">
+            <thead>
+              <tr>
+                <th style={{width:160, minWidth:120, maxWidth:220}}>ПІБ</th>
+                {days.map(d => {
+                  const date = new Date(year, month - 1, d);
+                  const dayOfWeek = date.getDay();
+                  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                  return (
+                    <th key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined, color: isWeekend ? '#fff' : undefined}}>{d}</th>
+                  );
+                })}
+                <th style={{width:80, minWidth:60}}>Всього годин</th>
+              </tr>
+            </thead>
+            <tbody>
+              {serviceUsers.map(u => (
+                <tr key={u.id}>
+                  <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
                   {days.map(d => {
                     const date = new Date(year, month - 1, d);
                     const dayOfWeek = date.getDay();
                     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                     return (
-                      <th key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined, color: isWeekend ? '#fff' : undefined}}>{d}</th>
+                      <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
+                        <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
+                      </td>
                     );
                   })}
-                  <th style={{width:80, minWidth:60}}>Всього годин</th>
+                  <td style={{width:80, minWidth:60}}>{data[u.id]?.total || 0}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {serviceUsers.map(u => (
-                  <tr key={u.id}>
-                    <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
-                    {days.map(d => {
-                      const date = new Date(year, month - 1, d);
-                      const dayOfWeek = date.getDay();
-                      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                      return (
-                        <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
-                          <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
-                        </td>
-                      );
-                    })}
-                    <td style={{width:80, minWidth:60}}>{data[u.id]?.total || 0}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              ))}
+            </tbody>
+          </table>
           )}
         </div>
         {/* Підсумковий блок */}
@@ -2826,9 +2826,9 @@ function AdminEditTasksArea({ user }) {
     const t = tasks.find(t => t.id === id);
     if (!t) return;
     const updated = await tasksAPI.update(id, {
-      ...t,
-      approvedByAccountant: approved,
-      accountantComment: comment !== undefined ? comment : t.accountantComment
+        ...t, 
+        approvedByAccountant: approved, 
+        accountantComment: comment !== undefined ? comment : t.accountantComment 
     });
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);
@@ -2952,26 +2952,26 @@ function AdminBackupArea() {
     try {
       const tasksToExport = await tasksAPI.getAll();
 
-      if (tasksToExport.length === 0) {
-        alert('Немає завдань для експорту.');
-        return;
-      }
+    if (tasksToExport.length === 0) {
+      alert('Немає завдань для експорту.');
+      return;
+    }
 
-      // Використовуємо українські назви з allTaskFields для заголовків
-      const headers = allTaskFields.map(field => field.label);
-      
-      // Формуємо дані для рядків
-      const data = tasksToExport.map(task => {
-        return allTaskFields.map(field => task[field.name] || '');
-      });
+    // Використовуємо українські назви з allTaskFields для заголовків
+    const headers = allTaskFields.map(field => field.label);
+    
+    // Формуємо дані для рядків
+    const data = tasksToExport.map(task => {
+      return allTaskFields.map(field => task[field.name] || '');
+    });
 
-      // Створюємо робочий аркуш
-      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Усі завдання');
+    // Створюємо робочий аркуш
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Усі завдання');
 
-      // Запускаємо завантаження файлу
-      XLSX.writeFile(workbook, 'export_all_tasks.xlsx');
+    // Запускаємо завантаження файлу
+    XLSX.writeFile(workbook, 'export_all_tasks.xlsx');
     } catch (error) {
       console.error('Помилка експорту:', error);
       alert('Помилка при експорті завдань. Спробуйте ще раз.');
@@ -2981,19 +2981,19 @@ function AdminBackupArea() {
   // --- Додаю створення бекапу ---
   const createBackup = async () => {
     try {
-      const now = new Date();
+    const now = new Date();
       const tasksData = await tasksAPI.getAll();
-      const backup = {
-        id: Date.now(),
-        date: now.toISOString(),
+    const backup = {
+      id: Date.now(),
+      date: now.toISOString(),
         data: JSON.stringify(tasksData) // зберігаємо дані завдань з API
-      };
-      let newBackups = [...backups, backup];
-      if (newBackups.length > 50) newBackups = newBackups.slice(newBackups.length - 50);
-      setBackups(newBackups);
-      localStorage.setItem('backups', JSON.stringify(newBackups));
-      setLastAutoBackup(now);
-      localStorage.setItem('lastAutoBackup', now.toISOString());
+    };
+    let newBackups = [...backups, backup];
+    if (newBackups.length > 50) newBackups = newBackups.slice(newBackups.length - 50);
+    setBackups(newBackups);
+    localStorage.setItem('backups', JSON.stringify(newBackups));
+    setLastAutoBackup(now);
+    localStorage.setItem('lastAutoBackup', now.toISOString());
     } catch (error) {
       console.error('Помилка створення бекапу:', error);
       alert('Помилка при створенні бекапу. Спробуйте ще раз.');
@@ -3041,7 +3041,7 @@ function AdminBackupArea() {
           for (const task of tasksData) {
             await tasksAPI.add(task);
           }
-          alert('Дані успішно відновлено! Оновіть сторінку для застосування змін.');
+        alert('Дані успішно відновлено! Оновіть сторінку для застосування змін.');
         } catch (error) {
           console.error('Помилка відновлення:', error);
           alert('Помилка при відновленні даних. Спробуйте ще раз.');
