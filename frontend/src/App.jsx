@@ -2377,7 +2377,7 @@ function App() {
           <h1 style={{marginLeft:24}}>{t('company_name')}</h1>
           {(user.role === 'regional' || (user.role === 'admin' && currentArea === 'regional')) && false /* <RegionalManagerTabs tab={regionalTab} setTab={setRegionalTab} /> */}
           <div style={{marginLeft:0,marginRight:'6%'}}>
-            <Area user={user} />
+            <Area key={`${user.login}-${currentArea}`} user={user} />
           </div>
         </div>
       </div>
