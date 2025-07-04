@@ -75,35 +75,6 @@ export default function Login({ onLogin }) {
     }
   };
 
-  const handleQuickAdminLogin = async () => {
-    setLogin('admin');
-    setPassword('admin123');
-    setRole('admin');
-    setRoleLocked(true);
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ login: 'admin', password: 'admin123' }),
-      });
-      if (response.ok) {
-        const result = await response.json();
-        onLogin(result.user);
-      } else {
-        const error = await response.json();
-        alert(error.error || 'Помилка авторизації');
-      }
-    } catch (error) {
-      console.error('Помилка авторизації:', error);
-      alert('Помилка підключення до сервера');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <>
       <div className='bg-logo'></div>
@@ -118,9 +89,6 @@ export default function Login({ onLogin }) {
           </div>
           <button type="submit" style={{ width: '100%', marginBottom: 12 }} disabled={isLoading}>
             {isLoading ? '⏳ Вхід...' : 'Увійти'}
-          </button>
-          <button type="button" onClick={handleQuickAdminLogin} style={{ width: '100%', background: '#00bfff', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 0', fontWeight: 600, marginBottom: 8, cursor: 'pointer' }} disabled={isLoading}>
-            Швидкий вхід як Адміністратор
           </button>
         </form>
       </div>

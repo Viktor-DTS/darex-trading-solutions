@@ -461,39 +461,26 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       return;
     }
     setError('');
-    // --- Додаю автозаповнення bonusApprovalDate для адміністратора, якщо порожнє ---
-    let submitForm = { ...form };
-    if (mode === 'admin' && !submitForm.bonusApprovalDate) {
-      if (
-        submitForm.status === 'Виконано' &&
-        submitForm.approvedByWarehouse === 'Підтверджено' &&
-        submitForm.approvedByAccountant === 'Підтверджено' &&
-        submitForm.approvedByRegionalManager === 'Підтверджено'
-      ) {
-        const d = new Date();
-        submitForm.bonusApprovalDate = d.toISOString().split('T')[0];
-      }
-    }
     // Розрахунок кожної суми на льоту
-    const oilTotal = (parseFloat(submitForm.oilUsed)||0) * (parseFloat(submitForm.oilPrice)||0);
-    const filterSum = (parseFloat(submitForm.filterCount)||0) * (parseFloat(submitForm.filterPrice)||0);
-    const fuelFilterSum = (parseFloat(submitForm.fuelFilterCount)||0) * (parseFloat(submitForm.fuelFilterPrice)||0);
-    const airFilterSum = (parseFloat(submitForm.airFilterCount)||0) * (parseFloat(submitForm.airFilterPrice)||0);
-    const antifreezeSum = (parseFloat(submitForm.antifreezeL)||0) * (parseFloat(submitForm.antifreezePrice)||0);
+    const oilTotal = (parseFloat(form.oilUsed)||0) * (parseFloat(form.oilPrice)||0);
+    const filterSum = (parseFloat(form.filterCount)||0) * (parseFloat(form.filterPrice)||0);
+    const fuelFilterSum = (parseFloat(form.fuelFilterCount)||0) * (parseFloat(form.fuelFilterPrice)||0);
+    const airFilterSum = (parseFloat(form.airFilterCount)||0) * (parseFloat(form.airFilterPrice)||0);
+    const antifreezeSum = (parseFloat(form.antifreezeL)||0) * (parseFloat(form.antifreezePrice)||0);
     const serviceTotal =
       oilTotal +
       filterSum +
       fuelFilterSum +
       airFilterSum +
       antifreezeSum +
-      (parseFloat(submitForm.otherSum)||0) +
-      (parseFloat(submitForm.perDiem)||0) +
-      (parseFloat(submitForm.living)||0) +
-      (parseFloat(submitForm.otherExp)||0) +
-      (parseFloat(submitForm.transportSum)||0) +
-      (parseFloat(submitForm.workPrice)||0);
+      (parseFloat(form.otherSum)||0) +
+      (parseFloat(form.perDiem)||0) +
+      (parseFloat(form.living)||0) +
+      (parseFloat(form.otherExp)||0) +
+      (parseFloat(form.transportSum)||0) +
+      (parseFloat(form.workPrice)||0);
     onSave({
-      ...submitForm,
+      ...form,
       oilTotal,
       filterSum,
       fuelFilterSum,
@@ -827,7 +814,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                       form.approvedByRegionalManager === 'Підтверджено'
                     ) {
                       const d = new Date();
-                      value = `${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
+                      value = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
                     } else {
                       value = '';
                     }
@@ -886,7 +873,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
               form.approvedByRegionalManager === 'Підтверджено'
             ) {
               const d = new Date();
-              autoValue = d.toISOString().split('T')[0]; // yyyy-mm-dd
+              autoValue = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`; // MM-YYYY
             } else {
               autoValue = form[name] || '';
             }
@@ -894,9 +881,9 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             // --- Конвертація значення для адміністратора ---
             let dateValue = '';
             if (isAdmin) {
-              // Якщо вже є значення у форматі MM.YYYY, конвертуємо у YYYY-MM-DD
-              if (form[name] && /^\d{2}\.\d{4}$/.test(form[name])) {
-                const [mm, yyyy] = form[name].split('.');
+              // Якщо вже є значення у форматі MM-YYYY, конвертуємо у YYYY-MM-DD для date input
+              if (form[name] && /^\d{2}-\d{4}$/.test(form[name])) {
+                const [mm, yyyy] = form[name].split('-');
                 dateValue = `${yyyy}-${mm}-01`;
               } else if (form[name]) {
                 dateValue = form[name];
@@ -920,7 +907,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   <input
                     type="text"
                     name={f.name}
-                    value={autoValue ? `${autoValue.slice(5,7)}.${autoValue.slice(0,4)}` : ''}
+                    value={autoValue}
                     readOnly
                     tabIndex={-1}
                   />

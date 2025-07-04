@@ -1110,6 +1110,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
     setLoading(true);
     const t = tasks.find(t => t.id === id);
     if (!t) return;
+    
     const updated = await tasksAPI.update(id, {
       ...t, 
       approvedByRegionalManager: approved, 
@@ -1354,26 +1355,87 @@ function RegionalManagerArea({ tab: propTab, user }) {
               isApproved(t.approvedByRegionalManager)
             ) {
               const tDate = t.date;
-              if (tDate) {
-                const d = new Date(tDate);
-                const tMonth = String(d.getMonth() + 1).padStart(2, '0');
-                const tYear = String(d.getFullYear());
-                if (tMonth === monthStr && tYear === yearStr) {
+              const bonusApprovalDate = t.bonusApprovalDate;
+              
+              if (tDate && bonusApprovalDate) {
+                const workDate = new Date(tDate);
+                
+                // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
+                const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+                const approvalMonth = parseInt(approvalMonthStr);
+                const approvalYear = parseInt(approvalYearStr);
+                
+                const workMonth = workDate.getMonth() + 1;
+                const workYear = workDate.getFullYear();
+                
+                // Визначаємо місяць для нарахування премії
+                let bonusMonth, bonusYear;
+                
+                if (workMonth === approvalMonth && workYear === approvalYear) {
+                  // Якщо місяць/рік виконання співпадає з місяцем/роком затвердження
+                  bonusMonth = workMonth;
+                  bonusYear = workYear;
+                } else {
+                  // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
+                  if (approvalMonth === 1) {
+                    bonusMonth = 12;
+                    bonusYear = approvalYear - 1;
+                  } else {
+                    bonusMonth = approvalMonth - 1;
+                    bonusYear = approvalYear;
+                  }
+                }
+                
+                // Перевіряємо чи це той місяць, який ми шукаємо
+                console.log('[DEBUG] Bonus calculation:', {
+                  taskId: t.id,
+                  engineerName: u.name,
+                  workDate: tDate,
+                  bonusApprovalDate: bonusApprovalDate,
+                  workMonth,
+                  workYear,
+                  approvalMonth,
+                  approvalYear,
+                  bonusMonth,
+                  bonusYear,
+                  currentMonth: month,
+                  currentYear: year,
+                  monthStr,
+                  yearStr,
+                  workPrice: t.workPrice,
+                  engineer1: t.engineer1,
+                  engineer2: t.engineer2,
+                  status: t.status,
+                  approvedByWarehouse: t.approvedByWarehouse,
+                  approvedByAccountant: t.approvedByAccountant,
+                  approvedByRegionalManager: t.approvedByRegionalManager
+                });
+                if (bonusMonth === month && bonusYear === year) {
                   const workPrice = parseFloat(t.workPrice) || 0;
                   const bonusVal = workPrice * 0.25;
                   let addBonus = 0;
-                  if (t.engineer1 === u.name && t.engineer2) {
+                  // Діагностика імен
+                  const engineer1 = (t.engineer1 || '').trim();
+                  const engineer2 = (t.engineer2 || '').trim();
+                  const userName = (u.name || '').trim();
+                  const hasEngineer2 = !!engineer2;
+                  if (engineer1 === userName && hasEngineer2) {
                     addBonus = bonusVal / 2;
-                  } else if (t.engineer2 === u.name && t.engineer1) {
+                    console.log('[PREMIUM][OK] Інженер1 з інженером2:', {taskId: t.id, engineer1, engineer2, userName, workPrice, bonusVal, addBonus});
+                  } else if (engineer2 === userName && engineer1) {
                     addBonus = bonusVal / 2;
-                  } else if (t.engineer1 === u.name && !t.engineer2) {
+                    console.log('[PREMIUM][OK] Інженер2 з інженером1:', {taskId: t.id, engineer1, engineer2, userName, workPrice, bonusVal, addBonus});
+                  } else if (engineer1 === userName && !hasEngineer2) {
                     addBonus = bonusVal;
+                    console.log('[PREMIUM][OK] Тільки інженер1:', {taskId: t.id, engineer1, engineer2, userName, workPrice, bonusVal, addBonus});
+                  } else {
+                    console.log('[PREMIUM][NO BONUS] Не співпадає інженер:', {taskId: t.id, engineer1, engineer2, userName, workPrice, bonusVal});
                   }
                   if (addBonus > 0) {
                     engineerBonus += addBonus;
                     if (reportWithDetails) {
                       details.push({
-                        date: tDate,
+                        date: bonusApprovalDate, // Показуємо дату затвердження премії
                         client: t.client,
                         address: t.address,
                         invoice: t.invoice,
@@ -1385,6 +1447,13 @@ function RegionalManagerArea({ tab: propTab, user }) {
                       });
                     }
                   }
+                } else {
+                  // Діагностика чому не співпав місяць/рік
+                  console.log('[PREMIUM][NO BONUS] Місяць/рік не співпав:', {
+                    taskId: t.id,
+                    bonusMonth, month, bonusYear, year,
+                    tDate, bonusApprovalDate: t.bonusApprovalDate
+                  });
                 }
               }
             }
@@ -1546,9 +1615,37 @@ function RegionalManagerArea({ tab: propTab, user }) {
             const overtimePay = overtime * overtimeRate;
             const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
             const tasksForMonth = tasks.filter(t => {
-              if (t.status !== 'Виконано' || !t.date) return false;
-              const d = new Date(t.date);
-              return d.getMonth() + 1 === month && d.getFullYear() === year;
+              if (t.status !== 'Виконано' || !t.date || !t.bonusApprovalDate) return false;
+              
+              const workDate = new Date(t.date);
+              
+              // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
+              const [approvalMonthStr, approvalYearStr] = t.bonusApprovalDate.split('-');
+              const approvalMonth = parseInt(approvalMonthStr);
+              const approvalYear = parseInt(approvalYearStr);
+              
+              const workMonth = workDate.getMonth() + 1;
+              const workYear = workDate.getFullYear();
+              
+              // Визначаємо місяць для нарахування премії
+              let bonusMonth, bonusYear;
+              
+              if (workMonth === approvalMonth && workYear === approvalYear) {
+                // Якщо місяць/рік виконання співпадає з місяцем/роком затвердження
+                bonusMonth = workMonth;
+                bonusYear = workYear;
+              } else {
+                // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
+                if (approvalMonth === 1) {
+                  bonusMonth = 12;
+                  bonusYear = approvalYear - 1;
+                } else {
+                  bonusMonth = approvalMonth - 1;
+                  bonusYear = approvalYear;
+                }
+              }
+              
+              return bonusMonth === month && bonusYear === year;
             });
             let engineerBonus = 0;
             tasksForMonth.forEach(t => {
@@ -1643,14 +1740,39 @@ function RegionalManagerArea({ tab: propTab, user }) {
           </thead>
           <tbody>
             ${tasks.filter(t => {
-              if (t.status !== 'Виконано' || !t.date) return false;
-              const d = new Date(t.date);
-              return d.getMonth() + 1 === month && d.getFullYear() === year;
+              if (t.status !== 'Виконано' || !t.date || !t.bonusApprovalDate) return false;
+              
+              const workDate = new Date(t.date);
+              
+              // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
+              const [approvalMonthStr, approvalYearStr] = t.bonusApprovalDate.split('-');
+              const approvalMonth = parseInt(approvalMonthStr);
+              const approvalYear = parseInt(approvalYearStr);
+              
+              const workMonth = workDate.getMonth() + 1;
+              const workYear = workDate.getFullYear();
+              
+              // Визначаємо місяць для нарахування премії
+              let bonusMonth, bonusYear;
+              
+              if (workMonth === approvalMonth && workYear === approvalYear) {
+                // Якщо місяць/рік виконання співпадає з місяцем/роком затвердження
+                bonusMonth = workMonth;
+                bonusYear = workYear;
+              } else {
+                // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
+                const prevMonth = new Date(approvalDate);
+                prevMonth.setMonth(prevMonth.getMonth() - 1);
+                bonusMonth = prevMonth.getMonth() + 1;
+                bonusYear = prevMonth.getFullYear();
+              }
+              
+              return bonusMonth === month && bonusYear === year;
             }).map(t => {
               const bonus = (parseFloat(t.workPrice) || 0) * 0.25;
               return `
                 <tr>
-                  <td>${t.date || ''}</td>
+                  <td>${t.bonusApprovalDate || ''}</td>
                   <td>${t.engineer1 || ''}${t.engineer2 ? ', ' + t.engineer2 : ''}</td>
                   <td>${t.client || ''}</td>
                   <td>${t.address || ''}</td>
@@ -1833,11 +1955,39 @@ function RegionalManagerArea({ tab: propTab, user }) {
                           isApproved(t.approvedByRegionalManager)
                         ) {
                           const tDate = t.date;
-                          if (tDate) {
-                            const d = new Date(tDate);
-                            const tMonth = String(d.getMonth() + 1).padStart(2, '0');
-                            const tYear = String(d.getFullYear());
-                            if (tMonth === monthStr && tYear === yearStr) {
+                          const bonusApprovalDate = t.bonusApprovalDate;
+                          
+                          if (tDate && bonusApprovalDate) {
+                            const workDate = new Date(tDate);
+                            
+                            // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
+                            const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+                            const approvalMonth = parseInt(approvalMonthStr);
+                            const approvalYear = parseInt(approvalYearStr);
+                            
+                            const workMonth = workDate.getMonth() + 1;
+                            const workYear = workDate.getFullYear();
+                            
+                            // Визначаємо місяць для нарахування премії
+                            let bonusMonth, bonusYear;
+                            
+                            if (workMonth === approvalMonth && workYear === approvalYear) {
+                              // Якщо місяць/рік виконання співпадає з місяцем/роком затвердження
+                              bonusMonth = workMonth;
+                              bonusYear = workYear;
+                            } else {
+                              // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
+                              if (approvalMonth === 1) {
+                                bonusMonth = 12;
+                                bonusYear = approvalYear - 1;
+                              } else {
+                                bonusMonth = approvalMonth - 1;
+                                bonusYear = approvalYear;
+                              }
+                            }
+                            
+                            // Перевіряємо чи це той місяць, який ми шукаємо
+                            if (bonusMonth === month && bonusYear === year) {
                               const workPrice = parseFloat(t.workPrice) || 0;
                               const bonus = workPrice * 0.25;
                               if (t.engineer1 === engineerName && t.engineer2) {

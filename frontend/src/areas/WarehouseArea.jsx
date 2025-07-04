@@ -82,6 +82,7 @@ export default function WarehouseArea({ user }) {
     setLoading(true);
     const t = tasks.find(t => t.id === id);
     if (!t) return;
+    
     const updated = await tasksAPI.update(id, {
       ...t,
       approvedByWarehouse: approved,
