@@ -39,7 +39,7 @@ function ColumnSettings({ allColumns, selected, onChange, onClose, onSave }) {
   );
 }
 
-export default function TaskTable({
+function TaskTableComponent({
   tasks = [],
   allTasks = [],
   onApprove,
@@ -664,4 +664,26 @@ export default function TaskTable({
       )}
     </>
   );
-} 
+}
+
+// Використовуємо React.memo для запобігання непотрібних перемонтувань
+const TaskTable = React.memo(TaskTableComponent, (prevProps, nextProps) => {
+  // Порівнюємо тільки критичні пропси
+  const criticalPropsEqual = 
+    prevProps.user?.login === nextProps.user?.login &&
+    prevProps.role === nextProps.role &&
+    prevProps.tasks.length === nextProps.tasks.length &&
+    prevProps.columns.length === nextProps.columns.length;
+  
+  console.log('[DEBUG] TaskTable memo comparison:', {
+    userLoginEqual: prevProps.user?.login === nextProps.user?.login,
+    roleEqual: prevProps.role === nextProps.role,
+    tasksLengthEqual: prevProps.tasks.length === nextProps.tasks.length,
+    columnsLengthEqual: prevProps.columns.length === nextProps.columns.length,
+    shouldUpdate: !criticalPropsEqual
+  });
+  
+  return criticalPropsEqual;
+});
+
+export default TaskTable; 
