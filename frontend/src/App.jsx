@@ -1111,10 +1111,23 @@ function RegionalManagerArea({ tab: propTab, user }) {
     const t = tasks.find(t => t.id === id);
     if (!t) return;
     
+    // Перевіряємо чи всі підтвердження пройшли для автоматичного заповнення bonusApprovalDate
+    let bonusApprovalDate = t.bonusApprovalDate;
+    if (
+      approved === 'Підтверджено' &&
+      t.status === 'Виконано' &&
+      (t.approvedByWarehouse === 'Підтверджено' || t.approvedByWarehouse === true) &&
+      (t.approvedByRegionalManager === 'Підтверджено' || t.approvedByRegionalManager === true)
+    ) {
+      const d = new Date();
+      bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+    }
+    
     const updated = await tasksAPI.update(id, {
       ...t, 
-      approvedByRegionalManager: approved, 
-      regionalManagerComment: comment !== undefined ? comment : t.regionalManagerComment 
+      approvedByAccountant: approved, 
+      accountantComment: comment !== undefined ? comment : t.accountantComment,
+      bonusApprovalDate: bonusApprovalDate
     });
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);
@@ -2975,10 +2988,24 @@ function AdminEditTasksArea({ user }) {
     setLoading(true);
     const t = tasks.find(t => t.id === id);
     if (!t) return;
+    
+    // Перевіряємо чи всі підтвердження пройшли для автоматичного заповнення bonusApprovalDate
+    let bonusApprovalDate = t.bonusApprovalDate;
+    if (
+      approved === 'Підтверджено' &&
+      t.status === 'Виконано' &&
+      (t.approvedByWarehouse === 'Підтверджено' || t.approvedByWarehouse === true) &&
+      (t.approvedByRegionalManager === 'Підтверджено' || t.approvedByRegionalManager === true)
+    ) {
+      const d = new Date();
+      bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+    }
+    
     const updated = await tasksAPI.update(id, {
         ...t, 
         approvedByAccountant: approved, 
-        accountantComment: comment !== undefined ? comment : t.accountantComment 
+        accountantComment: comment !== undefined ? comment : t.accountantComment,
+        bonusApprovalDate: bonusApprovalDate
     });
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);

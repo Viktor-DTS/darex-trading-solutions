@@ -83,10 +83,23 @@ export default function WarehouseArea({ user }) {
     const t = tasks.find(t => t.id === id);
     if (!t) return;
     
+    // Перевіряємо чи всі підтвердження пройшли для автоматичного заповнення bonusApprovalDate
+    let bonusApprovalDate = t.bonusApprovalDate;
+    if (
+      approved === 'Підтверджено' &&
+      t.status === 'Виконано' &&
+      (t.approvedByAccountant === 'Підтверджено' || t.approvedByAccountant === true) &&
+      (t.approvedByRegionalManager === 'Підтверджено' || t.approvedByRegionalManager === true)
+    ) {
+      const d = new Date();
+      bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+    }
+    
     const updated = await tasksAPI.update(id, {
       ...t,
       approvedByWarehouse: approved,
-      warehouseComment: comment !== undefined ? comment : t.warehouseComment
+      warehouseComment: comment !== undefined ? comment : t.warehouseComment,
+      bonusApprovalDate: bonusApprovalDate
     });
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);
