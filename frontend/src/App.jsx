@@ -1360,10 +1360,10 @@ function RegionalManagerArea({ tab: propTab, user }) {
                 const workDate = new Date(tDate);
                 const approvalDate = new Date(bonusApprovalDate);
                 
-                const workMonth = String(workDate.getMonth() + 1).padStart(2, '0');
-                const workYear = String(workDate.getFullYear());
-                const approvalMonth = String(approvalDate.getMonth() + 1).padStart(2, '0');
-                const approvalYear = String(approvalDate.getFullYear());
+                const workMonth = workDate.getMonth() + 1;
+                const workYear = workDate.getFullYear();
+                const approvalMonth = approvalDate.getMonth() + 1;
+                const approvalYear = approvalDate.getFullYear();
                 
                 // Визначаємо місяць для нарахування премії
                 let bonusMonth, bonusYear;
@@ -1376,12 +1376,35 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
                   const prevMonth = new Date(approvalDate);
                   prevMonth.setMonth(prevMonth.getMonth() - 1);
-                  bonusMonth = String(prevMonth.getMonth() + 1).padStart(2, '0');
-                  bonusYear = String(prevMonth.getFullYear());
+                  bonusMonth = prevMonth.getMonth() + 1;
+                  bonusYear = prevMonth.getFullYear();
                 }
                 
                 // Перевіряємо чи це той місяць, який ми шукаємо
-                if (bonusMonth === monthStr && bonusYear === yearStr) {
+                console.log('[DEBUG] Bonus calculation:', {
+                  taskId: t.id,
+                  engineerName: u.name,
+                  workDate: tDate,
+                  bonusApprovalDate: bonusApprovalDate,
+                  workMonth,
+                  workYear,
+                  approvalMonth,
+                  approvalYear,
+                  bonusMonth,
+                  bonusYear,
+                  currentMonth: month,
+                  currentYear: year,
+                  monthStr,
+                  yearStr,
+                  workPrice: t.workPrice,
+                  engineer1: t.engineer1,
+                  engineer2: t.engineer2,
+                  status: t.status,
+                  approvedByWarehouse: t.approvedByWarehouse,
+                  approvedByAccountant: t.approvedByAccountant,
+                  approvedByRegionalManager: t.approvedByRegionalManager
+                });
+                if (bonusMonth === month && bonusYear === year) {
                   const workPrice = parseFloat(t.workPrice) || 0;
                   const bonusVal = workPrice * 0.25;
                   let addBonus = 0;
@@ -1908,10 +1931,10 @@ function RegionalManagerArea({ tab: propTab, user }) {
                             const workDate = new Date(tDate);
                             const approvalDate = new Date(bonusApprovalDate);
                             
-                            const workMonth = String(workDate.getMonth() + 1).padStart(2, '0');
-                            const workYear = String(workDate.getFullYear());
-                            const approvalMonth = String(approvalDate.getMonth() + 1).padStart(2, '0');
-                            const approvalYear = String(approvalDate.getFullYear());
+                            const workMonth = workDate.getMonth() + 1;
+                            const workYear = workDate.getFullYear();
+                            const approvalMonth = approvalDate.getMonth() + 1;
+                            const approvalYear = approvalDate.getFullYear();
                             
                             // Визначаємо місяць для нарахування премії
                             let bonusMonth, bonusYear;
@@ -1924,12 +1947,12 @@ function RegionalManagerArea({ tab: propTab, user }) {
                               // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
                               const prevMonth = new Date(approvalDate);
                               prevMonth.setMonth(prevMonth.getMonth() - 1);
-                              bonusMonth = String(prevMonth.getMonth() + 1).padStart(2, '0');
-                              bonusYear = String(prevMonth.getFullYear());
+                              bonusMonth = prevMonth.getMonth() + 1;
+                              bonusYear = prevMonth.getFullYear();
                             }
                             
                             // Перевіряємо чи це той місяць, який ми шукаємо
-                            if (bonusMonth === monthStr && bonusYear === yearStr) {
+                            if (bonusMonth === month && bonusYear === year) {
                               const workPrice = parseFloat(t.workPrice) || 0;
                               const bonus = workPrice * 0.25;
                               if (t.engineer1 === engineerName && t.engineer2) {
