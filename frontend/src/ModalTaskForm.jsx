@@ -471,7 +471,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         submitForm.approvedByRegionalManager === 'Підтверджено'
       ) {
         const d = new Date();
-        submitForm.bonusApprovalDate = d.toISOString().split('T')[0];
+        submitForm.bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+        console.log('[PREMIUM][AUTO] Автоматично заповнено bonusApprovalDate (адмін форма):', {
+          taskId: submitForm.id,
+          bonusApprovalDate: submitForm.bonusApprovalDate
+        });
       }
     }
     // Розрахунок кожної суми на льоту
@@ -827,7 +831,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                       form.approvedByRegionalManager === 'Підтверджено'
                     ) {
                       const d = new Date();
-                      value = `${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
+                      value = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
                     } else {
                       value = '';
                     }
@@ -886,7 +890,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
               form.approvedByRegionalManager === 'Підтверджено'
             ) {
               const d = new Date();
-              autoValue = d.toISOString().split('T')[0]; // yyyy-mm-dd
+              autoValue = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`; // MM-YYYY
             } else {
               autoValue = form[name] || '';
             }
@@ -894,9 +898,9 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             // --- Конвертація значення для адміністратора ---
             let dateValue = '';
             if (isAdmin) {
-              // Якщо вже є значення у форматі MM.YYYY, конвертуємо у YYYY-MM-DD
-              if (form[name] && /^\d{2}\.\d{4}$/.test(form[name])) {
-                const [mm, yyyy] = form[name].split('.');
+              // Якщо вже є значення у форматі MM-YYYY, конвертуємо у YYYY-MM-DD для date input
+              if (form[name] && /^\d{2}-\d{4}$/.test(form[name])) {
+                const [mm, yyyy] = form[name].split('-');
                 dateValue = `${yyyy}-${mm}-01`;
               } else if (form[name]) {
                 dateValue = form[name];
@@ -920,7 +924,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   <input
                     type="text"
                     name={f.name}
-                    value={autoValue ? `${autoValue.slice(5,7)}.${autoValue.slice(0,4)}` : ''}
+                    value={autoValue}
                     readOnly
                     tabIndex={-1}
                   />
