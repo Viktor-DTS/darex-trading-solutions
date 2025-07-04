@@ -68,6 +68,7 @@ export default function AccountantArea({ user }) {
       return acc;
     }, {});
   const [filters, setFilters] = useState(allFilterKeys);
+  const [approvalFilter, setApprovalFilter] = useState('all'); // 'all', 'approved', 'not_approved'
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
   const [tab, setTab] = useState('pending');
@@ -175,12 +176,21 @@ export default function AccountantArea({ user }) {
 
   // --- Формування звіту ---
   const handleFormReport = () => {
-    // Фільтруємо виконані заявки за діапазоном дат і регіоном
+    // Фільтруємо виконані заявки за діапазоном дат, регіоном та статусом затвердження
     const filteredTasks = tasks.filter(t => {
       if (t.status !== 'Виконано') return false;
       if (filters.dateFrom && (!t.date || t.date < filters.dateFrom)) return false;
       if (filters.dateTo && (!t.date || t.date > filters.dateTo)) return false;
       if (filters.region && filters.region !== 'Україна' && t.serviceRegion !== filters.region) return false;
+      
+      // Фільтр по статусу затвердження
+      if (approvalFilter === 'approved') {
+        if (!isApproved(t.approvedByAccountant)) return false;
+      } else if (approvalFilter === 'not_approved') {
+        if (isApproved(t.approvedByAccountant)) return false;
+      }
+      // Якщо approvalFilter === 'all', то показуємо всі
+      
       return true;
     });
     // Деталізація по кожній заявці
@@ -260,6 +270,16 @@ export default function AccountantArea({ user }) {
       </head>
       <body>
         <h2>Звіт по матеріалах (Бухгалтерія)</h2>
+        <div style="margin-bottom: 16px; padding: 12px; background: #f0f0f0; border-radius: 4px;">
+          <strong>Фільтри:</strong><br/>
+          ${filters.dateFrom || filters.dateTo ? `Період: ${filters.dateFrom || 'з початку'} - ${filters.dateTo || 'до кінця'}<br/>` : ''}
+          ${filters.region ? `Регіон: ${filters.region}<br/>` : ''}
+          Статус затвердження: ${
+            approvalFilter === 'all' ? 'Всі звіти' : 
+            approvalFilter === 'approved' ? 'Тільки затверджені' : 
+            'Тільки незатверджені'
+          }
+        </div>
         <h3>Підсумок по матеріалах:</h3>
         ${Object.entries(regionSummaries).map(([region, companySummaries]) => `
           <div style="margin-bottom:24px;">
@@ -357,6 +377,18 @@ export default function AccountantArea({ user }) {
         <label style={{display:'flex',alignItems:'center',gap:4}}>
           Регіон:
           <input type="text" name="region" value={filters.region || ''} onChange={handleFilter} placeholder="Україна або регіон" />
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:4}}>
+          Статус затвердження:
+          <select 
+            value={approvalFilter} 
+            onChange={(e) => setApprovalFilter(e.target.value)}
+            style={{padding:'4px 8px',borderRadius:'4px',border:'1px solid #ccc'}}
+          >
+            <option value="all">Всі звіти</option>
+            <option value="approved">Тільки затверджені</option>
+            <option value="not_approved">Тільки незатверджені</option>
+          </select>
         </label>
         <button onClick={handleFormReport} style={{background:'#00bfff',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Сформувати звіт</button>
       </div>
