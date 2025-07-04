@@ -75,19 +75,39 @@ export default function TaskTable({
   const area = role; // Використовуємо role як область
   
   const allColumns = columns;
-  const defaultKeys = useMemo(() => columns.map(c => c.key), [columns]);
+  const defaultKeys = useMemo(() => {
+    const keys = columns.map(c => c.key);
+    console.log('[DEBUG] defaultKeys recalculated:', keys.length, 'keys');
+    return keys;
+  }, [columns.map(c => c.key).join(',')]); // Використовуємо рядок ключів як залежність
   
   // Додаємо стан для завантаження налаштувань
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [selected, setSelected] = useState([]);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   
   // Додаємо логування при зміні selected
   useEffect(() => {
     console.log('[LOG] Стан selected змінився:', { selected, length: selected.length });
   }, [selected]);
   
+  // Скидаємо settingsLoaded при зміні користувача або області
+  useEffect(() => {
+    console.log('[DEBUG] Користувач або область змінилася, скидаємо settingsLoaded');
+    setSettingsLoaded(false);
+    setSelected([]);
+    setLoadingSettings(true);
+  }, [userLogin, area]);
+  
   // Завантаження налаштувань з сервера при ініціалізації
   useEffect(() => {
+    // Якщо налаштування вже завантажені і ми маємо selected, не завантажуємо знову
+    // Але тільки якщо не змінився користувач або область
+    if (settingsLoaded && selected.length > 0 && !loadingSettings) {
+      console.log('[DEBUG] Налаштування вже завантажені, пропускаємо повторне завантаження');
+      return;
+    }
+    
     let isMounted = true;
     const loadUserSettings = async () => {
       setLoadingSettings(true);
@@ -116,12 +136,14 @@ export default function TaskTable({
               console.log('[DEBUG] ⚠️ Скидаємо на стандартні (defaultKeys):', defaultKeys);
               setSelected(defaultKeys);
             }
+            setSettingsLoaded(true);
           }
         } catch (error) {
           console.error('[DEBUG] ❌ Помилка завантаження налаштувань:', error);
           if (isMounted) {
             console.log('[DEBUG] ⚠️ Встановлюємо стандартні через помилку:', defaultKeys);
             setSelected(defaultKeys);
+            setSettingsLoaded(true);
           }
         }
       } else {
@@ -132,6 +154,7 @@ export default function TaskTable({
         console.log('[DEBUG] columns.length:', columns.length);
         if (isMounted) {
           setSelected(defaultKeys);
+          setSettingsLoaded(true);
         }
       }
       console.log('[DEBUG] === КІНЕЦЬ ЗАВАНТАЖЕННЯ НАЛАШТУВАНЬ ===');
@@ -139,7 +162,7 @@ export default function TaskTable({
     };
     loadUserSettings();
     return () => { isMounted = false; };
-  }, [user?.login, area, defaultKeys]); // Додаємо defaultKeys в залежності
+  }, [userLogin, area, defaultKeys, settingsLoaded]); // Додаємо settingsLoaded в залежності
   
   const visibleColumns = selected
     .map(key => allColumns.find(c => c.key === key))
