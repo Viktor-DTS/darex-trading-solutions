@@ -89,9 +89,16 @@ export default function TaskTable({
   useEffect(() => {
     let isMounted = true;
     const loadUserSettings = async () => {
-      console.log('[DEBUG] Виклик loadSettings для', userLogin, area);
+      console.log('[DEBUG] === ПОЧАТОК ЗАВАНТАЖЕННЯ НАЛАШТУВАНЬ ===');
+      console.log('[DEBUG] userLogin:', userLogin);
+      console.log('[DEBUG] area:', area);
+      console.log('[DEBUG] user:', user);
+      console.log('[DEBUG] columns.length:', columns.length);
+      console.log('[DEBUG] defaultKeys:', defaultKeys);
+      
       if (user?.login && area && columns.length > 0) {
         try {
+          console.log('[DEBUG] Викликаємо loadSettings...');
           const settings = await columnsSettingsAPI.loadSettings(userLogin, area);
           console.log('[DEBUG] loadSettings повернув:', settings, 'для', userLogin, area);
           
@@ -100,25 +107,32 @@ export default function TaskTable({
             if (settings.visible && 
                 settings.visible.length > 0 && 
                 settings.visible.every(k => columns.some(c => c.key === k))) {
-              console.log('[DEBUG] Встановлюємо збережені налаштування:', settings.visible);
+              console.log('[DEBUG] ✅ Встановлюємо збережені налаштування:', settings.visible);
               setSelected(settings.visible);
             } else {
               // Якщо налаштування невалідні, встановлюємо стандартні
-              console.log('[DEBUG] Скидаємо на стандартні (defaultKeys):', defaultKeys);
+              console.log('[DEBUG] ⚠️ Скидаємо на стандартні (defaultKeys):', defaultKeys);
               setSelected(defaultKeys);
             }
           }
         } catch (error) {
-          console.error('[DEBUG] Помилка завантаження налаштувань:', error);
+          console.error('[DEBUG] ❌ Помилка завантаження налаштувань:', error);
           if (isMounted) {
+            console.log('[DEBUG] ⚠️ Встановлюємо стандартні через помилку:', defaultKeys);
             setSelected(defaultKeys);
           }
         }
-      } else if (isMounted) {
+      } else {
         // Якщо немає користувача, області або колонок, встановлюємо стандартні
-        console.log('[DEBUG] Немає користувача/області/колонок, встановлюємо стандартні:', defaultKeys);
-        setSelected(defaultKeys);
+        console.log('[DEBUG] ⚠️ Немає користувача/області/колонок, встановлюємо стандартні:', defaultKeys);
+        console.log('[DEBUG] user?.login:', user?.login);
+        console.log('[DEBUG] area:', area);
+        console.log('[DEBUG] columns.length:', columns.length);
+        if (isMounted) {
+          setSelected(defaultKeys);
+        }
       }
+      console.log('[DEBUG] === КІНЕЦЬ ЗАВАНТАЖЕННЯ НАЛАШТУВАНЬ ===');
     };
     loadUserSettings();
     return () => { isMounted = false; };
@@ -148,10 +162,13 @@ export default function TaskTable({
   }
   
   const handleSettingsSave = async (cols) => {
+    console.log('[DEBUG] === ПОЧАТОК ЗБЕРЕЖЕННЯ НАЛАШТУВАНЬ ===');
     console.log('[DEBUG] Виклик saveSettings для', userLogin, area, cols);
     console.log('[DEBUG] user:', user);
     console.log('[DEBUG] user?.login:', user?.login);
     console.log('[DEBUG] area:', area);
+    console.log('[DEBUG] cols:', cols);
+    
     setSelected(cols);
     if (user?.login && area) {
       try {
@@ -159,20 +176,21 @@ export default function TaskTable({
         const success = await columnsSettingsAPI.saveSettings(userLogin, area, cols, cols);
         console.log('[DEBUG] saveSettings результат:', success);
         if (!success) {
-          console.error('Помилка збереження налаштувань');
+          console.error('❌ Помилка збереження налаштувань');
           alert('Помилка збереження налаштувань. Спробуйте ще раз.');
         } else {
-          console.log('[DEBUG] Налаштування успішно збережено!');
+          console.log('[DEBUG] ✅ Налаштування успішно збережено!');
         }
       } catch (error) {
-        console.error('[DEBUG] Помилка збереження:', error);
+        console.error('[DEBUG] ❌ Помилка збереження:', error);
         alert('Помилка збереження налаштувань. Спробуйте ще раз.');
       }
     } else {
-      console.log('[DEBUG] Не можна зберегти - відсутні user.login або area');
+      console.log('[DEBUG] ❌ Не можна зберегти - відсутні user.login або area');
       console.log('[DEBUG] user?.login:', user?.login);
       console.log('[DEBUG] area:', area);
     }
+    console.log('[DEBUG] === КІНЕЦЬ ЗБЕРЕЖЕННЯ НАЛАШТУВАНЬ ===');
     setShowSettings(false);
   };
 
