@@ -477,10 +477,10 @@ export default function TaskTable({
                     }</td>)}
                     <td style={getRowColor(t) ? {color:'#111'} : {}}>{t.status}</td>
                     {role === 'admin' && <td style={getRowColor(t) ? {color:'#111'} : {}}>
-                      {(t.bonusApprovalDate || t.approvalDate || '')}
+                      {(t.bonusApprovalDate || '')}
                       <button style={{marginLeft:8}} onClick={() => {
                         let mm = '', yyyy = '';
-                        const val = t.bonusApprovalDate || t.approvalDate || '';
+                        const val = t.bonusApprovalDate || '';
                         if (/^\d{2}-\d{4}$/.test(val)) {
                           [mm, yyyy] = val.split('-');
                         } else if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {

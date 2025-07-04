@@ -800,7 +800,7 @@ function ServiceArea({ user }) {
       ].includes(key)) {
         if (Number(t[key]) !== Number(value)) return false;
       } else if ([
-        'approvalDate', 'bonusApprovalDate'
+        'bonusApprovalDate'
       ].includes(key)) {
         if (t[key] !== value) return false;
       } else if ([
@@ -953,7 +953,7 @@ function OperatorArea({ user }) {
       ].includes(key)) {
         if (Number(t[key]) !== Number(value)) return false;
       } else if ([
-        'approvalDate', 'bonusApprovalDate'
+        'bonusApprovalDate'
       ].includes(key)) {
         if (t[key] !== value) return false;
       } else if ([
@@ -1158,7 +1158,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
       ].includes(key)) {
         if (Number(t[key]) !== Number(value)) return false;
       } else if ([
-        'approvalDate', 'bonusApprovalDate'
+        'bonusApprovalDate'
       ].includes(key)) {
         if (t[key] !== value) return false;
       } else if ([
