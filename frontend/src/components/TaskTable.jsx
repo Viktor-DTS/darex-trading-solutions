@@ -719,19 +719,24 @@ function TaskTableComponent({
 
 // Використовуємо React.memo для запобігання непотрібних перемонтувань
 const TaskTable = React.memo(TaskTableComponent, (prevProps, nextProps) => {
-  // Порівнюємо тільки критичні пропси, які дійсно потребують перемонтування
-  const criticalPropsEqual = 
-    prevProps.user?.login === nextProps.user?.login &&
-    prevProps.role === nextProps.role &&
-    prevProps.columns.length === nextProps.columns.length &&
-    // Не включаємо tasks.length в критичні пропси, щоб уникнути перемонтування при фільтрації
-    JSON.stringify(prevProps.filters) === JSON.stringify(nextProps.filters);
+  // Порівнюємо критичні пропси
+  const userLoginEqual = prevProps.user?.login === nextProps.user?.login;
+  const roleEqual = prevProps.role === nextProps.role;
+  const columnsLengthEqual = prevProps.columns.length === nextProps.columns.length;
+  const filtersEqual = JSON.stringify(prevProps.filters) === JSON.stringify(nextProps.filters);
+  
+  // Порівнюємо завдання тільки за ID, щоб уникнути перемонтування при фільтрації
+  const tasksEqual = prevProps.tasks.length === nextProps.tasks.length && 
+    prevProps.tasks.every((task, index) => task.id === nextProps.tasks[index]?.id);
+  
+  const criticalPropsEqual = userLoginEqual && roleEqual && columnsLengthEqual && filtersEqual && tasksEqual;
   
   console.log('[DEBUG] TaskTable memo comparison:', {
-    userLoginEqual: prevProps.user?.login === nextProps.user?.login,
-    roleEqual: prevProps.role === nextProps.role,
-    columnsLengthEqual: prevProps.columns.length === nextProps.columns.length,
-    filtersEqual: JSON.stringify(prevProps.filters) === JSON.stringify(nextProps.filters),
+    userLoginEqual,
+    roleEqual,
+    columnsLengthEqual,
+    filtersEqual,
+    tasksEqual,
     shouldUpdate: !criticalPropsEqual
   });
   
