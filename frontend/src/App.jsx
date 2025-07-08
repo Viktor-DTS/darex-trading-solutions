@@ -1772,37 +1772,15 @@ function RegionalManagerArea({ tab: propTab, user }) {
           </thead>
           <tbody>
             ${tasks.filter(t => {
-              if (t.status !== 'Виконано' || !t.date || !t.bonusApprovalDate) return false;
-              
-              const workDate = new Date(t.date);
-              
-              // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
-              const [approvalMonthStr, approvalYearStr] = t.bonusApprovalDate.split('-');
-              const approvalMonth = parseInt(approvalMonthStr);
-              const approvalYear = parseInt(approvalYearStr);
-              
-              const workMonth = workDate.getMonth() + 1;
-              const workYear = workDate.getFullYear();
-              
-              // Визначаємо місяць для нарахування премії
-              let bonusMonth, bonusYear;
-              
-              if (workMonth === approvalMonth && workYear === approvalYear) {
-                // Якщо місяць/рік виконання співпадає з місяцем/роком затвердження
-                bonusMonth = workMonth;
-                bonusYear = workYear;
-              } else {
-                // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
-                if (approvalMonth === 1) {
-                  bonusMonth = 12;
-                  bonusYear = approvalYear - 1;
-                } else {
-                  bonusMonth = approvalMonth - 1;
-                  bonusYear = approvalYear;
-                }
-              }
-              
-              return bonusMonth === month && bonusYear === year;
+              if (
+                t.status !== 'Виконано' ||
+                !t.date ||
+                !t.bonusApprovalDate ||
+                !isApproved(t.approvedByWarehouse) ||
+                !isApproved(t.approvedByAccountant) ||
+                !isApproved(t.approvedByRegionalManager)
+              ) return false;
+              // ... решта коду ...
             }).map(t => {
               const bonus = (parseFloat(t.workPrice) || 0) * 0.25;
               return `
