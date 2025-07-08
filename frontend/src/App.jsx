@@ -1647,27 +1647,31 @@ function RegionalManagerArea({ tab: propTab, user }) {
             const overtimePay = overtime * overtimeRate;
             const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
             const tasksForMonth = tasks.filter(t => {
-              if (t.status !== 'Виконано' || !t.date || !t.bonusApprovalDate) return false;
-              
+              if (
+                t.status !== 'Виконано' ||
+                !t.date ||
+                !t.bonusApprovalDate ||
+                !isApproved(t.approvedByWarehouse) ||
+                !isApproved(t.approvedByAccountant) ||
+                !isApproved(t.approvedByRegionalManager)
+              ) return false;
+              // автоконвертація bonusApprovalDate
+              let bonusApprovalDate = t.bonusApprovalDate;
+              if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+                const [year, month] = bonusApprovalDate.split('-');
+                bonusApprovalDate = `${month}-${year}`;
+              }
               const workDate = new Date(t.date);
-              
-              // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
-              const [approvalMonthStr, approvalYearStr] = t.bonusApprovalDate.split('-');
+              const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
               const approvalMonth = parseInt(approvalMonthStr);
               const approvalYear = parseInt(approvalYearStr);
-              
               const workMonth = workDate.getMonth() + 1;
               const workYear = workDate.getFullYear();
-              
-              // Визначаємо місяць для нарахування премії
               let bonusMonth, bonusYear;
-              
               if (workMonth === approvalMonth && workYear === approvalYear) {
-                // Якщо місяць/рік виконання співпадає з місяцем/роком затвердження
                 bonusMonth = workMonth;
                 bonusYear = workYear;
               } else {
-                // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
                 if (approvalMonth === 1) {
                   bonusMonth = 12;
                   bonusYear = approvalYear - 1;
@@ -1676,7 +1680,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   bonusYear = approvalYear;
                 }
               }
-              
               return bonusMonth === month && bonusYear === year;
             });
             let engineerBonus = 0;
