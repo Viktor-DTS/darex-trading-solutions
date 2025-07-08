@@ -72,6 +72,33 @@ export default function OperatorArea({ user }) {
   const [tab, setTab] = useState('pending');
   const region = user?.region || '';
 
+  // Додаємо useEffect для оновлення filters при зміні allTaskFields
+  // але зберігаємо вже введені користувачем значення
+  useEffect(() => {
+    const newFilterKeys = allTaskFields
+      .map(f => f.name)
+      .reduce((acc, key) => {
+        acc[key] = '';
+        if (["date", "requestDate"].includes(key)) {
+          acc[key + 'From'] = '';
+          acc[key + 'To'] = '';
+        }
+        return acc;
+      }, {});
+    
+    // Оновлюємо filters, зберігаючи вже введені значення
+    setFilters(prevFilters => {
+      const updatedFilters = { ...newFilterKeys };
+      // Зберігаємо вже введені значення
+      Object.keys(prevFilters).forEach(key => {
+        if (prevFilters[key] && prevFilters[key] !== '') {
+          updatedFilters[key] = prevFilters[key];
+        }
+      });
+      return updatedFilters;
+    });
+  }, [allTaskFields]); // Залежність від allTaskFields
+
   useEffect(() => {
     setLoading(true);
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
@@ -152,10 +179,10 @@ export default function OperatorArea({ user }) {
     const t = tasks.find(t => t.id === id);
     if (!t) return;
     const updated = await tasksAPI.update(id, {
-      ...t,
-      approvedByOperator: approved,
-      operatorComment: comment !== undefined ? comment : t.operatorComment,
-      status: approved === true ? 'Виконано' : t.status
+        ...t, 
+        approvedByOperator: approved, 
+        operatorComment: comment !== undefined ? comment : t.operatorComment,
+        status: approved === true ? 'Виконано' : t.status
     });
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);

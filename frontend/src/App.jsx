@@ -707,6 +707,33 @@ function ServiceArea({ user }) {
   const [tab, setTab] = useState('notDone');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
 
+  // Додаємо useEffect для оновлення filters при зміні allTaskFields
+  // але зберігаємо вже введені користувачем значення
+  useEffect(() => {
+    const newFilterKeys = allTaskFields
+      .map(f => f.name)
+      .reduce((acc, key) => {
+        acc[key] = '';
+        if (["date", "requestDate"].includes(key)) {
+          acc[key + 'From'] = '';
+          acc[key + 'To'] = '';
+        }
+        return acc;
+      }, {});
+    
+    // Оновлюємо filters, зберігаючи вже введені значення
+    setFilters(prevFilters => {
+      const updatedFilters = { ...newFilterKeys };
+      // Зберігаємо вже введені значення
+      Object.keys(prevFilters).forEach(key => {
+        if (prevFilters[key] && prevFilters[key] !== '') {
+          updatedFilters[key] = prevFilters[key];
+        }
+      });
+      return updatedFilters;
+    });
+  }, [allTaskFields]); // Залежність від allTaskFields
+
   // Кешуємо колонки за допомогою useMemo
   const columns = useMemo(() => allTaskFields.map(f => ({
     key: f.name,
@@ -888,6 +915,33 @@ function OperatorArea({ user }) {
   const [editTask, setEditTask] = useState(null);
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
 
+  // Додаємо useEffect для оновлення filters при зміні allTaskFields
+  // але зберігаємо вже введені користувачем значення
+  useEffect(() => {
+    const newFilterKeys = allTaskFields
+      .map(f => f.name)
+      .reduce((acc, key) => {
+        acc[key] = '';
+        if (["date", "requestDate"].includes(key)) {
+          acc[key + 'From'] = '';
+          acc[key + 'To'] = '';
+        }
+        return acc;
+      }, {});
+    
+    // Оновлюємо filters, зберігаючи вже введені значення
+    setFilters(prevFilters => {
+      const updatedFilters = { ...newFilterKeys };
+      // Зберігаємо вже введені значення
+      Object.keys(prevFilters).forEach(key => {
+        if (prevFilters[key] && prevFilters[key] !== '') {
+          updatedFilters[key] = prevFilters[key];
+        }
+      });
+      return updatedFilters;
+    });
+  }, [allTaskFields]); // Залежність від allTaskFields
+
   useEffect(() => {
     setLoading(true);
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
@@ -1027,6 +1081,33 @@ function RegionalManagerArea({ tab: propTab, user }) {
   const [selectReportOpen, setSelectReportOpen] = useState(false);
   const [reportType, setReportType] = useState('month');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
+
+  // Додаємо useEffect для оновлення filters при зміні allTaskFields
+  // але зберігаємо вже введені користувачем значення
+  useEffect(() => {
+    const newFilterKeys = allTaskFields
+      .map(f => f.name)
+      .reduce((acc, key) => {
+        acc[key] = '';
+        if (["date", "requestDate"].includes(key)) {
+          acc[key + 'From'] = '';
+          acc[key + 'To'] = '';
+        }
+        return acc;
+      }, {});
+    
+    // Оновлюємо filters, зберігаючи вже введені значення
+    setFilters(prevFilters => {
+      const updatedFilters = { ...newFilterKeys };
+      // Зберігаємо вже введені значення
+      Object.keys(prevFilters).forEach(key => {
+        if (prevFilters[key] && prevFilters[key] !== '') {
+          updatedFilters[key] = prevFilters[key];
+        }
+      });
+      return updatedFilters;
+    });
+  }, [allTaskFields]); // Залежність від allTaskFields
 
   // Завантаження завдань з API
   useEffect(() => {
@@ -2691,6 +2772,27 @@ function ReportBuilder() {
   // Використовуємо всі поля з форми
   const availableFields = allTaskFields;
 
+  // Додаємо useEffect для оновлення filters при зміні selectedFields
+  // але зберігаємо вже введені користувачем значення
+  useEffect(() => {
+    const newFilterKeys = {};
+    selectedFields.forEach(fieldName => {
+      newFilterKeys[fieldName] = '';
+    });
+    
+    // Оновлюємо filters, зберігаючи вже введені значення
+    setFilters(prevFilters => {
+      const updatedFilters = { ...newFilterKeys };
+      // Зберігаємо вже введені значення
+      Object.keys(prevFilters).forEach(key => {
+        if (prevFilters[key] && prevFilters[key] !== '') {
+          updatedFilters[key] = prevFilters[key];
+        }
+      });
+      return updatedFilters;
+    });
+  }, [selectedFields]); // Залежність від selectedFields
+
   useEffect(() => {
     setLoading(true);
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
@@ -3006,6 +3108,26 @@ function AdminEditTasksArea({ user }) {
     const savedTab = localStorage.getItem('adminEditTab');
     return savedTab || 'pending';
   });
+
+  // Додаємо useEffect для оновлення filters при зміні allTaskFields
+  // але зберігаємо вже введені користувачем значення
+  useEffect(() => {
+    const newFilterKeys = {
+      requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: ''
+    };
+    
+    // Оновлюємо filters, зберігаючи вже введені значення
+    setFilters(prevFilters => {
+      const updatedFilters = { ...newFilterKeys };
+      // Зберігаємо вже введені значення
+      Object.keys(prevFilters).forEach(key => {
+        if (prevFilters[key] && prevFilters[key] !== '') {
+          updatedFilters[key] = prevFilters[key];
+        }
+      });
+      return updatedFilters;
+    });
+  }, []); // Запускаємо тільки один раз при монтуванні
 
   useEffect(() => {
     localStorage.setItem('adminEditTab', tab);

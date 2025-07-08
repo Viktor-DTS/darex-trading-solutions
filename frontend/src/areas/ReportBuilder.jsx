@@ -30,6 +30,27 @@ export default function ReportBuilder() {
     { name: 'regionalManagerComment', label: 'Коментар регіонального менеджера' }
   ]);
 
+  // Додаємо useEffect для оновлення filters при зміні availableFields
+  // але зберігаємо вже введені користувачем значення
+  useEffect(() => {
+    const newFilterKeys = {};
+    availableFields.forEach(field => {
+      newFilterKeys[field.name] = '';
+    });
+    
+    // Оновлюємо filters, зберігаючи вже введені значення
+    setFilters(prevFilters => {
+      const updatedFilters = { ...newFilterKeys };
+      // Зберігаємо вже введені значення
+      Object.keys(prevFilters).forEach(key => {
+        if (prevFilters[key] && prevFilters[key] !== '') {
+          updatedFilters[key] = prevFilters[key];
+        }
+      });
+      return updatedFilters;
+    });
+  }, [availableFields]); // Залежність від availableFields
+
   useEffect(() => {
     setLoading(true);
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));

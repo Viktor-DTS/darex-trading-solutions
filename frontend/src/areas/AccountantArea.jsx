@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
 import { tasksAPI } from '../utils/tasksAPI';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 
 const initialTask = {
   id: null,
@@ -75,6 +75,33 @@ export default function AccountantArea({ user }) {
   const [tab, setTab] = useState('pending');
   const region = user?.region || '';
 
+  // Додаємо useEffect для оновлення filters при зміні allTaskFields
+  // але зберігаємо вже введені користувачем значення
+  useEffect(() => {
+    const newFilterKeys = allTaskFields
+      .map(f => f.name)
+      .reduce((acc, key) => {
+        acc[key] = '';
+        if (["date", "requestDate"].includes(key)) {
+          acc[key + 'From'] = '';
+          acc[key + 'To'] = '';
+        }
+        return acc;
+      }, {});
+    
+    // Оновлюємо filters, зберігаючи вже введені значення
+    setFilters(prevFilters => {
+      const updatedFilters = { ...newFilterKeys };
+      // Зберігаємо вже введені значення
+      Object.keys(prevFilters).forEach(key => {
+        if (prevFilters[key] && prevFilters[key] !== '') {
+          updatedFilters[key] = prevFilters[key];
+        }
+      });
+      return updatedFilters;
+    });
+  }, [allTaskFields]); // Залежність від allTaskFields
+
   useEffect(() => {
     setLoading(true);
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
@@ -98,8 +125,8 @@ export default function AccountantArea({ user }) {
     }
     
     const updated = await tasksAPI.update(id, {
-      ...t,
-      approvedByAccountant: approved,
+        ...t, 
+        approvedByAccountant: approved, 
       accountantComment: comment !== undefined ? comment : t.accountantComment,
       bonusApprovalDate: bonusApprovalDate
     });
@@ -362,7 +389,6 @@ export default function AccountantArea({ user }) {
 
   // --- Експорт у Excel для "Заявка на підтвердженні" ---
   const exportPendingToExcel = () => {
-    // Вибираємо лише заявки на підтвердженні
     const exportData = pending.map(task => {
       const row = {};
       allTaskFields.forEach(field => {
@@ -370,12 +396,42 @@ export default function AccountantArea({ user }) {
       });
       return row;
     });
+
     // Формуємо worksheet
     const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+    // Додаємо стилі до заголовків
+    const headerLabels = allTaskFields.map(f => f.label);
+    headerLabels.forEach((label, idx) => {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: idx });
+      if (!worksheet[cellAddress]) return;
+      worksheet[cellAddress].s = {
+        font: { bold: true },
+        fill: { fgColor: { rgb: "FFFDEB46" } }, // Яскраво-жовтий
+        alignment: { wrapText: true, vertical: "center", horizontal: "center" }
+      };
+    });
+
+    // Додаємо wrapText для всіх клітинок
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    for (let R = 1; R <= range.e.r; ++R) {
+      for (let C = 0; C <= range.e.c; ++C) {
+        const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+        if (worksheet[cellAddress]) {
+          worksheet[cellAddress].s = {
+            ...worksheet[cellAddress].s,
+            alignment: { wrapText: true, vertical: "center" }
+          };
+        }
+      }
+    }
+
+    // Автоматична ширина колонок (можна підлаштувати під ваші дані)
+    worksheet['!cols'] = headerLabels.map(() => ({ wch: 20 }));
+
     // Формуємо workbook
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Заявки на підтвердженні');
-    // Завантажуємо файл
     XLSX.writeFile(workbook, 'Заявки_на_підтвердженні.xlsx');
   };
 

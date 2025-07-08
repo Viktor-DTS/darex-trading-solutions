@@ -29,11 +29,11 @@ export default function Login({ onLogin }) {
         const user = await columnsSettingsAPI.getUser(login);
         if (user) {
           setRole(user.role);
-          setRoleLocked(true);
-        } else {
-          setRole('admin');
-          setRoleLocked(false);
-        }
+      setRoleLocked(true);
+    } else {
+      setRole('admin');
+      setRoleLocked(false);
+    }
       } catch (error) {
         console.error('Помилка перевірки користувача:', error);
         setRole('admin');
@@ -63,7 +63,7 @@ export default function Login({ onLogin }) {
       if (response.ok) {
         const result = await response.json();
         onLogin(result.user);
-      } else {
+    } else {
         const error = await response.json();
         alert(error.error || 'Помилка авторизації');
       }

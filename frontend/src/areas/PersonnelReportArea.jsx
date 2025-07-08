@@ -10,6 +10,28 @@ export default function PersonnelReportArea() {
   });
   const [regions, setRegions] = useState([]);
 
+  // Додаємо useEffect для оновлення filters при зміні даних
+  // але зберігаємо вже введені користувачем значення
+  useEffect(() => {
+    const newFilterKeys = {
+      month: '',
+      year: new Date().getFullYear().toString(),
+      region: ''
+    };
+    
+    // Оновлюємо filters, зберігаючи вже введені значення
+    setFilters(prevFilters => {
+      const updatedFilters = { ...newFilterKeys };
+      // Зберігаємо вже введені значення
+      Object.keys(prevFilters).forEach(key => {
+        if (prevFilters[key] && prevFilters[key] !== '') {
+          updatedFilters[key] = prevFilters[key];
+        }
+      });
+      return updatedFilters;
+    });
+  }, []); // Запускаємо тільки один раз при монтуванні
+
   useEffect(() => {
     const savedTasks = localStorage.getItem('tasks');
     const savedUsers = localStorage.getItem('users');

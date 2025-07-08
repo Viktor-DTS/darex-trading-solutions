@@ -73,6 +73,33 @@ export default function WarehouseArea({ user }) {
   const [tab, setTab] = useState('pending');
   const region = user?.region || '';
 
+  // Додаємо useEffect для оновлення filters при зміні allTaskFields
+  // але зберігаємо вже введені користувачем значення
+  useEffect(() => {
+    const newFilterKeys = allTaskFields
+      .map(f => f.name)
+      .reduce((acc, key) => {
+        acc[key] = '';
+        if (["date", "requestDate"].includes(key)) {
+          acc[key + 'From'] = '';
+          acc[key + 'To'] = '';
+        }
+        return acc;
+      }, {});
+    
+    // Оновлюємо filters, зберігаючи вже введені значення
+    setFilters(prevFilters => {
+      const updatedFilters = { ...newFilterKeys };
+      // Зберігаємо вже введені значення
+      Object.keys(prevFilters).forEach(key => {
+        if (prevFilters[key] && prevFilters[key] !== '') {
+          updatedFilters[key] = prevFilters[key];
+        }
+      });
+      return updatedFilters;
+    });
+  }, [allTaskFields]); // Залежність від allTaskFields
+
   useEffect(() => {
     setLoading(true);
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
@@ -211,7 +238,7 @@ export default function WarehouseArea({ user }) {
     // Для кожної компанії: підсумок по матеріалах
     const companySummaries = {};
     Object.entries(companyGroups).forEach(([company, mats]) => {
-      const summary = {};
+    const summary = {};
       mats.forEach(m => {
         const key = `${m.label} - ${m.type}`;
         if (!summary[key]) summary[key] = { label: m.label, type: m.type, totalQty: 0, totalSum: 0 };
@@ -239,26 +266,26 @@ export default function WarehouseArea({ user }) {
         ${Object.entries(companySummaries).map(([company, summary]) => `
           <div style="margin-bottom:24px;">
             <div style="font-weight:600;margin-bottom:8px;color:#1976d2;">${company}</div>
-            <table>
-              <thead>
-                <tr>
+        <table>
+          <thead>
+            <tr>
                   <th>Матеріал</th>
                   <th>Тип</th>
                   <th>Загальна кількість</th>
                   <th>Загальна вартість, грн.</th>
-                </tr>
-              </thead>
-              <tbody>
+            </tr>
+          </thead>
+          <tbody>
                 ${Object.values(summary).map(item => `
-                  <tr>
+              <tr>
                     <td>${item.label}</td>
                     <td>${item.type}</td>
                     <td>${item.totalQty}</td>
                     <td>${item.totalSum}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
           </div>
         `).join('')}
         <h3>Деталізація по заявках:</h3>
@@ -270,27 +297,27 @@ export default function WarehouseArea({ user }) {
             <div style="margin-bottom:8px;color:#666;">Інженери: ${detail.engineers}</div>
             ${detail.materials.length > 0 ? `
               <table>
-                <thead>
-                  <tr>
-                    <th>Матеріал</th>
+          <thead>
+            <tr>
+              <th>Матеріал</th>
                     <th>Тип</th>
                     <th>Кількість</th>
                     <th>Вартість</th>
                     <th>Загальна вартість, грн.</th>
-                  </tr>
-                </thead>
-                <tbody>
+            </tr>
+          </thead>
+          <tbody>
                   ${detail.materials.map(material => `
-                    <tr>
+              <tr>
                       <td>${material.label}</td>
                       <td>${material.type}</td>
                       <td>${material.qty}</td>
                       <td>${material.price}</td>
                       <td>${material.totalSum}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
             ` : ''}
           </div>
         `).join('')}

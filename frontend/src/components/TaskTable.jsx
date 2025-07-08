@@ -711,7 +711,7 @@ function TaskTableComponent({
       )}
     </>
   );
-}
+} 
 
 // Використовуємо React.memo для запобігання непотрібних перемонтувань
 const TaskTable = React.memo(TaskTableComponent, (prevProps, nextProps) => {
