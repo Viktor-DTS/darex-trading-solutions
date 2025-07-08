@@ -1783,7 +1783,32 @@ function RegionalManagerArea({ tab: propTab, user }) {
                 !isApproved(t.approvedByAccountant) ||
                 !isApproved(t.approvedByRegionalManager)
               ) return false;
-              // ... решта коду ...
+              // автоконвертація bonusApprovalDate
+              let bonusApprovalDate = t.bonusApprovalDate;
+              if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+                const [year, month] = bonusApprovalDate.split('-');
+                bonusApprovalDate = `${month}-${year}`;
+              }
+              const workDate = new Date(t.date);
+              const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+              const approvalMonth = parseInt(approvalMonthStr);
+              const approvalYear = parseInt(approvalYearStr);
+              const workMonth = workDate.getMonth() + 1;
+              const workYear = workDate.getFullYear();
+              let bonusMonth, bonusYear;
+              if (workMonth === approvalMonth && workYear === approvalYear) {
+                bonusMonth = workMonth;
+                bonusYear = workYear;
+              } else {
+                if (approvalMonth === 1) {
+                  bonusMonth = 12;
+                  bonusYear = approvalYear - 1;
+                } else {
+                  bonusMonth = approvalMonth - 1;
+                  bonusYear = approvalYear;
+                }
+              }
+              return bonusMonth === month && bonusYear === year;
             }).map(t => {
               const bonus = (parseFloat(t.workPrice) || 0) * 0.25;
               return `
