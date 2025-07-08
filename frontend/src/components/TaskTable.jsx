@@ -719,18 +719,19 @@ function TaskTableComponent({
 
 // Використовуємо React.memo для запобігання непотрібних перемонтувань
 const TaskTable = React.memo(TaskTableComponent, (prevProps, nextProps) => {
-  // Порівнюємо тільки критичні пропси
+  // Порівнюємо тільки критичні пропси, які дійсно потребують перемонтування
   const criticalPropsEqual = 
     prevProps.user?.login === nextProps.user?.login &&
     prevProps.role === nextProps.role &&
-    prevProps.tasks.length === nextProps.tasks.length &&
-    prevProps.columns.length === nextProps.columns.length;
+    prevProps.columns.length === nextProps.columns.length &&
+    // Не включаємо tasks.length в критичні пропси, щоб уникнути перемонтування при фільтрації
+    JSON.stringify(prevProps.filters) === JSON.stringify(nextProps.filters);
   
   console.log('[DEBUG] TaskTable memo comparison:', {
     userLoginEqual: prevProps.user?.login === nextProps.user?.login,
     roleEqual: prevProps.role === nextProps.role,
-    tasksLengthEqual: prevProps.tasks.length === nextProps.tasks.length,
     columnsLengthEqual: prevProps.columns.length === nextProps.columns.length,
+    filtersEqual: JSON.stringify(prevProps.filters) === JSON.stringify(nextProps.filters),
     shouldUpdate: !criticalPropsEqual
   });
   
