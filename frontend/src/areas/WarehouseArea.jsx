@@ -134,7 +134,10 @@ export default function WarehouseArea({ user }) {
     setLoading(false);
   };
   const handleFilter = e => {
+    console.log('[DEBUG] WarehouseArea handleFilter called:', e.target.name, e.target.value);
+    console.log('[DEBUG] Current filters before update:', filters);
     const newFilters = { ...filters, [e.target.name]: e.target.value };
+    console.log('[DEBUG] New filters after update:', newFilters);
     setFilters(newFilters);
   };
   const handleEdit = t => {

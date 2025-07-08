@@ -534,7 +534,11 @@ function TaskTableComponent({
                               name={col.key}
                               placeholder={col.label}
                               value={filters[col.key] || ''}
-                              onChange={onFilterChange}
+                              onChange={(e) => {
+                                console.log('[DEBUG] TaskTable filter input changed:', col.key, e.target.value);
+                                console.log('[DEBUG] Current filters state:', filters);
+                                onFilterChange(e);
+                              }}
                               style={{width:'100%'}}
                             />
                           )

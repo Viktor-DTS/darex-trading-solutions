@@ -134,7 +134,11 @@ export default function AccountantArea({ user }) {
     setLoading(false);
   };
   const handleFilter = e => {
-    setFilters({ ...filters, [e.target.name]: e.target.value });
+    console.log('[DEBUG] AccountantArea handleFilter called:', e.target.name, e.target.value);
+    console.log('[DEBUG] Current filters before update:', filters);
+    const newFilters = { ...filters, [e.target.name]: e.target.value };
+    console.log('[DEBUG] New filters after update:', newFilters);
+    setFilters(newFilters);
   };
   const handleEdit = t => {
     setEditTask(t);

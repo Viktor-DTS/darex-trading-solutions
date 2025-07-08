@@ -805,7 +805,11 @@ function ServiceArea({ user }) {
     setLoading(false);
   };
   const handleFilter = e => {
-    setFilters({ ...filters, [e.target.name]: e.target.value });
+    console.log('[DEBUG] handleFilter called:', e.target.name, e.target.value);
+    console.log('[DEBUG] Current filters before update:', filters);
+    const newFilters = { ...filters, [e.target.name]: e.target.value };
+    console.log('[DEBUG] New filters after update:', newFilters);
+    setFilters(newFilters);
   };
   const filtered = tasks.filter(t => {
     if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) return false;
@@ -960,7 +964,11 @@ function OperatorArea({ user }) {
     setLoading(false);
   };
   const handleFilter = e => {
-    setFilters({ ...filters, [e.target.name]: e.target.value });
+    console.log('[DEBUG] handleFilter called:', e.target.name, e.target.value);
+    console.log('[DEBUG] Current filters before update:', filters);
+    const newFilters = { ...filters, [e.target.name]: e.target.value };
+    console.log('[DEBUG] New filters after update:', newFilters);
+    setFilters(newFilters);
   };
   const handleEdit = t => {
     setEditTask(t);
@@ -1183,7 +1191,11 @@ function RegionalManagerArea({ tab: propTab, user }) {
 
   // --- Функція handleFilter для TaskTable ---
   function handleFilter(e) {
-    setFilters({ ...filters, [e.target.name]: e.target.value });
+    console.log('[DEBUG] handleFilter called:', e.target.name, e.target.value);
+    console.log('[DEBUG] Current filters before update:', filters);
+    const newFilters = { ...filters, [e.target.name]: e.target.value };
+    console.log('[DEBUG] New filters after update:', newFilters);
+    setFilters(newFilters);
   }
 
   // --- Функція handleApprove для підтвердження задач ---
