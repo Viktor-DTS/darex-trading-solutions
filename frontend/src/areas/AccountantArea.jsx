@@ -391,9 +391,28 @@ export default function AccountantArea({ user }) {
     win.document.close();
   };
 
-  // --- Експорт у Excel для "Заявка на підтвердженні" ---
-  const exportPendingToExcel = () => {
-    const exportData = pending.map(task => {
+  // --- Експорт у Excel з урахуванням фільтрів звіту ---
+  const exportFilteredToExcel = () => {
+    // Використовуємо ту ж логіку фільтрації, що й у handleFormReport
+    const filteredTasks = tasks.filter(t => {
+      if (t.status !== 'Виконано') return false;
+      if (filters.dateFrom && (!t.date || t.date < filters.dateFrom)) return false;
+      if (filters.dateTo && (!t.date || t.date > filters.dateTo)) return false;
+      if (filters.region && filters.region !== 'Україна' && t.serviceRegion !== filters.region) return false;
+      
+      // Фільтр по статусу затвердження
+      if (approvalFilter === 'approved') {
+        if (!isApproved(t.approvedByAccountant)) return false;
+      } else if (approvalFilter === 'not_approved') {
+        if (isApproved(t.approvedByAccountant)) return false;
+      }
+      // Якщо approvalFilter === 'all', то показуємо всі
+      
+      return true;
+    });
+
+    // Створюємо дані для експорту
+    const exportData = filteredTasks.map(task => {
       const row = {};
       allTaskFields.forEach(field => {
         row[field.label] = task[field.name] ?? '';
@@ -430,13 +449,27 @@ export default function AccountantArea({ user }) {
       }
     }
 
-    // Автоматична ширина колонок (можна підлаштувати під ваші дані)
+    // Автоматична ширина колонок
     worksheet['!cols'] = headerLabels.map(() => ({ wch: 20 }));
 
     // Формуємо workbook
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Заявки на підтвердженні');
-    XLSX.writeFile(workbook, 'Заявки_на_підтвердженні.xlsx');
+    
+    // Створюємо назву файлу з урахуванням фільтрів
+    let fileName = 'Звіт_по_заявках';
+    if (filters.dateFrom || filters.dateTo) {
+      fileName += `_${filters.dateFrom || 'з_початку'}_${filters.dateTo || 'до_кінця'}`;
+    }
+    if (filters.region) {
+      fileName += `_${filters.region}`;
+    }
+    if (approvalFilter !== 'all') {
+      fileName += `_${approvalFilter === 'approved' ? 'затверджені' : 'незатверджені'}`;
+    }
+    fileName += '.xlsx';
+    
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Заявки');
+    XLSX.writeFile(workbook, fileName);
   };
 
   return (
@@ -446,9 +479,7 @@ export default function AccountantArea({ user }) {
       <div style={{display:'flex',gap:8,marginBottom:16}}>
         <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
         <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
-        {tab === 'pending' && (
-          <button onClick={exportPendingToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
-        )}
+        <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
       </div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
         <label style={{display:'flex',alignItems:'center',gap:4}}>
