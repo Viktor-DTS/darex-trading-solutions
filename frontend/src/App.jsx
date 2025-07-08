@@ -1366,9 +1366,13 @@ function RegionalManagerArea({ tab: propTab, user }) {
               isApproved(t.approvedByAccountant) &&
               isApproved(t.approvedByRegionalManager)
             ) {
+              let bonusApprovalDate = t.bonusApprovalDate;
+              // Автоконвертація з YYYY-MM-DD у MM-YYYY
+              if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+                const [year, month] = bonusApprovalDate.split('-');
+                bonusApprovalDate = `${month}-${year}`;
+              }
               const tDate = t.date;
-              const bonusApprovalDate = t.bonusApprovalDate;
-              
               if (tDate && bonusApprovalDate) {
                 const workDate = new Date(tDate);
                 
@@ -1985,9 +1989,13 @@ function RegionalManagerArea({ tab: propTab, user }) {
                           isApproved(t.approvedByAccountant) &&
                           isApproved(t.approvedByRegionalManager)
                         ) {
+                          let bonusApprovalDate = t.bonusApprovalDate;
+                          // Автоконвертація з YYYY-MM-DD у MM-YYYY
+                          if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+                            const [year, month] = bonusApprovalDate.split('-');
+                            bonusApprovalDate = `${month}-${year}`;
+                          }
                           const tDate = t.date;
-                          const bonusApprovalDate = t.bonusApprovalDate;
-                          
                           if (tDate && bonusApprovalDate) {
                             const workDate = new Date(tDate);
                             
