@@ -23,6 +23,11 @@ export default function PersonnelReportArea() {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
 
+  // Функція для перевірки підтвердження
+  const isApproved = (approval) => {
+    return approval === 'Підтверджено' || approval === true;
+  };
+
   const getReportData = () => {
     const engineerStats = {};
 
@@ -37,7 +42,13 @@ export default function PersonnelReportArea() {
     });
 
     tasks.forEach(task => {
-      if (task.status === 'Виконано') {
+      // Перевіряємо чи задача виконана І всі підтвердження пройшли
+      if (
+        task.status === 'Виконано' &&
+        isApproved(task.approvedByWarehouse) &&
+        isApproved(task.approvedByAccountant) &&
+        isApproved(task.approvedByRegionalManager)
+      ) {
         const taskDate = new Date(task.date);
         const taskMonth = (taskDate.getMonth() + 1).toString();
         const taskYear = taskDate.getFullYear().toString();
