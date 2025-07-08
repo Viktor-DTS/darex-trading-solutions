@@ -431,7 +431,7 @@ function AdminSystemParamsArea() {
       role: rolesList[0]?.value || '',
       name: '',
           region: regions[0]?.name || ''
-        });
+    });
       } else {
         alert('Помилка збереження користувача');
       }
@@ -767,7 +767,7 @@ function ServiceArea({ user }) {
       });
     } else {
       updated = await tasksAPI.update(id, { ...t, status });
-    }
+      }
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);
   };
@@ -1604,11 +1604,13 @@ function RegionalManagerArea({ tab: propTab, user }) {
     console.log('[DEBUG][REPORT] payData:', payData);
     console.log('[DEBUG][REPORT] summary:', summary);
     console.log('[DEBUG][REPORT] tasks:', tasks);
+    // Додаю детальний вивід задач для діагностики
+    console.log('[DEBUG][REPORT][ALL TASKS]', JSON.stringify(tasks, null, 2));
     // Додатковий лог по bonusApprovalDate
     tasks.forEach((t, i) => {
       if (!t.bonusApprovalDate) {
         console.warn(`[WARN][REPORT] Task #${i} (id=${t.id}) has no bonusApprovalDate`, t);
-      } else if (!/^\d{2}-\d{4}$/.test(t.bonusApprovalDate)) {
+      } else if (!/^[\d]{2}-[\d]{4}$/.test(t.bonusApprovalDate)) {
         console.error(`[ERROR][REPORT] Task #${i} (id=${t.id}) has invalid bonusApprovalDate format:`, t.bonusApprovalDate, t);
       }
     });
