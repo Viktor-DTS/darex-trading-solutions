@@ -24,6 +24,7 @@ import { tasksAPI } from './utils/tasksAPI';
 import { accessRulesAPI } from './utils/accessRulesAPI';
 import { rolesAPI } from './utils/rolesAPI';
 import { regionsAPI } from './utils/regionsAPI';
+import OperatorArea from './areas/OperatorArea';
 
 const roles = [
   { value: 'admin', label: 'Адміністратор' },

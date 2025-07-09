@@ -54,6 +54,7 @@ const initialTask = {
 };
 
 export default function OperatorArea({ user }) {
+  console.log('[DEBUG] OperatorArea render, tab:', tab);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -69,7 +70,7 @@ export default function OperatorArea({ user }) {
     }, {});
   const [filters, setFilters] = useState(allFilterKeys);
   const [editTask, setEditTask] = useState(null);
-  const [tab, setTab] = useState('pending');
+  const [tab, setTab] = useState('inProgress');
   const region = user?.region || '';
 
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
@@ -139,7 +140,7 @@ export default function OperatorArea({ user }) {
     filter: true
   }));
   const statusOrder = {
-    'Новий': 1,
+    'Заявка': 1,
     'В роботі': 2,
     'Виконано': 3,
     'Заблоковано': 4,
@@ -176,7 +177,6 @@ export default function OperatorArea({ user }) {
     }
     return true;
   });
-  const sortedTasks = [...filtered].sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
 
   const handleApprove = async (id, approved, comment) => {
     setLoading(true);
@@ -192,32 +192,25 @@ export default function OperatorArea({ user }) {
     setLoading(false);
   };
 
-  const pending = filtered.filter(t => 
-    t.status !== 'Виконано' || 
-    !t.approvedByOperator || 
-    t.approvedByOperator === 'На розгляді' || 
-    t.approvedByOperator === false || 
-    t.approvedByOperator === 'Відмова'
-  );
+  // Заявки на виконанні (статус "Заявка" та "В роботі")
+  const inProgress = filtered.filter(t => 
+    t.status === 'Заявка' || t.status === 'В роботі'
+  ).sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
 
-  function isApproved(v) {
-    return v === true || v === 'Підтверджено';
-  }
-
+  // Архів виконаних заявок (всі інші статуси)
   const archive = filtered.filter(t => 
-    t.status === 'Виконано' && 
-    isApproved(t.approvedByOperator)
+    t.status !== 'Заявка' && t.status !== 'В роботі'
   );
 
-  const tableData = tab === 'pending' ? pending : archive;
+  const tableData = tab === 'inProgress' ? inProgress : archive;
 
   return (
     <div style={{padding:32}}>
       <h2>Заявки оператора</h2>
       {loading && <div>Завантаження...</div>}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Завдання на підтвердженні</button>
-        <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
+        <button onClick={()=>{console.log('Set tab inProgress'); setTab('inProgress')}} style={{width:220,padding:'10px 0',background:tab==='inProgress'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='inProgress'?700:400,cursor:'pointer'}}>Заявки на виконанні</button>
+        <button onClick={()=>{console.log('Set tab archive'); setTab('archive')}} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
       </div>
       <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16}}>Додати заявку</button>
       <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask||initialTask} mode="operator" user={user} />
