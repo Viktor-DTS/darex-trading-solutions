@@ -54,7 +54,6 @@ const initialTask = {
 };
 
 export default function OperatorArea({ user }) {
-  console.log('[DEBUG] OperatorArea render, tab:', tab);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
