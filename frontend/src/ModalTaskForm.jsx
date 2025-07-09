@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
+import FileManager from './components/FileManager';
 
 export const fields = [
   { name: 'status', label: 'Статус заявки', type: 'select', options: ['', 'Заявка', 'В роботі', 'Виконано', 'Заблоковано'] },
@@ -1083,6 +1084,17 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             </div>
           );
         })}
+        
+        {/* Додаємо FileManager тільки якщо є ID завдання (режим редагування) */}
+        {initialData.id && (
+          <FileManager 
+            taskId={initialData.id} 
+            onFilesChange={(files) => {
+              console.log('Файли змінилися:', files);
+            }}
+          />
+        )}
+        
         <div style={{display:'flex',gap:12,marginTop:24}}>
           <button type="submit" style={{flex:1}}>Зберегти</button>
           <button type="button" onClick={onClose} style={{flex:1,background:'#888',color:'#fff'}}>Скасувати</button>

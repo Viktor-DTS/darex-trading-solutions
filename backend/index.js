@@ -4,6 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 
+// Додаємо імпорт роуту файлів
+const filesRouter = require('./routes/files');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -94,6 +97,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
+
+// Додаємо роут файлів
+app.use('/api/files', filesRouter);
 
 // Логування запитів
 app.use((req, res, next) => {
