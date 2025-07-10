@@ -369,9 +369,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     if (mode === 'operator') {
       return !['status','requestDate','requestDesc','serviceRegion','company','customer','invoiceNumber','paymentType','address','equipmentSerial','equipment'].includes(name);
     }
-    if (mode === 'service') {
-      return ['requestDate','requestDesc'].includes(name);
-    }
+    // Видаляємо перевірку для режиму service, щоб поля requestDate та requestDesc були доступні для редагування
     return false;
   };
 
