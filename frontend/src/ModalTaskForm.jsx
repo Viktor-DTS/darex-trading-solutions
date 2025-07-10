@@ -460,6 +460,17 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       return;
     }
     setError('');
+    // --- Автоматичне встановлення bonusApprovalDate ---
+    let bonusApprovalDate = form.bonusApprovalDate;
+    if (
+      form.status === 'Виконано' &&
+      form.approvedByWarehouse === 'Підтверджено' &&
+      form.approvedByAccountant === 'Підтверджено' &&
+      form.approvedByRegionalManager === 'Підтверджено'
+    ) {
+      const d = new Date();
+      bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+    }
     // Розрахунок кожної суми на льоту
     const oilTotal = (parseFloat(form.oilUsed)||0) * (parseFloat(form.oilPrice)||0);
     const filterSum = (parseFloat(form.filterCount)||0) * (parseFloat(form.filterPrice)||0);
@@ -480,6 +491,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       (parseFloat(form.workPrice)||0);
     onSave({
       ...form,
+      bonusApprovalDate,
       oilTotal,
       filterSum,
       fuelFilterSum,
