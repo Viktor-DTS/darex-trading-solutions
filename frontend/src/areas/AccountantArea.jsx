@@ -111,24 +111,24 @@ export default function AccountantArea({ user }) {
     setLoading(true);
     const t = tasks.find(t => t.id === id);
     if (!t) return;
-    
-    // Перевіряємо чи всі підтвердження пройшли для автоматичного заповнення bonusApprovalDate
+    let next = {
+      ...t,
+      approvedByAccountant: approved,
+      accountantComment: comment !== undefined ? comment : t.accountantComment
+    };
     let bonusApprovalDate = t.bonusApprovalDate;
     if (
-      approved === 'Підтверджено' &&
-      t.status === 'Виконано' &&
-      (t.approvedByWarehouse === 'Підтверджено' || t.approvedByWarehouse === true) &&
-      (t.approvedByRegionalManager === 'Підтверджено' || t.approvedByRegionalManager === true)
+      next.status === 'Виконано' &&
+      (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
+      (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true) &&
+      (next.approvedByRegionalManager === 'Підтверджено' || next.approvedByRegionalManager === true)
     ) {
       const d = new Date();
       bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
     }
-    
     const updated = await tasksAPI.update(id, {
-        ...t, 
-        approvedByAccountant: approved, 
-      accountantComment: comment !== undefined ? comment : t.accountantComment,
-      bonusApprovalDate: bonusApprovalDate
+      ...next,
+      bonusApprovalDate
     });
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);

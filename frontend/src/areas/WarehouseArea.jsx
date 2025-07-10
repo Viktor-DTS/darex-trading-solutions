@@ -110,24 +110,26 @@ export default function WarehouseArea({ user }) {
     const t = tasks.find(t => t.id === id);
     if (!t) return;
     // Перевіряємо чи всі підтвердження пройшли для автоматичного заповнення bonusApprovalDate
+    let next = {
+      ...t,
+      approvedByWarehouse: approved,
+      warehouseComment: comment !== undefined ? comment : t.warehouseComment
+    };
     let bonusApprovalDate = t.bonusApprovalDate;
     if (
-      approved === 'Підтверджено' &&
-      t.status === 'Виконано' &&
-      (t.approvedByAccountant === 'Підтверджено' || t.approvedByAccountant === true) &&
-      (t.approvedByRegionalManager === 'Підтверджено' || t.approvedByRegionalManager === true)
+      next.status === 'Виконано' &&
+      (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
+      (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true) &&
+      (next.approvedByRegionalManager === 'Підтверджено' || next.approvedByRegionalManager === true)
     ) {
       const d = new Date();
       bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
     }
     const updated = await tasksAPI.update(id, {
-      ...t,
-      approvedByWarehouse: approved,
-      warehouseComment: comment !== undefined ? comment : t.warehouseComment,
-      bonusApprovalDate: bonusApprovalDate
+      ...next,
+      bonusApprovalDate
     });
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
-    // Якщо підтверджено, автоматично перемикаємо на Архів
     if (approved === 'Підтверджено') {
       setTab('archive');
     }

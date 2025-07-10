@@ -1048,30 +1048,59 @@ function RegionalManagerArea({ tab: propTab, user }) {
 
   // --- Функція handleApprove для підтвердження задач ---
   async function handleApprove(id, approved, comment) {
-    console.log('[DEBUG][REGIONAL] handleApprove called:', {id, approved, comment});
     setLoading(true);
     const t = tasks.find(t => t.id === id);
     if (!t) return;
-    // Перевіряємо чи всі підтвердження пройшли для автоматичного заповнення bonusApprovalDate
+    let next = {
+      ...t,
+      approvedByRegionalManager: approved,
+      regionalManagerComment: comment !== undefined ? comment : t.regionalManagerComment
+    };
     let bonusApprovalDate = t.bonusApprovalDate;
     if (
-      approved === 'Підтверджено' &&
-      t.status === 'Виконано' &&
-      (t.approvedByWarehouse === 'Підтверджено' || t.approvedByWarehouse === true) &&
-      (t.approvedByRegionalManager === 'Підтверджено' || t.approvedByRegionalManager === true)
+      next.status === 'Виконано' &&
+      (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
+      (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true) &&
+      (next.approvedByRegionalManager === 'Підтверджено' || next.approvedByRegionalManager === true)
     ) {
       const d = new Date();
       bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
     }
     const updated = await tasksAPI.update(id, {
-      ...t, 
-      approvedByRegionalManager: approved, // <-- Виправлено!
-      regionalManagerComment: comment !== undefined ? comment : t.regionalManagerComment,
-      bonusApprovalDate: bonusApprovalDate
+      ...next,
+      bonusApprovalDate
     });
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);
   }
+
+  // --- Аналогічно для handleApprove адміністратора ---
+  const handleApproveAdmin = async (id, approved, comment) => {
+    setLoading(true);
+    const t = tasks.find(t => t.id === id);
+    if (!t) return;
+    let next = {
+      ...t,
+      approvedByAccountant: approved,
+      accountantComment: comment !== undefined ? comment : t.accountantComment
+    };
+    let bonusApprovalDate = t.bonusApprovalDate;
+    if (
+      next.status === 'Виконано' &&
+      (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
+      (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true) &&
+      (next.approvedByRegionalManager === 'Підтверджено' || next.approvedByRegionalManager === true)
+    ) {
+      const d = new Date();
+      bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+    }
+    const updated = await tasksAPI.update(id, {
+      ...next,
+      bonusApprovalDate
+    });
+    setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
+    setLoading(false);
+  };
 
   // Add filtered tasks definition
   const filtered = tasks.filter(t => {
