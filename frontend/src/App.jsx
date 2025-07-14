@@ -1488,6 +1488,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                         <th>Загальна сума послуги</th>
                         <th>Тип обладнання</th>
                         <th>Заводський номер обладнання</th>
+                        <th><b>Найменування робіт</b></th>
                         <th>Премія, грн</th>
                       </tr>
                     </thead>
@@ -1502,6 +1503,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                           <td>{d.serviceTotal}</td>
                           <td>{d.equipment}</td>
                           <td>{d.equipmentSerial}</td>
+                          <td>{tasks.find(t => t.bonusApprovalDate === d.date && t.client === d.client && t.address === d.address && t.equipment === d.equipment && t.equipmentSerial === d.equipmentSerial && t.invoice === d.invoice && t.paymentType === d.paymentType && t.serviceTotal === d.serviceTotal)?.work || ''}</td>
                           <td style={{fontWeight:600}}>{d.bonus.toFixed(2)}</td>
                         </tr>
                       ))}
@@ -1737,6 +1739,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
               <th>Клієнт</th>
               <th>Адреса</th>
               <th>Обладнання</th>
+              <th><b>Найменування робіт</b></th>
               <th>Компанія виконавець</th>
               <th>Загальна сума з матеріалами</th>
               <th>Вартість робіт</th>
@@ -1788,6 +1791,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   <td>${t.client || ''}</td>
                   <td>${t.address || ''}</td>
                   <td>${t.equipment || ''}</td>
+                  <td>${t.work || ''}</td>
                   <td>${t.company || ''}</td>
                   <td>${t.serviceTotal || ''}</td>
                   <td>${t.workPrice || ''}</td>
