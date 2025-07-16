@@ -6,6 +6,7 @@ export const fields = [
   { name: 'status', label: 'Статус заявки', type: 'select', options: ['', 'Заявка', 'В роботі', 'Виконано', 'Заблоковано'] },
   { name: 'requestDate', label: 'Дата заявки', type: 'date' },
   { name: 'date', label: 'Дата проведення робіт', type: 'date' },
+  { name: 'paymentDate', label: 'Дата оплати', type: 'date' },
   { name: 'company', label: 'Компанія виконавець', type: 'select', options: ['', 'ДТС', 'Дарекс Енерго', 'інша'] },
   { name: 'edrpou', label: 'ЄДРПОУ', type: 'text' },
   { name: 'requestDesc', label: 'Опис заявки', type: 'textarea' },
@@ -14,7 +15,7 @@ export const fields = [
   { name: 'requestNumber', label: 'Номер заявки/наряду', type: 'text' },
   { name: 'invoice', label: 'Номер рахунку', type: 'text' },
   { name: 'paymentType', label: 'Вид оплати', type: 'select', options: ['не вибрано', 'Безготівка', 'Готівка', 'Інше'] },
-  { name: 'address', label: 'Адреса', type: 'text' },
+  { name: 'address', label: 'Адреса', type: 'textarea' },
   { name: 'equipmentSerial', label: 'Заводський номер обладнання', type: 'text' },
   { name: 'equipment', label: 'Тип обладнання', type: 'text' },
   { name: 'work', label: 'Найменування робіт', type: 'text' },
@@ -52,6 +53,7 @@ export const fields = [
   { name: 'accountantComment', label: 'Опис відмови (бухгалтер)', type: 'textarea', role: 'accountant' },
   { name: 'approvedByRegionalManager', label: 'Підтвердження регіонального керівника', type: 'select', options: ['На розгляді', 'Підтверджено', 'Відмова'], role: 'regionalManager' },
   { name: 'regionalManagerComment', label: 'Опис відмови (регіональний керівник)', type: 'textarea', role: 'regionalManager' },
+  { name: 'comments', label: 'Коментарі', type: 'textarea' },
   { name: 'airFilterName', label: 'Фільтр повітряний назва', type: 'text' },
   { name: 'airFilterCount', label: 'Фільтр повітряний штук', type: 'text' },
   { name: 'airFilterPrice', label: 'Ціна одного повітряного фільтра', type: 'text' },
@@ -76,7 +78,7 @@ const group5 = ['spareParts', 'sparePartsPrice', 'sparePartsTotal'];
 const group6 = ['totalAmount'];
 
 // Для textarea
-const textareaFields = ['requestDesc','warehouseComment','accountantComment','regionalManagerComment','blockDetail','otherMaterials'];
+const textareaFields = ['requestDesc','address','warehouseComment','accountantComment','regionalManagerComment','comments','blockDetail','otherMaterials'];
 
 // Групи для компактного відображення
 const oilGroup = ['oilType', 'oilUsed', 'oilPrice', 'oilTotal'];
@@ -87,13 +89,13 @@ const antifreezeGroup = ['antifreezeType', 'antifreezeL', 'antifreezePrice', 'an
 const transportGroup = ['carNumber', 'transportKm', 'transportSum', 'workPrice'];
 const expensesGroup = ['perDiem', 'living', 'otherExp', 'bonusApprovalDate'];
 const statusGroup = ['status', 'requestDate', 'company'];
-const regionClientGroup = ['edrpou', 'client', 'address', 'invoice'];
-const paymentEquipmentGroup = ['paymentType', 'serviceTotal', 'equipment', 'equipmentSerial'];
+const regionClientGroup = ['edrpou', 'client', 'invoice'];
+const paymentEquipmentGroup = ['paymentType', 'paymentDate', 'serviceTotal', 'equipment', 'equipmentSerial'];
 const workEngineersGroup = ['date', 'work', 'engineer1', 'engineer2'];
 const otherMaterialsGroup = ['otherSum', 'otherMaterials'];
 const warehouseGroup = ['approvedByWarehouse', 'warehouseComment'];
 const accountantGroup = ['approvedByAccountant', 'accountantComment'];
-const regionalManagerGroup = ['approvedByRegionalManager', 'regionalManagerComment'];
+const regionalManagerGroup = ['approvedByRegionalManager', 'regionalManagerComment', 'comments'];
 
 // Додаю групу для першого рядка
 const mainHeaderGroup = ['status', 'requestDate', 'company', 'serviceRegion'];
@@ -105,6 +107,7 @@ const mainHeaderRow = ['status', 'requestDate', 'company', 'serviceRegion'];
 const orderedFields = [
   'requestDesc',
   ...regionClientGroup,
+  'address',
   ...paymentEquipmentGroup,
   ...workEngineersGroup,
   ...oilGroup,
@@ -125,10 +128,10 @@ const orderedFields = [
 
 // Для полів, які мають бути з label над input
 const labelAboveFields = [
-  'status', 'requestDate', 'requestDesc', 'paymentType', 'otherMaterials',
+  'status', 'requestDate', 'requestDesc', 'address', 'paymentType', 'otherMaterials',
   'approvedByWarehouse', 'warehouseComment',
   'approvedByAccountant', 'accountantComment',
-  'approvedByRegionalManager', 'regionalManagerComment'
+  'approvedByRegionalManager', 'regionalManagerComment', 'comments'
 ];
 
 export default function ModalTaskForm({ open, onClose, onSave, initialData = {}, mode = 'service', user }) {
@@ -368,7 +371,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
 
     if (fields.find(f => f.name === name && f.role) && (!mode || fields.find(f => f.name === name).role !== mode)) return true;
     if (mode === 'operator') {
-      return !['status','requestDate','requestDesc','serviceRegion','company','customer','requestNumber','invoiceNumber','paymentType','address','equipmentSerial','equipment'].includes(name);
+      return !['status','requestDate','requestDesc','serviceRegion','company','customer','requestNumber','paymentDate','invoiceNumber','paymentType','address','equipmentSerial','equipment'].includes(name);
     }
     // Видаляємо перевірку для режиму service, щоб поля requestDate та requestDesc були доступні для редагування
     return false;
@@ -627,6 +630,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             'requestNumber', // Пропускаємо, оскільки воно відображається окремо
             ...statusGroup.slice(1).filter(n => n !== 'serviceRegion'),
             ...regionClientGroup.slice(1),
+            'address',
             ...paymentEquipmentGroup.slice(1),
             ...workEngineersGroup.slice(1),
             ...oilGroup.slice(1),
@@ -667,7 +671,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           if (idx === orderedFields.indexOf('edrpou')) {
             return (
               <div className="group" key="regionClientGroup">
-                {['edrpou', 'client', 'address', 'invoice'].map(n => {
+                {['edrpou', 'client', 'invoice'].map(n => {
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
@@ -678,6 +682,22 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                     </div>
                   );
                 })}
+              </div>
+            );
+          }
+          if (idx === orderedFields.indexOf('address')) {
+            return (
+              <div className="group" key="addressGroup">
+                <div className="field label-above textarea" style={{flex:1}}>
+                  <label>Адреса</label>
+                  <textarea 
+                    name="address" 
+                    value={form.address || ''} 
+                    onChange={handleChange} 
+                    readOnly={isReadOnly('address')} 
+                    style={{minHeight:60}}
+                  />
+                </div>
               </div>
             );
           }
@@ -858,7 +878,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             );
           }
           // textarea на весь рядок
-          if (['requestDesc','otherMaterials','warehouseComment','accountantComment'].includes(name)) {
+          if (['requestDesc','address','warehouseComment','accountantComment','regionalManagerComment','comments','blockDetail','otherMaterials'].includes(name)) {
             const f = fields.find(f=>f.name===name);
             if (!f) return null;
             return (
