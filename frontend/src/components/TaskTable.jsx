@@ -560,7 +560,7 @@ function TaskTableComponent({
           <style>{`
             .table-scroll {
               max-height: 60vh;
-              overflow: auto;
+              overflow: scroll;
               width: 100%;
             }
             .sticky-table {
@@ -573,8 +573,8 @@ function TaskTableComponent({
               table-layout: auto;
             }
             .sticky-table thead th {
-              position: sticky;
-              top: 0;
+              position: sticky !important;
+              top: 0 !important;
               z-index: 2;
               background: #1976d2;
               white-space: nowrap;
@@ -635,8 +635,7 @@ function TaskTableComponent({
                       onDoubleClick={() => handleColumnDoubleClick(col.key)}
                       style={{
                         cursor: 'pointer',
-                        background: sortConfig.field === col.key ? '#1565c0' : '#1976d2',
-                        position: 'relative'
+                        background: sortConfig.field === col.key ? '#1565c0' : '#1976d2'
                       }}
                     >
                       <div style={{marginBottom:4, display:'flex', alignItems:'center', justifyContent:'space-between'}}>
