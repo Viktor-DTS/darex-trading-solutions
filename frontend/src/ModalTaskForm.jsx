@@ -130,7 +130,7 @@ const orderedFields = [
 
 // Для полів, які мають бути з label над input
 const labelAboveFields = [
-  'status', 'requestDate', 'requestDesc', 'address', 'paymentType', 'otherMaterials',
+  'status', 'requestDate', 'requestDesc', 'address', 'paymentDate', 'paymentType', 'otherMaterials',
   'approvedByWarehouse', 'warehouseComment',
   'approvedByAccountant', 'accountantComment',
   'approvedByRegionalManager', 'regionalManagerComment', 'comments'
