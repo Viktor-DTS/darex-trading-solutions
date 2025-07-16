@@ -70,6 +70,9 @@ function TaskTableComponent({
   const [rejectModal, setRejectModal] = useState({ open: false, taskId: null, comment: '' });
   const [editDateModal, setEditDateModal] = useState({ open: false, taskId: null, month: '', year: '' });
   
+  // Додаю стан для сортування
+  const [sortConfig, setSortConfig] = useState({ field: null, direction: 'asc' });
+  
   // Персоналізований ключ для кожного користувача
   const userLogin = user?.login || 'default';
   const area = role; // Використовуємо role як область
@@ -396,6 +399,106 @@ function TaskTableComponent({
   
   const handleDragOver = e => e.preventDefault();
 
+  // Функція для обробки кліків по заголовках колонок для сортування
+  const handleColumnClick = (field) => {
+    setSortConfig(prevConfig => {
+      if (prevConfig.field === field) {
+        // Якщо клікнули на ту саму колонку, змінюємо напрямок
+        return {
+          field,
+          direction: prevConfig.direction === 'asc' ? 'desc' : 'asc'
+        };
+      } else {
+        // Якщо клікнули на нову колонку, встановлюємо asc за замовчуванням
+        return {
+          field,
+          direction: 'asc'
+        };
+      }
+    });
+  };
+
+  // Функція для обробки подвійного кліку по заголовках колонок
+  const handleColumnDoubleClick = (field) => {
+    setSortConfig(prevConfig => {
+      if (prevConfig.field === field) {
+        // Якщо подвійно клікнули на ту саму колонку, змінюємо напрямок
+        return {
+          field,
+          direction: prevConfig.direction === 'asc' ? 'desc' : 'asc'
+        };
+      } else {
+        // Якщо подвійно клікнули на нову колонку, встановлюємо asc за замовчуванням
+        return {
+          field,
+          direction: 'asc'
+        };
+      }
+    });
+  };
+
+  // Функція для визначення типу поля
+  const getFieldType = (field) => {
+    // Поля дат
+    const dateFields = ['requestDate', 'date', 'paymentDate', 'approvalDate', 'bonusApprovalDate'];
+    if (dateFields.includes(field)) return 'date';
+    
+    // Числові поля
+    const numericFields = [
+      'serviceTotal', 'oilUsed', 'oilPrice', 'oilTotal', 'filterCount', 'filterPrice', 'filterSum',
+      'fuelFilterCount', 'fuelFilterPrice', 'fuelFilterSum', 'airFilterCount', 'airFilterPrice', 'airFilterSum',
+      'antifreezeL', 'antifreezePrice', 'antifreezeSum', 'otherSum', 'workPrice', 'perDiem', 'living',
+      'otherExp', 'transportKm', 'transportSum', 'serviceBonus'
+    ];
+    if (numericFields.includes(field)) return 'numeric';
+    
+    // Текстові поля (за замовчуванням)
+    return 'text';
+  };
+
+  // Функція для сортування даних
+  const sortData = (data, field, direction) => {
+    if (!field) return data;
+    
+    const fieldType = getFieldType(field);
+    
+    return [...data].sort((a, b) => {
+      let aValue = a[field];
+      let bValue = b[field];
+      
+      // Обробка null/undefined значень
+      if (aValue === null || aValue === undefined) aValue = '';
+      if (bValue === null || bValue === undefined) bValue = '';
+      
+      let comparison = 0;
+      
+      switch (fieldType) {
+        case 'date':
+          // Сортування дат
+          const dateA = new Date(aValue || '1900-01-01');
+          const dateB = new Date(bValue || '1900-01-01');
+          comparison = dateA - dateB;
+          break;
+          
+        case 'numeric':
+          // Сортування чисел
+          const numA = parseFloat(aValue) || 0;
+          const numB = parseFloat(bValue) || 0;
+          comparison = numA - numB;
+          break;
+          
+        case 'text':
+        default:
+          // Сортування тексту (українська мова)
+          const ukrainianCollator = new Intl.Collator('uk', { sensitivity: 'base' });
+          comparison = ukrainianCollator.compare(String(aValue), String(bValue));
+          break;
+      }
+      
+      return direction === 'asc' ? comparison : -comparison;
+    });
+  };
+
   // --- ФУНКЦІЯ для збереження нової дати підтвердження ---
   const handleSaveBonusDate = () => {
     if (!editDateModal.taskId || !editDateModal.month || !editDateModal.year) return;
@@ -474,6 +577,10 @@ function TaskTableComponent({
               padding: 8px 4px;
               vertical-align: top;
               min-width: 120px;
+              transition: background-color 0.2s ease;
+            }
+            .sticky-table thead th:hover {
+              background: #1565c0 !important;
             }
             .sticky-table thead th input {
               background: #fff;
@@ -520,9 +627,22 @@ function TaskTableComponent({
                       onDragStart={e => handleDragStart(e, idx)}
                       onDrop={e => handleDrop(e, idx)}
                       onDragOver={handleDragOver}
-                      style={{cursor:'move',background:'#1976d2'}}
+                      onClick={() => handleColumnClick(col.key)}
+                      onDoubleClick={() => handleColumnDoubleClick(col.key)}
+                      style={{
+                        cursor: 'pointer',
+                        background: sortConfig.field === col.key ? '#1565c0' : '#1976d2',
+                        position: 'relative'
+                      }}
                     >
-                      <div style={{marginBottom:4}}>{col.label}</div>
+                      <div style={{marginBottom:4, display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+                        <span title="Подвійний клік для сортування">{col.label}</span>
+                        {sortConfig.field === col.key && (
+                          <span style={{fontSize:'12px', marginLeft:'4px'}} title={`Сортовано ${sortConfig.direction === 'asc' ? 'від А до Я' : 'від Я до А'}`}>
+                            {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </div>
                       {col.filter && (
                           col.key === 'date' || col.key === 'requestDate' ? (
                             <div style={{display:'flex',flexDirection:'column',minWidth:120}}>
@@ -552,7 +672,7 @@ function TaskTableComponent({
                 </tr>
               </thead>
               <tbody>
-                {sortedTasks.map(t => (
+                {sortData(sortedTasks, sortConfig.field, sortConfig.direction).map(t => (
                   <tr key={t.id} style={getRowColor(t) ? {background:getRowColor(t)} : {}}>
                     <td style={getRowColor(t) ? {color:'#111'} : {}}>
                       <button onClick={()=>{setInfoTask(t);setShowInfo(true);}} style={{marginRight:8,background:'#00bfff',color:'#fff'}}>Історія проведення робіт</button>
