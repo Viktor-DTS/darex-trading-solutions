@@ -401,6 +401,7 @@ function TaskTableComponent({
 
   // Функція для обробки кліків по заголовках колонок для сортування
   const handleColumnClick = (field) => {
+    console.log('[DEBUG] Клік по колонці:', field);
     setSortConfig(prevConfig => {
       if (prevConfig.field === field) {
         // Якщо клікнули на ту саму колонку, змінюємо напрямок
@@ -420,6 +421,7 @@ function TaskTableComponent({
 
   // Функція для обробки подвійного кліку по заголовках колонок
   const handleColumnDoubleClick = (field) => {
+    console.log('[DEBUG] Подвійний клік по колонці:', field);
     setSortConfig(prevConfig => {
       if (prevConfig.field === field) {
         // Якщо подвійно клікнули на ту саму колонку, змінюємо напрямок
@@ -459,6 +461,8 @@ function TaskTableComponent({
   // Функція для сортування даних
   const sortData = (data, field, direction) => {
     if (!field) return data;
+    
+    console.log('[DEBUG] Сортування:', { field, direction, dataLength: data.length });
     
     const fieldType = getFieldType(field);
     
@@ -672,7 +676,7 @@ function TaskTableComponent({
                 </tr>
               </thead>
               <tbody>
-                {sortData(sortedTasks, sortConfig.field, sortConfig.direction).map(t => (
+                {sortData(tasks, sortConfig.field, sortConfig.direction).map(t => (
                   <tr key={t.id} style={getRowColor(t) ? {background:getRowColor(t)} : {}}>
                     <td style={getRowColor(t) ? {color:'#111'} : {}}>
                       <button onClick={()=>{setInfoTask(t);setShowInfo(true);}} style={{marginRight:8,background:'#00bfff',color:'#fff'}}>Історія проведення робіт</button>
