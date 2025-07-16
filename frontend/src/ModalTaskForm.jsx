@@ -89,13 +89,14 @@ const antifreezeGroup = ['antifreezeType', 'antifreezeL', 'antifreezePrice', 'an
 const transportGroup = ['carNumber', 'transportKm', 'transportSum', 'workPrice'];
 const expensesGroup = ['perDiem', 'living', 'otherExp', 'bonusApprovalDate'];
 const statusGroup = ['status', 'requestDate', 'company'];
-const regionClientGroup = ['edrpou', 'client', 'invoice'];
-const paymentEquipmentGroup = ['paymentType', 'paymentDate', 'serviceTotal', 'equipment', 'equipmentSerial'];
+const regionClientGroup = ['edrpou', 'client', 'invoice', 'paymentDate'];
+const paymentEquipmentGroup = ['paymentType', 'serviceTotal', 'equipment', 'equipmentSerial'];
 const workEngineersGroup = ['date', 'work', 'engineer1', 'engineer2'];
 const otherMaterialsGroup = ['otherSum', 'otherMaterials'];
 const warehouseGroup = ['approvedByWarehouse', 'warehouseComment'];
 const accountantGroup = ['approvedByAccountant', 'accountantComment'];
-const regionalManagerGroup = ['approvedByRegionalManager', 'regionalManagerComment', 'comments'];
+const regionalManagerGroup = ['approvedByRegionalManager', 'regionalManagerComment'];
+const commentsGroup = ['comments'];
 
 // Додаю групу для першого рядка
 const mainHeaderGroup = ['status', 'requestDate', 'company', 'serviceRegion'];
@@ -121,6 +122,7 @@ const orderedFields = [
   ...warehouseGroup,
   ...accountantGroup,
   ...regionalManagerGroup,
+  ...commentsGroup,
 ];
 
 // Додаємо поле bonusApprovalDate для адміністратора
@@ -630,7 +632,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             'requestNumber', // Пропускаємо, оскільки воно відображається окремо
             ...statusGroup.slice(1).filter(n => n !== 'serviceRegion'),
             ...regionClientGroup.slice(1),
-            'address',
             ...paymentEquipmentGroup.slice(1),
             ...workEngineersGroup.slice(1),
             ...oilGroup.slice(1),
@@ -643,7 +644,8 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             ...otherMaterialsGroup.slice(1),
             ...warehouseGroup.slice(1),
             ...accountantGroup.slice(1),
-            ...regionalManagerGroup.slice(1)
+            ...regionalManagerGroup.slice(1),
+            ...commentsGroup.slice(1)
           ].includes(name)) return null;
           if (idx === orderedFields.indexOf('status')) {
             return (
@@ -671,14 +673,14 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           if (idx === orderedFields.indexOf('edrpou')) {
             return (
               <div className="group" key="regionClientGroup">
-                {['edrpou', 'client', 'invoice'].map(n => {
+                {['edrpou', 'client', 'invoice', 'paymentDate'].map(n => {
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
                     return (
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
-                      <input type="text" name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} />
+                      <input type={f.type} name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} />
                     </div>
                   );
                 })}
@@ -704,7 +706,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           if (idx === orderedFields.indexOf('paymentType')) {
             return (
               <div className="group" key="paymentEquipmentGroup">
-                {paymentEquipmentGroup.map(n => {
+                {['paymentType', 'serviceTotal', 'equipment', 'equipmentSerial'].map(n => {
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
@@ -1094,7 +1096,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           if (idx === orderedFields.indexOf('approvedByRegionalManager')) {
             return (
               <div className="group" key="regionalManagerGroup">
-                {regionalManagerGroup.map(n => {
+                {['approvedByRegionalManager', 'regionalManagerComment'].map(n => {
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
@@ -1112,6 +1114,23 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                       <select name={f.name} value={value} onChange={handleChange} disabled={isReadOnly(f.name)}>
                         {(f.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                       </select>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }
+          if (idx === orderedFields.indexOf('comments')) {
+            return (
+              <div className="group" key="commentsGroup">
+                {commentsGroup.map(n => {
+                  const f = fields.find(f=>f.name===n);
+                  if (!f) return null;
+                  let value = form[f.name] || '';
+                  return (
+                    <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field textarea'}>
+                      <label>{f.label}</label>
+                      <textarea name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} />
                     </div>
                   );
                 })}
