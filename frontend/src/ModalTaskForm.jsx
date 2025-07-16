@@ -14,7 +14,7 @@ export const fields = [
   { name: 'client', label: 'Замовник', type: 'text' },
   { name: 'requestNumber', label: 'Номер заявки/наряду', type: 'text' },
   { name: 'invoice', label: 'Номер рахунку', type: 'text' },
-  { name: 'paymentType', label: 'Вид оплати', type: 'select', options: ['не вибрано', 'Безготівка', 'Готівка', 'Інше'] },
+  { name: 'paymentType', label: 'Вид оплати', type: 'select', options: ['не вибрано', 'Безготівка', 'Готівка', 'На карту', 'Інше'] },
   { name: 'address', label: 'Адреса', type: 'textarea' },
   { name: 'equipmentSerial', label: 'Заводський номер обладнання', type: 'text' },
   { name: 'equipment', label: 'Тип обладнання', type: 'text' },
