@@ -583,34 +583,6 @@ function TaskTableComponent({
               min-width: 120px;
               transition: background-color 0.2s ease;
             }
-            .sticky-table thead th:first-child {
-              left: 0;
-              z-index: 3;
-            }
-            .sticky-table thead th:nth-child(2) {
-              left: 120px;
-              z-index: 3;
-            }
-            .sticky-table thead th:last-child {
-              right: 0;
-              z-index: 3;
-            }
-            .sticky-table thead th:nth-last-child(2) {
-              right: 120px;
-              z-index: 3;
-            }
-            .sticky-table thead th:nth-last-child(3) {
-              right: 240px;
-              z-index: 3;
-            }
-            .sticky-table thead th:nth-last-child(4) {
-              right: 360px;
-              z-index: 3;
-            }
-            .sticky-table thead th:nth-last-child(5) {
-              right: 480px;
-              z-index: 3;
-            }
             .sticky-table thead th:hover {
               background: #1565c0 !important;
             }
@@ -629,48 +601,6 @@ function TaskTableComponent({
             }
             .sticky-table th, .sticky-table td {
               white-space: nowrap;
-            }
-            .sticky-table tbody td:first-child {
-              position: sticky;
-              left: 0;
-              z-index: 1;
-              background: inherit;
-            }
-            .sticky-table tbody td:nth-child(2) {
-              position: sticky;
-              left: 120px;
-              z-index: 1;
-              background: inherit;
-            }
-            .sticky-table tbody td:last-child {
-              position: sticky;
-              right: 0;
-              z-index: 1;
-              background: inherit;
-            }
-            .sticky-table tbody td:nth-last-child(2) {
-              position: sticky;
-              right: 120px;
-              z-index: 1;
-              background: inherit;
-            }
-            .sticky-table tbody td:nth-last-child(3) {
-              position: sticky;
-              right: 240px;
-              z-index: 1;
-              background: inherit;
-            }
-            .sticky-table tbody td:nth-last-child(4) {
-              position: sticky;
-              right: 360px;
-              z-index: 1;
-              background: inherit;
-            }
-            .sticky-table tbody td:nth-last-child(5) {
-              position: sticky;
-              right: 480px;
-              z-index: 1;
-              background: inherit;
             }
             .table-scroll::-webkit-scrollbar {
               height: 12px;
