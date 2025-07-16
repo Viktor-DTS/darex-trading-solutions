@@ -18,6 +18,7 @@ const initialTask = {
   engineer1: '',
   engineer2: '',
   client: '',
+  requestNumber: '',
   invoice: '',
   paymentType: '',
   serviceTotal: '',

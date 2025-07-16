@@ -11,6 +11,7 @@ export const fields = [
   { name: 'requestDesc', label: 'Опис заявки', type: 'textarea' },
   { name: 'serviceRegion', label: 'Регіон сервісного відділу', type: 'select' },
   { name: 'client', label: 'Замовник', type: 'text' },
+  { name: 'requestNumber', label: 'Номер заявки/наряду', type: 'text' },
   { name: 'invoice', label: 'Номер рахунку', type: 'text' },
   { name: 'paymentType', label: 'Вид оплати', type: 'select', options: ['не вибрано', 'Безготівка', 'Готівка', 'Інше'] },
   { name: 'address', label: 'Адреса', type: 'text' },
@@ -367,7 +368,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
 
     if (fields.find(f => f.name === name && f.role) && (!mode || fields.find(f => f.name === name).role !== mode)) return true;
     if (mode === 'operator') {
-      return !['status','requestDate','requestDesc','serviceRegion','company','customer','invoiceNumber','paymentType','address','equipmentSerial','equipment'].includes(name);
+      return !['status','requestDate','requestDesc','serviceRegion','company','customer','requestNumber','invoiceNumber','paymentType','address','equipmentSerial','equipment'].includes(name);
     }
     // Видаляємо перевірку для режиму service, щоб поля requestDate та requestDesc були доступні для редагування
     return false;
@@ -569,6 +570,21 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         <button type="button" onClick={onClose} style={{position:'absolute',top:40,right:24,fontSize:28,background:'none',border:'none',color:'#fff',cursor:'pointer',zIndex:10}} aria-label="Закрити">×</button>
         <h2 style={{marginTop:0}}>Завдання</h2>
         {error && <div style={{color:'#ff6666',marginBottom:16,fontWeight:600}}>{error}</div>}
+        
+        {/* Окремий рядок для номера заявки/наряду */}
+        <div style={{display:'flex',gap:16,marginBottom:24,justifyContent:'center'}}>
+          <div className="field" style={{flex:1,maxWidth:400}}>
+            <label>Номер заявки/наряду</label>
+            <input 
+              type="text" 
+              name="requestNumber" 
+              value={form.requestNumber || ''} 
+              onChange={handleChange} 
+              readOnly={isReadOnly('requestNumber')} 
+            />
+          </div>
+        </div>
+        
         <div style={{display:'flex',gap:16,marginBottom:24}}>
           {mainHeaderRow.map(n => {
             const f = fields.find(f=>f.name===n);
@@ -608,6 +624,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         {orderedFields.map((name, idx) => {
           // Пропускаємо дублікати групових полів (окрім першого елемента кожної групи)
           if ([
+            'requestNumber', // Пропускаємо, оскільки воно відображається окремо
             ...statusGroup.slice(1).filter(n => n !== 'serviceRegion'),
             ...regionClientGroup.slice(1),
             ...paymentEquipmentGroup.slice(1),
