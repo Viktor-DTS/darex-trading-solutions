@@ -1881,7 +1881,11 @@ function RegionalManagerArea({ tab: propTab, user }) {
     
     // Фільтруємо виконані заявки за діапазоном дат, регіоном та статусом затвердження
     const filteredTasks = tasks.filter(t => {
-      console.log('[DEBUG] Checking task:', t.id, 'status:', t.status, 'date:', t.date, 'region:', t.serviceRegion);
+      console.log('[DEBUG] Checking task:', t.id, 'status:', t.status, 'date:', t.date, 'region:', t.serviceRegion, 'approvals:', {
+        warehouse: t.approvedByWarehouse,
+        accountant: t.approvedByAccountant,
+        regionalManager: t.approvedByRegionalManager
+      });
       
       if (t.status !== 'Виконано') {
         console.log('[DEBUG] Task', t.id, 'filtered out: status not Виконано');
@@ -1911,17 +1915,22 @@ function RegionalManagerArea({ tab: propTab, user }) {
       
       // Фільтр по статусу затвердження
       if (exportFilters.approvalFilter === 'approved') {
-        if (!isApproved(t.approvedByRegionalManager)) {
-          console.log('[DEBUG] Task', t.id, 'filtered out: not approved by regional manager');
+        // Для затверджених - всі повинні бути затверджені
+        if (!isApproved(t.approvedByWarehouse) || !isApproved(t.approvedByAccountant) || !isApproved(t.approvedByRegionalManager)) {
+          console.log('[DEBUG] Task', t.id, 'filtered out: not approved by all managers');
           return false;
         }
       } else if (exportFilters.approvalFilter === 'not_approved') {
-        // Для незатверджених показуємо тільки ті, що НЕ затверджені регіональним керівником
-        if (isApproved(t.approvedByRegionalManager)) {
-          console.log('[DEBUG] Task', t.id, 'filtered out: already approved by regional manager');
+        // Для незатверджених - хоча б один не затвердив
+        if (isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant) && isApproved(t.approvedByRegionalManager)) {
+          console.log('[DEBUG] Task', t.id, 'filtered out: approved by all managers');
           return false;
         }
-        console.log('[DEBUG] Task', t.id, 'included: not approved by regional manager, status:', t.approvedByRegionalManager);
+        console.log('[DEBUG] Task', t.id, 'included: not approved by at least one manager', {
+          warehouse: t.approvedByWarehouse,
+          accountant: t.approvedByAccountant,
+          regionalManager: t.approvedByRegionalManager
+        });
       }
       // Якщо approvalFilter === 'all', то показуємо всі
       
@@ -1934,8 +1943,13 @@ function RegionalManagerArea({ tab: propTab, user }) {
     // Додаткова перевірка - логуємо всі завдання зі статусом 'Виконано' та їх статус затвердження
     const completedTasksWithApproval = tasks.filter(t => t.status === 'Виконано').map(t => ({
       id: t.id,
+      approvedByWarehouse: t.approvedByWarehouse,
+      approvedByAccountant: t.approvedByAccountant,
       approvedByRegionalManager: t.approvedByRegionalManager,
-      isApproved: isApproved(t.approvedByRegionalManager)
+      isWarehouseApproved: isApproved(t.approvedByWarehouse),
+      isAccountantApproved: isApproved(t.approvedByAccountant),
+      isRegionalManagerApproved: isApproved(t.approvedByRegionalManager),
+      isAllApproved: isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant) && isApproved(t.approvedByRegionalManager)
     }));
     console.log('[DEBUG] All completed tasks with approval status:', completedTasksWithApproval);
 
