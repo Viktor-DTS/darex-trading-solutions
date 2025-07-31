@@ -24,6 +24,7 @@ import { tasksAPI } from './utils/tasksAPI';
 import { accessRulesAPI } from './utils/accessRulesAPI';
 import { rolesAPI } from './utils/rolesAPI';
 import { regionsAPI } from './utils/regionsAPI';
+import keepAliveService from './utils/keepAlive.js';
 
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
@@ -2345,6 +2346,34 @@ function App() {
       .then(data => setServerMsg(data.message))
       .catch(() => setServerMsg('Сервер недоступний...'))
   }, []);
+
+  // Запуск KeepAlive сервісу після успішного входу
+  useEffect(() => {
+    if (user) {
+      console.log('Користувач увійшов, запуск KeepAlive сервісу...');
+      keepAliveService.start();
+      
+      // Обробка подій видимості сторінки
+      const handleVisibilityChange = () => {
+        if (document.hidden) {
+          console.log('Сторінка прихована, зупинка KeepAlive...');
+          keepAliveService.stop();
+        } else {
+          console.log('Сторінка видима, запуск KeepAlive...');
+          keepAliveService.start();
+        }
+      };
+      
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      
+      // Зупинка KeepAlive при виході з додатку
+      return () => {
+        console.log('Користувач вийшов, зупинка KeepAlive сервісу...');
+        keepAliveService.stop();
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    }
+  }, [user]);
 
   if (!user) {
     return <Login onLogin={u => { setUser(u); setCurrentArea(u.role); }} />

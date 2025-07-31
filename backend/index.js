@@ -23,6 +23,20 @@ async function connectToMongoDB() {
     await mongoose.connect(MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
+      // Параметри для підтримки постійного з'єднання
+      maxPoolSize: 10, // Максимальна кількість з'єднань в пулі
+      minPoolSize: 2,  // Мінімальна кількість з'єднань в пулі
+      maxIdleTimeMS: 30000, // Час неактивності перед закриттям з'єднання (30 секунд)
+      serverSelectionTimeoutMS: 5000, // Таймаут вибору сервера
+      socketTimeoutMS: 45000, // Таймаут сокета
+      heartbeatFrequencyMS: 10000, // Частота heartbeat (10 секунд)
+      // Автоматичне перепідключення
+      autoReconnect: true,
+      reconnectTries: Number.MAX_VALUE,
+      reconnectInterval: 1000,
+      // Keep-alive налаштування
+      keepAlive: true,
+      keepAliveInitialDelay: 300000, // 5 хвилин
     });
     console.log('MongoDB connected successfully');
     return true;
@@ -51,6 +65,67 @@ connectToMongoDB().then(async (connected) => {
     }
   }
 });
+
+// Обробники подій для моніторингу з'єднання MongoDB
+mongoose.connection.on('connected', () => {
+  console.log('MongoDB підключено');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB помилка з\'єднання:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('MongoDB відключено');
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('MongoDB перепідключено');
+});
+
+// Функція для перевірки та відновлення з'єднання
+async function ensureConnection() {
+  if (mongoose.connection.readyState !== 1) {
+    console.log('Спроба перепідключення до MongoDB...');
+    try {
+      await connectToMongoDB();
+    } catch (error) {
+      console.error('Помилка перепідключення:', error);
+    }
+  }
+}
+
+// Періодична перевірка з'єднання кожні 30 секунд
+setInterval(ensureConnection, 30000);
+
+// Допоміжна функція для виконання MongoDB операцій з автоматичним перепідключенням
+async function executeWithRetry(operation, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Перевіряємо з'єднання перед операцією
+      if (mongoose.connection.readyState !== 1) {
+        console.log(`Спроба ${attempt}: MongoDB не підключена, перепідключення...`);
+        await ensureConnection();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      return await operation();
+    } catch (error) {
+      console.error(`Помилка спроби ${attempt}:`, error.message);
+      
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Якщо помилка пов'язана з з'єднанням, намагаємося перепідключитися
+      if (error.name === 'MongoNetworkError' || error.name === 'MongoServerSelectionError') {
+        console.log('Помилка мережі, спроба перепідключення...');
+        await ensureConnection();
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+  }
+}
 
 // --- Схеми ---
 const userSchema = new mongoose.Schema({
@@ -114,12 +189,26 @@ app.use((err, req, res, next) => {
 });
 
 // Middleware для перевірки стану MongoDB
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   if (req.path === '/api/ping') {
     return next(); // Пропускаємо ping запити
   }
   
   if (mongoose.connection.readyState !== 1) {
+    console.log('MongoDB не підключена, спроба перепідключення...');
+    try {
+      await ensureConnection();
+      // Даємо час на перепідключення
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      if (mongoose.connection.readyState === 1) {
+        console.log('MongoDB успішно перепідключена');
+        return next();
+      }
+    } catch (error) {
+      console.error('Помилка перепідключення:', error);
+    }
+    
     console.error('MongoDB не підключена! ReadyState:', mongoose.connection.readyState);
     return res.status(503).json({ 
       error: 'База даних недоступна', 
@@ -134,9 +223,10 @@ const reports = [];
 // --- USERS через MongoDB ---
 app.get('/api/users', async (req, res) => {
   try {
-    const users = await User.find();
+    const users = await executeWithRetry(() => User.find());
     res.json(users);
   } catch (error) {
+    console.error('Помилка отримання користувачів:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -400,7 +490,7 @@ app.post('/api/auth', async (req, res) => {
   }
 
   try {
-    const user = await User.findOne({ login, password });
+    const user = await executeWithRetry(() => User.findOne({ login, password }));
     if (user) {
       const { password: _, ...userWithoutPassword } = user.toObject();
       res.json({ success: true, user: userWithoutPassword });
@@ -408,6 +498,7 @@ app.post('/api/auth', async (req, res) => {
       res.status(401).json({ error: 'Невірний логін або пароль' });
     }
   } catch (error) {
+    console.error('Помилка авторизації:', error);
     res.status(500).json({ error: error.message });
   }
 });
