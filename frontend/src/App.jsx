@@ -971,6 +971,14 @@ function RegionalManagerArea({ tab: propTab, user }) {
   const [selectReportOpen, setSelectReportOpen] = useState(false);
   const [reportType, setReportType] = useState('month');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  
+  // Додаємо стани для фільтрів експорту
+  const [exportFilters, setExportFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    region: '',
+    approvalFilter: 'all'
+  });
 
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
   // але зберігаємо вже введені користувачем значення
@@ -1860,6 +1868,120 @@ function RegionalManagerArea({ tab: propTab, user }) {
   });
   console.log('[DEBUG][APP] filtered:', filteredAppDebug.map(t => ({id: t.id, serviceRegion: t.serviceRegion})));
 
+  // Додаємо функцію експорту в Excel
+  const exportFilteredToExcel = () => {
+    // Фільтруємо виконані заявки за діапазоном дат, регіоном та статусом затвердження
+    const filteredTasks = tasks.filter(t => {
+      if (t.status !== 'Виконано') return false;
+      if (exportFilters.dateFrom && (!t.date || t.date < exportFilters.dateFrom)) return false;
+      if (exportFilters.dateTo && (!t.date || t.date > exportFilters.dateTo)) return false;
+      
+      // Фільтр по регіону користувача
+      if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) return false;
+      if (exportFilters.region && exportFilters.region !== 'Україна' && t.serviceRegion !== exportFilters.region) return false;
+      
+      // Фільтр по статусу затвердження
+      if (exportFilters.approvalFilter === 'approved') {
+        if (!isApproved(t.approvedByRegionalManager)) return false;
+      } else if (exportFilters.approvalFilter === 'not_approved') {
+        if (isApproved(t.approvedByRegionalManager)) return false;
+      }
+      // Якщо approvalFilter === 'all', то показуємо всі
+      
+      return true;
+    });
+
+    // Маппінг колонок згідно з вимогами
+    const columnMapping = [
+      { excelHeader: 'Відповідальний', field: 'engineer1', additionalField: 'engineer2' },
+      { excelHeader: 'ДТС/ДАРЕКС', field: 'company' },
+      { excelHeader: 'Найменування робіт', field: 'work' },
+      { excelHeader: 'Гарантія/не гарантія/волонтерство', field: 'work' },
+      { excelHeader: '№ Заявки', field: 'requestNumber' },
+      { excelHeader: 'дата', field: 'date' },
+      { excelHeader: 'Замовник/повна назва', field: 'client' },
+      { excelHeader: 'Адреса/повна', field: 'address' },
+      { excelHeader: 'Опис заявки', field: 'requestDesc' },
+      { excelHeader: 'Заводський номер обладнання', field: 'equipmentSerial' },
+      { excelHeader: 'Тип обладнання/повна назва', field: 'equipment' },
+      { excelHeader: 'Назва оливи', field: 'oilType' },
+      { excelHeader: 'Використано оливи, л', field: 'oilUsed' },
+      { excelHeader: 'Ціна оливи, грн.', field: 'oilPrice' },
+      { excelHeader: 'Повернуто відпрацьовану оливу, л', field: '' },
+      { excelHeader: 'Фільтр масл, назва', field: 'filterName' },
+      { excelHeader: 'Фільтр масл, штук', field: 'filterCount' },
+      { excelHeader: 'Ціна ФМ, гривень', field: 'filterPrice' },
+      { excelHeader: 'Фільтр палив, назва', field: 'fuelFilterName' },
+      { excelHeader: 'Фільтр палив, штук', field: 'fuelFilterCount' },
+      { excelHeader: 'Ціна ФП, гривень', field: 'fuelFilterPrice' },
+      { excelHeader: 'Фільтр повітряний, назва', field: 'airFilterName' },
+      { excelHeader: 'Фільтр повітряний, штук', field: 'airFilterCount' },
+      { excelHeader: 'Ціна повіт фільтра, гривень', field: 'airFilterPrice' },
+      { excelHeader: 'Антифріз, л', field: 'antifreezeL' },
+      { excelHeader: 'Ціна антифрізу, грн.', field: 'antifreezePrice' },
+      { excelHeader: 'Інші матеріали, назва/шт.', field: 'otherMaterials' },
+      { excelHeader: 'Ціна інш матеріалів,грн.', field: 'otherSum' },
+      { excelHeader: 'Вартість робіт, грн.', field: 'workPrice' },
+      { excelHeader: 'Добові, грн', field: 'perDiem' },
+      { excelHeader: 'Проживання, грн', field: 'living' },
+      { excelHeader: 'Інші витрати, грн', field: 'otherExp' },
+      { excelHeader: 'Держомер автотранспорту (АЕ0000АЕ)', field: 'carNumber' },
+      { excelHeader: 'Транспортні витрати, км', field: 'transportKm' },
+      { excelHeader: 'Вартість тр. витрат, грн.', field: 'transportSum' },
+      { excelHeader: 'Загальна ціна, грн', field: 'serviceTotal' },
+      { excelHeader: 'Вид оплати, нал./безнал/Дата оплати', field: 'paymentType' },
+      { excelHeader: 'Альбіна', field: '' }
+    ];
+
+    // Формуємо заголовки
+    const headers = columnMapping.map(col => col.excelHeader);
+
+    // Формуємо дані для рядків
+    const data = filteredTasks.map(task => {
+      return columnMapping.map(col => {
+        if (col.field === 'engineer1') {
+          // Об'єднуємо інженерів
+          const engineer1 = task.engineer1 || '';
+          const engineer2 = task.engineer2 || '';
+          return engineer2 ? `${engineer1}, ${engineer2}` : engineer1;
+        } else if (col.field === '') {
+          return ''; // Порожні поля
+        } else {
+          return task[col.field] || '';
+        }
+      });
+    });
+
+    // Створюємо робочий аркуш
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Заявки');
+
+    // Налаштовуємо фільтри для колонок
+    worksheet['!autofilter'] = { ref: `A1:${String.fromCharCode(65 + headers.length - 1)}${data.length + 1}` };
+
+    // Створюємо назву файлу з урахуванням фільтрів
+    let fileName = 'Звіт_по_заявках_регіонального_керівника';
+    if (exportFilters.dateFrom || exportFilters.dateTo) {
+      fileName += `_${exportFilters.dateFrom || 'з_початку'}_${exportFilters.dateTo || 'до_кінця'}`;
+    }
+    if (exportFilters.region) {
+      fileName += `_${exportFilters.region}`;
+    }
+    if (exportFilters.approvalFilter !== 'all') {
+      fileName += `_${exportFilters.approvalFilter === 'approved' ? 'затверджені' : 'незатверджені'}`;
+    }
+    fileName += '.xlsx';
+
+    // Запускаємо завантаження файлу
+    XLSX.writeFile(workbook, fileName);
+  };
+
+  // Додаємо функцію для обробки зміни фільтрів експорту
+  const handleExportFilterChange = (field, value) => {
+    setExportFilters(prev => ({ ...prev, [field]: value }));
+  };
+
   return (
     <>
       <div style={{display:'flex',gap:8,marginBottom:8}}>
@@ -1872,6 +1994,31 @@ function RegionalManagerArea({ tab: propTab, user }) {
             <div style={{display:'flex',gap:8,marginBottom:16}}>
               <button onClick={()=>setTaskTab('pending')} style={{width:220,padding:'10px 0',background:taskTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
               <button onClick={()=>setTaskTab('archive')} style={{width:220,padding:'10px 0',background:taskTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
+              <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
+            </div>
+            <div style={{display:'flex',gap:8,marginBottom:16}}>
+              <label style={{display:'flex',alignItems:'center',gap:4}}>
+                Дата виконаних робіт з:
+                <input type="date" name="dateFrom" value={exportFilters.dateFrom} onChange={(e) => handleExportFilterChange('dateFrom', e.target.value)} />
+                по
+                <input type="date" name="dateTo" value={exportFilters.dateTo} onChange={(e) => handleExportFilterChange('dateTo', e.target.value)} />
+              </label>
+              <label style={{display:'flex',alignItems:'center',gap:4}}>
+                Регіон:
+                <input type="text" name="region" value={exportFilters.region || ''} onChange={(e) => handleExportFilterChange('region', e.target.value)} placeholder="Україна або регіон" />
+              </label>
+              <label style={{display:'flex',alignItems:'center',gap:4}}>
+                Статус затвердження:
+                <select 
+                  value={exportFilters.approvalFilter} 
+                  onChange={(e) => handleExportFilterChange('approvalFilter', e.target.value)}
+                  style={{padding:'4px 8px',borderRadius:'4px',border:'1px solid #ccc'}}
+                >
+                  <option value="all">Всі звіти</option>
+                  <option value="approved">Тільки затверджені</option>
+                  <option value="not_approved">Тільки незатверджені</option>
+                </select>
+              </label>
             </div>
             <ModalTaskForm 
               open={modalOpen} 
