@@ -764,7 +764,7 @@ function ServiceArea({ user }) {
       
       setTasks(tasks => {
         console.log('[DEBUG] handleSave - поточні заявки:', tasks.length);
-        const newTasks = tasks.map(t => t.id === updated.id ? updated : t);
+        const newTasks = tasks.map(t => t.id === editTask.id ? updated : t);
         console.log('[DEBUG] handleSave - оновлені заявки:', newTasks.length);
         return newTasks;
       });
@@ -776,6 +776,16 @@ function ServiceArea({ user }) {
     }
     setEditTask(null);
     setLoading(false);
+    
+    // Оновлюємо дані з бази після збереження
+    try {
+      const freshTasks = await tasksAPI.getAll();
+      setTasks(freshTasks);
+      console.log('[DEBUG] handleSave - дані оновлено з бази, завдань:', freshTasks.length);
+    } catch (error) {
+      console.error('[ERROR] handleSave - помилка оновлення даних з бази:', error);
+    }
+    
     if (task.status === 'Новий' || task.status === 'В роботі') setTab('notDone');
     else if (task.status === 'Виконано' && (!task.approvedByWarehouse || !task.approvedByAccountant || !task.approvedByRegionalManager)) setTab('pending');
     else if (task.status === 'Виконано' && task.approvedByWarehouse && task.approvedByAccountant && task.approvedByRegionalManager) setTab('done');
@@ -3111,7 +3121,7 @@ function AdminEditTasksArea({ user }) {
       
       setTasks(tasks => {
         console.log('[DEBUG] handleSave - поточні заявки:', tasks.length);
-        const newTasks = tasks.map(t => t.id === updated.id ? updated : t);
+        const newTasks = tasks.map(t => t.id === editTask.id ? updated : t);
         console.log('[DEBUG] handleSave - оновлені заявки:', newTasks.length);
         return newTasks;
       });
@@ -3123,6 +3133,16 @@ function AdminEditTasksArea({ user }) {
     }
     setEditTask(null);
     setLoading(false);
+    
+    // Оновлюємо дані з бази після збереження
+    try {
+      const freshTasks = await tasksAPI.getAll();
+      setTasks(freshTasks);
+      console.log('[DEBUG] handleSave - дані оновлено з бази, завдань:', freshTasks.length);
+    } catch (error) {
+      console.error('[ERROR] handleSave - помилка оновлення даних з бази:', error);
+    }
+    
     if (task.status === 'Новий' || task.status === 'В роботі') setTab('notDone');
     else if (task.status === 'Виконано' && (!task.approvedByWarehouse || !task.approvedByAccountant || !task.approvedByRegionalManager)) setTab('pending');
     else if (task.status === 'Виконано' && task.approvedByWarehouse && task.approvedByAccountant && task.approvedByRegionalManager) setTab('done');

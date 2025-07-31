@@ -112,13 +112,22 @@ export default function OperatorArea({ user }) {
     setLoading(true);
     if (editTask && editTask.id) {
       const updated = await tasksAPI.update(editTask.id, task);
-      setTasks(tasks => tasks.map(t => t.id === updated.id ? updated : t));
+      setTasks(tasks => tasks.map(t => t.id === editTask.id ? updated : t));
     } else {
       const added = await tasksAPI.add(task);
       setTasks(tasks => [...tasks, added]);
     }
     setEditTask(null);
     setLoading(false);
+    
+    // Оновлюємо дані з бази після збереження
+    try {
+      const freshTasks = await tasksAPI.getAll();
+      setTasks(freshTasks);
+      console.log('[DEBUG] OperatorArea handleSave - дані оновлено з бази, завдань:', freshTasks.length);
+    } catch (error) {
+      console.error('[ERROR] OperatorArea handleSave - помилка оновлення даних з бази:', error);
+    }
   };
   const handleFilter = e => {
     console.log('[DEBUG] OperatorArea handleFilter called:', e.target.name, e.target.value);
