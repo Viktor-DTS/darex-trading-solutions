@@ -1874,6 +1874,11 @@ function RegionalManagerArea({ tab: propTab, user }) {
     console.log('[DEBUG] Total tasks:', tasks.length);
     console.log('[DEBUG] User region:', user?.region);
     
+    // Логуємо всі завдання зі статусом 'Виконано'
+    const completedTasks = tasks.filter(t => t.status === 'Виконано');
+    console.log('[DEBUG] Completed tasks:', completedTasks.length);
+    console.log('[DEBUG] Sample completed task:', completedTasks[0]);
+    
     // Фільтруємо виконані заявки за діапазоном дат, регіоном та статусом затвердження
     const filteredTasks = tasks.filter(t => {
       console.log('[DEBUG] Checking task:', t.id, 'status:', t.status, 'date:', t.date, 'region:', t.serviceRegion);
@@ -1911,10 +1916,12 @@ function RegionalManagerArea({ tab: propTab, user }) {
           return false;
         }
       } else if (exportFilters.approvalFilter === 'not_approved') {
+        // Для незатверджених показуємо тільки ті, що НЕ затверджені регіональним керівником
         if (isApproved(t.approvedByRegionalManager)) {
           console.log('[DEBUG] Task', t.id, 'filtered out: already approved by regional manager');
           return false;
         }
+        console.log('[DEBUG] Task', t.id, 'included: not approved by regional manager, status:', t.approvedByRegionalManager);
       }
       // Якщо approvalFilter === 'all', то показуємо всі
       
@@ -1923,6 +1930,14 @@ function RegionalManagerArea({ tab: propTab, user }) {
     });
 
     console.log('[DEBUG] Filtered tasks for export:', filteredTasks.length, filteredTasks);
+    
+    // Додаткова перевірка - логуємо всі завдання зі статусом 'Виконано' та їх статус затвердження
+    const completedTasksWithApproval = tasks.filter(t => t.status === 'Виконано').map(t => ({
+      id: t.id,
+      approvedByRegionalManager: t.approvedByRegionalManager,
+      isApproved: isApproved(t.approvedByRegionalManager)
+    }));
+    console.log('[DEBUG] All completed tasks with approval status:', completedTasksWithApproval);
 
     // Маппінг колонок згідно з вимогами
     const columnMapping = [
