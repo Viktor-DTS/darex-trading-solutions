@@ -359,7 +359,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       return !(name === 'approvedByWarehouse' || name === 'warehouseComment');
     }
     if (mode === 'accountant') {
-      return !(name === 'approvedByAccountant' || name === 'accountantComment');
+      return !(name === 'approvedByAccountant' || name === 'accountantComment' || name === 'accountantComments');
+    }
+    // Адміністратор має доступ до всіх полів
+    if (mode === 'admin') {
+      return false;
     }
     // Додаємо логіку для поля дати
     if (name === 'date' && 
