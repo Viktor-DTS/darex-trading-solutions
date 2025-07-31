@@ -106,7 +106,12 @@ export default function WarehouseArea({ user }) {
 
   useEffect(() => {
     setLoading(true);
-    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
+    tasksAPI.getAll().then(tasks => {
+      console.log(`[DEBUG][WarehouseArea] Завантажено завдань: ${tasks.length}`);
+      console.log(`[DEBUG][WarehouseArea] Регіон користувача: ${region}`);
+      console.log(`[DEBUG][WarehouseArea] Приклади регіонів завдань:`, tasks.slice(0, 5).map(t => ({ id: t.id, region: t.serviceRegion })));
+      setTasks(tasks);
+    }).finally(() => setLoading(false));
   }, []);
 
   const handleApprove = async (id, approved, comment) => {
@@ -228,7 +233,19 @@ export default function WarehouseArea({ user }) {
   }
   const archive = filtered.filter(
     t => t.status === 'Виконано' && t.approvedByWarehouse === 'Підтверджено'
-  );
+  ).filter(t => {
+    // Фільтрація за регіоном для архіву
+    // Якщо користувач має регіон "Україна", показуємо всі заявки
+    if (region === 'Україна') {
+      return true;
+    }
+    // Інакше показуємо тільки заявки регіону користувача
+    const matchesRegion = t.serviceRegion === region;
+    console.log(`[DEBUG][WarehouseArea] Task ${t.id}: user region=${region}, task region=${t.serviceRegion}, matches=${matchesRegion}`);
+    return matchesRegion;
+  });
+  
+  console.log(`[DEBUG][WarehouseArea] User region: ${region}, Archive tasks: ${archive.length}, Total filtered: ${filtered.length}`);
   const tableData = tab === 'pending' ? pending : archive;
   const columns = allTaskFields.map(f => ({
     key: f.name,
