@@ -2044,42 +2044,71 @@ function RegionalManagerArea({ tab: propTab, user }) {
             horizontal: "center", 
             vertical: "center",
             wrapText: true // Перенос тексту
+          },
+          border: {
+            top: { style: 'thin', color: { rgb: "000000" } },
+            bottom: { style: 'thin', color: { rgb: "000000" } },
+            left: { style: 'thin', color: { rgb: "000000" } },
+            right: { style: 'thin', color: { rgb: "000000" } }
           }
         };
       }
     }
 
-    // Налаштовуємо стилі для рядків даних (зелений фон для затверджених зав. складом)
-    for (let row = 1; row <= range.e.r; row++) {
-      const taskIndex = row - 1; // Індекс завдання в масиві filteredTasks
-      if (taskIndex < filteredTasks.length) {
-        const task = filteredTasks[taskIndex];
-        const isWarehouseApproved = isApproved(task.approvedByWarehouse);
+    // Налаштовуємо стилі для всіх клітинок у діапазоні (включаючи порожні)
+    for (let row = 0; row <= range.e.r; row++) {
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
         
-        for (let col = range.s.c; col <= range.e.c; col++) {
-          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
-          if (worksheet[cellAddress]) {
-            // Базові стилі для всіх клітинок
-            const baseStyle = {
-              alignment: { 
-                wrapText: true, 
-                vertical: "center",
-                horizontal: "left"
-              }
-            };
-            
-            // Додаємо зелений фон для затверджених зав. складом
+        // Якщо клітинка не існує, створюємо її з базовими стилями
+        if (!worksheet[cellAddress]) {
+          worksheet[cellAddress] = { v: '', s: {} };
+        }
+        
+        // Базові стилі для всіх клітинок
+        const baseStyle = {
+          border: {
+            top: { style: 'thin', color: { rgb: "000000" } },
+            bottom: { style: 'thin', color: { rgb: "000000" } },
+            left: { style: 'thin', color: { rgb: "000000" } },
+            right: { style: 'thin', color: { rgb: "000000" } }
+          }
+        };
+        
+        // Додаткові стилі для заголовків
+        if (row === 0) {
+          baseStyle.fill = { fgColor: { rgb: "FFFF00" } }; // Жовтий фон
+          baseStyle.font = { bold: true, color: { rgb: "000000" } }; // Жирний чорний текст
+          baseStyle.alignment = { 
+            horizontal: "center", 
+            vertical: "center",
+            wrapText: true
+          };
+        } else {
+          // Стилі для рядків даних
+          baseStyle.alignment = { 
+            wrapText: true, 
+            vertical: "center",
+            horizontal: "left"
+          };
+          
+          // Зелений фон для затверджених зав. складом
+          const taskIndex = row - 1;
+          if (taskIndex < filteredTasks.length) {
+            const task = filteredTasks[taskIndex];
+            const isWarehouseApproved = isApproved(task.approvedByWarehouse);
             if (isWarehouseApproved) {
               baseStyle.fill = { fgColor: { rgb: "90EE90" } }; // Світло-зелений фон
               baseStyle.font = { color: { rgb: "000000" } }; // Чорний текст
             }
-            
-            worksheet[cellAddress].s = {
-              ...worksheet[cellAddress].s,
-              ...baseStyle
-            };
           }
         }
+        
+        // Застосовуємо стилі
+        worksheet[cellAddress].s = {
+          ...worksheet[cellAddress].s,
+          ...baseStyle
+        };
       }
     }
 
