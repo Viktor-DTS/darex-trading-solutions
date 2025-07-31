@@ -27,6 +27,7 @@ export default function ReportBuilder() {
     { name: 'serviceTotal', label: 'Сума послуги' },
     { name: 'warehouseComment', label: 'Коментар складу' },
     { name: 'accountantComment', label: 'Коментар бухгалтера' },
+    { name: 'accountantComments', label: 'Коментарії бухгалтера' },
     { name: 'regionalManagerComment', label: 'Коментар регіонального менеджера' }
   ]);
 
@@ -95,7 +96,7 @@ export default function ReportBuilder() {
       'Дата заявки', 'Опис заявки', 'Регіон обслуговування', 'Адреса',
       'Серійний номер обладнання', 'Обладнання', 'Робота', 'Дата виконання',
       'Інженер 1', 'Інженер 2', 'Клієнт', 'Рахунок', 'Тип оплати',
-      'Сума послуги', 'Коментар складу', 'Коментар бухгалтера',
+      'Сума послуги', 'Коментар складу', 'Коментар бухгалтера', 'Коментарії бухгалтера',
       'Коментар регіонального менеджера'
     ];
 
@@ -107,7 +108,7 @@ export default function ReportBuilder() {
             t.requestDate, t.requestDesc, t.serviceRegion, t.address,
             t.equipmentSerial, t.equipment, t.work, t.date,
             t.engineer1, t.engineer2, t.client, t.invoice, t.paymentType,
-            t.serviceTotal, t.warehouseComment, t.accountantComment,
+            t.serviceTotal, t.warehouseComment, t.accountantComment, t.accountantComments,
             t.regionalManagerComment
           ])
         ];
@@ -116,7 +117,7 @@ export default function ReportBuilder() {
         item.requestDate, item.requestDesc, item.serviceRegion, item.address,
         item.equipmentSerial, item.equipment, item.work, item.date,
         item.engineer1, item.engineer2, item.client, item.invoice, item.paymentType,
-        item.serviceTotal, item.warehouseComment, item.accountantComment,
+        item.serviceTotal, item.warehouseComment, item.accountantComment, item.accountantComments,
         item.regionalManagerComment
       ]];
     });

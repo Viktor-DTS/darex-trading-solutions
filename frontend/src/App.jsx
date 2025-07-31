@@ -59,6 +59,7 @@ const initialTask = {
   warehouseComment: '',
   approvedByAccountant: null,
   accountantComment: '',
+  accountantComments: '',
   approvedByRegionalManager: null,
   regionalManagerComment: '',
   comments: '',
@@ -1086,7 +1087,8 @@ function RegionalManagerArea({ tab: propTab, user }) {
     let next = {
       ...t,
       approvedByAccountant: approved,
-      accountantComment: comment !== undefined ? comment : t.accountantComment
+      accountantComment: comment !== undefined ? comment : t.accountantComment,
+      accountantComments: comment !== undefined ? comment : t.accountantComments
     };
     let bonusApprovalDate = t.bonusApprovalDate;
     if (
@@ -3084,6 +3086,7 @@ function AdminEditTasksArea({ user }) {
         ...t, 
         approvedByAccountant: approved, 
         accountantComment: comment !== undefined ? comment : t.accountantComment,
+        accountantComments: comment !== undefined ? comment : t.accountantComments,
         bonusApprovalDate: bonusApprovalDate
     });
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));

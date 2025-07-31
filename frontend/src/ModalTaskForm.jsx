@@ -51,6 +51,7 @@ export const fields = [
   { name: 'warehouseComment', label: 'Опис відмови (зав. склад)', type: 'textarea', role: 'warehouse' },
   { name: 'approvedByAccountant', label: 'Підтвердження бухгалтера', type: 'select', options: ['На розгляді', 'Підтверджено', 'Відмова'], role: 'accountant' },
   { name: 'accountantComment', label: 'Опис відмови (бухгалтер)', type: 'textarea', role: 'accountant' },
+  { name: 'accountantComments', label: 'Коментарії бухгалтера', type: 'textarea', role: 'accountant' },
   { name: 'approvedByRegionalManager', label: 'Підтвердження регіонального керівника', type: 'select', options: ['На розгляді', 'Підтверджено', 'Відмова'], role: 'regionalManager' },
   { name: 'regionalManagerComment', label: 'Опис відмови (регіональний керівник)', type: 'textarea', role: 'regionalManager' },
   { name: 'comments', label: 'Коментарі', type: 'textarea' },
@@ -71,14 +72,14 @@ const reportMonthYearField = { name: 'reportMonthYear', label: 'Місяць/р�
 
 // Групи полів
 const group1 = ['requestDesc'];
-const group2 = ['warehouseComment', 'accountantComment', 'regionalManagerComment'];
+const group2 = ['warehouseComment', 'accountantComment', 'accountantComments', 'regionalManagerComment'];
 const group3 = ['work', 'engineer1', 'engineer2'];
 const group4 = ['oilType', 'oilUsed', 'oilPrice', 'oilTotal'];
 const group5 = ['spareParts', 'sparePartsPrice', 'sparePartsTotal'];
 const group6 = ['totalAmount'];
 
 // Для textarea
-const textareaFields = ['requestDesc','address','warehouseComment','accountantComment','regionalManagerComment','comments','blockDetail','otherMaterials'];
+const textareaFields = ['requestDesc','address','warehouseComment','accountantComment','accountantComments','regionalManagerComment','comments','blockDetail','otherMaterials'];
 
 // Групи для компактного відображення
 const oilGroup = ['oilType', 'oilUsed', 'oilPrice', 'oilTotal'];
@@ -94,7 +95,7 @@ const paymentEquipmentGroup = ['paymentType', 'serviceTotal', 'equipment', 'equi
 const workEngineersGroup = ['date', 'work', 'engineer1', 'engineer2'];
 const otherMaterialsGroup = ['otherSum', 'otherMaterials'];
 const warehouseGroup = ['approvedByWarehouse', 'warehouseComment'];
-const accountantGroup = ['approvedByAccountant', 'accountantComment'];
+const accountantGroup = ['approvedByAccountant', 'accountantComment', 'accountantComments'];
 const regionalManagerGroup = ['approvedByRegionalManager', 'regionalManagerComment'];
 const commentsGroup = ['comments'];
 
@@ -132,7 +133,7 @@ const orderedFields = [
 const labelAboveFields = [
   'status', 'requestDate', 'requestDesc', 'address', 'paymentDate', 'paymentType', 'otherMaterials',
   'approvedByWarehouse', 'warehouseComment',
-  'approvedByAccountant', 'accountantComment',
+  'approvedByAccountant', 'accountantComment', 'accountantComments',
   'approvedByRegionalManager', 'regionalManagerComment', 'comments'
 ];
 
@@ -416,7 +417,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       return;
     }
     if (name === 'approvedByAccountant' && form.approvedByAccountant === 'Відмова' && value !== 'Відмова') {
-      setForm({ ...form, [name]: value, accountantComment: '' });
+      setForm({ ...form, [name]: value, accountantComment: '', accountantComments: '' });
       return;
     }
     if (name === 'approvedByRegionalManager' && form.approvedByRegionalManager === 'Відмова' && value !== 'Відмова') {
@@ -436,6 +437,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     if (rejectModal.field === 'approvedByAccountant') {
       newForm.approvedByAccountant = 'Відмова';
       newForm.accountantComment = rejectModal.comment;
+      newForm.accountantComments = rejectModal.comment;
     }
     if (rejectModal.field === 'approvedByRegionalManager') {
       newForm.approvedByRegionalManager = 'Відмова';
@@ -880,7 +882,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             );
           }
           // textarea на весь рядок
-          if (['requestDesc','address','warehouseComment','accountantComment','regionalManagerComment','comments','blockDetail','otherMaterials'].includes(name)) {
+          if (['requestDesc','address','warehouseComment','accountantComment','accountantComments','regionalManagerComment','comments','blockDetail','otherMaterials'].includes(name)) {
             const f = fields.find(f=>f.name===name);
             if (!f) return null;
             return (
@@ -1073,7 +1075,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
-                  if (n === 'accountantComment') {
+                  if (n === 'accountantComment' || n === 'accountantComments') {
                     return (
                       <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field textarea'} style={{flex:2}}>
                         <label>{f.label}</label>

@@ -26,6 +26,7 @@ const initialTask = {
   warehouseComment: '',
   approvedByAccountant: null,
   accountantComment: '',
+  accountantComments: '',
   approvedByRegionalManager: null,
   regionalManagerComment: '',
   comments: '',

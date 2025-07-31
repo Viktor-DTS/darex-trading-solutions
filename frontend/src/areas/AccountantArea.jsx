@@ -27,6 +27,7 @@ const initialTask = {
   warehouseComment: '',
   approvedByAccountant: null,
   accountantComment: '',
+  accountantComments: '',
   approvedByRegionalManager: null,
   regionalManagerComment: '',
   comments: '',
@@ -117,7 +118,8 @@ export default function AccountantArea({ user }) {
     let next = {
       ...t,
       approvedByAccountant: approved,
-      accountantComment: comment !== undefined ? comment : t.accountantComment
+      accountantComment: comment !== undefined ? comment : t.accountantComment,
+      accountantComments: comment !== undefined ? comment : t.accountantComments
     };
     let bonusApprovalDate = t.bonusApprovalDate;
     if (

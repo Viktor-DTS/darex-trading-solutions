@@ -148,7 +148,8 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
         warehouseComment: '',
         approvedByAccountant: null,
         accountantComment: '',
-        approvedByRegional: null,
+        accountantComments: '',
+        approvedByRegionalManager: null,
         regionalComment: ''
       };
 
