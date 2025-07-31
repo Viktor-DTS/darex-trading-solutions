@@ -17,7 +17,7 @@ import ExcelImportModal from './components/ExcelImportModal'
 import AccountantArea from './areas/AccountantArea';
 import WarehouseArea from './areas/WarehouseArea';
 import OperatorArea from './areas/OperatorArea';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import API_BASE_URL from './config.js';
 import { tasksAPI } from './utils/tasksAPI';
@@ -2029,7 +2029,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Заявки');
 
-    // Налаштовуємо фільтри для колонок
+    // Налаштовуємо фільтри для всіх колонок
     worksheet['!autofilter'] = { ref: `A1:${String.fromCharCode(65 + headers.length - 1)}${data.length + 1}` };
 
     // Налаштовуємо стилі для заголовків (жовтий фон)
@@ -2046,6 +2046,40 @@ function RegionalManagerArea({ tab: propTab, user }) {
             wrapText: true // Перенос тексту
           }
         };
+      }
+    }
+
+    // Налаштовуємо стилі для рядків даних (зелений фон для затверджених зав. складом)
+    for (let row = 1; row <= range.e.r; row++) {
+      const taskIndex = row - 1; // Індекс завдання в масиві filteredTasks
+      if (taskIndex < filteredTasks.length) {
+        const task = filteredTasks[taskIndex];
+        const isWarehouseApproved = isApproved(task.approvedByWarehouse);
+        
+        for (let col = range.s.c; col <= range.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (worksheet[cellAddress]) {
+            // Базові стилі для всіх клітинок
+            const baseStyle = {
+              alignment: { 
+                wrapText: true, 
+                vertical: "center",
+                horizontal: "left"
+              }
+            };
+            
+            // Додаємо зелений фон для затверджених зав. складом
+            if (isWarehouseApproved) {
+              baseStyle.fill = { fgColor: { rgb: "90EE90" } }; // Світло-зелений фон
+              baseStyle.font = { color: { rgb: "000000" } }; // Чорний текст
+            }
+            
+            worksheet[cellAddress].s = {
+              ...worksheet[cellAddress].s,
+              ...baseStyle
+            };
+          }
+        }
       }
     }
 
