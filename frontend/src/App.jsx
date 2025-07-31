@@ -1870,26 +1870,59 @@ function RegionalManagerArea({ tab: propTab, user }) {
 
   // Додаємо функцію експорту в Excel
   const exportFilteredToExcel = () => {
+    console.log('[DEBUG] Starting export with filters:', exportFilters);
+    console.log('[DEBUG] Total tasks:', tasks.length);
+    console.log('[DEBUG] User region:', user?.region);
+    
     // Фільтруємо виконані заявки за діапазоном дат, регіоном та статусом затвердження
     const filteredTasks = tasks.filter(t => {
-      if (t.status !== 'Виконано') return false;
-      if (exportFilters.dateFrom && (!t.date || t.date < exportFilters.dateFrom)) return false;
-      if (exportFilters.dateTo && (!t.date || t.date > exportFilters.dateTo)) return false;
+      console.log('[DEBUG] Checking task:', t.id, 'status:', t.status, 'date:', t.date, 'region:', t.serviceRegion);
+      
+      if (t.status !== 'Виконано') {
+        console.log('[DEBUG] Task', t.id, 'filtered out: status not Виконано');
+        return false;
+      }
+      
+      if (exportFilters.dateFrom && (!t.date || t.date < exportFilters.dateFrom)) {
+        console.log('[DEBUG] Task', t.id, 'filtered out: date before', exportFilters.dateFrom);
+        return false;
+      }
+      
+      if (exportFilters.dateTo && (!t.date || t.date > exportFilters.dateTo)) {
+        console.log('[DEBUG] Task', t.id, 'filtered out: date after', exportFilters.dateTo);
+        return false;
+      }
       
       // Фільтр по регіону користувача
-      if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) return false;
-      if (exportFilters.region && exportFilters.region !== 'Україна' && t.serviceRegion !== exportFilters.region) return false;
+      if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) {
+        console.log('[DEBUG] Task', t.id, 'filtered out: user region', user.region, 'task region', t.serviceRegion);
+        return false;
+      }
+      
+      if (exportFilters.region && exportFilters.region !== 'Україна' && t.serviceRegion !== exportFilters.region) {
+        console.log('[DEBUG] Task', t.id, 'filtered out: filter region', exportFilters.region, 'task region', t.serviceRegion);
+        return false;
+      }
       
       // Фільтр по статусу затвердження
       if (exportFilters.approvalFilter === 'approved') {
-        if (!isApproved(t.approvedByRegionalManager)) return false;
+        if (!isApproved(t.approvedByRegionalManager)) {
+          console.log('[DEBUG] Task', t.id, 'filtered out: not approved by regional manager');
+          return false;
+        }
       } else if (exportFilters.approvalFilter === 'not_approved') {
-        if (isApproved(t.approvedByRegionalManager)) return false;
+        if (isApproved(t.approvedByRegionalManager)) {
+          console.log('[DEBUG] Task', t.id, 'filtered out: already approved by regional manager');
+          return false;
+        }
       }
       // Якщо approvalFilter === 'all', то показуємо всі
       
+      console.log('[DEBUG] Task', t.id, 'passed all filters');
       return true;
     });
+
+    console.log('[DEBUG] Filtered tasks for export:', filteredTasks.length, filteredTasks);
 
     // Маппінг колонок згідно з вимогами
     const columnMapping = [
@@ -1925,7 +1958,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
       { excelHeader: 'Добові, грн', field: 'perDiem' },
       { excelHeader: 'Проживання, грн', field: 'living' },
       { excelHeader: 'Інші витрати, грн', field: 'otherExp' },
-      { excelHeader: 'Держомер автотранспорту (АЕ0000АЕ)', field: 'carNumber' },
+      { excelHeader: 'Держномер автотранспорту (АЕ0000АЕ)', field: 'carNumber' },
       { excelHeader: 'Транспортні витрати, км', field: 'transportKm' },
       { excelHeader: 'Вартість тр. витрат, грн.', field: 'transportSum' },
       { excelHeader: 'Загальна ціна, грн', field: 'serviceTotal' },
@@ -1938,19 +1971,29 @@ function RegionalManagerArea({ tab: propTab, user }) {
 
     // Формуємо дані для рядків
     const data = filteredTasks.map(task => {
+      console.log('[DEBUG] Processing task for export:', task.id, task);
       return columnMapping.map(col => {
         if (col.field === 'engineer1') {
           // Об'єднуємо інженерів
           const engineer1 = task.engineer1 || '';
           const engineer2 = task.engineer2 || '';
-          return engineer2 ? `${engineer1}, ${engineer2}` : engineer1;
+          const result = engineer2 ? `${engineer1}, ${engineer2}` : engineer1;
+          console.log(`[DEBUG] Field ${col.field} (engineers):`, result);
+          return result;
         } else if (col.field === '') {
           return ''; // Порожні поля
         } else {
-          return task[col.field] || '';
+          const value = task[col.field];
+          console.log(`[DEBUG] Field ${col.field}:`, value);
+          return value || '';
         }
       });
     });
+
+    console.log('[DEBUG] Export data:', data);
+    if (data.length > 0) {
+      console.log('[DEBUG] First row data:', data[0]);
+    }
 
     // Створюємо робочий аркуш
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
@@ -1959,6 +2002,67 @@ function RegionalManagerArea({ tab: propTab, user }) {
 
     // Налаштовуємо фільтри для колонок
     worksheet['!autofilter'] = { ref: `A1:${String.fromCharCode(65 + headers.length - 1)}${data.length + 1}` };
+
+    // Налаштовуємо стилі для заголовків (жовтий фон)
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+      if (worksheet[cellAddress]) {
+        worksheet[cellAddress].s = {
+          fill: { fgColor: { rgb: "FFFF00" } }, // Жовтий фон
+          font: { bold: true, color: { rgb: "000000" } }, // Жирний чорний текст
+          alignment: { 
+            horizontal: "center", 
+            vertical: "center",
+            wrapText: true // Перенос тексту
+          }
+        };
+      }
+    }
+
+    // Налаштовуємо ширину колонок
+    const colWidths = [
+      20, // Відповідальний
+      15, // ДТС/ДАРЕКС
+      25, // Найменування робіт
+      30, // Гарантія/не гарантія/волонтерство
+      12, // № Заявки
+      12, // дата
+      25, // Замовник/повна назва
+      25, // Адреса/повна
+      30, // Опис заявки
+      20, // Заводський номер обладнання
+      25, // Тип обладнання/повна назва
+      15, // Назва оливи
+      15, // Використано оливи, л
+      15, // Ціна оливи, грн.
+      25, // Повернуто відпрацьовану оливу, л
+      20, // Фільтр масл, назва
+      15, // Фільтр масл, штук
+      20, // Ціна ФМ, гривень
+      20, // Фільтр палив, назва
+      15, // Фільтр палив, штук
+      20, // Ціна ФП, гривень
+      20, // Фільтр повітряний, назва
+      20, // Фільтр повітряний, штук
+      25, // Ціна повіт фільтра, гривень
+      15, // Антифріз, л
+      20, // Ціна антифрізу, грн.
+      25, // Інші матеріали, назва/шт.
+      25, // Ціна інш матеріалів,грн.
+      20, // Вартість робіт, грн.
+      15, // Добові, грн
+      15, // Проживання, грн
+      20, // Інші витрати, грн
+      30, // Держномер автотранспорту (АЕ0000АЕ)
+      20, // Транспортні витрати, км
+      25, // Вартість тр. витрат, грн.
+      20, // Загальна ціна, грн
+      30, // Вид оплати, нал./безнал/Дата оплати
+      10  // Альбіна
+    ];
+
+    worksheet['!cols'] = colWidths.map(width => ({ width }));
 
     // Створюємо назву файлу з урахуванням фільтрів
     let fileName = 'Звіт_по_заявках_регіонального_керівника';
