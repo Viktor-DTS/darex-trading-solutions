@@ -147,8 +147,17 @@ export default function WarehouseArea({ user }) {
     setFilters(newFilters);
   };
   const handleEdit = t => {
-    setEditTask(t);
+    const isReadOnly = t._readOnly;
+    const taskData = { ...t };
+    delete taskData._readOnly; // Видаляємо прапорець з даних завдання
+    
+    setEditTask(taskData);
     setModalOpen(true);
+    // Передаємо readOnly в ModalTaskForm
+    if (isReadOnly) {
+      // Встановлюємо прапорець для ModalTaskForm
+      setEditTask(prev => ({ ...prev, _readOnly: true }));
+    }
   };
   const handleSave = async (task) => {
     setLoading(true);
@@ -372,7 +381,7 @@ export default function WarehouseArea({ user }) {
         </label>
         <button onClick={handleFormReport} style={{background:'#00bfff',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Сформувати звіт</button>
       </div>
-      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="warehouse" user={user} />
+      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="warehouse" user={user} readOnly={editTask?._readOnly || false} />
       <TaskTable
         tasks={tableData}
         allTasks={tasks}

@@ -702,6 +702,10 @@ function TaskTableComponent({
                           )}
                         </>
                       )}
+                      {/* Кнопка інформації - в архіві для всіх ролей крім адміністратора */}
+                      {isArchive && role !== 'admin' && (
+                        <button onClick={()=>onEdit && onEdit({...t, _readOnly: true})} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
+                      )}
                     </td>
                     {(role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && approveField && (
                       <td style={getRowColor(t) ? {color:'#111'} : {}}>

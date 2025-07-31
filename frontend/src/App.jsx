@@ -800,8 +800,17 @@ function ServiceArea({ user }) {
     else if (task.status === 'Заблоковано') setTab('blocked');
   };
   const handleEdit = t => {
-    setEditTask(t);
+    const isReadOnly = t._readOnly;
+    const taskData = { ...t };
+    delete taskData._readOnly; // Видаляємо прапорець з даних завдання
+    
+    setEditTask(taskData);
     setModalOpen(true);
+    // Передаємо readOnly в ModalTaskForm
+    if (isReadOnly) {
+      // Встановлюємо прапорець для ModalTaskForm
+      setEditTask(prev => ({ ...prev, _readOnly: true }));
+    }
   };
   const handleStatus = async (id, status) => {
     setLoading(true);
@@ -899,6 +908,7 @@ function ServiceArea({ user }) {
         initialData={editTask||initialTask} 
         mode={tab === 'done' ? 'admin' : 'service'} 
         user={user}
+        readOnly={editTask?._readOnly || false}
       />
       <div style={{display:'flex',gap:8,marginBottom:24,justifyContent:'flex-start'}}>
         <button onClick={()=>setTab('notDone')} style={{width:220,padding:'10px 0',background:tab==='notDone'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='notDone'?700:400,cursor:'pointer'}}>Невиконані заявки</button>
@@ -1870,6 +1880,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
               initialData={editTask || {}} 
               mode="regional" 
               user={user}
+              readOnly={editTask?._readOnly || false}
             />
             <TaskTable
               tasks={taskTab === 'pending' ? filtered.filter(t => t.status === 'Виконано' && isPending(t.approvedByRegionalManager)) : filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByRegionalManager))}
@@ -3115,8 +3126,17 @@ function AdminEditTasksArea({ user }) {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
   const handleEdit = t => {
-    setEditTask(t);
+    const isReadOnly = t._readOnly;
+    const taskData = { ...t };
+    delete taskData._readOnly; // Видаляємо прапорець з даних завдання
+    
+    setEditTask(taskData);
     setModalOpen(true);
+    // Передаємо readOnly в ModalTaskForm
+    if (isReadOnly) {
+      // Встановлюємо прапорець для ModalTaskForm
+      setEditTask(prev => ({ ...prev, _readOnly: true }));
+    }
   };
   const handleSave = async (task) => {
     console.log('[DEBUG] handleSave called with task:', task);
@@ -3192,7 +3212,7 @@ function AdminEditTasksArea({ user }) {
         <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
         <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
       </div>
-      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="admin" user={user} />
+      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="admin" user={user} readOnly={editTask?._readOnly || false} />
       <TaskTable
         tasks={tableData}
         allTasks={tasks}

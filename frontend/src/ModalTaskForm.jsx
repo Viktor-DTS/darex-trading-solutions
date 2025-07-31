@@ -137,7 +137,7 @@ const labelAboveFields = [
   'approvedByRegionalManager', 'regionalManagerComment', 'comments'
 ];
 
-export default function ModalTaskForm({ open, onClose, onSave, initialData = {}, mode = 'service', user }) {
+export default function ModalTaskForm({ open, onClose, onSave, initialData = {}, mode = 'service', user, readOnly = false }) {
   const isRegionReadOnly = user && user.region && user.region !== 'Україна';
 
   function toSelectString(val) {
@@ -351,6 +351,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
 
   // Визначаємо, які поля заблоковані
   const isReadOnly = name => {
+    // Якщо режим readOnly, всі поля тільки для читання
+    if (readOnly) {
+      return true;
+    }
+    
     if (mode === 'regionalManager') {
       // Доступні тільки ці два поля
       return !(name === 'approvedByRegionalManager' || name === 'regionalManagerComment');
@@ -1168,8 +1173,10 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         )}
         
         <div style={{display:'flex',gap:12,marginTop:24}}>
-          <button type="submit" style={{flex:1}}>Зберегти</button>
-          <button type="button" onClick={onClose} style={{flex:1,background:'#888',color:'#fff'}}>Скасувати</button>
+          {!readOnly && <button type="submit" style={{flex:1}}>Зберегти</button>}
+          <button type="button" onClick={onClose} style={{flex:1,background:readOnly ? '#00bfff' : '#888',color:'#fff'}}>
+            {readOnly ? 'Закрити' : 'Скасувати'}
+          </button>
         </div>
         <div style={{marginTop:48}}></div>
       </form>

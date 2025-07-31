@@ -145,8 +145,17 @@ export default function OperatorArea({ user }) {
     setFilters(newFilters);
   };
   const handleEdit = t => {
-    setEditTask(t);
+    const isReadOnly = t._readOnly;
+    const taskData = { ...t };
+    delete taskData._readOnly; // Видаляємо прапорець з даних завдання
+    
+    setEditTask(taskData);
     setModalOpen(true);
+    // Передаємо readOnly в ModalTaskForm
+    if (isReadOnly) {
+      // Встановлюємо прапорець для ModalTaskForm
+      setEditTask(prev => ({ ...prev, _readOnly: true }));
+    }
   };
   const handleDelete = async id => {
     setLoading(true);
@@ -233,7 +242,7 @@ export default function OperatorArea({ user }) {
         <button onClick={()=>{console.log('Set tab archive'); setTab('archive')}} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
       </div>
       <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16}}>Додати заявку</button>
-      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="operator" user={user} />
+      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="operator" user={user} readOnly={editTask?._readOnly || false} />
       <TaskTable
         tasks={tableData}
         allTasks={tasks}
