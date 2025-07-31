@@ -452,16 +452,32 @@ app.get('/api/accessRules', async (req, res) => {
 app.post('/api/accessRules', async (req, res) => {
   try {
     console.log('[ACCESS RULES] Отримано для збереження:', JSON.stringify(req.body, null, 2));
+    console.log('[ACCESS RULES] Тип даних:', typeof req.body);
+    console.log('[ACCESS RULES] Чи є масивом:', Array.isArray(req.body));
+    console.log('[ACCESS RULES] Кількість ключів:', Object.keys(req.body).length);
+    
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).length === 0) {
+      console.log('[ACCESS RULES] Помилка валідації даних');
       return res.status(400).json({ error: 'Некоректний обʼєкт accessRules' });
     }
+    
     let doc = await AccessRules.findOne();
-    if (!doc) doc = new AccessRules({ rules: req.body });
-    else doc.rules = req.body;
+    console.log('[ACCESS RULES] Поточний документ в БД:', doc ? 'знайдено' : 'не знайдено');
+    
+    if (!doc) {
+      doc = new AccessRules({ rules: req.body });
+      console.log('[ACCESS RULES] Створюємо новий документ');
+    } else {
+      console.log('[ACCESS RULES] Оновлюємо існуючий документ');
+      console.log('[ACCESS RULES] Старі правила:', JSON.stringify(doc.rules, null, 2));
+      doc.rules = req.body;
+    }
+    
     await doc.save();
-    console.log('[ACCESS RULES] Збережено:', JSON.stringify(doc.rules, null, 2));
+    console.log('[ACCESS RULES] Збережено в БД:', JSON.stringify(doc.rules, null, 2));
     res.json({ success: true });
   } catch (error) {
+    console.error('[ACCESS RULES] Помилка збереження:', error);
     res.status(500).json({ error: error.message });
   }
 });

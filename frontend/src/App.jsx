@@ -202,9 +202,12 @@ function AccessRulesModal({ open, onClose }) {
         
         // Завантажуємо правила доступу
         const serverRules = await accessRulesAPI.getAll();
+        console.log('[DEBUG][AccessRulesModal] Завантажені правила з сервера:', JSON.stringify(serverRules, null, 2));
+        
         if (Object.keys(serverRules).length === 0) {
           // Якщо на сервері немає правил, використовуємо за замовчуванням
           const defaultRules = getDefaultAccess(rolesData);
+          console.log('[DEBUG][AccessRulesModal] Створюємо правила за замовчуванням:', JSON.stringify(defaultRules, null, 2));
           await accessRulesAPI.save(defaultRules);
           setAccess(defaultRules);
         } else {
@@ -270,8 +273,8 @@ function AccessRulesModal({ open, onClose }) {
     
     if (hasChanges) {
       setAccess(updatedAccess);
-      // Зберігаємо на сервері
-      accessRulesAPI.save(updatedAccess);
+      // НЕ зберігаємо автоматично на сервері - тільки оновлюємо локальний стан
+      // accessRulesAPI.save(updatedAccess);
     }
   }, [roles]);
   
@@ -281,13 +284,17 @@ function AccessRulesModal({ open, onClose }) {
   
   const handleSave = async () => {
     try {
+      console.log('[DEBUG][AccessRulesModal] Зберігаємо правила доступу:', JSON.stringify(access, null, 2));
       const success = await accessRulesAPI.save(access);
       if (success) {
-    onClose();
+        console.log('[DEBUG][AccessRulesModal] Правила доступу успішно збережено');
+        onClose();
       } else {
+        console.error('[DEBUG][AccessRulesModal] Помилка збереження правил доступу');
         alert('Помилка збереження правил доступу');
       }
     } catch (error) {
+      console.error('[DEBUG][AccessRulesModal] Помилка збереження правил доступу:', error);
       alert('Помилка збереження правил доступу: ' + error.message);
     }
   };
@@ -2680,9 +2687,12 @@ function App() {
         
         // Потім завантажуємо правила доступу
         const serverRules = await accessRulesAPI.getAll();
+        console.log('[DEBUG][App] Завантажені правила доступу з сервера:', JSON.stringify(serverRules, null, 2));
+        
         if (Object.keys(serverRules).length === 0) {
           // Якщо на сервері немає правил, створюємо за замовчуванням
           const defaultRules = getDefaultAccess(rolesData);
+          console.log('[DEBUG][App] Створюємо правила за замовчуванням:', JSON.stringify(defaultRules, null, 2));
           await accessRulesAPI.save(defaultRules);
           setAccessRules(defaultRules);
         } else {
