@@ -542,6 +542,7 @@ export default function AccountantArea({ user }) {
         approveField="approvedByAccountant"
         commentField="accountantComment"
         user={user}
+        isArchive={tab === 'archive'}
       />
     </div>
   );

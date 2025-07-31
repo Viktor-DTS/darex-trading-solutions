@@ -388,6 +388,7 @@ export default function WarehouseArea({ user }) {
         dateRange={{ from: filters.dateFrom, to: filters.dateTo }}
         setDateRange={r => setFilters(f => ({ ...f, dateFrom: r.from, dateTo: r.to }))}
         user={user}
+        isArchive={tab === 'archive'}
       />
     </div>
   );

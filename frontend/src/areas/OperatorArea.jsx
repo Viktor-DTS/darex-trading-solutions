@@ -248,6 +248,7 @@ export default function OperatorArea({ user }) {
         dateRange={{}}
         setDateRange={()=>{}}
         user={user}
+        isArchive={tab === 'archive'}
       />
     </div>
   );

@@ -56,6 +56,7 @@ function TaskTableComponent({
   dateRange,
   setDateRange,
   user,
+  isArchive = false,
 }) {
   console.log('[LOG] TaskTable received columns:', columns);
   console.log('[LOG] TaskTable role:', role);
@@ -679,22 +680,27 @@ function TaskTableComponent({
                   <tr key={t.id} style={getRowColor(t) ? {background:getRowColor(t)} : {}}>
                     <td style={getRowColor(t) ? {color:'#111'} : {}}>
                       <button onClick={()=>{setInfoTask(t);setShowInfo(true);}} style={{marginRight:8,background:'#00bfff',color:'#fff'}}>Історія проведення робіт</button>
-                      {(role === 'service' || role === 'operator' || role === 'admin') && (
+                      {/* Кнопка редагування - в архіві тільки для адміністратора */}
+                      {(!isArchive || role === 'admin') && (
                         <>
-                          <button onClick={()=>onEdit && onEdit(t)} style={{marginRight:8}}>Редагувати</button>
-                          {role === 'service' && t.id && (
-                          <button onClick={()=>{
-                            if (t.id && onDelete) {
-                              onDelete(t.id);
-                            } else {
-                              console.error('[ERROR] Неможливо видалити заявку: ID відсутній або onDelete не передано', { taskId: t.id, hasOnDelete: !!onDelete });
-                            }
-                          }} style={{background:'#f66',color:'#fff'}}>Видалити</button>
+                          {(role === 'service' || role === 'operator' || role === 'admin') && (
+                            <>
+                              <button onClick={()=>onEdit && onEdit(t)} style={{marginRight:8}}>Редагувати</button>
+                              {role === 'service' && t.id && (
+                              <button onClick={()=>{
+                                if (t.id && onDelete) {
+                                  onDelete(t.id);
+                                } else {
+                                  console.error('[ERROR] Неможливо видалити заявку: ID відсутній або onDelete не передано', { taskId: t.id, hasOnDelete: !!onDelete });
+                                }
+                              }} style={{background:'#f66',color:'#fff'}}>Видалити</button>
+                              )}
+                            </>
+                          )}
+                          {(role === 'warehouse' || role === 'accountant' || role === 'regionalManager' || role === 'regional') && (
+                            <button onClick={()=>onEdit && onEdit(t)}>Редагувати</button>
                           )}
                         </>
-                      )}
-                      {(role === 'warehouse' || role === 'accountant' || role === 'regionalManager' || role === 'regional') && (
-                        <button onClick={()=>onEdit && onEdit(t)}>Редагувати</button>
                       )}
                     </td>
                     {(role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && approveField && (

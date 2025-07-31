@@ -920,6 +920,7 @@ function ServiceArea({ user }) {
         dateRange={dateRange}
         setDateRange={setDateRange}
         user={user}
+        isArchive={tab === 'done'}
       />
     </div>
   );
@@ -3204,6 +3205,7 @@ function AdminEditTasksArea({ user }) {
         allColumns={allTaskFields.map(f => ({ key: f.name, label: f.label }))}
         approveField="approvedByAccountant"
         commentField="accountantComment"
+        isArchive={tab === 'archive'}
       />
     </div>
   );
