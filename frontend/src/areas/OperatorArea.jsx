@@ -125,6 +125,14 @@ export default function OperatorArea({ user }) {
       const freshTasks = await tasksAPI.getAll();
       setTasks(freshTasks);
       console.log('[DEBUG] OperatorArea handleSave - дані оновлено з бази, завдань:', freshTasks.length);
+      
+      // Оновлюємо editTask, якщо він ще встановлений
+      if (editTask && editTask.id) {
+        const updatedTask = freshTasks.find(t => t.id === editTask.id);
+        if (updatedTask) {
+          setEditTask(updatedTask);
+        }
+      }
     } catch (error) {
       console.error('[ERROR] OperatorArea handleSave - помилка оновлення даних з бази:', error);
     }
@@ -225,7 +233,7 @@ export default function OperatorArea({ user }) {
         <button onClick={()=>{console.log('Set tab archive'); setTab('archive')}} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
       </div>
       <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16}}>Додати заявку</button>
-      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask||initialTask} mode="operator" user={user} />
+      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="operator" user={user} />
       <TaskTable
         tasks={tableData}
         allTasks={tasks}

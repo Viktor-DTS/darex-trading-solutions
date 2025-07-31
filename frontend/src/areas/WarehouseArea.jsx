@@ -167,6 +167,14 @@ export default function WarehouseArea({ user }) {
       const freshTasks = await tasksAPI.getAll();
       setTasks(freshTasks);
       console.log('[DEBUG] WarehouseArea handleSave - дані оновлено з бази, завдань:', freshTasks.length);
+      
+      // Оновлюємо editTask, якщо він ще встановлений
+      if (editTask && editTask.id) {
+        const updatedTask = freshTasks.find(t => t.id === editTask.id);
+        if (updatedTask) {
+          setEditTask(updatedTask);
+        }
+      }
     } catch (error) {
       console.error('[ERROR] WarehouseArea handleSave - помилка оновлення даних з бази:', error);
     }
@@ -364,7 +372,7 @@ export default function WarehouseArea({ user }) {
         </label>
         <button onClick={handleFormReport} style={{background:'#00bfff',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Сформувати звіт</button>
       </div>
-      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || initialTask} mode="warehouse" user={user} />
+      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="warehouse" user={user} />
       <TaskTable
         tasks={tableData}
         allTasks={tasks}

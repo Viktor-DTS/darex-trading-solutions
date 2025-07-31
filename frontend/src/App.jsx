@@ -782,6 +782,14 @@ function ServiceArea({ user }) {
       const freshTasks = await tasksAPI.getAll();
       setTasks(freshTasks);
       console.log('[DEBUG] handleSave - дані оновлено з бази, завдань:', freshTasks.length);
+      
+      // Оновлюємо editTask, якщо він ще встановлений
+      if (editTask && editTask.id) {
+        const updatedTask = freshTasks.find(t => t.id === editTask.id);
+        if (updatedTask) {
+          setEditTask(updatedTask);
+        }
+      }
     } catch (error) {
       console.error('[ERROR] handleSave - помилка оновлення даних з бази:', error);
     }
@@ -3139,6 +3147,14 @@ function AdminEditTasksArea({ user }) {
       const freshTasks = await tasksAPI.getAll();
       setTasks(freshTasks);
       console.log('[DEBUG] handleSave - дані оновлено з бази, завдань:', freshTasks.length);
+      
+      // Оновлюємо editTask, якщо він ще встановлений
+      if (editTask && editTask.id) {
+        const updatedTask = freshTasks.find(t => t.id === editTask.id);
+        if (updatedTask) {
+          setEditTask(updatedTask);
+        }
+      }
     } catch (error) {
       console.error('[ERROR] handleSave - помилка оновлення даних з бази:', error);
     }
