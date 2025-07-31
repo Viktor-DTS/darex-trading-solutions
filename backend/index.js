@@ -321,7 +321,10 @@ app.post('/api/regions', async (req, res) => {
 // --- TASKS через MongoDB ---
 app.get('/api/tasks', async (req, res) => {
   try {
-    const tasks = await Task.find();
+    console.log('[DEBUG] GET /api/tasks - запит на отримання завдань');
+    const tasks = await executeWithRetry(() => Task.find());
+    
+    console.log('[DEBUG] GET /api/tasks - знайдено завдань:', tasks.length);
     
     // Додаємо числовий id для сумісності з фронтендом
     const tasksWithId = tasks.map(task => ({
@@ -329,8 +332,10 @@ app.get('/api/tasks', async (req, res) => {
       id: task._id.toString()
     }));
     
+    console.log('[DEBUG] GET /api/tasks - повертаємо завдань:', tasksWithId.length);
     res.json(tasksWithId);
   } catch (error) {
+    console.error('[ERROR] GET /api/tasks - помилка:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -351,13 +356,13 @@ app.post('/api/tasks', async (req, res) => {
     const newTask = new Task(taskData);
     console.log('[DEBUG] POST /api/tasks - створено новий Task об\'єкт');
     
-    await newTask.save();
-    console.log('[DEBUG] POST /api/tasks - заявка збережена успішно, _id:', newTask._id);
+    const savedTask = await executeWithRetry(() => newTask.save());
+    console.log('[DEBUG] POST /api/tasks - заявка збережена успішно, _id:', savedTask._id);
     
     // Повертаємо заявку з числовим id для сумісності з фронтендом
     const responseTask = {
-      ...newTask.toObject(),
-      id: newTask._id.toString() // Використовуємо _id як числовий id
+      ...savedTask.toObject(),
+      id: savedTask._id.toString() // Використовуємо _id як числовий id
     };
     
     res.json({ success: true, task: responseTask });
@@ -377,11 +382,11 @@ app.put('/api/tasks/:id', async (req, res) => {
     if (/^[0-9a-fA-F]{24}$/.test(req.params.id)) {
       // Якщо id виглядає як ObjectId
       console.log('[DEBUG] PUT /api/tasks/:id - шукаємо за ObjectId:', req.params.id);
-      task = await Task.findById(req.params.id);
+      task = await executeWithRetry(() => Task.findById(req.params.id));
     } else {
       // Якщо id числовий
       console.log('[DEBUG] PUT /api/tasks/:id - шукаємо за числовим id:', Number(req.params.id));
-      task = await Task.findOne({ id: Number(req.params.id) });
+      task = await executeWithRetry(() => Task.findOne({ id: Number(req.params.id) }));
     }
     
     if (!task) {
@@ -399,13 +404,13 @@ app.put('/api/tasks/:id', async (req, res) => {
     task.set(updateData);
     console.log('[DEBUG] PUT /api/tasks/:id - застосовано зміни через set()');
     
-    await task.save();
-    console.log('[DEBUG] PUT /api/tasks/:id - завдання збережено успішно:', task);
+    const updatedTask = await executeWithRetry(() => task.save());
+    console.log('[DEBUG] PUT /api/tasks/:id - завдання збережено успішно:', updatedTask);
     
     // Повертаємо заявку з числовим id для сумісності
     const responseTask = {
-      ...task.toObject(),
-      id: task._id.toString()
+      ...updatedTask.toObject(),
+      id: updatedTask._id.toString()
     };
     
     console.log('[DEBUG] PUT /api/tasks/:id - повертаємо оновлене завдання з ID:', responseTask.id, 'Дані:', responseTask);
@@ -421,14 +426,15 @@ app.delete('/api/tasks/:id', async (req, res) => {
     let result;
     if (/^[0-9a-fA-F]{24}$/.test(req.params.id)) {
       // Якщо id виглядає як ObjectId
-      result = await Task.findByIdAndDelete(req.params.id);
+      result = await executeWithRetry(() => Task.findByIdAndDelete(req.params.id));
     } else {
       // Якщо id числовий
-      result = await Task.deleteOne({ id: Number(req.params.id) });
+      result = await executeWithRetry(() => Task.deleteOne({ id: Number(req.params.id) }));
     }
     
     res.json({ success: true, removed: result ? 1 : 0 });
   } catch (error) {
+    console.error('[ERROR] DELETE /api/tasks/:id - помилка:', error);
     res.status(500).json({ error: error.message });
   }
 });
