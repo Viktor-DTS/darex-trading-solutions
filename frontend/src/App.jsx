@@ -2762,13 +2762,57 @@ function App() {
     );
   }
 
+  // Перевіряємо права доступу до поточної вкладки
+  const hasAccessToCurrentArea = accessRules[user.role] && 
+    accessRules[user.role][currentArea] && 
+    accessRules[user.role][currentArea] !== 'none';
+  
+  console.log('[DEBUG][App] User role:', user.role);
+  console.log('[DEBUG][App] Current area:', currentArea);
+  console.log('[DEBUG][App] Access rules for user role:', accessRules[user.role]);
+  console.log('[DEBUG][App] Has access to current area:', hasAccessToCurrentArea);
+
+  // Якщо користувач не має доступу до поточної вкладки, перенаправляємо на першу доступну
+  if (!hasAccessToCurrentArea) {
+    console.log('[DEBUG][App] User does not have access to current area, redirecting...');
+    const availableAreas = Object.keys(accessRules[user.role] || {}).filter(area => 
+      accessRules[user.role][area] && accessRules[user.role][area] !== 'none'
+    );
+    
+    if (availableAreas.length > 0) {
+      console.log('[DEBUG][App] Available areas:', availableAreas);
+      setCurrentArea(availableAreas[0]);
+      return null; // Повертаємо null щоб уникнути рендерингу
+    }
+  }
+
+  // Функція для обробки вибору вкладки з перевіркою прав
+  const handleAreaSelect = (area) => {
+    console.log('[DEBUG][App] Attempting to select area:', area);
+    console.log('[DEBUG][App] User role:', user.role);
+    console.log('[DEBUG][App] Access rules for user role:', accessRules[user.role]);
+    
+    const hasAccess = accessRules[user.role] && 
+      accessRules[user.role][area] && 
+      accessRules[user.role][area] !== 'none';
+    
+    console.log('[DEBUG][App] Has access to area:', area, ':', hasAccess);
+    
+    if (hasAccess) {
+      setCurrentArea(area);
+    } else {
+      console.log('[DEBUG][App] Access denied to area:', area);
+      alert('У вас немає доступу до цієї вкладки');
+    }
+  };
+
   const Area = areaByRole[currentArea] || (() => <div>Оберіть область</div>);
 
   return (
     <>
       <div className='bg-logo'></div>
       <div style={{ display: 'flex', minHeight: '100vh' }}>
-        <Sidebar role={user.role} onSelect={setCurrentArea} current={currentArea} accessRules={accessRules} />
+        <Sidebar role={user.role} onSelect={handleAreaSelect} current={currentArea} accessRules={accessRules} />
         <div style={{ flex: 1 }}>
           <h1 style={{marginLeft:24}}>{t('company_name')}</h1>
           {(user.role === 'regional' || (user.role === 'admin' && currentArea === 'regional')) && false /* <RegionalManagerTabs tab={regionalTab} setTab={setRegionalTab} /> */}

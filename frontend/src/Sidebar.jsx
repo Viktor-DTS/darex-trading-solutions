@@ -11,6 +11,9 @@ const roles = [
 ];
 
 export default function Sidebar({ role, onSelect, current, accessRules }) {
+  console.log('[DEBUG][Sidebar] role:', role);
+  console.log('[DEBUG][Sidebar] accessRules:', accessRules);
+  
   return (
     <nav style={{
       width: '100vw',
@@ -28,10 +31,15 @@ export default function Sidebar({ role, onSelect, current, accessRules }) {
       borderBottom: '1px solid #22334a',
     }}>
       {roles.map(r => {
-        let access = 'full';
+        let access = 'none'; // За замовчуванням немає доступу
+        
+        // Перевіряємо права доступу для поточної ролі користувача
         if (accessRules && accessRules[role] && accessRules[role][r.value]) {
           access = accessRules[role][r.value];
         }
+        
+        console.log(`[DEBUG][Sidebar] Role: ${role}, Tab: ${r.value}, Access: ${access}`);
+        
         const isDisabled = (access === 'none');
         return (
           <button
