@@ -686,14 +686,21 @@ function TaskTableComponent({
                           {(role === 'service' || role === 'operator' || role === 'admin') && (
                             <>
                               <button onClick={()=>onEdit && onEdit(t)} style={{marginRight:8}}>Редагувати</button>
-                              {role === 'service' && t.id && (
-                              <button onClick={()=>{
-                                if (t.id && onDelete) {
-                                  onDelete(t.id);
-                                } else {
-                                  console.error('[ERROR] Неможливо видалити заявку: ID відсутній або onDelete не передано', { taskId: t.id, hasOnDelete: !!onDelete });
-                                }
-                              }} style={{background:'#f66',color:'#fff'}}>Видалити</button>
+                              {/* Кнопка видалення - тільки для адміністраторів та керівників сервісної служби */}
+                              {(role === 'admin' || (role === 'service' && user?.role === 'serviceManager')) && t.id && (
+                                <button onClick={()=>{
+                                  if (t.id && onDelete) {
+                                    onDelete(t.id);
+                                  } else {
+                                    console.error('[ERROR] Неможливо видалити заявку: ID відсутній або onDelete не передано', { taskId: t.id, hasOnDelete: !!onDelete });
+                                  }
+                                }} style={{background:'#f66',color:'#fff'}}>Видалити</button>
+                              )}
+                              {/* Для інших користувачів показуємо інформаційну кнопку */}
+                              {role === 'service' && user?.role !== 'serviceManager' && (
+                                <button onClick={() => {
+                                  alert('Для даної дії зверніться до керівника сервісного підрозділу вашого регіону або до адміністратора.');
+                                }} style={{background:'#666',color:'#fff', cursor:'help'}} title="Для видалення зверніться до керівника">Видалити</button>
                               )}
                             </>
                           )}
