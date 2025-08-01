@@ -8,6 +8,7 @@ const roles = [
   { value: 'regional', label: 'Регіональний керівник' },
   { value: 'admin', label: 'Адміністратор' },
   { value: 'reports', label: 'Звіти' },
+  { value: 'materials', label: 'Аналіз ціни матеріалів' },
 ];
 
 export default function Sidebar({ role, onSelect, current, accessRules }) {

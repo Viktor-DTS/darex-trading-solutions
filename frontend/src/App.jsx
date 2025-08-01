@@ -17,6 +17,7 @@ import ExcelImportModal from './components/ExcelImportModal'
 import AccountantArea from './areas/AccountantArea';
 import WarehouseArea from './areas/WarehouseArea';
 import OperatorArea from './areas/OperatorArea';
+import MaterialsAnalysisArea from './areas/MaterialsAnalysisArea';
 import * as XLSX from 'xlsx-js-style';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import API_BASE_URL from './config.js';
@@ -124,6 +125,7 @@ const getDefaultAccess = (rolesList = []) => {
     { key: 'regional', label: 'Регіональний керівник' },
     { key: 'admin', label: 'Адміністратор' },
     { key: 'reports', label: 'Звіти' },
+    { key: 'materials', label: 'Аналіз ціни матеріалів' },
   ];
   
   const defaultAccess = {};
@@ -140,6 +142,9 @@ const getDefaultAccess = (rolesList = []) => {
         defaultAccess[role.value][tab.key] = 'full';
       } else if (tab.key === 'reports') {
         // Всі ролі мають доступ для читання до звітів
+        defaultAccess[role.value][tab.key] = 'read';
+      } else if (tab.key === 'materials') {
+        // Всі ролі мають доступ для читання до аналізу матеріалів
         defaultAccess[role.value][tab.key] = 'read';
       } else {
         // Для інших вкладок - немає доступу
@@ -182,6 +187,7 @@ function AccessRulesModal({ open, onClose }) {
     { key: 'regional', label: 'Регіональний керівник' },
     { key: 'admin', label: 'Адміністратор' },
     { key: 'reports', label: 'Звіти' },
+    { key: 'materials', label: 'Аналіз ціни матеріалів' },
   ];
   const accessTypes = [
     { value: 'full', label: 'Повний доступ' },
@@ -254,6 +260,8 @@ function AccessRulesModal({ open, onClose }) {
           } else if (role.value === 'admin') {
             updatedAccess[role.value][tab.key] = 'full';
           } else if (tab.key === 'reports') {
+            updatedAccess[role.value][tab.key] = 'read';
+          } else if (tab.key === 'materials') {
             updatedAccess[role.value][tab.key] = 'read';
           } else {
             updatedAccess[role.value][tab.key] = 'none';
@@ -508,6 +516,7 @@ function AdminSystemParamsArea() {
             { key: 'regional', label: 'Регіональний керівник' },
             { key: 'admin', label: 'Адміністратор' },
             { key: 'reports', label: 'Звіти' },
+            { key: 'materials', label: 'Аналіз ціни матеріалів' },
           ];
           
           currentAccess[newRole] = {};
@@ -517,6 +526,8 @@ function AdminSystemParamsArea() {
             } else if (newRole === 'admin') {
               currentAccess[newRole][tab.key] = 'full';
             } else if (tab.key === 'reports') {
+              currentAccess[newRole][tab.key] = 'read';
+            } else if (tab.key === 'materials') {
               currentAccess[newRole][tab.key] = 'read';
             } else {
               currentAccess[newRole][tab.key] = 'none';
@@ -2654,14 +2665,14 @@ function RegionalManagerTabs({ tab, setTab }) {
   );
 }
 
-const areaByRole = {
-  admin: (props) => <AdminArea {...props} />,
+const areas = {
   service: ServiceArea,
   operator: OperatorArea,
   warehouse: WarehouseArea,
   accountant: (props) => <AccountantArea {...props} />,
   regional: (props) => <RegionalManagerArea {...props} />,
   reports: ReportBuilder,
+  materials: (props) => <MaterialsAnalysisArea {...props} />,
 };
 
 function App() {
@@ -2816,7 +2827,7 @@ function App() {
     }
   };
 
-  const Area = areaByRole[currentArea] || (() => <div>Оберіть область</div>);
+  const Area = areas[currentArea] || (() => <div>Оберіть область</div>);
 
   return (
     <>
