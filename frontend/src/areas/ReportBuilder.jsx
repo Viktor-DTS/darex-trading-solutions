@@ -9,7 +9,7 @@ export default function ReportBuilder() {
   });
   const [groupBy, setGroupBy] = useState('');
   const [reportData, setReportData] = useState([]);
-  const [selectedFields, setSelectedFields] = useState([]);
+  const [selectedFields, setSelectedFields] = useState(['requestDate', 'date', 'paymentDate']); // Початкові поля
   const [availableFields, setAvailableFields] = useState([
     { name: 'requestDate', label: 'Дата заявки' },
     { name: 'requestDesc', label: 'Опис заявки' },
@@ -19,6 +19,7 @@ export default function ReportBuilder() {
     { name: 'equipment', label: 'Обладнання' },
     { name: 'work', label: 'Робота' },
     { name: 'date', label: 'Дата виконання' },
+    { name: 'paymentDate', label: 'Дата оплати' },
     { name: 'engineer1', label: 'Інженер 1' },
     { name: 'engineer2', label: 'Інженер 2' },
     { name: 'client', label: 'Клієнт' },
@@ -54,24 +55,36 @@ export default function ReportBuilder() {
 
   useEffect(() => {
     setLoading(true);
-    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
+    tasksAPI.getAll().then(tasks => {
+      console.log('[DEBUG][ReportBuilder] Завантажено завдань:', tasks.length);
+      setTasks(tasks);
+      // Автоматично генеруємо звіт після завантаження даних
+      if (tasks.length > 0) {
+        console.log('[DEBUG][ReportBuilder] Автоматична генерація звіту після завантаження');
+        generateReportFromData(tasks);
+      }
+    }).finally(() => setLoading(false));
   }, []);
 
-  const handleFilter = e => {
-    setFilters({ ...filters, [e.target.name]: e.target.value });
-  };
+  // Функція для генерації звіту з переданими даними
+  const generateReportFromData = (tasksData) => {
+    console.log('[DEBUG][ReportBuilder] Генерація звіту з', tasksData.length, 'завдань');
+    
+    const filtered = tasksData.filter(t => {
+      // Перевіряємо всі фільтри динамічно
+      for (const field of availableFields) {
+        const filterValue = filters[field.name];
+        if (filterValue && filterValue.trim() !== '') {
+          const fieldValue = t[field.name];
+          if (!fieldValue || !fieldValue.toString().toLowerCase().includes(filterValue.toLowerCase())) {
+            return false;
+          }
+        }
+      }
+      return true;
+    });
 
-  const generateReport = () => {
-    const filtered = tasks.filter(t =>
-      (!filters.requestDate || (t.requestDate && t.requestDate.includes(filters.requestDate))) &&
-      (!filters.requestDesc || (t.requestDesc || '').toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
-      (!filters.serviceRegion || (t.serviceRegion || '').toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
-      (!filters.address || (t.address || '').toLowerCase().includes(filters.address.toLowerCase())) &&
-      (!filters.equipmentSerial || (t.equipmentSerial || '').toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
-      (!filters.equipment || (t.equipment || '').toLowerCase().includes(filters.equipment.toLowerCase())) &&
-      (!filters.work || (t.work || '').toLowerCase().includes(filters.work.toLowerCase())) &&
-      (!filters.date || (t.date && t.date.includes(filters.date)))
-    );
+    console.log('[DEBUG][ReportBuilder] Відфільтровано завдань:', filtered.length);
 
     let grouped = filtered;
     if (groupBy) {
@@ -89,37 +102,52 @@ export default function ReportBuilder() {
     }
 
     setReportData(grouped);
+    console.log('[DEBUG][ReportBuilder] Звіт згенеровано, рядків:', grouped.length);
   };
 
+  const handleFilter = e => {
+    const newFilters = { ...filters, [e.target.name]: e.target.value };
+    setFilters(newFilters);
+    console.log('[DEBUG][ReportBuilder] Фільтр змінено:', e.target.name, '=', e.target.value);
+  };
+
+  const generateReport = () => {
+    console.log('[DEBUG][ReportBuilder] Ручна генерація звіту');
+    generateReportFromData(tasks);
+  };
+
+  // Автоматично оновлюємо звіт при зміні фільтрів
+  useEffect(() => {
+    if (tasks.length > 0) {
+      console.log('[DEBUG][ReportBuilder] Автоматичне оновлення звіту при зміні фільтрів');
+      generateReportFromData(tasks);
+    }
+  }, [filters, groupBy, tasks]);
+
+  // Автоматично оновлюємо звіт при зміні вибраних полів
+  useEffect(() => {
+    if (tasks.length > 0 && selectedFields.length > 0) {
+      console.log('[DEBUG][ReportBuilder] Автоматичне оновлення звіту при зміні вибраних полів');
+      generateReportFromData(tasks);
+    }
+  }, [selectedFields]);
+
   const exportToCSV = () => {
-    const headers = [
-      'Дата заявки', 'Опис заявки', 'Регіон обслуговування', 'Адреса',
-      'Серійний номер обладнання', 'Обладнання', 'Робота', 'Дата виконання',
-      'Інженер 1', 'Інженер 2', 'Клієнт', 'Рахунок', 'Тип оплати',
-      'Сума послуги', 'Коментар складу', 'Коментар бухгалтера', 'Коментарії бухгалтера',
-      'Коментар регіонального менеджера'
-    ];
+    const headers = selectedFields.map(field => 
+      availableFields.find(f => f.name === field)?.label || field
+    );
 
     const rows = reportData.flatMap(item => {
       if (item.group) {
+        // Групування
         return [
-          [item.group, 'Всього:', item.total],
-          ...item.tasks.map(t => [
-            t.requestDate, t.requestDesc, t.serviceRegion, t.address,
-            t.equipmentSerial, t.equipment, t.work, t.date,
-            t.engineer1, t.engineer2, t.client, t.invoice, t.paymentType,
-            t.serviceTotal, t.warehouseComment, t.accountantComment, t.accountantComments,
-            t.regionalManagerComment
-          ])
+          [`${item.group} - Всього: ${item.total}`, ...Array(selectedFields.length - 1).fill('')],
+          ...item.tasks.map(t => 
+            selectedFields.map(field => t[field] || '')
+          )
         ];
       }
-      return [[
-        item.requestDate, item.requestDesc, item.serviceRegion, item.address,
-        item.equipmentSerial, item.equipment, item.work, item.date,
-        item.engineer1, item.engineer2, item.client, item.invoice, item.paymentType,
-        item.serviceTotal, item.warehouseComment, item.accountantComment, item.accountantComments,
-        item.regionalManagerComment
-      ]];
+      return [selectedFields.map(field => item[field] || '')];
     });
 
     const csvContent = [
@@ -130,7 +158,7 @@ export default function ReportBuilder() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'report.csv';
+    link.download = `report_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
 
@@ -152,7 +180,37 @@ export default function ReportBuilder() {
     }}>
       <h2>Конструктор звітів</h2>
       {loading && <div style={{color: '#fff', marginBottom: '16px'}}>Завантаження...</div>}
-      <div style={{marginBottom: '16px'}}>
+      
+      {/* Фільтри */}
+      <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
+        <h3 style={{color: '#fff', marginBottom: '12px'}}>Фільтри</h3>
+        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
+          {availableFields.map(field => (
+            <div key={field.name} style={{display: 'flex', flexDirection: 'column'}}>
+              <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px'}}>{field.label}</label>
+              <input
+                type="text"
+                name={field.name}
+                value={filters[field.name] || ''}
+                onChange={handleFilter}
+                placeholder={`Фільтр по ${field.label.toLowerCase()}`}
+                style={{
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #29506a',
+                  background: '#22334a',
+                  color: '#fff',
+                  fontSize: '14px'
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      {/* Вибір полів */}
+      <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
+        <h3 style={{color: '#fff', marginBottom: '12px'}}>Вибір полів для звіту</h3>
         <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
           {availableFields.map(field => (
             <div key={field.name} style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
@@ -162,21 +220,23 @@ export default function ReportBuilder() {
                 onChange={() => handleFieldToggle(field.name)}
                 style={{cursor: 'pointer'}}
               />
-              <label style={{color: '#fff'}}>{field.label}</label>
+              <label style={{color: '#fff', fontSize: '14px'}}>{field.label}</label>
             </div>
           ))}
         </div>
       </div>
-      <div style={{display: 'flex', gap: '8px', marginBottom: '16px'}}>
+      {/* Кнопки управління */}
+      <div style={{display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap'}}>
         <select
           value={groupBy}
           onChange={e => setGroupBy(e.target.value)}
           style={{
-            padding: '8px',
+            padding: '8px 12px',
             borderRadius: '4px',
             border: '1px solid #29506a',
             background: '#1a2636',
-            color: '#fff'
+            color: '#fff',
+            fontSize: '14px'
           }}
         >
           <option value="">Групувати за...</option>
@@ -186,67 +246,137 @@ export default function ReportBuilder() {
         </select>
         <button
           onClick={generateReport}
+          disabled={loading || tasks.length === 0}
           style={{
             padding: '8px 16px',
-            background: '#00bfff',
+            background: loading || tasks.length === 0 ? '#666' : '#00bfff',
             color: '#fff',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer'
+            cursor: loading || tasks.length === 0 ? 'not-allowed' : 'pointer',
+            fontSize: '14px'
           }}
         >
-          Згенерувати звіт
+          {loading ? 'Завантаження...' : 'Згенерувати звіт'}
         </button>
         <button
           onClick={exportToCSV}
+          disabled={reportData.length === 0}
           style={{
             padding: '8px 16px',
-            background: '#22334a',
+            background: reportData.length === 0 ? '#666' : '#22334a',
             color: '#fff',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer'
+            cursor: reportData.length === 0 ? 'not-allowed' : 'pointer',
+            fontSize: '14px'
           }}
         >
           Експорт в CSV
         </button>
       </div>
+      
+      {/* Інформація про стан */}
+      <div style={{marginBottom: '16px', padding: '12px', background: '#1a2636', borderRadius: '8px'}}>
+        <div style={{color: '#fff', fontSize: '14px'}}>
+          <strong>Стан:</strong> {loading ? 'Завантаження даних...' : 
+            tasks.length === 0 ? 'Немає даних для звіту' :
+            `Завантажено ${tasks.length} завдань, відображено ${reportData.length} рядків у звіті`
+          }
+        </div>
+        {selectedFields.length > 0 && (
+          <div style={{color: '#fff', fontSize: '14px', marginTop: '4px'}}>
+            <strong>Вибрано полів:</strong> {selectedFields.length} з {availableFields.length}
+          </div>
+        )}
+      </div>
       <div style={{overflowX:'auto'}}>
-        <table style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          marginTop: '16px',
-          color: '#fff'
-        }}>
-          <thead>
-            <tr>
-              {selectedFields.map(field => (
-                <th key={field} style={{
-                  padding: '12px',
-                  textAlign: 'left',
-                  borderBottom: '1px solid #29506a',
-                  background: '#1a2636'
-                }}>
-                  {availableFields.find(f => f.name === field)?.label || field}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {reportData.map((row, index) => (
-              <tr key={index} style={{
-                borderBottom: '1px solid #29506a',
-                background: index % 2 === 0 ? '#22334a' : '#1a2636'
-              }}>
+        {loading ? (
+          <div style={{color: '#fff', textAlign: 'center', padding: '20px'}}>
+            Завантаження даних...
+          </div>
+        ) : selectedFields.length === 0 ? (
+          <div style={{color: '#fff', textAlign: 'center', padding: '20px'}}>
+            Виберіть поля для відображення в звіті
+          </div>
+        ) : reportData.length === 0 ? (
+          <div style={{color: '#fff', textAlign: 'center', padding: '20px'}}>
+            Немає даних для відображення. Спробуйте змінити фільтри або натисніть "Згенерувати звіт"
+          </div>
+        ) : (
+          <table style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            marginTop: '16px',
+            color: '#fff'
+          }}>
+            <thead>
+              <tr>
                 {selectedFields.map(field => (
-                  <td key={field} style={{padding: '12px'}}>
-                    {row[field]}
-                  </td>
+                  <th key={field} style={{
+                    padding: '12px',
+                    textAlign: 'left',
+                    borderBottom: '1px solid #29506a',
+                    background: '#1a2636'
+                  }}>
+                    {availableFields.find(f => f.name === field)?.label || field}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {reportData.map((row, index) => {
+                if (row.group) {
+                  // Групування
+                  return (
+                    <React.Fragment key={index}>
+                      <tr style={{
+                        borderBottom: '2px solid #00bfff',
+                        background: '#1a2636',
+                        fontWeight: 'bold'
+                      }}>
+                        <td colSpan={selectedFields.length} style={{padding: '12px', color: '#00bfff'}}>
+                          {row.group} - Всього: {row.total}
+                        </td>
+                      </tr>
+                      {row.tasks.map((task, taskIndex) => (
+                        <tr key={`${index}-${taskIndex}`} style={{
+                          borderBottom: '1px solid #29506a',
+                          background: taskIndex % 2 === 0 ? '#22334a' : '#1a2636'
+                        }}>
+                          {selectedFields.map(field => (
+                            <td key={field} style={{padding: '12px'}}>
+                              {task[field] || ''}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  );
+                } else {
+                  // Звичайний рядок
+                  return (
+                    <tr key={index} style={{
+                      borderBottom: '1px solid #29506a',
+                      background: index % 2 === 0 ? '#22334a' : '#1a2636'
+                    }}>
+                      {selectedFields.map(field => (
+                        <td key={field} style={{padding: '12px'}}>
+                          {row[field] || ''}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                }
+              })}
+            </tbody>
+          </table>
+        )}
+        {reportData.length > 0 && (
+          <div style={{color: '#fff', marginTop: '16px', textAlign: 'center'}}>
+            Всього рядків: {reportData.length}
+          </div>
+        )}
       </div>
     </div>
   );
