@@ -63,6 +63,26 @@ connectToMongoDB().then(async (connected) => {
       });
       console.log('Дефолтного адміністратора створено!');
     }
+    
+    // --- Автоматичне очищення сиротських файлів при запуску ---
+    try {
+      console.log('Запуск автоматичного очищення сиротських файлів...');
+      // Викликаємо функцію очищення через 30 секунд після запуску
+      setTimeout(async () => {
+        try {
+          // Імпортуємо функцію очищення з файлового роуту
+          const filesModule = require('./routes/files');
+          if (filesModule.cleanupOrphanedFiles) {
+            const orphanedCount = await filesModule.cleanupOrphanedFiles();
+            console.log(`Автоматичне очищення завершено. Видалено ${orphanedCount} сиротських файлів.`);
+          }
+        } catch (error) {
+          console.error('Помилка автоматичного очищення файлів:', error);
+        }
+      }, 30000);
+    } catch (error) {
+      console.error('Помилка ініціалізації очищення файлів:', error);
+    }
   }
 });
 

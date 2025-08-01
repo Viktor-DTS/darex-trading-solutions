@@ -106,7 +106,43 @@ function ensureGridFS() {
     gfs.collection('uploads');
     console.log('GridFS ініціалізовано');
   }
+  
+  // Додаткова перевірка стану з'єднання
+  if (mongoose.connection.readyState !== 1) {
+    console.error('GridFS: MongoDB не підключена! ReadyState:', mongoose.connection.readyState);
+    return null;
+  }
+  
+  if (!gfs) {
+    console.error('GridFS: Об\'єкт gfs не ініціалізовано');
+    return null;
+  }
+  
   return gfs;
+}
+
+// Функція для перевірки існування файлу в GridFS
+async function checkFileExists(gridfsId) {
+  try {
+    const gfsInstance = ensureGridFS();
+    if (!gfsInstance) {
+      return false;
+    }
+    
+    return new Promise((resolve) => {
+      gfsInstance.files.findOne({ _id: gridfsId }, (err, file) => {
+        if (err) {
+          console.error('Помилка перевірки файлу в GridFS:', err);
+          resolve(false);
+        } else {
+          resolve(!!file);
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Помилка перевірки існування файлу:', error);
+    return false;
+  }
 }
 
 // Завантаження файлу
@@ -156,18 +192,35 @@ router.get('/task/:taskId', async (req, res) => {
 // Перегляд файлу (inline)
 router.get('/view/:fileId', async (req, res) => {
   try {
+    console.log('[DEBUG] Спроба перегляду файлу ID:', req.params.fileId);
+    
     const file = await executeWithRetry(() => File.findById(req.params.fileId));
     if (!file) {
+      console.log('[DEBUG] Файл не знайдено в метаданих для ID:', req.params.fileId);
       return res.status(404).json({ error: 'Файл не знайдено на сервері' });
+    }
+    
+    console.log('[DEBUG] Знайдено метадані файлу:', {
+      id: file._id,
+      originalName: file.originalName,
+      gridfsId: file.gridfsId,
+      taskId: file.taskId
+    });
+    
+    // Перевіряємо існування файлу в GridFS
+    const fileExists = await checkFileExists(file.gridfsId);
+    if (!fileExists) {
+      console.error('[ERROR] Файл не знайдено в GridFS для ID:', file.gridfsId);
+      return res.status(404).json({ error: 'Файл не знайдено в GridFS' });
     }
     
     const gfsInstance = ensureGridFS();
     if (!gfsInstance) {
-      console.error('GridFS не може бути ініціалізовано');
+      console.error('[ERROR] GridFS не може бути ініціалізовано');
       return res.status(500).json({ error: 'GridFS не ініціалізовано' });
     }
     
-    console.log('Спроба перегляду файлу:', file._id, 'GridFS ID:', file.gridfsId);
+    console.log('[DEBUG] Спроба створення readstream для GridFS ID:', file.gridfsId);
     
     res.setHeader('Content-Type', file.mimetype);
     res.setHeader('Content-Disposition', `inline; filename="${file.originalName}"`);
@@ -175,30 +228,57 @@ router.get('/view/:fileId', async (req, res) => {
     const readstream = gfsInstance.createReadStream({ _id: file.gridfsId, root: 'uploads' });
     
     readstream.on('error', err => {
-      console.error('Помилка читання з GridFS:', err);
-      res.status(404).json({ error: 'Файл не знайдено у GridFS' });
+      console.error('[ERROR] Помилка читання з GridFS:', err);
+      if (!res.headersSent) {
+        res.status(404).json({ error: 'Файл не знайдено у GridFS' });
+      }
+    });
+    
+    readstream.on('end', () => {
+      console.log('[DEBUG] Файл успішно відправлено:', file.originalName);
     });
     
     readstream.pipe(res);
   } catch (error) {
-    console.error('Помилка перегляду файлу:', error);
-    res.status(500).json({ error: 'Помилка перегляду файлу' });
+    console.error('[ERROR] Помилка перегляду файлу:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Помилка перегляду файлу' });
+    }
   }
 });
 
 // Завантаження файлу (download)
 router.get('/download/:fileId', async (req, res) => {
   try {
+    console.log('[DEBUG] Спроба завантаження файлу ID:', req.params.fileId);
+    
     const file = await executeWithRetry(() => File.findById(req.params.fileId));
     if (!file) {
+      console.log('[DEBUG] Файл не знайдено в метаданих для ID:', req.params.fileId);
       return res.status(404).json({ error: 'Файл не знайдено' });
+    }
+    
+    console.log('[DEBUG] Знайдено метадані файлу для завантаження:', {
+      id: file._id,
+      originalName: file.originalName,
+      gridfsId: file.gridfsId,
+      taskId: file.taskId
+    });
+    
+    // Перевіряємо існування файлу в GridFS
+    const fileExists = await checkFileExists(file.gridfsId);
+    if (!fileExists) {
+      console.error('[ERROR] Файл не знайдено в GridFS для завантаження ID:', file.gridfsId);
+      return res.status(404).json({ error: 'Файл не знайдено в GridFS' });
     }
     
     const gfsInstance = ensureGridFS();
     if (!gfsInstance) {
-      console.error('GridFS не може бути ініціалізовано');
+      console.error('[ERROR] GridFS не може бути ініціалізовано для завантаження');
       return res.status(500).json({ error: 'GridFS не ініціалізовано' });
     }
+    
+    console.log('[DEBUG] Спроба створення readstream для завантаження GridFS ID:', file.gridfsId);
     
     res.setHeader('Content-Type', file.mimetype);
     res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
@@ -206,14 +286,22 @@ router.get('/download/:fileId', async (req, res) => {
     const readstream = gfsInstance.createReadStream({ _id: file.gridfsId, root: 'uploads' });
     
     readstream.on('error', err => {
-      console.error('Помилка завантаження з GridFS:', err);
-      res.status(404).json({ error: 'Файл не знайдено у GridFS' });
+      console.error('[ERROR] Помилка завантаження з GridFS:', err);
+      if (!res.headersSent) {
+        res.status(404).json({ error: 'Файл не знайдено у GridFS' });
+      }
+    });
+    
+    readstream.on('end', () => {
+      console.log('[DEBUG] Файл успішно завантажено:', file.originalName);
     });
     
     readstream.pipe(res);
   } catch (error) {
-    console.error('Помилка завантаження файлу:', error);
-    res.status(500).json({ error: 'Помилка завантаження файлу' });
+    console.error('[ERROR] Помилка завантаження файлу:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Помилка завантаження файлу' });
+    }
   }
 });
 
@@ -249,4 +337,53 @@ router.delete('/:fileId', async (req, res) => {
   }
 });
 
-module.exports = router; 
+// Функція для очищення сиротських записів файлів
+async function cleanupOrphanedFiles() {
+  try {
+    console.log('[DEBUG] Початок очищення сиротських файлів...');
+    
+    const allFiles = await executeWithRetry(() => File.find({}));
+    console.log('[DEBUG] Знайдено файлів в метаданих:', allFiles.length);
+    
+    let orphanedCount = 0;
+    
+    for (const file of allFiles) {
+      const exists = await checkFileExists(file.gridfsId);
+      if (!exists) {
+        console.log('[DEBUG] Знайдено сиротський файл:', {
+          id: file._id,
+          originalName: file.originalName,
+          gridfsId: file.gridfsId
+        });
+        
+        // Видаляємо запис з метаданих
+        await executeWithRetry(() => File.findByIdAndDelete(file._id));
+        orphanedCount++;
+      }
+    }
+    
+    console.log('[DEBUG] Очищено сиротських файлів:', orphanedCount);
+    return orphanedCount;
+  } catch (error) {
+    console.error('[ERROR] Помилка очищення сиротських файлів:', error);
+    return 0;
+  }
+}
+
+// API endpoint для очищення сиротських файлів
+router.post('/cleanup', async (req, res) => {
+  try {
+    const orphanedCount = await cleanupOrphanedFiles();
+    res.json({ 
+      success: true, 
+      message: `Очищено ${orphanedCount} сиротських файлів`,
+      orphanedCount 
+    });
+  } catch (error) {
+    console.error('[ERROR] Помилка API очищення:', error);
+    res.status(500).json({ error: 'Помилка очищення файлів' });
+  }
+});
+
+module.exports = router;
+module.exports.cleanupOrphanedFiles = cleanupOrphanedFiles; 
