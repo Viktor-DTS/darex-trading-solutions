@@ -110,6 +110,13 @@ export default function MaterialsAnalysisArea({ user }) {
       return;
     }
 
+    // Сортуємо завдання за датою (від найновішої до найстарішої)
+    const sortedTasks = equipmentTasks.sort((a, b) => {
+      const dateA = new Date(a.date || a.requestDate || 0);
+      const dateB = new Date(b.date || b.requestDate || 0);
+      return dateB - dateA;
+    });
+
     // Створюємо HTML звіт
     const reportHTML = `
       <!DOCTYPE html>
@@ -260,11 +267,11 @@ export default function MaterialsAnalysisArea({ user }) {
         
         <div class="header">
           <h1>Звіт по обладнанню: ${equipmentType}</h1>
-          <p>Кількість проведених робіт: ${equipmentTasks.length}</p>
+          <p>Кількість проведених робіт: ${sortedTasks.length}</p>
           <p>Дата створення звіту: ${new Date().toLocaleDateString('uk-UA')}</p>
         </div>
 
-        ${equipmentTasks.map(task => `
+        ${sortedTasks.map(task => `
           <div class="task-card">
             <div class="task-header">
               <div class="task-date">Дата проведення робіт: ${task.date || 'Не вказано'}</div>
@@ -358,8 +365,8 @@ export default function MaterialsAnalysisArea({ user }) {
 
         <div class="summary">
           <h3>Підсумок по обладнанню ${equipmentType}</h3>
-          <p>Всього проведено робіт: ${equipmentTasks.length}</p>
-          <p>Загальна вартість всіх послуг: ${equipmentTasks.reduce((sum, task) => sum + (parseFloat(task.serviceTotal) || 0), 0).toFixed(2)} грн</p>
+          <p>Всього проведено робіт: ${sortedTasks.length}</p>
+          <p>Загальна вартість всіх послуг: ${sortedTasks.reduce((sum, task) => sum + (parseFloat(task.serviceTotal) || 0), 0).toFixed(2)} грн</p>
         </div>
       </body>
       </html>
