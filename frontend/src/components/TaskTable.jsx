@@ -57,6 +57,7 @@ function TaskTableComponent({
   setDateRange,
   user,
   isArchive = false,
+  onHistoryClick,
 }) {
   console.log('[LOG] TaskTable received columns:', columns);
   console.log('[LOG] TaskTable role:', role);
@@ -682,7 +683,16 @@ function TaskTableComponent({
                 {sortData(tasks, sortConfig.field, sortConfig.direction).map(t => (
                   <tr key={t.id} style={getRowColor(t) ? {background:getRowColor(t)} : {}}>
                     <td style={getRowColor(t) ? {color:'#111'} : {}}>
-                      <button onClick={()=>{setInfoTask(t);setShowInfo(true);}} style={{marginRight:8,background:'#00bfff',color:'#fff'}}>Історія проведення робіт</button>
+                      <button onClick={()=>{
+                        if (onHistoryClick && role === 'materials') {
+                          // Для вкладки аналізу матеріалів - відкриваємо звіт по обладнанню
+                          onHistoryClick(t.equipment);
+                        } else {
+                          // Стандартна поведінка - відкриваємо модалку з історією по замовнику
+                          setInfoTask(t);
+                          setShowInfo(true);
+                        }
+                      }} style={{marginRight:8,background:'#00bfff',color:'#fff'}}>Історія проведення робіт</button>
                       {/* Кнопка редагування - в архіві тільки для адміністратора */}
                       {(!isArchive || role === 'admin') && (
                         <>
