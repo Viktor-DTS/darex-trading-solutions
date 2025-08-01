@@ -2675,6 +2675,11 @@ const areas = {
   materials: (props) => <MaterialsAnalysisArea {...props} />,
 };
 
+// Окремий об'єкт для адміністратора
+const areaByRole = {
+  admin: (props) => <AdminArea {...props} />,
+};
+
 function App() {
   const { t } = useTranslation();
   const [serverMsg, setServerMsg] = useState('');
@@ -2707,7 +2712,15 @@ function App() {
           await accessRulesAPI.save(defaultRules);
           setAccessRules(defaultRules);
         } else {
-          setAccessRules(serverRules);
+          // Оновлюємо існуючі правила, додаючи нову вкладку materials
+          const updatedRules = updateExistingRules(serverRules);
+          if (JSON.stringify(updatedRules) !== JSON.stringify(serverRules)) {
+            console.log('[DEBUG][App] Оновлюємо правила доступу з новою вкладкою materials');
+            await accessRulesAPI.save(updatedRules);
+            setAccessRules(updatedRules);
+          } else {
+            setAccessRules(serverRules);
+          }
         }
       } catch (error) {
         console.error('Помилка завантаження правил доступу:', error);
@@ -2729,6 +2742,24 @@ function App() {
     
     loadAccessRules();
   }, []);
+
+  // Функція для оновлення існуючих правил з новою вкладкою
+  const updateExistingRules = (existingRules) => {
+    const updatedRules = { ...existingRules };
+    
+    Object.keys(updatedRules).forEach(roleKey => {
+      if (!updatedRules[roleKey].materials) {
+        // Додаємо права для нової вкладки materials
+        if (roleKey === 'admin' || roleKey === 'administrator') {
+          updatedRules[roleKey].materials = 'full';
+        } else {
+          updatedRules[roleKey].materials = 'read';
+        }
+      }
+    });
+    
+    return updatedRules;
+  };
 
   console.log('user:', user, 'currentArea:', currentArea);
 
@@ -2827,7 +2858,9 @@ function App() {
     }
   };
 
-  const Area = areas[currentArea] || (() => <div>Оберіть область</div>);
+  const Area = currentArea === 'admin' 
+    ? areaByRole.admin 
+    : areas[currentArea] || (() => <div>Оберіть область</div>);
 
   return (
     <>
