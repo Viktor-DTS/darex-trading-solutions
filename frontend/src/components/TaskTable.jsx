@@ -692,14 +692,22 @@ function TaskTableComponent({
                               {/* Кнопка видалення - тільки для регіональних керівників та адміністраторів */}
                               {(() => {
                                 const canDelete = user?.role === 'regionalManager' || user?.role === 'admin';
+                                const hasTaskId = !!t.id;
+                                const hasOnDeleteFunc = !!onDelete;
+                                const shouldShowButton = canDelete && hasTaskId && hasOnDeleteFunc;
+                                
                                 console.log('[DEBUG] Перевірка доступу до видалення:', {
                                   role,
                                   userRole: user?.role,
                                   canDelete,
+                                  hasTaskId,
+                                  hasOnDeleteFunc,
+                                  shouldShowButton,
                                   taskId: t.id,
-                                  hasOnDelete: !!onDelete
+                                  onDeleteType: typeof onDelete
                                 });
-                                return canDelete && t.id && onDelete;
+                                
+                                return shouldShowButton;
                               })() && (
                                 <button onClick={()=>{
                                   if (t.id && onDelete) {
@@ -710,7 +718,14 @@ function TaskTableComponent({
                                 }} style={{background:'#f66',color:'#fff'}}>Видалити</button>
                               )}
                               {/* Для інших користувачів показуємо інформаційну кнопку */}
-                              {user?.role !== 'regionalManager' && user?.role !== 'admin' && (
+                              {(() => {
+                                const shouldShowInfoButton = user?.role !== 'regionalManager' && user?.role !== 'admin';
+                                console.log('[DEBUG] Перевірка інформаційної кнопки:', {
+                                  userRole: user?.role,
+                                  shouldShowInfoButton
+                                });
+                                return shouldShowInfoButton;
+                              })() && (
                                 <button onClick={() => {
                                   alert('Для даної дії зверніться до керівника сервісного підрозділу вашого регіону або до адміністратора.');
                                 }} style={{background:'#666',color:'#fff', cursor:'help'}} title="Для видалення зверніться до керівника">Видалити</button>
