@@ -689,9 +689,9 @@ function TaskTableComponent({
                           {(role === 'service' || role === 'operator' || role === 'admin') && (
                             <>
                               <button onClick={()=>onEdit && onEdit(t)} style={{marginRight:8}}>Редагувати</button>
-                              {/* Кнопка видалення - тільки для адміністраторів та керівників сервісної служби */}
+                              {/* Кнопка видалення - тільки для регіональних керівників та адміністраторів */}
                               {(() => {
-                                const canDelete = role === 'admin' || (role === 'service' && user?.role === 'serviceManager');
+                                const canDelete = user?.role === 'regionalManager' || user?.role === 'admin';
                                 console.log('[DEBUG] Перевірка доступу до видалення:', {
                                   role,
                                   userRole: user?.role,
@@ -710,7 +710,7 @@ function TaskTableComponent({
                                 }} style={{background:'#f66',color:'#fff'}}>Видалити</button>
                               )}
                               {/* Для інших користувачів показуємо інформаційну кнопку */}
-                              {role === 'service' && user?.role !== 'serviceManager' && (
+                              {user?.role !== 'regionalManager' && user?.role !== 'admin' && (
                                 <button onClick={() => {
                                   alert('Для даної дії зверніться до керівника сервісного підрозділу вашого регіону або до адміністратора.');
                                 }} style={{background:'#666',color:'#fff', cursor:'help'}} title="Для видалення зверніться до керівника">Видалити</button>
