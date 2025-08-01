@@ -279,8 +279,8 @@ export default function MaterialsAnalysisArea({ user }) {
                 <span class="info-value">${task.requestDate || 'Не вказано'}</span>
               </div>
               <div class="info-row">
-                <span class="info-label">Адреса:</span>
-                <span class="info-value">${task.address || 'Не вказано'}</span>
+                <span class="info-label">Найменування робіт:</span>
+                <span class="info-value">${task.work || 'Не вказано'}</span>
               </div>
               <div class="info-row">
                 <span class="info-label">Вартість робіт:</span>
