@@ -691,7 +691,7 @@ function TaskTableComponent({
                               <button onClick={()=>onEdit && onEdit(t)} style={{marginRight:8}}>Редагувати</button>
                               {/* Кнопка видалення - тільки для регіональних керівників та адміністраторів */}
                               {(() => {
-                                const canDelete = user?.role === 'regionalManager' || user?.role === 'admin' || user?.role === 'administrator';
+                                const canDelete = user?.role === 'regionalManager' || user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'regkerivn' || user?.role === 'regkerzavskl';
                                 const hasTaskId = !!t.id;
                                 const hasOnDeleteFunc = !!onDelete;
                                 const shouldShowButton = canDelete && hasTaskId && hasOnDeleteFunc;
@@ -719,7 +719,7 @@ function TaskTableComponent({
                               )}
                               {/* Для інших користувачів показуємо інформаційну кнопку */}
                               {(() => {
-                                const shouldShowInfoButton = user?.role !== 'regionalManager' && user?.role !== 'admin' && user?.role !== 'administrator';
+                                const shouldShowInfoButton = user?.role !== 'regionalManager' && user?.role !== 'admin' && user?.role !== 'administrator' && user?.role !== 'regkerivn' && user?.role !== 'regkerzavskl';
                                 console.log('[DEBUG] Перевірка інформаційної кнопки:', {
                                   userRole: user?.role,
                                   shouldShowInfoButton
