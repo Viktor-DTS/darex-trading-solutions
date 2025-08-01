@@ -849,7 +849,7 @@ function ServiceArea({ user }) {
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);
   };
-  const handleDelete = async id => {
+  const handleDelete = async (id) => {
     setLoading(true);
     await tasksAPI.remove(id);
     setTasks(tasks => tasks.filter(t => t.id !== id));
@@ -914,6 +914,292 @@ function ServiceArea({ user }) {
   if (tab === 'pending') tableData = pending;
   if (tab === 'done') tableData = done;
   if (tab === 'blocked') tableData = blocked;
+
+  // Функція для створення звіту по замовнику
+  const openClientReport = (clientName) => {
+    const clientTasks = tasks.filter(task => task.client === clientName);
+    
+    if (clientTasks.length === 0) {
+      alert('Немає даних для даного замовника');
+      return;
+    }
+
+    // Сортуємо завдання за датою (від найновішої до найстарішої)
+    const sortedTasks = clientTasks.sort((a, b) => {
+      const dateA = new Date(a.date || a.requestDate || 0);
+      const dateB = new Date(b.date || b.requestDate || 0);
+      return dateB - dateA;
+    });
+
+    // Створюємо HTML звіт
+    const reportHTML = `
+      <!DOCTYPE html>
+      <html lang="uk">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Звіт по замовнику: ${clientName}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+          }
+          .header {
+            background: #22334a;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 24px;
+          }
+          .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+          }
+          .task-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #22334a;
+          }
+          .task-date {
+            font-size: 18px;
+            font-weight: bold;
+            color: #22334a;
+          }
+          .task-status {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+          }
+          .status-completed { background: #4caf50; color: white; }
+          .status-in-progress { background: #ff9800; color: white; }
+          .status-new { background: #2196f3; color: white; }
+          .status-blocked { background: #f44336; color: white; }
+          .materials-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+          }
+          .material-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #22334a;
+          }
+          .material-section h4 {
+            margin: 0 0 10px 0;
+            color: #22334a;
+            font-size: 14px;
+            text-transform: uppercase;
+          }
+          .material-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+          }
+          .material-item:last-child {
+            border-bottom: none;
+          }
+          .material-label {
+            font-weight: 500;
+            color: #555;
+          }
+          .material-value {
+            font-weight: bold;
+            color: #22334a;
+          }
+          .task-info {
+            margin-bottom: 15px;
+          }
+          .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+          }
+          .info-label {
+            font-weight: 500;
+            color: #666;
+          }
+          .info-value {
+            font-weight: bold;
+            color: #22334a;
+          }
+          .summary {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            border-left: 4px solid #2196f3;
+          }
+          .summary h3 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+          }
+          .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #22334a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+          }
+          .print-button:hover {
+            background: #1a2636;
+          }
+          @media print {
+            .print-button { display: none; }
+            body { background: white; }
+          }
+        </style>
+      </head>
+      <body>
+        <button class="print-button" onclick="window.print()">🖨️ Друкувати</button>
+        
+        <div class="header">
+          <h1>Звіт по замовнику: ${clientName}</h1>
+          <p>Кількість проведених робіт: ${sortedTasks.length}</p>
+          <p>Дата створення звіту: ${new Date().toLocaleDateString('uk-UA')}</p>
+        </div>
+
+        ${sortedTasks.map(task => `
+          <div class="task-card">
+            <div class="task-header">
+              <div class="task-date">Дата проведення робіт: ${task.date || 'Не вказано'}</div>
+              <div class="task-status status-${task.status === 'Виконано' ? 'completed' : task.status === 'В роботі' ? 'in-progress' : task.status === 'Новий' ? 'new' : 'blocked'}">
+                ${task.status || 'Невідомо'}
+              </div>
+            </div>
+            
+            <div class="task-info">
+              <div class="info-row">
+                <span class="info-label">Дата заявки:</span>
+                <span class="info-value">${task.requestDate || 'Не вказано'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Замовник:</span>
+                <span class="info-value">${task.client || 'Не вказано'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Адреса:</span>
+                <span class="info-value">${task.address || 'Не вказано'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Найменування робіт:</span>
+                <span class="info-value">${task.work || 'Не вказано'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Сервісні інженери:</span>
+                <span class="info-value">${task.engineer1 || ''} ${task.engineer2 ? ', ' + task.engineer2 : ''}</span>
+              </div>
+            </div>
+
+            <div class="materials-grid">
+              ${task.oilType || task.oilUsed || task.oilPrice ? `
+                <div class="material-section">
+                  <h4>Олива</h4>
+                  ${task.oilType ? `<div class="material-item"><span class="material-label">Тип оливи:</span><span class="material-value">${task.oilType}</span></div>` : ''}
+                  ${task.oilUsed ? `<div class="material-item"><span class="material-label">Кількість:</span><span class="material-value">${task.oilUsed} л</span></div>` : ''}
+                  ${task.oilPrice ? `<div class="material-item"><span class="material-label">Ціна за л:</span><span class="material-value">${task.oilPrice} грн</span></div>` : ''}
+                  ${task.oilTotal ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.oilTotal} грн</span></div>` : ''}
+                </div>
+              ` : ''}
+
+              ${task.filterName || task.filterCount || task.filterPrice ? `
+                <div class="material-section">
+                  <h4>Масляний фільтр</h4>
+                  ${task.filterName ? `<div class="material-item"><span class="material-label">Назва:</span><span class="material-value">${task.filterName}</span></div>` : ''}
+                  ${task.filterCount ? `<div class="material-item"><span class="material-label">Кількість:</span><span class="material-value">${task.filterCount} шт</span></div>` : ''}
+                  ${task.filterPrice ? `<div class="material-item"><span class="material-label">Ціна за шт:</span><span class="material-value">${task.filterPrice} грн</span></div>` : ''}
+                  ${task.filterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.filterSum} грн</span></div>` : ''}
+                </div>
+              ` : ''}
+
+              ${task.airFilterName || task.airFilterCount || task.airFilterPrice ? `
+                <div class="material-section">
+                  <h4>Повітряний фільтр</h4>
+                  ${task.airFilterName ? `<div class="material-item"><span class="material-label">Назва:</span><span class="material-value">${task.airFilterName}</span></div>` : ''}
+                  ${task.airFilterCount ? `<div class="material-item"><span class="material-label">Кількість:</span><span class="material-value">${task.airFilterCount} шт</span></div>` : ''}
+                  ${task.airFilterPrice ? `<div class="material-item"><span class="material-label">Ціна за шт:</span><span class="material-value">${task.airFilterPrice} грн</span></div>` : ''}
+                  ${task.airFilterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.airFilterSum} грн</span></div>` : ''}
+                </div>
+              ` : ''}
+
+              ${task.antifreezeType || task.antifreezeL || task.antifreezePrice ? `
+                <div class="material-section">
+                  <h4>Антифриз</h4>
+                  ${task.antifreezeType ? `<div class="material-item"><span class="material-label">Тип:</span><span class="material-value">${task.antifreezeType}</span></div>` : ''}
+                  ${task.antifreezeL ? `<div class="material-item"><span class="material-label">Кількість:</span><span class="material-value">${task.antifreezeL} л</span></div>` : ''}
+                  ${task.antifreezePrice ? `<div class="material-item"><span class="material-label">Ціна за л:</span><span class="material-value">${task.antifreezePrice} грн</span></div>` : ''}
+                  ${task.antifreezeSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.antifreezeSum} грн</span></div>` : ''}
+                </div>
+              ` : ''}
+
+              ${task.fuelFilterName || task.fuelFilterCount || task.fuelFilterPrice ? `
+                <div class="material-section">
+                  <h4>Паливний фільтр</h4>
+                  ${task.fuelFilterName ? `<div class="material-item"><span class="material-label">Назва:</span><span class="material-value">${task.fuelFilterName}</span></div>` : ''}
+                  ${task.fuelFilterCount ? `<div class="material-item"><span class="material-label">Кількість:</span><span class="material-value">${task.fuelFilterCount} шт</span></div>` : ''}
+                  ${task.fuelFilterPrice ? `<div class="material-item"><span class="material-label">Ціна за шт:</span><span class="material-value">${task.fuelFilterPrice} грн</span></div>` : ''}
+                  ${task.fuelFilterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.fuelFilterSum} грн</span></div>` : ''}
+                </div>
+              ` : ''}
+
+              ${task.otherMaterials || task.otherSum ? `
+                <div class="material-section">
+                  <h4>Інші матеріали</h4>
+                  ${task.otherMaterials ? `<div class="material-item"><span class="material-label">Опис:</span><span class="material-value">${task.otherMaterials}</span></div>` : ''}
+                  ${task.otherSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.otherSum} грн</span></div>` : ''}
+                </div>
+              ` : ''}
+            </div>
+
+            ${task.serviceTotal ? `
+              <div class="summary">
+                <h3>Загальна сума послуги: ${task.serviceTotal} грн</h3>
+              </div>
+            ` : ''}
+          </div>
+        `).join('')}
+
+        <div class="summary">
+          <h3>Підсумок по замовнику ${clientName}</h3>
+          <p>Всього проведено робіт: ${sortedTasks.length}</p>
+          <p>Загальна вартість всіх послуг: ${sortedTasks.reduce((sum, task) => sum + (parseFloat(task.serviceTotal) || 0), 0).toFixed(2)} грн</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Відкриваємо нове вікно з звітом
+    const newWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+    newWindow.document.write(reportHTML);
+    newWindow.document.close();
+  };
+
   return (
     <div style={{padding:32}}>
       <h2>Заявки сервісної служби</h2>
@@ -949,6 +1235,7 @@ function ServiceArea({ user }) {
         setDateRange={setDateRange}
         user={user}
         isArchive={tab === 'done'}
+        onHistoryClick={openClientReport}
       />
     </div>
   );

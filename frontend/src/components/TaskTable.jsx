@@ -687,6 +687,9 @@ function TaskTableComponent({
                         if (onHistoryClick && role === 'materials') {
                           // Для вкладки аналізу матеріалів - відкриваємо звіт по обладнанню
                           onHistoryClick(t.equipment);
+                        } else if (onHistoryClick) {
+                          // Для всіх інших вкладок - відкриваємо звіт по замовнику
+                          onHistoryClick(t.client);
                         } else {
                           // Стандартна поведінка - відкриваємо модалку з історією по замовнику
                           setInfoTask(t);
