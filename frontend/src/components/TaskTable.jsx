@@ -60,6 +60,9 @@ function TaskTableComponent({
 }) {
   console.log('[LOG] TaskTable received columns:', columns);
   console.log('[LOG] TaskTable role:', role);
+  console.log('[LOG] TaskTable user:', user);
+  console.log('[LOG] TaskTable onDelete:', onDelete);
+  console.log('[LOG] TaskTable user?.role:', user?.role);
   
   // Всі хуки повинні бути на початку компонента
   const [showSettings, setShowSettings] = useState(false);
@@ -687,7 +690,17 @@ function TaskTableComponent({
                             <>
                               <button onClick={()=>onEdit && onEdit(t)} style={{marginRight:8}}>Редагувати</button>
                               {/* Кнопка видалення - тільки для адміністраторів та керівників сервісної служби */}
-                              {(role === 'admin' || (role === 'service' && user?.role === 'serviceManager')) && t.id && (
+                              {(() => {
+                                const canDelete = role === 'admin' || (role === 'service' && user?.role === 'serviceManager');
+                                console.log('[DEBUG] Перевірка доступу до видалення:', {
+                                  role,
+                                  userRole: user?.role,
+                                  canDelete,
+                                  taskId: t.id,
+                                  hasOnDelete: !!onDelete
+                                });
+                                return canDelete && t.id && onDelete;
+                              })() && (
                                 <button onClick={()=>{
                                   if (t.id && onDelete) {
                                     onDelete(t.id);
