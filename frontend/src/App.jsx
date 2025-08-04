@@ -1953,115 +1953,111 @@ function RegionalManagerArea({ tab: propTab, user }) {
     });
     const monthName = months[month - 1];
     const reportTitle = `Звіт по табелю часу та виконаних робіт за ${monthName} ${year}`;
-    // Формування таблиці нарахувань
-    const accrualTable = `
-      <h3>Таблиця нарахування по персоналу</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>ПІБ</th>
-            <th>Ставка</th>
-            <th>Фактично відпрацьовано годин</th>
-            <th>Понаднормові роботи, год</th>
-            <th>Ціна за год, понаднормові</th>
-            <th>Доплата за понаднормові</th>
-            <th>Відпрацьована ставка, грн</th>
-            <th>Премія за виконання сервісних робіт, грн</th>
-            <th>Загальна сума по оплаті за місяць</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filteredUsers.map(u => {
-            const total = data[u.id]?.total || 0;
-            const salary = Number(payData[u.id]?.salary) || 25000;
-            const bonus = Number(payData[u.id]?.bonus) || 0;
-            const overtime = Math.max(0, total - summary.workHours);
-            const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
-            const overtimePay = overtime * overtimeRate;
-            const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
-            const tasksForMonth = tasks.filter(t => {
-              if (
-                t.status !== 'Виконано' ||
-                !t.date ||
-                !t.bonusApprovalDate ||
-                !isApproved(t.approvedByWarehouse) ||
-                !isApproved(t.approvedByAccountant) ||
-                !isApproved(t.approvedByRegionalManager)
-              ) return false;
-              // автоконвертація bonusApprovalDate
-              let bonusApprovalDate = t.bonusApprovalDate;
-              if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
-                const [year, month] = bonusApprovalDate.split('-');
-                bonusApprovalDate = `${month}-${year}`;
-              }
-              const workDate = new Date(t.date);
-              const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
-              const approvalMonth = parseInt(approvalMonthStr);
-              const approvalYear = parseInt(approvalYearStr);
-              const workMonth = workDate.getMonth() + 1;
-              const workYear = workDate.getFullYear();
-              let bonusMonth, bonusYear;
-              if (workMonth === approvalMonth && workYear === approvalYear) {
-                bonusMonth = workMonth;
-                bonusYear = workYear;
-              } else {
-                if (approvalMonth === 1) {
-                  bonusMonth = 12;
-                  bonusYear = approvalYear - 1;
-                } else {
-                  bonusMonth = approvalMonth - 1;
-                  bonusYear = approvalYear;
+    
+    // Логіка групування по регіонам для звіту
+    const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
+    const showRegions = user?.region !== 'Україна' ? allRegions : allRegions;
+    
+    // Генеруємо звіт з групуванням по регіонам
+    const generateRegionReport = (region) => {
+      const regionUsers = filteredUsers.filter(u => (u.region || 'Без регіону') === region);
+      
+      // Формування таблиці нарахувань для регіону
+      const accrualTable = `
+        <h4>Таблиця нарахування по персоналу - Регіон: ${region}</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>ПІБ</th>
+              <th>Ставка</th>
+              <th>Фактично відпрацьовано годин</th>
+              <th>Понаднормові роботи, год</th>
+              <th>Ціна за год, понаднормові</th>
+              <th>Доплата за понаднормові</th>
+              <th>Відпрацьована ставка, грн</th>
+              <th>Премія за виконання сервісних робіт, грн</th>
+              <th>Загальна сума по оплаті за місяць</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${regionUsers.map(u => {
+              const total = data[u.id]?.total || 0;
+              const salary = Number(payData[u.id]?.salary) || 25000;
+              const bonus = Number(payData[u.id]?.bonus) || 0;
+              const overtime = Math.max(0, total - summary.workHours);
+              const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
+              const overtimePay = overtime * overtimeRate;
+              const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
+              const tasksForMonth = tasks.filter(t => {
+                if (
+                  t.status !== 'Виконано' ||
+                  !t.date ||
+                  !t.bonusApprovalDate ||
+                  !isApproved(t.approvedByWarehouse) ||
+                  !isApproved(t.approvedByAccountant) ||
+                  !isApproved(t.approvedByRegionalManager)
+                ) return false;
+                // автоконвертація bonusApprovalDate
+                let bonusApprovalDate = t.bonusApprovalDate;
+                if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+                  const [year, month] = bonusApprovalDate.split('-');
+                  bonusApprovalDate = `${month}-${year}`;
                 }
-              }
-              return bonusMonth === month && bonusYear === year;
-            });
-            let engineerBonus = 0;
-            tasksForMonth.forEach(t => {
-              const workPrice = parseFloat(t.workPrice) || 0;
-              const bonusVal = workPrice * 0.25;
-              if (t.engineer1 === u.name && t.engineer2) {
-                engineerBonus += bonusVal / 2;
-              } else if (t.engineer2 === u.name && t.engineer1) {
-                engineerBonus += bonusVal / 2;
-              } else if (t.engineer1 === u.name && !t.engineer2) {
-                engineerBonus += bonusVal;
-              }
-            });
-            const payout = basePay + overtimePay + bonus + engineerBonus;
-            return `
-              <tr>
-                <td>${u.name}</td>
-                <td>${salary}</td>
-                <td>${total}</td>
-                <td>${overtime}</td>
-                <td>${overtimeRate.toFixed(2)}</td>
-                <td>${overtimePay.toFixed(2)}</td>
-                <td>${basePay}</td>
-                <td>${engineerBonus.toFixed(2)}</td>
-                <td>${payout}</td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    `;
-    const html = `
-      <html>
-      <head>
-        <title>${reportTitle}</title>
-        <style>
-          body { font-family: Arial, sans-serif; background: #f8fafc; color: #222; padding: 24px; }
-          h2 { color: #1976d2; }
-          table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
-          th, td { border: 1px solid #bbb; padding: 6px 10px; text-align: center; }
-          th { background: #ffe600; color: #222; }
-          .details th { background: #e0e0e0; }
-          .weekend { background: #e0e0e0 !important; color: #222 !important; }
-        </style>
-      </head>
-      <body>
-        <h2>${reportTitle}</h2>
-        <h3>Табель часу</h3>
+                const workDate = new Date(t.date);
+                const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+                const approvalMonth = parseInt(approvalMonthStr);
+                const approvalYear = parseInt(approvalYearStr);
+                const workMonth = workDate.getMonth() + 1;
+                const workYear = workDate.getFullYear();
+                let bonusMonth, bonusYear;
+                if (workMonth === approvalMonth && workYear === approvalYear) {
+                  bonusMonth = workMonth;
+                  bonusYear = workYear;
+                } else {
+                  if (approvalMonth === 1) {
+                    bonusMonth = 12;
+                    bonusYear = approvalYear - 1;
+                  } else {
+                    bonusMonth = approvalMonth - 1;
+                    bonusYear = approvalYear;
+                  }
+                }
+                return bonusMonth === month && bonusYear === year;
+              });
+              let engineerBonus = 0;
+              tasksForMonth.forEach(t => {
+                const workPrice = parseFloat(t.workPrice) || 0;
+                const bonusVal = workPrice * 0.25;
+                if (t.engineer1 === u.name && t.engineer2) {
+                  engineerBonus += bonusVal / 2;
+                } else if (t.engineer2 === u.name && t.engineer1) {
+                  engineerBonus += bonusVal / 2;
+                } else if (t.engineer1 === u.name && !t.engineer2) {
+                  engineerBonus += bonusVal;
+                }
+              });
+              const payout = basePay + overtimePay + bonus + engineerBonus;
+              return `
+                <tr>
+                  <td>${u.name}</td>
+                  <td>${salary}</td>
+                  <td>${total}</td>
+                  <td>${overtime}</td>
+                  <td>${overtimeRate.toFixed(2)}</td>
+                  <td>${overtimePay.toFixed(2)}</td>
+                  <td>${basePay}</td>
+                  <td>${engineerBonus.toFixed(2)}</td>
+                  <td>${payout}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
+      
+      // Формування таблиці табеля для регіону
+      const timesheetTable = `
+        <h4>Табель часу - Регіон: ${region}</h4>
         <table>
           <thead>
             <tr>
@@ -2076,7 +2072,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
             </tr>
           </thead>
           <tbody>
-            ${filteredUsers.map(u => `
+            ${regionUsers.map(u => `
               <tr>
                 <td>${u.name}</td>
                 ${days.map(d => {
@@ -2090,8 +2086,48 @@ function RegionalManagerArea({ tab: propTab, user }) {
             `).join('')}
           </tbody>
         </table>
-        ${accrualTable}
-        <h3>Деталізація виконаних робіт</h3>
+      `;
+      
+      // Формування таблиці виконаних робіт для регіону
+      const regionTasks = tasks.filter(t => {
+        if (
+          t.status !== 'Виконано' ||
+          !t.date ||
+          !t.bonusApprovalDate ||
+          !isApproved(t.approvedByWarehouse) ||
+          !isApproved(t.approvedByAccountant) ||
+          !isApproved(t.approvedByRegionalManager)
+        ) return false;
+        // автоконвертація bonusApprovalDate
+        let bonusApprovalDate = t.bonusApprovalDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+          const [year, month] = bonusApprovalDate.split('-');
+          bonusApprovalDate = `${month}-${year}`;
+        }
+        const workDate = new Date(t.date);
+        const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+        const approvalMonth = parseInt(approvalMonthStr);
+        const approvalYear = parseInt(approvalYearStr);
+        const workMonth = workDate.getMonth() + 1;
+        const workYear = workDate.getFullYear();
+        let bonusMonth, bonusYear;
+        if (workMonth === approvalMonth && workYear === approvalYear) {
+          bonusMonth = workMonth;
+          bonusYear = workYear;
+        } else {
+          if (approvalMonth === 1) {
+            bonusMonth = 12;
+            bonusYear = approvalYear - 1;
+          } else {
+            bonusMonth = approvalMonth - 1;
+            bonusYear = approvalYear;
+          }
+        }
+        return bonusMonth === month && bonusYear === year;
+      });
+      
+      const workDetailsTable = `
+        <h4>Деталізація виконаних робіт - Регіон: ${region}</h4>
         <table class="details">
           <thead>
             <tr>
@@ -2108,42 +2144,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
             </tr>
           </thead>
           <tbody>
-            ${tasks.filter(t => {
-              if (
-                t.status !== 'Виконано' ||
-                !t.date ||
-                !t.bonusApprovalDate ||
-                !isApproved(t.approvedByWarehouse) ||
-                !isApproved(t.approvedByAccountant) ||
-                !isApproved(t.approvedByRegionalManager)
-              ) return false;
-              // автоконвертація bonusApprovalDate
-              let bonusApprovalDate = t.bonusApprovalDate;
-              if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
-                const [year, month] = bonusApprovalDate.split('-');
-                bonusApprovalDate = `${month}-${year}`;
-              }
-              const workDate = new Date(t.date);
-              const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
-              const approvalMonth = parseInt(approvalMonthStr);
-              const approvalYear = parseInt(approvalYearStr);
-              const workMonth = workDate.getMonth() + 1;
-              const workYear = workDate.getFullYear();
-              let bonusMonth, bonusYear;
-              if (workMonth === approvalMonth && workYear === approvalYear) {
-                bonusMonth = workMonth;
-                bonusYear = workYear;
-              } else {
-                if (approvalMonth === 1) {
-                  bonusMonth = 12;
-                  bonusYear = approvalYear - 1;
-                } else {
-                  bonusMonth = approvalMonth - 1;
-                  bonusYear = approvalYear;
-                }
-              }
-              return bonusMonth === month && bonusYear === year;
-            }).map(t => {
+            ${regionTasks.map(t => {
               const bonus = (parseFloat(t.workPrice) || 0) * 0.25;
               return `
                 <tr>
@@ -2162,6 +2163,51 @@ function RegionalManagerArea({ tab: propTab, user }) {
             }).join('')}
           </tbody>
         </table>
+      `;
+      
+      return {
+        timesheetTable,
+        accrualTable,
+        workDetailsTable
+      };
+    };
+    
+    // Генеруємо HTML для кожного регіону
+    const regionsContent = showRegions.map(region => {
+      const regionReport = generateRegionReport(region);
+      return `
+        <div style="margin-bottom: 40px; page-break-after: always;">
+          <h3 style="color: #1976d2; border-bottom: 2px solid #1976d2; padding-bottom: 10px;">Регіон: ${region}</h3>
+          ${regionReport.timesheetTable}
+          ${regionReport.accrualTable}
+          ${regionReport.workDetailsTable}
+        </div>
+      `;
+    }).join('');
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${reportTitle}</title>
+        <style>
+          body { font-family: Arial, sans-serif; background: #f8fafc; color: #222; padding: 24px; }
+          h2 { color: #1976d2; }
+          h3 { color: #1976d2; margin-top: 30px; }
+          h4 { color: #1976d2; margin-top: 20px; }
+          table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
+          th, td { border: 1px solid #bbb; padding: 6px 10px; text-align: center; }
+          th { background: #ffe600; color: #222; }
+          .details th { background: #e0e0e0; }
+          .weekend { background: #e0e0e0 !important; color: #222 !important; }
+          @media print {
+            .page-break { page-break-after: always; }
+          }
+        </style>
+      </head>
+      <body>
+        <h2>${reportTitle}</h2>
+        ${regionsContent}
       </body>
       </html>
     `;
