@@ -1363,6 +1363,19 @@ function RegionalManagerArea({ tab: propTab, user }) {
     return true;
   });
 
+  // Групуємо користувачів по регіонам для відображення
+  const usersByRegion = filteredUsers.reduce((acc, user) => {
+    const region = user.region || 'Не вказано';
+    if (!acc[region]) {
+      acc[region] = [];
+    }
+    acc[region].push(user);
+    return acc;
+  }, {});
+
+  // Отримуємо список регіонів для відображення
+  const regions = Object.keys(usersByRegion).sort();
+
   // --- Колонки для TaskTable ---
   const columns = allTaskFields.map(f => ({
     key: f.name,
@@ -2569,161 +2582,168 @@ function RegionalManagerArea({ tab: propTab, user }) {
           </button>
           {showTimeReport && timeReportContent}
           <div style={{overflowX: 'auto', width: '100%', maxWidth: '100vw', boxSizing: 'border-box'}}>
-            <div style={{background: 'rgba(34,51,74,0.85)', borderRadius: 8, padding: '24px 16px', marginBottom: 24, maxWidth: '100%', boxSizing: 'border-box'}}>
-              <div className="horizontal-scroll">
-                <table className="timesheet-table">
-                  <thead>
-                    <tr>
-                      <th style={{width:40, background:'#ffe600', color:'#222'}}>№</th>
-                      <th style={{width:160, minWidth:120, maxWidth:220, background:'#ffe600', color:'#222'}}>ПІБ</th>
-                      {days.map(d => {
-                        const date = new Date(year, month - 1, d);
-                        const dayOfWeek = date.getDay();
-                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                        return (
-                          <th key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : '#ffe600', color: isWeekend ? '#fff' : '#222'}}>{d}</th>
-                        );
-                      })}
-                      <th style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222'}}>Всього годин</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                      {filteredUsers.map((u, idx) => (
-                      <tr key={u.id}>
-                        <td style={{background:'#ffe600', color:'#222', fontWeight:600}}>{idx+1}</td>
-                        <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
+            {regions.map(region => (
+              <div key={region} style={{background: 'rgba(34,51,74,0.85)', borderRadius: 8, padding: '24px 16px', marginBottom: 24, maxWidth: '100%', boxSizing: 'border-box'}}>
+                <h3 style={{color: '#fff', marginBottom: 16, fontSize: '20px', fontWeight: '600'}}>Регіон: {region}</h3>
+                <div className="horizontal-scroll">
+                  <table className="timesheet-table">
+                    <thead>
+                      <tr>
+                        <th style={{width:40, background:'#ffe600', color:'#222'}}>№</th>
+                        <th style={{width:160, minWidth:120, maxWidth:220, background:'#ffe600', color:'#222'}}>ПІБ</th>
                         {days.map(d => {
                           const date = new Date(year, month - 1, d);
                           const dayOfWeek = date.getDay();
                           const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                           return (
-                            <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
-                              <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
-                            </td>
+                            <th key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : '#ffe600', color: isWeekend ? '#fff' : '#222'}}>{d}</th>
                           );
                         })}
-                        <td style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222', fontWeight:600}}>{data[u.id]?.total || 0}</td>
+                        <th style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222'}}>Всього годин</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div style={{display:'flex',gap:24,alignItems:'center',margin:'24px 0 8px 0'}}>
-                <div style={{background:'#ffe600',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
-                  Кількість робочих днів у місяці: {summary.workDays}
-                </div>
-                <div style={{background:'#b6ffb6',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
-                  Норма робочих годин у місяці: {summary.workHours}
-                </div>
-              </div>
-              <div style={{marginTop:32}}>
-                <table style={{width:'100%', color:'#222', background:'#fff', borderRadius:8, overflow:'hidden', fontSize:'1rem'}}>
-                  <thead>
-                    <tr style={{background:'#ffe600', color:'#222', fontWeight:700}}>
-                      <th>ПІБ</th>
-                      <th>Ставка</th>
-                      <th>Фактично відпрацьовано годин</th>
-                      <th>Понаднормові роботи, год</th>
-                      <th>Ціна за год, понаднормові</th>
-                      <th>Доплата за понаднормові</th>
-                      <th>Відпрацьована ставка, грн</th>
-                      <th>Премія за виконання сервісних робіт, грн</th>
-                      <th>Загальна сума по оплаті за місяць</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map(u => {
-                      const total = data[u.id]?.total || 0;
-                      const salary = Number(payData[u.id]?.salary) || 25000;
-                      const bonus = Number(payData[u.id]?.bonus) || 0;
-                      const overtime = Math.max(0, total - summary.workHours);
-                      const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
-                      const overtimePay = overtime * overtimeRate;
-                      const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
-                        // Використовуємо завдання з API замість localStorage
-                      const isApproved = v => v === true || v === 'Підтверджено';
-                      const engineerName = u.name;
-                      const monthStr = String(month).padStart(2, '0');
-                      const yearStr = String(year);
-                      let engineerBonus = 0;
-                      tasks.forEach(t => {
-                        if (
-                          t.status === 'Виконано' &&
-                          isApproved(t.approvedByWarehouse) &&
-                          isApproved(t.approvedByAccountant) &&
-                          isApproved(t.approvedByRegionalManager)
-                        ) {
-                          let bonusApprovalDate = t.bonusApprovalDate;
-                          // Автоконвертація з YYYY-MM-DD у MM-YYYY
-                          if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
-                            const [year, month] = bonusApprovalDate.split('-');
-                            bonusApprovalDate = `${month}-${year}`;
-                          }
-                          const tDate = t.date;
-                          if (tDate && bonusApprovalDate) {
-                            const workDate = new Date(tDate);
-                            
-                            // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
-                            const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
-                            const approvalMonth = parseInt(approvalMonthStr);
-                            const approvalYear = parseInt(approvalYearStr);
-                            
-                            const workMonth = workDate.getMonth() + 1;
-                            const workYear = workDate.getFullYear();
-                            
-                            // Визначаємо місяць для нарахування премії
-                            let bonusMonth, bonusYear;
-                            
-                            if (workMonth === approvalMonth && workYear === approvalYear) {
-                              // Якщо місяць/рік виконання співпадає з місяцем/роком затвердження
-                              bonusMonth = workMonth;
-                              bonusYear = workYear;
-                            } else {
-                              // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
-                              if (approvalMonth === 1) {
-                                bonusMonth = 12;
-                                bonusYear = approvalYear - 1;
-                              } else {
-                                bonusMonth = approvalMonth - 1;
-                                bonusYear = approvalYear;
-                              }
-                            }
-                            
-                            // Перевіряємо чи це той місяць, який ми шукаємо
-                            if (bonusMonth === month && bonusYear === year) {
-                              const workPrice = parseFloat(t.workPrice) || 0;
-                              const bonus = workPrice * 0.25;
-                              if (t.engineer1 === engineerName && t.engineer2) {
-                                engineerBonus += bonus / 2;
-                              } else if (t.engineer2 === engineerName && t.engineer1) {
-                                engineerBonus += bonus / 2;
-                              } else if (t.engineer1 === engineerName && !t.engineer2) {
-                                engineerBonus += bonus;
-                              }
-                            }
-                          }
-                        }
-                      });
-                      const payout = basePay + overtimePay + bonus + engineerBonus;
-                      return (
+                    </thead>
+                    <tbody>
+                        {usersByRegion[region].map((u, idx) => (
                         <tr key={u.id}>
-                          <td>{u.name}</td>
-                          <td><input type="number" value={payData[u.id]?.salary || 25000} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
-                          <td>{total}</td>
-                          <td>{overtime}</td>
-                          <td>{overtimeRate.toFixed(2)}</td>
-                          <td>{overtimePay.toFixed(2)}</td>
-                          <td>{basePay}</td>
-                          <td style={{fontWeight:600, background:'#ffe066'}}>{engineerBonus.toFixed(2)}</td>
-                          <td style={{fontWeight:700, background:'#b6ffb6'}}>{payout}</td>
+                          <td style={{background:'#ffe600', color:'#222', fontWeight:600}}>{idx+1}</td>
+                          <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
+                          {days.map(d => {
+                            const date = new Date(year, month - 1, d);
+                            const dayOfWeek = date.getDay();
+                            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                            return (
+                              <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
+                                <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
+                              </td>
+                            );
+                          })}
+                          <td style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222', fontWeight:600}}>{data[u.id]?.total || 0}</td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+            <div style={{display:'flex',gap:24,alignItems:'center',margin:'24px 0 8px 0'}}>
+              <div style={{background:'#ffe600',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
+                Кількість робочих днів у місяці: {summary.workDays}
+              </div>
+              <div style={{background:'#b6ffb6',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
+                Норма робочих годин у місяці: {summary.workHours}
               </div>
             </div>
-          </div>
+            <div style={{marginTop:32}}>
+              {regions.map(region => (
+                <div key={region} style={{marginBottom: 32}}>
+                  <h3 style={{color: '#22334a', marginBottom: 16, fontSize: '20px', fontWeight: '600'}}>Таблиця нарахування - Регіон: {region}</h3>
+                  <table style={{width:'100%', color:'#222', background:'#fff', borderRadius:8, overflow:'hidden', fontSize:'1rem'}}>
+                    <thead>
+                      <tr style={{background:'#ffe600', color:'#222', fontWeight:700}}>
+                        <th>ПІБ</th>
+                        <th>Ставка</th>
+                        <th>Фактично відпрацьовано годин</th>
+                        <th>Понаднормові роботи, год</th>
+                        <th>Ціна за год, понаднормові</th>
+                        <th>Доплата за понаднормові</th>
+                        <th>Відпрацьована ставка, грн</th>
+                        <th>Премія за виконання сервісних робіт, грн</th>
+                        <th>Загальна сума по оплаті за місяць</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usersByRegion[region].map(u => {
+                        const total = data[u.id]?.total || 0;
+                        const salary = Number(payData[u.id]?.salary) || 25000;
+                        const bonus = Number(payData[u.id]?.bonus) || 0;
+                        const overtime = Math.max(0, total - summary.workHours);
+                        const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
+                        const overtimePay = overtime * overtimeRate;
+                        const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
+                          // Використовуємо завдання з API замість localStorage
+                        const isApproved = v => v === true || v === 'Підтверджено';
+                        const engineerName = u.name;
+                        const monthStr = String(month).padStart(2, '0');
+                        const yearStr = String(year);
+                        let engineerBonus = 0;
+                        tasks.forEach(t => {
+                          if (
+                            t.status === 'Виконано' &&
+                            isApproved(t.approvedByWarehouse) &&
+                            isApproved(t.approvedByAccountant) &&
+                            isApproved(t.approvedByRegionalManager)
+                          ) {
+                            let bonusApprovalDate = t.bonusApprovalDate;
+                            // Автоконвертація з YYYY-MM-DD у MM-YYYY
+                            if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+                              const [year, month] = bonusApprovalDate.split('-');
+                              bonusApprovalDate = `${month}-${year}`;
+                            }
+                            const tDate = t.date;
+                            if (tDate && bonusApprovalDate) {
+                              const workDate = new Date(tDate);
+                              
+                              // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
+                              const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+                              const approvalMonth = parseInt(approvalMonthStr);
+                              const approvalYear = parseInt(approvalYearStr);
+                              
+                              const workMonth = workDate.getMonth() + 1;
+                              const workYear = workDate.getFullYear();
+                              
+                              // Визначаємо місяць для нарахування премії
+                              let bonusMonth, bonusYear;
+                              
+                              if (workMonth === approvalMonth && workYear === approvalYear) {
+                                // Якщо місяць/рік виконання співпадає з місяцем/роком затвердження
+                                bonusMonth = workMonth;
+                                bonusYear = workYear;
+                              } else {
+                                // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
+                                if (approvalMonth === 1) {
+                                  bonusMonth = 12;
+                                  bonusYear = approvalYear - 1;
+                                } else {
+                                  bonusMonth = approvalMonth - 1;
+                                  bonusYear = approvalYear;
+                                }
+                              }
+                              
+                              // Перевіряємо чи це той місяць, який ми шукаємо
+                              if (bonusMonth === month && bonusYear === year) {
+                                const workPrice = parseFloat(t.workPrice) || 0;
+                                const bonus = workPrice * 0.25;
+                                if (t.engineer1 === engineerName && t.engineer2) {
+                                  engineerBonus += bonus / 2;
+                                } else if (t.engineer2 === engineerName && t.engineer1) {
+                                  engineerBonus += bonus / 2;
+                                } else if (t.engineer1 === engineerName && !t.engineer2) {
+                                  engineerBonus += bonus;
+                                }
+                              }
+                            }
+                          }
+                        });
+                        const payout = basePay + overtimePay + bonus + engineerBonus;
+                        return (
+                          <tr key={u.id}>
+                            <td>{u.name}</td>
+                            <td><input type="number" value={payData[u.id]?.salary || 25000} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
+                            <td>{total}</td>
+                            <td>{overtime}</td>
+                            <td>{overtimeRate.toFixed(2)}</td>
+                            <td>{overtimePay.toFixed(2)}</td>
+                            <td>{basePay}</td>
+                            <td style={{fontWeight:600, background:'#ffe066'}}>{engineerBonus.toFixed(2)}</td>
+                            <td style={{fontWeight:700, background:'#b6ffb6'}}>{payout}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
             {reportDialogOpen && (
               <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto'}}>
                 <div style={{background:'#fff',borderRadius:12,padding:32,minWidth:400,maxWidth:'90vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 32px #0008',position:'relative',marginTop:48}}>
