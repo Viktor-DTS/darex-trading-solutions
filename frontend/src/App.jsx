@@ -2483,6 +2483,10 @@ function RegionalManagerArea({ tab: propTab, user }) {
     setExportFilters(prev => ({ ...prev, [field]: value }));
   };
 
+  // Логіка групування по регіонам для вкладки "Звіт по персоналу"
+  const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
+  const showRegions = user?.region !== 'Україна' ? allRegions : [user?.region || allRegions[0]];
+
   return (
     <>
       <div style={{display:'flex',gap:8,marginBottom:8}}>
@@ -2568,252 +2572,168 @@ function RegionalManagerArea({ tab: propTab, user }) {
             Сформувати звіт
           </button>
           {showTimeReport && timeReportContent}
-          <div style={{overflowX: 'auto', width: '100%', maxWidth: '100vw', boxSizing: 'border-box'}}>
-            <div style={{background: 'rgba(34,51,74,0.85)', borderRadius: 8, padding: '24px 16px', marginBottom: 24, maxWidth: '100%', boxSizing: 'border-box'}}>
-              <div className="horizontal-scroll">
-                <table className="timesheet-table">
-                  <thead>
-                    <tr>
-                      <th style={{width:40, background:'#ffe600', color:'#222'}}>№</th>
-                      <th style={{width:160, minWidth:120, maxWidth:220, background:'#ffe600', color:'#222'}}>ПІБ</th>
-                      {days.map(d => {
-                        const date = new Date(year, month - 1, d);
-                        const dayOfWeek = date.getDay();
-                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                        return (
-                          <th key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : '#ffe600', color: isWeekend ? '#fff' : '#222'}}>{d}</th>
-                        );
-                      })}
-                      <th style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222'}}>Всього годин</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                      {filteredUsers.map((u, idx) => (
-                      <tr key={u.id}>
-                        <td style={{background:'#ffe600', color:'#222', fontWeight:600}}>{idx+1}</td>
-                        <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
-                        {days.map(d => {
-                          const date = new Date(year, month - 1, d);
-                          const dayOfWeek = date.getDay();
-                          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+          {showRegions.map(region => (
+            <div key={region} style={{marginBottom:40}}>
+              <h4 style={{color:'#ffe600',margin:'16px 0 8px 0',fontWeight:700,fontSize:20}}>Регіон: {region}</h4>
+              <div style={{overflowX: 'auto', width: '100%', maxWidth: '100vw', boxSizing: 'border-box'}}>
+                <div style={{background: 'rgba(34,51,74,0.85)', borderRadius: 8, padding: '24px 16px', marginBottom: 24, maxWidth: '100%', boxSizing: 'border-box'}}>
+                  <div className="horizontal-scroll">
+                    <table className="timesheet-table">
+                      <thead>
+                        <tr>
+                          <th style={{width:40, background:'#ffe600', color:'#222'}}>№</th>
+                          <th style={{width:160, minWidth:120, maxWidth:220, background:'#ffe600', color:'#222'}}>ПІБ</th>
+                          {days.map(d => {
+                            const date = new Date(year, month - 1, d);
+                            const dayOfWeek = date.getDay();
+                            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                            return (
+                              <th key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : '#ffe600', color: isWeekend ? '#fff' : '#222'}}>{d}</th>
+                            );
+                          })}
+                          <th style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222'}}>Всього годин</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                          {filteredUsers.filter(u => (u.region || 'Без регіону') === region).map((u, idx) => (
+                          <tr key={u.id}>
+                            <td style={{background:'#ffe600', color:'#222', fontWeight:600}}>{idx+1}</td>
+                            <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
+                            {days.map(d => {
+                              const date = new Date(year, month - 1, d);
+                              const dayOfWeek = date.getDay();
+                              const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                              return (
+                                <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
+                                  <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
+                                </td>
+                              );
+                            })}
+                            <td style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222', fontWeight:600}}>{data[u.id]?.total || 0}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{display:'flex',gap:24,alignItems:'center',margin:'24px 0 8px 0'}}>
+                    <div style={{background:'#ffe600',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
+                      Кількість робочих днів у місяці: {summary.workDays}
+                    </div>
+                    <div style={{background:'#b6ffb6',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
+                      Норма робочих годин у місяці: {summary.workHours}
+                    </div>
+                  </div>
+                  <div style={{marginTop:32}}>
+                    <table style={{width:'100%', color:'#222', background:'#fff', borderRadius:8, overflow:'hidden', fontSize:'1rem'}}>
+                      <thead>
+                        <tr style={{background:'#ffe600', color:'#222', fontWeight:700}}>
+                          <th>ПІБ</th>
+                          <th>Ставка</th>
+                          <th>Фактично відпрацьовано годин</th>
+                          <th>Понаднормові роботи, год</th>
+                          <th>Ціна за год, понаднормові</th>
+                          <th>Доплата за понаднормові</th>
+                          <th>Відпрацьована ставка, грн</th>
+                          <th>Премія за виконання сервісних робіт, грн</th>
+                          <th>Загальна сума по оплаті за місяць</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredUsers.filter(u => (u.region || 'Без регіону') === region).map(u => {
+                          const total = data[u.id]?.total || 0;
+                          const salary = Number(payData[u.id]?.salary) || 25000;
+                          const bonus = Number(payData[u.id]?.bonus) || 0;
+                          const overtime = Math.max(0, total - summary.workHours);
+                          const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
+                          const overtimePay = overtime * overtimeRate;
+                          const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
+                            // Використовуємо завдання з API замість localStorage
+                          const isApproved = v => v === true || v === 'Підтверджено';
+                          const engineerName = u.name;
+                          const monthStr = String(month).padStart(2, '0');
+                          const yearStr = String(year);
+                          let engineerBonus = 0;
+                          tasks.forEach(t => {
+                            if (
+                              t.status === 'Виконано' &&
+                              isApproved(t.approvedByWarehouse) &&
+                              isApproved(t.approvedByAccountant) &&
+                              isApproved(t.approvedByRegionalManager)
+                            ) {
+                              let bonusApprovalDate = t.bonusApprovalDate;
+                              // Автоконвертація з YYYY-MM-DD у MM-YYYY
+                              if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+                                const [year, month] = bonusApprovalDate.split('-');
+                                bonusApprovalDate = `${month}-${year}`;
+                              }
+                              const tDate = t.date;
+                              if (tDate && bonusApprovalDate) {
+                                const workDate = new Date(tDate);
+                                
+                                // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
+                                const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+                                const approvalMonth = parseInt(approvalMonthStr);
+                                const approvalYear = parseInt(approvalYearStr);
+                                
+                                const workMonth = workDate.getMonth() + 1;
+                                const workYear = workDate.getFullYear();
+                                
+                                // Визначаємо місяць для нарахування премії
+                                let bonusMonth, bonusYear;
+                                
+                                if (workMonth === approvalMonth && workYear === approvalYear) {
+                                  // Якщо місяць/рік виконання співпадає з місяцем/роком затвердження
+                                  bonusMonth = workMonth;
+                                  bonusYear = workYear;
+                                } else {
+                                  // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
+                                  if (approvalMonth === 1) {
+                                    bonusMonth = 12;
+                                    bonusYear = approvalYear - 1;
+                                  } else {
+                                    bonusMonth = approvalMonth - 1;
+                                    bonusYear = approvalYear;
+                                  }
+                                }
+                                
+                                // Перевіряємо чи це той місяць, який ми шукаємо
+                                if (bonusMonth === month && bonusYear === year) {
+                                  const workPrice = parseFloat(t.workPrice) || 0;
+                                  const bonus = workPrice * 0.25;
+                                  if (t.engineer1 === engineerName && t.engineer2) {
+                                    engineerBonus += bonus / 2;
+                                  } else if (t.engineer2 === engineerName && t.engineer1) {
+                                    engineerBonus += bonus / 2;
+                                  } else if (t.engineer1 === engineerName && !t.engineer2) {
+                                    engineerBonus += bonus;
+                                  }
+                                }
+                              }
+                            }
+                          });
+                          const payout = basePay + overtimePay + bonus + engineerBonus;
                           return (
-                            <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
-                              <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
-                            </td>
+                            <tr key={u.id}>
+                              <td>{u.name}</td>
+                              <td><input type="number" value={payData[u.id]?.salary || 25000} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
+                              <td>{total}</td>
+                              <td>{overtime}</td>
+                              <td>{overtimeRate.toFixed(2)}</td>
+                              <td>{overtimePay.toFixed(2)}</td>
+                              <td>{basePay}</td>
+                              <td style={{fontWeight:600, background:'#ffe066'}}>{engineerBonus.toFixed(2)}</td>
+                              <td style={{fontWeight:700, background:'#b6ffb6'}}>{payout}</td>
+                            </tr>
                           );
                         })}
-                        <td style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222', fontWeight:600}}>{data[u.id]?.total || 0}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div style={{display:'flex',gap:24,alignItems:'center',margin:'24px 0 8px 0'}}>
-                <div style={{background:'#ffe600',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
-                  Кількість робочих днів у місяці: {summary.workDays}
-                </div>
-                <div style={{background:'#b6ffb6',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
-                  Норма робочих годин у місяці: {summary.workHours}
-                </div>
-              </div>
-              <div style={{marginTop:32}}>
-                <table style={{width:'100%', color:'#222', background:'#fff', borderRadius:8, overflow:'hidden', fontSize:'1rem'}}>
-                  <thead>
-                    <tr style={{background:'#ffe600', color:'#222', fontWeight:700}}>
-                      <th>ПІБ</th>
-                      <th>Ставка</th>
-                      <th>Фактично відпрацьовано годин</th>
-                      <th>Понаднормові роботи, год</th>
-                      <th>Ціна за год, понаднормові</th>
-                      <th>Доплата за понаднормові</th>
-                      <th>Відпрацьована ставка, грн</th>
-                      <th>Премія за виконання сервісних робіт, грн</th>
-                      <th>Загальна сума по оплаті за місяць</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map(u => {
-                      const total = data[u.id]?.total || 0;
-                      const salary = Number(payData[u.id]?.salary) || 25000;
-                      const bonus = Number(payData[u.id]?.bonus) || 0;
-                      const overtime = Math.max(0, total - summary.workHours);
-                      const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
-                      const overtimePay = overtime * overtimeRate;
-                      const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
-                        // Використовуємо завдання з API замість localStorage
-                      const isApproved = v => v === true || v === 'Підтверджено';
-                      const engineerName = u.name;
-                      const monthStr = String(month).padStart(2, '0');
-                      const yearStr = String(year);
-                      let engineerBonus = 0;
-                      tasks.forEach(t => {
-                        if (
-                          t.status === 'Виконано' &&
-                          isApproved(t.approvedByWarehouse) &&
-                          isApproved(t.approvedByAccountant) &&
-                          isApproved(t.approvedByRegionalManager)
-                        ) {
-                          let bonusApprovalDate = t.bonusApprovalDate;
-                          // Автоконвертація з YYYY-MM-DD у MM-YYYY
-                          if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
-                            const [year, month] = bonusApprovalDate.split('-');
-                            bonusApprovalDate = `${month}-${year}`;
-                          }
-                          const tDate = t.date;
-                          if (tDate && bonusApprovalDate) {
-                            const workDate = new Date(tDate);
-                            
-                            // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
-                            const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
-                            const approvalMonth = parseInt(approvalMonthStr);
-                            const approvalYear = parseInt(approvalYearStr);
-                            
-                            const workMonth = workDate.getMonth() + 1;
-                            const workYear = workDate.getFullYear();
-                            
-                            // Визначаємо місяць для нарахування премії
-                            let bonusMonth, bonusYear;
-                            
-                            if (workMonth === approvalMonth && workYear === approvalYear) {
-                              // Якщо місяць/рік виконання співпадає з місяцем/роком затвердження
-                              bonusMonth = workMonth;
-                              bonusYear = workYear;
-                            } else {
-                              // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
-                              if (approvalMonth === 1) {
-                                bonusMonth = 12;
-                                bonusYear = approvalYear - 1;
-                              } else {
-                                bonusMonth = approvalMonth - 1;
-                                bonusYear = approvalYear;
-                              }
-                            }
-                            
-                            // Перевіряємо чи це той місяць, який ми шукаємо
-                            if (bonusMonth === month && bonusYear === year) {
-                              const workPrice = parseFloat(t.workPrice) || 0;
-                              const bonus = workPrice * 0.25;
-                              if (t.engineer1 === engineerName && t.engineer2) {
-                                engineerBonus += bonus / 2;
-                              } else if (t.engineer2 === engineerName && t.engineer1) {
-                                engineerBonus += bonus / 2;
-                              } else if (t.engineer1 === engineerName && !t.engineer2) {
-                                engineerBonus += bonus;
-                              }
-                            }
-                          }
-                        }
-                      });
-                      const payout = basePay + overtimePay + bonus + engineerBonus;
-                      return (
-                        <tr key={u.id}>
-                          <td>{u.name}</td>
-                          <td><input type="number" value={payData[u.id]?.salary || 25000} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
-                          <td>{total}</td>
-                          <td>{overtime}</td>
-                          <td>{overtimeRate.toFixed(2)}</td>
-                          <td>{overtimePay.toFixed(2)}</td>
-                          <td>{basePay}</td>
-                          <td style={{fontWeight:600, background:'#ffe066'}}>{engineerBonus.toFixed(2)}</td>
-                          <td style={{fontWeight:700, background:'#b6ffb6'}}>{payout}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-            {reportDialogOpen && (
-              <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto'}}>
-                <div style={{background:'#fff',borderRadius:12,padding:32,minWidth:400,maxWidth:'90vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 32px #0008',position:'relative',marginTop:48}}>
-                  <button onClick={() => { setReportDialogOpen(false); setReportResult(null); setReportResultOpen(false); }} style={{position:'absolute',top:40,right:16,fontSize:24,background:'none',border:'none',cursor:'pointer',color:'#1976d2'}}>×</button>
-                  <div style={{marginBottom:32}}>
-                    <h2 style={{marginBottom:24}}>Звіт по нарахуванню премії</h2>
-                    <div style={{marginBottom:24, display:'flex', gap:32, alignItems:'center'}}>
-                      <label style={{fontWeight:600, fontSize:16, color:'#222'}}>
-                        <input type="radio" name="reportType" value="month" checked={reportType==='month'}
-                          onChange={() => { setReportType('month'); setReportResult(null); setReportResultByPeriod(null); setReportResultOpen(false); }}
-                          style={{marginRight:8}} /> Звіт за місяць
-              </label>
-                      <label style={{fontWeight:600, fontSize:16, color:'#222'}}>
-                        <input type="radio" name="reportType" value="period" checked={reportType==='period'}
-                          onChange={() => { setReportType('period'); setReportResult(null); setReportResultByPeriod(null); setReportResultOpen(false); }}
-                          style={{marginRight:8}} /> Звіт за період
-              </label>
-            </div>
-                    {reportType === 'month' && (
-                      <>
-                        <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24}}>
-                          <label style={{color:'#222'}}>Місяць:
-                            <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))} style={{marginLeft:8}}>
-                  {months.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-                </select>
-                          </label>
-                          <label style={{color:'#222'}}>Рік:
-                            <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))} style={{marginLeft:8}}>
-                  {years.map(y => <option key={y} value={y}>{y}</option>)}
-                            </select>
-                          </label>
-                          <label style={{color:'#222', marginLeft: 16, display:'flex', alignItems:'center', fontSize:16}}>
-                            <input type="checkbox" checked={reportWithDetails} onChange={e => setReportWithDetails(e.target.checked)} style={{marginRight:8}} /> з деталіровкою
-                          </label>
-              </div>
-                        <div style={{display:'flex',gap:16,marginBottom:24}}>
-                          <button style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
-                            onClick={() => { handleFormReport('month'); setReportMode('month'); setReportModalOpen(true); }}
-                          >
-                            Сформувати звіт
-                          </button>
-                          <div style={{position:'relative',display:'inline-block'}}>
-                            <button style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
-                              onClick={()=>setExportMenuOpen(e=>!e)}
-                            >
-                              Експорт
-                            </button>
-                            {exportMenuOpen && (
-                              <div style={{position:'absolute',top:'110%',left:0,background:'#fff',border:'1px solid #bbb',borderRadius:8,boxShadow:'0 2px 12px #0002',zIndex:10,minWidth:180}}>
-                                <button style={{width:'100%',padding:'10px 0',border:'none',background:'none',color:'#222',fontWeight:600,cursor:'pointer'}} onClick={handleExportCSV}>Експорт у Excel (CSV)</button>
-                                <button style={{width:'100%',padding:'10px 0',border:'none',background:'none',color:'#222',fontWeight:600,cursor:'pointer'}} onClick={handleExportXLSX}>Експорт у Excel (XLSX)</button>
-              </div>
-            )}
-                          </div>
-                        </div>
-                        <div id='regional-report-print-block' style={{marginTop:16}}>
-                          {reportMode === 'month' && reportResultOpen && reportResult}
-                        </div>
-                      </>
-                    )}
-                    {reportType === 'period' && (
-                      <>
-                        <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24}}>
-                          <label style={{color:'#222'}}>Початок періоду:
-                            <input type="date" value={reportPeriodStart} onChange={e => setReportPeriodStart(e.target.value)} style={{marginLeft:8}} />
-            </label>
-                          <label style={{color:'#222'}}>Кінець періоду:
-                            <input type="date" value={reportPeriodEnd} onChange={e => setReportPeriodEnd(e.target.value)} style={{marginLeft:8}} />
-                          </label>
-                          <label style={{color:'#222', marginLeft: 16, display:'flex', alignItems:'center', fontSize:16}}>
-                            <input type="checkbox" checked={reportWithDetails} onChange={e => setReportWithDetails(e.target.checked)} style={{marginRight:8}} /> з деталіровкою
-                          </label>
-            </div>
-                        <div style={{display:'flex',gap:16,marginBottom:24}}>
-                          <button style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
-                            onClick={() => { handleFormReport('period'); setReportMode('period'); setReportModalOpen(true); }}
-                          >
-                            Сформувати звіт
-                          </button>
-          </div>
-                        <div id='regional-report-print-block-period' style={{marginTop:16}}>
-                          {reportMode === 'period' && reportResultOpen && reportResultByPeriod}
-        </div>
-                      </>
-                    )}
+                      </tbody>
+                    </table>
                   </div>
-          </div>
-        </div>
-            )}
-          </>
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
       )}
     </div>
       {/* Модальне вікно для звіту */}
