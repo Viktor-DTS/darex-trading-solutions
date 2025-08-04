@@ -377,6 +377,29 @@ function AdminSystemParamsArea() {
   const [editMode, setEditMode] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [showAccessModal, setShowAccessModal] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState(new Set());
+
+  // Функція для визначення статусу користувача
+  const isUserOnline = (userLogin) => {
+    return onlineUsers.has(userLogin);
+  };
+
+  // Симуляція відстеження онлайн користувачів (в реальному проекті це було б через WebSocket або polling)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Симулюємо, що деякі користувачі онлайн (для демонстрації)
+      const mockOnlineUsers = new Set();
+      users.forEach(user => {
+        // Випадково встановлюємо статус онлайн (для демонстрації)
+        if (Math.random() > 0.5) {
+          mockOnlineUsers.add(user.login);
+        }
+      });
+      setOnlineUsers(mockOnlineUsers);
+    }, 5000); // Оновлюємо кожні 5 секунд
+
+    return () => clearInterval(interval);
+  }, [users]);
 
   // Завантаження користувачів з API
   useEffect(() => {
@@ -687,6 +710,7 @@ function AdminSystemParamsArea() {
             <th>Роль</th>
             <th>ПІБ</th>
             <th>Регіон</th>
+            <th>Статус</th>
             <th></th>
           </tr>
         </thead>
@@ -697,6 +721,19 @@ function AdminSystemParamsArea() {
               <td>{rolesList.find(r => r.value === u.role)?.label || u.role}</td>
               <td>{u.name}</td>
               <td>{u.region}</td>
+              <td>
+                <div style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: '50%',
+                  backgroundColor: isUserOnline(u.login) ? '#4CAF50' : '#f44336',
+                  display: 'inline-block',
+                  marginRight: 8
+                }}></div>
+                <span style={{fontSize: '12px'}}>
+                  {isUserOnline(u.login) ? 'Онлайн' : 'Офлайн'}
+                </span>
+              </td>
               <td>
                 <button onClick={() => handleEdit(u)} style={{background:'#4CAF50', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer', marginRight:8}}>Редагувати</button>
                 <button onClick={() => handleDelete(u.id)} style={{background:'#f66', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer'}}>Видалити</button>
