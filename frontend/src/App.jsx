@@ -1363,6 +1363,19 @@ function RegionalManagerArea({ tab: propTab, user }) {
     return true;
   });
 
+  // Групуємо користувачів по регіонам для відображення
+  const usersByRegion = filteredUsers.reduce((acc, user) => {
+    const region = user.region || 'Не вказано';
+    if (!acc[region]) {
+      acc[region] = [];
+    }
+    acc[region].push(user);
+    return acc;
+  }, {});
+
+  // Отримуємо список регіонів для відображення
+  const regions = Object.keys(usersByRegion).sort();
+
   // --- Колонки для TaskTable ---
   const columns = allTaskFields.map(f => ({
     key: f.name,
@@ -2669,24 +2682,18 @@ function RegionalManagerArea({ tab: propTab, user }) {
                               const tDate = t.date;
                               if (tDate && bonusApprovalDate) {
                                 const workDate = new Date(tDate);
-                                
                                 // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
                                 const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
                                 const approvalMonth = parseInt(approvalMonthStr);
                                 const approvalYear = parseInt(approvalYearStr);
-                                
                                 const workMonth = workDate.getMonth() + 1;
                                 const workYear = workDate.getFullYear();
-                                
                                 // Визначаємо місяць для нарахування премії
                                 let bonusMonth, bonusYear;
-                                
                                 if (workMonth === approvalMonth && workYear === approvalYear) {
-                                  // Якщо місяць/рік виконання співпадає з місяцем/роком затвердження
                                   bonusMonth = workMonth;
                                   bonusYear = workYear;
                                 } else {
-                                  // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
                                   if (approvalMonth === 1) {
                                     bonusMonth = 12;
                                     bonusYear = approvalYear - 1;
@@ -2695,8 +2702,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
                                     bonusYear = approvalYear;
                                   }
                                 }
-                                
-                                // Перевіряємо чи це той місяць, який ми шукаємо
                                 if (bonusMonth === month && bonusYear === year) {
                                   const workPrice = parseFloat(t.workPrice) || 0;
                                   const bonus = workPrice * 0.25;
