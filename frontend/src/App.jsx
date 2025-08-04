@@ -2498,7 +2498,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
 
   // Логіка групування по регіонам для вкладки "Звіт по персоналу"
   const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
-  const showRegions = user?.region !== 'Україна' ? allRegions : [user?.region || allRegions[0]];
+  const showRegions = user?.region !== 'Україна' ? allRegions : allRegions;
 
   return (
     <>
