@@ -366,7 +366,7 @@ function AccessRulesModal({ open, onClose }) {
   );
 }
 
-function AdminSystemParamsArea() {
+function AdminSystemParamsArea({ user }) {
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [form, setForm] = useState({ login: '', password: '', role: 'service', name: '', region: '' });
