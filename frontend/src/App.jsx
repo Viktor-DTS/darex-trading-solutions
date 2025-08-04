@@ -384,19 +384,63 @@ function AdminSystemParamsArea() {
     return onlineUsers.has(userLogin);
   };
 
-  // Симуляція відстеження онлайн користувачів (в реальному проекті це було б через WebSocket або polling)
+  // Функція для оновлення статусу активності користувача
+  const updateUserActivity = (userLogin) => {
+    const now = Date.now();
+    localStorage.setItem(`user_activity_${userLogin}`, now.toString());
+  };
+
+  // Функція для перевірки чи користувач активний (онлайн)
+  const checkUserActivity = (userLogin) => {
+    const lastActivity = localStorage.getItem(`user_activity_${userLogin}`);
+    if (!lastActivity) return false;
+    
+    const lastActivityTime = parseInt(lastActivity);
+    const now = Date.now();
+    const timeDiff = now - lastActivityTime;
+    
+    // Користувач вважається онлайн, якщо активний протягом останніх 2 хвилин
+    return timeDiff < 2 * 60 * 1000;
+  };
+
+  // Функція для отримання списку активних користувачів
+  const getActiveUsers = () => {
+    const activeUsers = new Set();
+    users.forEach(user => {
+      if (checkUserActivity(user.login)) {
+        activeUsers.add(user.login);
+      }
+    });
+    return activeUsers;
+  };
+
+  // Відстеження активності поточного користувача
   useEffect(() => {
-    const interval = setInterval(() => {
-      // Симулюємо, що деякі користувачі онлайн (для демонстрації)
-      const mockOnlineUsers = new Set();
-      users.forEach(user => {
-        // Випадково встановлюємо статус онлайн (для демонстрації)
-        if (Math.random() > 0.5) {
-          mockOnlineUsers.add(user.login);
-        }
-      });
-      setOnlineUsers(mockOnlineUsers);
-    }, 5000); // Оновлюємо кожні 5 секунд
+    if (!user?.login) return;
+
+    // Оновлюємо активність поточного користувача кожні 30 секунд
+    const activityInterval = setInterval(() => {
+      updateUserActivity(user.login);
+    }, 30000);
+
+    // Початкове оновлення активності
+    updateUserActivity(user.login);
+
+    return () => clearInterval(activityInterval);
+  }, [user?.login]);
+
+  // Оновлення списку онлайн користувачів
+  useEffect(() => {
+    const updateOnlineUsers = () => {
+      const activeUsers = getActiveUsers();
+      setOnlineUsers(activeUsers);
+    };
+
+    // Оновлюємо список кожні 30 секунд
+    const interval = setInterval(updateOnlineUsers, 30000);
+    
+    // Початкове оновлення
+    updateOnlineUsers();
 
     return () => clearInterval(interval);
   }, [users]);
@@ -2987,6 +3031,39 @@ function App() {
   // Додаю accessRules у стан
   const [accessRules, setAccessRules] = useState({});
   const [loadingAccessRules, setLoadingAccessRules] = useState(true);
+
+  // Функція для оновлення активності користувача
+  const updateUserActivity = (userLogin) => {
+    if (!userLogin) return;
+    const now = Date.now();
+    localStorage.setItem(`user_activity_${userLogin}`, now.toString());
+  };
+
+  // Відстеження активності користувача при взаємодії з сторінкою
+  useEffect(() => {
+    if (!user?.login) return;
+
+    const handleUserActivity = () => {
+      updateUserActivity(user.login);
+    };
+
+    // Оновлюємо активність при різних подіях
+    window.addEventListener('mousemove', handleUserActivity);
+    window.addEventListener('keydown', handleUserActivity);
+    window.addEventListener('click', handleUserActivity);
+    window.addEventListener('scroll', handleUserActivity);
+
+    // Початкове оновлення активності
+    updateUserActivity(user.login);
+
+    // Очищення обробників подій
+    return () => {
+      window.removeEventListener('mousemove', handleUserActivity);
+      window.removeEventListener('keydown', handleUserActivity);
+      window.removeEventListener('click', handleUserActivity);
+      window.removeEventListener('scroll', handleUserActivity);
+    };
+  }, [user?.login]);
 
   // Завантаження правил доступу з API
   useEffect(() => {
