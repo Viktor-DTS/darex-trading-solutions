@@ -708,10 +708,10 @@ function TaskTableComponent({
       </head>
       <body>
         <div class="header">
-          <!-- Перша шапка - логотип та контакти -->
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; width: 100%;">
-            <!-- Ліва частина з логотипом та назвою -->
-            <div style="display: flex; align-items: center; gap: 20px;">
+          <!-- Двоколонкова шапка як на картинці -->
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; width: 100%;">
+            <!-- Ліва колонка - логотип та інформація про компанію -->
+            <div style="display: flex; align-items: flex-start; gap: 15px; flex: 1;">
               <div style="
                 background: #4CAF50;
                 color: white;
@@ -724,21 +724,30 @@ function TaskTableComponent({
                 justify-content: center;
                 min-width: 80px;
                 height: 60px;
+                flex-shrink: 0;
               ">ДТС</div>
-              <div>
+              <div style="flex: 1;">
                 <div style="font-size: 18px; font-weight: bold; color: #4CAF50; margin-bottom: 5px;">СЕРВІСНА СЛУЖБА</div>
-                <div style="font-size: 14px; font-weight: bold; color: #333;">ТОВ «ДАРЕКС ТРЕЙДІНГ СОЛЮШНС»</div>
+                <div style="font-size: 14px; font-weight: bold; color: #333; margin-bottom: 8px;">ТОВ «ДАРЕКС ТРЕЙДІНГ СОЛЮШНС»</div>
+                <div style="font-size: 10px; color: #666;">
+                  <div style="font-weight: bold; margin-bottom: 3px;">ЮРИДИЧНА АДРЕСА</div>
+                  <div>УКРАЇНА, 79007, ЛЬВІВСЬКА ОБЛ., МІСТО ЛЬВІВ, ВУЛ. ШПИТАЛЬНА, БУДИНОК 9.</div>
+                </div>
               </div>
             </div>
             
-            <!-- Права частина з контактами та QR-кодом -->
-            <div style="display: flex; align-items: center; gap: 30px;">
+            <!-- Права колонка - контактна інформація та QR-код -->
+            <div style="display: flex; align-items: flex-start; gap: 20px; flex: 1; justify-content: flex-end;">
               <div style="text-align: right; font-size: 11px;">
-                <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px;">+38 (067) 7000 235</div>
+                <div style="font-size: 16px; font-weight: bold; margin-bottom: 5px;">+38 (067) 7000 235</div>
                 <div style="margin-bottom: 3px;">dts.service.dnipro@gmail.com</div>
-                <div style="margin-bottom: 3px;">Київ Дніпро Львів</div>
-                <div style="margin-bottom: 3px;">Кропивницький Хмельницький</div>
+                <div style="margin-bottom: 3px;">Київ Дніпро Львів Кропивницький Хмельницький</div>
                 <div style="font-weight: bold; margin-bottom: 8px;">www.darex.energy</div>
+                <div style="border-top: 1px solid #ccc; padding-top: 8px;">
+                  <div>ЄДРПОУ 44866277</div>
+                  <div>+38-096-206-49-34</div>
+                  <div>darextradingsolutions@gmail.com</div>
+                </div>
               </div>
               <div class="qr-code" style="
                 width: 80px;
@@ -750,44 +759,8 @@ function TaskTableComponent({
                 justify-content: center;
                 font-size: 8px;
                 color: #666;
+                flex-shrink: 0;
               ">QR-код</div>
-            </div>
-          </div>
-          
-          <!-- Друга шапка - юридична адреса -->
-          <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-            <!-- Ліва частина з юридичною адресою -->
-            <div style="display: flex; align-items: center; gap: 20px;">
-              <div style="
-                background: #4CAF50;
-                color: white;
-                font-size: 28px;
-                font-weight: bold;
-                padding: 15px 20px;
-                border-radius: 8px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                min-width: 80px;
-                height: 60px;
-              ">ДТС</div>
-              <div>
-                <div style="font-size: 14px; font-weight: bold; color: #333;">ТОВ «ДАРЕКС ТРЕЙДІНГ СОЛЮШНС»</div>
-                <div style="font-size: 10px; color: #666; margin-top: 8px;">
-                  <div><strong>ЮРИДИЧНА АДРЕСА</strong></div>
-                  <div>УКРАЇНА, 79007, ЛЬВІВСЬКА ОБЛ., МІСТО</div>
-                  <div>ЛЬВІВ, ВУЛ. ШПИТАЛЬНА, БУДИНОК 9.</div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Права частина з додатковою контактною інформацією -->
-            <div style="text-align: right; font-size: 11px;">
-              <div style="border-top: 1px solid #ccc; padding-top: 8px;">
-                <div><strong>ЄДРПОУ:</strong> 44866277</div>
-                <div><strong>Тел:</strong> +38-096-206-49-34</div>
-                <div>darextradingsolutions@gmail.com</div>
-              </div>
             </div>
           </div>
         </div>
