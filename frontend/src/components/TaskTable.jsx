@@ -787,19 +787,114 @@ function TaskTableComponent({
               </tr>
             </thead>
             <tbody>
-              <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              ${(() => {
+                const materials = [];
+                let rowNumber = 1;
+                
+                // Додаємо оливу
+                if (task.oilType && task.oilUsed) {
+                  materials.push({
+                    number: rowNumber++,
+                    name: `Олива ${task.oilType}`,
+                    unit: 'л',
+                    quantity: task.oilUsed,
+                    price: task.oilPrice || 0,
+                    sum: (parseFloat(task.oilUsed) || 0) * (parseFloat(task.oilPrice) || 0)
+                  });
+                }
+                
+                // Додаємо масляний фільтр
+                if (task.filterName && task.filterCount) {
+                  materials.push({
+                    number: rowNumber++,
+                    name: `Масляний фільтр ${task.filterName}`,
+                    unit: 'шт',
+                    quantity: task.filterCount,
+                    price: task.filterPrice || 0,
+                    sum: (parseFloat(task.filterCount) || 0) * (parseFloat(task.filterPrice) || 0)
+                  });
+                }
+                
+                // Додаємо паливний фільтр
+                if (task.fuelFilterName && task.fuelFilterCount) {
+                  materials.push({
+                    number: rowNumber++,
+                    name: `Паливний фільтр ${task.fuelFilterName}`,
+                    unit: 'шт',
+                    quantity: task.fuelFilterCount,
+                    price: task.fuelFilterPrice || 0,
+                    sum: (parseFloat(task.fuelFilterCount) || 0) * (parseFloat(task.fuelFilterPrice) || 0)
+                  });
+                }
+                
+                // Додаємо повітряний фільтр
+                if (task.airFilterName && task.airFilterCount) {
+                  materials.push({
+                    number: rowNumber++,
+                    name: `Повітряний фільтр ${task.airFilterName}`,
+                    unit: 'шт',
+                    quantity: task.airFilterCount,
+                    price: task.airFilterPrice || 0,
+                    sum: (parseFloat(task.airFilterCount) || 0) * (parseFloat(task.airFilterPrice) || 0)
+                  });
+                }
+                
+                // Додаємо антифриз
+                if (task.antifreezeType && task.antifreezeL) {
+                  materials.push({
+                    number: rowNumber++,
+                    name: `Антифриз ${task.antifreezeType}`,
+                    unit: 'л',
+                    quantity: task.antifreezeL,
+                    price: task.antifreezePrice || 0,
+                    sum: (parseFloat(task.antifreezeL) || 0) * (parseFloat(task.antifreezePrice) || 0)
+                  });
+                }
+                
+                // Додаємо інші матеріали
+                if (task.otherMaterials && task.otherSum) {
+                  materials.push({
+                    number: rowNumber++,
+                    name: task.otherMaterials,
+                    unit: 'шт',
+                    quantity: '',
+                    price: '',
+                    sum: task.otherSum
+                  });
+                }
+                
+                // Генеруємо HTML для заповнених рядків
+                const filledRows = materials.map(material => `
+                  <tr>
+                    <td>${material.number}</td>
+                    <td>${material.name}</td>
+                    <td>${material.unit}</td>
+                    <td>${material.quantity}</td>
+                    <td>${material.price}</td>
+                    <td>${material.sum}</td>
+                  </tr>
+                `).join('');
+                
+                // Додаємо 5 порожніх рядків
+                const emptyRows = Array(5).fill().map(() => `
+                  <tr>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                  </tr>
+                `).join('');
+                
+                return filledRows + emptyRows;
+              })()}
             </tbody>
           </table>
           
           <div class="form-row">
             <div class="form-label">Загальна вартість матеріалів та запчастин:</div>
-            <div class="form-value">${workOrderData.materialsCost} грн.</div>
+            <div class="form-value"></div>
           </div>
           
           <div class="form-row">
