@@ -581,25 +581,9 @@ function TaskTableComponent({
             font-size: 12px;
           }
           .header {
-            text-align: center;
             margin-bottom: 20px;
             border-bottom: 2px solid #000;
             padding-bottom: 15px;
-          }
-          .logo {
-            color: #4CAF50;
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 5px;
-          }
-          .company-name {
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 5px;
-          }
-          .contact-info {
-            font-size: 10px;
-            margin-bottom: 5px;
           }
           .qr-code {
             position: absolute;
@@ -724,17 +708,60 @@ function TaskTableComponent({
       </head>
       <body>
         <div class="header">
-          <div class="logo">ДТС</div>
-          <div class="company-name">СЕРВІСНА СЛУЖБА</div>
-          <div class="company-name">ТОВ «ДАРЕКС ТРЕЙДІНГ СОЛЮШНС»</div>
-          <div class="contact-info">
-            Телефон: +38 (067) 7000 235 | Email: dts.service.dnipro@gmail.com<br>
-            Київ Дніпро Львів Кропивницький Хмельницький<br>
-            www.darex.energy<br>
-            УКРАЇНА, 79007, ЛЬВІВСЬКА ОБЛ., МІСТО ЛЬВІВ, ВУЛ. ШПИТАЛЬНА, БУДИНОК 9.<br>
-            ЄДРПОУ: 44866277 | +38-096-206-49-34 | darextradingsolutions@gmail.com
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+            <!-- Ліва частина з логотипом та назвою -->
+            <div style="display: flex; align-items: center; gap: 20px;">
+              <div style="
+                background: #4CAF50;
+                color: white;
+                font-size: 28px;
+                font-weight: bold;
+                padding: 15px 20px;
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 80px;
+                height: 60px;
+              ">ДТС</div>
+              <div>
+                <div style="font-size: 18px; font-weight: bold; color: #4CAF50; margin-bottom: 5px;">СЕРВІСНА СЛУЖБА</div>
+                <div style="font-size: 14px; font-weight: bold; color: #333;">ТОВ «ДАРЕКС ТРЕЙДІНГ СОЛЮШНС»</div>
+                <div style="font-size: 10px; color: #666; margin-top: 8px;">
+                  <div><strong>ЮРИДИЧНА АДРЕСА</strong></div>
+                  <div>УКРАЇНА, 79007, ЛЬВІВСЬКА ОБЛ., МІСТО</div>
+                  <div>ЛЬВІВ, ВУЛ. ШПИТАЛЬНА, БУДИНОК 9.</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Права частина з контактами та QR-кодом -->
+            <div style="display: flex; align-items: center; gap: 30px;">
+              <div style="text-align: right; font-size: 11px;">
+                <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px;">+38 (067) 7000 235</div>
+                <div style="margin-bottom: 3px;">dts.service.dnipro@gmail.com</div>
+                <div style="margin-bottom: 3px;">Київ Дніпро Львів</div>
+                <div style="margin-bottom: 3px;">Кропивницький Хмельницький</div>
+                <div style="font-weight: bold; margin-bottom: 8px;">www.darex.energy</div>
+                <div style="border-top: 1px solid #ccc; padding-top: 8px;">
+                  <div><strong>ЄДРПОУ:</strong> 44866277</div>
+                  <div><strong>Тел:</strong> +38-096-206-49-34</div>
+                  <div>darextradingsolutions@gmail.com</div>
+                </div>
+              </div>
+              <div class="qr-code" style="
+                width: 80px;
+                height: 80px;
+                background: #f0f0f0;
+                border: 1px solid #ccc;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 8px;
+                color: #666;
+              ">QR-код</div>
+            </div>
           </div>
-          <div class="qr-code">QR-код</div>
         </div>
 
         <!-- Перша сторінка -->
