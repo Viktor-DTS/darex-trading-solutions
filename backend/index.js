@@ -28,9 +28,6 @@ async function connectToMongoDB() {
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
       heartbeatFrequencyMS: 10000,
-      // Keep-alive налаштування
-      keepAlive: true,
-      keepAliveInitialDelay: 300000,
     });
     console.log('MongoDB connected successfully');
     return true;
