@@ -21,22 +21,16 @@ async function connectToMongoDB() {
   
   try {
     await mongoose.connect(MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      // Параметри для підтримки постійного з'єднання
-      maxPoolSize: 10, // Максимальна кількість з'єднань в пулі
-      minPoolSize: 2,  // Мінімальна кількість з'єднань в пулі
-      maxIdleTimeMS: 30000, // Час неактивності перед закриттям з'єднання (30 секунд)
-      serverSelectionTimeoutMS: 5000, // Таймаут вибору сервера
-      socketTimeoutMS: 45000, // Таймаут сокета
-      heartbeatFrequencyMS: 10000, // Частота heartbeat (10 секунд)
-      // Автоматичне перепідключення
-      autoReconnect: true,
-      reconnectTries: Number.MAX_VALUE,
-      reconnectInterval: 1000,
+      // Сучасні опції підключення
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      maxIdleTimeMS: 30000,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      heartbeatFrequencyMS: 10000,
       // Keep-alive налаштування
       keepAlive: true,
-      keepAliveInitialDelay: 300000, // 5 хвилин
+      keepAliveInitialDelay: 300000,
     });
     console.log('MongoDB connected successfully');
     return true;
@@ -49,17 +43,6 @@ async function connectToMongoDB() {
 // Підключаємося до MongoDB
 connectToMongoDB().then(async (connected) => {
   if (connected) {
-    // --- Ініціалізація GridFS при першому підключенні ---
-    try {
-      const filesModule = require('./routes/files');
-      if (filesModule.initializeGridFS) {
-        filesModule.initializeGridFS();
-        console.log('GridFS ініціалізовано при першому підключенні');
-      }
-    } catch (error) {
-      console.error('Помилка ініціалізації GridFS при першому підключенні:', error);
-    }
-    
     // --- Додаємо дефолтного адміністратора, якщо його немає ---
     const adminLogin = 'bugai';
     const adminUser = await User.findOne({ login: adminLogin });
@@ -73,26 +56,6 @@ connectToMongoDB().then(async (connected) => {
         id: Date.now(),
       });
       console.log('Дефолтного адміністратора створено!');
-    }
-    
-    // --- Автоматичне очищення сиротських файлів при запуску ---
-    try {
-      console.log('Запуск автоматичного очищення сиротських файлів...');
-      // Викликаємо функцію очищення через 30 секунд після запуску
-      setTimeout(async () => {
-        try {
-          // Імпортуємо функцію очищення з файлового роуту
-          const filesModule = require('./routes/files');
-          if (filesModule.cleanupOrphanedFiles) {
-            const orphanedCount = await filesModule.cleanupOrphanedFiles();
-            console.log(`Автоматичне очищення завершено. Видалено ${orphanedCount} сиротських файлів.`);
-          }
-        } catch (error) {
-          console.error('Помилка автоматичного очищення файлів:', error);
-        }
-      }, 30000);
-    } catch (error) {
-      console.error('Помилка ініціалізації очищення файлів:', error);
     }
   }
 });
@@ -112,17 +75,6 @@ mongoose.connection.on('disconnected', () => {
 
 mongoose.connection.on('reconnected', () => {
   console.log('MongoDB перепідключено');
-  
-  // Ініціалізуємо GridFS після перепідключення
-  try {
-    const filesModule = require('./routes/files');
-    if (filesModule.initializeGridFS) {
-      filesModule.initializeGridFS();
-      console.log('GridFS переініціалізовано після перепідключення MongoDB');
-    }
-  } catch (error) {
-    console.error('Помилка ініціалізації GridFS після перепідключення:', error);
-  }
 });
 
 // Функція для перевірки та відновлення з'єднання
