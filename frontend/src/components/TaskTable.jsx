@@ -708,92 +708,18 @@ function TaskTableComponent({
       </head>
       <body>
         <div class="header">
-          <!-- Верхня секція шапки - логотип та контакти -->
-          <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; margin-bottom: 15px;">
-            <!-- Ліва колонка - логотип та назва компанії -->
-            <div style="display: flex; align-items: center; gap: 15px; flex: 1;">
-              <div style="
-                background: #4CAF50;
-                color: white;
-                font-size: 28px;
-                font-weight: bold;
-                padding: 15px 20px;
-                border-radius: 8px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                min-width: 80px;
-                height: 60px;
-                flex-shrink: 0;
-              ">ДТС</div>
-              <div>
-                <div style="font-size: 18px; font-weight: bold; color: #4CAF50; margin-bottom: 5px;">СЕРВІСНА СЛУЖБА</div>
-                <div style="font-size: 14px; font-weight: bold; color: #333;">ТОВ «ДАРЕКС ТРЕЙДІНГ СОЛЮШНС»</div>
-              </div>
-            </div>
-            
-            <!-- Права колонка - контактна інформація та QR-код -->
-            <div style="display: flex; align-items: center; gap: 20px; flex: 1; justify-content: flex-end;">
-              <div style="text-align: right; font-size: 11px;">
-                <div style="font-size: 16px; font-weight: bold; margin-bottom: 5px;">+38 (067) 7000 235</div>
-                <div style="margin-bottom: 3px;">dts.service.dnipro@gmail.com</div>
-                <div style="margin-bottom: 3px;">Київ Дніпро Львів Кропивницький Хмельницький</div>
-                <div style="font-weight: bold; margin-bottom: 8px;">www.darex.energy</div>
-              </div>
-              <div class="qr-code" style="
-                width: 80px;
-                height: 80px;
-                background: #f0f0f0;
-                border: 1px solid #ccc;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 8px;
-                color: #666;
-                flex-shrink: 0;
-              ">QR-код</div>
-            </div>
+          <!-- Верхня секція шапки - перше зображення -->
+          <div style="width: 100%; margin-bottom: 15px;">
+            <img src="file:///C:/dts-service/Зображення1.png" alt="Шапка компанії" style="width: 100%; height: auto; max-width: 100%;" />
           </div>
           
-          <!-- Нижня секція шапки - юридична адреса -->
-          <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-            <!-- Ліва колонка - логотип та юридична адреса -->
-            <div style="display: flex; align-items: center; gap: 15px; flex: 1;">
-              <div style="
-                background: #4CAF50;
-                color: white;
-                font-size: 28px;
-                font-weight: bold;
-                padding: 15px 20px;
-                border-radius: 8px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                min-width: 80px;
-                height: 60px;
-                flex-shrink: 0;
-              ">ДТС</div>
-              <div>
-                <div style="font-size: 14px; font-weight: bold; color: #333; margin-bottom: 8px;">ТОВ «ДАРЕКС ТРЕЙДІНГ СОЛЮШНС»</div>
-                <div style="font-size: 10px; color: #666;">
-                  <div style="font-weight: bold; margin-bottom: 3px;">ЮРИДИЧНА АДРЕСА</div>
-                  <div>УКРАЇНА, 79007, ЛЬВІВСЬКА ОБЛ., МІСТО</div>
-                  <div>ЛЬВІВ, ВУЛ. ШПИТАЛЬНА, БУДИНОК 9.</div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Права колонка - додаткова контактна інформація -->
-            <div style="text-align: right; font-size: 11px; flex: 1; justify-content: flex-end;">
-              <div>ЄДРПОУ 44866277</div>
-              <div>+38-096-206-49-34</div>
-              <div>darextradingsolutions@gmail.com</div>
-            </div>
+          <!-- Нижня секція шапки - друге зображення -->
+          <div style="width: 100%;">
+            <img src="file:///C:/dts-service/Зображення2.png" alt="Юридична адреса" style="width: 100%; height: auto; max-width: 100%;" />
           </div>
         </div>
 
-        <!-- Перша сторінка -->
-        <div class="page">
+        <div class="work-order-container">
           <div class="work-order-title">
             Наряд на виконання робіт № ${workOrderNumber} від ${workOrderDate} р.)
           </div>
@@ -897,36 +823,33 @@ function TaskTableComponent({
           </div>
         </div>
         
-        <!-- Друга сторінка -->
-        <div class="page">
-          <div class="form-row">
-            <div class="form-label">Сума прописом:</div>
-            <div class="form-value"></div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-label">Відмітка про оплату (вибрати необхідне):</div>
-            <div class="form-value">${workOrderData.paymentMethod}</div>
-          </div>
-          <div class="form-row">
-            <div class="form-label">безготівковий розрахунок, на банківську картку, готівкові кошти, інше (зазначити)</div>
-            <div class="form-value"></div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-label">Рекомендації виконувача робіт:</div>
-            <div class="form-value">${workOrderData.recommendations}</div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-label">Роботу виконав: (ПІБ), (посада)</div>
-            <div class="form-value">${workOrderData.engineer1}${workOrderData.engineer2 ? ', ' + workOrderData.engineer2 : ''}</div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-label">Роботу прийняв: (ПІБ), (посада)</div>
-            <div class="form-value"></div>
-          </div>
+        <div class="form-row">
+          <div class="form-label">Сума прописом:</div>
+          <div class="form-value"></div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-label">Відмітка про оплату (вибрати необхідне):</div>
+          <div class="form-value">${workOrderData.paymentMethod}</div>
+        </div>
+        <div class="form-row">
+          <div class="form-label">безготівковий розрахунок, на банківську картку, готівкові кошти, інше (зазначити)</div>
+          <div class="form-value"></div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-label">Рекомендації виконувача робіт:</div>
+          <div class="form-value">${workOrderData.recommendations}</div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-label">Роботу виконав: (ПІБ), (посада)</div>
+          <div class="form-value">${workOrderData.engineer1}${workOrderData.engineer2 ? ', ' + workOrderData.engineer2 : ''}</div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-label">Роботу прийняв: (ПІБ), (посада)</div>
+          <div class="form-value"></div>
         </div>
 
         <div class="no-print">
