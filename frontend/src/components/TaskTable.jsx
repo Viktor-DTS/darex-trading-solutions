@@ -771,7 +771,7 @@ function TaskTableComponent({
           
           <div class="section-title">4. Результати випробувань: Відновлення роботи дизель генератора з робочими параметрами без навантаження та під час навантаження.</div>
           <div class="form-row">
-            <div class="form-value">${workOrderData.testResults}</div>
+            <div class="form-value"></div>
           </div>
           
           <div class="section-title">5. Розрахункова вартість робіт:</div>
