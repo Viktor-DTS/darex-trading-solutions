@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import FileManager from './components/FileManager';
 import { tasksAPI } from './utils/tasksAPI';
+import { regionsAPI } from './utils/regionsAPI';
 
 // Функція для отримання коду регіону
 const getRegionCode = (region) => {
@@ -276,7 +277,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
 
   const [regions, setRegions] = useState(() => {
     const saved = localStorage.getItem('regions');
-    return saved ? JSON.parse(saved) : ['Київський', 'Одеський', 'Львівський'];
+    return saved ? JSON.parse(saved) : [
+      { name: 'Київський' }, 
+      { name: 'Одеський' }, 
+      { name: 'Львівський' }
+    ];
   });
 
   // --- Додаємо стан для модального вікна відмови ---
@@ -334,8 +339,8 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
 
   useEffect(() => {
     if (open) {
-      const saved = localStorage.getItem('regions');
-      setRegions(saved ? JSON.parse(saved) : ['Київський', 'Одеський', 'Львівський']);
+      columnsSettingsAPI.getAllUsers().then(setUsers).catch(() => setUsers([]));
+      regionsAPI.getAll().then(setRegions).catch(() => setRegions([]));
     }
   }, [open]);
 
@@ -670,7 +675,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   <select name={f.name} value={value} onChange={handleChange} disabled={isRegionReadOnly}>
                     <option value="">Виберіть регіон</option>
                     {regions.map(r => (
-                      <option key={r} value={r}>{r}</option>
+                      <option key={r.name || r} value={r.name || r}>{r.name || r}</option>
                     ))}
                   </select>
                 </div>
@@ -1044,7 +1049,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                 <select name={f.name} value={value} onChange={handleChange} disabled={isRegionReadOnly}>
                   <option value="">Виберіть регіон</option>
                   {regions.map(r => (
-                    <option key={r} value={r}>{r}</option>
+                    <option key={r.name || r} value={r.name || r}>{r.name || r}</option>
                   ))}
                 </select>
               </div>
