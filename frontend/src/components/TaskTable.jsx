@@ -778,12 +778,12 @@ function TaskTableComponent({
           <table class="materials-table">
             <thead>
               <tr>
-                <th>№ п/п</th>
-                <th>Найменування</th>
-                <th>Одиниця виміру</th>
-                <th>Кількість</th>
-                <th>Ціна з ПДВ, грн</th>
-                <th>Сума з ПДВ, грн</th>
+                <th style="width: 8%;">№ п/п</th>
+                <th style="width: 45%;">Найменування</th>
+                <th style="width: 12%;">Одиниця виміру</th>
+                <th style="width: 12%;">Кількість</th>
+                <th style="width: 12%;">Ціна з ПДВ, грн</th>
+                <th style="width: 11%;">Сума з ПДВ, грн</th>
               </tr>
             </thead>
             <tbody>
@@ -875,9 +875,9 @@ function TaskTableComponent({
                   </tr>
                 `).join('');
                 
-                // Додаємо 5 порожніх рядків
+                // Додаємо 5 порожніх рядків з збільшеною висотою
                 const emptyRows = Array(5).fill().map(() => `
-                  <tr>
+                  <tr style="height: 60px;">
                     <td></td>
                     <td></td>
                     <td></td>
