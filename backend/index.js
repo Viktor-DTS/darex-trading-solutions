@@ -49,6 +49,17 @@ async function connectToMongoDB() {
 // Підключаємося до MongoDB
 connectToMongoDB().then(async (connected) => {
   if (connected) {
+    // --- Ініціалізація GridFS при першому підключенні ---
+    try {
+      const filesModule = require('./routes/files');
+      if (filesModule.initializeGridFS) {
+        filesModule.initializeGridFS();
+        console.log('GridFS ініціалізовано при першому підключенні');
+      }
+    } catch (error) {
+      console.error('Помилка ініціалізації GridFS при першому підключенні:', error);
+    }
+    
     // --- Додаємо дефолтного адміністратора, якщо його немає ---
     const adminLogin = 'bugai';
     const adminUser = await User.findOne({ login: adminLogin });
@@ -101,6 +112,17 @@ mongoose.connection.on('disconnected', () => {
 
 mongoose.connection.on('reconnected', () => {
   console.log('MongoDB перепідключено');
+  
+  // Ініціалізуємо GridFS після перепідключення
+  try {
+    const filesModule = require('./routes/files');
+    if (filesModule.initializeGridFS) {
+      filesModule.initializeGridFS();
+      console.log('GridFS переініціалізовано після перепідключення MongoDB');
+    }
+  } catch (error) {
+    console.error('Помилка ініціалізації GridFS після перепідключення:', error);
+  }
 });
 
 // Функція для перевірки та відновлення з'єднання

@@ -28,6 +28,20 @@ connection.once('open', () => {
   console.log('GridFS ініціалізовано');
 });
 
+// Додаємо обробник для перепідключення
+connection.on('connected', () => {
+  console.log('MongoDB перепідключено, ініціалізація GridFS...');
+  gfs = Grid(connection.db, mongoose.mongo);
+  gfs.collection('uploads');
+  console.log('GridFS переініціалізовано після перепідключення');
+});
+
+// Обробник для відключення
+connection.on('disconnected', () => {
+  console.log('MongoDB відключено, скидаємо GridFS...');
+  gfs = null;
+});
+
 // Multer GridFS Storage
 const storage = new GridFsStorage({
   url: process.env.MONGODB_URI,
@@ -100,21 +114,28 @@ async function executeWithRetry(operation, maxRetries = 3) {
 
 // Функція для перевірки та ініціалізації GridFS
 function ensureGridFS() {
-  if (!gfs && mongoose.connection.readyState === 1) {
-    console.log('Ініціалізація GridFS...');
-    gfs = Grid(mongoose.connection.db, mongoose.mongo);
-    gfs.collection('uploads');
-    console.log('GridFS ініціалізовано');
-  }
-  
   // Додаткова перевірка стану з'єднання
   if (mongoose.connection.readyState !== 1) {
     console.error('GridFS: MongoDB не підключена! ReadyState:', mongoose.connection.readyState);
     return null;
   }
   
+  // Якщо GridFS не ініціалізовано, ініціалізуємо його
   if (!gfs) {
-    console.error('GridFS: Об\'єкт gfs не ініціалізовано');
+    console.log('GridFS не ініціалізовано, ініціалізація...');
+    try {
+      gfs = Grid(mongoose.connection.db, mongoose.mongo);
+      gfs.collection('uploads');
+      console.log('GridFS успішно ініціалізовано');
+    } catch (error) {
+      console.error('Помилка ініціалізації GridFS:', error);
+      return null;
+    }
+  }
+  
+  // Додаткова перевірка, що GridFS працює
+  if (!gfs || !gfs.files) {
+    console.error('GridFS: Об\'єкт gfs не ініціалізовано або не має files');
     return null;
   }
   
@@ -124,23 +145,28 @@ function ensureGridFS() {
 // Функція для перевірки існування файлу в GridFS
 async function checkFileExists(gridfsId) {
   try {
+    console.log('[DEBUG] Перевірка існування файлу в GridFS, ID:', gridfsId);
+    
     const gfsInstance = ensureGridFS();
     if (!gfsInstance) {
+      console.error('[ERROR] GridFS не може бути ініціалізовано для перевірки файлу');
       return false;
     }
     
     return new Promise((resolve) => {
       gfsInstance.files.findOne({ _id: gridfsId }, (err, file) => {
         if (err) {
-          console.error('Помилка перевірки файлу в GridFS:', err);
+          console.error('[ERROR] Помилка перевірки файлу в GridFS:', err);
           resolve(false);
         } else {
-          resolve(!!file);
+          const exists = !!file;
+          console.log('[DEBUG] Файл в GridFS:', exists ? 'знайдено' : 'не знайдено', 'ID:', gridfsId);
+          resolve(exists);
         }
       });
     });
   } catch (error) {
-    console.error('Помилка перевірки існування файлу:', error);
+    console.error('[ERROR] Помилка перевірки існування файлу:', error);
     return false;
   }
 }
@@ -193,6 +219,12 @@ router.get('/task/:taskId', async (req, res) => {
 router.get('/view/:fileId', async (req, res) => {
   try {
     console.log('[DEBUG] Спроба перегляду файлу ID:', req.params.fileId);
+    
+    // Додаткова перевірка стану MongoDB
+    if (mongoose.connection.readyState !== 1) {
+      console.error('[ERROR] MongoDB не підключена при спробі перегляду файлу. ReadyState:', mongoose.connection.readyState);
+      return res.status(503).json({ error: 'База даних недоступна' });
+    }
     
     const file = await executeWithRetry(() => File.findById(req.params.fileId));
     if (!file) {
@@ -252,6 +284,12 @@ router.get('/download/:fileId', async (req, res) => {
   try {
     console.log('[DEBUG] Спроба завантаження файлу ID:', req.params.fileId);
     
+    // Додаткова перевірка стану MongoDB
+    if (mongoose.connection.readyState !== 1) {
+      console.error('[ERROR] MongoDB не підключена при спробі завантаження файлу. ReadyState:', mongoose.connection.readyState);
+      return res.status(503).json({ error: 'База даних недоступна' });
+    }
+    
     const file = await executeWithRetry(() => File.findById(req.params.fileId));
     if (!file) {
       console.log('[DEBUG] Файл не знайдено в метаданих для ID:', req.params.fileId);
@@ -286,7 +324,7 @@ router.get('/download/:fileId', async (req, res) => {
     const readstream = gfsInstance.createReadStream({ _id: file.gridfsId, root: 'uploads' });
     
     readstream.on('error', err => {
-      console.error('[ERROR] Помилка завантаження з GridFS:', err);
+      console.error('[ERROR] Помилка читання з GridFS для завантаження:', err);
       if (!res.headersSent) {
         res.status(404).json({ error: 'Файл не знайдено у GridFS' });
       }
@@ -385,5 +423,20 @@ router.post('/cleanup', async (req, res) => {
   }
 });
 
+// Функція для ініціалізації GridFS (для використання з index.js)
+function initializeGridFS() {
+  if (mongoose.connection.readyState === 1) {
+    console.log('Ініціалізація GridFS з index.js...');
+    gfs = Grid(mongoose.connection.db, mongoose.mongo);
+    gfs.collection('uploads');
+    console.log('GridFS ініціалізовано з index.js');
+    return true;
+  } else {
+    console.error('GridFS: MongoDB не підключена для ініціалізації');
+    return false;
+  }
+}
+
 module.exports = router;
-module.exports.cleanupOrphanedFiles = cleanupOrphanedFiles; 
+module.exports.cleanupOrphanedFiles = cleanupOrphanedFiles;
+module.exports.initializeGridFS = initializeGridFS; 
