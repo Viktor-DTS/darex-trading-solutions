@@ -877,7 +877,7 @@ function TaskTableComponent({
                 
                 // Додаємо 5 порожніх рядків з збільшеною висотою
                 const emptyRows = Array(5).fill().map(() => `
-                  <tr style="height: 60px;">
+                  <tr style="height: 40px;">
                     <td></td>
                     <td></td>
                     <td></td>
