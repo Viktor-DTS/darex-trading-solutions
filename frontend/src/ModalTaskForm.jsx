@@ -6,20 +6,25 @@ import { regionsAPI } from './utils/regionsAPI';
 
 // Функція для отримання коду регіону
 const getRegionCode = (region) => {
+  console.log('[DEBUG] getRegionCode called with region:', region);
   const regionMap = {
     'Київський': 'KV',
     'Дніпровський': 'DP', 
     'Львівський': 'LV',
     'Хмельницький': 'HY'
   };
-  return regionMap[region] || 'UA';
+  const result = regionMap[region] || 'UA';
+  console.log('[DEBUG] getRegionCode result:', result);
+  return result;
 };
 
 // Функція для генерації наступного номера заявки
 const generateNextRequestNumber = async (region) => {
+  console.log('[DEBUG] generateNextRequestNumber called with region:', region);
   try {
     const allTasks = await tasksAPI.getAll();
     const regionCode = getRegionCode(region);
+    console.log('[DEBUG] Generated region code:', regionCode);
     const pattern = new RegExp(`^${regionCode}-(\\d+)$`);
     
     // Знаходимо всі номери заявок для цього регіону
@@ -29,13 +34,17 @@ const generateNextRequestNumber = async (region) => {
       .map(number => parseInt(number.match(pattern)[1]))
       .sort((a, b) => a - b);
     
+    console.log('[DEBUG] Found existing numbers for region', regionCode, ':', regionNumbers);
+    
     // Знаходимо наступний номер
     let nextNumber = 1;
     if (regionNumbers.length > 0) {
       nextNumber = Math.max(...regionNumbers) + 1;
     }
     
-    return `${regionCode}-${String(nextNumber).padStart(7, '0')}`;
+    const result = `${regionCode}-${String(nextNumber).padStart(7, '0')}`;
+    console.log('[DEBUG] Generated request number:', result);
+    return result;
   } catch (error) {
     console.error('Помилка при генерації номера заявки:', error);
     const regionCode = getRegionCode(region);
@@ -347,14 +356,26 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   // useEffect для автоматичного заповнення номера заявки
   useEffect(() => {
     const autoFillRequestNumber = async () => {
+      console.log('[DEBUG] autoFillRequestNumber called with:', {
+        hasId: !!initialData.id,
+        requestNumber: form.requestNumber,
+        serviceRegion: form.serviceRegion
+      });
+      
       // Тільки для нових завдань (коли немає ID) і якщо номер заявки порожній
       if (!initialData.id && !form.requestNumber && form.serviceRegion) {
+        console.log('[DEBUG] Will generate new request number for region:', form.serviceRegion);
         try {
           const nextNumber = await generateNextRequestNumber(form.serviceRegion);
+          console.log('[DEBUG] Setting form requestNumber to:', nextNumber);
           setForm(prev => ({ ...prev, requestNumber: nextNumber }));
         } catch (error) {
           console.error('Помилка при автозаповненні номера заявки:', error);
         }
+      } else {
+        console.log('[DEBUG] Skipping request number generation:', {
+          reason: initialData.id ? 'has ID' : !form.requestNumber ? 'no requestNumber' : 'no serviceRegion'
+        });
       }
     };
 
