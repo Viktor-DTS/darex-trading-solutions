@@ -11,6 +11,7 @@ import Sidebar from './Sidebar'
 import ModalTaskForm, { fields as allTaskFields } from './ModalTaskForm'
 import TaskTable from './components/TaskTable'
 import ExcelImportModal from './components/ExcelImportModal'
+import ServiceReminderModal from './components/ServiceReminderModal'
 // Підключення кастомного шрифту Roboto для jsPDF відбувається через <script src="/Roboto-normal.js"></script> у public/index.html
 
 // Додаю імпорт на початку файлу
@@ -797,6 +798,7 @@ function ServiceArea({ user }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const allFilterKeys = allTaskFields
     .map(f => f.name)
     .reduce((acc, key) => {
@@ -850,6 +852,18 @@ function ServiceArea({ user }) {
     setLoading(true);
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
+
+  // useEffect для перевірки та показу нагадування
+  useEffect(() => {
+    if (!loading && tasks.length > 0 && tab === 'notDone') {
+      // Перевіряємо, чи є заявки зі статусом "Заявка"
+      const requestTasks = tasks.filter(task => task.status === 'Заявка');
+      
+      if (requestTasks.length > 0) {
+        setReminderModalOpen(true);
+      }
+    }
+  }, [loading, tasks, tab]);
 
   const handleSave = async (task) => {
     console.log('[DEBUG] handleSave called with task:', task);
@@ -1318,6 +1332,11 @@ function ServiceArea({ user }) {
         isArchive={tab === 'done'}
         onHistoryClick={openClientReport}
       />
+      <ServiceReminderModal
+        isOpen={reminderModalOpen}
+        onClose={() => setReminderModalOpen(false)}
+        tasks={tasks}
+      />
     </div>
   );
 }
@@ -1398,6 +1417,18 @@ function RegionalManagerArea({ tab: propTab, user }) {
     setLoading(true);
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
+
+  // useEffect для перевірки та показу нагадування
+  useEffect(() => {
+    if (!loading && tasks.length > 0 && tab === 'notDone') {
+      // Перевіряємо, чи є заявки зі статусом "Заявка"
+      const requestTasks = tasks.filter(task => task.status === 'Заявка');
+      
+      if (requestTasks.length > 0) {
+        setReminderModalOpen(true);
+      }
+    }
+  }, [loading, tasks, tab]);
 
   // Додаю useEffect для завантаження користувачів з бази
   useEffect(() => {
