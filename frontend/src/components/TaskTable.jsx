@@ -541,7 +541,19 @@ function TaskTableComponent({
       engineer1: task.engineer1 || 'Не вказано',
       engineer2: task.engineer2 || 'Не вказано',
       requestDate: task.requestDate || 'Не вказано',
-      workDescription: task.requestDesc || task.work || 'Не вказано'
+      workDescription: task.requestDesc || task.work || 'Не вказано',
+      workType: task.workType || 'ремонт',
+      technicalCondition: task.technicalCondition || 'Не вказано',
+      operatingHours: task.operatingHours || 'Не вказано',
+      performedWork: task.performedWork || 'Не вказано',
+      testResults: task.testResults || 'Відновлення роботи дизель генератора з робочими параметрами без навантаження та під час навантаження',
+      materialsCost: task.materialsCost || '0',
+      defectCost: task.defectCost || '0',
+      repairCost: task.repairCost || '0',
+      travelCost: task.travelCost || '0',
+      totalCost: task.totalCost || '0',
+      paymentMethod: task.paymentType || 'безготівковий розрахунок',
+      recommendations: task.recommendations || 'Не вказано'
     };
 
     // Створюємо HTML наряд
@@ -560,75 +572,133 @@ function TaskTableComponent({
             background: white;
             color: black;
             line-height: 1.4;
+            font-size: 12px;
           }
           .header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             border-bottom: 2px solid #000;
-            padding-bottom: 20px;
+            padding-bottom: 15px;
           }
-          .header h1 {
+          .logo {
+            color: #4CAF50;
             font-size: 24px;
             font-weight: bold;
-            margin: 0 0 10px 0;
-            text-transform: uppercase;
+            margin-bottom: 5px;
           }
-          .header p {
-            font-size: 14px;
-            margin: 5px 0;
+          .company-name {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
           }
-          .work-order-form {
-            width: 100%;
-            max-width: 800px;
+          .contact-info {
+            font-size: 10px;
+            margin-bottom: 5px;
+          }
+          .qr-code {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+          }
+          .work-order-container {
+            display: flex;
+            gap: 20px;
+            max-width: 1200px;
             margin: 0 auto;
           }
-          .form-section {
-            margin-bottom: 25px;
+          .column {
+            flex: 1;
+            border: 1px solid #000;
+            padding: 15px;
+            min-height: 800px;
+          }
+          .work-order-title {
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #000;
+            padding-bottom: 10px;
           }
           .form-row {
+            margin-bottom: 12px;
             display: flex;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 8px;
+            align-items: flex-start;
           }
           .form-label {
             font-weight: bold;
-            min-width: 200px;
+            min-width: 120px;
             flex-shrink: 0;
+            font-size: 11px;
           }
           .form-value {
             flex: 1;
-            border-bottom: 1px dotted #999;
-            padding-left: 10px;
-            min-height: 20px;
+            border-bottom: 1px dotted #000;
+            min-height: 16px;
+            padding-left: 5px;
           }
           .form-value:empty::after {
             content: "_________________";
             color: #999;
           }
+          .section-title {
+            font-weight: bold;
+            margin: 15px 0 8px 0;
+            font-size: 11px;
+          }
+          .materials-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+            font-size: 9px;
+          }
+          .materials-table th,
+          .materials-table td {
+            border: 1px solid #000;
+            padding: 3px;
+            text-align: center;
+          }
+          .materials-table th {
+            background: #f0f0f0;
+            font-weight: bold;
+          }
           .signature-section {
-            margin-top: 40px;
+            margin-top: 30px;
             display: flex;
             justify-content: space-between;
           }
           .signature-box {
             text-align: center;
-            width: 200px;
+            width: 150px;
           }
           .signature-line {
             border-bottom: 1px solid #000;
-            height: 30px;
+            height: 25px;
             margin-bottom: 5px;
           }
           .signature-text {
-            font-size: 12px;
+            font-size: 9px;
             color: #666;
           }
           .footer {
-            margin-top: 40px;
+            margin-top: 20px;
             text-align: center;
-            font-size: 12px;
+            font-size: 10px;
             color: #666;
+          }
+          .no-print {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
           }
           @media print {
             body {
@@ -637,18 +707,34 @@ function TaskTableComponent({
             .no-print {
               display: none;
             }
+            .work-order-container {
+              max-width: none;
+            }
           }
         </style>
       </head>
       <body>
         <div class="header">
-          <h1>Наряд ДТС-2</h1>
-          <p>Дата: ${new Date().toLocaleDateString('uk-UA')}</p>
-          <p>Номер наряду: ${task.id || 'Н/Д'}</p>
+          <div class="logo">ДТС</div>
+          <div class="company-name">СЕРВІСНА СЛУЖБА</div>
+          <div class="company-name">ТОВ «ДАРЕКС ТРЕЙДІНГ СОЛЮШНС»</div>
+          <div class="contact-info">
+            Телефон: +38 (067) 7000 235 | Email: dts.service.dnipro@gmail.com<br>
+            Київ Дніпро Львів Кропивницький Хмельницький<br>
+            www.darex.energy<br>
+            УКРАЇНА, 79007, ЛЬВІВСЬКА ОБЛ., МІСТО ЛЬВІВ, ВУЛ. ШПИТАЛЬНА, БУДИНОК 9.<br>
+            ЄДРПОУ: 44866277 | +38-096-206-49-34 | darextradingsolutions@gmail.com
+          </div>
+          <div class="qr-code">QR-код</div>
         </div>
 
-        <div class="work-order-form">
-          <div class="form-section">
+        <div class="work-order-container">
+          <!-- Ліва колонка -->
+          <div class="column">
+            <div class="work-order-title">
+              Наряд на виконання робіт № ${task.id || '____'} від ${new Date().toLocaleDateString('uk-UA')} р.)
+            </div>
+            
             <div class="form-row">
               <div class="form-label">ЗАМОВНИК:</div>
               <div class="form-value">${workOrderData.client}</div>
@@ -665,44 +751,123 @@ function TaskTableComponent({
             </div>
             
             <div class="form-row">
-              <div class="form-label">Зав. №:</div>
+              <div class="form-label">Зав. №</div>
               <div class="form-value">${workOrderData.serialNumber}</div>
             </div>
             
+            <div class="section-title">1. Вид робіт (вибрати необхідне) гарантійний ремонт, ремонт, технічне обслуговування, інше.</div>
             <div class="form-row">
-              <div class="form-label">Дата заявки:</div>
-              <div class="form-value">${workOrderData.requestDate}</div>
+              <div class="form-value">${workOrderData.workType}</div>
+            </div>
+            
+            <div class="section-title">2. Технічний стан обладнання:</div>
+            <div class="form-row">
+              <div class="form-label">Напрацювання м/г:</div>
+              <div class="form-value">${workOrderData.operatingHours}</div>
+            </div>
+            <div class="form-row">
+              <div class="form-label">Згідно із заявкою:</div>
+              <div class="form-value">${workOrderData.technicalCondition}</div>
+            </div>
+            <div class="form-row">
+              <div class="form-label">Після технічного огляду (проведення робіт/послуг)</div>
+              <div class="form-value"></div>
+            </div>
+            
+            <div class="section-title">3. Перелік виконаних робіт/послуг:</div>
+            <div class="form-row">
+              <div class="form-value">${workOrderData.performedWork}</div>
+            </div>
+            
+            <div class="section-title">4. Результати випробувань: Відновлення роботи дизель генератора з робочими параметрами без навантаження та під час навантаження.</div>
+            <div class="form-row">
+              <div class="form-value">${workOrderData.testResults}</div>
+            </div>
+            
+            <div class="section-title">5. Розрахункова вартість робіт:</div>
+            <div class="section-title">7.1. ПЕРЕЛІК МАТЕРІАЛІВ ТА ЗАПЧАСТИН, ВИКОРИСТАНИХ ПІД ЧАС РОБІТ</div>
+            <table class="materials-table">
+              <thead>
+                <tr>
+                  <th>№ п/п</th>
+                  <th>Найменування</th>
+                  <th>Одиниця виміру</th>
+                  <th>Кількість</th>
+                  <th>Ціна з ПДВ, грн</th>
+                  <th>Сума з ПДВ, грн</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              </tbody>
+            </table>
+            
+            <div class="form-row">
+              <div class="form-label">Загальна вартість матеріалів та запчастин:</div>
+              <div class="form-value">${workOrderData.materialsCost} грн.</div>
             </div>
             
             <div class="form-row">
-              <div class="form-label">Опис робіт:</div>
-              <div class="form-value">${workOrderData.workDescription}</div>
+              <div class="form-label">7.2 Вартість дефектації:</div>
+              <div class="form-value">кількість люд/годин ____ ; тариф ____ грн; разом ${workOrderData.defectCost} грн.</div>
             </div>
             
             <div class="form-row">
-              <div class="form-label">Роботу виконав:</div>
+              <div class="form-label">7.3 Вартість ремонту:</div>
+              <div class="form-value">кількість люд/годин ____ ; тариф: ____ грн; разом ${workOrderData.repairCost} грн.</div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-label">7.4 Виїзд на об'єкт Замовника:</div>
+              <div class="form-value">тариф: по місту ____ грн. Виїзд за місто ____ км ____ грн/км; разом ${workOrderData.travelCost} грн.</div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-label">ЗАГАЛЬНА ВАРТІСТЬ РОБІТ з ПДВ (усього по п.7.1; 7.2; 7.3; 7.4)</div>
+              <div class="form-value">${workOrderData.totalCost} грн.</div>
+            </div>
+          </div>
+          
+          <!-- Права колонка -->
+          <div class="column">
+            <div class="form-row">
+              <div class="form-label">Сума прописом:</div>
+              <div class="form-value"></div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-label">Відмітка про оплату (вибрати необхідне):</div>
+              <div class="form-value">${workOrderData.paymentMethod}</div>
+            </div>
+            <div class="form-row">
+              <div class="form-label">безготівковий розрахунок, на банківську картку, готівкові кошти, інше (зазначити)</div>
+              <div class="form-value"></div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-label">Рекомендації виконувача робіт:</div>
+              <div class="form-value">${workOrderData.recommendations}</div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-label">Роботу виконав: (ПІБ), (посада)</div>
               <div class="form-value">${workOrderData.engineer1}${workOrderData.engineer2 ? ', ' + workOrderData.engineer2 : ''}</div>
             </div>
-          </div>
-
-          <div class="signature-section">
-            <div class="signature-box">
-              <div class="signature-line"></div>
-              <div class="signature-text">Підпис виконавця</div>
+            
+            <div class="form-row">
+              <div class="form-label">Роботу прийняв: (ПІБ), (посада)</div>
+              <div class="form-value"></div>
             </div>
-            <div class="signature-box">
-              <div class="signature-line"></div>
-              <div class="signature-text">Підпис замовника</div>
-            </div>
-          </div>
-
-          <div class="footer">
-            <p>Наряд складено: ${new Date().toLocaleString('uk-UA')}</p>
-            <p>ДТС-2</p>
           </div>
         </div>
 
-        <div class="no-print" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
+        <div class="no-print">
           <button onclick="window.print()" style="
             background: #4CAF50;
             color: white;
@@ -728,7 +893,7 @@ function TaskTableComponent({
     `;
 
     // Відкриваємо нове вікно з нарядом
-    const newWindow = window.open('', '_blank', 'width=1000,height=800,scrollbars=yes,resizable=yes');
+    const newWindow = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes,resizable=yes');
     newWindow.document.write(workOrderHTML);
     newWindow.document.close();
   };
