@@ -659,6 +659,7 @@ function TaskTableComponent({
           .materials-table th {
             background: #f0f0f0;
             font-weight: bold;
+            font-size: 10px;
           }
           .signature-section {
             margin-top: 30px;
@@ -865,13 +866,13 @@ function TaskTableComponent({
                 
                 // Генеруємо HTML для заповнених рядків
                 const filledRows = materials.map(material => `
-                  <tr>
-                    <td>${material.number}</td>
-                    <td>${material.name}</td>
-                    <td>${material.unit}</td>
-                    <td>${material.quantity}</td>
-                    <td>${material.price}</td>
-                    <td>${material.sum}</td>
+                  <tr style="height: 30px;">
+                    <td style="font-size: 10px;">${material.number}</td>
+                    <td style="font-size: 10px;">${material.name}</td>
+                    <td style="font-size: 10px;">${material.unit}</td>
+                    <td style="font-size: 10px;">${material.quantity}</td>
+                    <td style="font-size: 10px;">${material.price}</td>
+                    <td style="font-size: 10px;">${material.sum}</td>
                   </tr>
                 `).join('');
                 
