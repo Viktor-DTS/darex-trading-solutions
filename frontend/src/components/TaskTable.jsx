@@ -559,8 +559,8 @@ function TaskTableComponent({
     // Перевіряємо умову для номера наряду
     const hasRequestNumber = task.requestNumber && task.requestNumber.trim() !== '';
     const hasWorkDate = task.date && task.date.trim() !== '';
-    const workOrderNumber = hasRequestNumber && hasWorkDate ? task.requestNumber : '____';
-    const workOrderDate = hasRequestNumber && hasWorkDate ? task.date : '____';
+    const workOrderNumber = hasRequestNumber ? task.requestNumber : '____';
+    const workOrderDate = hasWorkDate ? task.date : '____';
 
     // Створюємо HTML наряд
     const workOrderHTML = `
