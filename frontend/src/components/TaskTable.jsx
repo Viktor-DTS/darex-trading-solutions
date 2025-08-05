@@ -710,12 +710,12 @@ function TaskTableComponent({
         <div class="header">
           <!-- Верхня секція шапки - перше зображення -->
           <div style="width: 100%; margin-bottom: 15px;">
-            <img src="file:///C:/dts-service/Зображення1.png" alt="Шапка компанії" style="width: 100%; height: auto; max-width: 100%;" />
+            <img src="/images/Зображення1.png" alt="Шапка компанії" style="width: 100%; height: auto; max-width: 100%;" />
           </div>
           
           <!-- Нижня секція шапки - друге зображення -->
           <div style="width: 100%;">
-            <img src="file:///C:/dts-service/Зображення2.png" alt="Юридична адреса" style="width: 100%; height: auto; max-width: 100%;" />
+            <img src="/images/Зображення2.png" alt="Юридична адреса" style="width: 100%; height: auto; max-width: 100%;" />
           </div>
         </div>
 
