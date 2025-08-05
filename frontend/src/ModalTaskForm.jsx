@@ -1,6 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import FileManager from './components/FileManager';
+import { tasksAPI } from './utils/tasksAPI';
+
+// Функція для отримання коду регіону
+const getRegionCode = (region) => {
+  const regionMap = {
+    'Київський': 'KV',
+    'Дніпровський': 'DP', 
+    'Львівський': 'LV',
+    'Хмельницький': 'HY'
+  };
+  return regionMap[region] || 'UA';
+};
+
+// Функція для генерації наступного номера заявки
+const generateNextRequestNumber = async (region) => {
+  try {
+    const allTasks = await tasksAPI.getAll();
+    const regionCode = getRegionCode(region);
+    const pattern = new RegExp(`^${regionCode}-(\\d+)$`);
+    
+    // Знаходимо всі номери заявок для цього регіону
+    const regionNumbers = allTasks
+      .map(task => task.requestNumber)
+      .filter(number => number && pattern.test(number))
+      .map(number => parseInt(number.match(pattern)[1]))
+      .sort((a, b) => a - b);
+    
+    // Знаходимо наступний номер
+    let nextNumber = 1;
+    if (regionNumbers.length > 0) {
+      nextNumber = Math.max(...regionNumbers) + 1;
+    }
+    
+    return `${regionCode}-${String(nextNumber).padStart(7, '0')}`;
+  } catch (error) {
+    console.error('Помилка при генерації номера заявки:', error);
+    const regionCode = getRegionCode(region);
+    return `${regionCode}-0000001`;
+  }
+};
 
 export const fields = [
   { name: 'status', label: 'Статус заявки', type: 'select', options: ['', 'Заявка', 'В роботі', 'Виконано', 'Заблоковано'] },
@@ -298,6 +338,23 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       setRegions(saved ? JSON.parse(saved) : ['Київський', 'Одеський', 'Львівський']);
     }
   }, [open]);
+
+  // useEffect для автоматичного заповнення номера заявки
+  useEffect(() => {
+    const autoFillRequestNumber = async () => {
+      // Тільки для нових завдань (коли немає ID) і якщо номер заявки порожній
+      if (!initialData.id && !form.requestNumber && form.serviceRegion) {
+        try {
+          const nextNumber = await generateNextRequestNumber(form.serviceRegion);
+          setForm(prev => ({ ...prev, requestNumber: nextNumber }));
+        } catch (error) {
+          console.error('Помилка при автозаповненні номера заявки:', error);
+        }
+      }
+    };
+
+    autoFillRequestNumber();
+  }, [form.serviceRegion, initialData.id, form.requestNumber]);
 
   useEffect(() => {
     // Підставляти регіон лише якщо створюється нова заявка (form.serviceRegion порожнє і initialData.serviceRegion порожнє)
