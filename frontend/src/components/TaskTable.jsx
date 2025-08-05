@@ -530,6 +530,209 @@ function TaskTableComponent({
   const now = new Date();
   for (let y = now.getFullYear() - 2; y <= now.getFullYear() + 1; y++) years.push(String(y));
 
+  // Функція для генерації наряду
+  const generateWorkOrder = (task) => {
+    // Формуємо дані для наряду
+    const workOrderData = {
+      client: task.client || 'Не вказано',
+      address: task.address || 'Не вказано',
+      equipment: task.equipment || task.equipmentType || 'Не вказано',
+      serialNumber: task.equipmentSerial || task.serialNumber || 'Не вказано',
+      engineer1: task.engineer1 || 'Не вказано',
+      engineer2: task.engineer2 || 'Не вказано',
+      requestDate: task.requestDate || 'Не вказано',
+      workDescription: task.requestDesc || task.work || 'Не вказано'
+    };
+
+    // Створюємо HTML наряд
+    const workOrderHTML = `
+      <!DOCTYPE html>
+      <html lang="uk">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Наряд ДТС-2</title>
+        <style>
+          body {
+            font-family: 'Times New Roman', serif;
+            margin: 0;
+            padding: 20px;
+            background: white;
+            color: black;
+            line-height: 1.4;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 20px;
+          }
+          .header h1 {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+          }
+          .header p {
+            font-size: 14px;
+            margin: 5px 0;
+          }
+          .work-order-form {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+          }
+          .form-section {
+            margin-bottom: 25px;
+          }
+          .form-row {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 8px;
+          }
+          .form-label {
+            font-weight: bold;
+            min-width: 200px;
+            flex-shrink: 0;
+          }
+          .form-value {
+            flex: 1;
+            border-bottom: 1px dotted #999;
+            padding-left: 10px;
+            min-height: 20px;
+          }
+          .form-value:empty::after {
+            content: "_________________";
+            color: #999;
+          }
+          .signature-section {
+            margin-top: 40px;
+            display: flex;
+            justify-content: space-between;
+          }
+          .signature-box {
+            text-align: center;
+            width: 200px;
+          }
+          .signature-line {
+            border-bottom: 1px solid #000;
+            height: 30px;
+            margin-bottom: 5px;
+          }
+          .signature-text {
+            font-size: 12px;
+            color: #666;
+          }
+          .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+          }
+          @media print {
+            body {
+              padding: 0;
+            }
+            .no-print {
+              display: none;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Наряд ДТС-2</h1>
+          <p>Дата: ${new Date().toLocaleDateString('uk-UA')}</p>
+          <p>Номер наряду: ${task.id || 'Н/Д'}</p>
+        </div>
+
+        <div class="work-order-form">
+          <div class="form-section">
+            <div class="form-row">
+              <div class="form-label">ЗАМОВНИК:</div>
+              <div class="form-value">${workOrderData.client}</div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-label">Адреса:</div>
+              <div class="form-value">${workOrderData.address}</div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-label">Найменування обладнання:</div>
+              <div class="form-value">${workOrderData.equipment}</div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-label">Зав. №:</div>
+              <div class="form-value">${workOrderData.serialNumber}</div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-label">Дата заявки:</div>
+              <div class="form-value">${workOrderData.requestDate}</div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-label">Опис робіт:</div>
+              <div class="form-value">${workOrderData.workDescription}</div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-label">Роботу виконав:</div>
+              <div class="form-value">${workOrderData.engineer1}${workOrderData.engineer2 ? ', ' + workOrderData.engineer2 : ''}</div>
+            </div>
+          </div>
+
+          <div class="signature-section">
+            <div class="signature-box">
+              <div class="signature-line"></div>
+              <div class="signature-text">Підпис виконавця</div>
+            </div>
+            <div class="signature-box">
+              <div class="signature-line"></div>
+              <div class="signature-text">Підпис замовника</div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p>Наряд складено: ${new Date().toLocaleString('uk-UA')}</p>
+            <p>ДТС-2</p>
+          </div>
+        </div>
+
+        <div class="no-print" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
+          <button onclick="window.print()" style="
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+          ">🖨️ Друкувати</button>
+          <button onclick="window.close()" style="
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 10px;
+          ">✕ Закрити</button>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Відкриваємо нове вікно з нарядом
+    const newWindow = window.open('', '_blank', 'width=1000,height=800,scrollbars=yes,resizable=yes');
+    newWindow.document.write(workOrderHTML);
+    newWindow.document.close();
+  };
+
   return (
     <>
       {/* Вкладки, фільтри, кнопки — окремий контейнер */}
@@ -728,7 +931,13 @@ function TaskTableComponent({
                                   } else {
                                     console.error('[ERROR] Неможливо видалити заявку: ID відсутній або onDelete не передано', { taskId: t.id, hasOnDelete: !!onDelete });
                                   }
-                                }} style={{background:'#f66',color:'#fff'}}>Видалити</button>
+                                }} style={{background:'#f66',color:'#fff', marginRight:8}}>Видалити</button>
+                              )}
+                              {/* Кнопка наряду - тільки для сервісної служби */}
+                              {role === 'service' && (
+                                <button onClick={() => {
+                                  generateWorkOrder(t);
+                                }} style={{background:'#4CAF50',color:'#fff'}}>Наряд</button>
                               )}
                               {/* Для інших користувачів показуємо інформаційну кнопку */}
                               {(() => {
