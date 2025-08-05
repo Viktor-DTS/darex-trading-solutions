@@ -926,7 +926,13 @@ function TaskTableComponent({
         
         <div class="form-row">
           <div class="form-label">Відмітка про оплату (вибрати необхідне):</div>
-          <div class="form-value">${workOrderData.paymentMethod}</div>
+          <div class="form-value">${(() => {
+            const paymentMethod = task.paymentType || '';
+            if (paymentMethod && paymentMethod.trim() !== '') {
+              return paymentMethod;
+            }
+            return '';
+          })()}</div>
         </div>
         <div class="form-row">
           <div class="form-label">безготівковий розрахунок, на банківську картку, готівкові кошти, інше (зазначити)</div>
