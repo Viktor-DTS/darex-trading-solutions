@@ -534,18 +534,18 @@ function TaskTableComponent({
   const generateWorkOrder = (task) => {
     // Формуємо дані для наряду
     const workOrderData = {
-      client: task.client || 'Не вказано',
-      address: task.address || 'Не вказано',
-      equipment: task.equipment || task.equipmentType || 'Не вказано',
-      serialNumber: task.equipmentSerial || task.serialNumber || 'Не вказано',
-      engineer1: task.engineer1 || 'Не вказано',
-      engineer2: task.engineer2 || 'Не вказано',
-      requestDate: task.requestDate || 'Не вказано',
-      workDescription: task.requestDesc || task.work || 'Не вказано',
+      client: task.client || '',
+      address: task.address || '',
+      equipment: task.equipment || task.equipmentType || '',
+      serialNumber: task.equipmentSerial || task.serialNumber || '',
+      engineer1: task.engineer1 || '',
+      engineer2: task.engineer2 || '',
+      requestDate: task.requestDate || '',
+      workDescription: task.requestDesc || task.work || '',
       workType: task.workType || 'ремонт',
-      technicalCondition: task.technicalCondition || 'Не вказано',
-      operatingHours: task.operatingHours || 'Не вказано',
-      performedWork: task.performedWork || 'Не вказано',
+      technicalCondition: task.technicalCondition || '',
+      operatingHours: task.operatingHours || '',
+      performedWork: task.performedWork || '',
       testResults: task.testResults || 'Відновлення роботи дизель генератора з робочими параметрами без навантаження та під час навантаження',
       materialsCost: task.materialsCost || '0',
       defectCost: task.defectCost || '0',
@@ -553,8 +553,14 @@ function TaskTableComponent({
       travelCost: task.travelCost || '0',
       totalCost: task.totalCost || '0',
       paymentMethod: task.paymentType || 'безготівковий розрахунок',
-      recommendations: task.recommendations || 'Не вказано'
+      recommendations: task.recommendations || ''
     };
+
+    // Перевіряємо умову для номера наряду
+    const hasRequestNumber = task.requestNumber && task.requestNumber.trim() !== '';
+    const hasWorkDate = task.date && task.date.trim() !== '';
+    const workOrderNumber = hasRequestNumber && hasWorkDate ? task.requestNumber : '____';
+    const workOrderDate = hasRequestNumber && hasWorkDate ? task.date : '____';
 
     // Створюємо HTML наряд
     const workOrderHTML = `
@@ -608,17 +614,17 @@ function TaskTableComponent({
             justify-content: center;
             font-size: 8px;
           }
-          .work-order-container {
-            display: flex;
-            gap: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-          }
-          .column {
-            flex: 1;
+          .page {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto 30px auto;
             border: 1px solid #000;
-            padding: 15px;
-            min-height: 800px;
+            padding: 20px;
+            min-height: 1000px;
+            page-break-after: always;
+          }
+          .page:last-child {
+            page-break-after: avoid;
           }
           .work-order-title {
             text-align: center;
@@ -707,8 +713,11 @@ function TaskTableComponent({
             .no-print {
               display: none;
             }
-            .work-order-container {
+            .page {
               max-width: none;
+              margin: 0;
+              border: none;
+              padding: 20px;
             }
           }
         </style>
@@ -728,142 +737,140 @@ function TaskTableComponent({
           <div class="qr-code">QR-код</div>
         </div>
 
-        <div class="work-order-container">
-          <!-- Ліва колонка -->
-          <div class="column">
-            <div class="work-order-title">
-              Наряд на виконання робіт № ${task.id || '____'} від ${new Date().toLocaleDateString('uk-UA')} р.)
-            </div>
-            
-            <div class="form-row">
-              <div class="form-label">ЗАМОВНИК:</div>
-              <div class="form-value">${workOrderData.client}</div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-label">Адреса:</div>
-              <div class="form-value">${workOrderData.address}</div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-label">Найменування обладнання:</div>
-              <div class="form-value">${workOrderData.equipment}</div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-label">Зав. №</div>
-              <div class="form-value">${workOrderData.serialNumber}</div>
-            </div>
-            
-            <div class="section-title">1. Вид робіт (вибрати необхідне) гарантійний ремонт, ремонт, технічне обслуговування, інше.</div>
-            <div class="form-row">
-              <div class="form-value">${workOrderData.workType}</div>
-            </div>
-            
-            <div class="section-title">2. Технічний стан обладнання:</div>
-            <div class="form-row">
-              <div class="form-label">Напрацювання м/г:</div>
-              <div class="form-value">${workOrderData.operatingHours}</div>
-            </div>
-            <div class="form-row">
-              <div class="form-label">Згідно із заявкою:</div>
-              <div class="form-value">${workOrderData.technicalCondition}</div>
-            </div>
-            <div class="form-row">
-              <div class="form-label">Після технічного огляду (проведення робіт/послуг)</div>
-              <div class="form-value"></div>
-            </div>
-            
-            <div class="section-title">3. Перелік виконаних робіт/послуг:</div>
-            <div class="form-row">
-              <div class="form-value">${workOrderData.performedWork}</div>
-            </div>
-            
-            <div class="section-title">4. Результати випробувань: Відновлення роботи дизель генератора з робочими параметрами без навантаження та під час навантаження.</div>
-            <div class="form-row">
-              <div class="form-value">${workOrderData.testResults}</div>
-            </div>
-            
-            <div class="section-title">5. Розрахункова вартість робіт:</div>
-            <div class="section-title">7.1. ПЕРЕЛІК МАТЕРІАЛІВ ТА ЗАПЧАСТИН, ВИКОРИСТАНИХ ПІД ЧАС РОБІТ</div>
-            <table class="materials-table">
-              <thead>
-                <tr>
-                  <th>№ п/п</th>
-                  <th>Найменування</th>
-                  <th>Одиниця виміру</th>
-                  <th>Кількість</th>
-                  <th>Ціна з ПДВ, грн</th>
-                  <th>Сума з ПДВ, грн</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-              </tbody>
-            </table>
-            
-            <div class="form-row">
-              <div class="form-label">Загальна вартість матеріалів та запчастин:</div>
-              <div class="form-value">${workOrderData.materialsCost} грн.</div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-label">7.2 Вартість дефектації:</div>
-              <div class="form-value">кількість люд/годин ____ ; тариф ____ грн; разом ${workOrderData.defectCost} грн.</div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-label">7.3 Вартість ремонту:</div>
-              <div class="form-value">кількість люд/годин ____ ; тариф: ____ грн; разом ${workOrderData.repairCost} грн.</div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-label">7.4 Виїзд на об'єкт Замовника:</div>
-              <div class="form-value">тариф: по місту ____ грн. Виїзд за місто ____ км ____ грн/км; разом ${workOrderData.travelCost} грн.</div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-label">ЗАГАЛЬНА ВАРТІСТЬ РОБІТ з ПДВ (усього по п.7.1; 7.2; 7.3; 7.4)</div>
-              <div class="form-value">${workOrderData.totalCost} грн.</div>
-            </div>
+        <!-- Перша сторінка -->
+        <div class="page">
+          <div class="work-order-title">
+            Наряд на виконання робіт № ${workOrderNumber} від ${workOrderDate} р.)
           </div>
           
-          <!-- Права колонка -->
-          <div class="column">
-            <div class="form-row">
-              <div class="form-label">Сума прописом:</div>
-              <div class="form-value"></div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-label">Відмітка про оплату (вибрати необхідне):</div>
-              <div class="form-value">${workOrderData.paymentMethod}</div>
-            </div>
-            <div class="form-row">
-              <div class="form-label">безготівковий розрахунок, на банківську картку, готівкові кошти, інше (зазначити)</div>
-              <div class="form-value"></div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-label">Рекомендації виконувача робіт:</div>
-              <div class="form-value">${workOrderData.recommendations}</div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-label">Роботу виконав: (ПІБ), (посада)</div>
-              <div class="form-value">${workOrderData.engineer1}${workOrderData.engineer2 ? ', ' + workOrderData.engineer2 : ''}</div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-label">Роботу прийняв: (ПІБ), (посада)</div>
-              <div class="form-value"></div>
-            </div>
+          <div class="form-row">
+            <div class="form-label">ЗАМОВНИК:</div>
+            <div class="form-value">${workOrderData.client}</div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-label">Адреса:</div>
+            <div class="form-value">${workOrderData.address}</div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-label">Найменування обладнання:</div>
+            <div class="form-value">${workOrderData.equipment}</div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-label">Зав. №</div>
+            <div class="form-value">${workOrderData.serialNumber}</div>
+          </div>
+          
+          <div class="section-title">1. Вид робіт (вибрати необхідне) гарантійний ремонт, ремонт, технічне обслуговування, інше.</div>
+          <div class="form-row">
+            <div class="form-value">${workOrderData.workType}</div>
+          </div>
+          
+          <div class="section-title">2. Технічний стан обладнання:</div>
+          <div class="form-row">
+            <div class="form-label">Напрацювання м/г:</div>
+            <div class="form-value">${workOrderData.operatingHours}</div>
+          </div>
+          <div class="form-row">
+            <div class="form-label">Згідно із заявкою:</div>
+            <div class="form-value">${workOrderData.technicalCondition}</div>
+          </div>
+          <div class="form-row">
+            <div class="form-label">Після технічного огляду (проведення робіт/послуг)</div>
+            <div class="form-value"></div>
+          </div>
+          
+          <div class="section-title">3. Перелік виконаних робіт/послуг:</div>
+          <div class="form-row">
+            <div class="form-value">${workOrderData.performedWork}</div>
+          </div>
+          
+          <div class="section-title">4. Результати випробувань: Відновлення роботи дизель генератора з робочими параметрами без навантаження та під час навантаження.</div>
+          <div class="form-row">
+            <div class="form-value">${workOrderData.testResults}</div>
+          </div>
+          
+          <div class="section-title">5. Розрахункова вартість робіт:</div>
+          <div class="section-title">7.1. ПЕРЕЛІК МАТЕРІАЛІВ ТА ЗАПЧАСТИН, ВИКОРИСТАНИХ ПІД ЧАС РОБІТ</div>
+          <table class="materials-table">
+            <thead>
+              <tr>
+                <th>№ п/п</th>
+                <th>Найменування</th>
+                <th>Одиниця виміру</th>
+                <th>Кількість</th>
+                <th>Ціна з ПДВ, грн</th>
+                <th>Сума з ПДВ, грн</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+            </tbody>
+          </table>
+          
+          <div class="form-row">
+            <div class="form-label">Загальна вартість матеріалів та запчастин:</div>
+            <div class="form-value">${workOrderData.materialsCost} грн.</div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-label">7.2 Вартість дефектації:</div>
+            <div class="form-value">кількість люд/годин ____ ; тариф ____ грн; разом ${workOrderData.defectCost} грн.</div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-label">7.3 Вартість ремонту:</div>
+            <div class="form-value">кількість люд/годин ____ ; тариф: ____ грн; разом ${workOrderData.repairCost} грн.</div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-label">7.4 Виїзд на об'єкт Замовника:</div>
+            <div class="form-value">тариф: по місту ____ грн. Виїзд за місто ____ км ____ грн/км; разом ${workOrderData.travelCost} грн.</div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-label">ЗАГАЛЬНА ВАРТІСТЬ РОБІТ з ПДВ (усього по п.7.1; 7.2; 7.3; 7.4)</div>
+            <div class="form-value">${workOrderData.totalCost} грн.</div>
+          </div>
+        </div>
+        
+        <!-- Друга сторінка -->
+        <div class="page">
+          <div class="form-row">
+            <div class="form-label">Сума прописом:</div>
+            <div class="form-value"></div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-label">Відмітка про оплату (вибрати необхідне):</div>
+            <div class="form-value">${workOrderData.paymentMethod}</div>
+          </div>
+          <div class="form-row">
+            <div class="form-label">безготівковий розрахунок, на банківську картку, готівкові кошти, інше (зазначити)</div>
+            <div class="form-value"></div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-label">Рекомендації виконувача робіт:</div>
+            <div class="form-value">${workOrderData.recommendations}</div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-label">Роботу виконав: (ПІБ), (посада)</div>
+            <div class="form-value">${workOrderData.engineer1}${workOrderData.engineer2 ? ', ' + workOrderData.engineer2 : ''}</div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-label">Роботу прийняв: (ПІБ), (посада)</div>
+            <div class="form-value"></div>
           </div>
         </div>
 
