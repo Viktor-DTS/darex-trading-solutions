@@ -4063,6 +4063,7 @@ function AdminEditTasksArea({ user }) {
         onApprove={handleApprove}
         onEdit={handleEdit}
         role="admin"
+        user={user}
         filters={filters}
         onFilterChange={handleFilter}
         columns={columns}
