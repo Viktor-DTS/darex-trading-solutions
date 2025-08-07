@@ -73,6 +73,7 @@ function TaskTableComponent({
   const [sortDirection, setSortDirection] = useState('desc');
   const [filter, setFilter] = useState('');
   const [rejectModal, setRejectModal] = useState({ open: false, taskId: null, comment: '' });
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState({ open: false, taskId: null, taskInfo: null });
   const [editDateModal, setEditDateModal] = useState({ open: false, taskId: null, month: '', year: '' });
   
   // Додаю стан для сортування
@@ -368,8 +369,35 @@ function TaskTableComponent({
     }
     setRejectModal({ open: false, taskId: null, comment: '' });
   };
+
   const handleRejectCancel = () => {
     setRejectModal({ open: false, taskId: null, comment: '' });
+  };
+
+  // --- Додаю функції для підтвердження видалення ---
+  const handleDeleteConfirm = () => {
+    if (deleteConfirmModal.taskId && onDelete) {
+      onDelete(deleteConfirmModal.taskId);
+    }
+    setDeleteConfirmModal({ open: false, taskId: null, taskInfo: null });
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirmModal({ open: false, taskId: null, taskInfo: null });
+  };
+
+  const showDeleteConfirmation = (task) => {
+    setDeleteConfirmModal({ 
+      open: true, 
+      taskId: task.id, 
+      taskInfo: {
+        requestNumber: task.requestNumber,
+        client: task.client,
+        work: task.work,
+        date: task.date,
+        status: task.status
+      }
+    });
   };
 
   // --- Drag and drop для колонок ---
@@ -1175,7 +1203,7 @@ function TaskTableComponent({
                               })() && (
                                 <button onClick={()=>{
                                   if (t.id && onDelete) {
-                                    onDelete(t.id);
+                                    showDeleteConfirmation(t);
                                   } else {
                                     console.error('[ERROR] Неможливо видалити заявку: ID відсутній або onDelete не передано', { taskId: t.id, hasOnDelete: !!onDelete });
                                   }
@@ -1347,6 +1375,49 @@ function TaskTableComponent({
             <div style={{display:'flex',gap:12,marginTop:16}}>
               <button type="button" style={{flex:1,background:'#00bfff',color:'#fff'}} onClick={handleSaveBonusDate} disabled={!editDateModal.month || !editDateModal.year}>Зберегти</button>
               <button type="button" style={{flex:1,background:'#888',color:'#fff'}} onClick={()=>setEditDateModal({ open: false, taskId: null, month: '', year: '' })}>Відмінити</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* --- Модальне вікно для підтвердження видалення заявки --- */}
+      {deleteConfirmModal.open && (
+        <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <div style={{background:'#22334a',padding:32,borderRadius:8,minWidth:400,maxWidth:500,boxShadow:'0 4px 32px #0008',color:'#fff',display:'flex',flexDirection:'column',gap:16}}>
+            <h3 style={{color:'#ff6666',margin:0}}>⚠️ Підтвердження видалення заявки</h3>
+            
+            <div style={{background:'#1a2636',padding:16,borderRadius:6,border:'1px solid #444'}}>
+              <p style={{margin:'0 0 12px 0',fontWeight:600}}>Ви дійсно хочете видалити цю заявку?</p>
+              
+              {deleteConfirmModal.taskInfo && (
+                <div style={{fontSize:14,lineHeight:1.5}}>
+                  <p><strong>Номер заявки:</strong> {deleteConfirmModal.taskInfo.requestNumber || 'Не вказано'}</p>
+                  <p><strong>Замовник:</strong> {deleteConfirmModal.taskInfo.client || 'Не вказано'}</p>
+                  <p><strong>Найменування робіт:</strong> {deleteConfirmModal.taskInfo.work || 'Не вказано'}</p>
+                  <p><strong>Дата проведення робіт:</strong> {deleteConfirmModal.taskInfo.date || 'Не вказано'}</p>
+                  <p><strong>Статус:</strong> {deleteConfirmModal.taskInfo.status || 'Не вказано'}</p>
+                </div>
+              )}
+              
+              <div style={{background:'#ff4444',color:'#fff',padding:12,borderRadius:4,marginTop:12,fontSize:14}}>
+                <strong>⚠️ Увага!</strong> Ця дія є незворотною. Всі дані заявки, включаючи файли та історію, будуть повністю видалені з системи.
+              </div>
+            </div>
+            
+            <div style={{display:'flex',gap:12,marginTop:8}}>
+              <button 
+                type="button" 
+                style={{flex:1,background:'#d32f2f',color:'#fff',padding:'12px 16px',border:'none',borderRadius:6,fontSize:14,fontWeight:600,cursor:'pointer'}} 
+                onClick={handleDeleteConfirm}
+              >
+                🗑️ Видалити заявку
+              </button>
+              <button 
+                type="button" 
+                style={{flex:1,background:'#666',color:'#fff',padding:'12px 16px',border:'none',borderRadius:6,fontSize:14,fontWeight:600,cursor:'pointer'}} 
+                onClick={handleDeleteCancel}
+              >
+                ✕ Скасувати
+              </button>
             </div>
           </div>
         </div>
