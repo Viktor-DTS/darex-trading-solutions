@@ -1,9 +1,20 @@
 const express = require('express');
 const multer = require('multer');
 const mongoose = require('mongoose');
-const cloudinary = require('../config/cloudinary');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const router = express.Router();
+
+// Тимчасово вимикаємо Cloudinary для тестування
+let cloudinary = null;
+let CloudinaryStorage = null;
+
+try {
+  cloudinary = require('../config/cloudinary');
+  const { CloudinaryStorage: CS } = require('multer-storage-cloudinary');
+  CloudinaryStorage = CS;
+  console.log('[FILES] Cloudinary підключено успішно');
+} catch (error) {
+  console.log('[FILES] Cloudinary не підключено, використовуємо локальне збереження');
+}
 
 // Middleware для перевірки стану MongoDB
 router.use((req, res, next) => {
@@ -17,15 +28,29 @@ router.use((req, res, next) => {
   next();
 });
 
-// Налаштування Cloudinary Storage для multer
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'darex-trading-solutions',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'],
-    transformation: [{ width: 1000, height: 1000, crop: 'limit' }]
-  }
-});
+// Налаштування Storage для multer
+let storage;
+if (CloudinaryStorage && cloudinary) {
+  // Cloudinary Storage
+  storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+      folder: 'darex-trading-solutions',
+      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'],
+      transformation: [{ width: 1000, height: 1000, crop: 'limit' }]
+    }
+  });
+} else {
+  // Локальне збереження (тимчасово)
+  storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, '/tmp/') // Тимчасова папка
+    },
+    filename: function (req, file, cb) {
+      cb(null, Date.now() + '-' + file.originalname)
+    }
+  });
+}
 
 const upload = multer({ 
   storage: storage,
@@ -122,6 +147,7 @@ router.post('/upload/:taskId', upload.array('files', 10), async (req, res) => {
     console.log('[FILES] CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'НАЛАШТОВАНО' : 'НЕ НАЛАШТОВАНО');
     console.log('[FILES] CLOUDINARY_API_KEY:', process.env.CLOUDINARY_API_KEY ? 'НАЛАШТОВАНО' : 'НЕ НАЛАШТОВАНО');
     console.log('[FILES] CLOUDINARY_API_SECRET:', process.env.CLOUDINARY_API_SECRET ? 'НАЛАШТОВАНО' : 'НЕ НАЛАШТОВАНО');
+    console.log('[FILES] Cloudinary доступний:', !!cloudinary);
     
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'Файли не були завантажені' });
@@ -132,15 +158,29 @@ router.post('/upload/:taskId', upload.array('files', 10), async (req, res) => {
 
     for (const file of req.files) {
       console.log('[FILES] Обробка файлу:', file.originalname);
-      console.log('[FILES] Cloudinary відповідь:', file);
+      console.log('[FILES] Файл об\'єкт:', file);
+      
+      // Визначаємо URL файлу
+      let fileUrl = '';
+      let cloudinaryId = '';
+      
+      if (cloudinary && file.path) {
+        // Cloudinary
+        fileUrl = file.path;
+        cloudinaryId = file.public_id;
+      } else {
+        // Локальне збереження
+        fileUrl = `/tmp/${file.filename}`;
+        cloudinaryId = '';
+      }
       
       // Створюємо запис в MongoDB
       const fileRecord = new File({
         taskId: req.params.taskId,
         originalName: file.originalname,
         filename: file.filename,
-        cloudinaryId: file.public_id,
-        cloudinaryUrl: file.path,
+        cloudinaryId: cloudinaryId,
+        cloudinaryUrl: fileUrl,
         mimetype: file.mimetype,
         size: file.size,
         description: description
