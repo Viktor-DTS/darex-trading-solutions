@@ -1261,7 +1261,7 @@ function TaskTableComponent({
                       t[col.key]
                     }</td>)}
                     <td style={getRowColor(t) ? {color:'#111'} : {}}>{t.status}</td>
-                    {role === 'admin' && <td style={getRowColor(t) ? {color:'#111'} : {}}>
+                    {(role === 'admin' || user?.role === 'administrator') && <td style={getRowColor(t) ? {color:'#111'} : {}}>
                       {(t.bonusApprovalDate || '')}
                       <button style={{marginLeft:8}} onClick={() => {
                         let mm = '', yyyy = '';
@@ -1354,7 +1354,7 @@ function TaskTableComponent({
         </div>
       )}
       {/* --- Модальне вікно для зміни дати підтвердження премії --- */}
-      {role === 'admin' && editDateModal.open && (
+      {(role === 'admin' || user?.role === 'administrator') && editDateModal.open && (
         <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:4000,display:'flex',alignItems:'center',justifyContent:'center'}}>
           <div style={{background:'#22334a',padding:32,borderRadius:8,minWidth:320,maxWidth:400,boxShadow:'0 4px 32px #0008',color:'#fff',display:'flex',flexDirection:'column',gap:16}}>
             <h3>Змінити дату підтвердження премії</h3>
