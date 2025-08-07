@@ -89,6 +89,11 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
     }
   };
 
+  const handleViewFile = (file) => {
+    // Відкриваємо файл в новій вкладці
+    window.open(file.cloudinaryUrl, '_blank');
+  };
+
   const handleDeleteFile = async (fileId) => {
     if (!window.confirm('Ви впевнені, що хочете видалити цей файл?')) {
       return;
@@ -222,13 +227,22 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                     </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDeleteFile(file.id)}
-                  className="delete-button"
-                  title="Видалити файл"
-                >
-                  🗑️
-                </button>
+                <div className="file-actions">
+                  <button
+                    onClick={() => handleViewFile(file)}
+                    className="view-button"
+                    title="Переглянути файл"
+                  >
+                    👁️
+                  </button>
+                  <button
+                    onClick={() => handleDeleteFile(file.id)}
+                    className="delete-button"
+                    title="Видалити файл"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
             ))}
           </div>
