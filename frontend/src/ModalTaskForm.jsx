@@ -71,7 +71,7 @@ export const fields = [
   { name: 'work', label: 'Найменування робіт', type: 'text' },
   { name: 'engineer1', label: 'Сервісний інженер №1', type: 'text' },
   { name: 'engineer2', label: 'Сервісний інженер №2', type: 'text' },
-  { name: 'serviceTotal', label: 'Загальна сума послуги', type: 'text', calc: true },
+  { name: 'serviceTotal', label: 'Загальна сума послуги', type: 'text' },
   { name: 'oilType', label: 'Тип оливи', type: 'text' },
   { name: 'oilUsed', label: 'Використано оливи, л', type: 'text' },
   { name: 'oilPrice', label: 'Ціна оливи за 1 л, грн', type: 'text' },
@@ -90,7 +90,7 @@ export const fields = [
   { name: 'antifreezeSum', label: 'Загальна сума за антифриз', type: 'text', calc: true },
   { name: 'otherMaterials', label: 'Опис інших матеріалів', type: 'text' },
   { name: 'otherSum', label: 'Загальна ціна інших матеріалів', type: 'text' },
-  { name: 'workPrice', label: 'Вартість робіт, грн', type: 'text' },
+  { name: 'workPrice', label: 'Вартість робіт, грн', type: 'text', calc: true },
   { name: 'perDiem', label: 'Добові, грн', type: 'text' },
   { name: 'living', label: 'Проживання, грн', type: 'text' },
   { name: 'otherExp', label: 'Інші витрати, грн', type: 'text' },
@@ -137,11 +137,11 @@ const filterGroup = ['filterName', 'filterCount', 'filterPrice', 'filterSum'];
 const fuelFilterGroup = ['fuelFilterName', 'fuelFilterCount', 'fuelFilterPrice', 'fuelFilterSum'];
 const airFilterGroup = ['airFilterName', 'airFilterCount', 'airFilterPrice', 'airFilterSum'];
 const antifreezeGroup = ['antifreezeType', 'antifreezeL', 'antifreezePrice', 'antifreezeSum'];
-const transportGroup = ['carNumber', 'transportKm', 'transportSum', 'workPrice'];
+const transportGroup = ['carNumber', 'transportKm', 'transportSum'];
 const expensesGroup = ['perDiem', 'living', 'otherExp', 'bonusApprovalDate'];
 const statusGroup = ['status', 'requestDate', 'company'];
 const regionClientGroup = ['edrpou', 'client', 'invoice', 'paymentDate'];
-const paymentEquipmentGroup = ['paymentType', 'serviceTotal', 'equipment', 'equipmentSerial'];
+const paymentEquipmentGroup = ['paymentType', 'equipment', 'equipmentSerial'];
 const workEngineersGroup = ['date', 'work', 'engineer1', 'engineer2'];
 const otherMaterialsGroup = ['otherSum', 'otherMaterials'];
 const warehouseGroup = ['approvedByWarehouse', 'warehouseComment'];
@@ -161,6 +161,8 @@ const orderedFields = [
   ...regionClientGroup,
   'address',
   ...paymentEquipmentGroup,
+  'serviceTotal',
+  'workPrice',
   ...workEngineersGroup,
   ...oilGroup,
   ...filterGroup,
@@ -577,7 +579,12 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     const fuelFilterSum = (parseFloat(form.fuelFilterCount)||0) * (parseFloat(form.fuelFilterPrice)||0);
     const airFilterSum = (parseFloat(form.airFilterCount)||0) * (parseFloat(form.airFilterPrice)||0);
     const antifreezeSum = (parseFloat(form.antifreezeL)||0) * (parseFloat(form.antifreezePrice)||0);
-    const serviceTotal =
+    
+    // Загальна сума послуги береться з форми (ручне введення)
+    const serviceTotal = parseFloat(form.serviceTotal) || 0;
+    
+    // Вартість робіт розраховується як різниця
+    const workPrice = serviceTotal - (
       oilTotal +
       filterSum +
       fuelFilterSum +
@@ -587,8 +594,9 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       (parseFloat(form.perDiem)||0) +
       (parseFloat(form.living)||0) +
       (parseFloat(form.otherExp)||0) +
-      (parseFloat(form.transportSum)||0) +
-      (parseFloat(form.workPrice)||0);
+      (parseFloat(form.transportSum)||0)
+    );
+    
     onSave({
       ...form,
       bonusApprovalDate,
@@ -597,7 +605,8 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       fuelFilterSum,
       airFilterSum,
       antifreezeSum,
-      serviceTotal
+      serviceTotal,
+      workPrice
     });
     onClose();
   };
@@ -607,18 +616,20 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   const calcFilterSum = () => (parseFloat(form.filterCount)||0)*(parseFloat(form.filterPrice)||0);
   const calcFuelFilterSum = () => (parseFloat(form.fuelFilterCount)||0)*(parseFloat(form.fuelFilterPrice)||0);
   const calcAntifreezeSum = () => (parseFloat(form.antifreezeL)||0)*(parseFloat(form.antifreezePrice)||0);
-  const calcServiceTotal = () => (
-    (parseFloat(calcOilTotal())||0)+
-    (parseFloat(calcFilterSum())||0)+
-    (parseFloat(calcFuelFilterSum())||0)+
-    (parseFloat(calcAntifreezeSum())||0)+
-    (parseFloat(form.otherSum)||0)+
-    (parseFloat(form.workPrice)||0)+
-    (parseFloat(form.perDiem)||0)+
-    (parseFloat(form.living)||0)+
-    (parseFloat(form.otherExp)||0)+
-    (parseFloat(form.transportSum)||0)
-  );
+  const calcWorkPrice = () => {
+    const serviceTotal = parseFloat(form.serviceTotal) || 0;
+    const totalExpenses = 
+      (parseFloat(calcOilTotal())||0)+
+      (parseFloat(calcFilterSum())||0)+
+      (parseFloat(calcFuelFilterSum())||0)+
+      (parseFloat(calcAntifreezeSum())||0)+
+      (parseFloat(form.otherSum)||0)+
+      (parseFloat(form.perDiem)||0)+
+      (parseFloat(form.living)||0)+
+      (parseFloat(form.otherExp)||0)+
+      (parseFloat(form.transportSum)||0);
+    return serviceTotal - totalExpenses;
+  };
 
   return (
     <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto'}}>
@@ -800,25 +811,10 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           if (idx === orderedFields.indexOf('paymentType')) {
             return (
               <div className="group" key="paymentEquipmentGroup">
-                {['paymentType', 'serviceTotal', 'equipment', 'equipmentSerial'].map(n => {
+                {['paymentType', 'equipment', 'equipmentSerial'].map(n => {
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
-                  // serviceTotal — тільки для читання, автозаповнення
-                  if (n === 'serviceTotal') {
-                    value =
-                      (parseFloat(form.oilUsed)||0)*(parseFloat(form.oilPrice)||0) +
-                      (parseFloat(form.filterCount)||0)*(parseFloat(form.filterPrice)||0) +
-                      (parseFloat(form.fuelFilterCount)||0)*(parseFloat(form.fuelFilterPrice)||0) +
-                      (parseFloat(form.airFilterCount)||0)*(parseFloat(form.airFilterPrice)||0) +
-                      (parseFloat(form.antifreezeL)||0)*(parseFloat(form.antifreezePrice)||0) +
-                      (parseFloat(form.otherSum)||0) +
-                      (parseFloat(form.perDiem)||0) +
-                      (parseFloat(form.living)||0) +
-                      (parseFloat(form.otherExp)||0) +
-                      (parseFloat(form.transportSum)||0) +
-                      (parseFloat(form.workPrice)||0);
-                  }
                   return (
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
@@ -827,7 +823,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                           {(f.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
                       ) : (
-                        <input type={f.type} name={f.name} value={value} onChange={handleChange} readOnly={f.name==='serviceTotal' || isReadOnly(f.name)} />
+                        <input type={f.type} name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} />
                       )}
                     </div>
                   );
@@ -987,18 +983,16 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           // serviceTotal, bonusApprovalDate — тільки для читання
           if (name === 'serviceTotal') {
             const f = fields.find(f=>f.name===name);
-            let value =
-              (parseFloat(form.oilUsed)||0)*(parseFloat(form.oilPrice)||0) +
-              (parseFloat(form.filterCount)||0)*(parseFloat(form.filterPrice)||0) +
-              (parseFloat(form.fuelFilterCount)||0)*(parseFloat(form.fuelFilterPrice)||0) +
-              (parseFloat(form.airFilterCount)||0)*(parseFloat(form.airFilterPrice)||0) +
-              (parseFloat(form.antifreezeL)||0)*(parseFloat(form.antifreezePrice)||0) +
-              (parseFloat(form.otherSum)||0) +
-              (parseFloat(form.perDiem)||0) +
-              (parseFloat(form.living)||0) +
-              (parseFloat(form.otherExp)||0) +
-              (parseFloat(form.transportSum)||0) +
-              (parseFloat(form.workPrice)||0);
+            return (
+              <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
+                <label>{f.label}</label>
+                <input type="text" name={f.name} value={form[f.name] || ''} onChange={handleChange} readOnly={isReadOnly(f.name)} />
+              </div>
+            );
+          }
+          if (name === 'workPrice') {
+            const f = fields.find(f=>f.name===name);
+            const value = calcWorkPrice();
             return (
               <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                 <label>{f.label}</label>
