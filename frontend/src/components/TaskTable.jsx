@@ -53,6 +53,7 @@ function TaskTableComponent({
   statusOptions = ['Новий', 'В роботі', 'Виконано', 'Заблоковано'],
   onEdit,
   onDelete,
+  onSaveBonusDate,
   dateRange,
   setDateRange,
   user,
@@ -540,12 +541,9 @@ function TaskTableComponent({
   const handleSaveBonusDate = () => {
     if (!editDateModal.taskId || !editDateModal.month || !editDateModal.year) return;
     const newDate = `${editDateModal.month.padStart(2, '0')}-${editDateModal.year}`;
-    if (onEdit) {
-      // Знаходимо завдання та викликаємо onEdit з оновленим полем bonusApprovalDate
-      const task = tasks.find(t => t.id === editDateModal.taskId);
-      if (task) {
-        onEdit({ ...task, bonusApprovalDate: newDate });
-      }
+    if (onSaveBonusDate) {
+      // Викликаємо onSaveBonusDate з taskId та новою датою
+      onSaveBonusDate(editDateModal.taskId, newDate);
     }
     setEditDateModal({ open: false, taskId: null, month: '', year: '' });
   };

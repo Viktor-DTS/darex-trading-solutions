@@ -4029,6 +4029,34 @@ function AdminEditTasksArea({ user }) {
     else if (task.status === 'Виконано' && task.approvedByWarehouse && task.approvedByAccountant && task.approvedByRegionalManager) setTab('done');
     else if (task.status === 'Заблоковано') setTab('blocked');
   };
+  // Функція для збереження тільки поля bonusApprovalDate
+  const handleSaveBonusDate = async (taskId, newDate) => {
+    console.log('[DEBUG] handleSaveBonusDate called with taskId:', taskId, 'newDate:', newDate);
+    
+    setLoading(true);
+    try {
+      // Знаходимо поточну заявку
+      const currentTask = tasks.find(t => t.id === taskId);
+      if (!currentTask) {
+        console.error('[ERROR] handleSaveBonusDate - заявка не знайдена:', taskId);
+        return;
+      }
+      
+      // Оновлюємо тільки поле bonusApprovalDate
+      const updatedTask = { ...currentTask, bonusApprovalDate: newDate };
+      const updated = await tasksAPI.update(taskId, updatedTask);
+      console.log('[DEBUG] handleSaveBonusDate - отримано оновлену заявку:', updated);
+      
+      // Оновлюємо локальний стан
+      setTasks(tasks => tasks.map(t => t.id === taskId ? updated : t));
+      
+      console.log('[DEBUG] handleSaveBonusDate - успішно збережено');
+    } catch (error) {
+      console.error('[ERROR] handleSaveBonusDate - помилка збереження:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
   const filtered = tasks.filter(t =>
     (!filters.requestDesc || t.requestDesc.toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
     (!filters.serviceRegion || t.serviceRegion.toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
@@ -4062,6 +4090,7 @@ function AdminEditTasksArea({ user }) {
         allTasks={tasks}
         onApprove={handleApprove}
         onEdit={handleEdit}
+        onSaveBonusDate={handleSaveBonusDate}
         role="admin"
         user={user}
         filters={filters}
