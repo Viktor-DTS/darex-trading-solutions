@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
-import FileManager from './components/FileManager';
+import FileUpload from './components/FileUpload';
 import { tasksAPI } from './utils/tasksAPI';
 import { regionsAPI } from './utils/regionsAPI';
 
@@ -1245,12 +1245,12 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           );
         })}
         
-        {/* Додаємо FileManager тільки якщо є ID завдання (режим редагування) */}
+        {/* Додаємо FileUpload тільки якщо є ID завдання (режим редагування) */}
         {initialData.id && (
-          <FileManager 
+          <FileUpload 
             taskId={initialData.id} 
-            onFilesChange={(files) => {
-              console.log('Файли змінилися:', files);
+            onFilesUploaded={(files) => {
+              console.log('Файли завантажено:', files);
             }}
           />
         )}
