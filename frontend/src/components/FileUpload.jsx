@@ -89,9 +89,23 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
     }
   };
 
-  const handleViewFile = (file) => {
+  const handleViewFile = (file, event) => {
+    // Запобігаємо закриття форми
+    event.preventDefault();
+    event.stopPropagation();
+    
     // Відкриваємо файл в новій вкладці
-    window.open(file.cloudinaryUrl, '_blank');
+    const newWindow = window.open(file.cloudinaryUrl, '_blank');
+    
+    // Фокусуємося назад на поточну вкладку
+    if (newWindow) {
+      newWindow.focus();
+    }
+    
+    // Повертаємо фокус на поточну вкладку через невелику затримку
+    setTimeout(() => {
+      window.focus();
+    }, 100);
   };
 
   const handleDeleteFile = async (fileId) => {
@@ -217,6 +231,11 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="file-link"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          handleViewFile(file, event);
+                        }}
                       >
                         {file.originalName}
                       </a>
@@ -229,7 +248,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                 </div>
                 <div className="file-actions">
                   <button
-                    onClick={() => handleViewFile(file)}
+                    onClick={(event) => handleViewFile(file, event)}
                     className="view-button"
                     title="Переглянути файл"
                   >

@@ -665,7 +665,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           margin-bottom: 24px;
         }
       `}</style>
-      <form className="modal-task-form" onSubmit={handleSubmit} style={{background:'#1a2636',padding:32,paddingBottom:48,borderRadius:0,width:'90vw',maxWidth:1100,maxHeight:'90vh',color:'#fff',boxShadow:'0 4px 32px #0008',overflowY:'auto',display:'flex',flexDirection:'column',justifyContent:'flex-start',marginTop:48,position:'relative'}}>
+      <form className="modal-task-form" onSubmit={handleSubmit} style={{background:'#1a2636',padding:32,paddingBottom:48,borderRadius:0,width:'90vw',maxWidth:1100,maxHeight:'90vh',color:'#fff',boxShadow:'0 4px 32px #0008',overflowY:'auto',display:'flex',flexDirection:'column',justifyContent:'flex-start',marginTop:48,position:'relative'}} onClick={(e) => e.stopPropagation()}>
         <button type="button" onClick={onClose} style={{position:'absolute',top:40,right:24,fontSize:28,background:'none',border:'none',color:'#fff',cursor:'pointer',zIndex:10}} aria-label="Закрити">×</button>
         <h2 style={{marginTop:0}}>Завдання</h2>
         {error && <div style={{color:'#ff6666',marginBottom:16,fontWeight:600}}>{error}</div>}
