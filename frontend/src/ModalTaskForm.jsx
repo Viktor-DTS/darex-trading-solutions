@@ -442,7 +442,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     
     // Поле bonusApprovalDate доступне тільки для адміністратора
     if (name === 'bonusApprovalDate') {
-      return mode !== 'admin';
+      return mode !== 'admin' && user?.role !== 'administrator';
     }
     
     if (mode === 'regionalManager') {
@@ -456,7 +456,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       return !(name === 'approvedByAccountant' || name === 'accountantComment' || name === 'accountantComments');
     }
     // Адміністратор має доступ до всіх полів
-    if (mode === 'admin') {
+    if (mode === 'admin' || user?.role === 'administrator') {
       return false;
     }
     // Додаємо логіку для поля дати
@@ -1004,7 +1004,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             } else {
               autoValue = form[name] || '';
             }
-            const isAdmin = mode === 'admin';
+            const isAdmin = mode === 'admin' || user?.role === 'administrator';
             // --- Конвертація значення для адміністратора ---
             let dateValue = '';
             if (isAdmin) {
