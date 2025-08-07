@@ -614,6 +614,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   const calcOilTotal = () => (parseFloat(form.oilUsed)||0)*(parseFloat(form.oilPrice)||0);
   const calcFilterSum = () => (parseFloat(form.filterCount)||0)*(parseFloat(form.filterPrice)||0);
   const calcFuelFilterSum = () => (parseFloat(form.fuelFilterCount)||0)*(parseFloat(form.fuelFilterPrice)||0);
+  const calcAirFilterSum = () => (parseFloat(form.airFilterCount)||0)*(parseFloat(form.airFilterPrice)||0);
   const calcAntifreezeSum = () => (parseFloat(form.antifreezeL)||0)*(parseFloat(form.antifreezePrice)||0);
   const calcWorkPrice = () => {
     const serviceTotal = parseFloat(form.serviceTotal) || 0;
@@ -621,6 +622,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       (parseFloat(calcOilTotal())||0)+
       (parseFloat(calcFilterSum())||0)+
       (parseFloat(calcFuelFilterSum())||0)+
+      (parseFloat(calcAirFilterSum())||0)+
       (parseFloat(calcAntifreezeSum())||0)+
       (parseFloat(form.otherSum)||0)+
       (parseFloat(form.perDiem)||0)+
