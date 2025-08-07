@@ -2068,7 +2068,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
     
     // Логіка групування по регіонам для звіту
     const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
-    const showRegions = user?.region !== 'Україна' ? allRegions : allRegions;
+    const showRegions = user?.region === 'Україна' ? allRegions : [user?.region || 'Без регіону'];
     
     // Генеруємо звіт з групуванням по регіонам
     const generateRegionReport = (region) => {
@@ -2210,6 +2210,12 @@ function RegionalManagerArea({ tab: propTab, user }) {
           !isApproved(t.approvedByAccountant) ||
           !isApproved(t.approvedByRegionalManager)
         ) return false;
+        
+        // Фільтрація по регіону - якщо користувач не з регіону "Україна", показуємо тільки його регіон
+        if (user?.region && user.region !== 'Україна') {
+          if (t.serviceRegion !== user.region) return false;
+        }
+        
         // автоконвертація bonusApprovalDate
         let bonusApprovalDate = t.bonusApprovalDate;
         if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
@@ -2260,7 +2266,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
               const bonus = (parseFloat(t.workPrice) || 0) * 0.25;
               return `
                 <tr>
-                  <td>${t.bonusApprovalDate || ''}</td>
+                  <td>${t.date || ''}</td>
                   <td>${t.engineer1 || ''}${t.engineer2 ? ', ' + t.engineer2 : ''}</td>
                   <td>${t.client || ''}</td>
                   <td>${t.address || ''}</td>
@@ -2656,7 +2662,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
 
   // Логіка групування по регіонам для вкладки "Звіт по персоналу"
   const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
-  const showRegions = user?.region !== 'Україна' ? allRegions : allRegions;
+  const showRegions = user?.region === 'Україна' ? allRegions : [user?.region || 'Без регіону'];
 
   return (
     <>
