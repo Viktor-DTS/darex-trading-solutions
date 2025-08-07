@@ -16,6 +16,8 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
   const [isCapturing, setIsCapturing] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [cameraGroupName, setCameraGroupName] = useState('');
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -44,21 +46,83 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
   const startCamera = async () => {
     try {
       setCameraError('');
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'environment', // Використовуємо задню камеру якщо є
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        } 
-      });
-      setCameraStream(stream);
+      setCameraLoading(true);
+      setVideoReady(false);
       setShowCamera(true);
+      
+      // Спочатку пробуємо задню камеру
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          } 
+        });
+      } catch (error) {
+        console.log('Задня камера недоступна, пробуємо передню:', error);
+        // Якщо задня камера недоступна, пробуємо передню
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          } 
+        });
+      }
+      
+      setCameraStream(stream);
+      
+      // Чекаємо поки відео завантажиться
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        
+        // Додаємо обробники подій для відео
+        videoRef.current.onloadedmetadata = () => {
+          console.log('Відео метадані завантажені');
+          videoRef.current.play().catch(e => {
+            console.error('Помилка відтворення відео:', e);
+            setCameraError('Помилка відтворення відео. Спробуйте оновити сторінку.');
+            setCameraLoading(false);
+          });
+        };
+        
+        videoRef.current.onerror = (e) => {
+          console.error('Помилка відео:', e);
+          setCameraError('Помилка відео потоку. Перевірте дозволи камери.');
+          setCameraLoading(false);
+        };
+        
+        videoRef.current.oncanplay = () => {
+          console.log('Відео готове до відтворення');
+          setVideoReady(true);
+          setCameraLoading(false);
+        };
+        
+        videoRef.current.onplaying = () => {
+          console.log('Відео відтворюється');
+          setVideoReady(true);
+          setCameraLoading(false);
+        };
       }
     } catch (error) {
       console.error('Помилка доступу до камери:', error);
-      setCameraError('Не вдалося отримати доступ до камери. Перевірте дозволи.');
+      let errorMessage = 'Не вдалося отримати доступ до камери.';
+      
+      if (error.name === 'NotAllowedError') {
+        errorMessage = 'Доступ до камери відхилено. Дозвольте доступ до камери в налаштуваннях браузера.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = 'Камера не знайдена. Перевірте підключення камери.';
+      } else if (error.name === 'NotReadableError') {
+        errorMessage = 'Камера зайнята іншою програмою. Закрийте інші програми, що використовують камеру.';
+      } else if (error.name === 'OverconstrainedError') {
+        errorMessage = 'Камера не підтримує необхідну роздільність.';
+      }
+      
+      setCameraError(errorMessage);
+      setShowCamera(false);
+      setCameraLoading(false);
     }
   };
 
@@ -69,6 +133,8 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
     }
     setShowCamera(false);
     setCameraError('');
+    setCameraLoading(false);
+    setVideoReady(false);
   };
 
   const captureImage = () => {
@@ -379,12 +445,20 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
           )}
           
           <div className="camera-container">
+            {cameraLoading && (
+              <div className="camera-loading">
+                <div className="loading-spinner"></div>
+                <p>Завантаження камери...</p>
+              </div>
+            )}
+            
             <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
-              className="camera-video"
+              className={`camera-video ${videoReady ? 'video-ready' : ''}`}
+              style={{ display: cameraLoading ? 'none' : 'block' }}
             />
             
             <canvas ref={canvasRef} style={{ display: 'none' }} />
@@ -392,10 +466,18 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
             <div className="camera-controls">
               <button
                 onClick={captureImage}
-                disabled={isCapturing}
+                disabled={isCapturing || !videoReady}
                 className="capture-button"
               >
                 {isCapturing ? 'Знімаємо...' : '📸 Зробити знімок'}
+              </button>
+              
+              <button
+                onClick={startCamera}
+                disabled={cameraLoading}
+                className="restart-camera-button"
+              >
+                🔄 Перезапустити камеру
               </button>
               
               <button
