@@ -424,6 +424,30 @@
   cursor: not-allowed;
 }
 
+.capture-document-button {
+  background: #6f42c1;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.capture-document-button:hover:not(:disabled) {
+  background: #5a32a3;
+}
+
+.capture-document-button:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
 .close-camera-button {
   background: #dc3545;
   color: white;
@@ -495,11 +519,25 @@
   border: 1px solid #dee2e6;
   overflow: hidden;
   transition: transform 0.2s;
+  position: relative;
 }
 
 .captured-image-item:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.image-type-indicator {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  z-index: 1;
 }
 
 .captured-image-preview {

@@ -18,9 +18,12 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
   const [cameraGroupName, setCameraGroupName] = useState('');
   const [cameraLoading, setCameraLoading] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
+  const [documentDetected, setDocumentDetected] = useState(false);
+  const [processingImage, setProcessingImage] = useState(false);
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const detectionCanvasRef = useRef(null);
 
   const API_URL = process.env.REACT_APP_API_URL || 'https://darex-trading-solutions.onrender.com';
 
@@ -165,6 +168,198 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       }
       setIsCapturing(false);
     }, 'image/jpeg', 0.9);
+  };
+
+  // Функція для розпізнавання документів
+  const detectDocument = (imageData) => {
+    const width = imageData.width;
+    const height = imageData.height;
+    const data = imageData.data;
+    
+    // Конвертуємо в чорно-біле для кращого розпізнавання
+    const grayData = new Uint8ClampedArray(width * height);
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+      grayData[i / 4] = gray;
+    }
+    
+    // Знаходимо краї документу (спрощений алгоритм)
+    const edges = findDocumentEdges(grayData, width, height);
+    
+    return edges;
+  };
+
+  // Функція для пошуку країв документу
+  const findDocumentEdges = (grayData, width, height) => {
+    const threshold = 50; // Поріг для визначення країв
+    const margin = 20; // Відступ від країв
+    
+    let top = margin, bottom = height - margin;
+    let left = margin, right = width - margin;
+    
+    // Знаходимо верхній край
+    for (let y = margin; y < height - margin; y++) {
+      for (let x = margin; x < width - margin; x++) {
+        const index = y * width + x;
+        if (grayData[index] < threshold) {
+          top = Math.min(top, y);
+          break;
+        }
+      }
+    }
+    
+    // Знаходимо нижній край
+    for (let y = height - margin - 1; y >= margin; y--) {
+      for (let x = margin; x < width - margin; x++) {
+        const index = y * width + x;
+        if (grayData[index] < threshold) {
+          bottom = Math.max(bottom, y);
+          break;
+        }
+      }
+    }
+    
+    // Знаходимо лівий край
+    for (let x = margin; x < width - margin; x++) {
+      for (let y = margin; y < height - margin; y++) {
+        const index = y * width + x;
+        if (grayData[index] < threshold) {
+          left = Math.min(left, x);
+          break;
+        }
+      }
+    }
+    
+    // Знаходимо правий край
+    for (let x = width - margin - 1; x >= margin; x--) {
+      for (let y = margin; y < height - margin; y++) {
+        const index = y * width + x;
+        if (grayData[index] < threshold) {
+          right = Math.max(right, x);
+          break;
+        }
+      }
+    }
+    
+    return { top, bottom, left, right };
+  };
+
+  // Функція для вирізання та форматування документу
+  const cropAndFormatDocument = (canvas, edges) => {
+    const { top, bottom, left, right } = edges;
+    const cropWidth = right - left;
+    const cropHeight = bottom - top;
+    
+    // Створюємо новий canvas для вирізаного зображення
+    const cropCanvas = document.createElement('canvas');
+    const cropContext = cropCanvas.getContext('2d');
+    
+    // Встановлюємо розміри А4 (співвідношення 1:1.414)
+    const a4Width = 800; // Базова ширина
+    const a4Height = Math.round(a4Width * 1.414); // Висота А4
+    
+    cropCanvas.width = a4Width;
+    cropCanvas.height = a4Height;
+    
+    // Вирізаємо та масштабуємо
+    cropContext.drawImage(
+      canvas,
+      left, top, cropWidth, cropHeight,
+      0, 0, a4Width, a4Height
+    );
+    
+    return cropCanvas;
+  };
+
+  // Оновлена функція знімку з розпізнаванням документу
+  const captureDocument = async () => {
+    if (!videoRef.current || !canvasRef.current || !detectionCanvasRef.current) return;
+    
+    setIsCapturing(true);
+    setProcessingImage(true);
+    
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const detectionCanvas = detectionCanvasRef.current;
+    const context = canvas.getContext('2d');
+    const detectionContext = detectionCanvas.getContext('2d');
+    
+    // Встановлюємо розміри canvas
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    detectionCanvas.width = video.videoWidth;
+    detectionCanvas.height = video.videoHeight;
+    
+    // Малюємо кадр з відео на canvas
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    detectionContext.drawImage(video, 0, 0, detectionCanvas.width, detectionCanvas.height);
+    
+    try {
+      // Отримуємо дані зображення для розпізнавання
+      const imageData = detectionContext.getImageData(0, 0, detectionCanvas.width, detectionCanvas.height);
+      
+      // Розпізнаємо документ
+      const edges = detectDocument(imageData);
+      
+      // Перевіряємо чи знайдено документ (мінімальний розмір)
+      const minSize = 100;
+      const documentWidth = edges.right - edges.left;
+      const documentHeight = edges.bottom - edges.top;
+      
+      if (documentWidth > minSize && documentHeight > minSize) {
+        setDocumentDetected(true);
+        
+        // Вирізаємо та форматуємо документ
+        const croppedCanvas = cropAndFormatDocument(canvas, edges);
+        
+        // Конвертуємо в blob
+        croppedCanvas.toBlob((blob) => {
+          if (blob) {
+            const imageFile = new File([blob], `document_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            setCapturedImages(prev => [...prev, {
+              file: imageFile,
+              preview: URL.createObjectURL(blob),
+              timestamp: new Date().toLocaleString('uk-UA'),
+              isDocument: true,
+              originalEdges: edges
+            }]);
+          }
+          setIsCapturing(false);
+          setProcessingImage(false);
+        }, 'image/jpeg', 0.95);
+      } else {
+        // Якщо документ не знайдено, зберігаємо оригінальне зображення
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const imageFile = new File([blob], `image_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            setCapturedImages(prev => [...prev, {
+              file: imageFile,
+              preview: URL.createObjectURL(blob),
+              timestamp: new Date().toLocaleString('uk-UA'),
+              isDocument: false
+            }]);
+          }
+          setIsCapturing(false);
+          setProcessingImage(false);
+        }, 'image/jpeg', 0.9);
+      }
+    } catch (error) {
+      console.error('Помилка обробки зображення:', error);
+      // Якщо помилка, зберігаємо оригінальне зображення
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const imageFile = new File([blob], `image_${Date.now()}.jpg`, { type: 'image/jpeg' });
+          setCapturedImages(prev => [...prev, {
+            file: imageFile,
+            preview: URL.createObjectURL(blob),
+            timestamp: new Date().toLocaleString('uk-UA'),
+            isDocument: false
+          }]);
+        }
+        setIsCapturing(false);
+        setProcessingImage(false);
+      }, 'image/jpeg', 0.9);
+    }
   };
 
   const removeCapturedImage = (index) => {
@@ -462,14 +657,23 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
             />
             
             <canvas ref={canvasRef} style={{ display: 'none' }} />
+            <canvas ref={detectionCanvasRef} style={{ display: 'none' }} />
             
             <div className="camera-controls">
+              <button
+                onClick={captureDocument}
+                disabled={isCapturing || !videoReady}
+                className="capture-document-button"
+              >
+                {isCapturing ? (processingImage ? 'Обробка...' : 'Знімаємо...') : '📄 Знімок документу'}
+              </button>
+              
               <button
                 onClick={captureImage}
                 disabled={isCapturing || !videoReady}
                 className="capture-button"
               >
-                {isCapturing ? 'Знімаємо...' : '📸 Зробити знімок'}
+                {isCapturing ? 'Знімаємо...' : '📸 Звичайний знімок'}
               </button>
               
               <button
@@ -497,6 +701,9 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
               <div className="captured-images-grid">
                 {capturedImages.map((image, index) => (
                   <div key={index} className="captured-image-item">
+                    <div className="image-type-indicator">
+                      {image.isDocument ? '📄 Документ А4' : '📸 Звичайний знімок'}
+                    </div>
                     <img 
                       src={image.preview} 
                       alt={`Знімок ${index + 1}`}
