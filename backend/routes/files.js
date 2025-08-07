@@ -75,9 +75,40 @@ router.get('/ping', (req, res) => {
       readyState: mongoose.connection.readyState
     },
     cloudinary: {
-      configured: !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)
+      configured: !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET),
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME ? 'НАЛАШТОВАНО' : 'НЕ НАЛАШТОВАНО',
+      apiKey: process.env.CLOUDINARY_API_KEY ? 'НАЛАШТОВАНО' : 'НЕ НАЛАШТОВАНО',
+      apiSecret: process.env.CLOUDINARY_API_SECRET ? 'НАЛАШТОВАНО' : 'НЕ НАЛАШТОВАНО'
     }
   });
+});
+
+// Тестовий роут для перевірки Cloudinary підключення
+router.get('/test-cloudinary', async (req, res) => {
+  try {
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return res.status(500).json({
+        error: 'Cloudinary не налаштовано',
+        cloudName: !!process.env.CLOUDINARY_CLOUD_NAME,
+        apiKey: !!process.env.CLOUDINARY_API_KEY,
+        apiSecret: !!process.env.CLOUDINARY_API_SECRET
+      });
+    }
+
+    // Тестуємо підключення до Cloudinary
+    const result = await cloudinary.api.ping();
+    res.json({
+      success: true,
+      message: 'Cloudinary підключення успішне',
+      result: result
+    });
+  } catch (error) {
+    console.error('[FILES] Помилка тесту Cloudinary:', error);
+    res.status(500).json({
+      error: 'Помилка підключення до Cloudinary',
+      details: error.message
+    });
+  }
 });
 
 // Роут для завантаження файлів
@@ -85,6 +116,12 @@ router.post('/upload/:taskId', upload.array('files', 10), async (req, res) => {
   try {
     console.log('[FILES] Завантаження файлів для завдання:', req.params.taskId);
     console.log('[FILES] Кількість файлів:', req.files ? req.files.length : 0);
+    
+    // Діагностика Cloudinary налаштувань
+    console.log('[FILES] Cloudinary налаштування:');
+    console.log('[FILES] CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'НАЛАШТОВАНО' : 'НЕ НАЛАШТОВАНО');
+    console.log('[FILES] CLOUDINARY_API_KEY:', process.env.CLOUDINARY_API_KEY ? 'НАЛАШТОВАНО' : 'НЕ НАЛАШТОВАНО');
+    console.log('[FILES] CLOUDINARY_API_SECRET:', process.env.CLOUDINARY_API_SECRET ? 'НАЛАШТОВАНО' : 'НЕ НАЛАШТОВАНО');
     
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'Файли не були завантажені' });
@@ -95,6 +132,7 @@ router.post('/upload/:taskId', upload.array('files', 10), async (req, res) => {
 
     for (const file of req.files) {
       console.log('[FILES] Обробка файлу:', file.originalname);
+      console.log('[FILES] Cloudinary відповідь:', file);
       
       // Створюємо запис в MongoDB
       const fileRecord = new File({
