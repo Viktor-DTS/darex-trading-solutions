@@ -2109,6 +2109,10 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   !isApproved(t.approvedByAccountant) ||
                   !isApproved(t.approvedByRegionalManager)
                 ) return false;
+                
+                // Фільтрація по регіону - показуємо тільки завдання цього конкретного регіону
+                if (t.serviceRegion !== region) return false;
+                
                 // автоконвертація bonusApprovalDate
                 let bonusApprovalDate = t.bonusApprovalDate;
                 if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
@@ -2211,10 +2215,8 @@ function RegionalManagerArea({ tab: propTab, user }) {
           !isApproved(t.approvedByRegionalManager)
         ) return false;
         
-        // Фільтрація по регіону - якщо користувач не з регіону "Україна", показуємо тільки його регіон
-        if (user?.region && user.region !== 'Україна') {
-          if (t.serviceRegion !== user.region) return false;
-        }
+        // Фільтрація по регіону - показуємо тільки завдання цього конкретного регіону
+        if (t.serviceRegion !== region) return false;
         
         // автоконвертація bonusApprovalDate
         let bonusApprovalDate = t.bonusApprovalDate;
