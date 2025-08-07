@@ -183,89 +183,125 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       grayData[i / 4] = gray;
     }
     
-    // Знаходимо краї документу (спрощений алгоритм)
-    const edges = findDocumentEdges(grayData, width, height);
+    // Знаходимо краї документу (покращений алгоритм)
+    const edges = findDocumentEdgesImproved(grayData, width, height);
     
     return edges;
   };
 
-  // Функція для пошуку країв документу
-  const findDocumentEdges = (grayData, width, height) => {
-    const threshold = 50; // Поріг для визначення країв
-    const margin = 20; // Відступ від країв
+  // Покращена функція для пошуку країв документу
+  const findDocumentEdgesImproved = (grayData, width, height) => {
+    const margin = Math.min(width, height) * 0.05; // 5% відступ
+    const scanStep = Math.max(1, Math.floor(Math.min(width, height) / 100)); // Крок сканування
     
     let top = margin, bottom = height - margin;
     let left = margin, right = width - margin;
     
-    // Знаходимо верхній край
-    for (let y = margin; y < height - margin; y++) {
-      for (let x = margin; x < width - margin; x++) {
+    // Знаходимо верхній край (знизу вгору)
+    for (let y = height - margin - 1; y >= margin; y -= scanStep) {
+      let darkPixels = 0;
+      for (let x = margin; x < width - margin; x += scanStep) {
         const index = y * width + x;
-        if (grayData[index] < threshold) {
-          top = Math.min(top, y);
-          break;
+        if (grayData[index] < 100) { // Темні пікселі
+          darkPixels++;
         }
+      }
+      const darkRatio = darkPixels / Math.floor((width - 2 * margin) / scanStep);
+      if (darkRatio > 0.3) { // Якщо більше 30% темних пікселів
+        top = y;
+        break;
       }
     }
     
-    // Знаходимо нижній край
-    for (let y = height - margin - 1; y >= margin; y--) {
-      for (let x = margin; x < width - margin; x++) {
+    // Знаходимо нижній край (зверху вниз)
+    for (let y = margin; y < height - margin; y += scanStep) {
+      let darkPixels = 0;
+      for (let x = margin; x < width - margin; x += scanStep) {
         const index = y * width + x;
-        if (grayData[index] < threshold) {
-          bottom = Math.max(bottom, y);
-          break;
+        if (grayData[index] < 100) {
+          darkPixels++;
         }
+      }
+      const darkRatio = darkPixels / Math.floor((width - 2 * margin) / scanStep);
+      if (darkRatio > 0.3) {
+        bottom = y;
+        break;
       }
     }
     
-    // Знаходимо лівий край
-    for (let x = margin; x < width - margin; x++) {
-      for (let y = margin; y < height - margin; y++) {
+    // Знаходимо лівий край (справа наліво)
+    for (let x = width - margin - 1; x >= margin; x -= scanStep) {
+      let darkPixels = 0;
+      for (let y = margin; y < height - margin; y += scanStep) {
         const index = y * width + x;
-        if (grayData[index] < threshold) {
-          left = Math.min(left, x);
-          break;
+        if (grayData[index] < 100) {
+          darkPixels++;
         }
+      }
+      const darkRatio = darkPixels / Math.floor((height - 2 * margin) / scanStep);
+      if (darkRatio > 0.3) {
+        left = x;
+        break;
       }
     }
     
-    // Знаходимо правий край
-    for (let x = width - margin - 1; x >= margin; x--) {
-      for (let y = margin; y < height - margin; y++) {
+    // Знаходимо правий край (зліва направо)
+    for (let x = margin; x < width - margin; x += scanStep) {
+      let darkPixels = 0;
+      for (let y = margin; y < height - margin; y += scanStep) {
         const index = y * width + x;
-        if (grayData[index] < threshold) {
-          right = Math.max(right, x);
-          break;
+        if (grayData[index] < 100) {
+          darkPixels++;
         }
+      }
+      const darkRatio = darkPixels / Math.floor((height - 2 * margin) / scanStep);
+      if (darkRatio > 0.3) {
+        right = x;
+        break;
       }
     }
     
     return { top, bottom, left, right };
   };
 
-  // Функція для вирізання та форматування документу
+  // Функція для вирізання та адаптивного форматування документу
   const cropAndFormatDocument = (canvas, edges) => {
     const { top, bottom, left, right } = edges;
     const cropWidth = right - left;
     const cropHeight = bottom - top;
     
+    // Перевіряємо чи знайдено достатньо велику область
+    const minSize = Math.min(canvas.width, canvas.height) * 0.2; // Мінімум 20% від розміру
+    if (cropWidth < minSize || cropHeight < minSize) {
+      return null; // Повертаємо null якщо документ не знайдено
+    }
+    
     // Створюємо новий canvas для вирізаного зображення
     const cropCanvas = document.createElement('canvas');
     const cropContext = cropCanvas.getContext('2d');
     
-    // Встановлюємо розміри А4 (співвідношення 1:1.414)
-    const a4Width = 800; // Базова ширина
-    const a4Height = Math.round(a4Width * 1.414); // Висота А4
+    // Адаптивне форматування - зберігаємо оригінальні пропорції
+    const maxSize = 1200; // Максимальний розмір
+    let targetWidth, targetHeight;
     
-    cropCanvas.width = a4Width;
-    cropCanvas.height = a4Height;
+    if (cropWidth > cropHeight) {
+      // Горизонтальний документ
+      targetWidth = Math.min(cropWidth, maxSize);
+      targetHeight = (cropHeight * targetWidth) / cropWidth;
+    } else {
+      // Вертикальний документ
+      targetHeight = Math.min(cropHeight, maxSize);
+      targetWidth = (cropWidth * targetHeight) / cropHeight;
+    }
+    
+    cropCanvas.width = targetWidth;
+    cropCanvas.height = targetHeight;
     
     // Вирізаємо та масштабуємо
     cropContext.drawImage(
       canvas,
       left, top, cropWidth, cropHeight,
-      0, 0, a4Width, a4Height
+      0, 0, targetWidth, targetHeight
     );
     
     return cropCanvas;
@@ -301,18 +337,13 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       // Розпізнаємо документ
       const edges = detectDocument(imageData);
       
-      // Перевіряємо чи знайдено документ (мінімальний розмір)
-      const minSize = 100;
-      const documentWidth = edges.right - edges.left;
-      const documentHeight = edges.bottom - edges.top;
+      // Вирізаємо та форматуємо документ
+      const croppedCanvas = cropAndFormatDocument(canvas, edges);
       
-      if (documentWidth > minSize && documentHeight > minSize) {
+      if (croppedCanvas) {
         setDocumentDetected(true);
         
-        // Вирізаємо та форматуємо документ
-        const croppedCanvas = cropAndFormatDocument(canvas, edges);
-        
-        // Конвертуємо в blob
+        // Конвертуємо в blob з високою якістю
         croppedCanvas.toBlob((blob) => {
           if (blob) {
             const imageFile = new File([blob], `document_${Date.now()}.jpg`, { type: 'image/jpeg' });
@@ -321,12 +352,13 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
               preview: URL.createObjectURL(blob),
               timestamp: new Date().toLocaleString('uk-UA'),
               isDocument: true,
-              originalEdges: edges
+              originalEdges: edges,
+              dimensions: `${croppedCanvas.width}x${croppedCanvas.height}`
             }]);
           }
           setIsCapturing(false);
           setProcessingImage(false);
-        }, 'image/jpeg', 0.95);
+        }, 'image/jpeg', 0.98); // Максимальна якість
       } else {
         // Якщо документ не знайдено, зберігаємо оригінальне зображення
         canvas.toBlob((blob) => {
@@ -336,12 +368,13 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
               file: imageFile,
               preview: URL.createObjectURL(blob),
               timestamp: new Date().toLocaleString('uk-UA'),
-              isDocument: false
+              isDocument: false,
+              dimensions: `${canvas.width}x${canvas.height}`
             }]);
           }
           setIsCapturing(false);
           setProcessingImage(false);
-        }, 'image/jpeg', 0.9);
+        }, 'image/jpeg', 0.95);
       }
     } catch (error) {
       console.error('Помилка обробки зображення:', error);
@@ -353,12 +386,13 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
             file: imageFile,
             preview: URL.createObjectURL(blob),
             timestamp: new Date().toLocaleString('uk-UA'),
-            isDocument: false
+            isDocument: false,
+            dimensions: `${canvas.width}x${canvas.height}`
           }]);
         }
         setIsCapturing(false);
         setProcessingImage(false);
-      }, 'image/jpeg', 0.9);
+      }, 'image/jpeg', 0.95);
     }
   };
 
@@ -702,7 +736,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                 {capturedImages.map((image, index) => (
                   <div key={index} className="captured-image-item">
                     <div className="image-type-indicator">
-                      {image.isDocument ? '📄 Документ А4' : '📸 Звичайний знімок'}
+                      {image.isDocument ? '📄 Документ' : '📸 Звичайний знімок'}
                     </div>
                     <img 
                       src={image.preview} 
@@ -710,7 +744,12 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                       className="captured-image-preview"
                     />
                     <div className="captured-image-info">
-                      <span className="captured-image-time">{image.timestamp}</span>
+                      <div className="image-details">
+                        <span className="captured-image-time">{image.timestamp}</span>
+                        {image.dimensions && (
+                          <span className="image-dimensions">{image.dimensions}</span>
+                        )}
+                      </div>
                       <button
                         onClick={() => removeCapturedImage(index)}
                         className="remove-captured-image"
