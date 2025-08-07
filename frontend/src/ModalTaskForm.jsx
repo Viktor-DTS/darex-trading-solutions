@@ -141,9 +141,10 @@ const transportGroup = ['carNumber', 'transportKm', 'transportSum'];
 const expensesGroup = ['perDiem', 'living', 'otherExp', 'bonusApprovalDate'];
 const statusGroup = ['status', 'requestDate', 'company'];
 const regionClientGroup = ['edrpou', 'client', 'invoice', 'paymentDate'];
-const paymentEquipmentGroup = ['paymentType', 'equipment', 'equipmentSerial'];
+const paymentEquipmentGroup = ['paymentType', 'equipment', 'equipmentSerial', 'serviceTotal'];
 const workEngineersGroup = ['date', 'work', 'engineer1', 'engineer2'];
 const otherMaterialsGroup = ['otherSum', 'otherMaterials'];
+const transportWorkPriceGroup = ['carNumber', 'transportKm', 'transportSum', 'workPrice'];
 const warehouseGroup = ['approvedByWarehouse', 'warehouseComment'];
 const accountantGroup = ['approvedByAccountant', 'accountantComment', 'accountantComments'];
 const regionalManagerGroup = ['approvedByRegionalManager', 'regionalManagerComment'];
@@ -161,15 +162,13 @@ const orderedFields = [
   ...regionClientGroup,
   'address',
   ...paymentEquipmentGroup,
-  'serviceTotal',
-  'workPrice',
   ...workEngineersGroup,
   ...oilGroup,
   ...filterGroup,
   ...fuelFilterGroup,
   ...airFilterGroup,
   ...antifreezeGroup,
-  ...transportGroup,
+  ...transportWorkPriceGroup,
   ...expensesGroup,
   ...otherMaterialsGroup,
   ...warehouseGroup,
@@ -744,7 +743,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             ...fuelFilterGroup.slice(1),
             ...airFilterGroup.slice(1),
             ...antifreezeGroup.slice(1),
-            ...transportGroup.slice(1),
+            ...transportWorkPriceGroup.slice(1),
             ...expensesGroup.slice(1),
             ...otherMaterialsGroup.slice(1),
             ...warehouseGroup.slice(1),
@@ -811,7 +810,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           if (idx === orderedFields.indexOf('paymentType')) {
             return (
               <div className="group" key="paymentEquipmentGroup">
-                {['paymentType', 'equipment', 'equipmentSerial'].map(n => {
+                {['paymentType', 'equipment', 'equipmentSerial', 'serviceTotal'].map(n => {
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
@@ -923,15 +922,18 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           }
           if (idx === orderedFields.indexOf('carNumber')) {
             return (
-              <div className="group" key="transportGroup">
-                {transportGroup.map(n => {
+              <div className="group" key="transportWorkPriceGroup">
+                {['carNumber', 'transportKm', 'transportSum', 'workPrice'].map(n => {
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
+                  if (n === 'workPrice') {
+                    value = calcWorkPrice();
+                  }
                   return (
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
-                      <input type="text" name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} />
+                      <input type="text" name={f.name} value={value} onChange={handleChange} readOnly={n==='workPrice' || isReadOnly(f.name)} />
                     </div>
                   );
                 })}
@@ -977,26 +979,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
               <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field textarea'}>
                 <label>{f.label}</label>
                 <textarea name={f.name} value={form[f.name] || ''} onChange={handleChange} readOnly={isReadOnly(f.name)} />
-              </div>
-            );
-          }
-          // serviceTotal, bonusApprovalDate — тільки для читання
-          if (name === 'serviceTotal') {
-            const f = fields.find(f=>f.name===name);
-            return (
-              <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
-                <label>{f.label}</label>
-                <input type="text" name={f.name} value={form[f.name] || ''} onChange={handleChange} readOnly={isReadOnly(f.name)} />
-              </div>
-            );
-          }
-          if (name === 'workPrice') {
-            const f = fields.find(f=>f.name===name);
-            const value = calcWorkPrice();
-            return (
-              <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
-                <label>{f.label}</label>
-                <input type="text" name={f.name} value={value} readOnly tabIndex={-1} />
               </div>
             );
           }
