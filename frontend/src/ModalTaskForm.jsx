@@ -440,6 +440,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       return true;
     }
     
+    // Поле bonusApprovalDate доступне тільки для адміністратора
+    if (name === 'bonusApprovalDate') {
+      return mode !== 'admin';
+    }
+    
     if (mode === 'regionalManager') {
       // Доступні тільки ці два поля
       return !(name === 'approvedByRegionalManager' || name === 'regionalManagerComment');
@@ -1022,7 +1027,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   name={f.name}
                     value={dateValue}
                   onChange={handleChange}
-                    readOnly={false}
+                    readOnly={isReadOnly(f.name)}
                   tabIndex={-1}
                 />
                 ) : (
