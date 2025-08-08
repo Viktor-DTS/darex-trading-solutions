@@ -1515,6 +1515,106 @@ export default function MobileViewArea({ user }) {
                         </span>
                       </div>
                     )}
+                    {isFieldFilled(task.oilType) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Тип оливи:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.oilType}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.oilUsed) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Кількість оливи:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.oilUsed} л</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.oilPrice) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Ціна оливи за л:</span><br />
+                        <span style={{ fontWeight: '500', color: '#fd7e14' }}>
+                          {task.oilPrice} грн
+                        </span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.filterName) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Масляний фільтр:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.filterName}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.filterCount) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Кількість масл. фільтрів:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.filterCount} шт</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.filterPrice) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Ціна масл. фільтра:</span><br />
+                        <span style={{ fontWeight: '500', color: '#20c997' }}>
+                          {task.filterPrice} грн
+                        </span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.fuelFilterName) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Паливний фільтр:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.fuelFilterName}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.fuelFilterCount) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Кількість палив. фільтрів:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.fuelFilterCount} шт</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.fuelFilterPrice) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Ціна палив. фільтра:</span><br />
+                        <span style={{ fontWeight: '500', color: '#20c997' }}>
+                          {task.fuelFilterPrice} грн
+                        </span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.airFilterName) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Повітряний фільтр:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.airFilterName}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.airFilterCount) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Кількість повітр. фільтрів:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.airFilterCount} шт</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.airFilterPrice) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Ціна повітр. фільтра:</span><br />
+                        <span style={{ fontWeight: '500', color: '#20c997' }}>
+                          {task.airFilterPrice} грн
+                        </span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.antifreezeType) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Тип антифризу:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.antifreezeType}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.antifreezeL) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Кількість антифризу:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.antifreezeL} л</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.antifreezePrice) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Ціна антифризу за л:</span><br />
+                        <span style={{ fontWeight: '500', color: '#17a2b8' }}>
+                          {task.antifreezePrice} грн
+                        </span>
+                      </div>
+                    )}
                     {isFieldFilled(task.company) && (
                       <div>
                         <span style={{ color: '#333' }}>Компанія:</span><br />
@@ -1731,7 +1831,23 @@ export default function MobileViewArea({ user }) {
                   approvedByRegional: 'Підтверджено регіональним',
                   regionalComment: 'Коментар регіонального',
                   approvedByRegionalManager: 'Підтверджено рег. менеджером',
-                  regionalManagerComment: 'Коментар рег. менеджера'
+                  regionalManagerComment: 'Коментар рег. менеджера',
+                  // Додаємо поля матеріалів
+                  oilType: 'Тип оливи',
+                  oilUsed: 'Кількість оливи (л)',
+                  oilPrice: 'Ціна оливи за л (грн)',
+                  filterName: 'Масляний фільтр',
+                  filterCount: 'Кількість масл. фільтрів (шт)',
+                  filterPrice: 'Ціна масл. фільтра (грн)',
+                  fuelFilterName: 'Паливний фільтр',
+                  fuelFilterCount: 'Кількість палив. фільтрів (шт)',
+                  fuelFilterPrice: 'Ціна палив. фільтра (грн)',
+                  airFilterName: 'Повітряний фільтр',
+                  airFilterCount: 'Кількість повітр. фільтрів (шт)',
+                  airFilterPrice: 'Ціна повітр. фільтра (грн)',
+                  antifreezeType: 'Тип антифризу',
+                  antifreezeL: 'Кількість антифризу (л)',
+                  antifreezePrice: 'Ціна антифризу за л (грн)'
                 };
 
                 const label = fieldLabels[key];
@@ -1762,6 +1878,16 @@ export default function MobileViewArea({ user }) {
                        key === 'fuelFilterSum' ? `${value} грн` :
                        key === 'filterSum' ? `${value} грн` :
                        key === 'antifreezeSum' ? `${value} грн` :
+                       key === 'oilPrice' ? `${value} грн/л` :
+                       key === 'filterPrice' ? `${value} грн/шт` :
+                       key === 'fuelFilterPrice' ? `${value} грн/шт` :
+                       key === 'airFilterPrice' ? `${value} грн/шт` :
+                       key === 'antifreezePrice' ? `${value} грн/л` :
+                       key === 'oilUsed' ? `${value} л` :
+                       key === 'filterCount' ? `${value} шт` :
+                       key === 'fuelFilterCount' ? `${value} шт` :
+                       key === 'airFilterCount' ? `${value} шт` :
+                       key === 'antifreezeL' ? `${value} л` :
                        value}
                     </div>
                   </div>
