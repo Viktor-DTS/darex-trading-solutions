@@ -149,12 +149,30 @@ export default function MobileViewArea({ user }) {
 
   // Функція для завантаження з камери
   const handleCameraCapture = async (taskId) => {
+    // Перевіряємо підтримку API камери
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert('Ваш браузер не підтримує доступ до камери. Спробуйте використати сучасний браузер (Chrome, Firefox, Safari).');
+      return;
+    }
+
+    // Перевіряємо, чи працює через HTTPS (необхідно для камери)
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+      alert('Доступ до камери працює тільки через HTTPS або на localhost. Перейдіть на безпечне з\'єднання.');
+      return;
+    }
+
     try {
-      // Спочатку отримуємо список доступних камер
+      // Спочатку запитуємо дозвіл на доступ до камери з базовими налаштуваннями
+      const initialStream = await navigator.mediaDevices.getUserMedia({ 
+        video: true,
+        audio: false 
+      });
+      
+      // Після отримання дозволу, отримуємо список доступних камер
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
       
-      let currentStream = null;
+      let currentStream = initialStream;
       let currentDeviceIndex = 0;
 
       // Функція для створення потоку з конкретної камери
@@ -163,20 +181,35 @@ export default function MobileViewArea({ user }) {
           currentStream.getTracks().forEach(track => track.stop());
         }
         
-        const constraints = {
-          video: {
-            deviceId: videoDevices[deviceIndex] ? { exact: videoDevices[deviceIndex].deviceId } : undefined
-          }
-        };
+        let constraints;
+        if (videoDevices.length > 0 && deviceIndex < videoDevices.length) {
+          constraints = {
+            video: {
+              deviceId: { exact: videoDevices[deviceIndex].deviceId }
+            },
+            audio: false
+          };
+        } else {
+          constraints = {
+            video: true,
+            audio: false
+          };
+        }
         
-        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-        return currentStream;
+        try {
+          currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+          return currentStream;
+        } catch (error) {
+          console.error('Помилка створення потоку для камери:', error);
+          // Якщо не вдалося створити потік з конкретною камерою, використовуємо загальний
+          currentStream = await navigator.mediaDevices.getUserMedia({ 
+            video: true, 
+            audio: false 
+          });
+          return currentStream;
+        }
       };
 
-      // Створюємо початковий потік
-      const stream = await createStream();
-      currentStream = stream;
-      
       // Створюємо модальне вікно для камери
       const cameraModal = document.createElement('div');
       cameraModal.style.cssText = `
@@ -203,9 +236,15 @@ export default function MobileViewArea({ user }) {
         background: #000;
         box-shadow: 0 4px 20px rgba(0,0,0,0.5);
       `;
-      video.srcObject = stream;
+      video.srcObject = currentStream;
       video.autoplay = true;
       video.playsInline = true;
+
+      // Додаємо обробник помилок для відео
+      video.onerror = (error) => {
+        console.error('Помилка відео:', error);
+        alert('Помилка відображення відео з камери');
+      };
 
       // Створюємо кнопки
       const buttonContainer = document.createElement('div');
@@ -245,6 +284,47 @@ export default function MobileViewArea({ user }) {
         min-width: 140px;
       `;
 
+      // Кнопка для вибору фото з галереї
+      const galleryButton = document.createElement('button');
+      galleryButton.textContent = '📂 З галереї';
+      galleryButton.style.cssText = `
+        background: #6f42c1;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 12px 24px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        min-width: 140px;
+      `;
+
+      galleryButton.onclick = () => {
+        // Створюємо прихований input для вибору файлу
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.style.display = 'none';
+        
+        fileInput.onchange = async (e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            const descriptionInput = document.getElementById('photo-description');
+            const description = descriptionInput ? descriptionInput.value : '';
+            
+            if (currentStream) {
+              currentStream.getTracks().forEach(track => track.stop());
+            }
+            document.body.removeChild(cameraModal);
+            
+            await handleFileUpload(e.target.files, taskId, description);
+          }
+        };
+        
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        document.body.removeChild(fileInput);
+      };
+
       // Кнопка перемикання камер (тільки якщо є більше однієї камери)
       let switchCameraButton = null;
       if (videoDevices.length > 1) {
@@ -263,36 +343,51 @@ export default function MobileViewArea({ user }) {
         `;
 
         switchCameraButton.onclick = async () => {
-          currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
-          const newStream = await createStream(currentDeviceIndex);
-          video.srcObject = newStream;
+          try {
+            currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
+            const newStream = await createStream(currentDeviceIndex);
+            video.srcObject = newStream;
+            
+            // Оновлюємо індикатор камери
+            if (cameraIndicator) {
+              cameraIndicator.textContent = `Камера ${currentDeviceIndex + 1} з ${videoDevices.length}`;
+            }
+          } catch (error) {
+            console.error('Помилка перемикання камери:', error);
+            alert('Помилка перемикання камери');
+          }
         };
       }
 
       // Додаємо обробники подій
       captureButton.onclick = () => {
-        // Отримуємо опис з поля вводу
-        const descriptionInput = document.getElementById('photo-description');
-        const description = descriptionInput ? descriptionInput.value : '';
-        
-        // Створюємо canvas для захоплення кадру
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        context.drawImage(video, 0, 0);
-        
-        // Конвертуємо в blob
-        canvas.toBlob(async (blob) => {
-          if (currentStream) {
-            currentStream.getTracks().forEach(track => track.stop());
-          }
-          document.body.removeChild(cameraModal);
+        try {
+          // Отримуємо опис з поля вводу
+          const descriptionInput = document.getElementById('photo-description');
+          const description = descriptionInput ? descriptionInput.value : '';
           
-          const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
-          await handleFileUpload([file], taskId, description);
-        }, 'image/jpeg');
+          // Створюємо canvas для захоплення кадру
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          context.drawImage(video, 0, 0);
+          
+          // Конвертуємо в blob
+          canvas.toBlob(async (blob) => {
+            if (currentStream) {
+              currentStream.getTracks().forEach(track => track.stop());
+            }
+            document.body.removeChild(cameraModal);
+            
+            const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            await handleFileUpload([file], taskId, description);
+          }, 'image/jpeg');
+        } catch (error) {
+          console.error('Помилка захоплення фото:', error);
+          alert('Помилка захоплення фото');
+        }
       };
 
       cancelButton.onclick = () => {
@@ -307,6 +402,7 @@ export default function MobileViewArea({ user }) {
       if (switchCameraButton) {
         buttonContainer.appendChild(switchCameraButton);
       }
+      buttonContainer.appendChild(galleryButton); // Додаємо кнопку для галереї
       buttonContainer.appendChild(cancelButton);
       cameraModal.appendChild(video);
       cameraModal.appendChild(buttonContainer);
@@ -365,8 +461,9 @@ export default function MobileViewArea({ user }) {
       cameraModal.insertBefore(descriptionContainer, buttonContainer);
 
       // Додаємо індикатор камери
+      let cameraIndicator = null;
       if (videoDevices.length > 1) {
-        const cameraIndicator = document.createElement('div');
+        cameraIndicator = document.createElement('div');
         cameraIndicator.textContent = `Камера ${currentDeviceIndex + 1} з ${videoDevices.length}`;
         cameraIndicator.style.cssText = `
           color: #fff;
@@ -380,7 +477,25 @@ export default function MobileViewArea({ user }) {
 
     } catch (error) {
       console.error('Помилка доступу до камери:', error);
-      alert('Помилка доступу до камери: ' + error.message);
+      
+      // Більш детальні повідомлення про помилки
+      let errorMessage = 'Помилка доступу до камери';
+      
+      if (error.name === 'NotAllowedError') {
+        errorMessage = 'Доступ до камери відхилено. Дозвольте доступ до камери в налаштуваннях браузера.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = 'Камера не знайдена. Перевірте, чи підключена камера до пристрою.';
+      } else if (error.name === 'NotReadableError') {
+        errorMessage = 'Камера зайнята іншим додатком. Закрийте інші додатки, що використовують камеру.';
+      } else if (error.name === 'OverconstrainedError') {
+        errorMessage = 'Камера не підтримує необхідні налаштування.';
+      } else if (error.name === 'TypeError') {
+        errorMessage = 'Браузер не підтримує доступ до камери. Спробуйте використати інший браузер.';
+      } else {
+        errorMessage = `Помилка доступу до камери: ${error.message}`;
+      }
+      
+      alert(errorMessage);
     }
   };
 
