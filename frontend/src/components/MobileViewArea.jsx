@@ -161,6 +161,12 @@ export default function MobileViewArea({ user }) {
     setFilePhotoType('document');
   };
 
+  // Функція для скидання дозволу на камеру
+  const resetCameraPermission = () => {
+    localStorage.removeItem('cameraPermission');
+    alert('Дозвіл на камеру скинуто. При наступному використанні камери дозвіл буде запитуватися знову.');
+  };
+
   // Функція для групування файлів по типу та часу
   const groupFilesByTypeAndTime = (files) => {
     const groups = {};
@@ -391,11 +397,29 @@ export default function MobileViewArea({ user }) {
     }
 
     try {
-      // Спочатку запитуємо дозвіл на доступ до камери з базовими налаштуваннями
-      const initialStream = await navigator.mediaDevices.getUserMedia({ 
-        video: true,
-        audio: false 
-      });
+      // Перевіряємо, чи вже є збережений дозвіл
+      const hasCameraPermission = localStorage.getItem('cameraPermission');
+      let initialStream;
+      
+      if (hasCameraPermission === 'granted') {
+        // Якщо дозвіл вже надано, створюємо потік без запиту
+        initialStream = await navigator.mediaDevices.getUserMedia({ 
+          video: true,
+          audio: false 
+        });
+      } else if (hasCameraPermission === 'denied') {
+        // Якщо дозвіл був відхилений, показуємо повідомлення
+        alert('Доступ до камери був відхилений. Натисніть "Скинути дозвіл камери" та спробуйте знову.');
+        return;
+      } else {
+        // Запитуємо дозвіл тільки один раз
+        initialStream = await navigator.mediaDevices.getUserMedia({ 
+          video: true,
+          audio: false 
+        });
+        // Зберігаємо дозвіл
+        localStorage.setItem('cameraPermission', 'granted');
+      }
       
       // Після отримання дозволу, отримуємо список доступних камер
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -815,6 +839,8 @@ export default function MobileViewArea({ user }) {
       let errorMessage = 'Помилка доступу до камери';
       
       if (error.name === 'NotAllowedError') {
+        // Якщо дозвіл відхилено, зберігаємо це
+        localStorage.setItem('cameraPermission', 'denied');
         errorMessage = 'Доступ до камери відхилено. Дозвольте доступ до камери в налаштуваннях браузера.';
       } else if (error.name === 'NotFoundError') {
         errorMessage = 'Камера не знайдена. Перевірте, чи підключена камера до пристрою.';
@@ -861,7 +887,11 @@ export default function MobileViewArea({ user }) {
       {/* Кнопка виходу */}
       <div style={{ 
         textAlign: 'center', 
-        marginBottom: '20px' 
+        marginBottom: '20px',
+        display: 'flex',
+        gap: '12px',
+        justifyContent: 'center',
+        flexWrap: 'wrap'
       }}>
         <button
           onClick={handleLogout}
@@ -877,6 +907,20 @@ export default function MobileViewArea({ user }) {
           }}
         >
           🚪 Вийти з режиму
+        </button>
+        <button
+          onClick={resetCameraPermission}
+          style={{
+            background: '#6c757d',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '8px 16px',
+            fontSize: '14px',
+            cursor: 'pointer'
+          }}
+        >
+          🔄 Скинути дозвіл камери
         </button>
       </div>
 
