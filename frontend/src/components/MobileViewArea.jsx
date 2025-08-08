@@ -279,7 +279,8 @@ export default function MobileViewArea({ user }) {
       border-radius: 8px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     `;
-    previewImage.src = canvas.toDataURL('image/jpeg', 0.8);
+    // Використовуємо високу якість для превью
+    previewImage.src = canvas.toDataURL('image/jpeg', 0.95);
 
     // Створюємо інформацію про фото
     const photoInfo = document.createElement('div');
@@ -304,6 +305,9 @@ export default function MobileViewArea({ user }) {
       ${description ? `<div style="margin-bottom: 10px;"><strong>Опис:</strong> ${description}</div>` : ''}
       <div style="font-size: 14px; opacity: 0.8;">
         Розмір: ${canvas.width} × ${canvas.height} пікселів
+      </div>
+      <div style="font-size: 14px; opacity: 0.8;">
+        Якість: Висока (95%)
       </div>
     `;
 
@@ -364,10 +368,12 @@ export default function MobileViewArea({ user }) {
     // Обробники подій
     confirmButton.onclick = async () => {
       try {
-        // Конвертуємо в blob і зберігаємо
+        // Конвертуємо в blob і зберігаємо з високою якістю
         canvas.toBlob(async (blob) => {
           const fileName = `${photoType}_${Date.now()}.jpg`;
           const file = new File([blob], fileName, { type: 'image/jpeg' });
+          
+          console.log('Файл створено з розміром:', blob.size, 'байт');
           
           // Додаємо тип фото до опису
           const fullDescription = description ? 
@@ -406,7 +412,7 @@ export default function MobileViewArea({ user }) {
           if (descriptionInput) descriptionInput.value = description;
           if (photoTypeSelect) photoTypeSelect.value = photoType;
           
-        }, 'image/jpeg');
+        }, 'image/jpeg', 0.95); // Висока якість JPEG (0.95 замість 0.8)
       } catch (error) {
         console.error('Помилка збереження фото:', error);
         alert('Помилка збереження фото');
@@ -603,39 +609,80 @@ export default function MobileViewArea({ user }) {
       let initialStream;
       
       try {
-        // Спочатку пробуємо з точним deviceId
+        // Спочатку пробуємо з точним deviceId та високою роздільною здатністю
         initialStream = await navigator.mediaDevices.getUserMedia({
           video: {
-            deviceId: { exact: selectedCamera.deviceId }
+            deviceId: { exact: selectedCamera.deviceId },
+            width: { ideal: 3840, max: 3840 }, // 4K
+            height: { ideal: 2160, max: 2160 },
+            aspectRatio: { ideal: 16/9 },
+            frameRate: { ideal: 30, max: 60 }
           },
           audio: false
         });
-        console.log('Успішно створено потік з точним deviceId');
+        console.log('Успішно створено потік з точним deviceId та високою роздільною здатністю');
       } catch (error) {
-        console.log('Помилка з точним deviceId:', error.name);
+        console.log('Помилка з точним deviceId та високою роздільною здатністю:', error.name);
         
         try {
-          // Пробуємо без точного deviceId
+          // Пробуємо з точним deviceId та середньою роздільною здатністю
           initialStream = await navigator.mediaDevices.getUserMedia({
             video: {
-              deviceId: selectedCamera.deviceId
+              deviceId: { exact: selectedCamera.deviceId },
+              width: { ideal: 1920, max: 1920 }, // Full HD
+              height: { ideal: 1080, max: 1080 },
+              aspectRatio: { ideal: 16/9 },
+              frameRate: { ideal: 30, max: 60 }
             },
             audio: false
           });
-          console.log('Успішно створено потік без точного deviceId');
+          console.log('Успішно створено потік з точним deviceId та середньою роздільною здатністю');
         } catch (error2) {
-          console.log('Помилка без точного deviceId:', error2.name);
+          console.log('Помилка з точним deviceId та середньою роздільною здатністю:', error2.name);
           
           try {
-            // Пробуємо з базовими налаштуваннями
+            // Пробуємо без точного deviceId але з високою роздільною здатністю
             initialStream = await navigator.mediaDevices.getUserMedia({
-              video: true,
+              video: {
+                deviceId: selectedCamera.deviceId,
+                width: { ideal: 1920, max: 1920 },
+                height: { ideal: 1080, max: 1080 },
+                aspectRatio: { ideal: 16/9 },
+                frameRate: { ideal: 30, max: 60 }
+              },
               audio: false
             });
-            console.log('Успішно створено потік з базовими налаштуваннями');
+            console.log('Успішно створено потік без точного deviceId але з високою роздільною здатністю');
           } catch (error3) {
-            console.error('Всі спроби створення потоку невдалі:', error3);
-            throw error3;
+            console.log('Помилка без точного deviceId але з високою роздільною здатністю:', error3.name);
+            
+            try {
+              // Пробуємо з базовими налаштуваннями але з високою роздільною здатністю
+              initialStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                  width: { ideal: 1920, max: 1920 },
+                  height: { ideal: 1080, max: 1080 },
+                  aspectRatio: { ideal: 16/9 },
+                  frameRate: { ideal: 30, max: 60 }
+                },
+                audio: false
+              });
+              console.log('Успішно створено потік з базовими налаштуваннями але з високою роздільною здатністю');
+            } catch (error4) {
+              console.log('Помилка з базовими налаштуваннями але з високою роздільною здатністю:', error4.name);
+              
+              try {
+                // Пробуємо з мінімальними налаштуваннями
+                initialStream = await navigator.mediaDevices.getUserMedia({
+                  video: true,
+                  audio: false
+                });
+                console.log('Успішно створено потік з мінімальними налаштуваннями');
+              } catch (error5) {
+                console.error('Всі спроби створення потоку невдалі:', error5);
+                throw error5;
+              }
+            }
           }
         }
       }
@@ -817,13 +864,22 @@ export default function MobileViewArea({ user }) {
           const description = descriptionInput ? descriptionInput.value : '';
           const photoType = photoTypeSelect ? photoTypeSelect.value : 'document';
           
-          // Створюємо canvas для захоплення кадру
+          // Створюємо canvas для захоплення кадру з високою якістю
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d');
           
+          // Встановлюємо розмір canvas відповідно до розміру відео
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
-          context.drawImage(video, 0, 0);
+          
+          // Покращуємо якість рендерингу
+          context.imageSmoothingEnabled = true;
+          context.imageSmoothingQuality = 'high';
+          
+          // Малюємо відео на canvas
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+          console.log('Фото захоплено з розміром:', canvas.width, '×', canvas.height);
           
           // Показуємо превью фото
           showPhotoPreview(canvas, taskId, description, photoType, currentStream, cameraModal);
