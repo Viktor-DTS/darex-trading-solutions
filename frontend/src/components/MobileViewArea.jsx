@@ -16,6 +16,7 @@ export default function MobileViewArea({ user }) {
   const [fileDescription, setFileDescription] = useState(''); // Опис для файлів
   const [selectedFiles, setSelectedFiles] = useState(null); // Обрані файли
   const [filePhotoType, setFilePhotoType] = useState('document'); // Тип фото для завантаження з пристрою
+  const [activeTab, setActiveTab] = useState('pending'); // Активна вкладка: pending, confirmed, completed
 
   // Функція для виходу з мобільного режиму
   const handleLogout = () => {
@@ -159,6 +160,20 @@ export default function MobileViewArea({ user }) {
     setSelectedFiles(null);
     setFileDescription('');
     setFilePhotoType('document');
+  };
+
+  // Функція для фільтрації заявок по статусу
+  const getFilteredTasks = () => {
+    switch (activeTab) {
+      case 'pending':
+        return tasks.filter(task => !task.status || task.status === 'pending' || task.status === 'new');
+      case 'confirmed':
+        return tasks.filter(task => task.status === 'confirmed' || task.status === 'in_progress');
+      case 'completed':
+        return tasks.filter(task => task.status === 'completed' || task.status === 'done');
+      default:
+        return tasks;
+    }
   };
 
   // Функція для скидання дозволу на камеру
@@ -936,106 +951,236 @@ export default function MobileViewArea({ user }) {
         </button>
       </div>
 
+      {/* Вкладки */}
+      <div style={{ 
+        marginBottom: '20px',
+        borderBottom: '1px solid #ddd'
+      }}>
+        <div style={{
+          display: 'flex',
+          gap: '0',
+          background: '#f8f9fa',
+          borderRadius: '8px 8px 0 0',
+          overflow: 'hidden'
+        }}>
+          <button
+            onClick={() => setActiveTab('pending')}
+            style={{
+              flex: 1,
+              padding: '12px 8px',
+              border: 'none',
+              background: activeTab === 'pending' ? '#007bff' : '#f8f9fa',
+              color: activeTab === 'pending' ? '#fff' : '#666',
+              fontSize: '14px',
+              fontWeight: activeTab === 'pending' ? '600' : '400',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            ⏳ Невиконані
+          </button>
+          <button
+            onClick={() => setActiveTab('confirmed')}
+            style={{
+              flex: 1,
+              padding: '12px 8px',
+              border: 'none',
+              background: activeTab === 'confirmed' ? '#ffc107' : '#f8f9fa',
+              color: activeTab === 'confirmed' ? '#000' : '#666',
+              fontSize: '14px',
+              fontWeight: activeTab === 'confirmed' ? '600' : '400',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            🔄 На підтвердженні
+          </button>
+          <button
+            onClick={() => setActiveTab('completed')}
+            style={{
+              flex: 1,
+              padding: '12px 8px',
+              border: 'none',
+              background: activeTab === 'completed' ? '#28a745' : '#f8f9fa',
+              color: activeTab === 'completed' ? '#fff' : '#666',
+              fontSize: '14px',
+              fontWeight: activeTab === 'completed' ? '600' : '400',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            ✅ Архів
+          </button>
+        </div>
+      </div>
+
       {/* Список заявок */}
       <div style={{ marginBottom: '20px' }}>
-        {tasks.length === 0 ? (
-          <div style={{ 
-            textAlign: 'center', 
-            color: '#666', 
-            padding: '40px 20px',
-            fontSize: '16px'
-          }}>
-            Заявки не знайдено
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {tasks.map((task) => (
-              <div 
-                key={task.id} 
-                className="mobile-task-card mobile-fade-in"
-                style={{
-                  background: '#fff',
-                  border: '1px solid #ddd',
-                  borderRadius: '8px',
-                  padding: '16px',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                }}
-              >
-                <div style={{ marginBottom: '8px' }}>
-                  <strong style={{ color: '#22334a' }}>
-                    №{task.requestNumber || task.id}
-                  </strong>
-                </div>
-                
+        {(() => {
+          const filteredTasks = getFilteredTasks();
+          return filteredTasks.length === 0 ? (
+            <div style={{ 
+              textAlign: 'center', 
+              color: '#666', 
+              padding: '40px 20px',
+              fontSize: '16px'
+            }}>
+              {activeTab === 'pending' && 'Невиконаних заявок немає'}
+              {activeTab === 'confirmed' && 'Заявок на підтвердженні немає'}
+              {activeTab === 'completed' && 'Виконаних заявок немає'}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {filteredTasks.map((task) => (
                 <div 
-                  className="mobile-task-grid"
-                  style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: '1fr 1fr', 
-                    gap: '8px',
-                    fontSize: '14px',
-                    marginBottom: '12px'
+                  key={task.id} 
+                  className="mobile-task-card mobile-fade-in"
+                  style={{
+                    background: '#fff',
+                    border: '1px solid #ddd',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                   }}
                 >
-                  <div>
-                    <span style={{ color: '#666' }}>Компанія:</span><br />
-                    <span style={{ fontWeight: '500' }}>{task.client || '—'}</span>
+                  <div style={{ marginBottom: '8px' }}>
+                    <strong style={{ color: '#22334a' }}>
+                      №{task.requestNumber || task.id}
+                    </strong>
+                    {task.status && (
+                      <span style={{
+                        marginLeft: '8px',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        background: task.status === 'completed' ? '#d4edda' : 
+                                   task.status === 'confirmed' ? '#fff3cd' : '#f8d7da',
+                        color: task.status === 'completed' ? '#155724' : 
+                               task.status === 'confirmed' ? '#856404' : '#721c24'
+                      }}>
+                        {task.status === 'completed' ? '✅ Виконано' :
+                         task.status === 'confirmed' ? '🔄 Підтверджено' : '⏳ Невиконано'}
+                      </span>
+                    )}
                   </div>
-                  <div>
-                    <span style={{ color: '#666' }}>Регіон:</span><br />
-                    <span style={{ fontWeight: '500' }}>{task.serviceRegion || '—'}</span>
-                  </div>
-                  <div>
-                    <span style={{ color: '#666' }}>Обладнання:</span><br />
-                    <span style={{ fontWeight: '500' }}>{task.equipment || '—'}</span>
-                  </div>
-                  <div>
-                    <span style={{ color: '#666' }}>Сума:</span><br />
-                    <span style={{ fontWeight: '500', color: '#28a745' }}>
-                      {task.serviceTotal ? `${task.serviceTotal} грн` : '—'}
-                    </span>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: '12px' }}>
-                  <span style={{ color: '#666' }}>Опис:</span><br />
-                  <span style={{ fontSize: '13px' }}>
-                    {task.requestDesc || task.work || '—'}
-                  </span>
-                </div>
-
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <span style={{ 
-                    color: '#666', 
-                    fontSize: '12px' 
-                  }}>
-                    {task.date ? new Date(task.date).toLocaleDateString() : '—'}
-                  </span>
                   
-                  <button
-                    onClick={() => openTaskInfo(task)}
-                    className="mobile-info-button"
-                    style={{
-                      background: '#007bff',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '6px',
-                      padding: '8px 16px',
+                  <div 
+                    className="mobile-task-grid"
+                    style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: '1fr 1fr', 
+                      gap: '8px',
                       fontSize: '14px',
-                      cursor: 'pointer'
+                      marginBottom: '12px'
                     }}
                   >
-                    ℹ️ Інформація
-                  </button>
+                    {task.client && (
+                      <div>
+                        <span style={{ color: '#666' }}>Компанія:</span><br />
+                        <span style={{ fontWeight: '500' }}>{task.client}</span>
+                      </div>
+                    )}
+                    {task.serviceRegion && (
+                      <div>
+                        <span style={{ color: '#666' }}>Регіон:</span><br />
+                        <span style={{ fontWeight: '500' }}>{task.serviceRegion}</span>
+                      </div>
+                    )}
+                    {task.equipment && (
+                      <div>
+                        <span style={{ color: '#666' }}>Обладнання:</span><br />
+                        <span style={{ fontWeight: '500' }}>{task.equipment}</span>
+                      </div>
+                    )}
+                    {task.serviceTotal && (
+                      <div>
+                        <span style={{ color: '#666' }}>Сума:</span><br />
+                        <span style={{ fontWeight: '500', color: '#28a745' }}>
+                          {task.serviceTotal} грн
+                        </span>
+                      </div>
+                    )}
+                    {task.address && (
+                      <div>
+                        <span style={{ color: '#666' }}>Адреса:</span><br />
+                        <span style={{ fontWeight: '500' }}>{task.address}</span>
+                      </div>
+                    )}
+                    {task.equipmentSerial && (
+                      <div>
+                        <span style={{ color: '#666' }}>Серійний номер:</span><br />
+                        <span style={{ fontWeight: '500' }}>{task.equipmentSerial}</span>
+                      </div>
+                    )}
+                    {task.engineer1 && (
+                      <div>
+                        <span style={{ color: '#666' }}>Інженер 1:</span><br />
+                        <span style={{ fontWeight: '500' }}>{task.engineer1}</span>
+                      </div>
+                    )}
+                    {task.engineer2 && (
+                      <div>
+                        <span style={{ color: '#666' }}>Інженер 2:</span><br />
+                        <span style={{ fontWeight: '500' }}>{task.engineer2}</span>
+                      </div>
+                    )}
+                    {task.paymentType && (
+                      <div>
+                        <span style={{ color: '#666' }}>Тип оплати:</span><br />
+                        <span style={{ fontWeight: '500' }}>{task.paymentType}</span>
+                      </div>
+                    )}
+                    {task.work && (
+                      <div>
+                        <span style={{ color: '#666' }}>Роботи:</span><br />
+                        <span style={{ fontWeight: '500' }}>{task.work}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {(task.requestDesc || task.work) && (
+                    <div style={{ marginBottom: '12px' }}>
+                      <span style={{ color: '#666' }}>Опис:</span><br />
+                      <span style={{ fontSize: '13px' }}>
+                        {task.requestDesc || task.work}
+                      </span>
+                    </div>
+                  )}
+
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <span style={{ 
+                      color: '#666', 
+                      fontSize: '12px' 
+                    }}>
+                      {task.date ? new Date(task.date).toLocaleDateString() : '—'}
+                    </span>
+                    
+                    <button
+                      onClick={() => openTaskInfo(task)}
+                      className="mobile-info-button"
+                      style={{
+                        background: '#007bff',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '8px 16px',
+                        fontSize: '14px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ℹ️ Інформація
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Модальне вікно з інформацією про заявку */}
