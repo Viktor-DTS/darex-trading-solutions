@@ -172,6 +172,26 @@ export default function MobileViewArea({ user }) {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
       
+      // Сортуємо камери: спочатку задня, потім фронтальна
+      // Задня камера зазвичай має більшу роздільну здатність і кращу якість
+      videoDevices.sort((a, b) => {
+        // Якщо одна з камер має "back" або "rear" в назві, вона йде першою
+        const aIsBack = a.label.toLowerCase().includes('back') || a.label.toLowerCase().includes('rear') || a.label.toLowerCase().includes('задня');
+        const bIsBack = b.label.toLowerCase().includes('back') || b.label.toLowerCase().includes('rear') || b.label.toLowerCase().includes('задня');
+        
+        if (aIsBack && !bIsBack) return -1;
+        if (!aIsBack && bIsBack) return 1;
+        
+        // Якщо обидві або жодна не є задньою, сортуємо за роздільною здатністю
+        // (припускаємо, що камера з більшим deviceId зазвичай має кращі характеристики)
+        return b.deviceId.localeCompare(a.deviceId);
+      });
+      
+      // Логуємо порядок камер для діагностики
+      console.log('Знайдені камери:', videoDevices.map((device, index) => 
+        `${index + 1}. ${device.label || 'Без назви'} (${device.deviceId.substring(0, 8)}...)`
+      ));
+      
       let currentStream = initialStream;
       let currentDeviceIndex = 0;
 
@@ -209,6 +229,16 @@ export default function MobileViewArea({ user }) {
           return currentStream;
         }
       };
+
+      // Створюємо потік з першою камерою (зазвичай задньою)
+      if (videoDevices.length > 0) {
+        try {
+          currentStream = await createStream(0);
+        } catch (error) {
+          console.error('Помилка створення потоку з першою камерою:', error);
+          // Використовуємо початковий потік як fallback
+        }
+      }
 
       // Створюємо модальне вікно для камери
       const cameraModal = document.createElement('div');
@@ -350,7 +380,9 @@ export default function MobileViewArea({ user }) {
             
             // Оновлюємо індикатор камери
             if (cameraIndicator) {
-              cameraIndicator.textContent = `Камера ${currentDeviceIndex + 1} з ${videoDevices.length}`;
+              const currentDevice = videoDevices[currentDeviceIndex];
+              const deviceName = currentDevice.label || `Камера ${currentDeviceIndex + 1}`;
+              cameraIndicator.textContent = `${deviceName} (${currentDeviceIndex + 1} з ${videoDevices.length})`;
             }
           } catch (error) {
             console.error('Помилка перемикання камери:', error);
@@ -464,7 +496,9 @@ export default function MobileViewArea({ user }) {
       let cameraIndicator = null;
       if (videoDevices.length > 1) {
         cameraIndicator = document.createElement('div');
-        cameraIndicator.textContent = `Камера ${currentDeviceIndex + 1} з ${videoDevices.length}`;
+        const currentDevice = videoDevices[currentDeviceIndex];
+        const deviceName = currentDevice.label || `Камера ${currentDeviceIndex + 1}`;
+        cameraIndicator.textContent = `${deviceName} (${currentDeviceIndex + 1} з ${videoDevices.length})`;
         cameraIndicator.style.cssText = `
           color: #fff;
           font-size: 14px;
