@@ -253,7 +253,7 @@ export default function MobileViewArea({ user }) {
   };
 
   // Функція для показу превью фото
-  const showPhotoPreview = (canvas, taskId, description, photoType, currentStream, cameraModal, videoDevices, currentDeviceIndex) => {
+  const showPhotoPreview = (canvas, taskId, description, photoType, currentStream, cameraModal) => {
     // Створюємо модальне вікно для превью
     const previewModal = document.createElement('div');
     previewModal.style.cssText = `
@@ -387,14 +387,16 @@ export default function MobileViewArea({ user }) {
             if (currentStream.active) {
               video.srcObject = currentStream;
             } else {
-              // Якщо потік неактивний, створюємо новий без запиту дозволу
-              const newStream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                  deviceId: videoDevices[currentDeviceIndex] ? { exact: videoDevices[currentDeviceIndex].deviceId } : undefined
-                },
-                audio: false
-              });
-              video.srcObject = newStream;
+              // Якщо потік неактивний, створюємо новий з тією ж камерою
+              try {
+                const newStream = await navigator.mediaDevices.getUserMedia({
+                  video: true,
+                  audio: false
+                });
+                video.srcObject = newStream;
+              } catch (error) {
+                console.error('Помилка відновлення потоку камери:', error);
+              }
             }
           }
           
@@ -470,32 +472,37 @@ export default function MobileViewArea({ user }) {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
       
-      // Сортуємо камери: спочатку задня, потім фронтальна
+      // Сортуємо камери: тільки задня камера, фронтальну ігноруємо
       // Задня камера зазвичай має більшу роздільну здатність і кращу якість
-      videoDevices.sort((a, b) => {
-        // Якщо одна з камер має "back" або "rear" в назві, вона йде першою
-        const aIsBack = a.label.toLowerCase().includes('back') || a.label.toLowerCase().includes('rear') || a.label.toLowerCase().includes('задня');
-        const bIsBack = b.label.toLowerCase().includes('back') || b.label.toLowerCase().includes('rear') || b.label.toLowerCase().includes('задня');
-        
-        if (aIsBack && !bIsBack) return -1;
-        if (!aIsBack && bIsBack) return 1;
-        
-        // Якщо обидві або жодна не є задньою, сортуємо за роздільною здатністю
-        // (припускаємо, що камера з більшим deviceId зазвичай має кращі характеристики)
-        return b.deviceId.localeCompare(a.deviceId);
+      const backCamera = videoDevices.find(device => {
+        const label = device.label.toLowerCase();
+        return label.includes('back') || 
+               label.includes('rear') || 
+               label.includes('задня') ||
+               label.includes('основна') ||
+               label.includes('main') ||
+               label.includes('primary') ||
+               !label.includes('front') && !label.includes('фронтальна') && !label.includes('selfie');
       });
       
+      // Якщо знайдена задня камера, використовуємо тільки її
+      const filteredVideoDevices = backCamera ? [backCamera] : videoDevices;
+      
       // Логуємо порядок камер для діагностики
-      console.log('Знайдені камери:', videoDevices.map((device, index) => 
+      console.log('Використовувані камери:', filteredVideoDevices.map((device, index) => 
         `${index + 1}. ${device.label || 'Без назви'} (${device.deviceId.substring(0, 8)}...)`
       ));
+      
+      if (filteredVideoDevices.length === 0) {
+        throw new Error('Не знайдено підходящих камер');
+      }
       
       // Функція для створення потоку з гнучкими налаштуваннями
       const createStreamWithFallback = async (deviceIndex = 0) => {
         try {
           // Спочатку пробуємо з конкретною камерою
-          if (videoDevices.length > 0 && deviceIndex < videoDevices.length) {
-            const device = videoDevices[deviceIndex];
+          if (filteredVideoDevices.length > 0 && deviceIndex < filteredVideoDevices.length) {
+            const device = filteredVideoDevices[deviceIndex];
             
             // Пробуємо різні варіанти обмежень для мобільних пристроїв
             const constraints = [
@@ -729,44 +736,6 @@ export default function MobileViewArea({ user }) {
         document.body.removeChild(fileInput);
       };
 
-      // Кнопка перемикання камер (тільки якщо є більше однієї камери)
-      let switchCameraButton = null;
-      if (videoDevices.length > 1) {
-        switchCameraButton = document.createElement('button');
-        switchCameraButton.textContent = '🔄 Змінити камеру';
-        switchCameraButton.style.cssText = `
-          background: #007bff;
-          color: #fff;
-          border: none;
-          border-radius: 8px;
-          padding: 10px 20px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          min-width: 120px;
-          flex: 1;
-          max-width: 150px;
-        `;
-
-        switchCameraButton.onclick = async () => {
-          try {
-            currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
-            const newStream = await createStream(currentDeviceIndex);
-            video.srcObject = newStream;
-            
-            // Оновлюємо індикатор камери
-            if (cameraIndicator) {
-              const currentDevice = videoDevices[currentDeviceIndex];
-              const deviceName = currentDevice.label || `Камера ${currentDeviceIndex + 1}`;
-              cameraIndicator.textContent = `${deviceName} (${currentDeviceIndex + 1} з ${videoDevices.length})`;
-            }
-          } catch (error) {
-            console.error('Помилка перемикання камери:', error);
-            alert('Помилка перемикання камери');
-          }
-        };
-      }
-
       // Додаємо обробники подій
       captureButton.onclick = () => {
         try {
@@ -785,7 +754,7 @@ export default function MobileViewArea({ user }) {
           context.drawImage(video, 0, 0);
           
           // Показуємо превью фото
-          showPhotoPreview(canvas, taskId, description, photoType, currentStream, cameraModal, videoDevices, currentDeviceIndex);
+          showPhotoPreview(canvas, taskId, description, photoType, currentStream, cameraModal);
         } catch (error) {
           console.error('Помилка захоплення фото:', error);
           alert('Помилка захоплення фото');
@@ -802,9 +771,6 @@ export default function MobileViewArea({ user }) {
       // Додаємо елементи до модального вікна
       buttonContainer.appendChild(captureButton);
       buttonContainer.appendChild(cancelButton); // Переміщуємо кнопку "Скасувати" в один ряд з "Зробити фото"
-      if (switchCameraButton) {
-        buttonContainer.appendChild(switchCameraButton);
-      }
       buttonContainer.appendChild(galleryButton); // Додаємо кнопку для галереї
       cameraModal.appendChild(video);
       cameraModal.appendChild(buttonContainer);
@@ -915,22 +881,22 @@ export default function MobileViewArea({ user }) {
       cameraModal.insertBefore(descriptionContainer, buttonContainer);
       cameraModal.insertBefore(photoTypeContainer, buttonContainer);
 
-      // Додаємо індикатор камери
-      let cameraIndicator = null;
-      if (videoDevices.length > 1) {
-        cameraIndicator = document.createElement('div');
-        const currentDevice = videoDevices[currentDeviceIndex];
-        const deviceName = currentDevice.label || `Камера ${currentDeviceIndex + 1}`;
-        cameraIndicator.textContent = `${deviceName} (${currentDeviceIndex + 1} з ${videoDevices.length})`;
-        cameraIndicator.style.cssText = `
-          color: #fff;
-          font-size: 12px;
-          margin-top: 8px;
-          text-align: center;
-          opacity: 0.8;
-        `;
-        cameraModal.appendChild(cameraIndicator);
-      }
+      // Додаємо індикатор камери (прибираємо, оскільки використовуємо тільки одну камеру)
+      // let cameraIndicator = null;
+      // if (filteredVideoDevices.length > 1) {
+      //   cameraIndicator = document.createElement('div');
+      //   const currentDevice = filteredVideoDevices[currentDeviceIndex];
+      //   const deviceName = currentDevice.label || `Камера ${currentDeviceIndex + 1}`;
+      //   cameraIndicator.textContent = `${deviceName} (${currentDeviceIndex + 1} з ${filteredVideoDevices.length})`;
+      //   cameraIndicator.style.cssText = `
+      //     color: #fff;
+      //     font-size: 12px;
+      //     margin-top: 8px;
+      //     text-align: center;
+      //     opacity: 0.8;
+      //   `;
+      //   cameraModal.appendChild(cameraIndicator);
+      // }
 
     } catch (error) {
       console.error('Помилка доступу до камери:', error);
