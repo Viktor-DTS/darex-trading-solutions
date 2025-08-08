@@ -46,6 +46,12 @@ export default function MobileViewArea({ user }) {
           console.log('Приклад структури заявки:', tasksData[0]);
           console.log('Всі ключі першої заявки:', Object.keys(tasksData[0]));
           
+          // Виводимо повну структуру першої заявки
+          console.log('ПОВНА СТРУКТУРА ПЕРШОЇ ЗАЯВКИ:');
+          Object.entries(tasksData[0]).forEach(([key, value]) => {
+            console.log(`${key}:`, value);
+          });
+          
           // Додатково логуємо значення конкретних полів
           const firstTask = tasksData[0];
           console.log('Детальна інформація про першу заявку:');
@@ -1190,68 +1196,115 @@ export default function MobileViewArea({ user }) {
                       marginBottom: '12px'
                     }}
                   >
-                    {isFieldFilled(task.client) && (
-                      <div>
-                        <span style={{ color: '#666' }}>Компанія:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.client}</span>
-                      </div>
-                    )}
-                    {isFieldFilled(task.serviceRegion) && (
-                      <div>
-                        <span style={{ color: '#666' }}>Регіон:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.serviceRegion}</span>
-                      </div>
-                    )}
-                    {isFieldFilled(task.equipment) && (
-                      <div>
-                        <span style={{ color: '#666' }}>Обладнання:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.equipment}</span>
-                      </div>
-                    )}
-                    {isFieldFilled(task.serviceTotal) && (
-                      <div>
-                        <span style={{ color: '#666' }}>Сума:</span><br />
-                        <span style={{ fontWeight: '500', color: '#28a745' }}>
-                          {task.serviceTotal} грн
-                        </span>
-                      </div>
-                    )}
-                    {isFieldFilled(task.address) && (
-                      <div>
-                        <span style={{ color: '#666' }}>Адреса:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.address}</span>
-                      </div>
-                    )}
-                    {isFieldFilled(task.equipmentSerial) && (
-                      <div>
-                        <span style={{ color: '#666' }}>Серійний номер:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.equipmentSerial}</span>
-                      </div>
-                    )}
-                    {isFieldFilled(task.engineer1) && (
-                      <div>
-                        <span style={{ color: '#666' }}>Інженер 1:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.engineer1}</span>
-                      </div>
-                    )}
-                    {isFieldFilled(task.engineer2) && (
-                      <div>
-                        <span style={{ color: '#666' }}>Інженер 2:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.engineer2}</span>
-                      </div>
-                    )}
-                    {isFieldFilled(task.paymentType) && (
-                      <div>
-                        <span style={{ color: '#666' }}>Тип оплати:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.paymentType}</span>
-                      </div>
-                    )}
-                    {isFieldFilled(task.work) && (
-                      <div>
-                        <span style={{ color: '#666' }}>Роботи:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.work}</span>
-                      </div>
-                    )}
+                    {(() => {
+                      console.log('Рендеринг полів для заявки:', task.id);
+                      const fields = [];
+                      
+                      if (isFieldFilled(task.client)) {
+                        console.log('Додаю поле client:', task.client);
+                        fields.push(
+                          <div key="client">
+                            <span style={{ color: '#666' }}>Компанія:</span><br />
+                            <span style={{ fontWeight: '500' }}>{task.client}</span>
+                          </div>
+                        );
+                      }
+                      
+                      if (isFieldFilled(task.serviceRegion)) {
+                        console.log('Додаю поле serviceRegion:', task.serviceRegion);
+                        fields.push(
+                          <div key="serviceRegion">
+                            <span style={{ color: '#666' }}>Регіон:</span><br />
+                            <span style={{ fontWeight: '500' }}>{task.serviceRegion}</span>
+                          </div>
+                        );
+                      }
+                      
+                      if (isFieldFilled(task.equipment)) {
+                        console.log('Додаю поле equipment:', task.equipment);
+                        fields.push(
+                          <div key="equipment">
+                            <span style={{ color: '#666' }}>Обладнання:</span><br />
+                            <span style={{ fontWeight: '500' }}>{task.equipment}</span>
+                          </div>
+                        );
+                      }
+                      
+                      if (isFieldFilled(task.serviceTotal)) {
+                        console.log('Додаю поле serviceTotal:', task.serviceTotal);
+                        fields.push(
+                          <div key="serviceTotal">
+                            <span style={{ color: '#666' }}>Сума:</span><br />
+                            <span style={{ fontWeight: '500', color: '#28a745' }}>
+                              {task.serviceTotal} грн
+                            </span>
+                          </div>
+                        );
+                      }
+                      
+                      if (isFieldFilled(task.address)) {
+                        console.log('Додаю поле address:', task.address);
+                        fields.push(
+                          <div key="address">
+                            <span style={{ color: '#666' }}>Адреса:</span><br />
+                            <span style={{ fontWeight: '500' }}>{task.address}</span>
+                          </div>
+                        );
+                      }
+                      
+                      if (isFieldFilled(task.equipmentSerial)) {
+                        console.log('Додаю поле equipmentSerial:', task.equipmentSerial);
+                        fields.push(
+                          <div key="equipmentSerial">
+                            <span style={{ color: '#666' }}>Серійний номер:</span><br />
+                            <span style={{ fontWeight: '500' }}>{task.equipmentSerial}</span>
+                          </div>
+                        );
+                      }
+                      
+                      if (isFieldFilled(task.engineer1)) {
+                        console.log('Додаю поле engineer1:', task.engineer1);
+                        fields.push(
+                          <div key="engineer1">
+                            <span style={{ color: '#666' }}>Інженер 1:</span><br />
+                            <span style={{ fontWeight: '500' }}>{task.engineer1}</span>
+                          </div>
+                        );
+                      }
+                      
+                      if (isFieldFilled(task.engineer2)) {
+                        console.log('Додаю поле engineer2:', task.engineer2);
+                        fields.push(
+                          <div key="engineer2">
+                            <span style={{ color: '#666' }}>Інженер 2:</span><br />
+                            <span style={{ fontWeight: '500' }}>{task.engineer2}</span>
+                          </div>
+                        );
+                      }
+                      
+                      if (isFieldFilled(task.paymentType)) {
+                        console.log('Додаю поле paymentType:', task.paymentType);
+                        fields.push(
+                          <div key="paymentType">
+                            <span style={{ color: '#666' }}>Тип оплати:</span><br />
+                            <span style={{ fontWeight: '500' }}>{task.paymentType}</span>
+                          </div>
+                        );
+                      }
+                      
+                      if (isFieldFilled(task.work)) {
+                        console.log('Додаю поле work:', task.work);
+                        fields.push(
+                          <div key="work">
+                            <span style={{ color: '#666' }}>Роботи:</span><br />
+                            <span style={{ fontWeight: '500' }}>{task.work}</span>
+                          </div>
+                        );
+                      }
+                      
+                      console.log('Всього полів для відображення:', fields.length);
+                      return fields;
+                    })()}
                   </div>
 
                   {(isFieldFilled(task.requestDesc) || isFieldFilled(task.work)) && (
