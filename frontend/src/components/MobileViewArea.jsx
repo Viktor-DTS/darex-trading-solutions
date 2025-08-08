@@ -490,6 +490,21 @@ export default function MobileViewArea({ user }) {
         `${index + 1}. ${device.label || 'Без назви'} (${device.deviceId.substring(0, 8)}...)`
       ));
       
+      // Додаткова діагностика для мобільних пристроїв
+      if (isMobile) {
+        console.log('=== ДІАГНОСТИКА КАМЕР ДЛЯ МОБІЛЬНОГО ПРИСТРОЮ ===');
+        videoDevices.forEach((device, index) => {
+          const label = device.label.toLowerCase();
+          console.log(`Камера ${index + 1}: "${device.label}"`);
+          console.log(`  - Містить "back": ${label.includes('back')}`);
+          console.log(`  - Містить "rear": ${label.includes('rear')}`);
+          console.log(`  - Містить "front": ${label.includes('front')}`);
+          console.log(`  - Містить "selfie": ${label.includes('selfie')}`);
+          console.log(`  - Містить "user": ${label.includes('user')}`);
+          console.log(`  - Містить "face": ${label.includes('face')}`);
+        });
+      }
+      
       if (videoDevices.length === 0) {
         console.error('Не знайдено жодної камери');
         alert('Не знайдено жодної камери на пристрої.');
@@ -500,9 +515,69 @@ export default function MobileViewArea({ user }) {
       let selectedCamera = null;
       
       if (isMobile) {
-        // На мобільних пристроях беремо першу камеру (зазвичай це задня)
-        selectedCamera = videoDevices[0];
-        console.log('На мобільному пристрої використовуємо першу камеру:', selectedCamera.label);
+        // На мобільних пристроях шукаємо задню камеру
+        console.log('Пошук задньої камери на мобільному пристрої...');
+        
+        // Спочатку шукаємо камери з явними індикаторами задньої камери
+        selectedCamera = videoDevices.find(device => {
+          const label = device.label.toLowerCase();
+          return label.includes('back') || 
+                 label.includes('rear') || 
+                 label.includes('задня') ||
+                 label.includes('основна') ||
+                 label.includes('main') ||
+                 label.includes('primary') ||
+                 label.includes('environment') ||
+                 label.includes('world');
+        });
+        
+        if (selectedCamera) {
+          console.log('Знайдено задню камеру за ключовими словами:', selectedCamera.label);
+        } else {
+          // Якщо не знайдено, шукаємо камери без індикаторів фронтальної
+          selectedCamera = videoDevices.find(device => {
+            const label = device.label.toLowerCase();
+            return !label.includes('front') && 
+                   !label.includes('фронтальна') && 
+                   !label.includes('selfie') &&
+                   !label.includes('фронт') &&
+                   !label.includes('user') &&
+                   !label.includes('face');
+          });
+          
+          if (selectedCamera) {
+            console.log('Знайдено камеру без індикаторів фронтальної:', selectedCamera.label);
+          }
+        }
+        
+        // Якщо все ще не знайдено, беремо останню камеру (зазвичай це задня)
+        if (!selectedCamera && videoDevices.length > 0) {
+          selectedCamera = videoDevices[videoDevices.length - 1];
+          console.log('Використовуємо останню камеру як задню:', selectedCamera.label);
+        }
+        
+        // Якщо є тільки одна камера, використовуємо її
+        if (!selectedCamera && videoDevices.length === 1) {
+          selectedCamera = videoDevices[0];
+          console.log('Використовуємо єдину доступну камеру:', selectedCamera.label);
+        }
+        
+        // Додаткова перевірка: якщо є більше однієї камери і обрана перша,
+        // але вона містить індикатори фронтальної, беремо останню
+        if (selectedCamera && videoDevices.length > 1) {
+          const selectedLabel = selectedCamera.label.toLowerCase();
+          const isFrontCamera = selectedLabel.includes('front') || 
+                               selectedLabel.includes('фронтальна') || 
+                               selectedLabel.includes('selfie') ||
+                               selectedLabel.includes('фронт') ||
+                               selectedLabel.includes('user') ||
+                               selectedLabel.includes('face');
+          
+          if (isFrontCamera) {
+            console.log('Обрана камера виявилася фронтальною, використовуємо останню камеру');
+            selectedCamera = videoDevices[videoDevices.length - 1];
+          }
+        }
       } else {
         // На десктопі шукаємо задню камеру
         selectedCamera = videoDevices.find(device => {
