@@ -18,6 +18,13 @@ export default function MobileViewArea({ user }) {
   const [filePhotoType, setFilePhotoType] = useState('document'); // Тип фото для завантаження з пристрою
   const [activeTab, setActiveTab] = useState('pending'); // Активна вкладка: pending, confirmed, completed
 
+  // Функція для перевірки, чи поле заповнене
+  const isFieldFilled = (value) => {
+    return value !== null && value !== undefined && value !== '' && 
+           (typeof value !== 'string' || value.trim() !== '') &&
+           (Array.isArray(value) ? value.length > 0 : true);
+  };
+
   // Функція для виходу з мобільного режиму
   const handleLogout = () => {
     if (window.confirm('Вийти з мобільного режиму?')) {
@@ -33,6 +40,13 @@ export default function MobileViewArea({ user }) {
         console.log('Завантаження заявок...');
         const tasksData = await tasksAPI.getAll();
         console.log('Отримані заявки:', tasksData);
+        
+        // Додаємо логування для діагностики полів
+        if (tasksData.length > 0) {
+          console.log('Приклад структури заявки:', tasksData[0]);
+          console.log('Всі ключі першої заявки:', Object.keys(tasksData[0]));
+        }
+        
         setTasks(tasksData);
       } catch (error) {
         console.error('Помилка завантаження заявок:', error);
@@ -1144,25 +1158,25 @@ export default function MobileViewArea({ user }) {
                       marginBottom: '12px'
                     }}
                   >
-                    {task.client && (
+                    {isFieldFilled(task.client) && (
                       <div>
                         <span style={{ color: '#666' }}>Компанія:</span><br />
                         <span style={{ fontWeight: '500' }}>{task.client}</span>
                       </div>
                     )}
-                    {task.serviceRegion && (
+                    {isFieldFilled(task.serviceRegion) && (
                       <div>
                         <span style={{ color: '#666' }}>Регіон:</span><br />
                         <span style={{ fontWeight: '500' }}>{task.serviceRegion}</span>
                       </div>
                     )}
-                    {task.equipment && (
+                    {isFieldFilled(task.equipment) && (
                       <div>
                         <span style={{ color: '#666' }}>Обладнання:</span><br />
                         <span style={{ fontWeight: '500' }}>{task.equipment}</span>
                       </div>
                     )}
-                    {task.serviceTotal && (
+                    {isFieldFilled(task.serviceTotal) && (
                       <div>
                         <span style={{ color: '#666' }}>Сума:</span><br />
                         <span style={{ fontWeight: '500', color: '#28a745' }}>
@@ -1170,37 +1184,37 @@ export default function MobileViewArea({ user }) {
                         </span>
                       </div>
                     )}
-                    {task.address && (
+                    {isFieldFilled(task.address) && (
                       <div>
                         <span style={{ color: '#666' }}>Адреса:</span><br />
                         <span style={{ fontWeight: '500' }}>{task.address}</span>
                       </div>
                     )}
-                    {task.equipmentSerial && (
+                    {isFieldFilled(task.equipmentSerial) && (
                       <div>
                         <span style={{ color: '#666' }}>Серійний номер:</span><br />
                         <span style={{ fontWeight: '500' }}>{task.equipmentSerial}</span>
                       </div>
                     )}
-                    {task.engineer1 && (
+                    {isFieldFilled(task.engineer1) && (
                       <div>
                         <span style={{ color: '#666' }}>Інженер 1:</span><br />
                         <span style={{ fontWeight: '500' }}>{task.engineer1}</span>
                       </div>
                     )}
-                    {task.engineer2 && (
+                    {isFieldFilled(task.engineer2) && (
                       <div>
                         <span style={{ color: '#666' }}>Інженер 2:</span><br />
                         <span style={{ fontWeight: '500' }}>{task.engineer2}</span>
                       </div>
                     )}
-                    {task.paymentType && (
+                    {isFieldFilled(task.paymentType) && (
                       <div>
                         <span style={{ color: '#666' }}>Тип оплати:</span><br />
                         <span style={{ fontWeight: '500' }}>{task.paymentType}</span>
                       </div>
                     )}
-                    {task.work && (
+                    {isFieldFilled(task.work) && (
                       <div>
                         <span style={{ color: '#666' }}>Роботи:</span><br />
                         <span style={{ fontWeight: '500' }}>{task.work}</span>
@@ -1208,7 +1222,7 @@ export default function MobileViewArea({ user }) {
                     )}
                   </div>
 
-                  {(task.requestDesc || task.work) && (
+                  {(isFieldFilled(task.requestDesc) || isFieldFilled(task.work)) && (
                     <div style={{ marginBottom: '12px' }}>
                       <span style={{ color: '#666' }}>Опис:</span><br />
                       <span style={{ fontSize: '13px' }}>
@@ -1308,7 +1322,8 @@ export default function MobileViewArea({ user }) {
             {/* Інформація про заявку */}
             <div style={{ marginBottom: '24px' }}>
               {Object.entries(selectedTask).map(([key, value]) => {
-                if (!value || value === '' || value === null || value === undefined) return null;
+                // Використовуємо ту саму функцію перевірки
+                if (!isFieldFilled(value)) return null;
                 
                 const fieldLabels = {
                   requestNumber: 'Номер заявки/наряду',
