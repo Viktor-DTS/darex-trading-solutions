@@ -193,13 +193,16 @@ export default function MobileViewArea({ user }) {
     let filteredTasks;
     switch (activeTab) {
       case 'pending':
-        filteredTasks = tasks.filter(task => !task.status || task.status === 'pending' || task.status === 'new');
+        // Невиконані заявки: "Заявка" (нові заявки)
+        filteredTasks = tasks.filter(task => task.status === 'Заявка');
         break;
       case 'confirmed':
-        filteredTasks = tasks.filter(task => task.status === 'confirmed' || task.status === 'in_progress');
+        // Заявки на підтвердженні: "В роботі" (заявки в процесі)
+        filteredTasks = tasks.filter(task => task.status === 'В роботі');
         break;
       case 'completed':
-        filteredTasks = tasks.filter(task => task.status === 'completed' || task.status === 'done');
+        // Виконані заявки: "Виконано"
+        filteredTasks = tasks.filter(task => task.status === 'Виконано');
         break;
       case 'all':
         filteredTasks = tasks;
@@ -1016,7 +1019,7 @@ export default function MobileViewArea({ user }) {
               transition: 'all 0.2s'
             }}
           >
-            ⏳ Невиконані
+            📝 Нові заявки
           </button>
           <button
             onClick={() => setActiveTab('confirmed')}
@@ -1032,7 +1035,7 @@ export default function MobileViewArea({ user }) {
               transition: 'all 0.2s'
             }}
           >
-            🔄 На підтвердженні
+            🔄 В роботі
           </button>
           <button
             onClick={() => setActiveTab('completed')}
@@ -1048,7 +1051,7 @@ export default function MobileViewArea({ user }) {
               transition: 'all 0.2s'
             }}
           >
-            ✅ Архів
+            ✅ Виконані
           </button>
         </div>
         
@@ -1086,8 +1089,8 @@ export default function MobileViewArea({ user }) {
               padding: '40px 20px',
               fontSize: '16px'
             }}>
-              {activeTab === 'pending' && 'Невиконаних заявок немає'}
-              {activeTab === 'confirmed' && 'Заявок на підтвердженні немає'}
+              {activeTab === 'pending' && 'Нових заявок немає'}
+              {activeTab === 'confirmed' && 'Заявок в роботі немає'}
               {activeTab === 'completed' && 'Виконаних заявок немає'}
               {activeTab === 'all' && 'Заявок немає'}
             </div>
@@ -1116,13 +1119,17 @@ export default function MobileViewArea({ user }) {
                         borderRadius: '12px',
                         fontSize: '12px',
                         fontWeight: '500',
-                        background: task.status === 'completed' ? '#d4edda' : 
-                                   task.status === 'confirmed' ? '#fff3cd' : '#f8d7da',
-                        color: task.status === 'completed' ? '#155724' : 
-                               task.status === 'confirmed' ? '#856404' : '#721c24'
+                        background: task.status === 'Виконано' ? '#d4edda' : 
+                                   task.status === 'В роботі' ? '#fff3cd' : 
+                                   task.status === 'Заявка' ? '#f8d7da' : '#e2e3e5',
+                        color: task.status === 'Виконано' ? '#155724' : 
+                               task.status === 'В роботі' ? '#856404' : 
+                               task.status === 'Заявка' ? '#721c24' : '#6c757d'
                       }}>
-                        {task.status === 'completed' ? '✅ Виконано' :
-                         task.status === 'confirmed' ? '🔄 Підтверджено' : '⏳ Невиконано'}
+                        {task.status === 'Виконано' ? '✅ Виконано' :
+                         task.status === 'В роботі' ? '🔄 В роботі' : 
+                         task.status === 'Заявка' ? '📝 Нова заявка' :
+                         task.status === 'Заблоковано' ? '🚫 Заблоковано' : task.status}
                       </span>
                     )}
                   </div>
