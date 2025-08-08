@@ -45,6 +45,29 @@ export default function MobileViewArea({ user }) {
         if (tasksData.length > 0) {
           console.log('Приклад структури заявки:', tasksData[0]);
           console.log('Всі ключі першої заявки:', Object.keys(tasksData[0]));
+          
+          // Додатково логуємо значення конкретних полів
+          const firstTask = tasksData[0];
+          console.log('Детальна інформація про першу заявку:');
+          console.log('- client:', firstTask.client);
+          console.log('- serviceRegion:', firstTask.serviceRegion);
+          console.log('- equipment:', firstTask.equipment);
+          console.log('- serviceTotal:', firstTask.serviceTotal);
+          console.log('- address:', firstTask.address);
+          console.log('- equipmentSerial:', firstTask.equipmentSerial);
+          console.log('- engineer1:', firstTask.engineer1);
+          console.log('- engineer2:', firstTask.engineer2);
+          console.log('- paymentType:', firstTask.paymentType);
+          console.log('- work:', firstTask.work);
+          console.log('- requestDesc:', firstTask.requestDesc);
+          
+          // Перевіряємо, чи є інші можливі назви полів
+          const possibleFields = ['company', 'region', 'equipmentType', 'total', 'location', 'serial', 'engineer', 'payment', 'description'];
+          possibleFields.forEach(field => {
+            if (firstTask[field] !== undefined) {
+              console.log(`- ${field}:`, firstTask[field]);
+            }
+          });
         }
         
         setTasks(tasksData);
@@ -1110,7 +1133,16 @@ export default function MobileViewArea({ user }) {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {filteredTasks.map((task) => (
+              {filteredTasks.map((task) => {
+                // Додаємо логування для діагностики відображення полів
+                console.log('Відображення заявки:', task.id);
+                console.log('- client:', task.client, 'isFieldFilled:', isFieldFilled(task.client));
+                console.log('- serviceRegion:', task.serviceRegion, 'isFieldFilled:', isFieldFilled(task.serviceRegion));
+                console.log('- equipment:', task.equipment, 'isFieldFilled:', isFieldFilled(task.equipment));
+                console.log('- serviceTotal:', task.serviceTotal, 'isFieldFilled:', isFieldFilled(task.serviceTotal));
+                console.log('- address:', task.address, 'isFieldFilled:', isFieldFilled(task.address));
+                
+                return (
                 <div 
                   key={task.id} 
                   className="mobile-task-card mobile-fade-in"
@@ -1260,7 +1292,8 @@ export default function MobileViewArea({ user }) {
                     </button>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           );
         })()}
