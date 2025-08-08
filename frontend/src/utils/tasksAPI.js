@@ -2,9 +2,24 @@ import API_BASE_URL from '../config.js';
 
 export const tasksAPI = {
   async getAll() {
-    const res = await fetch(`${API_BASE_URL}/tasks`);
-    if (!res.ok) throw new Error('Помилка завантаження заявок');
-    return await res.json();
+    console.log('[DEBUG] tasksAPI.getAll called');
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks`);
+      console.log('[DEBUG] tasksAPI.getAll - відповідь сервера:', res.status, res.statusText);
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('[ERROR] tasksAPI.getAll - помилка сервера:', errorText);
+        throw new Error('Помилка завантаження заявок');
+      }
+      
+      const data = await res.json();
+      console.log('[DEBUG] tasksAPI.getAll - отримані дані:', data);
+      return data;
+    } catch (error) {
+      console.error('[ERROR] tasksAPI.getAll - виняток:', error);
+      throw error;
+    }
   },
   async add(task) {
     console.log('[DEBUG] tasksAPI.add called with:', task);

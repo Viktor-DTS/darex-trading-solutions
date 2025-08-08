@@ -30,7 +30,9 @@ export default function MobileViewArea({ user }) {
     const loadTasks = async () => {
       try {
         setLoading(true);
+        console.log('Завантаження заявок...');
         const tasksData = await tasksAPI.getAll();
+        console.log('Отримані заявки:', tasksData);
         setTasks(tasksData);
       } catch (error) {
         console.error('Помилка завантаження заявок:', error);
@@ -164,16 +166,26 @@ export default function MobileViewArea({ user }) {
 
   // Функція для фільтрації заявок по статусу
   const getFilteredTasks = () => {
+    console.log('Фільтрація заявок. Всього заявок:', tasks.length);
+    console.log('Активна вкладка:', activeTab);
+    
+    let filteredTasks;
     switch (activeTab) {
       case 'pending':
-        return tasks.filter(task => !task.status || task.status === 'pending' || task.status === 'new');
+        filteredTasks = tasks.filter(task => !task.status || task.status === 'pending' || task.status === 'new');
+        break;
       case 'confirmed':
-        return tasks.filter(task => task.status === 'confirmed' || task.status === 'in_progress');
+        filteredTasks = tasks.filter(task => task.status === 'confirmed' || task.status === 'in_progress');
+        break;
       case 'completed':
-        return tasks.filter(task => task.status === 'completed' || task.status === 'done');
+        filteredTasks = tasks.filter(task => task.status === 'completed' || task.status === 'done');
+        break;
       default:
-        return tasks;
+        filteredTasks = tasks;
     }
+    
+    console.log('Відфільтровані заявки:', filteredTasks);
+    return filteredTasks;
   };
 
   // Функція для скидання дозволу на камеру
@@ -886,6 +898,7 @@ export default function MobileViewArea({ user }) {
   };
 
   if (loading) {
+    console.log('Відображення завантаження...');
     return (
       <div style={{ 
         display: 'flex', 
@@ -899,6 +912,8 @@ export default function MobileViewArea({ user }) {
       </div>
     );
   }
+
+  console.log('Відображення основного контенту. Стан:', { tasks: tasks.length, loading, activeTab });
 
   return (
     <div style={{ padding: '16px', maxWidth: '100%' }}>
@@ -1018,6 +1033,7 @@ export default function MobileViewArea({ user }) {
       <div style={{ marginBottom: '20px' }}>
         {(() => {
           const filteredTasks = getFilteredTasks();
+          console.log('Відображення заявок. Відфільтровані заявки:', filteredTasks);
           return filteredTasks.length === 0 ? (
             <div style={{ 
               textAlign: 'center', 
