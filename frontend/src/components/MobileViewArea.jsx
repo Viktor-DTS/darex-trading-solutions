@@ -11,6 +11,10 @@ export default function MobileViewArea({ user }) {
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [taskFiles, setTaskFiles] = useState({}); // Файли для кожної заявки
+  const [loadingFiles, setLoadingFiles] = useState({}); // Стан завантаження файлів
+  const [fileDescription, setFileDescription] = useState(''); // Опис для файлів
+  const [selectedFiles, setSelectedFiles] = useState(null); // Обрані файли
 
   // Функція для виходу з мобільного режиму
   const handleLogout = () => {
@@ -40,15 +44,68 @@ export default function MobileViewArea({ user }) {
   const openTaskInfo = (task) => {
     setSelectedTask(task);
     setShowTaskModal(true);
+    // Завантажуємо файли для цієї заявки
+    loadTaskFiles(task.id);
+  };
+
+  // Функція для завантаження файлів заявки
+  const loadTaskFiles = async (taskId) => {
+    try {
+      setLoadingFiles(prev => ({ ...prev, [taskId]: true }));
+      const response = await fetch(`${API_BASE_URL}/files/task/${taskId}`);
+      if (response.ok) {
+        const files = await response.json();
+        setTaskFiles(prev => ({ ...prev, [taskId]: files }));
+      } else {
+        setTaskFiles(prev => ({ ...prev, [taskId]: [] }));
+      }
+    } catch (error) {
+      console.error('Помилка завантаження файлів:', error);
+      setTaskFiles(prev => ({ ...prev, [taskId]: [] }));
+    } finally {
+      setLoadingFiles(prev => ({ ...prev, [taskId]: false }));
+    }
+  };
+
+  // Функція для перегляду файлу
+  const viewFile = (file) => {
+    if (file.cloudinaryUrl) {
+      window.open(file.cloudinaryUrl, '_blank');
+    } else {
+      alert('URL файлу недоступний');
+    }
+  };
+
+  // Функція для видалення файлу
+  const deleteFile = async (fileId, taskId) => {
+    if (!window.confirm('Видалити цей файл?')) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/${fileId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        alert('Файл видалено!');
+        // Оновлюємо список файлів
+        await loadTaskFiles(taskId);
+      } else {
+        alert('Помилка видалення файлу');
+      }
+    } catch (error) {
+      console.error('Помилка видалення файлу:', error);
+      alert('Помилка видалення файлу');
+    }
   };
 
   // Функція для завантаження файлів
-  const handleFileUpload = async (files, taskId) => {
+  const handleFileUpload = async (files, taskId, description = '') => {
     if (!files || files.length === 0) return;
 
     setUploadingFiles(true);
     const formData = new FormData();
     formData.append('taskId', taskId);
+    formData.append('description', description);
     
     for (let i = 0; i < files.length; i++) {
       formData.append('files', files[i]);
@@ -62,9 +119,8 @@ export default function MobileViewArea({ user }) {
 
       if (response.ok) {
         alert('Файли успішно завантажено!');
-        // Оновлюємо список заявок
-        const tasksData = await tasksAPI.getAll();
-        setTasks(tasksData);
+        // Оновлюємо список файлів для цієї заявки
+        await loadTaskFiles(taskId);
       } else {
         alert('Помилка завантаження файлів');
       }
@@ -74,6 +130,21 @@ export default function MobileViewArea({ user }) {
     } finally {
       setUploadingFiles(false);
     }
+  };
+
+  // Функція для обробки вибору файлів з пристрою
+  const handleFileSelect = (files) => {
+    setSelectedFiles(files);
+    setFileDescription('');
+  };
+
+  // Функція для завантаження обраних файлів
+  const handleUploadSelectedFiles = async () => {
+    if (!selectedFiles || selectedFiles.length === 0) return;
+    
+    await handleFileUpload(selectedFiles, selectedTask.id, fileDescription);
+    setSelectedFiles(null);
+    setFileDescription('');
   };
 
   // Функція для завантаження з камери
@@ -200,6 +271,10 @@ export default function MobileViewArea({ user }) {
 
       // Додаємо обробники подій
       captureButton.onclick = () => {
+        // Отримуємо опис з поля вводу
+        const descriptionInput = document.getElementById('photo-description');
+        const description = descriptionInput ? descriptionInput.value : '';
+        
         // Створюємо canvas для захоплення кадру
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -216,7 +291,7 @@ export default function MobileViewArea({ user }) {
           document.body.removeChild(cameraModal);
           
           const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
-          await handleFileUpload([file], taskId);
+          await handleFileUpload([file], taskId, description);
         }, 'image/jpeg');
       };
 
@@ -251,6 +326,43 @@ export default function MobileViewArea({ user }) {
         line-height: 1.4;
       `;
       cameraModal.insertBefore(instructions, video);
+
+      // Додаємо поле для опису фото
+      const descriptionContainer = document.createElement('div');
+      descriptionContainer.style.cssText = `
+        margin: 20px 0;
+        width: 100%;
+        max-width: 400px;
+      `;
+
+      const descriptionLabel = document.createElement('label');
+      descriptionLabel.textContent = 'Опис фото (необов\'язково):';
+      descriptionLabel.style.cssText = `
+        display: block;
+        color: #fff;
+        font-size: 14px;
+        margin-bottom: 8px;
+        text-align: center;
+      `;
+
+      const descriptionInput = document.createElement('input');
+      descriptionInput.id = 'photo-description';
+      descriptionInput.type = 'text';
+      descriptionInput.placeholder = 'Наприклад: Фото обладнання, документи...';
+      descriptionInput.style.cssText = `
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        background: #fff;
+        color: #333;
+        box-sizing: border-box;
+      `;
+
+      descriptionContainer.appendChild(descriptionLabel);
+      descriptionContainer.appendChild(descriptionInput);
+      cameraModal.insertBefore(descriptionContainer, buttonContainer);
 
       // Додаємо індикатор камери
       if (videoDevices.length > 1) {
@@ -523,7 +635,7 @@ export default function MobileViewArea({ user }) {
               })}
             </div>
 
-            {/* Секція завантаження файлів */}
+            {/* Секція файлів заявки */}
             <div style={{ 
               borderTop: '1px solid #eee', 
               paddingTop: '20px',
@@ -534,7 +646,121 @@ export default function MobileViewArea({ user }) {
                 color: '#22334a',
                 fontSize: '18px'
               }}>
-                📁 Завантаження файлів
+                📁 Файли заявки
+              </h4>
+
+              {/* Відображення існуючих файлів */}
+              <div style={{ marginBottom: '24px' }}>
+                {loadingFiles[selectedTask.id] ? (
+                  <div style={{ 
+                    textAlign: 'center', 
+                    color: '#666', 
+                    padding: '20px',
+                    fontSize: '14px'
+                  }}>
+                    Завантаження файлів...
+                  </div>
+                ) : taskFiles[selectedTask.id] && taskFiles[selectedTask.id].length > 0 ? (
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    {taskFiles[selectedTask.id].map((file) => (
+                      <div 
+                        key={file.id}
+                        style={{
+                          background: '#f8f9fa',
+                          border: '1px solid #dee2e6',
+                          borderRadius: '6px',
+                          padding: '12px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ 
+                            fontWeight: '500', 
+                            fontSize: '14px',
+                            color: '#22334a',
+                            marginBottom: '4px'
+                          }}>
+                            {file.originalName}
+                          </div>
+                          {file.description && (
+                            <div style={{ 
+                              fontSize: '12px', 
+                              color: '#666',
+                              marginBottom: '4px'
+                            }}>
+                              {file.description}
+                            </div>
+                          )}
+                          <div style={{ 
+                            fontSize: '12px', 
+                            color: '#999'
+                          }}>
+                            {new Date(file.uploadDate).toLocaleString()} • {(file.size / 1024).toFixed(1)} KB
+                          </div>
+                        </div>
+                        <div style={{ 
+                          display: 'flex', 
+                          gap: '8px'
+                        }}>
+                          <button
+                            onClick={() => viewFile(file)}
+                            style={{
+                              background: '#007bff',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '6px 12px',
+                              fontSize: '12px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            👁️ Переглянути
+                          </button>
+                          <button
+                            onClick={() => deleteFile(file.id, selectedTask.id)}
+                            style={{
+                              background: '#dc3545',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '6px 12px',
+                              fontSize: '12px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            🗑️ Видалити
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ 
+                    textAlign: 'center', 
+                    color: '#666', 
+                    padding: '20px',
+                    fontSize: '14px',
+                    background: '#f8f9fa',
+                    border: '1px dashed #dee2e6',
+                    borderRadius: '6px'
+                  }}>
+                    Файлів поки немає
+                  </div>
+                )}
+              </div>
+
+              <h4 style={{ 
+                margin: '0 0 16px 0', 
+                color: '#22334a',
+                fontSize: '18px'
+              }}>
+                📤 Завантажити нові файли
               </h4>
 
               <div style={{ 
@@ -561,7 +787,7 @@ export default function MobileViewArea({ user }) {
                       type="file"
                       multiple
                       accept="image/*,.pdf,.doc,.docx"
-                      onChange={(e) => handleFileUpload(e.target.files, selectedTask.id)}
+                      onChange={(e) => handleFileSelect(e.target.files)}
                       style={{ display: 'none' }}
                       disabled={uploadingFiles}
                     />
@@ -576,6 +802,94 @@ export default function MobileViewArea({ user }) {
                     </div>
                   </label>
                 </div>
+
+                {/* Завантаження обраних файлів */}
+                {selectedFiles && selectedFiles.length > 0 && (
+                  <div style={{
+                    background: '#f8f9fa',
+                    border: '1px dashed #dee2e6',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    marginTop: '12px',
+                    marginBottom: '12px'
+                  }}>
+                    <h5 style={{ margin: '0 0 8px 0', color: '#22334a' }}>Обрано для завантаження:</h5>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                      {Array.from(selectedFiles).map((file, index) => (
+                        <li key={index} style={{ marginBottom: '4px', fontSize: '14px', color: '#333' }}>
+                          {file.name}
+                        </li>
+                      ))}
+                    </ul>
+                    
+                    {/* Поле для опису файлів */}
+                    <div style={{ marginTop: '12px' }}>
+                      <label style={{ 
+                        display: 'block', 
+                        fontSize: '14px', 
+                        color: '#666', 
+                        marginBottom: '4px' 
+                      }}>
+                        Опис файлів (необов'язково):
+                      </label>
+                      <input
+                        type="text"
+                        value={fileDescription}
+                        onChange={(e) => setFileDescription(e.target.value)}
+                        placeholder="Наприклад: Документи, фото обладнання..."
+                        style={{
+                          width: '100%',
+                          padding: '8px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          fontSize: '14px',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                    
+                    {/* Кнопки для завантаження або скасування */}
+                    <div style={{ 
+                      display: 'flex', 
+                      gap: '8px', 
+                      marginTop: '12px' 
+                    }}>
+                      <button
+                        onClick={handleUploadSelectedFiles}
+                        disabled={uploadingFiles}
+                        style={{
+                          background: '#28a745',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '8px 16px',
+                          fontSize: '14px',
+                          cursor: uploadingFiles ? 'not-allowed' : 'pointer',
+                          opacity: uploadingFiles ? 0.6 : 1
+                        }}
+                      >
+                        📤 Завантажити
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedFiles(null);
+                          setFileDescription('');
+                        }}
+                        style={{
+                          background: '#6c757d',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '8px 16px',
+                          fontSize: '14px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        ❌ Скасувати
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Завантаження з камери */}
                 <div>
