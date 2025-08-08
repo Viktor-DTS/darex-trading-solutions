@@ -401,27 +401,13 @@ export default function MobileViewArea({ user }) {
       const hasCameraPermission = localStorage.getItem('cameraPermission');
       let initialStream;
       
-      if (hasCameraPermission === 'granted') {
-        // Якщо дозвіл вже надано, створюємо потік без запиту
-        initialStream = await navigator.mediaDevices.getUserMedia({ 
-          video: true,
-          audio: false 
-        });
-      } else if (hasCameraPermission === 'denied') {
+      if (hasCameraPermission === 'denied') {
         // Якщо дозвіл був відхилений, показуємо повідомлення
         alert('Доступ до камери був відхилений. Натисніть "Скинути дозвіл камери" та спробуйте знову.');
         return;
-      } else {
-        // Запитуємо дозвіл тільки один раз
-        initialStream = await navigator.mediaDevices.getUserMedia({ 
-          video: true,
-          audio: false 
-        });
-        // Зберігаємо дозвіл
-        localStorage.setItem('cameraPermission', 'granted');
       }
       
-      // Після отримання дозволу, отримуємо список доступних камер
+      // Спочатку отримуємо список доступних камер
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
       
@@ -444,6 +430,41 @@ export default function MobileViewArea({ user }) {
       console.log('Знайдені камери:', videoDevices.map((device, index) => 
         `${index + 1}. ${device.label || 'Без назви'} (${device.deviceId.substring(0, 8)}...)`
       ));
+      
+      // Тепер створюємо початковий потік з першою камерою (зазвичай задньою)
+      if (hasCameraPermission === 'granted') {
+        // Якщо дозвіл вже надано, створюємо потік з першою камерою
+        if (videoDevices.length > 0) {
+          initialStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              deviceId: { exact: videoDevices[0].deviceId }
+            },
+            audio: false
+          });
+        } else {
+          initialStream = await navigator.mediaDevices.getUserMedia({ 
+            video: true,
+            audio: false 
+          });
+        }
+      } else {
+        // Запитуємо дозвіл тільки один раз з першою камерою
+        if (videoDevices.length > 0) {
+          initialStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              deviceId: { exact: videoDevices[0].deviceId }
+            },
+            audio: false
+          });
+        } else {
+          initialStream = await navigator.mediaDevices.getUserMedia({ 
+            video: true,
+            audio: false 
+          });
+        }
+        // Зберігаємо дозвіл
+        localStorage.setItem('cameraPermission', 'granted');
+      }
       
       let currentStream = initialStream;
       let currentDeviceIndex = 0;
@@ -483,19 +504,6 @@ export default function MobileViewArea({ user }) {
           return currentStream;
         }
       };
-
-      // Створюємо потік з першою камерою (зазвичай задньою)
-      if (videoDevices.length > 0) {
-        try {
-          // Перевіряємо, чи поточний потік ще активний
-          if (!currentStream || !currentStream.active) {
-            currentStream = await createStream(0);
-          }
-        } catch (error) {
-          console.error('Помилка створення потоку з першою камерою:', error);
-          // Використовуємо початковий потік як fallback
-        }
-      }
 
       // Створюємо модальне вікно для камери
       const cameraModal = document.createElement('div');
