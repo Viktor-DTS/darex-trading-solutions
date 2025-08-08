@@ -1015,7 +1015,7 @@ export default function MobileViewArea({ user }) {
       const photoTypeSelect = document.createElement('select');
       photoTypeSelect.id = 'photo-type';
       photoTypeSelect.style.cssText = `
-        width: 100%;
+        width: 100%',
         padding: 8px;
         border: 1px solid #ddd;
         border-radius: 6px;
@@ -1507,9 +1507,17 @@ export default function MobileViewArea({ user }) {
                         </span>
                       </div>
                     )}
+                    {isFieldFilled(task.antifreezePrice) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Ціна антифризу за л:</span><br />
+                        <span style={{ fontWeight: '500', color: '#17a2b8' }}>
+                          {task.antifreezePrice} грн
+                        </span>
+                      </div>
+                    )}
                     {isFieldFilled(task.antifreezeSum) && task.antifreezeSum > 0 && (
                       <div>
-                        <span style={{ color: '#333' }}>Антифриз:</span><br />
+                        <span style={{ color: '#333' }}>Загальна сума антифризу:</span><br />
                         <span style={{ fontWeight: '500', color: '#17a2b8' }}>
                           {task.antifreezeSum} грн
                         </span>
@@ -1612,6 +1620,14 @@ export default function MobileViewArea({ user }) {
                         <span style={{ color: '#333' }}>Ціна антифризу за л:</span><br />
                         <span style={{ fontWeight: '500', color: '#17a2b8' }}>
                           {task.antifreezePrice} грн
+                        </span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.antifreezeSum) && task.antifreezeSum > 0 && (
+                      <div>
+                        <span style={{ color: '#333' }}>Загальна сума антифризу:</span><br />
+                        <span style={{ fontWeight: '500', color: '#17a2b8' }}>
+                          {task.antifreezeSum} грн
                         </span>
                       </div>
                     )}
