@@ -176,6 +176,18 @@ export default function MobileViewArea({ user }) {
         status: task.status,
         requestNumber: task.requestNumber
       })));
+      
+      // Додатково логуємо всі унікальні статуси
+      const uniqueStatuses = [...new Set(tasks.map(task => task.status))];
+      console.log('Всі унікальні статуси заявок:', uniqueStatuses);
+      
+      // Логуємо кількість заявок для кожного статусу
+      const statusCounts = {};
+      tasks.forEach(task => {
+        const status = task.status || 'null';
+        statusCounts[status] = (statusCounts[status] || 0) + 1;
+      });
+      console.log('Кількість заявок по статусах:', statusCounts);
     }
     
     let filteredTasks;
