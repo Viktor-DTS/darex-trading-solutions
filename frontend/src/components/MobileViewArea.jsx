@@ -449,6 +449,12 @@ export default function MobileViewArea({ user }) {
       return;
     }
 
+    // Додаткова перевірка для мобільних пристроїв
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      console.log('Виявлено мобільний пристрій, використовуються спеціальні налаштування камери');
+    }
+
     try {
       // Перевіряємо, чи вже є збережений дозвіл
       const hasCameraPermission = localStorage.getItem('cameraPermission');
@@ -484,38 +490,83 @@ export default function MobileViewArea({ user }) {
         `${index + 1}. ${device.label || 'Без назви'} (${device.deviceId.substring(0, 8)}...)`
       ));
       
-      // Тепер створюємо початковий потік з першою камерою (зазвичай задньою)
-      if (hasCameraPermission === 'granted') {
-        // Якщо дозвіл вже надано, створюємо потік з першою камерою
-        if (videoDevices.length > 0) {
-          initialStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              deviceId: { exact: videoDevices[0].deviceId }
-            },
-            audio: false
-          });
-        } else {
-          initialStream = await navigator.mediaDevices.getUserMedia({ 
+      // Функція для створення потоку з гнучкими налаштуваннями
+      const createStreamWithFallback = async (deviceIndex = 0) => {
+        try {
+          // Спочатку пробуємо з конкретною камерою
+          if (videoDevices.length > 0 && deviceIndex < videoDevices.length) {
+            const device = videoDevices[deviceIndex];
+            
+            // Пробуємо різні варіанти обмежень для мобільних пристроїв
+            const constraints = [
+              // Варіант 1: Точний deviceId
+              {
+                video: {
+                  deviceId: { exact: device.deviceId },
+                  width: { ideal: 1920, max: 1920 },
+                  height: { ideal: 1080, max: 1080 }
+                },
+                audio: false
+              },
+              // Варіант 2: Приблизний deviceId
+              {
+                video: {
+                  deviceId: device.deviceId,
+                  width: { ideal: 1280, max: 1920 },
+                  height: { ideal: 720, max: 1080 }
+                },
+                audio: false
+              },
+              // Варіант 3: Тільки deviceId без розмірів
+              {
+                video: {
+                  deviceId: device.deviceId
+                },
+                audio: false
+              },
+              // Варіант 4: Базові налаштування
+              {
+                video: {
+                  width: { ideal: 1280 },
+                  height: { ideal: 720 }
+                },
+                audio: false
+              },
+              // Варіант 5: Мінімальні налаштування
+              {
+                video: true,
+                audio: false
+              }
+            ];
+            
+            // Пробуємо кожен варіант
+            for (const constraint of constraints) {
+              try {
+                console.log('Спроба створення потоку з обмеженнями:', constraint);
+                return await navigator.mediaDevices.getUserMedia(constraint);
+              } catch (error) {
+                console.log('Помилка з обмеженнями:', constraint, error.name);
+                continue;
+              }
+            }
+          }
+          
+          // Якщо не вдалося створити потік з конкретною камерою, використовуємо загальні налаштування
+          return await navigator.mediaDevices.getUserMedia({ 
             video: true,
             audio: false 
           });
+        } catch (error) {
+          console.error('Помилка створення потоку:', error);
+          throw error;
         }
-      } else {
-        // Запитуємо дозвіл тільки один раз з першою камерою
-        if (videoDevices.length > 0) {
-          initialStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              deviceId: { exact: videoDevices[0].deviceId }
-            },
-            audio: false
-          });
-        } else {
-          initialStream = await navigator.mediaDevices.getUserMedia({ 
-            video: true,
-            audio: false 
-          });
-        }
-        // Зберігаємо дозвіл
+      };
+      
+      // Тепер створюємо початковий потік
+      initialStream = await createStreamWithFallback(0);
+      
+      // Зберігаємо дозвіл, якщо успішно створили потік
+      if (initialStream) {
         localStorage.setItem('cameraPermission', 'granted');
       }
       
@@ -528,24 +579,8 @@ export default function MobileViewArea({ user }) {
           currentStream.getTracks().forEach(track => track.stop());
         }
         
-        let constraints;
-        if (videoDevices.length > 0 && deviceIndex < videoDevices.length) {
-          constraints = {
-            video: {
-              deviceId: { exact: videoDevices[deviceIndex].deviceId }
-            },
-            audio: false
-          };
-        } else {
-          constraints = {
-            video: true,
-            audio: false
-          };
-        }
-        
         try {
-          // Оскільки дозвіл вже надано, створюємо потік без додаткових запитів
-          currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+          currentStream = await createStreamWithFallback(deviceIndex);
           return currentStream;
         } catch (error) {
           console.error('Помилка створення потоку для камери:', error);
@@ -900,7 +935,7 @@ export default function MobileViewArea({ user }) {
     } catch (error) {
       console.error('Помилка доступу до камери:', error);
       
-      // Більш детальні повідомлення про помилки
+      // Більш детальні повідомлення про помилки для мобільних пристроїв
       let errorMessage = 'Помилка доступу до камери';
       
       if (error.name === 'NotAllowedError') {
@@ -912,11 +947,24 @@ export default function MobileViewArea({ user }) {
       } else if (error.name === 'NotReadableError') {
         errorMessage = 'Камера зайнята іншим додатком. Закрийте інші додатки, що використовують камеру.';
       } else if (error.name === 'OverconstrainedError') {
-        errorMessage = 'Камера не підтримує необхідні налаштування.';
+        // Покращена обробка для мобільних пристроїв
+        errorMessage = 'Камера не підтримує необхідні налаштування. Спробуйте використати "З галереї" або оновіть браузер.';
       } else if (error.name === 'TypeError') {
         errorMessage = 'Браузер не підтримує доступ до камери. Спробуйте використати інший браузер.';
+      } else if (error.name === 'NotSupportedError') {
+        errorMessage = 'Ваш пристрій не підтримує доступ до камери. Спробуйте використати "З галереї".';
+      } else if (error.name === 'AbortError') {
+        errorMessage = 'Операція з камерою була перервана. Спробуйте ще раз.';
+      } else if (error.name === 'SecurityError') {
+        errorMessage = 'Помилка безпеки. Переконайтеся, що використовуєте HTTPS з\'єднання.';
       } else {
         errorMessage = `Помилка доступу до камери: ${error.message}`;
+      }
+      
+      // Додаємо пораду для мобільних пристроїв
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobile && error.name === 'OverconstrainedError') {
+        errorMessage += '\n\n💡 Порада: На мобільних пристроях краще використовувати "З галереї" для завантаження фото.';
       }
       
       alert(errorMessage);
