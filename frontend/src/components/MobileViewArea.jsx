@@ -1127,25 +1127,25 @@ export default function MobileViewArea({ user }) {
                   >
                     {isFieldFilled(task.client) && (
                       <div>
-                        <span style={{ color: '#666' }}>Компанія:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.client}</span>
+                        <span style={{ color: '#333' }}>Компанія:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.client}</span>
                       </div>
                     )}
                     {isFieldFilled(task.serviceRegion) && (
                       <div>
-                        <span style={{ color: '#666' }}>Регіон:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.serviceRegion}</span>
+                        <span style={{ color: '#333' }}>Регіон:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.serviceRegion}</span>
                       </div>
                     )}
                     {isFieldFilled(task.equipment) && (
                       <div>
-                        <span style={{ color: '#666' }}>Обладнання:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.equipment}</span>
+                        <span style={{ color: '#333' }}>Обладнання:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.equipment}</span>
                       </div>
                     )}
                     {isFieldFilled(task.serviceTotal) && (
                       <div>
-                        <span style={{ color: '#666' }}>Сума:</span><br />
+                        <span style={{ color: '#333' }}>Сума:</span><br />
                         <span style={{ fontWeight: '500', color: '#28a745' }}>
                           {task.serviceTotal} грн
                         </span>
@@ -1153,46 +1153,46 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.address) && (
                       <div>
-                        <span style={{ color: '#666' }}>Адреса:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.address}</span>
+                        <span style={{ color: '#333' }}>Адреса:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.address}</span>
                       </div>
                     )}
                     {isFieldFilled(task.equipmentSerial) && (
                       <div>
-                        <span style={{ color: '#666' }}>Серійний номер:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.equipmentSerial}</span>
+                        <span style={{ color: '#333' }}>Серійний номер:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.equipmentSerial}</span>
                       </div>
                     )}
                     {isFieldFilled(task.engineer1) && (
                       <div>
-                        <span style={{ color: '#666' }}>Інженер 1:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.engineer1}</span>
+                        <span style={{ color: '#333' }}>Інженер 1:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.engineer1}</span>
                       </div>
                     )}
                     {isFieldFilled(task.engineer2) && (
                       <div>
-                        <span style={{ color: '#666' }}>Інженер 2:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.engineer2}</span>
+                        <span style={{ color: '#333' }}>Інженер 2:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.engineer2}</span>
                       </div>
                     )}
                     {isFieldFilled(task.paymentType) && (
                       <div>
-                        <span style={{ color: '#666' }}>Тип оплати:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.paymentType}</span>
+                        <span style={{ color: '#333' }}>Тип оплати:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.paymentType}</span>
                       </div>
                     )}
                     {isFieldFilled(task.work) && (
                       <div>
-                        <span style={{ color: '#666' }}>Роботи:</span><br />
-                        <span style={{ fontWeight: '500' }}>{task.work}</span>
+                        <span style={{ color: '#333' }}>Роботи:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.work}</span>
                       </div>
                     )}
                   </div>
 
                   {(isFieldFilled(task.requestDesc) || isFieldFilled(task.work)) && (
                     <div style={{ marginBottom: '12px' }}>
-                      <span style={{ color: '#666' }}>Опис:</span><br />
-                      <span style={{ fontSize: '13px' }}>
+                      <span style={{ color: '#333' }}>Опис:</span><br />
+                      <span style={{ fontSize: '13px', color: '#000' }}>
                         {task.requestDesc || task.work}
                       </span>
                     </div>
@@ -1204,7 +1204,7 @@ export default function MobileViewArea({ user }) {
                     alignItems: 'center'
                   }}>
                     <span style={{ 
-                      color: '#666', 
+                      color: '#333', 
                       fontSize: '12px' 
                     }}>
                       {task.date ? new Date(task.date).toLocaleDateString() : '—'}
