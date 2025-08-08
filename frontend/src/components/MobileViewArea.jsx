@@ -455,6 +455,13 @@ export default function MobileViewArea({ user }) {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     if (isMobile) {
       console.log('Виявлено мобільний пристрій, використовуються спеціальні налаштування камери');
+      
+      // На мобільних пристроях зазвичай перша камера - це задня
+      if (videoDevices.length > 1 && !backCamera) {
+        // Якщо є дві камери і не знайдено задню, беремо першу
+        backCamera = videoDevices[0];
+        console.log('На мобільному пристрої використовуємо першу камеру як задню');
+      }
     }
 
     try {
@@ -472,23 +479,47 @@ export default function MobileViewArea({ user }) {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
       
-      // Сортуємо камери: тільки задня камера, фронтальну ігноруємо
-      // Задня камера зазвичай має більшу роздільну здатність і кращу якість
-      const backCamera = videoDevices.find(device => {
+      // Логуємо всі знайдені камери для діагностики
+      console.log('Всі знайдені камери:', videoDevices.map((device, index) => 
+        `${index + 1}. ${device.label || 'Без назви'} (${device.deviceId.substring(0, 8)}...)`
+      ));
+      
+      // Покращена логіка пошуку задньої камери
+      let backCamera = null;
+      
+      // Спочатку шукаємо камери з явними індикаторами задньої камери
+      backCamera = videoDevices.find(device => {
         const label = device.label.toLowerCase();
         return label.includes('back') || 
                label.includes('rear') || 
                label.includes('задня') ||
                label.includes('основна') ||
                label.includes('main') ||
-               label.includes('primary') ||
-               !label.includes('front') && !label.includes('фронтальна') && !label.includes('selfie');
+               label.includes('primary');
       });
+      
+      // Якщо не знайдено, шукаємо камери без індикаторів фронтальної
+      if (!backCamera) {
+        backCamera = videoDevices.find(device => {
+          const label = device.label.toLowerCase();
+          return !label.includes('front') && 
+                 !label.includes('фронтальна') && 
+                 !label.includes('selfie') &&
+                 !label.includes('фронт');
+        });
+      }
+      
+      // Якщо все ще не знайдено, беремо першу камеру (зазвичай це задня)
+      if (!backCamera && videoDevices.length > 0) {
+        backCamera = videoDevices[0];
+        console.log('Використовуємо першу доступну камеру як задню');
+      }
       
       // Якщо знайдена задня камера, використовуємо тільки її
       const filteredVideoDevices = backCamera ? [backCamera] : videoDevices;
       
-      // Логуємо порядок камер для діагностики
+      // Логуємо результат вибору камери
+      console.log('Обрана камера:', backCamera ? backCamera.label : 'Не знайдено задньої камери');
       console.log('Використовувані камери:', filteredVideoDevices.map((device, index) => 
         `${index + 1}. ${device.label || 'Без назви'} (${device.deviceId.substring(0, 8)}...)`
       ));
@@ -503,6 +534,7 @@ export default function MobileViewArea({ user }) {
           // Спочатку пробуємо з конкретною камерою
           if (filteredVideoDevices.length > 0 && deviceIndex < filteredVideoDevices.length) {
             const device = filteredVideoDevices[deviceIndex];
+            console.log('Спроба створення потоку з камерою:', device.label);
             
             // Пробуємо різні варіанти обмежень для мобільних пристроїв
             const constraints = [
@@ -550,7 +582,9 @@ export default function MobileViewArea({ user }) {
             for (const constraint of constraints) {
               try {
                 console.log('Спроба створення потоку з обмеженнями:', constraint);
-                return await navigator.mediaDevices.getUserMedia(constraint);
+                const stream = await navigator.mediaDevices.getUserMedia(constraint);
+                console.log('Успішно створено потік з камерою:', device.label);
+                return stream;
               } catch (error) {
                 console.log('Помилка з обмеженнями:', constraint, error.name);
                 continue;
@@ -559,6 +593,7 @@ export default function MobileViewArea({ user }) {
           }
           
           // Якщо не вдалося створити потік з конкретною камерою, використовуємо загальні налаштування
+          console.log('Використовуємо загальні налаштування камери');
           return await navigator.mediaDevices.getUserMedia({ 
             video: true,
             audio: false 
