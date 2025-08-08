@@ -1187,6 +1187,76 @@ export default function MobileViewArea({ user }) {
                         <span style={{ fontWeight: '500', color: '#000' }}>{task.work}</span>
                       </div>
                     )}
+                    {isFieldFilled(task.workPrice) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Вартість робіт:</span><br />
+                        <span style={{ fontWeight: '500', color: '#007bff' }}>
+                          {task.workPrice} грн
+                        </span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.transportSum) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Транспорт:</span><br />
+                        <span style={{ fontWeight: '500', color: '#ff6b35' }}>
+                          {task.transportSum} грн
+                        </span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.otherMaterials) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Матеріали:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.otherMaterials}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.otherSum) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Вартість матеріалів:</span><br />
+                        <span style={{ fontWeight: '500', color: '#6f42c1' }}>
+                          {task.otherSum} грн
+                        </span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.oilTotal) && task.oilTotal > 0 && (
+                      <div>
+                        <span style={{ color: '#333' }}>Масло:</span><br />
+                        <span style={{ fontWeight: '500', color: '#fd7e14' }}>
+                          {task.oilTotal} грн
+                        </span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.airFilterSum) && task.airFilterSum > 0 && (
+                      <div>
+                        <span style={{ color: '#333' }}>Повітряний фільтр:</span><br />
+                        <span style={{ fontWeight: '500', color: '#20c997' }}>
+                          {task.airFilterSum} грн
+                        </span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.fuelFilterSum) && task.fuelFilterSum > 0 && (
+                      <div>
+                        <span style={{ color: '#333' }}>Паливний фільтр:</span><br />
+                        <span style={{ fontWeight: '500', color: '#20c997' }}>
+                          {task.fuelFilterSum} грн
+                        </span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.filterSum) && task.filterSum > 0 && (
+                      <div>
+                        <span style={{ color: '#333' }}>Інші фільтри:</span><br />
+                        <span style={{ fontWeight: '500', color: '#20c997' }}>
+                          {task.filterSum} грн
+                        </span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.antifreezeSum) && task.antifreezeSum > 0 && (
+                      <div>
+                        <span style={{ color: '#333' }}>Антифриз:</span><br />
+                        <span style={{ fontWeight: '500', color: '#17a2b8' }}>
+                          {task.antifreezeSum} грн
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {(isFieldFilled(task.requestDesc) || isFieldFilled(task.work)) && (
@@ -1306,7 +1376,17 @@ export default function MobileViewArea({ user }) {
                   engineer1: 'Інженер 1',
                   engineer2: 'Інженер 2',
                   paymentType: 'Тип оплати',
-                  status: 'Статус'
+                  status: 'Статус',
+                  workPrice: 'Вартість робіт',
+                  transportSum: 'Транспортні витрати',
+                  otherMaterials: 'Матеріали',
+                  otherSum: 'Вартість матеріалів',
+                  oilTotal: 'Масло',
+                  airFilterSum: 'Повітряний фільтр',
+                  fuelFilterSum: 'Паливний фільтр',
+                  filterSum: 'Інші фільтри',
+                  antifreezeSum: 'Антифриз',
+                  invoice: 'Номер рахунку'
                 };
 
                 const label = fieldLabels[key];
@@ -1328,6 +1408,14 @@ export default function MobileViewArea({ user }) {
                     }}>
                       {key === 'date' ? new Date(value).toLocaleDateString() : 
                        key === 'serviceTotal' ? `${value} грн` : 
+                       key === 'workPrice' ? `${value} грн` :
+                       key === 'transportSum' ? `${value} грн` :
+                       key === 'otherSum' ? `${value} грн` :
+                       key === 'oilTotal' ? `${value} грн` :
+                       key === 'airFilterSum' ? `${value} грн` :
+                       key === 'fuelFilterSum' ? `${value} грн` :
+                       key === 'filterSum' ? `${value} грн` :
+                       key === 'antifreezeSum' ? `${value} грн` :
                        value}
                     </div>
                   </div>
