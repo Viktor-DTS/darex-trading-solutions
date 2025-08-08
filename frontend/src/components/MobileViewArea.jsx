@@ -1125,11 +1125,11 @@ export default function MobileViewArea({ user }) {
                           {/* Заголовок групи */}
                           <div style={{
                             background: '#f8f9fa',
-                            padding: '12px 16px',
+                            padding: '8px 12px',
                             borderBottom: '1px solid #dee2e6',
                             fontWeight: '600',
                             color: '#22334a',
-                            fontSize: '16px'
+                            fontSize: '14px'
                           }}>
                             {fileType} ({files.length})
                           </div>
@@ -1145,70 +1145,83 @@ export default function MobileViewArea({ user }) {
                                 key={file.id}
                                 style={{
                                   background: index % 2 === 0 ? '#fff' : '#f8f9fa',
-                                  padding: '12px 16px',
+                                  padding: '8px 12px',
                                   display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
+                                  flexDirection: 'column',
+                                  gap: '8px',
                                   borderBottom: index < files.length - 1 ? '1px solid #eee' : 'none'
                                 }}
                               >
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ 
-                                    fontWeight: '500', 
-                                    fontSize: '14px',
-                                    color: '#22334a',
-                                    marginBottom: '4px'
-                                  }}>
-                                    {file.originalName}
-                                  </div>
-                                  {file.description && (
-                                    <div style={{ 
-                                      fontSize: '12px', 
-                                      color: '#666',
-                                      marginBottom: '4px'
-                                    }}>
-                                      {file.description}
-                                    </div>
-                                  )}
-                                  <div style={{ 
-                                    fontSize: '12px', 
-                                    color: '#999'
-                                  }}>
-                                    {new Date(file.uploadDate).toLocaleString()} • {(file.size / 1024).toFixed(1)} KB
-                                  </div>
-                                </div>
                                 <div style={{ 
                                   display: 'flex', 
+                                  justifyContent: 'space-between',
+                                  alignItems: 'flex-start',
                                   gap: '8px'
                                 }}>
-                                  <button
-                                    onClick={() => viewFile(file)}
-                                    style={{
-                                      background: '#007bff',
-                                      color: '#fff',
-                                      border: 'none',
-                                      borderRadius: '4px',
-                                      padding: '6px 12px',
-                                      fontSize: '12px',
-                                      cursor: 'pointer'
-                                    }}
-                                  >
-                                    👁️ Переглянути
-                                  </button>
-                                  <button
-                                    onClick={() => deleteFile(file.id, selectedTask.id)}
-                                    style={{
-                                      background: '#dc3545',
-                                      color: '#fff',
-                                      border: 'none',
-                                      borderRadius: '4px',
-                                      padding: '6px 12px',
-                                      fontSize: '12px',
-                                      cursor: 'pointer'
-                                    }}
-                                  >
-                                    🗑️ Видалити
-                                  </button>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ 
+                                      fontWeight: '500', 
+                                      fontSize: '13px',
+                                      color: '#22334a',
+                                      marginBottom: '2px',
+                                      wordBreak: 'break-word'
+                                    }}>
+                                      {file.originalName}
+                                    </div>
+                                    {file.description && (
+                                      <div style={{ 
+                                        fontSize: '11px', 
+                                        color: '#666',
+                                        marginBottom: '2px',
+                                        wordBreak: 'break-word'
+                                      }}>
+                                        {file.description}
+                                      </div>
+                                    )}
+                                    <div style={{ 
+                                      fontSize: '11px', 
+                                      color: '#999'
+                                    }}>
+                                      {new Date(file.uploadDate).toLocaleString()} • {(file.size / 1024).toFixed(1)} KB
+                                    </div>
+                                  </div>
+                                  <div style={{ 
+                                    display: 'flex', 
+                                    gap: '4px',
+                                    flexWrap: 'wrap',
+                                    flexShrink: 0
+                                  }}>
+                                    <button
+                                      onClick={() => viewFile(file)}
+                                      style={{
+                                        background: '#007bff',
+                                        color: '#fff',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        padding: '4px 8px',
+                                        fontSize: '11px',
+                                        cursor: 'pointer',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      👁️ Переглянути
+                                    </button>
+                                    <button
+                                      onClick={() => deleteFile(file.id, selectedTask.id)}
+                                      style={{
+                                        background: '#dc3545',
+                                        color: '#fff',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        padding: '4px 8px',
+                                        fontSize: '11px',
+                                        cursor: 'pointer',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      🗑️ Видалити
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             ))}
