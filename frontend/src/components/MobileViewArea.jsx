@@ -1257,6 +1257,86 @@ export default function MobileViewArea({ user }) {
                         </span>
                       </div>
                     )}
+                    {isFieldFilled(task.requestDate) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Дата заявки:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>
+                          {new Date(task.requestDate).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.company) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Компанія:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.company}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.reportMonthYear) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Звітний місяць:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.reportMonthYear}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.invoice) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Номер рахунку:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.invoice}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.bonusApprovalDate) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Дата затвердження премії:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.bonusApprovalDate}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.approvedByWarehouse) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Підтверджено складом:</span><br />
+                        <span style={{ fontWeight: '500', color: '#28a745' }}>{task.approvedByWarehouse}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.warehouseComment) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Коментар складу:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.warehouseComment}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.approvedByAccountant) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Підтверджено бухгалтером:</span><br />
+                        <span style={{ fontWeight: '500', color: '#28a745' }}>{task.approvedByAccountant}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.accountantComment) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Коментар бухгалтера:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.accountantComment}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.approvedByRegional) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Підтверджено регіональним:</span><br />
+                        <span style={{ fontWeight: '500', color: '#28a745' }}>{task.approvedByRegional}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.regionalComment) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Коментар регіонального:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.regionalComment}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.approvedByRegionalManager) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Підтверджено рег. менеджером:</span><br />
+                        <span style={{ fontWeight: '500', color: '#28a745' }}>{task.approvedByRegionalManager}</span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.regionalManagerComment) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Коментар рег. менеджера:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>{task.regionalManagerComment}</span>
+                      </div>
+                    )}
                   </div>
 
                   {(isFieldFilled(task.requestDesc) || isFieldFilled(task.work)) && (
@@ -1386,7 +1466,19 @@ export default function MobileViewArea({ user }) {
                   fuelFilterSum: 'Паливний фільтр',
                   filterSum: 'Інші фільтри',
                   antifreezeSum: 'Антифриз',
-                  invoice: 'Номер рахунку'
+                  invoice: 'Номер рахунку',
+                  requestDate: 'Дата заявки',
+                  company: 'Компанія',
+                  reportMonthYear: 'Звітний місяць',
+                  bonusApprovalDate: 'Дата затвердження премії',
+                  approvedByWarehouse: 'Підтверджено складом',
+                  warehouseComment: 'Коментар складу',
+                  approvedByAccountant: 'Підтверджено бухгалтером',
+                  accountantComment: 'Коментар бухгалтера',
+                  approvedByRegional: 'Підтверджено регіональним',
+                  regionalComment: 'Коментар регіонального',
+                  approvedByRegionalManager: 'Підтверджено рег. менеджером',
+                  regionalManagerComment: 'Коментар рег. менеджера'
                 };
 
                 const label = fieldLabels[key];
@@ -1407,6 +1499,7 @@ export default function MobileViewArea({ user }) {
                       color: '#22334a'
                     }}>
                       {key === 'date' ? new Date(value).toLocaleDateString() : 
+                       key === 'requestDate' ? new Date(value).toLocaleDateString() :
                        key === 'serviceTotal' ? `${value} грн` : 
                        key === 'workPrice' ? `${value} грн` :
                        key === 'transportSum' ? `${value} грн` :
