@@ -12,6 +12,7 @@ import ModalTaskForm, { fields as allTaskFields } from './ModalTaskForm'
 import TaskTable from './components/TaskTable'
 import ExcelImportModal from './components/ExcelImportModal'
 import ServiceReminderModal from './components/ServiceReminderModal'
+import MobileViewArea from './components/MobileViewArea'
 // Підключення кастомного шрифту Roboto для jsPDF відбувається через <script src="/Roboto-normal.js"></script> у public/index.html
 
 // Додаю імпорт на початку файлу
@@ -3272,6 +3273,34 @@ function App() {
   const Area = currentArea === 'admin' 
     ? areaByRole.admin 
     : areas[currentArea] || (() => <div>Оберіть область</div>);
+
+  // Якщо користувач у режимі перегляду, показуємо мобільний інтерфейс
+  if (user.isViewMode) {
+    return (
+      <>
+        <div className='bg-logo'></div>
+        <div style={{ 
+          minHeight: '100vh',
+          background: '#f5f5f5'
+        }}>
+          <div style={{
+            background: '#22334a',
+            color: '#fff',
+            padding: '16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <h1 style={{ margin: 0, fontSize: '20px' }}>{t('company_name')}</h1>
+            <div style={{ fontSize: '14px' }}>
+              {user.name} ({user.role})
+            </div>
+          </div>
+          <MobileViewArea user={user} />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

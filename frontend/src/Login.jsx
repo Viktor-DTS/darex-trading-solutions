@@ -17,6 +17,7 @@ export default function Login({ onLogin }) {
   const [role, setRole] = useState('admin');
   const [roleLocked, setRoleLocked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(false);
 
   useEffect(() => {
     if (!login.trim()) {
@@ -62,7 +63,12 @@ export default function Login({ onLogin }) {
       
       if (response.ok) {
         const result = await response.json();
-        onLogin(result.user);
+        // Додаємо інформацію про режим до об'єкта користувача
+        const userWithMode = {
+          ...result.user,
+          isViewMode: isViewMode
+        };
+        onLogin(userWithMode);
     } else {
         const error = await response.json();
         alert(error.error || 'Помилка авторизації');
@@ -86,6 +92,20 @@ export default function Login({ onLogin }) {
           </div>
           <div style={{ marginBottom: 16 }}>
             <label>Пароль<br /><input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%' }} /></label>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={isViewMode} 
+                onChange={e => setIsViewMode(e.target.checked)}
+                style={{ margin: 0 }}
+              />
+              <span>Режим перегляду/завантаження</span>
+            </label>
+            <small style={{ color: '#ccc', fontSize: '12px', display: 'block', marginTop: 4 }}>
+              Мобільна версія для перегляду заявок та завантаження файлів
+            </small>
           </div>
           <button type="submit" style={{ width: '100%', marginBottom: 12 }} disabled={isLoading}>
             {isLoading ? '⏳ Вхід...' : 'Увійти'}
