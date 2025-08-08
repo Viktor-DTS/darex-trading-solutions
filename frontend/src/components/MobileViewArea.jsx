@@ -171,9 +171,11 @@ export default function MobileViewArea({ user }) {
     setFilePhotoType('document');
   };
 
-  // Функція для фільтрації заявок по статусу
+  // Функція для фільтрації заявок по статусу та регіону
   const getFilteredTasks = () => {
     let filteredTasks;
+    
+    // Спочатку фільтруємо по статусу
     switch (activeTab) {
       case 'pending':
         // Невиконані заявки: "Заявка" (нові заявки)
@@ -192,6 +194,21 @@ export default function MobileViewArea({ user }) {
         break;
       default:
         filteredTasks = tasks;
+    }
+    
+    // Тепер фільтруємо по регіону користувача
+    if (user && user.region) {
+      // Якщо користувач з регіону "Україна", показуємо всі заявки
+      if (user.region === 'Україна') {
+        return filteredTasks;
+      } else {
+        // Інакше показуємо тільки заявки з регіону користувача
+        filteredTasks = filteredTasks.filter(task => {
+          // Перевіряємо поле serviceRegion або region в заявці
+          const taskRegion = task.serviceRegion || task.region;
+          return taskRegion === user.region;
+        });
+      }
     }
     
     return filteredTasks;
@@ -935,6 +952,35 @@ export default function MobileViewArea({ user }) {
         📱 Мобільний режим перегляду
       </h2>
 
+      {/* Індикатор регіону */}
+      {user && user.region && (
+        <div style={{
+          textAlign: 'center',
+          marginBottom: '16px',
+          padding: '8px 16px',
+          background: user.region === 'Україна' ? '#e3f2fd' : '#fff3e0',
+          border: `2px solid ${user.region === 'Україна' ? '#2196f3' : '#ff9800'}`,
+          borderRadius: '8px',
+          display: 'inline-block',
+          margin: '0 auto 16px auto'
+        }}>
+          <div style={{
+            fontSize: '14px',
+            fontWeight: '600',
+            color: user.region === 'Україна' ? '#1976d2' : '#f57c00'
+          }}>
+            🌍 Регіон: {user.region}
+          </div>
+          <div style={{
+            fontSize: '12px',
+            color: user.region === 'Україна' ? '#1976d2' : '#f57c00',
+            marginTop: '2px'
+          }}>
+            {user.region === 'Україна' ? 'Переглядаєте всі заявки' : `Переглядаєте заявки регіону "${user.region}"`}
+          </div>
+        </div>
+      )}
+
       {/* Кнопка виходу */}
       <div style={{ 
         textAlign: 'center', 
@@ -1054,7 +1100,7 @@ export default function MobileViewArea({ user }) {
               cursor: 'pointer'
             }}
           >
-            🔍 Показати всі заявки ({tasks.length})
+            🔍 Показати всі заявки ({getFilteredTasks().length})
           </button>
         </div>
       </div>
@@ -1070,10 +1116,14 @@ export default function MobileViewArea({ user }) {
               padding: '40px 20px',
               fontSize: '16px'
             }}>
-              {activeTab === 'pending' && 'Нових заявок немає'}
-              {activeTab === 'confirmed' && 'Заявок в роботі немає'}
-              {activeTab === 'completed' && 'Виконаних заявок немає'}
-              {activeTab === 'all' && 'Заявок немає'}
+              {activeTab === 'pending' && (user && user.region && user.region !== 'Україна' ? 
+                `Нових заявок у регіоні "${user.region}" немає` : 'Нових заявок немає')}
+              {activeTab === 'confirmed' && (user && user.region && user.region !== 'Україна' ? 
+                `Заявок в роботі у регіоні "${user.region}" немає` : 'Заявок в роботі немає')}
+              {activeTab === 'completed' && (user && user.region && user.region !== 'Україна' ? 
+                `Виконаних заявок у регіоні "${user.region}" немає` : 'Виконаних заявок немає')}
+              {activeTab === 'all' && (user && user.region && user.region !== 'Україна' ? 
+                `Заявок у регіоні "${user.region}" немає` : 'Заявок немає')}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
