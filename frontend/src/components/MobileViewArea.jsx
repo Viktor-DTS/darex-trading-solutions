@@ -20,9 +20,51 @@ export default function MobileViewArea({ user }) {
 
   // Функція для перевірки, чи поле заповнене
   const isFieldFilled = (value) => {
-    return value !== null && value !== undefined && value !== '' && 
-           (typeof value !== 'string' || value.trim() !== '') &&
-           (Array.isArray(value) ? value.length > 0 : true);
+    // Перевіряємо чи значення не null/undefined/порожнє
+    if (value === null || value === undefined || value === '') {
+      return false;
+    }
+    
+    // Для рядків перевіряємо чи не порожній після обрізання пробілів
+    if (typeof value === 'string' && value.trim() === '') {
+      return false;
+    }
+    
+    // Для масивів перевіряємо чи не порожній
+    if (Array.isArray(value) && value.length === 0) {
+      return false;
+    }
+    
+    // Для дат перевіряємо чи це валідна дата
+    if (value instanceof Date && isNaN(value.getTime())) {
+      return false;
+    }
+    
+    // Для рядків, які можуть бути датами, перевіряємо чи це валідна дата
+    if (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}/)) {
+      const date = new Date(value);
+      if (isNaN(date.getTime())) {
+        return false;
+      }
+    }
+    
+    return true;
+  };
+
+  // Функція для безпечного форматування дат
+  const formatDate = (dateValue) => {
+    if (!dateValue) return 'Не вказано';
+    
+    try {
+      const date = new Date(dateValue);
+      if (isNaN(date.getTime())) {
+        return 'Не вказано';
+      }
+      return date.toLocaleDateString('uk-UA');
+    } catch (error) {
+      console.error('Помилка форматування дати:', error);
+      return 'Не вказано';
+    }
   };
 
   // Функція для виходу з мобільного режиму
@@ -1325,6 +1367,22 @@ export default function MobileViewArea({ user }) {
                       marginBottom: '12px'
                     }}
                   >
+                    {isFieldFilled(task.date) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Дата проведення робіт:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>
+                          {formatDate(task.date)}
+                        </span>
+                      </div>
+                    )}
+                    {isFieldFilled(task.requestDate) && (
+                      <div>
+                        <span style={{ color: '#333' }}>Дата заявки:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000' }}>
+                          {formatDate(task.requestDate)}
+                        </span>
+                      </div>
+                    )}
                     {isFieldFilled(task.client) && (
                       <div>
                         <span style={{ color: '#333' }}>Компанія:</span><br />
@@ -1457,14 +1515,6 @@ export default function MobileViewArea({ user }) {
                         </span>
                       </div>
                     )}
-                    {isFieldFilled(task.requestDate) && (
-                      <div>
-                        <span style={{ color: '#333' }}>Дата заявки:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>
-                          {new Date(task.requestDate).toLocaleDateString()}
-                        </span>
-                      </div>
-                    )}
                     {isFieldFilled(task.company) && (
                       <div>
                         <span style={{ color: '#333' }}>Компанія:</span><br />
@@ -1553,12 +1603,15 @@ export default function MobileViewArea({ user }) {
                     justifyContent: 'space-between',
                     alignItems: 'center'
                   }}>
-                    <span style={{ 
+                    <div style={{ 
                       color: '#333', 
                       fontSize: '12px' 
                     }}>
-                      {task.date ? new Date(task.date).toLocaleDateString() : '—'}
-                    </span>
+                      <div>Дата проведення робіт:</div>
+                      <div style={{ fontWeight: '500', fontSize: '14px' }}>
+                        {formatDate(task.date)}
+                      </div>
+                    </div>
                     
                     <button
                       onClick={() => openTaskInfo(task)}
@@ -1698,8 +1751,8 @@ export default function MobileViewArea({ user }) {
                       fontSize: '16px',
                       color: '#22334a'
                     }}>
-                      {key === 'date' ? new Date(value).toLocaleDateString() : 
-                       key === 'requestDate' ? new Date(value).toLocaleDateString() :
+                      {key === 'date' ? formatDate(value) : 
+                       key === 'requestDate' ? formatDate(value) :
                        key === 'serviceTotal' ? `${value} грн` : 
                        key === 'workPrice' ? `${value} грн` :
                        key === 'transportSum' ? `${value} грн` :
