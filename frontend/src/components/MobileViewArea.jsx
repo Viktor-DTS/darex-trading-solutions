@@ -483,14 +483,14 @@ export default function MobileViewArea({ user }) {
         justify-content: center;
         align-items: center;
         z-index: 2000;
-        padding: 20px;
+        padding: 16px;
       `;
 
       // Створюємо відео елемент
       const video = document.createElement('video');
       video.style.cssText = `
         max-width: 100%;
-        max-height: 60vh;
+        max-height: 50vh;
         border-radius: 8px;
         background: #000;
         box-shadow: 0 4px 20px rgba(0,0,0,0.5);
@@ -510,7 +510,7 @@ export default function MobileViewArea({ user }) {
       buttonContainer.style.cssText = `
         display: flex;
         gap: 12px;
-        margin-top: 20px;
+        margin-top: 12px;
         flex-wrap: wrap;
         justify-content: center;
         align-items: center;
@@ -693,18 +693,18 @@ export default function MobileViewArea({ user }) {
       instructions.textContent = 'Наведіть камеру, сфокусуйтеся та натисніть "Зробити фото"';
       instructions.style.cssText = `
         color: #fff;
-        font-size: 16px;
-        margin-bottom: 20px;
+        font-size: 14px;
+        margin-bottom: 12px;
         text-align: center;
         max-width: 300px;
-        line-height: 1.4;
+        line-height: 1.3;
       `;
       cameraModal.insertBefore(instructions, video);
 
       // Додаємо поле для опису фото
       const descriptionContainer = document.createElement('div');
       descriptionContainer.style.cssText = `
-        margin: 20px 0;
+        margin: 12px 0;
         width: 100%;
         max-width: 400px;
       `;
@@ -715,7 +715,7 @@ export default function MobileViewArea({ user }) {
         display: block;
         color: #fff;
         font-size: 14px;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
         text-align: center;
       `;
 
@@ -725,7 +725,7 @@ export default function MobileViewArea({ user }) {
       descriptionInput.placeholder = 'Наприклад: Фото обладнання, документи...';
       descriptionInput.style.cssText = `
         width: 100%;
-        padding: 12px;
+        padding: 8px;
         border: 1px solid #ddd;
         border-radius: 6px;
         font-size: 14px;
@@ -737,7 +737,7 @@ export default function MobileViewArea({ user }) {
       // Додаємо поле для типу фото
       const photoTypeContainer = document.createElement('div');
       photoTypeContainer.style.cssText = `
-        margin: 20px 0;
+        margin: 12px 0;
         width: 100%;
         max-width: 400px;
       `;
@@ -748,7 +748,7 @@ export default function MobileViewArea({ user }) {
         display: block;
         color: #fff;
         font-size: 14px;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
         text-align: center;
       `;
 
@@ -756,7 +756,7 @@ export default function MobileViewArea({ user }) {
       photoTypeSelect.id = 'photo-type';
       photoTypeSelect.style.cssText = `
         width: 100%;
-        padding: 12px;
+        padding: 8px;
         border: 1px solid #ddd;
         border-radius: 6px;
         font-size: 14px;
@@ -800,8 +800,8 @@ export default function MobileViewArea({ user }) {
         cameraIndicator.textContent = `${deviceName} (${currentDeviceIndex + 1} з ${videoDevices.length})`;
         cameraIndicator.style.cssText = `
           color: #fff;
-          font-size: 14px;
-          margin-top: 10px;
+          font-size: 12px;
+          margin-top: 8px;
           text-align: center;
           opacity: 0.8;
         `;
