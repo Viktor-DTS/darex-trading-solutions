@@ -19,6 +19,15 @@ export default function Login({ onLogin }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
 
+  // Перевіряємо URL параметри при завантаженні
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewMode = urlParams.get('viewMode');
+    if (viewMode === 'true' || viewMode === '1') {
+      setIsViewMode(true);
+    }
+  }, []);
+
   useEffect(() => {
     if (!login.trim()) {
       setRole('admin');
