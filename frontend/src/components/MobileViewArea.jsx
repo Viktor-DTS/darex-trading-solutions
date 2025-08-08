@@ -326,23 +326,23 @@ export default function MobileViewArea({ user }) {
           // Закриваємо превью і повертаємось до камери
           document.body.removeChild(previewModal);
           
-          // Відновлюємо камеру з тими ж налаштуваннями
-          if (currentStream) {
-            currentStream.getTracks().forEach(track => track.stop());
-          }
-          
-          // Створюємо новий потік з тією ж камерою
-          const newStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              deviceId: videoDevices[currentDeviceIndex] ? { exact: videoDevices[currentDeviceIndex].deviceId } : undefined
-            },
-            audio: false
-          });
-          
-          // Оновлюємо відео
+          // НЕ зупиняємо поточний потік і НЕ створюємо новий
+          // Просто повертаємось до існуючого відео
           const video = cameraModal.querySelector('video');
-          if (video) {
-            video.srcObject = newStream;
+          if (video && currentStream) {
+            // Перевіряємо, чи потік ще активний
+            if (currentStream.active) {
+              video.srcObject = currentStream;
+            } else {
+              // Якщо потік неактивний, створюємо новий без запиту дозволу
+              const newStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                  deviceId: videoDevices[currentDeviceIndex] ? { exact: videoDevices[currentDeviceIndex].deviceId } : undefined
+                },
+                audio: false
+              });
+              video.srcObject = newStream;
+            }
           }
           
           // Встановлюємо значення полів
@@ -470,6 +470,7 @@ export default function MobileViewArea({ user }) {
         }
         
         try {
+          // Оскільки дозвіл вже надано, створюємо потік без додаткових запитів
           currentStream = await navigator.mediaDevices.getUserMedia(constraints);
           return currentStream;
         } catch (error) {
@@ -486,7 +487,10 @@ export default function MobileViewArea({ user }) {
       // Створюємо потік з першою камерою (зазвичай задньою)
       if (videoDevices.length > 0) {
         try {
-          currentStream = await createStream(0);
+          // Перевіряємо, чи поточний потік ще активний
+          if (!currentStream || !currentStream.active) {
+            currentStream = await createStream(0);
+          }
         } catch (error) {
           console.error('Помилка створення потоку з першою камерою:', error);
           // Використовуємо початковий потік як fallback
