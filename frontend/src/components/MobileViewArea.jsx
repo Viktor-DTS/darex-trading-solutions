@@ -252,10 +252,12 @@ export default function MobileViewArea({ user }) {
     const buttonContainer = document.createElement('div');
     buttonContainer.style.cssText = `
       display: flex;
-      gap: 16px;
+      gap: 12px;
       margin-top: 20px;
       flex-wrap: wrap;
       justify-content: center;
+      align-items: center;
+      max-width: 100%;
     `;
 
     const confirmButton = document.createElement('button');
@@ -507,10 +509,12 @@ export default function MobileViewArea({ user }) {
       const buttonContainer = document.createElement('div');
       buttonContainer.style.cssText = `
         display: flex;
-        gap: 16px;
+        gap: 12px;
         margin-top: 20px;
         flex-wrap: wrap;
         justify-content: center;
+        align-items: center;
+        max-width: 100%;
       `;
 
       const captureButton = document.createElement('button');
@@ -520,11 +524,13 @@ export default function MobileViewArea({ user }) {
         color: #fff;
         border: none;
         border-radius: 8px;
-        padding: 12px 24px;
-        font-size: 16px;
+        padding: 10px 20px;
+        font-size: 14px;
         font-weight: 500;
         cursor: pointer;
-        min-width: 140px;
+        min-width: 120px;
+        flex: 1;
+        max-width: 150px;
       `;
 
       const cancelButton = document.createElement('button');
@@ -534,11 +540,13 @@ export default function MobileViewArea({ user }) {
         color: #fff;
         border: none;
         border-radius: 8px;
-        padding: 12px 24px;
-        font-size: 16px;
+        padding: 10px 20px;
+        font-size: 14px;
         font-weight: 500;
         cursor: pointer;
-        min-width: 140px;
+        min-width: 120px;
+        flex: 1;
+        max-width: 150px;
       `;
 
       // Кнопка для вибору фото з галереї
@@ -549,11 +557,13 @@ export default function MobileViewArea({ user }) {
         color: #fff;
         border: none;
         border-radius: 8px;
-        padding: 12px 24px;
-        font-size: 16px;
+        padding: 10px 20px;
+        font-size: 14px;
         font-weight: 500;
         cursor: pointer;
-        min-width: 140px;
+        min-width: 120px;
+        flex: 1;
+        max-width: 150px;
       `;
 
       galleryButton.onclick = () => {
@@ -605,11 +615,13 @@ export default function MobileViewArea({ user }) {
           color: #fff;
           border: none;
           border-radius: 8px;
-          padding: 12px 24px;
-          font-size: 16px;
+          padding: 10px 20px;
+          font-size: 14px;
           font-weight: 500;
           cursor: pointer;
-          min-width: 140px;
+          min-width: 120px;
+          flex: 1;
+          max-width: 150px;
         `;
 
         switchCameraButton.onclick = async () => {
@@ -665,11 +677,11 @@ export default function MobileViewArea({ user }) {
 
       // Додаємо елементи до модального вікна
       buttonContainer.appendChild(captureButton);
+      buttonContainer.appendChild(cancelButton); // Переміщуємо кнопку "Скасувати" в один ряд з "Зробити фото"
       if (switchCameraButton) {
         buttonContainer.appendChild(switchCameraButton);
       }
       buttonContainer.appendChild(galleryButton); // Додаємо кнопку для галереї
-      buttonContainer.appendChild(cancelButton);
       cameraModal.appendChild(video);
       cameraModal.appendChild(buttonContainer);
 
