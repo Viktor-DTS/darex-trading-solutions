@@ -169,6 +169,15 @@ export default function MobileViewArea({ user }) {
     console.log('Фільтрація заявок. Всього заявок:', tasks.length);
     console.log('Активна вкладка:', activeTab);
     
+    // Логуємо статуси перших кількох заявок для діагностики
+    if (tasks.length > 0) {
+      console.log('Приклади статусів заявок:', tasks.slice(0, 5).map(task => ({
+        id: task.id,
+        status: task.status,
+        requestNumber: task.requestNumber
+      })));
+    }
+    
     let filteredTasks;
     switch (activeTab) {
       case 'pending':
@@ -179,6 +188,9 @@ export default function MobileViewArea({ user }) {
         break;
       case 'completed':
         filteredTasks = tasks.filter(task => task.status === 'completed' || task.status === 'done');
+        break;
+      case 'all':
+        filteredTasks = tasks;
         break;
       default:
         filteredTasks = tasks;
@@ -1027,6 +1039,27 @@ export default function MobileViewArea({ user }) {
             ✅ Архів
           </button>
         </div>
+        
+        {/* Тимчасова кнопка для діагностики */}
+        <div style={{ 
+          marginTop: '10px', 
+          textAlign: 'center' 
+        }}>
+          <button
+            onClick={() => setActiveTab('all')}
+            style={{
+              background: '#6c757d',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }}
+          >
+            🔍 Показати всі заявки ({tasks.length})
+          </button>
+        </div>
       </div>
 
       {/* Список заявок */}
@@ -1044,6 +1077,7 @@ export default function MobileViewArea({ user }) {
               {activeTab === 'pending' && 'Невиконаних заявок немає'}
               {activeTab === 'confirmed' && 'Заявок на підтвердженні немає'}
               {activeTab === 'completed' && 'Виконаних заявок немає'}
+              {activeTab === 'all' && 'Заявок немає'}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
