@@ -79,31 +79,196 @@ export default function MobileViewArea({ user }) {
   // Функція для завантаження з камери
   const handleCameraCapture = async (taskId) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      video.play();
-
-      // Створюємо canvas для захоплення кадру
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
+      // Спочатку отримуємо список доступних камер
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
       
-      video.addEventListener('loadeddata', () => {
+      let currentStream = null;
+      let currentDeviceIndex = 0;
+
+      // Функція для створення потоку з конкретної камери
+      const createStream = async (deviceIndex = 0) => {
+        if (currentStream) {
+          currentStream.getTracks().forEach(track => track.stop());
+        }
+        
+        const constraints = {
+          video: {
+            deviceId: videoDevices[deviceIndex] ? { exact: videoDevices[deviceIndex].deviceId } : undefined
+          }
+        };
+        
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        return currentStream;
+      };
+
+      // Створюємо початковий потік
+      const stream = await createStream();
+      currentStream = stream;
+      
+      // Створюємо модальне вікно для камери
+      const cameraModal = document.createElement('div');
+      cameraModal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.9);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 2000;
+        padding: 20px;
+      `;
+
+      // Створюємо відео елемент
+      const video = document.createElement('video');
+      video.style.cssText = `
+        max-width: 100%;
+        max-height: 60vh;
+        border-radius: 8px;
+        background: #000;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      `;
+      video.srcObject = stream;
+      video.autoplay = true;
+      video.playsInline = true;
+
+      // Створюємо кнопки
+      const buttonContainer = document.createElement('div');
+      buttonContainer.style.cssText = `
+        display: flex;
+        gap: 16px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+        justify-content: center;
+      `;
+
+      const captureButton = document.createElement('button');
+      captureButton.textContent = '📷 Зробити фото';
+      captureButton.style.cssText = `
+        background: #28a745;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 12px 24px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        min-width: 140px;
+      `;
+
+      const cancelButton = document.createElement('button');
+      cancelButton.textContent = '❌ Скасувати';
+      cancelButton.style.cssText = `
+        background: #dc3545;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 12px 24px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        min-width: 140px;
+      `;
+
+      // Кнопка перемикання камер (тільки якщо є більше однієї камери)
+      let switchCameraButton = null;
+      if (videoDevices.length > 1) {
+        switchCameraButton = document.createElement('button');
+        switchCameraButton.textContent = '🔄 Змінити камеру';
+        switchCameraButton.style.cssText = `
+          background: #007bff;
+          color: #fff;
+          border: none;
+          border-radius: 8px;
+          padding: 12px 24px;
+          font-size: 16px;
+          font-weight: 500;
+          cursor: pointer;
+          min-width: 140px;
+        `;
+
+        switchCameraButton.onclick = async () => {
+          currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
+          const newStream = await createStream(currentDeviceIndex);
+          video.srcObject = newStream;
+        };
+      }
+
+      // Додаємо обробники подій
+      captureButton.onclick = () => {
+        // Створюємо canvas для захоплення кадру
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         context.drawImage(video, 0, 0);
         
         // Конвертуємо в blob
         canvas.toBlob(async (blob) => {
-          stream.getTracks().forEach(track => track.stop());
+          if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+          }
+          document.body.removeChild(cameraModal);
           
           const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
           await handleFileUpload([file], taskId);
         }, 'image/jpeg');
-      });
+      };
+
+      cancelButton.onclick = () => {
+        if (currentStream) {
+          currentStream.getTracks().forEach(track => track.stop());
+        }
+        document.body.removeChild(cameraModal);
+      };
+
+      // Додаємо елементи до модального вікна
+      buttonContainer.appendChild(captureButton);
+      if (switchCameraButton) {
+        buttonContainer.appendChild(switchCameraButton);
+      }
+      buttonContainer.appendChild(cancelButton);
+      cameraModal.appendChild(video);
+      cameraModal.appendChild(buttonContainer);
+
+      // Додаємо модальне вікно до сторінки
+      document.body.appendChild(cameraModal);
+
+      // Додаємо інструкції
+      const instructions = document.createElement('div');
+      instructions.textContent = 'Наведіть камеру, сфокусуйтеся та натисніть "Зробити фото"';
+      instructions.style.cssText = `
+        color: #fff;
+        font-size: 16px;
+        margin-bottom: 20px;
+        text-align: center;
+        max-width: 300px;
+        line-height: 1.4;
+      `;
+      cameraModal.insertBefore(instructions, video);
+
+      // Додаємо індикатор камери
+      if (videoDevices.length > 1) {
+        const cameraIndicator = document.createElement('div');
+        cameraIndicator.textContent = `Камера ${currentDeviceIndex + 1} з ${videoDevices.length}`;
+        cameraIndicator.style.cssText = `
+          color: #fff;
+          font-size: 14px;
+          margin-top: 10px;
+          text-align: center;
+          opacity: 0.8;
+        `;
+        cameraModal.appendChild(cameraIndicator);
+      }
+
     } catch (error) {
       console.error('Помилка доступу до камери:', error);
-      alert('Помилка доступу до камери');
+      alert('Помилка доступу до камери: ' + error.message);
     }
   };
 
@@ -431,7 +596,7 @@ export default function MobileViewArea({ user }) {
                       opacity: uploadingFiles ? 0.6 : 1
                     }}
                   >
-                    📷 Зробити фото
+                    📷 Відкрити камеру
                   </button>
                 </div>
 
