@@ -439,177 +439,136 @@ export default function MobileViewArea({ user }) {
 
   // Функція для завантаження з камери
   const handleCameraCapture = async (taskId) => {
+    console.log('=== ПОЧАТОК handleCameraCapture ===');
+    
     // Перевіряємо підтримку API камери
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.error('Браузер не підтримує getUserMedia');
       alert('Ваш браузер не підтримує доступ до камери. Спробуйте використати сучасний браузер (Chrome, Firefox, Safari).');
       return;
     }
 
     // Перевіряємо, чи працює через HTTPS (необхідно для камери)
     if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+      console.error('Не HTTPS з\'єднання');
       alert('Доступ до камери працює тільки через HTTPS або на localhost. Перейдіть на безпечне з\'єднання.');
       return;
     }
 
     // Додаткова перевірка для мобільних пристроїв
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    console.log('Виявлено мобільний пристрій:', isMobile);
+    console.log('User Agent:', navigator.userAgent);
+    
     if (isMobile) {
       console.log('Виявлено мобільний пристрій, використовуються спеціальні налаштування камери');
-      
-      // На мобільних пристроях зазвичай перша камера - це задня
-      if (videoDevices.length > 1 && !backCamera) {
-        // Якщо є дві камери і не знайдено задню, беремо першу
-        backCamera = videoDevices[0];
-        console.log('На мобільному пристрої використовуємо першу камеру як задню');
-      }
     }
 
     try {
+      console.log('Спроба отримання списку пристроїв...');
+      
       // Перевіряємо, чи вже є збережений дозвіл
       const hasCameraPermission = localStorage.getItem('cameraPermission');
-      let initialStream;
+      console.log('Збережений дозвіл на камеру:', hasCameraPermission);
       
       if (hasCameraPermission === 'denied') {
         // Якщо дозвіл був відхилений, показуємо повідомлення
+        console.log('Дозвіл на камеру відхилений');
         alert('Доступ до камери був відхилений. Натисніть "Скинути дозвіл камери" та спробуйте знову.');
         return;
       }
       
       // Спочатку отримуємо список доступних камер
       const devices = await navigator.mediaDevices.enumerateDevices();
+      console.log('Всі пристрої:', devices);
+      
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      console.log('Відео пристрої:', videoDevices);
       
       // Логуємо всі знайдені камери для діагностики
       console.log('Всі знайдені камери:', videoDevices.map((device, index) => 
         `${index + 1}. ${device.label || 'Без назви'} (${device.deviceId.substring(0, 8)}...)`
       ));
       
-      // Покращена логіка пошуку задньої камери
-      let backCamera = null;
+      if (videoDevices.length === 0) {
+        console.error('Не знайдено жодної камери');
+        alert('Не знайдено жодної камери на пристрої.');
+        return;
+      }
       
-      // Спочатку шукаємо камери з явними індикаторами задньої камери
-      backCamera = videoDevices.find(device => {
-        const label = device.label.toLowerCase();
-        return label.includes('back') || 
-               label.includes('rear') || 
-               label.includes('задня') ||
-               label.includes('основна') ||
-               label.includes('main') ||
-               label.includes('primary');
-      });
+      // Для мобільних пристроїв спрощуємо логіку - беремо першу камеру
+      let selectedCamera = null;
       
-      // Якщо не знайдено, шукаємо камери без індикаторів фронтальної
-      if (!backCamera) {
-        backCamera = videoDevices.find(device => {
+      if (isMobile) {
+        // На мобільних пристроях беремо першу камеру (зазвичай це задня)
+        selectedCamera = videoDevices[0];
+        console.log('На мобільному пристрої використовуємо першу камеру:', selectedCamera.label);
+      } else {
+        // На десктопі шукаємо задню камеру
+        selectedCamera = videoDevices.find(device => {
           const label = device.label.toLowerCase();
-          return !label.includes('front') && 
-                 !label.includes('фронтальна') && 
-                 !label.includes('selfie') &&
-                 !label.includes('фронт');
+          return label.includes('back') || 
+                 label.includes('rear') || 
+                 label.includes('задня') ||
+                 label.includes('основна') ||
+                 label.includes('main') ||
+                 label.includes('primary');
         });
-      }
-      
-      // Якщо все ще не знайдено, беремо першу камеру (зазвичай це задня)
-      if (!backCamera && videoDevices.length > 0) {
-        backCamera = videoDevices[0];
-        console.log('Використовуємо першу доступну камеру як задню');
-      }
-      
-      // Якщо знайдена задня камера, використовуємо тільки її
-      const filteredVideoDevices = backCamera ? [backCamera] : videoDevices;
-      
-      // Логуємо результат вибору камери
-      console.log('Обрана камера:', backCamera ? backCamera.label : 'Не знайдено задньої камери');
-      console.log('Використовувані камери:', filteredVideoDevices.map((device, index) => 
-        `${index + 1}. ${device.label || 'Без назви'} (${device.deviceId.substring(0, 8)}...)`
-      ));
-      
-      if (filteredVideoDevices.length === 0) {
-        throw new Error('Не знайдено підходящих камер');
-      }
-      
-      // Функція для створення потоку з гнучкими налаштуваннями
-      const createStreamWithFallback = async (deviceIndex = 0) => {
-        try {
-          // Спочатку пробуємо з конкретною камерою
-          if (filteredVideoDevices.length > 0 && deviceIndex < filteredVideoDevices.length) {
-            const device = filteredVideoDevices[deviceIndex];
-            console.log('Спроба створення потоку з камерою:', device.label);
-            
-            // Пробуємо різні варіанти обмежень для мобільних пристроїв
-            const constraints = [
-              // Варіант 1: Точний deviceId
-              {
-                video: {
-                  deviceId: { exact: device.deviceId },
-                  width: { ideal: 1920, max: 1920 },
-                  height: { ideal: 1080, max: 1080 }
-                },
-                audio: false
-              },
-              // Варіант 2: Приблизний deviceId
-              {
-                video: {
-                  deviceId: device.deviceId,
-                  width: { ideal: 1280, max: 1920 },
-                  height: { ideal: 720, max: 1080 }
-                },
-                audio: false
-              },
-              // Варіант 3: Тільки deviceId без розмірів
-              {
-                video: {
-                  deviceId: device.deviceId
-                },
-                audio: false
-              },
-              // Варіант 4: Базові налаштування
-              {
-                video: {
-                  width: { ideal: 1280 },
-                  height: { ideal: 720 }
-                },
-                audio: false
-              },
-              // Варіант 5: Мінімальні налаштування
-              {
-                video: true,
-                audio: false
-              }
-            ];
-            
-            // Пробуємо кожен варіант
-            for (const constraint of constraints) {
-              try {
-                console.log('Спроба створення потоку з обмеженнями:', constraint);
-                const stream = await navigator.mediaDevices.getUserMedia(constraint);
-                console.log('Успішно створено потік з камерою:', device.label);
-                return stream;
-              } catch (error) {
-                console.log('Помилка з обмеженнями:', constraint, error.name);
-                continue;
-              }
-            }
-          }
-          
-          // Якщо не вдалося створити потік з конкретною камерою, використовуємо загальні налаштування
-          console.log('Використовуємо загальні налаштування камери');
-          return await navigator.mediaDevices.getUserMedia({ 
-            video: true,
-            audio: false 
-          });
-        } catch (error) {
-          console.error('Помилка створення потоку:', error);
-          throw error;
+        
+        if (!selectedCamera) {
+          selectedCamera = videoDevices[0];
+          console.log('Використовуємо першу доступну камеру:', selectedCamera.label);
         }
-      };
+      }
       
-      // Тепер створюємо початковий потік
-      initialStream = await createStreamWithFallback(0);
+      console.log('Обрана камера:', selectedCamera.label);
+      
+      // Створюємо потік з обраною камерою
+      console.log('Спроба створення потоку з камерою...');
+      let initialStream;
+      
+      try {
+        // Спочатку пробуємо з точним deviceId
+        initialStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            deviceId: { exact: selectedCamera.deviceId }
+          },
+          audio: false
+        });
+        console.log('Успішно створено потік з точним deviceId');
+      } catch (error) {
+        console.log('Помилка з точним deviceId:', error.name);
+        
+        try {
+          // Пробуємо без точного deviceId
+          initialStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              deviceId: selectedCamera.deviceId
+            },
+            audio: false
+          });
+          console.log('Успішно створено потік без точного deviceId');
+        } catch (error2) {
+          console.log('Помилка без точного deviceId:', error2.name);
+          
+          try {
+            // Пробуємо з базовими налаштуваннями
+            initialStream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false
+            });
+            console.log('Успішно створено потік з базовими налаштуваннями');
+          } catch (error3) {
+            console.error('Всі спроби створення потоку невдалі:', error3);
+            throw error3;
+          }
+        }
+      }
       
       // Зберігаємо дозвіл, якщо успішно створили потік
       if (initialStream) {
         localStorage.setItem('cameraPermission', 'granted');
+        console.log('Дозвіл на камеру збережено');
       }
       
       let currentStream = initialStream;
@@ -622,7 +581,10 @@ export default function MobileViewArea({ user }) {
         }
         
         try {
-          currentStream = await createStreamWithFallback(deviceIndex);
+          currentStream = await navigator.mediaDevices.getUserMedia({ 
+            video: true, 
+            audio: false 
+          });
           return currentStream;
         } catch (error) {
           console.error('Помилка створення потоку для камери:', error);
@@ -934,7 +896,10 @@ export default function MobileViewArea({ user }) {
       // }
 
     } catch (error) {
+      console.error('=== ПОМИЛКА handleCameraCapture ===');
       console.error('Помилка доступу до камери:', error);
+      console.error('Назва помилки:', error.name);
+      console.error('Повідомлення помилки:', error.message);
       
       // Більш детальні повідомлення про помилки для мобільних пристроїв
       let errorMessage = 'Помилка доступу до камери';
@@ -964,10 +929,15 @@ export default function MobileViewArea({ user }) {
       
       // Додаємо пораду для мобільних пристроїв
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      if (isMobile && error.name === 'OverconstrainedError') {
-        errorMessage += '\n\n💡 Порада: На мобільних пристроях краще використовувати "З галереї" для завантаження фото.';
+      if (isMobile) {
+        errorMessage += '\n\n💡 Поради для мобільних пристроїв:';
+        errorMessage += '\n• Переконайтеся, що використовуєте Chrome або Safari';
+        errorMessage += '\n• Дозвольте доступ до камери в налаштуваннях браузера';
+        errorMessage += '\n• Спробуйте використати "З галереї" для завантаження фото';
+        errorMessage += '\n• Перевірте, чи не зайнята камера іншим додатком';
       }
       
+      console.error('Фінальне повідомлення про помилку:', errorMessage);
       alert(errorMessage);
     }
   };
