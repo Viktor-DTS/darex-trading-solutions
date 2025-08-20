@@ -251,6 +251,8 @@ export default function ReportBuilder({ user }) {
   // Функція для відкриття звіту в новій вкладці
   const openReportInNewTab = () => {
     console.log('[DEBUG][ReportBuilder] Відкриття звіту в новій вкладці');
+    console.log('[DEBUG][ReportBuilder] reportData:', reportData);
+    console.log('[DEBUG][ReportBuilder] selectedFields:', selectedFields);
     
     // Генеруємо звіт спочатку
     generateReportFromData(tasks);
@@ -346,6 +348,7 @@ export default function ReportBuilder({ user }) {
           </thead>
           <tbody>
             ${reportData.map((item, index) => {
+              console.log('[DEBUG][ReportBuilder] Генерація рядка', index + 1, 'для item:', item);
               if (item.group) {
                 // Групування
                 return `
@@ -384,6 +387,8 @@ export default function ReportBuilder({ user }) {
       </body>
       </html>
     `;
+
+    console.log('[DEBUG][ReportBuilder] Згенерований HTML:', html);
 
     // Відкриваємо нове вікно з звітом
     const newWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
