@@ -169,7 +169,11 @@ export default function ReportBuilder() {
           return false;
         }
       } else if (approvalFilter === 'not_approved') {
-        // Для незатверджених - хоча б один не затвердив
+        // Для незатверджених - хоча б один не затвердив, АЛЕ не заблоковані заявки
+        if (t.status === 'Заблоковані' || t.status === 'Заблоковано') {
+          console.log('[DEBUG][ReportBuilder] Завдання', t.id, 'відфільтровано: заблокована заявка');
+          return false;
+        }
         if (isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant) && isApproved(t.approvedByRegionalManager)) {
           console.log('[DEBUG][ReportBuilder] Завдання', t.id, 'відфільтровано: всі затвердили');
           return false;
