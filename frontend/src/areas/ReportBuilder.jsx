@@ -490,112 +490,117 @@ export default function ReportBuilder() {
         </div>
         
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
-          {/* Фільтри дат з діапазоном */}
-          <div style={{display: 'flex', flexDirection: 'column'}}>
-            <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px'}}>Дата проведення робіт (з - по)</label>
-            <div style={{display: 'flex', gap: '8px'}}>
-              <input
-                type="date"
-                value={dateRangeFilter.from}
-                onChange={(e) => setDateRangeFilter(prev => ({...prev, from: e.target.value}))}
-                placeholder="з"
-                style={{
-                  padding: '8px',
-                  borderRadius: '4px',
-                  border: '1px solid #29506a',
-                  background: '#22334a',
-                  color: '#fff',
-                  fontSize: '14px',
-                  flex: 1
-                }}
-              />
-              <input
-                type="date"
-                value={dateRangeFilter.to}
-                onChange={(e) => setDateRangeFilter(prev => ({...prev, to: e.target.value}))}
-                placeholder="по"
-                style={{
-                  padding: '8px',
-                  borderRadius: '4px',
-                  border: '1px solid #29506a',
-                  background: '#22334a',
-                  color: '#fff',
-                  fontSize: '14px',
-                  flex: 1
-                }}
-              />
-            </div>
-          </div>
-          
-          <div style={{display: 'flex', flexDirection: 'column'}}>
-            <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px'}}>Дата оплати (з - по)</label>
-            <div style={{display: 'flex', gap: '8px'}}>
-              <input
-                type="date"
-                value={paymentDateRangeFilter.from}
-                onChange={(e) => setPaymentDateRangeFilter(prev => ({...prev, from: e.target.value}))}
-                placeholder="з"
-                style={{
-                  padding: '8px',
-                  borderRadius: '4px',
-                  border: '1px solid #29506a',
-                  background: '#22334a',
-                  color: '#fff',
-                  fontSize: '14px',
-                  flex: 1
-                }}
-              />
-              <input
-                type="date"
-                value={paymentDateRangeFilter.to}
-                onChange={(e) => setPaymentDateRangeFilter(prev => ({...prev, to: e.target.value}))}
-                placeholder="по"
-                style={{
-                  padding: '8px',
-                  borderRadius: '4px',
-                  border: '1px solid #29506a',
-                  background: '#22334a',
-                  color: '#fff',
-                  fontSize: '14px',
-                  flex: 1
-                }}
-              />
-            </div>
-          </div>
-          
-          <div style={{display: 'flex', flexDirection: 'column'}}>
-            <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px'}}>Дата заявки (з - по)</label>
-            <div style={{display: 'flex', gap: '8px'}}>
-              <input
-                type="date"
-                value={requestDateRangeFilter.from}
-                onChange={(e) => setRequestDateRangeFilter(prev => ({...prev, from: e.target.value}))}
-                placeholder="з"
-                style={{
-                  padding: '8px',
-                  borderRadius: '4px',
-                  border: '1px solid #29506a',
-                  background: '#22334a',
-                  color: '#fff',
-                  fontSize: '14px',
-                  flex: 1
-                }}
-              />
-              <input
-                type="date"
-                value={requestDateRangeFilter.to}
-                onChange={(e) => setRequestDateRangeFilter(prev => ({...prev, to: e.target.value}))}
-                placeholder="по"
-                style={{
-                  padding: '8px',
-                  borderRadius: '4px',
-                  border: '1px solid #29506a',
-                  background: '#22334a',
-                  color: '#fff',
-                  fontSize: '14px',
-                  flex: 1
-                }}
-              />
+          {/* Фільтри дат з діапазоном - вертикальне розташування */}
+          <div style={{display: 'flex', flexDirection: 'column', gridColumn: '1 / -1', marginBottom: '16px'}}>
+            <h4 style={{color: '#fff', marginBottom: '12px', fontSize: '16px'}}>Фільтри за датами:</h4>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px'}}>
+              <div style={{display: 'flex', flexDirection: 'column'}}>
+                <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px'}}>Дата проведення робіт (з - по)</label>
+                <div style={{display: 'flex', gap: '8px'}}>
+                  <input
+                    type="date"
+                    value={dateRangeFilter.from}
+                    onChange={(e) => setDateRangeFilter(prev => ({...prev, from: e.target.value}))}
+                    placeholder="з"
+                    style={{
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #29506a',
+                      background: '#22334a',
+                      color: '#fff',
+                      fontSize: '14px',
+                      flex: 1
+                    }}
+                  />
+                  <input
+                    type="date"
+                    value={dateRangeFilter.to}
+                    onChange={(e) => setDateRangeFilter(prev => ({...prev, to: e.target.value}))}
+                    placeholder="по"
+                    style={{
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #29506a',
+                      background: '#22334a',
+                      color: '#fff',
+                      fontSize: '14px',
+                      flex: 1
+                    }}
+                  />
+                </div>
+              </div>
+              
+              <div style={{display: 'flex', flexDirection: 'column'}}>
+                <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px'}}>Дата оплати (з - по)</label>
+                <div style={{display: 'flex', gap: '8px'}}>
+                  <input
+                    type="date"
+                    value={paymentDateRangeFilter.from}
+                    onChange={(e) => setPaymentDateRangeFilter(prev => ({...prev, from: e.target.value}))}
+                    placeholder="з"
+                    style={{
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #29506a',
+                      background: '#22334a',
+                      color: '#fff',
+                      fontSize: '14px',
+                      flex: 1
+                    }}
+                  />
+                  <input
+                    type="date"
+                    value={paymentDateRangeFilter.to}
+                    onChange={(e) => setPaymentDateRangeFilter(prev => ({...prev, to: e.target.value}))}
+                    placeholder="по"
+                    style={{
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #29506a',
+                      background: '#22334a',
+                      color: '#fff',
+                      fontSize: '14px',
+                      flex: 1
+                    }}
+                  />
+                </div>
+              </div>
+              
+              <div style={{display: 'flex', flexDirection: 'column'}}>
+                <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px'}}>Дата заявки (з - по)</label>
+                <div style={{display: 'flex', gap: '8px'}}>
+                  <input
+                    type="date"
+                    value={requestDateRangeFilter.from}
+                    onChange={(e) => setRequestDateRangeFilter(prev => ({...prev, from: e.target.value}))}
+                    placeholder="з"
+                    style={{
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #29506a',
+                      background: '#22334a',
+                      color: '#fff',
+                      fontSize: '14px',
+                      flex: 1
+                    }}
+                  />
+                  <input
+                    type="date"
+                    value={requestDateRangeFilter.to}
+                    onChange={(e) => setRequestDateRangeFilter(prev => ({...prev, to: e.target.value}))}
+                    placeholder="по"
+                    style={{
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #29506a',
+                      background: '#22334a',
+                      color: '#fff',
+                      fontSize: '14px',
+                      flex: 1
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           </div>
           
