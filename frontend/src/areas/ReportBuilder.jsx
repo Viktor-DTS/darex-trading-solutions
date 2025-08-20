@@ -405,18 +405,27 @@ export default function ReportBuilder() {
       })];
     });
 
-    // Додаємо UTF-8 BOM для правильного відображення в Excel
-    const BOM = '\uFEFF';
-    const csvContent = BOM + [
+    // Створюємо CSV контент
+    const csvRows = [
       headers.join(','),
       ...rows.map(row => row.map(cell => {
         // Екрануємо коми та лапки в значеннях
         const escapedCell = String(cell).replace(/"/g, '""');
         return `"${escapedCell}"`;
       }).join(','))
-    ].join('\n');
+    ];
+    
+    const csvContent = csvRows.join('\n');
+    
+    // Додаємо UTF-8 BOM та кодуємо як UTF-8
+    const BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const encoder = new TextEncoder();
+    const csvBytes = encoder.encode(csvContent);
+    const finalBytes = new Uint8Array(BOM.length + csvBytes.length);
+    finalBytes.set(BOM);
+    finalBytes.set(csvBytes, BOM.length);
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([finalBytes], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `report_${new Date().toISOString().split('T')[0]}.csv`;
