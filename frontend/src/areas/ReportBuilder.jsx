@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { tasksAPI } from '../utils/tasksAPI';
+import { savedReportsAPI } from '../utils/savedReportsAPI';
 import * as ExcelJS from 'exceljs';
 
-export default function ReportBuilder() {
+export default function ReportBuilder({ user }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -75,18 +76,24 @@ export default function ReportBuilder() {
   const [savedReports, setSavedReports] = useState([]);
   const [reportName, setReportName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [savingReport, setSavingReport] = useState(false);
 
   // Завантажуємо збережені звіти при ініціалізації
   useEffect(() => {
-    const saved = localStorage.getItem('savedReports');
-    if (saved) {
-      try {
-        setSavedReports(JSON.parse(saved));
-      } catch (e) {
-        console.error('Помилка завантаження збережених звітів:', e);
-      }
+    if (user && user.login) {
+      loadSavedReports();
     }
-  }, []);
+  }, [user]);
+
+  // Функція для завантаження збережених звітів з сервера
+  const loadSavedReports = async () => {
+    try {
+      const reports = await savedReportsAPI.getReports(user.login);
+      setSavedReports(reports);
+    } catch (error) {
+      console.error('Помилка завантаження збережених звітів:', error);
+    }
+  };
 
   // Функція для перевірки статусу підтвердження
   function isApproved(value) {
@@ -535,54 +542,69 @@ export default function ReportBuilder() {
   };
 
   // Функція для збереження звіту
-  const saveReport = () => {
+  const saveReport = async () => {
     if (!reportName.trim()) {
       alert('Будь ласка, введіть назву звіту');
       return;
     }
 
-    const reportConfig = {
-      id: Date.now(),
-      name: reportName.trim(),
-      date: new Date().toLocaleDateString('uk-UA'),
-      filters: { ...filters },
-      approvalFilter,
-      dateRangeFilter: { ...dateRangeFilter },
-      paymentDateRangeFilter: { ...paymentDateRangeFilter },
-      requestDateRangeFilter: { ...requestDateRangeFilter },
-      selectedFields: [...selectedFields],
-      groupBy
-    };
+    setSavingReport(true);
+    try {
+      const reportData = {
+        userId: user.login,
+        name: reportName.trim(),
+        date: new Date().toLocaleDateString('uk-UA'),
+        filters: { ...filters },
+        approvalFilter,
+        dateRangeFilter: { ...dateRangeFilter },
+        paymentDateRangeFilter: { ...paymentDateRangeFilter },
+        requestDateRangeFilter: { ...requestDateRangeFilter },
+        selectedFields: [...selectedFields],
+        groupBy
+      };
 
-    const updatedReports = [...savedReports, reportConfig];
-    setSavedReports(updatedReports);
-    localStorage.setItem('savedReports', JSON.stringify(updatedReports));
-    
-    setReportName('');
-    setShowSaveDialog(false);
-    alert(`Звіт "${reportName}" збережено!`);
+      await savedReportsAPI.saveReport(reportData);
+      await loadSavedReports(); // Оновлюємо список збережених звітів
+      alert(`Звіт "${reportName}" збережено!`);
+    } catch (error) {
+      console.error('Помилка збереження звіту:', error);
+      alert('Помилка збереження звіту. Спробуйте пізніше.');
+    } finally {
+      setReportName('');
+      setShowSaveDialog(false);
+      setSavingReport(false);
+    }
   };
 
   // Функція для завантаження звіту
   const loadReport = (report) => {
-    setFilters(report.filters);
-    setApprovalFilter(report.approvalFilter);
-    setDateRangeFilter(report.dateRangeFilter);
-    setPaymentDateRangeFilter(report.paymentDateRangeFilter);
-    setRequestDateRangeFilter(report.requestDateRangeFilter);
-    setSelectedFields(report.selectedFields);
-    setGroupBy(report.groupBy);
-    
-    alert(`Звіт "${report.name}" завантажено!`);
+    try {
+      setFilters(report.filters);
+      setApprovalFilter(report.approvalFilter);
+      setDateRangeFilter(report.dateRangeFilter);
+      setPaymentDateRangeFilter(report.paymentDateRangeFilter);
+      setRequestDateRangeFilter(report.requestDateRangeFilter);
+      setSelectedFields(report.selectedFields);
+      setGroupBy(report.groupBy);
+      
+      alert(`Звіт "${report.name}" завантажено!`);
+    } catch (error) {
+      console.error('Помилка завантаження звіту:', error);
+      alert('Помилка завантаження звіту. Спробуйте пізніше.');
+    }
   };
 
   // Функція для видалення збереженого звіту
-  const deleteReport = (reportId) => {
+  const deleteReport = async (reportId) => {
     if (confirm('Ви впевнені, що хочете видалити цей збережений звіт?')) {
-      const updatedReports = savedReports.filter(r => r.id !== reportId);
-      setSavedReports(updatedReports);
-      localStorage.setItem('savedReports', JSON.stringify(updatedReports));
-      alert('Звіт видалено!');
+      try {
+        await savedReportsAPI.deleteReport(reportId);
+        await loadSavedReports(); // Оновлюємо список збережених звітів
+        alert('Звіт видалено!');
+      } catch (error) {
+        console.error('Помилка видалення звіту:', error);
+        alert('Помилка видалення звіту. Спробуйте пізніше.');
+      }
     }
   };
 
@@ -958,17 +980,18 @@ export default function ReportBuilder() {
               </button>
               <button
                 onClick={saveReport}
+                disabled={savingReport}
                 style={{
                   padding: '8px 16px',
-                  background: '#28a745',
+                  background: savingReport ? '#666' : '#28a745',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '4px',
-                  cursor: 'pointer',
+                  cursor: savingReport ? 'not-allowed' : 'pointer',
                   fontSize: '14px'
                 }}
               >
-                Зберегти
+                {savingReport ? 'Зберігаємо...' : 'Зберегти'}
               </button>
             </div>
           </div>

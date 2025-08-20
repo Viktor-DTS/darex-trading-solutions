@@ -3051,7 +3051,7 @@ const areas = {
   warehouse: WarehouseArea,
   accountant: (props) => <AccountantArea {...props} />,
   regional: (props) => <RegionalManagerArea {...props} />,
-  reports: ReportBuilder,
+  reports: (props) => <ReportBuilder {...props} />,
   materials: (props) => <MaterialsAnalysisArea {...props} />,
 };
 

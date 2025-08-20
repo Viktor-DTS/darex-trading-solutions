@@ -12,6 +12,23 @@ const PORT = process.env.PORT || 3001;
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
+// Модель для збережених звітів
+const savedReportSchema = new mongoose.Schema({
+  userId: { type: String, required: true }, // login користувача
+  name: { type: String, required: true },
+  date: { type: String, required: true },
+  filters: { type: Object, required: true },
+  approvalFilter: { type: String, required: true },
+  dateRangeFilter: { type: Object, required: true },
+  paymentDateRangeFilter: { type: Object, required: true },
+  requestDateRangeFilter: { type: Object, required: true },
+  selectedFields: { type: [String], required: true },
+  groupBy: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const SavedReport = mongoose.model('SavedReport', savedReportSchema);
+
 // Функція для підключення до MongoDB
 async function connectToMongoDB() {
   if (!MONGODB_URI) {
@@ -554,6 +571,58 @@ app.post('/api/users/:login/columns-settings', async (req, res) => {
     await user.save();
     res.json({ success: true });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- SAVED REPORTS API ---
+// Зберегти звіт
+app.post('/api/saved-reports', async (req, res) => {
+  try {
+    const { userId, name, date, filters, approvalFilter, dateRangeFilter, paymentDateRangeFilter, requestDateRangeFilter, selectedFields, groupBy } = req.body;
+    
+    const savedReport = new SavedReport({
+      userId,
+      name,
+      date,
+      filters,
+      approvalFilter,
+      dateRangeFilter,
+      paymentDateRangeFilter,
+      requestDateRangeFilter,
+      selectedFields,
+      groupBy
+    });
+    
+    await savedReport.save();
+    res.json({ success: true, message: 'Звіт збережено!', report: savedReport });
+  } catch (error) {
+    console.error('Помилка збереження звіту:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Отримати всі збережені звіти користувача
+app.get('/api/saved-reports/:userId', async (req, res) => {
+  try {
+    const reports = await SavedReport.find({ userId: req.params.userId }).sort({ createdAt: -1 });
+    res.json(reports);
+  } catch (error) {
+    console.error('Помилка отримання звітів:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Видалити збережений звіт
+app.delete('/api/saved-reports/:reportId', async (req, res) => {
+  try {
+    const report = await SavedReport.findByIdAndDelete(req.params.reportId);
+    if (!report) {
+      return res.status(404).json({ error: 'Звіт не знайдено' });
+    }
+    res.json({ success: true, message: 'Звіт видалено!' });
+  } catch (error) {
+    console.error('Помилка видалення звіту:', error);
     res.status(500).json({ error: error.message });
   }
 });
