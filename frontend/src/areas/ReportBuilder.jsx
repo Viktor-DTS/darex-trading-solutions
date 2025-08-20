@@ -579,15 +579,18 @@ export default function ReportBuilder({ user }) {
   // Функція для завантаження звіту
   const loadReport = (report) => {
     try {
-      setFilters(report.filters);
-      setApprovalFilter(report.approvalFilter);
-      setDateRangeFilter(report.dateRangeFilter);
-      setPaymentDateRangeFilter(report.paymentDateRangeFilter);
-      setRequestDateRangeFilter(report.requestDateRangeFilter);
-      setSelectedFields(report.selectedFields);
-      setGroupBy(report.groupBy);
+      // Перетворюємо MongoDB об'єкт в звичайний об'єкт
+      const reportData = report.toObject ? report.toObject() : report;
       
-      alert(`Звіт "${report.name}" завантажено!`);
+      setFilters(reportData.filters);
+      setApprovalFilter(reportData.approvalFilter);
+      setDateRangeFilter(reportData.dateRangeFilter);
+      setPaymentDateRangeFilter(reportData.paymentDateRangeFilter);
+      setRequestDateRangeFilter(reportData.requestDateRangeFilter);
+      setSelectedFields(reportData.selectedFields);
+      setGroupBy(reportData.groupBy);
+      
+      alert(`Звіт "${reportData.name}" завантажено!`);
     } catch (error) {
       console.error('Помилка завантаження звіту:', error);
       alert('Помилка завантаження звіту. Спробуйте пізніше.');
@@ -598,7 +601,9 @@ export default function ReportBuilder({ user }) {
   const deleteReport = async (reportId) => {
     if (confirm('Ви впевнені, що хочете видалити цей збережений звіт?')) {
       try {
-        await savedReportsAPI.deleteReport(reportId);
+        // Використовуємо _id для MongoDB
+        const idToDelete = reportId._id || reportId;
+        await savedReportsAPI.deleteReport(idToDelete);
         await loadSavedReports(); // Оновлюємо список збережених звітів
         alert('Звіт видалено!');
       } catch (error) {
@@ -1003,59 +1008,64 @@ export default function ReportBuilder({ user }) {
         <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
           <h3 style={{color: '#fff', marginBottom: '12px'}}>Збережені звіти</h3>
           <div style={{display: 'grid', gap: '8px'}}>
-            {savedReports.map(report => (
-              <div key={report.id} style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '8px 12px',
-                background: '#22334a',
-                borderRadius: '4px',
-                border: '1px solid #29506a'
-              }}>
-                <div>
-                  <div style={{color: '#fff', fontWeight: 'bold'}}>{report.name}</div>
-                  <div style={{color: '#ccc', fontSize: '12px'}}>
-                    Збережено: {report.date} | Полів: {report.selectedFields.length} | 
-                    Фільтр: {
-                      report.approvalFilter === 'all' ? 'Всі звіти' :
-                      report.approvalFilter === 'approved' ? 'Тільки затверджені' :
-                      'Тільки незатверджені'
-                    }
+            {savedReports.map(report => {
+              // Перетворюємо MongoDB об'єкт в звичайний об'єкт
+              const reportData = report.toObject ? report.toObject() : report;
+              
+              return (
+                <div key={reportData._id || reportData.id} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '8px 12px',
+                  background: '#22334a',
+                  borderRadius: '4px',
+                  border: '1px solid #29506a'
+                }}>
+                  <div>
+                    <div style={{color: '#fff', fontWeight: 'bold'}}>{reportData.name}</div>
+                    <div style={{color: '#ccc', fontSize: '12px'}}>
+                      Збережено: {reportData.date} | Полів: {reportData.selectedFields.length} | 
+                      Фільтр: {
+                        reportData.approvalFilter === 'all' ? 'Всі звіти' :
+                        reportData.approvalFilter === 'approved' ? 'Тільки затверджені' :
+                        'Тільки незатверджені'
+                      }
+                    </div>
+                  </div>
+                  <div style={{display: 'flex', gap: '4px'}}>
+                    <button
+                      onClick={() => loadReport(report)}
+                      style={{
+                        padding: '4px 8px',
+                        background: '#00bfff',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                    >
+                      📂 Завантажити
+                    </button>
+                    <button
+                      onClick={() => deleteReport(report)}
+                      style={{
+                        padding: '4px 8px',
+                        background: '#dc3545',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                    >
+                      🗑️ Видалити
+                    </button>
                   </div>
                 </div>
-                <div style={{display: 'flex', gap: '4px'}}>
-                  <button
-                    onClick={() => loadReport(report)}
-                    style={{
-                      padding: '4px 8px',
-                      background: '#00bfff',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    📂 Завантажити
-                  </button>
-                  <button
-                    onClick={() => deleteReport(report.id)}
-                    style={{
-                      padding: '4px 8px',
-                      background: '#dc3545',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    🗑️ Видалити
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
