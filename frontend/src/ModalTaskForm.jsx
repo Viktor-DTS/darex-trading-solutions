@@ -3,6 +3,7 @@ import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import FileUpload from './components/FileUpload';
 import { tasksAPI } from './utils/tasksAPI';
 import { regionsAPI } from './utils/regionsAPI';
+import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from './utils/eventLogAPI';
 
 // Функція для отримання коду регіону
 const getRegionCode = (region) => {
@@ -612,6 +613,22 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       serviceTotal,
       workPrice
     });
+    
+    // Логуємо створення або редагування заявки
+    const action = form.id ? EVENT_ACTIONS.UPDATE : EVENT_ACTIONS.CREATE;
+    const description = form.id ? 
+      `Редагування заявки: ${form.requestNumber || 'Без номера'} - ${form.client || 'Без клієнта'}` :
+      `Створення нової заявки: ${form.requestNumber || 'Без номера'} - ${form.client || 'Без клієнта'}`;
+    
+    logUserAction(user, action, ENTITY_TYPES.TASK, form.id, description, {
+      requestNumber: form.requestNumber,
+      client: form.client,
+      work: form.work,
+      status: form.status,
+      serviceTotal: form.serviceTotal,
+      company: form.company
+    });
+    
     onClose();
   };
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { tasksAPI } from '../utils/tasksAPI';
 import { savedReportsAPI } from '../utils/savedReportsAPI';
+import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from '../utils/eventLogAPI';
 import * as ExcelJS from 'exceljs';
 
 export default function ReportBuilder({ user }) {
@@ -394,6 +395,13 @@ export default function ReportBuilder({ user }) {
     const newWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
     newWindow.document.write(html);
     newWindow.document.close();
+    
+    // Логуємо відкриття звіту
+    logUserAction(user, EVENT_ACTIONS.VIEW, ENTITY_TYPES.REPORT, null, 
+      `Відкрито звіт в новій вкладці: ${reportData.length} рядків`, {
+        rowsCount: reportData.length,
+        selectedFields: selectedFields.length
+      });
   };
 
   // Автоматично оновлюємо звіт при зміні фільтрів
@@ -541,6 +549,14 @@ export default function ReportBuilder({ user }) {
       link.href = URL.createObjectURL(blob);
       link.download = `report_${new Date().toISOString().split('T')[0]}.xlsx`;
       link.click();
+      
+      // Логуємо експорт звіту
+      logUserAction(user, EVENT_ACTIONS.EXPORT, ENTITY_TYPES.REPORT, null, 
+        `Експорт звіту в Excel: ${reportData.length} рядків`, {
+          rowsCount: reportData.length,
+          selectedFields: selectedFields.length,
+          fileName: `report_${new Date().toISOString().split('T')[0]}.xlsx`
+        });
     });
   };
 
@@ -576,6 +592,15 @@ export default function ReportBuilder({ user }) {
 
       await savedReportsAPI.saveReport(reportData);
       await loadSavedReports(); // Оновлюємо список збережених звітів
+      
+      // Логуємо збереження звіту
+      logUserAction(user, EVENT_ACTIONS.SAVE_REPORT, ENTITY_TYPES.REPORT, null, 
+        `Збережено звіт: ${reportName}`, {
+          reportName: reportName,
+          selectedFields: selectedFields.length,
+          filters: Object.keys(filters).filter(key => filters[key]).length
+        });
+      
       alert(`Звіт "${reportName}" збережено!`);
     } catch (error) {
       console.error('Помилка збереження звіту:', error);
@@ -601,6 +626,14 @@ export default function ReportBuilder({ user }) {
       setSelectedFields(reportData.selectedFields);
       setGroupBy(reportData.groupBy);
       
+      // Логуємо завантаження звіту
+      logUserAction(user, EVENT_ACTIONS.LOAD_REPORT, ENTITY_TYPES.REPORT, reportData._id, 
+        `Завантажено звіт: ${reportData.name}`, {
+          reportName: reportData.name,
+          selectedFields: reportData.selectedFields.length,
+          filters: Object.keys(reportData.filters).filter(key => reportData.filters[key]).length
+        });
+      
       alert(`Звіт "${reportData.name}" завантажено!`);
     } catch (error) {
       console.error('Помилка завантаження звіту:', error);
@@ -616,6 +649,15 @@ export default function ReportBuilder({ user }) {
         const idToDelete = reportId._id || reportId;
         await savedReportsAPI.deleteReport(idToDelete);
         await loadSavedReports(); // Оновлюємо список збережених звітів
+        
+        // Логуємо видалення звіту
+        const reportData = reportId.toObject ? reportId.toObject() : reportId;
+        logUserAction(user, EVENT_ACTIONS.DELETE_REPORT, ENTITY_TYPES.REPORT, idToDelete, 
+          `Видалено збережений звіт: ${reportData.name}`, {
+            reportName: reportData.name,
+            reportId: idToDelete
+          });
+        
         alert('Звіт видалено!');
       } catch (error) {
         console.error('Помилка видалення звіту:', error);

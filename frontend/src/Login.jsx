@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
+import React, { useState, useEffect } from 'react';
 import API_BASE_URL from './config.js';
+import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
+import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from './utils/eventLogAPI';
 
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
@@ -77,6 +78,15 @@ export default function Login({ onLogin }) {
           ...result.user,
           isViewMode: isViewMode
         };
+        
+        // Логуємо успішний вхід в систему
+        logUserAction(userWithMode, EVENT_ACTIONS.LOGIN, ENTITY_TYPES.SYSTEM, null, 
+          `Успішний вхід в систему: ${userWithMode.name} (${userWithMode.role})`, {
+            login: userWithMode.login,
+            role: userWithMode.role,
+            isViewMode: isViewMode
+          });
+        
         onLogin(userWithMode);
     } else {
         const error = await response.json();

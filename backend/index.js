@@ -29,6 +29,23 @@ const savedReportSchema = new mongoose.Schema({
 
 const SavedReport = mongoose.model('SavedReport', savedReportSchema);
 
+// Модель для журналу подій
+const eventLogSchema = new mongoose.Schema({
+  userId: { type: String, required: true }, // login користувача
+  userName: { type: String, required: true }, // ім'я користувача
+  userRole: { type: String, required: true }, // роль користувача
+  action: { type: String, required: true }, // тип дії
+  entityType: { type: String, required: true }, // тип сутності (task, user, report, etc.)
+  entityId: { type: String }, // ID сутності
+  description: { type: String, required: true }, // опис дії
+  details: { type: Object }, // детальна інформація
+  ipAddress: { type: String }, // IP адреса
+  userAgent: { type: String }, // User-Agent браузера
+  timestamp: { type: Date, default: Date.now }
+});
+
+const EventLog = mongoose.model('EventLog', eventLogSchema);
+
 // Функція для підключення до MongoDB
 async function connectToMongoDB() {
   if (!MONGODB_URI) {
@@ -623,6 +640,112 @@ app.delete('/api/saved-reports/:reportId', async (req, res) => {
     res.json({ success: true, message: 'Звіт видалено!' });
   } catch (error) {
     console.error('Помилка видалення звіту:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- EVENT LOG API ---
+// Додати запис до журналу подій
+app.post('/api/event-log', async (req, res) => {
+  try {
+    const { userId, userName, userRole, action, entityType, entityId, description, details } = req.body;
+    
+    const eventLog = new EventLog({
+      userId,
+      userName,
+      userRole,
+      action,
+      entityType,
+      entityId,
+      description,
+      details,
+      ipAddress: req.ip || req.connection.remoteAddress,
+      userAgent: req.headers['user-agent']
+    });
+    
+    await eventLog.save();
+    res.json({ success: true, message: 'Подію збережено!' });
+  } catch (error) {
+    console.error('Помилка збереження події:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Отримати журнал подій з фільтрами
+app.get('/api/event-log', async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 50, 
+      userId, 
+      action, 
+      entityType, 
+      startDate, 
+      endDate,
+      search 
+    } = req.query;
+    
+    const filter = {};
+    
+    if (userId) filter.userId = userId;
+    if (action) filter.action = action;
+    if (entityType) filter.entityType = entityType;
+    
+    if (startDate || endDate) {
+      filter.timestamp = {};
+      if (startDate) filter.timestamp.$gte = new Date(startDate);
+      if (endDate) filter.timestamp.$lte = new Date(endDate);
+    }
+    
+    if (search) {
+      filter.$or = [
+        { description: { $regex: search, $options: 'i' } },
+        { userName: { $regex: search, $options: 'i' } },
+        { userId: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    const skip = (page - 1) * limit;
+    
+    const events = await EventLog.find(filter)
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+    
+    const total = await EventLog.countDocuments(filter);
+    
+    res.json({
+      events,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Помилка отримання журналу подій:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Очистити старий журнал подій (старше 30 днів)
+app.delete('/api/event-log/cleanup', async (req, res) => {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const result = await EventLog.deleteMany({
+      timestamp: { $lt: thirtyDaysAgo }
+    });
+    
+    res.json({ 
+      success: true, 
+      message: `Видалено ${result.deletedCount} старих записів`,
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Помилка очищення журналу:', error);
     res.status(500).json({ error: error.message });
   }
 });

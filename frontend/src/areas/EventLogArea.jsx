@@ -1,0 +1,430 @@
+import React, { useState, useEffect } from 'react';
+import { eventLogAPI } from '../utils/eventLogAPI';
+
+export default function EventLogArea({ user }) {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    userId: '',
+    action: '',
+    entityType: '',
+    startDate: '',
+    endDate: '',
+    search: ''
+  });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 50,
+    total: 0,
+    pages: 0
+  });
+
+  // Завантаження подій
+  const loadEvents = async () => {
+    setLoading(true);
+    try {
+      const response = await eventLogAPI.getEvents({
+        ...filters,
+        page: pagination.page,
+        limit: pagination.limit
+      });
+      setEvents(response.events);
+      setPagination(response.pagination);
+    } catch (error) {
+      console.error('Помилка завантаження подій:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadEvents();
+  }, [filters, pagination.page]);
+
+  // Очищення старого журналу
+  const handleCleanup = async () => {
+    if (confirm('Ви впевнені, що хочете видалити події старше 30 днів?')) {
+      try {
+        const result = await eventLogAPI.cleanupOldEvents();
+        alert(result.message);
+        loadEvents(); // Перезавантажуємо список
+      } catch (error) {
+        alert('Помилка очищення журналу');
+      }
+    }
+  };
+
+  // Форматування дати
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleString('uk-UA');
+  };
+
+  // Отримання кольору для типу дії
+  const getActionColor = (action) => {
+    const colors = {
+      login: '#28a745',
+      logout: '#6c757d',
+      create: '#17a2b8',
+      update: '#ffc107',
+      delete: '#dc3545',
+      view: '#6f42c1',
+      export: '#fd7e14',
+      import: '#20c997',
+      approve: '#28a745',
+      reject: '#dc3545',
+      save_report: '#17a2b8',
+      load_report: '#6f42c1',
+      delete_report: '#dc3545'
+    };
+    return colors[action] || '#6c757d';
+  };
+
+  // Отримання української назви дії
+  const getActionLabel = (action) => {
+    const labels = {
+      login: 'Вхід в систему',
+      logout: 'Вихід з системи',
+      create: 'Створення',
+      update: 'Редагування',
+      delete: 'Видалення',
+      view: 'Перегляд',
+      export: 'Експорт',
+      import: 'Імпорт',
+      approve: 'Затвердження',
+      reject: 'Відхилення',
+      save_report: 'Збереження звіту',
+      load_report: 'Завантаження звіту',
+      delete_report: 'Видалення звіту'
+    };
+    return labels[action] || action;
+  };
+
+  return (
+    <div style={{
+      padding: '24px',
+      background: '#22334a',
+      borderRadius: '12px',
+      margin: '32px auto',
+      maxWidth: '1400px'
+    }}>
+      <h2>Журнал подій</h2>
+      
+      {/* Фільтри */}
+      <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
+        <h3 style={{color: '#fff', marginBottom: '12px'}}>Фільтри</h3>
+        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
+          <div>
+            <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Користувач:</label>
+            <input
+              type="text"
+              value={filters.userId}
+              onChange={(e) => setFilters(prev => ({...prev, userId: e.target.value}))}
+              placeholder="Логін користувача"
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '4px',
+                border: '1px solid #29506a',
+                background: '#22334a',
+                color: '#fff'
+              }}
+            />
+          </div>
+          
+          <div>
+            <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Тип дії:</label>
+            <select
+              value={filters.action}
+              onChange={(e) => setFilters(prev => ({...prev, action: e.target.value}))}
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '4px',
+                border: '1px solid #29506a',
+                background: '#22334a',
+                color: '#fff'
+              }}
+            >
+              <option value="">Всі дії</option>
+              <option value="login">Вхід в систему</option>
+              <option value="logout">Вихід з системи</option>
+              <option value="create">Створення</option>
+              <option value="update">Редагування</option>
+              <option value="delete">Видалення</option>
+              <option value="view">Перегляд</option>
+              <option value="export">Експорт</option>
+              <option value="import">Імпорт</option>
+              <option value="approve">Затвердження</option>
+              <option value="reject">Відхилення</option>
+            </select>
+          </div>
+          
+          <div>
+            <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Тип сутності:</label>
+            <select
+              value={filters.entityType}
+              onChange={(e) => setFilters(prev => ({...prev, entityType: e.target.value}))}
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '4px',
+                border: '1px solid #29506a',
+                background: '#22334a',
+                color: '#fff'
+              }}
+            >
+              <option value="">Всі типи</option>
+              <option value="task">Заявка</option>
+              <option value="user">Користувач</option>
+              <option value="report">Звіт</option>
+              <option value="system">Система</option>
+            </select>
+          </div>
+          
+          <div>
+            <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Пошук:</label>
+            <input
+              type="text"
+              value={filters.search}
+              onChange={(e) => setFilters(prev => ({...prev, search: e.target.value}))}
+              placeholder="Пошук по опису..."
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '4px',
+                border: '1px solid #29506a',
+                background: '#22334a',
+                color: '#fff'
+              }}
+            />
+          </div>
+          
+          <div>
+            <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Дата з:</label>
+            <input
+              type="date"
+              value={filters.startDate}
+              onChange={(e) => setFilters(prev => ({...prev, startDate: e.target.value}))}
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '4px',
+                border: '1px solid #29506a',
+                background: '#22334a',
+                color: '#fff'
+              }}
+            />
+          </div>
+          
+          <div>
+            <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Дата по:</label>
+            <input
+              type="date"
+              value={filters.endDate}
+              onChange={(e) => setFilters(prev => ({...prev, endDate: e.target.value}))}
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '4px',
+                border: '1px solid #29506a',
+                background: '#22334a',
+                color: '#fff'
+              }}
+            />
+          </div>
+        </div>
+        
+        <div style={{marginTop: '12px', display: 'flex', gap: '8px'}}>
+          <button
+            onClick={() => setFilters({
+              userId: '', action: '', entityType: '', startDate: '', endDate: '', search: ''
+            })}
+            style={{
+              padding: '8px 16px',
+              background: '#6c757d',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Очистити фільтри
+          </button>
+          
+          <button
+            onClick={handleCleanup}
+            style={{
+              padding: '8px 16px',
+              background: '#dc3545',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Очистити старий журнал
+          </button>
+        </div>
+      </div>
+
+      {/* Таблиця подій */}
+      <div style={{overflowX: 'auto'}}>
+        {loading ? (
+          <div style={{color: '#fff', textAlign: 'center', padding: '20px'}}>
+            Завантаження подій...
+          </div>
+        ) : (
+          <table style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            color: '#fff'
+          }}>
+            <thead>
+              <tr>
+                <th style={{padding: '12px', textAlign: 'left', background: '#1a2636', borderBottom: '1px solid #29506a'}}>
+                  Дата/Час
+                </th>
+                <th style={{padding: '12px', textAlign: 'left', background: '#1a2636', borderBottom: '1px solid #29506a'}}>
+                  Користувач
+                </th>
+                <th style={{padding: '12px', textAlign: 'left', background: '#1a2636', borderBottom: '1px solid #29506a'}}>
+                  Дія
+                </th>
+                <th style={{padding: '12px', textAlign: 'left', background: '#1a2636', borderBottom: '1px solid #29506a'}}>
+                  Тип
+                </th>
+                <th style={{padding: '12px', textAlign: 'left', background: '#1a2636', borderBottom: '1px solid #29506a'}}>
+                  Опис
+                </th>
+                <th style={{padding: '12px', textAlign: 'left', background: '#1a2636', borderBottom: '1px solid #29506a'}}>
+                  IP адреса
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.map((event, index) => (
+                <tr key={event._id} style={{
+                  background: index % 2 === 0 ? '#22334a' : '#1a2636',
+                  borderBottom: '1px solid #29506a'
+                }}>
+                  <td style={{padding: '12px'}}>
+                    {formatDate(event.timestamp)}
+                  </td>
+                  <td style={{padding: '12px'}}>
+                    <div>
+                      <div style={{fontWeight: 'bold'}}>{event.userName}</div>
+                      <div style={{fontSize: '12px', color: '#ccc'}}>
+                        {event.userId} ({event.userRole})
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{padding: '12px'}}>
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      background: getActionColor(event.action),
+                      color: '#fff',
+                      fontSize: '12px',
+                      fontWeight: 'bold'
+                    }}>
+                      {getActionLabel(event.action)}
+                    </span>
+                  </td>
+                  <td style={{padding: '12px'}}>
+                    {event.entityType}
+                    {event.entityId && (
+                      <div style={{fontSize: '12px', color: '#ccc'}}>
+                        ID: {event.entityId}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{padding: '12px'}}>
+                    {event.description}
+                    {event.details && Object.keys(event.details).length > 0 && (
+                      <details style={{marginTop: '4px'}}>
+                        <summary style={{cursor: 'pointer', fontSize: '12px', color: '#00bfff'}}>
+                          Деталі
+                        </summary>
+                        <pre style={{
+                          fontSize: '11px',
+                          color: '#ccc',
+                          background: '#1a2636',
+                          padding: '8px',
+                          borderRadius: '4px',
+                          marginTop: '4px',
+                          overflow: 'auto'
+                        }}>
+                          {JSON.stringify(event.details, null, 2)}
+                        </pre>
+                      </details>
+                    )}
+                  </td>
+                  <td style={{padding: '12px', fontSize: '12px', color: '#ccc'}}>
+                    {event.ipAddress}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Пагінація */}
+      {pagination.pages > 1 && (
+        <div style={{
+          marginTop: '16px',
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '8px',
+          alignItems: 'center'
+        }}>
+          <button
+            onClick={() => setPagination(prev => ({...prev, page: prev.page - 1}))}
+            disabled={pagination.page === 1}
+            style={{
+              padding: '8px 12px',
+              background: pagination.page === 1 ? '#666' : '#00bfff',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: pagination.page === 1 ? 'not-allowed' : 'pointer'
+            }}
+          >
+            ← Попередня
+          </button>
+          
+          <span style={{color: '#fff'}}>
+            Сторінка {pagination.page} з {pagination.pages}
+          </span>
+          
+          <button
+            onClick={() => setPagination(prev => ({...prev, page: prev.page + 1}))}
+            disabled={pagination.page === pagination.pages}
+            style={{
+              padding: '8px 12px',
+              background: pagination.page === pagination.pages ? '#666' : '#00bfff',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: pagination.page === pagination.pages ? 'not-allowed' : 'pointer'
+            }}
+          >
+            Наступна →
+          </button>
+        </div>
+      )}
+
+      {/* Статистика */}
+      <div style={{
+        marginTop: '16px',
+        padding: '12px',
+        background: '#1a2636',
+        borderRadius: '8px',
+        color: '#fff'
+      }}>
+        <div>Всього записів: {pagination.total}</div>
+        <div>Завантажено: {events.length}</div>
+      </div>
+    </div>
+  );
+} 

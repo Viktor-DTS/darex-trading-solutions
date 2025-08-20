@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ModalTaskForm from '../ModalTaskForm';
 import { columnsSettingsAPI } from '../utils/columnsSettingsAPI';
+import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from '../utils/eventLogAPI';
 
 function ColumnSettings({ allColumns, selected, onChange, onClose, onSave }) {
   return (
@@ -366,6 +367,23 @@ function TaskTableComponent({
   // --- Додаю функцію для підтвердження відмови ---
   const handleRejectConfirm = () => {
     if (rejectModal.taskId && onApprove) {
+      // Логуємо відхилення заявки
+      const task = tasks.find(t => t.id === rejectModal.taskId);
+      if (task) {
+        const action = rejectModal.comment ? EVENT_ACTIONS.REJECT : EVENT_ACTIONS.APPROVE;
+        const description = rejectModal.comment ? 
+          `Відхилено заявку: ${task.requestNumber || 'Без номера'} - ${task.client || 'Без клієнта'}` :
+          `Затверджено заявку: ${task.requestNumber || 'Без номера'} - ${task.client || 'Без клієнта'}`;
+        
+        logUserAction(user, action, ENTITY_TYPES.TASK, rejectModal.taskId, description, {
+          requestNumber: task.requestNumber,
+          client: task.client,
+          work: task.work,
+          comment: rejectModal.comment,
+          status: task.status
+        });
+      }
+      
       onApprove(rejectModal.taskId, 'Відмова', rejectModal.comment);
     }
     setRejectModal({ open: false, taskId: null, comment: '' });
@@ -378,6 +396,17 @@ function TaskTableComponent({
   // --- Додаю функції для підтвердження видалення ---
   const handleDeleteConfirm = () => {
     if (deleteConfirmModal.taskId && onDelete) {
+      // Логуємо видалення заявки
+      const taskInfo = deleteConfirmModal.taskInfo;
+      logUserAction(user, EVENT_ACTIONS.DELETE, ENTITY_TYPES.TASK, deleteConfirmModal.taskId, 
+        `Видалено заявку: ${taskInfo?.requestNumber || 'Без номера'} - ${taskInfo?.client || 'Без клієнта'} - ${taskInfo?.work || 'Без робіт'}`, {
+          requestNumber: taskInfo?.requestNumber,
+          client: taskInfo?.client,
+          work: taskInfo?.work,
+          date: taskInfo?.date,
+          status: taskInfo?.status
+        });
+      
       onDelete(deleteConfirmModal.taskId);
     }
     setDeleteConfirmModal({ open: false, taskId: null, taskInfo: null });
@@ -1178,7 +1207,17 @@ function TaskTableComponent({
                         <>
                           {(role === 'service' || role === 'operator' || role === 'admin') && (
                             <>
-                              <button onClick={()=>onEdit && onEdit(t)} style={{marginRight:8}}>Редагувати</button>
+                              <button onClick={()=>{
+                                // Логуємо редагування заявки
+                                logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
+                                  `Редагування заявки: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                    requestNumber: t.requestNumber,
+                                    client: t.client,
+                                    work: t.work,
+                                    status: t.status
+                                  });
+                                onEdit && onEdit(t);
+                              }} style={{marginRight:8}}>Редагувати</button>
                               {/* Кнопка видалення - тільки для регіональних керівників та адміністраторів */}
                               {(() => {
                                 const canDelete = user?.role === 'regionalManager' || user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'regkerivn' || user?.role === 'regkerzavskl';
@@ -1229,22 +1268,62 @@ function TaskTableComponent({
                             </>
                           )}
                           {(role === 'warehouse' || role === 'accountant' || role === 'regionalManager' || role === 'regional') && (
-                            <button onClick={()=>onEdit && onEdit(t)}>Редагувати</button>
+                            <button onClick={()=>{
+                              // Логуємо редагування заявки
+                              logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
+                                `Редагування заявки: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                  requestNumber: t.requestNumber,
+                                  client: t.client,
+                                  work: t.work,
+                                  status: t.status
+                                });
+                              onEdit && onEdit(t);
+                            }}>Редагувати</button>
                           )}
                         </>
                       )}
                       {/* Кнопка інформації - в архіві для всіх ролей крім адміністратора */}
                       {isArchive && role !== 'admin' && (
-                        <button onClick={()=>onEdit && onEdit({...t, _readOnly: true})} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
+                        <button onClick={()=>{
+                          // Логуємо перегляд інформації заявки
+                          logUserAction(user, EVENT_ACTIONS.VIEW, ENTITY_TYPES.TASK, t.id, 
+                            `Перегляд інформації заявки: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                              requestNumber: t.requestNumber,
+                              client: t.client,
+                              work: t.work,
+                              status: t.status
+                            });
+                          onEdit && onEdit({...t, _readOnly: true});
+                        }} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
                       )}
                     </td>
                     {(role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && approveField && (
                       <td style={getRowColor(t) ? {color:'#111'} : {}}>
                         {t.status === 'Виконано' ? (
                           <>
-                            <button onClick={()=>{onApprove(t.id, 'Підтверджено', '');}} style={{background:'#0a0',color:'#fff',marginRight:8}}>Підтвердити</button>
+                            <button onClick={()=>{
+                              // Логуємо затвердження заявки
+                              logUserAction(user, EVENT_ACTIONS.APPROVE, ENTITY_TYPES.TASK, t.id, 
+                                `Затверджено заявку: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                  requestNumber: t.requestNumber,
+                                  client: t.client,
+                                  work: t.work,
+                                  status: t.status
+                                });
+                              onApprove(t.id, 'Підтверджено', '');
+                            }} style={{background:'#0a0',color:'#fff',marginRight:8}}>Підтвердити</button>
                             <button onClick={()=>setRejectModal({ open: true, taskId: t.id, comment: '' })} style={{background:'#f66',color:'#fff',marginRight:8}}>Відхилити</button>
-                            <button onClick={()=>{onApprove(t.id, 'На розгляді', '');}} style={{background:'#ffe066',color:'#22334a',marginRight:8}}>На розгляді</button>
+                            <button onClick={()=>{
+                              // Логуємо відправку на розгляд
+                              logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
+                                `Відправлено на розгляд: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                  requestNumber: t.requestNumber,
+                                  client: t.client,
+                                  work: t.work,
+                                  status: t.status
+                                });
+                              onApprove(t.id, 'На розгляді', '');
+                            }} style={{background:'#ffe066',color:'#22334a',marginRight:8}}>На розгляді</button>
                             <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600} : t[approveField] === 'Відмова' ? {color:'#f00', fontWeight:600} : {color:'#aaa'}}>
                               {t[approveField] === 'Підтверджено' ? 'Підтверджено' : t[approveField] === 'Відмова' ? 'Відхилено' : 'На розгляді'}
                             </span>
@@ -1279,9 +1358,29 @@ function TaskTableComponent({
                       <td style={getRowColor(t) ? {color:'#111'} : {}}>
                         {t.status === 'Виконано' ? (
                           <>
-                            <button onClick={()=>{onApprove(t.id, 'Підтверджено', '');}} style={{background:'#0a0',color:'#fff',marginRight:8}}>Підтвердити</button>
+                            <button onClick={()=>{
+                              // Логуємо затвердження заявки
+                              logUserAction(user, EVENT_ACTIONS.APPROVE, ENTITY_TYPES.TASK, t.id, 
+                                `Затверджено заявку: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                  requestNumber: t.requestNumber,
+                                  client: t.client,
+                                  work: t.work,
+                                  status: t.status
+                                });
+                              onApprove(t.id, 'Підтверджено', '');
+                            }} style={{background:'#0a0',color:'#fff',marginRight:8}}>Підтвердити</button>
                             <button onClick={()=>setRejectModal({ open: true, taskId: t.id, comment: '' })} style={{background:'#f66',color:'#fff',marginRight:8}}>Відхилити</button>
-                            <button onClick={()=>{onApprove(t.id, 'На розгляді', '');}} style={{background:'#ffe066',color:'#22334a',marginRight:8}}>На розгляді</button>
+                            <button onClick={()=>{
+                              // Логуємо відправку на розгляд
+                              logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
+                                `Відправлено на розгляд: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                  requestNumber: t.requestNumber,
+                                  client: t.client,
+                                  work: t.work,
+                                  status: t.status
+                                });
+                              onApprove(t.id, 'На розгляді', '');
+                            }} style={{background:'#ffe066',color:'#22334a',marginRight:8}}>На розгляді</button>
                             <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600} : t[approveField] === 'Відмова' ? {color:'#f00', fontWeight:600} : {color:'#aaa'}}>
                               {t[approveField] === 'Підтверджено' ? 'Підтверджено' : t[approveField] === 'Відмова' ? 'Відхилено' : 'На розгляді'}
                             </span>
