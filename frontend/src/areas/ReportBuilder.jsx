@@ -226,13 +226,26 @@ export default function ReportBuilder() {
       <h2>Конструктор звітів</h2>
       {loading && <div style={{color: '#fff', marginBottom: '16px'}}>Завантаження...</div>}
       
+      {/* Додаткове логування */}
+      {console.log('[DEBUG][ReportBuilder] Рендеринг компонента, approvalFilter:', approvalFilter)}
+      
       {/* Фільтри */}
       <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
         <h3 style={{color: '#fff', marginBottom: '12px'}}>Фільтри</h3>
         
-        {/* Статус затвердження */}
-        <div style={{marginBottom: '16px', padding: '12px', background: '#2a3a4a', borderRadius: '6px', border: '1px solid #00bfff'}}>
-          <label style={{color: '#fff', marginBottom: '8px', fontSize: '16px', display: 'block', fontWeight: 'bold'}}>Статус затвердження:</label>
+        {/* Статус затвердження - ЗАВЖДИ ВИДИМИЙ */}
+        <div style={{
+          marginBottom: '16px', 
+          padding: '12px', 
+          background: '#2a3a4a', 
+          borderRadius: '6px', 
+          border: '2px solid #00bfff',
+          display: 'block',
+          minHeight: '80px'
+        }}>
+          <label style={{color: '#fff', marginBottom: '8px', fontSize: '16px', display: 'block', fontWeight: 'bold'}}>
+            Статус затвердження: (approvalFilter = {approvalFilter})
+          </label>
           <div style={{display: 'flex', gap: '12px', alignItems: 'center'}}>
             <select
               value={approvalFilter}
