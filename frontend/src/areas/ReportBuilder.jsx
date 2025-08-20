@@ -210,25 +210,44 @@ export default function ReportBuilder() {
         <h3 style={{color: '#fff', marginBottom: '12px'}}>Фільтри</h3>
         
         {/* Статус затвердження */}
-        <div style={{marginBottom: '16px'}}>
-          <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px', display: 'block'}}>Статус затвердження:</label>
-          <select
-            value={approvalFilter}
-            onChange={(e) => setApprovalFilter(e.target.value)}
-            style={{
-              padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #29506a',
-              background: '#22334a',
-              color: '#fff',
-              fontSize: '14px',
-              width: '200px'
-            }}
-          >
-            <option value="all">Всі звіти</option>
-            <option value="approved">Тільки затверджені</option>
-            <option value="not_approved">Тільки незатверджені</option>
-          </select>
+        <div style={{marginBottom: '16px', padding: '12px', background: '#2a3a4a', borderRadius: '6px', border: '1px solid #00bfff'}}>
+          <label style={{color: '#fff', marginBottom: '8px', fontSize: '16px', display: 'block', fontWeight: 'bold'}}>Статус затвердження:</label>
+          <div style={{display: 'flex', gap: '12px', alignItems: 'center'}}>
+            <select
+              value={approvalFilter}
+              onChange={(e) => setApprovalFilter(e.target.value)}
+              style={{
+                padding: '10px',
+                borderRadius: '4px',
+                border: '2px solid #00bfff',
+                background: '#22334a',
+                color: '#fff',
+                fontSize: '14px',
+                width: '250px',
+                fontWeight: 'bold'
+              }}
+            >
+              <option value="all">Всі звіти</option>
+              <option value="approved">Тільки затверджені</option>
+              <option value="not_approved">Тільки незатверджені</option>
+            </select>
+            <button
+              onClick={generateReport}
+              disabled={loading || tasks.length === 0}
+              style={{
+                padding: '10px 20px',
+                background: loading || tasks.length === 0 ? '#666' : '#00bfff',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: loading || tasks.length === 0 ? 'not-allowed' : 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold'
+              }}
+            >
+              {loading ? 'Завантаження...' : 'Сформувати звіт'}
+            </button>
+          </div>
         </div>
         
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
