@@ -338,21 +338,23 @@ export default function ReportBuilder({ user }) {
         <table>
           <thead>
             <tr>
+              <th>№</th>
               ${selectedFields.map(field => 
                 `<th>${availableFields.find(f => f.name === field)?.label || field}</th>`
               ).join('')}
             </tr>
           </thead>
           <tbody>
-            ${reportData.map(item => {
+            ${reportData.map((item, index) => {
               if (item.group) {
                 // Групування
                 return `
                   <tr style="background: #e3f2fd; font-weight: bold;">
-                    <td colspan="${selectedFields.length}">${item.group} - Всього: ${item.total}</td>
+                    <td colspan="${selectedFields.length + 1}">${item.group} - Всього: ${item.total}</td>
                   </tr>
-                  ${item.tasks.map(task => `
+                  ${item.tasks.map((task, taskIndex) => `
                     <tr>
+                      <td>${index + 1}.${taskIndex + 1}</td>
                       ${selectedFields.map(field => {
                         const value = task[field];
                         if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
@@ -366,6 +368,7 @@ export default function ReportBuilder({ user }) {
               }
               return `
                 <tr>
+                  <td>${index + 1}</td>
                   ${selectedFields.map(field => {
                     const value = item[field];
                     if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
@@ -410,9 +413,9 @@ export default function ReportBuilder({ user }) {
     const worksheet = workbook.addWorksheet('Звіт');
     
     // Додаємо заголовки
-    const headers = selectedFields.map(field => 
+    const headers = ['№', ...selectedFields.map(field => 
       availableFields.find(f => f.name === field)?.label || field
-    );
+    )];
     
     // Встановлюємо стиль для заголовків
     const headerRow = worksheet.addRow(headers);
@@ -440,10 +443,11 @@ export default function ReportBuilder({ user }) {
     });
     
     // Додаємо дані
-    reportData.forEach(item => {
+    let rowNumber = 1;
+    reportData.forEach((item, index) => {
       if (item.group) {
         // Групування - додаємо рядок групи
-        const groupRow = worksheet.addRow([`${item.group} - Всього: ${item.total}`, ...Array(selectedFields.length - 1).fill('')]);
+        const groupRow = worksheet.addRow([`${index + 1}`, `${item.group} - Всього: ${item.total}`, ...Array(selectedFields.length - 1).fill('')]);
         groupRow.eachCell((cell) => {
           cell.fill = {
             type: 'pattern',
@@ -455,19 +459,20 @@ export default function ReportBuilder({ user }) {
         });
         
         // Додаємо завдання групи
-        item.tasks.forEach((task, index) => {
-          const dataRow = worksheet.addRow(
-            selectedFields.map(field => {
+        item.tasks.forEach((task, taskIndex) => {
+          const dataRow = worksheet.addRow([
+            `${index + 1}.${taskIndex + 1}`,
+            ...selectedFields.map(field => {
               const value = task[field];
               if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
                 return formatApprovalStatus(value);
               }
               return value || '';
             })
-          );
+          ]);
           
           // Альтернативні кольори для рядків
-          const bgColor = index % 2 === 0 ? 'FF22334A' : 'FF1A2636';
+          const bgColor = taskIndex % 2 === 0 ? 'FF22334A' : 'FF1A2636';
           dataRow.eachCell((cell) => {
             cell.fill = {
               type: 'pattern',
@@ -486,15 +491,16 @@ export default function ReportBuilder({ user }) {
         });
       } else {
         // Звичайний рядок
-        const dataRow = worksheet.addRow(
-          selectedFields.map(field => {
+        const dataRow = worksheet.addRow([
+          `${index + 1}`,
+          ...selectedFields.map(field => {
             const value = item[field];
             if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
               return formatApprovalStatus(value);
             }
             return value || '';
           })
-        );
+        ]);
         
         dataRow.eachCell((cell) => {
           cell.alignment = { wrapText: true };
@@ -1113,6 +1119,7 @@ export default function ReportBuilder({ user }) {
           }}>
             <thead>
               <tr>
+                <th>№</th>
                 {selectedFields.map(field => (
                   <th key={field} style={{
                     padding: '12px',
@@ -1136,7 +1143,7 @@ export default function ReportBuilder({ user }) {
                         background: '#1a2636',
                         fontWeight: 'bold'
                       }}>
-                        <td colSpan={selectedFields.length} style={{padding: '12px', color: '#00bfff'}}>
+                        <td colSpan={selectedFields.length + 1} style={{padding: '12px', color: '#00bfff'}}>
                           {row.group} - Всього: {row.total}
                         </td>
                       </tr>
@@ -1145,6 +1152,7 @@ export default function ReportBuilder({ user }) {
                           borderBottom: '1px solid #29506a',
                           background: taskIndex % 2 === 0 ? '#22334a' : '#1a2636'
                         }}>
+                          <td>{index + 1}.{taskIndex + 1}</td>
                           {selectedFields.map(field => (
                             <td key={field} style={{padding: '12px'}}>
                               {field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager' 
@@ -1163,6 +1171,7 @@ export default function ReportBuilder({ user }) {
                       borderBottom: '1px solid #29506a',
                       background: index % 2 === 0 ? '#22334a' : '#1a2636'
                     }}>
+                      <td>{index + 1}</td>
                       {selectedFields.map(field => (
                         <td key={field} style={{padding: '12px'}}>
                           {field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager' 
