@@ -5,7 +5,7 @@ export default function ReportBuilder() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
-    requestDate: '', requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: '', approvedByWarehouse: '', approvedByAccountant: '', approvedByRegionalManager: ''
+    requestDate: '', requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: '', paymentDate: '', approvedByWarehouse: '', approvedByAccountant: '', approvedByRegionalManager: ''
   });
   const [approvalFilter, setApprovalFilter] = useState('all'); // 'all', 'approved', 'not_approved'
   const [groupBy, setGroupBy] = useState('');
@@ -18,12 +18,13 @@ export default function ReportBuilder() {
     { name: 'address', label: 'Адреса' },
     { name: 'equipmentSerial', label: 'Серійний номер обладнання' },
     { name: 'equipment', label: 'Обладнання' },
-    { name: 'work', label: 'Робота' },
-    { name: 'date', label: 'Дата виконання' },
+    { name: 'work', label: 'Найменування робіт' },
+    { name: 'date', label: 'Дата проведення робіт' },
     { name: 'paymentDate', label: 'Дата оплати' },
     { name: 'engineer1', label: 'Інженер 1' },
     { name: 'engineer2', label: 'Інженер 2' },
     { name: 'client', label: 'Клієнт' },
+    { name: 'requestNumber', label: 'Номер заявки' },
     { name: 'invoice', label: 'Рахунок' },
     { name: 'paymentType', label: 'Тип оплати' },
     { name: 'serviceTotal', label: 'Сума послуги' },
@@ -33,8 +34,41 @@ export default function ReportBuilder() {
     { name: 'regionalManagerComment', label: 'Коментар регіонального менеджера' },
     { name: 'approvedByWarehouse', label: 'Статус затвердження складу' },
     { name: 'approvedByAccountant', label: 'Статус затвердження бухгалтера' },
-    { name: 'approvedByRegionalManager', label: 'Статус затвердження регіонального менеджера' }
+    { name: 'approvedByRegionalManager', label: 'Статус затвердження регіонального менеджера' },
+    { name: 'comments', label: 'Коментарі' },
+    { name: 'oilType', label: 'Тип оливи' },
+    { name: 'oilUsed', label: 'Використано оливи' },
+    { name: 'oilPrice', label: 'Ціна оливи' },
+    { name: 'oilTotal', label: 'Сума оливи' },
+    { name: 'filterName', label: 'Назва фільтра' },
+    { name: 'filterCount', label: 'Кількість фільтрів' },
+    { name: 'filterPrice', label: 'Ціна фільтра' },
+    { name: 'filterSum', label: 'Сума фільтрів' },
+    { name: 'fuelFilterName', label: 'Назва паливного фільтра' },
+    { name: 'fuelFilterCount', label: 'Кількість паливних фільтрів' },
+    { name: 'fuelFilterPrice', label: 'Ціна паливного фільтра' },
+    { name: 'fuelFilterSum', label: 'Сума паливних фільтрів' },
+    { name: 'antifreezeType', label: 'Тип антифризу' },
+    { name: 'antifreezeL', label: 'Кількість антифризу' },
+    { name: 'antifreezePrice', label: 'Ціна антифризу' },
+    { name: 'antifreezeSum', label: 'Сума антифризу' },
+    { name: 'otherMaterials', label: 'Інші матеріали' },
+    { name: 'otherSum', label: 'Сума інших матеріалів' },
+    { name: 'workPrice', label: 'Вартість робіт' },
+    { name: 'perDiem', label: 'Добові' },
+    { name: 'living', label: 'Проживання' },
+    { name: 'otherExp', label: 'Інші витрати' },
+    { name: 'carNumber', label: 'Номер автомобіля' },
+    { name: 'transportKm', label: 'Транспортні км' },
+    { name: 'transportSum', label: 'Сума транспорту' },
+    { name: 'status', label: 'Статус' },
+    { name: 'company', label: 'Компанія' }
   ]);
+
+  // Додаємо стани для фільтрів дат з діапазоном
+  const [dateRangeFilter, setDateRangeFilter] = useState({ from: '', to: '' });
+  const [paymentDateRangeFilter, setPaymentDateRangeFilter] = useState({ from: '', to: '' });
+  const [requestDateRangeFilter, setRequestDateRangeFilter] = useState({ from: '', to: '' });
 
   // Функція для перевірки статусу підтвердження
   function isApproved(value) {
@@ -92,7 +126,31 @@ export default function ReportBuilder() {
     console.log('[DEBUG][ReportBuilder] Поточний approvalFilter:', approvalFilter);
     
     const filtered = tasksData.filter(t => {
-      // Перевіряємо всі фільтри динамічно
+      // Фільтр по діапазону дати проведення робіт
+      if (dateRangeFilter.from && (!t.date || t.date < dateRangeFilter.from)) {
+        return false;
+      }
+      if (dateRangeFilter.to && (!t.date || t.date > dateRangeFilter.to)) {
+        return false;
+      }
+      
+      // Фільтр по діапазону дати оплати
+      if (paymentDateRangeFilter.from && (!t.paymentDate || t.paymentDate < paymentDateRangeFilter.from)) {
+        return false;
+      }
+      if (paymentDateRangeFilter.to && (!t.paymentDate || t.paymentDate > paymentDateRangeFilter.to)) {
+        return false;
+      }
+      
+      // Фільтр по діапазону дати заявки
+      if (requestDateRangeFilter.from && (!t.requestDate || t.requestDate < requestDateRangeFilter.from)) {
+        return false;
+      }
+      if (requestDateRangeFilter.to && (!t.requestDate || t.requestDate > requestDateRangeFilter.to)) {
+        return false;
+      }
+      
+      // Перевіряємо всі інші фільтри динамічно
       for (const field of availableFields) {
         const filterValue = filters[field.name];
         if (filterValue && filterValue.trim() !== '') {
@@ -307,7 +365,7 @@ export default function ReportBuilder() {
       console.log('[DEBUG][ReportBuilder] Автоматичне оновлення звіту при зміні фільтрів');
       generateReportFromData(tasks);
     }
-  }, [filters, groupBy, tasks, approvalFilter]);
+  }, [filters, groupBy, tasks, approvalFilter, dateRangeFilter, paymentDateRangeFilter, requestDateRangeFilter]);
 
   // Автоматично оновлюємо звіт при зміні вибраних полів
   useEffect(() => {
@@ -432,6 +490,116 @@ export default function ReportBuilder() {
         </div>
         
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
+          {/* Фільтри дат з діапазоном */}
+          <div style={{display: 'flex', flexDirection: 'column'}}>
+            <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px'}}>Дата проведення робіт (з - по)</label>
+            <div style={{display: 'flex', gap: '8px'}}>
+              <input
+                type="date"
+                value={dateRangeFilter.from}
+                onChange={(e) => setDateRangeFilter(prev => ({...prev, from: e.target.value}))}
+                placeholder="з"
+                style={{
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #29506a',
+                  background: '#22334a',
+                  color: '#fff',
+                  fontSize: '14px',
+                  flex: 1
+                }}
+              />
+              <input
+                type="date"
+                value={dateRangeFilter.to}
+                onChange={(e) => setDateRangeFilter(prev => ({...prev, to: e.target.value}))}
+                placeholder="по"
+                style={{
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #29506a',
+                  background: '#22334a',
+                  color: '#fff',
+                  fontSize: '14px',
+                  flex: 1
+                }}
+              />
+            </div>
+          </div>
+          
+          <div style={{display: 'flex', flexDirection: 'column'}}>
+            <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px'}}>Дата оплати (з - по)</label>
+            <div style={{display: 'flex', gap: '8px'}}>
+              <input
+                type="date"
+                value={paymentDateRangeFilter.from}
+                onChange={(e) => setPaymentDateRangeFilter(prev => ({...prev, from: e.target.value}))}
+                placeholder="з"
+                style={{
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #29506a',
+                  background: '#22334a',
+                  color: '#fff',
+                  fontSize: '14px',
+                  flex: 1
+                }}
+              />
+              <input
+                type="date"
+                value={paymentDateRangeFilter.to}
+                onChange={(e) => setPaymentDateRangeFilter(prev => ({...prev, to: e.target.value}))}
+                placeholder="по"
+                style={{
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #29506a',
+                  background: '#22334a',
+                  color: '#fff',
+                  fontSize: '14px',
+                  flex: 1
+                }}
+              />
+            </div>
+          </div>
+          
+          <div style={{display: 'flex', flexDirection: 'column'}}>
+            <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px'}}>Дата заявки (з - по)</label>
+            <div style={{display: 'flex', gap: '8px'}}>
+              <input
+                type="date"
+                value={requestDateRangeFilter.from}
+                onChange={(e) => setRequestDateRangeFilter(prev => ({...prev, from: e.target.value}))}
+                placeholder="з"
+                style={{
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #29506a',
+                  background: '#22334a',
+                  color: '#fff',
+                  fontSize: '14px',
+                  flex: 1
+                }}
+              />
+              <input
+                type="date"
+                value={requestDateRangeFilter.to}
+                onChange={(e) => setRequestDateRangeFilter(prev => ({...prev, to: e.target.value}))}
+                placeholder="по"
+                style={{
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #29506a',
+                  background: '#22334a',
+                  color: '#fff',
+                  fontSize: '14px',
+                  flex: 1
+                }}
+              />
+            </div>
+          </div>
+          
+          {/* Інші фільтри */}
           {availableFields.map(field => (
             <div key={field.name} style={{display: 'flex', flexDirection: 'column'}}>
               <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px'}}>{field.label}</label>
