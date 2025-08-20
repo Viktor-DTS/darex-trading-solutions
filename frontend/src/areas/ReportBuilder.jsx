@@ -161,6 +161,146 @@ export default function ReportBuilder() {
     generateReportFromData(tasks);
   };
 
+  // Функція для відкриття звіту в новій вкладці
+  const openReportInNewTab = () => {
+    console.log('[DEBUG][ReportBuilder] Відкриття звіту в новій вкладці');
+    
+    // Генеруємо звіт спочатку
+    generateReportFromData(tasks);
+    
+    // Створюємо HTML для нового вікна
+    const html = `
+      <!DOCTYPE html>
+      <html lang="uk">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Звіт - ${new Date().toLocaleDateString('uk-UA')}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+          }
+          .header {
+            background: #22334a;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 24px;
+          }
+          .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          }
+          th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+          }
+          th {
+            background: #ffe600;
+            color: #222;
+            font-weight: bold;
+          }
+          tr:hover {
+            background: #f8f9fa;
+          }
+          .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #22334a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+          }
+          .print-button:hover {
+            background: #1a2636;
+          }
+          @media print {
+            .print-button { display: none; }
+            body { background: white; }
+          }
+        </style>
+      </head>
+      <body>
+        <button class="print-button" onclick="window.print()">🖨️ Друкувати</button>
+        
+        <div class="header">
+          <h1>Звіт</h1>
+          <p>Дата створення: ${new Date().toLocaleDateString('uk-UA')}</p>
+          <p>Кількість записів: ${reportData.length}</p>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              ${selectedFields.map(field => 
+                `<th>${availableFields.find(f => f.name === field)?.label || field}</th>`
+              ).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${reportData.map(item => {
+              if (item.group) {
+                // Групування
+                return `
+                  <tr style="background: #e3f2fd; font-weight: bold;">
+                    <td colspan="${selectedFields.length}">${item.group} - Всього: ${item.total}</td>
+                  </tr>
+                  ${item.tasks.map(task => `
+                    <tr>
+                      ${selectedFields.map(field => {
+                        const value = task[field];
+                        if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
+                          return `<td>${formatApprovalStatus(value)}</td>`;
+                        }
+                        return `<td>${value || ''}</td>`;
+                      }).join('')}
+                    </tr>
+                  `).join('')}
+                `;
+              }
+              return `
+                <tr>
+                  ${selectedFields.map(field => {
+                    const value = item[field];
+                    if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
+                      return `<td>${formatApprovalStatus(value)}</td>`;
+                    }
+                    return `<td>${value || ''}</td>`;
+                  }).join('')}
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    // Відкриваємо нове вікно з звітом
+    const newWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+    newWindow.document.write(html);
+    newWindow.document.close();
+  };
+
   // Автоматично оновлюємо звіт при зміні фільтрів
   useEffect(() => {
     if (tasks.length > 0) {
@@ -266,7 +406,7 @@ export default function ReportBuilder() {
               <option value="not_approved">Тільки незатверджені</option>
             </select>
             <button
-              onClick={generateReport}
+              onClick={openReportInNewTab}
               disabled={loading || tasks.length === 0}
               style={{
                 padding: '10px 20px',
@@ -365,6 +505,21 @@ export default function ReportBuilder() {
           }}
         >
           {loading ? 'Завантаження...' : 'Згенерувати звіт'}
+        </button>
+        <button
+          onClick={openReportInNewTab}
+          disabled={reportData.length === 0}
+          style={{
+            padding: '8px 16px',
+            background: reportData.length === 0 ? '#666' : '#22334a',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: reportData.length === 0 ? 'not-allowed' : 'pointer',
+            fontSize: '14px'
+          }}
+        >
+          Відкрити в новій вкладці
         </button>
         <button
           onClick={exportToCSV}
