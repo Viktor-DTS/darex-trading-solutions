@@ -9,6 +9,7 @@ const roles = [
   { value: 'admin', label: 'Адміністратор' },
   { value: 'reports', label: 'Звіти' },
   { value: 'materials', label: 'Аналіз ціни матеріалів' },
+  { value: 'analytics', label: 'Аналітика' },
 ];
 
 export default function Sidebar({ role, onSelect, current, accessRules }) {

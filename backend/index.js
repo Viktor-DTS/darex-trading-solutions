@@ -46,6 +46,43 @@ const eventLogSchema = new mongoose.Schema({
 
 const EventLog = mongoose.model('EventLog', eventLogSchema);
 
+// Модель для аналітики витрат та доходів
+const analyticsSchema = new mongoose.Schema({
+  region: { type: String, required: true }, // Регіон
+  company: { type: String, required: true }, // Компанія
+  year: { type: Number, required: true }, // Рік
+  month: { type: Number, required: true }, // Місяць (1-12)
+  
+  // Статті витрат
+  expenses: {
+    salary: { type: Number, default: 0 }, // Зарплата
+    fuel: { type: Number, default: 0 }, // Паливо
+    transport: { type: Number, default: 0 }, // Транспорт
+    materials: { type: Number, default: 0 }, // Матеріали
+    equipment: { type: Number, default: 0 }, // Обладнання
+    office: { type: Number, default: 0 }, // Офісні витрати
+    marketing: { type: Number, default: 0 }, // Маркетинг
+    other: { type: Number, default: 0 } // Інші витрати
+  },
+  
+  // Фінансові показники
+  revenue: { type: Number, default: 0 }, // Дохід (75% від вартості робіт)
+  totalExpenses: { type: Number, default: 0 }, // Загальні витрати
+  profit: { type: Number, default: 0 }, // Прибуток
+  profitability: { type: Number, default: 0 }, // Рентабельність (%)
+  
+  // Метадані
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+  createdBy: { type: String }, // Користувач, який створив
+  updatedBy: { type: String } // Користувач, який оновив
+});
+
+// Індекс для швидкого пошуку
+analyticsSchema.index({ region: 1, company: 1, year: 1, month: 1 });
+
+const Analytics = mongoose.model('Analytics', analyticsSchema);
+
 // Функція для підключення до MongoDB
 async function connectToMongoDB() {
   if (!MONGODB_URI) {
@@ -746,6 +783,283 @@ app.delete('/api/event-log/cleanup', async (req, res) => {
     });
   } catch (error) {
     console.error('Помилка очищення журналу:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- ANALYTICS API ---
+// Отримати аналітику за період
+app.get('/api/analytics', async (req, res) => {
+  try {
+    const { 
+      region, 
+      company, 
+      startYear, 
+      endYear, 
+      startMonth, 
+      endMonth 
+    } = req.query;
+    
+    const filter = {};
+    
+    if (region) filter.region = region;
+    if (company) filter.company = company;
+    
+    // Фільтр по періоду
+    if (startYear || endYear || startMonth || endMonth) {
+      filter.$and = [];
+      
+      if (startYear && endYear) {
+        filter.$and.push({ year: { $gte: parseInt(startYear), $lte: parseInt(endYear) } });
+      } else if (startYear) {
+        filter.$and.push({ year: { $gte: parseInt(startYear) } });
+      } else if (endYear) {
+        filter.$and.push({ year: { $lte: parseInt(endYear) } });
+      }
+      
+      if (startMonth && endMonth) {
+        filter.$and.push({ month: { $gte: parseInt(startMonth), $lte: parseInt(endMonth) } });
+      } else if (startMonth) {
+        filter.$and.push({ month: { $gte: parseInt(startMonth) } });
+      } else if (endMonth) {
+        filter.$and.push({ month: { $lte: parseInt(endMonth) } });
+      }
+    }
+    
+    const analytics = await Analytics.find(filter).sort({ year: 1, month: 1 });
+    res.json(analytics);
+  } catch (error) {
+    console.error('Помилка отримання аналітики:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Зберегти аналітику
+app.post('/api/analytics', async (req, res) => {
+  try {
+    const { region, company, year, month, expenses, createdBy } = req.body;
+    
+    // Перевіряємо чи існує запис для цього періоду
+    let analytics = await Analytics.findOne({ region, company, year, month });
+    
+    if (analytics) {
+      // Оновлюємо існуючий запис
+      analytics.expenses = expenses;
+      analytics.updatedAt = new Date();
+      analytics.updatedBy = createdBy;
+    } else {
+      // Створюємо новий запис
+      analytics = new Analytics({
+        region,
+        company,
+        year,
+        month,
+        expenses,
+        createdBy,
+        updatedBy: createdBy
+      });
+    }
+    
+    // Розраховуємо загальні витрати
+    analytics.totalExpenses = Object.values(expenses).reduce((sum, value) => sum + (value || 0), 0);
+    
+    await analytics.save();
+    res.json({ success: true, analytics });
+  } catch (error) {
+    console.error('Помилка збереження аналітики:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Отримати дохід за період (розрахунок на основі заявок)
+app.get('/api/analytics/revenue', async (req, res) => {
+  try {
+    const { region, company, startYear, endYear, startMonth, endMonth } = req.query;
+    
+    // Створюємо фільтр для заявок
+    const taskFilter = {};
+    
+    if (region) taskFilter.serviceRegion = region;
+    if (company) taskFilter.company = company;
+    
+    // Фільтр по даті виконання робіт
+    if (startYear || endYear || startMonth || endMonth) {
+      taskFilter.date = {};
+      
+      if (startYear && startMonth) {
+        const startDate = new Date(parseInt(startYear), parseInt(startMonth) - 1, 1);
+        taskFilter.date.$gte = startDate.toISOString().split('T')[0];
+      }
+      
+      if (endYear && endMonth) {
+        const endDate = new Date(parseInt(endYear), parseInt(endMonth), 0);
+        taskFilter.date.$lte = endDate.toISOString().split('T')[0];
+      }
+    }
+    
+    // Отримуємо заявки за період
+    const tasks = await Task.find(taskFilter);
+    
+    // Розраховуємо дохід (75% від вартості робіт)
+    const revenueByMonth = {};
+    
+    tasks.forEach(task => {
+      if (task.date && task.workPrice) {
+        const date = new Date(task.date);
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const key = `${year}-${month}`;
+        
+        if (!revenueByMonth[key]) {
+          revenueByMonth[key] = 0;
+        }
+        
+        // 75% від вартості робіт
+        revenueByMonth[key] += (parseFloat(task.workPrice) || 0) * 0.75;
+      }
+    });
+    
+    res.json({ revenueByMonth });
+  } catch (error) {
+    console.error('Помилка розрахунку доходу:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Отримати повну аналітику з доходами та прибутком
+app.get('/api/analytics/full', async (req, res) => {
+  try {
+    const { region, company, startYear, endYear, startMonth, endMonth } = req.query;
+    
+    // Отримуємо аналітику витрат
+    const analyticsFilter = {};
+    if (region) analyticsFilter.region = region;
+    if (company) analyticsFilter.company = company;
+    
+    if (startYear || endYear || startMonth || endMonth) {
+      analyticsFilter.$and = [];
+      
+      if (startYear && endYear) {
+        analyticsFilter.$and.push({ year: { $gte: parseInt(startYear), $lte: parseInt(endYear) } });
+      } else if (startYear) {
+        analyticsFilter.$and.push({ year: { $gte: parseInt(startYear) } });
+      } else if (endYear) {
+        analyticsFilter.$and.push({ year: { $lte: parseInt(endYear) } });
+      }
+      
+      if (startMonth && endMonth) {
+        analyticsFilter.$and.push({ month: { $gte: parseInt(startMonth), $lte: parseInt(endMonth) } });
+      } else if (startMonth) {
+        analyticsFilter.$and.push({ month: { $gte: parseInt(startMonth) } });
+      } else if (endMonth) {
+        analyticsFilter.$and.push({ month: { $lte: parseInt(endMonth) } });
+      }
+    }
+    
+    const analytics = await Analytics.find(analyticsFilter).sort({ year: 1, month: 1 });
+    
+    // Отримуємо доходи
+    const taskFilter = {};
+    if (region) taskFilter.serviceRegion = region;
+    if (company) taskFilter.company = company;
+    
+    if (startYear || endYear || startMonth || endMonth) {
+      taskFilter.date = {};
+      
+      if (startYear && startMonth) {
+        const startDate = new Date(parseInt(startYear), parseInt(startMonth) - 1, 1);
+        taskFilter.date.$gte = startDate.toISOString().split('T')[0];
+      }
+      
+      if (endYear && endMonth) {
+        const endDate = new Date(parseInt(endYear), parseInt(endMonth), 0);
+        taskFilter.date.$lte = endDate.toISOString().split('T')[0];
+      }
+    }
+    
+    const tasks = await Task.find(taskFilter);
+    
+    // Розраховуємо доходи по місяцях
+    const revenueByMonth = {};
+    tasks.forEach(task => {
+      if (task.date && task.workPrice) {
+        const date = new Date(task.date);
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const key = `${year}-${month}`;
+        
+        if (!revenueByMonth[key]) {
+          revenueByMonth[key] = 0;
+        }
+        
+        revenueByMonth[key] += (parseFloat(task.workPrice) || 0) * 0.75;
+      }
+    });
+    
+    // Об'єднуємо дані
+    const fullAnalytics = analytics.map(item => {
+      const revenueKey = `${item.year}-${item.month}`;
+      const revenue = revenueByMonth[revenueKey] || 0;
+      const profit = revenue - item.totalExpenses;
+      const profitability = revenue > 0 ? (profit / revenue) * 100 : 0;
+      
+      return {
+        ...item.toObject(),
+        revenue: Number(revenue.toFixed(2)),
+        profit: Number(profit.toFixed(2)),
+        profitability: Number(profitability.toFixed(2))
+      };
+    });
+    
+    res.json(fullAnalytics);
+  } catch (error) {
+    console.error('Помилка отримання повної аналітики:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Копіювати витрати з попереднього місяця
+app.post('/api/analytics/copy-previous', async (req, res) => {
+  try {
+    const { region, company, year, month, createdBy } = req.body;
+    
+    // Знаходимо попередній місяць
+    let prevYear = year;
+    let prevMonth = month - 1;
+    
+    if (prevMonth === 0) {
+      prevMonth = 12;
+      prevYear = year - 1;
+    }
+    
+    // Шукаємо дані попереднього місяця
+    const previousAnalytics = await Analytics.findOne({
+      region,
+      company,
+      year: prevYear,
+      month: prevMonth
+    });
+    
+    if (!previousAnalytics) {
+      return res.status(404).json({ error: 'Дані попереднього місяця не знайдено' });
+    }
+    
+    // Створюємо новий запис з копією витрат
+    const newAnalytics = new Analytics({
+      region,
+      company,
+      year,
+      month,
+      expenses: previousAnalytics.expenses,
+      totalExpenses: previousAnalytics.totalExpenses,
+      createdBy,
+      updatedBy: createdBy
+    });
+    
+    await newAnalytics.save();
+    res.json({ success: true, analytics: newAnalytics });
+  } catch (error) {
+    console.error('Помилка копіювання витрат:', error);
     res.status(500).json({ error: error.message });
   }
 });
