@@ -229,7 +229,7 @@ export default function ReportBuilder({ user }) {
       grouped = Object.entries(groups).map(([key, tasks]) => ({
         group: key,
         tasks,
-        total: tasks.reduce((sum, t) => sum + (parseFloat(t.serviceTotal) || 0), 0)
+        total: Number(tasks.reduce((sum, t) => sum + (parseFloat(t.serviceTotal) || 0), 0).toFixed(2))
       }));
     }
 
@@ -353,7 +353,7 @@ export default function ReportBuilder({ user }) {
                 // Групування
                 return `
                   <tr style="background: #e3f2fd; font-weight: bold;">
-                    <td colspan="${selectedFields.length + 1}">${item.group} - Всього: ${item.total}</td>
+                    <td colspan="${selectedFields.length + 1}">${item.group} - Всього: ${Number(item.total).toFixed(2)}</td>
                   </tr>
                   ${item.tasks.map((task, taskIndex) => `
                     <tr>
@@ -452,7 +452,7 @@ export default function ReportBuilder({ user }) {
     reportData.forEach((item, index) => {
       if (item.group) {
         // Групування - додаємо рядок групи
-        const groupRow = worksheet.addRow([`${index + 1}`, `${item.group} - Всього: ${item.total}`, ...Array(selectedFields.length - 1).fill('')]);
+        const groupRow = worksheet.addRow([`${index + 1}`, `${item.group} - Всього: ${Number(item.total).toFixed(2)}`, ...Array(selectedFields.length - 1).fill('')]);
         groupRow.eachCell((cell) => {
           cell.fill = {
             type: 'pattern',
@@ -642,7 +642,7 @@ export default function ReportBuilder({ user }) {
       <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
         <h3 style={{color: '#fff', marginBottom: '12px'}}>Фільтри</h3>
         
-        {/* Статус затвердження - ЗАВЖДИ ВИДИМИЙ */}
+        {/* Статус затвердження - ЗАВЖДА ВИДИМИЙ */}
         <div style={{
           marginBottom: '16px', 
           padding: '12px', 
@@ -1149,7 +1149,7 @@ export default function ReportBuilder({ user }) {
                         fontWeight: 'bold'
                       }}>
                         <td colSpan={selectedFields.length + 1} style={{padding: '12px', color: '#00bfff'}}>
-                          {row.group} - Всього: {row.total}
+                          {row.group} - Всього: {Number(row.total).toFixed(2)}
                         </td>
                       </tr>
                       {row.tasks.map((task, taskIndex) => (
