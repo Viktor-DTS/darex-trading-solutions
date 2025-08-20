@@ -71,6 +71,23 @@ export default function ReportBuilder() {
   const [paymentDateRangeFilter, setPaymentDateRangeFilter] = useState({ from: '', to: '' });
   const [requestDateRangeFilter, setRequestDateRangeFilter] = useState({ from: '', to: '' });
 
+  // Додаємо стани для збереження звітів
+  const [savedReports, setSavedReports] = useState([]);
+  const [reportName, setReportName] = useState('');
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+
+  // Завантажуємо збережені звіти при ініціалізації
+  useEffect(() => {
+    const saved = localStorage.getItem('savedReports');
+    if (saved) {
+      try {
+        setSavedReports(JSON.parse(saved));
+      } catch (e) {
+        console.error('Помилка завантаження збережених звітів:', e);
+      }
+    }
+  }, []);
+
   // Функція для перевірки статусу підтвердження
   function isApproved(value) {
     return value === true || value === 'Підтверджено';
@@ -517,6 +534,58 @@ export default function ReportBuilder() {
     }
   };
 
+  // Функція для збереження звіту
+  const saveReport = () => {
+    if (!reportName.trim()) {
+      alert('Будь ласка, введіть назву звіту');
+      return;
+    }
+
+    const reportConfig = {
+      id: Date.now(),
+      name: reportName.trim(),
+      date: new Date().toLocaleDateString('uk-UA'),
+      filters: { ...filters },
+      approvalFilter,
+      dateRangeFilter: { ...dateRangeFilter },
+      paymentDateRangeFilter: { ...paymentDateRangeFilter },
+      requestDateRangeFilter: { ...requestDateRangeFilter },
+      selectedFields: [...selectedFields],
+      groupBy
+    };
+
+    const updatedReports = [...savedReports, reportConfig];
+    setSavedReports(updatedReports);
+    localStorage.setItem('savedReports', JSON.stringify(updatedReports));
+    
+    setReportName('');
+    setShowSaveDialog(false);
+    alert(`Звіт "${reportName}" збережено!`);
+  };
+
+  // Функція для завантаження звіту
+  const loadReport = (report) => {
+    setFilters(report.filters);
+    setApprovalFilter(report.approvalFilter);
+    setDateRangeFilter(report.dateRangeFilter);
+    setPaymentDateRangeFilter(report.paymentDateRangeFilter);
+    setRequestDateRangeFilter(report.requestDateRangeFilter);
+    setSelectedFields(report.selectedFields);
+    setGroupBy(report.groupBy);
+    
+    alert(`Звіт "${report.name}" завантажено!`);
+  };
+
+  // Функція для видалення збереженого звіту
+  const deleteReport = (reportId) => {
+    if (confirm('Ви впевнені, що хочете видалити цей збережений звіт?')) {
+      const updatedReports = savedReports.filter(r => r.id !== reportId);
+      setSavedReports(updatedReports);
+      localStorage.setItem('savedReports', JSON.stringify(updatedReports));
+      alert('Звіт видалено!');
+    }
+  };
+
   return (
     <div style={{
       padding: '24px',
@@ -813,7 +882,160 @@ export default function ReportBuilder() {
         >
           Експорт в Excel
         </button>
+        <button
+          onClick={() => setShowSaveDialog(true)}
+          style={{
+            padding: '8px 16px',
+            background: '#28a745',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px'
+          }}
+        >
+          💾 Зберегти звіт
+        </button>
       </div>
+
+      {/* Діалог збереження звіту */}
+      {showSaveDialog && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#22334a',
+            padding: '24px',
+            borderRadius: '8px',
+            minWidth: '400px',
+            border: '2px solid #00bfff'
+          }}>
+            <h3 style={{color: '#fff', marginBottom: '16px'}}>Зберегти звіт</h3>
+            <div style={{marginBottom: '16px'}}>
+              <label style={{color: '#fff', display: 'block', marginBottom: '8px'}}>
+                Назва звіту:
+              </label>
+              <input
+                type="text"
+                value={reportName}
+                onChange={(e) => setReportName(e.target.value)}
+                placeholder="Введіть назву звіту"
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #29506a',
+                  background: '#1a2636',
+                  color: '#fff',
+                  fontSize: '14px'
+                }}
+                onKeyPress={(e) => e.key === 'Enter' && saveReport()}
+              />
+            </div>
+            <div style={{display: 'flex', gap: '8px', justifyContent: 'flex-end'}}>
+              <button
+                onClick={() => setShowSaveDialog(false)}
+                style={{
+                  padding: '8px 16px',
+                  background: '#666',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Скасувати
+              </button>
+              <button
+                onClick={saveReport}
+                style={{
+                  padding: '8px 16px',
+                  background: '#28a745',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Зберегти
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Збережені звіти */}
+      {savedReports.length > 0 && (
+        <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
+          <h3 style={{color: '#fff', marginBottom: '12px'}}>Збережені звіти</h3>
+          <div style={{display: 'grid', gap: '8px'}}>
+            {savedReports.map(report => (
+              <div key={report.id} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '8px 12px',
+                background: '#22334a',
+                borderRadius: '4px',
+                border: '1px solid #29506a'
+              }}>
+                <div>
+                  <div style={{color: '#fff', fontWeight: 'bold'}}>{report.name}</div>
+                  <div style={{color: '#ccc', fontSize: '12px'}}>
+                    Збережено: {report.date} | Полів: {report.selectedFields.length} | 
+                    Фільтр: {
+                      report.approvalFilter === 'all' ? 'Всі звіти' :
+                      report.approvalFilter === 'approved' ? 'Тільки затверджені' :
+                      'Тільки незатверджені'
+                    }
+                  </div>
+                </div>
+                <div style={{display: 'flex', gap: '4px'}}>
+                  <button
+                    onClick={() => loadReport(report)}
+                    style={{
+                      padding: '4px 8px',
+                      background: '#00bfff',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    📂 Завантажити
+                  </button>
+                  <button
+                    onClick={() => deleteReport(report.id)}
+                    style={{
+                      padding: '4px 8px',
+                      background: '#dc3545',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    🗑️ Видалити
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       
       {/* Інформація про стан */}
       <div style={{marginBottom: '16px', padding: '12px', background: '#1a2636', borderRadius: '8px'}}>
