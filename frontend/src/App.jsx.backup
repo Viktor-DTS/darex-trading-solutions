@@ -11,20 +11,24 @@ import Sidebar from './Sidebar'
 import ModalTaskForm, { fields as allTaskFields } from './ModalTaskForm'
 import TaskTable from './components/TaskTable'
 import ExcelImportModal from './components/ExcelImportModal'
+import ServiceReminderModal from './components/ServiceReminderModal'
+import MobileViewArea from './components/MobileViewArea'
 // Підключення кастомного шрифту Roboto для jsPDF відбувається через <script src="/Roboto-normal.js"></script> у public/index.html
 
 // Додаю імпорт на початку файлу
 import AccountantArea from './areas/AccountantArea';
 import WarehouseArea from './areas/WarehouseArea';
 import OperatorArea from './areas/OperatorArea';
-import * as XLSX from 'xlsx';
+import MaterialsAnalysisArea from './areas/MaterialsAnalysisArea';
+import ReportBuilder from './areas/ReportBuilder';
+import * as XLSX from 'xlsx-js-style';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import API_BASE_URL from './config.js';
 import { tasksAPI } from './utils/tasksAPI';
 import { accessRulesAPI } from './utils/accessRulesAPI';
 import { rolesAPI } from './utils/rolesAPI';
 import { regionsAPI } from './utils/regionsAPI';
-import OperatorArea from './areas/OperatorArea';
+import keepAliveService from './utils/keepAlive.js';
 
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
@@ -47,9 +51,11 @@ const initialTask = {
   equipment: '',
   work: '',
   date: '',
+  paymentDate: '',
   engineer1: '',
   engineer2: '',
   client: '',
+  requestNumber: '',
   invoice: '',
   paymentType: '',
   serviceTotal: '',
@@ -57,8 +63,10 @@ const initialTask = {
   warehouseComment: '',
   approvedByAccountant: null,
   accountantComment: '',
+  accountantComments: '',
   approvedByRegionalManager: null,
   regionalManagerComment: '',
+  comments: '',
   oilType: '',
   oilUsed: '',
   oilPrice: '',
@@ -120,6 +128,7 @@ const getDefaultAccess = (rolesList = []) => {
     { key: 'regional', label: 'Регіональний керівник' },
     { key: 'admin', label: 'Адміністратор' },
     { key: 'reports', label: 'Звіти' },
+    { key: 'materials', label: 'Аналіз ціни матеріалів' },
   ];
   
   const defaultAccess = {};
@@ -136,6 +145,9 @@ const getDefaultAccess = (rolesList = []) => {
         defaultAccess[role.value][tab.key] = 'full';
       } else if (tab.key === 'reports') {
         // Всі ролі мають доступ для читання до звітів
+        defaultAccess[role.value][tab.key] = 'read';
+      } else if (tab.key === 'materials') {
+        // Всі ролі мають доступ для читання до аналізу матеріалів
         defaultAccess[role.value][tab.key] = 'read';
       } else {
         // Для інших вкладок - немає доступу
@@ -178,6 +190,7 @@ function AccessRulesModal({ open, onClose }) {
     { key: 'regional', label: 'Регіональний керівник' },
     { key: 'admin', label: 'Адміністратор' },
     { key: 'reports', label: 'Звіти' },
+    { key: 'materials', label: 'Аналіз ціни матеріалів' },
   ];
   const accessTypes = [
     { value: 'full', label: 'Повний доступ' },
@@ -198,9 +211,12 @@ function AccessRulesModal({ open, onClose }) {
         
         // Завантажуємо правила доступу
         const serverRules = await accessRulesAPI.getAll();
+        console.log('[DEBUG][AccessRulesModal] Завантажені правила з сервера:', JSON.stringify(serverRules, null, 2));
+        
         if (Object.keys(serverRules).length === 0) {
           // Якщо на сервері немає правил, використовуємо за замовчуванням
           const defaultRules = getDefaultAccess(rolesData);
+          console.log('[DEBUG][AccessRulesModal] Створюємо правила за замовчуванням:', JSON.stringify(defaultRules, null, 2));
           await accessRulesAPI.save(defaultRules);
           setAccess(defaultRules);
         } else {
@@ -248,6 +264,8 @@ function AccessRulesModal({ open, onClose }) {
             updatedAccess[role.value][tab.key] = 'full';
           } else if (tab.key === 'reports') {
             updatedAccess[role.value][tab.key] = 'read';
+          } else if (tab.key === 'materials') {
+            updatedAccess[role.value][tab.key] = 'read';
           } else {
             updatedAccess[role.value][tab.key] = 'none';
           }
@@ -266,8 +284,8 @@ function AccessRulesModal({ open, onClose }) {
     
     if (hasChanges) {
       setAccess(updatedAccess);
-      // Зберігаємо на сервері
-      accessRulesAPI.save(updatedAccess);
+      // НЕ зберігаємо автоматично на сервері - тільки оновлюємо локальний стан
+      // accessRulesAPI.save(updatedAccess);
     }
   }, [roles]);
   
@@ -277,13 +295,17 @@ function AccessRulesModal({ open, onClose }) {
   
   const handleSave = async () => {
     try {
+      console.log('[DEBUG][AccessRulesModal] Зберігаємо правила доступу:', JSON.stringify(access, null, 2));
       const success = await accessRulesAPI.save(access);
       if (success) {
-    onClose();
+        console.log('[DEBUG][AccessRulesModal] Правила доступу успішно збережено');
+        onClose();
       } else {
+        console.error('[DEBUG][AccessRulesModal] Помилка збереження правил доступу');
         alert('Помилка збереження правил доступу');
       }
     } catch (error) {
+      console.error('[DEBUG][AccessRulesModal] Помилка збереження правил доступу:', error);
       alert('Помилка збереження правил доступу: ' + error.message);
     }
   };
@@ -347,7 +369,7 @@ function AccessRulesModal({ open, onClose }) {
   );
 }
 
-function AdminSystemParamsArea() {
+function AdminSystemParamsArea({ user }) {
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [form, setForm] = useState({ login: '', password: '', role: 'service', name: '', region: '' });
@@ -358,6 +380,73 @@ function AdminSystemParamsArea() {
   const [editMode, setEditMode] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [showAccessModal, setShowAccessModal] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState(new Set());
+
+  // Функція для визначення статусу користувача
+  const isUserOnline = (userLogin) => {
+    return onlineUsers.has(userLogin);
+  };
+
+  // Функція для оновлення статусу активності користувача
+  const updateUserActivity = (userLogin) => {
+    const now = Date.now();
+    localStorage.setItem(`user_activity_${userLogin}`, now.toString());
+  };
+
+  // Функція для перевірки чи користувач активний (онлайн)
+  const checkUserActivity = (userLogin) => {
+    const lastActivity = localStorage.getItem(`user_activity_${userLogin}`);
+    if (!lastActivity) return false;
+    
+    const lastActivityTime = parseInt(lastActivity);
+    const now = Date.now();
+    const timeDiff = now - lastActivityTime;
+    
+    // Користувач вважається онлайн, якщо активний протягом останніх 2 хвилин
+    return timeDiff < 2 * 60 * 1000;
+  };
+
+  // Функція для отримання списку активних користувачів
+  const getActiveUsers = () => {
+    const activeUsers = new Set();
+    users.forEach(user => {
+      if (checkUserActivity(user.login)) {
+        activeUsers.add(user.login);
+      }
+    });
+    return activeUsers;
+  };
+
+  // Відстеження активності поточного користувача
+  useEffect(() => {
+    if (!user?.login) return;
+
+    // Оновлюємо активність поточного користувача кожні 30 секунд
+    const activityInterval = setInterval(() => {
+      updateUserActivity(user.login);
+    }, 30000);
+
+    // Початкове оновлення активності
+    updateUserActivity(user.login);
+
+    return () => clearInterval(activityInterval);
+  }, [user?.login]);
+
+  // Оновлення списку онлайн користувачів
+  useEffect(() => {
+    const updateOnlineUsers = () => {
+      const activeUsers = getActiveUsers();
+      setOnlineUsers(activeUsers);
+    };
+
+    // Оновлюємо список кожні 30 секунд
+    const interval = setInterval(updateOnlineUsers, 30000);
+    
+    // Початкове оновлення
+    updateOnlineUsers();
+
+    return () => clearInterval(interval);
+  }, [users]);
 
   // Завантаження користувачів з API
   useEffect(() => {
@@ -497,6 +586,7 @@ function AdminSystemParamsArea() {
             { key: 'regional', label: 'Регіональний керівник' },
             { key: 'admin', label: 'Адміністратор' },
             { key: 'reports', label: 'Звіти' },
+            { key: 'materials', label: 'Аналіз ціни матеріалів' },
           ];
           
           currentAccess[newRole] = {};
@@ -506,6 +596,8 @@ function AdminSystemParamsArea() {
             } else if (newRole === 'admin') {
               currentAccess[newRole][tab.key] = 'full';
             } else if (tab.key === 'reports') {
+              currentAccess[newRole][tab.key] = 'read';
+            } else if (tab.key === 'materials') {
               currentAccess[newRole][tab.key] = 'read';
             } else {
               currentAccess[newRole][tab.key] = 'none';
@@ -665,6 +757,7 @@ function AdminSystemParamsArea() {
             <th>Роль</th>
             <th>ПІБ</th>
             <th>Регіон</th>
+            <th>Статус</th>
             <th></th>
           </tr>
         </thead>
@@ -675,6 +768,19 @@ function AdminSystemParamsArea() {
               <td>{rolesList.find(r => r.value === u.role)?.label || u.role}</td>
               <td>{u.name}</td>
               <td>{u.region}</td>
+              <td>
+                <div style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: '50%',
+                  backgroundColor: isUserOnline(u.login) ? '#4CAF50' : '#f44336',
+                  display: 'inline-block',
+                  marginRight: 8
+                }}></div>
+                <span style={{fontSize: '12px'}}>
+                  {isUserOnline(u.login) ? 'Онлайн' : 'Офлайн'}
+                </span>
+              </td>
               <td>
                 <button onClick={() => handleEdit(u)} style={{background:'#4CAF50', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer', marginRight:8}}>Редагувати</button>
                 <button onClick={() => handleDelete(u.id)} style={{background:'#f66', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer'}}>Видалити</button>
@@ -694,6 +800,7 @@ function ServiceArea({ user }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const allFilterKeys = allTaskFields
     .map(f => f.name)
     .reduce((acc, key) => {
@@ -748,6 +855,18 @@ function ServiceArea({ user }) {
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
 
+  // useEffect для перевірки та показу нагадування
+  useEffect(() => {
+    if (!loading && tasks.length > 0 && tab === 'notDone') {
+      // Перевіряємо, чи є заявки зі статусом "Заявка"
+      const requestTasks = tasks.filter(task => task.status === 'Заявка');
+      
+      if (requestTasks.length > 0) {
+        setReminderModalOpen(true);
+      }
+    }
+  }, [loading, tasks, tab]);
+
   const handleSave = async (task) => {
     console.log('[DEBUG] handleSave called with task:', task);
     console.log('[DEBUG] handleSave - editTask:', editTask);
@@ -760,7 +879,7 @@ function ServiceArea({ user }) {
       
       setTasks(tasks => {
         console.log('[DEBUG] handleSave - поточні заявки:', tasks.length);
-        const newTasks = tasks.map(t => t.id === updated.id ? updated : t);
+        const newTasks = tasks.map(t => t.id === editTask.id ? updated : t);
         console.log('[DEBUG] handleSave - оновлені заявки:', newTasks.length);
         return newTasks;
       });
@@ -772,14 +891,41 @@ function ServiceArea({ user }) {
     }
     setEditTask(null);
     setLoading(false);
+    
+    // Оновлюємо дані з бази після збереження
+    try {
+      const freshTasks = await tasksAPI.getAll();
+      setTasks(freshTasks);
+      console.log('[DEBUG] handleSave - дані оновлено з бази, завдань:', freshTasks.length);
+      
+      // Оновлюємо editTask, якщо він ще встановлений
+      if (editTask && editTask.id) {
+        const updatedTask = freshTasks.find(t => t.id === editTask.id);
+        if (updatedTask) {
+          setEditTask(updatedTask);
+        }
+      }
+    } catch (error) {
+      console.error('[ERROR] handleSave - помилка оновлення даних з бази:', error);
+    }
+    
     if (task.status === 'Новий' || task.status === 'В роботі') setTab('notDone');
     else if (task.status === 'Виконано' && (!task.approvedByWarehouse || !task.approvedByAccountant || !task.approvedByRegionalManager)) setTab('pending');
     else if (task.status === 'Виконано' && task.approvedByWarehouse && task.approvedByAccountant && task.approvedByRegionalManager) setTab('done');
     else if (task.status === 'Заблоковано') setTab('blocked');
   };
   const handleEdit = t => {
-    setEditTask(t);
+    const isReadOnly = t._readOnly;
+    const taskData = { ...t };
+    delete taskData._readOnly; // Видаляємо прапорець з даних завдання
+    
+    setEditTask(taskData);
     setModalOpen(true);
+    // Передаємо readOnly в ModalTaskForm
+    if (isReadOnly) {
+      // Встановлюємо прапорець для ModalTaskForm
+      setEditTask(prev => ({ ...prev, _readOnly: true }));
+    }
   };
   const handleStatus = async (id, status) => {
     setLoading(true);
@@ -800,7 +946,7 @@ function ServiceArea({ user }) {
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);
   };
-  const handleDelete = async id => {
+  const handleDelete = async (id) => {
     setLoading(true);
     await tasksAPI.remove(id);
     setTasks(tasks => tasks.filter(t => t.id !== id));
@@ -865,6 +1011,292 @@ function ServiceArea({ user }) {
   if (tab === 'pending') tableData = pending;
   if (tab === 'done') tableData = done;
   if (tab === 'blocked') tableData = blocked;
+
+  // Функція для створення звіту по замовнику
+  const openClientReport = (clientName) => {
+    const clientTasks = tasks.filter(task => task.client === clientName);
+    
+    if (clientTasks.length === 0) {
+      alert('Немає даних для даного замовника');
+      return;
+    }
+
+    // Сортуємо завдання за датою (від найновішої до найстарішої)
+    const sortedTasks = clientTasks.sort((a, b) => {
+      const dateA = new Date(a.date || a.requestDate || 0);
+      const dateB = new Date(b.date || b.requestDate || 0);
+      return dateB - dateA;
+    });
+
+    // Створюємо HTML звіт
+    const reportHTML = `
+      <!DOCTYPE html>
+      <html lang="uk">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Звіт по замовнику: ${clientName}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+          }
+          .header {
+            background: #22334a;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 24px;
+          }
+          .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+          }
+          .task-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #22334a;
+          }
+          .task-date {
+            font-size: 18px;
+            font-weight: bold;
+            color: #22334a;
+          }
+          .task-status {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+          }
+          .status-completed { background: #4caf50; color: white; }
+          .status-in-progress { background: #ff9800; color: white; }
+          .status-new { background: #2196f3; color: white; }
+          .status-blocked { background: #f44336; color: white; }
+          .materials-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+          }
+          .material-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #22334a;
+          }
+          .material-section h4 {
+            margin: 0 0 10px 0;
+            color: #22334a;
+            font-size: 14px;
+            text-transform: uppercase;
+          }
+          .material-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+          }
+          .material-item:last-child {
+            border-bottom: none;
+          }
+          .material-label {
+            font-weight: 500;
+            color: #555;
+          }
+          .material-value {
+            font-weight: bold;
+            color: #22334a;
+          }
+          .task-info {
+            margin-bottom: 15px;
+          }
+          .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+          }
+          .info-label {
+            font-weight: 500;
+            color: #666;
+          }
+          .info-value {
+            font-weight: bold;
+            color: #22334a;
+          }
+          .summary {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            border-left: 4px solid #2196f3;
+          }
+          .summary h3 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+          }
+          .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #22334a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+          }
+          .print-button:hover {
+            background: #1a2636;
+          }
+          @media print {
+            .print-button { display: none; }
+            body { background: white; }
+          }
+        </style>
+      </head>
+      <body>
+        <button class="print-button" onclick="window.print()">🖨️ Друкувати</button>
+        
+        <div class="header">
+          <h1>Звіт по замовнику: ${clientName}</h1>
+          <p>Кількість проведених робіт: ${sortedTasks.length}</p>
+          <p>Дата створення звіту: ${new Date().toLocaleDateString('uk-UA')}</p>
+        </div>
+
+        ${sortedTasks.map(task => `
+          <div class="task-card">
+            <div class="task-header">
+              <div class="task-date">Дата проведення робіт: ${task.date || 'Не вказано'}</div>
+              <div class="task-status status-${task.status === 'Виконано' ? 'completed' : task.status === 'В роботі' ? 'in-progress' : task.status === 'Новий' ? 'new' : 'blocked'}">
+                ${task.status || 'Невідомо'}
+              </div>
+            </div>
+            
+            <div class="task-info">
+              <div class="info-row">
+                <span class="info-label">Дата заявки:</span>
+                <span class="info-value">${task.requestDate || 'Не вказано'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Замовник:</span>
+                <span class="info-value">${task.client || 'Не вказано'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Адреса:</span>
+                <span class="info-value">${task.address || 'Не вказано'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Найменування робіт:</span>
+                <span class="info-value">${task.work || 'Не вказано'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Сервісні інженери:</span>
+                <span class="info-value">${task.engineer1 || ''} ${task.engineer2 ? ', ' + task.engineer2 : ''}</span>
+              </div>
+            </div>
+
+            <div class="materials-grid">
+              ${task.oilType || task.oilUsed || task.oilPrice ? `
+                <div class="material-section">
+                  <h4>Олива</h4>
+                  ${task.oilType ? `<div class="material-item"><span class="material-label">Тип оливи:</span><span class="material-value">${task.oilType}</span></div>` : ''}
+                  ${task.oilUsed ? `<div class="material-item"><span class="material-label">Кількість:</span><span class="material-value">${task.oilUsed} л</span></div>` : ''}
+                  ${task.oilPrice ? `<div class="material-item"><span class="material-label">Ціна за л:</span><span class="material-value">${task.oilPrice} грн</span></div>` : ''}
+                  ${task.oilTotal ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.oilTotal} грн</span></div>` : ''}
+                </div>
+              ` : ''}
+
+              ${task.filterName || task.filterCount || task.filterPrice ? `
+                <div class="material-section">
+                  <h4>Масляний фільтр</h4>
+                  ${task.filterName ? `<div class="material-item"><span class="material-label">Назва:</span><span class="material-value">${task.filterName}</span></div>` : ''}
+                  ${task.filterCount ? `<div class="material-item"><span class="material-label">Кількість:</span><span class="material-value">${task.filterCount} шт</span></div>` : ''}
+                  ${task.filterPrice ? `<div class="material-item"><span class="material-label">Ціна за шт:</span><span class="material-value">${task.filterPrice} грн</span></div>` : ''}
+                  ${task.filterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.filterSum} грн</span></div>` : ''}
+                </div>
+              ` : ''}
+
+              ${task.airFilterName || task.airFilterCount || task.airFilterPrice ? `
+                <div class="material-section">
+                  <h4>Повітряний фільтр</h4>
+                  ${task.airFilterName ? `<div class="material-item"><span class="material-label">Назва:</span><span class="material-value">${task.airFilterName}</span></div>` : ''}
+                  ${task.airFilterCount ? `<div class="material-item"><span class="material-label">Кількість:</span><span class="material-value">${task.airFilterCount} шт</span></div>` : ''}
+                  ${task.airFilterPrice ? `<div class="material-item"><span class="material-label">Ціна за шт:</span><span class="material-value">${task.airFilterPrice} грн</span></div>` : ''}
+                  ${task.airFilterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.airFilterSum} грн</span></div>` : ''}
+                </div>
+              ` : ''}
+
+              ${task.antifreezeType || task.antifreezeL || task.antifreezePrice ? `
+                <div class="material-section">
+                  <h4>Антифриз</h4>
+                  ${task.antifreezeType ? `<div class="material-item"><span class="material-label">Тип:</span><span class="material-value">${task.antifreezeType}</span></div>` : ''}
+                  ${task.antifreezeL ? `<div class="material-item"><span class="material-label">Кількість:</span><span class="material-value">${task.antifreezeL} л</span></div>` : ''}
+                  ${task.antifreezePrice ? `<div class="material-item"><span class="material-label">Ціна за л:</span><span class="material-value">${task.antifreezePrice} грн</span></div>` : ''}
+                  ${task.antifreezeSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.antifreezeSum} грн</span></div>` : ''}
+                </div>
+              ` : ''}
+
+              ${task.fuelFilterName || task.fuelFilterCount || task.fuelFilterPrice ? `
+                <div class="material-section">
+                  <h4>Паливний фільтр</h4>
+                  ${task.fuelFilterName ? `<div class="material-item"><span class="material-label">Назва:</span><span class="material-value">${task.fuelFilterName}</span></div>` : ''}
+                  ${task.fuelFilterCount ? `<div class="material-item"><span class="material-label">Кількість:</span><span class="material-value">${task.fuelFilterCount} шт</span></div>` : ''}
+                  ${task.fuelFilterPrice ? `<div class="material-item"><span class="material-label">Ціна за шт:</span><span class="material-value">${task.fuelFilterPrice} грн</span></div>` : ''}
+                  ${task.fuelFilterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.fuelFilterSum} грн</span></div>` : ''}
+                </div>
+              ` : ''}
+
+              ${task.otherMaterials || task.otherSum ? `
+                <div class="material-section">
+                  <h4>Інші матеріали</h4>
+                  ${task.otherMaterials ? `<div class="material-item"><span class="material-label">Опис:</span><span class="material-value">${task.otherMaterials}</span></div>` : ''}
+                  ${task.otherSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.otherSum} грн</span></div>` : ''}
+                </div>
+              ` : ''}
+            </div>
+
+            ${task.serviceTotal ? `
+              <div class="summary">
+                <h3>Загальна сума послуги: ${task.serviceTotal} грн</h3>
+              </div>
+            ` : ''}
+          </div>
+        `).join('')}
+
+        <div class="summary">
+          <h3>Підсумок по замовнику ${clientName}</h3>
+          <p>Всього проведено робіт: ${sortedTasks.length}</p>
+          <p>Загальна вартість всіх послуг: ${sortedTasks.reduce((sum, task) => sum + (parseFloat(task.serviceTotal) || 0), 0).toFixed(2)} грн</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Відкриваємо нове вікно з звітом
+    const newWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+    newWindow.document.write(reportHTML);
+    newWindow.document.close();
+  };
+
   return (
     <div style={{padding:32}}>
       <h2>Заявки сервісної служби</h2>
@@ -877,6 +1309,7 @@ function ServiceArea({ user }) {
         initialData={editTask||initialTask} 
         mode={tab === 'done' ? 'admin' : 'service'} 
         user={user}
+        readOnly={editTask?._readOnly || false}
       />
       <div style={{display:'flex',gap:8,marginBottom:24,justifyContent:'flex-start'}}>
         <button onClick={()=>setTab('notDone')} style={{width:220,padding:'10px 0',background:tab==='notDone'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='notDone'?700:400,cursor:'pointer'}}>Невиконані заявки</button>
@@ -898,6 +1331,13 @@ function ServiceArea({ user }) {
         dateRange={dateRange}
         setDateRange={setDateRange}
         user={user}
+        isArchive={tab === 'done'}
+        onHistoryClick={openClientReport}
+      />
+      <ServiceReminderModal
+        isOpen={reminderModalOpen}
+        onClose={() => setReminderModalOpen(false)}
+        tasks={tasks}
       />
     </div>
   );
@@ -938,6 +1378,14 @@ function RegionalManagerArea({ tab: propTab, user }) {
   const [selectReportOpen, setSelectReportOpen] = useState(false);
   const [reportType, setReportType] = useState('month');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  
+  // Додаємо стани для фільтрів експорту
+  const [exportFilters, setExportFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    region: '',
+    approvalFilter: 'all'
+  });
 
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
   // але зберігаємо вже введені користувачем значення
@@ -971,6 +1419,18 @@ function RegionalManagerArea({ tab: propTab, user }) {
     setLoading(true);
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
+
+  // useEffect для перевірки та показу нагадування
+  useEffect(() => {
+    if (!loading && tasks.length > 0 && tab === 'notDone') {
+      // Перевіряємо, чи є заявки зі статусом "Заявка"
+      const requestTasks = tasks.filter(task => task.status === 'Заявка');
+      
+      if (requestTasks.length > 0) {
+        setReminderModalOpen(true);
+      }
+    }
+  }, [loading, tasks, tab]);
 
   // Додаю useEffect для завантаження користувачів з бази
   useEffect(() => {
@@ -1017,6 +1477,19 @@ function RegionalManagerArea({ tab: propTab, user }) {
     return true;
   });
 
+  // Групуємо користувачів по регіонам для відображення
+  const usersByRegion = filteredUsers.reduce((acc, user) => {
+    const region = user.region || 'Не вказано';
+    if (!acc[region]) {
+      acc[region] = [];
+    }
+    acc[region].push(user);
+    return acc;
+  }, {});
+
+  // Отримуємо список регіонів для відображення
+  const regions = Object.keys(usersByRegion).sort();
+
   // --- Колонки для TaskTable ---
   const columns = allTaskFields.map(f => ({
     key: f.name,
@@ -1049,30 +1522,60 @@ function RegionalManagerArea({ tab: propTab, user }) {
 
   // --- Функція handleApprove для підтвердження задач ---
   async function handleApprove(id, approved, comment) {
-    console.log('[DEBUG][REGIONAL] handleApprove called:', {id, approved, comment});
     setLoading(true);
     const t = tasks.find(t => t.id === id);
     if (!t) return;
-    // Перевіряємо чи всі підтвердження пройшли для автоматичного заповнення bonusApprovalDate
+    let next = {
+      ...t,
+      approvedByRegionalManager: approved,
+      regionalManagerComment: comment !== undefined ? comment : t.regionalManagerComment
+    };
     let bonusApprovalDate = t.bonusApprovalDate;
     if (
-      approved === 'Підтверджено' &&
-      t.status === 'Виконано' &&
-      (t.approvedByWarehouse === 'Підтверджено' || t.approvedByWarehouse === true) &&
-      (t.approvedByRegionalManager === 'Підтверджено' || t.approvedByRegionalManager === true)
+      next.status === 'Виконано' &&
+      (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
+      (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true) &&
+      (next.approvedByRegionalManager === 'Підтверджено' || next.approvedByRegionalManager === true)
     ) {
       const d = new Date();
       bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
     }
     const updated = await tasksAPI.update(id, {
-      ...t, 
-      approvedByRegionalManager: approved, // <-- Виправлено!
-      regionalManagerComment: comment !== undefined ? comment : t.regionalManagerComment,
-      bonusApprovalDate: bonusApprovalDate
+      ...next,
+      bonusApprovalDate
     });
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);
   }
+
+  // --- Аналогічно для handleApprove адміністратора ---
+  const handleApproveAdmin = async (id, approved, comment) => {
+    setLoading(true);
+    const t = tasks.find(t => t.id === id);
+    if (!t) return;
+    let next = {
+      ...t,
+      approvedByAccountant: approved,
+      accountantComment: comment !== undefined ? comment : t.accountantComment,
+      accountantComments: comment !== undefined ? comment : t.accountantComments
+    };
+    let bonusApprovalDate = t.bonusApprovalDate;
+    if (
+      next.status === 'Виконано' &&
+      (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
+      (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true) &&
+      (next.approvedByRegionalManager === 'Підтверджено' || next.approvedByRegionalManager === true)
+    ) {
+      const d = new Date();
+      bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+    }
+    const updated = await tasksAPI.update(id, {
+      ...next,
+      bonusApprovalDate
+    });
+    setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
+    setLoading(false);
+  };
 
   // Add filtered tasks definition
   const filtered = tasks.filter(t => {
@@ -1460,6 +1963,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                         <th>Загальна сума послуги</th>
                         <th>Тип обладнання</th>
                         <th>Заводський номер обладнання</th>
+                        <th><b>Найменування робіт</b></th>
                         <th>Премія, грн</th>
                       </tr>
                     </thead>
@@ -1474,6 +1978,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                           <td>{d.serviceTotal}</td>
                           <td>{d.equipment}</td>
                           <td>{d.equipmentSerial}</td>
+                          <td>{tasks.find(t => t.bonusApprovalDate === d.date && t.client === d.client && t.address === d.address && t.equipment === d.equipment && t.equipmentSerial === d.equipmentSerial && t.invoice === d.invoice && t.paymentType === d.paymentType && t.serviceTotal === d.serviceTotal)?.work || ''}</td>
                           <td style={{fontWeight:600}}>{d.bonus.toFixed(2)}</td>
                         </tr>
                       ))}
@@ -1562,115 +2067,115 @@ function RegionalManagerArea({ tab: propTab, user }) {
     });
     const monthName = months[month - 1];
     const reportTitle = `Звіт по табелю часу та виконаних робіт за ${monthName} ${year}`;
-    // Формування таблиці нарахувань
-    const accrualTable = `
-      <h3>Таблиця нарахування по персоналу</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>ПІБ</th>
-            <th>Ставка</th>
-            <th>Фактично відпрацьовано годин</th>
-            <th>Понаднормові роботи, год</th>
-            <th>Ціна за год, понаднормові</th>
-            <th>Доплата за понаднормові</th>
-            <th>Відпрацьована ставка, грн</th>
-            <th>Премія за виконання сервісних робіт, грн</th>
-            <th>Загальна сума по оплаті за місяць</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filteredUsers.map(u => {
-            const total = data[u.id]?.total || 0;
-            const salary = Number(payData[u.id]?.salary) || 25000;
-            const bonus = Number(payData[u.id]?.bonus) || 0;
-            const overtime = Math.max(0, total - summary.workHours);
-            const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
-            const overtimePay = overtime * overtimeRate;
-            const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
-            const tasksForMonth = tasks.filter(t => {
-              if (
-                t.status !== 'Виконано' ||
-                !t.date ||
-                !t.bonusApprovalDate ||
-                !isApproved(t.approvedByWarehouse) ||
-                !isApproved(t.approvedByAccountant) ||
-                !isApproved(t.approvedByRegionalManager)
-              ) return false;
-              // автоконвертація bonusApprovalDate
-              let bonusApprovalDate = t.bonusApprovalDate;
-              if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
-                const [year, month] = bonusApprovalDate.split('-');
-                bonusApprovalDate = `${month}-${year}`;
-              }
-              const workDate = new Date(t.date);
-              const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
-              const approvalMonth = parseInt(approvalMonthStr);
-              const approvalYear = parseInt(approvalYearStr);
-              const workMonth = workDate.getMonth() + 1;
-              const workYear = workDate.getFullYear();
-              let bonusMonth, bonusYear;
-              if (workMonth === approvalMonth && workYear === approvalYear) {
-                bonusMonth = workMonth;
-                bonusYear = workYear;
-              } else {
-                if (approvalMonth === 1) {
-                  bonusMonth = 12;
-                  bonusYear = approvalYear - 1;
-                } else {
-                  bonusMonth = approvalMonth - 1;
-                  bonusYear = approvalYear;
+    
+    // Логіка групування по регіонам для звіту
+    const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
+    const showRegions = user?.region === 'Україна' ? allRegions : [user?.region || 'Без регіону'];
+    
+    // Генеруємо звіт з групуванням по регіонам
+    const generateRegionReport = (region) => {
+      const regionUsers = filteredUsers.filter(u => (u.region || 'Без регіону') === region);
+      
+      // Формування таблиці нарахувань для регіону
+      const accrualTable = `
+        <h4>Таблиця нарахування по персоналу - Регіон: ${region}</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>ПІБ</th>
+              <th>Ставка</th>
+              <th>Фактично відпрацьовано годин</th>
+              <th>Понаднормові роботи, год</th>
+              <th>Ціна за год, понаднормові</th>
+              <th>Доплата за понаднормові</th>
+              <th>Відпрацьована ставка, грн</th>
+              <th>Премія за виконання сервісних робіт, грн</th>
+              <th>Загальна сума по оплаті за місяць</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${regionUsers.map(u => {
+              const total = data[u.id]?.total || 0;
+              const salary = Number(payData[u.id]?.salary) || 25000;
+              const bonus = Number(payData[u.id]?.bonus) || 0;
+              const overtime = Math.max(0, total - summary.workHours);
+              const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
+              const overtimePay = overtime * overtimeRate;
+              const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
+              const tasksForMonth = tasks.filter(t => {
+                if (
+                  t.status !== 'Виконано' ||
+                  !t.date ||
+                  !t.bonusApprovalDate ||
+                  !isApproved(t.approvedByWarehouse) ||
+                  !isApproved(t.approvedByAccountant) ||
+                  !isApproved(t.approvedByRegionalManager)
+                ) return false;
+                
+                // Фільтрація по регіону - показуємо тільки завдання цього конкретного регіону
+                if (t.serviceRegion !== region) return false;
+                
+                // автоконвертація bonusApprovalDate
+                let bonusApprovalDate = t.bonusApprovalDate;
+                if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+                  const [year, month] = bonusApprovalDate.split('-');
+                  bonusApprovalDate = `${month}-${year}`;
                 }
-              }
-              return bonusMonth === month && bonusYear === year;
-            });
-            let engineerBonus = 0;
-            tasksForMonth.forEach(t => {
-              const workPrice = parseFloat(t.workPrice) || 0;
-              const bonusVal = workPrice * 0.25;
-              if (t.engineer1 === u.name && t.engineer2) {
-                engineerBonus += bonusVal / 2;
-              } else if (t.engineer2 === u.name && t.engineer1) {
-                engineerBonus += bonusVal / 2;
-              } else if (t.engineer1 === u.name && !t.engineer2) {
-                engineerBonus += bonusVal;
-              }
-            });
-            const payout = basePay + overtimePay + bonus + engineerBonus;
-            return `
-              <tr>
-                <td>${u.name}</td>
-                <td>${salary}</td>
-                <td>${total}</td>
-                <td>${overtime}</td>
-                <td>${overtimeRate.toFixed(2)}</td>
-                <td>${overtimePay.toFixed(2)}</td>
-                <td>${basePay}</td>
-                <td>${engineerBonus.toFixed(2)}</td>
-                <td>${payout}</td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    `;
-    const html = `
-      <html>
-      <head>
-        <title>${reportTitle}</title>
-        <style>
-          body { font-family: Arial, sans-serif; background: #f8fafc; color: #222; padding: 24px; }
-          h2 { color: #1976d2; }
-          table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
-          th, td { border: 1px solid #bbb; padding: 6px 10px; text-align: center; }
-          th { background: #ffe600; color: #222; }
-          .details th { background: #e0e0e0; }
-          .weekend { background: #e0e0e0 !important; color: #222 !important; }
-        </style>
-      </head>
-      <body>
-        <h2>${reportTitle}</h2>
-        <h3>Табель часу</h3>
+                const workDate = new Date(t.date);
+                const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+                const approvalMonth = parseInt(approvalMonthStr);
+                const approvalYear = parseInt(approvalYearStr);
+                const workMonth = workDate.getMonth() + 1;
+                const workYear = workDate.getFullYear();
+                let bonusMonth, bonusYear;
+                if (workMonth === approvalMonth && workYear === approvalYear) {
+                  bonusMonth = workMonth;
+                  bonusYear = workYear;
+                } else {
+                  if (approvalMonth === 1) {
+                    bonusMonth = 12;
+                    bonusYear = approvalYear - 1;
+                  } else {
+                    bonusMonth = approvalMonth - 1;
+                    bonusYear = approvalYear;
+                  }
+                }
+                return bonusMonth === month && bonusYear === year;
+              });
+              let engineerBonus = 0;
+              tasksForMonth.forEach(t => {
+                const workPrice = parseFloat(t.workPrice) || 0;
+                const bonusVal = workPrice * 0.25;
+                if (t.engineer1 === u.name && t.engineer2) {
+                  engineerBonus += bonusVal / 2;
+                } else if (t.engineer2 === u.name && t.engineer1) {
+                  engineerBonus += bonusVal / 2;
+                } else if (t.engineer1 === u.name && !t.engineer2) {
+                  engineerBonus += bonusVal;
+                }
+              });
+              const payout = basePay + overtimePay + bonus + engineerBonus;
+              return `
+                <tr>
+                  <td>${u.name}</td>
+                  <td>${salary}</td>
+                  <td>${total}</td>
+                  <td>${overtime}</td>
+                  <td>${overtimeRate.toFixed(2)}</td>
+                  <td>${overtimePay.toFixed(2)}</td>
+                  <td>${basePay}</td>
+                  <td>${engineerBonus.toFixed(2)}</td>
+                  <td>${payout}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
+      
+      // Формування таблиці табеля для регіону
+      const timesheetTable = `
+        <h4>Табель часу - Регіон: ${region}</h4>
         <table>
           <thead>
             <tr>
@@ -1685,7 +2190,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
             </tr>
           </thead>
           <tbody>
-            ${filteredUsers.map(u => `
+            ${regionUsers.map(u => `
               <tr>
                 <td>${u.name}</td>
                 ${days.map(d => {
@@ -1699,8 +2204,52 @@ function RegionalManagerArea({ tab: propTab, user }) {
             `).join('')}
           </tbody>
         </table>
-        ${accrualTable}
-        <h3>Деталізація виконаних робіт</h3>
+      `;
+      
+      // Формування таблиці виконаних робіт для регіону
+      const regionTasks = tasks.filter(t => {
+        if (
+          t.status !== 'Виконано' ||
+          !t.date ||
+          !t.bonusApprovalDate ||
+          !isApproved(t.approvedByWarehouse) ||
+          !isApproved(t.approvedByAccountant) ||
+          !isApproved(t.approvedByRegionalManager)
+        ) return false;
+        
+        // Фільтрація по регіону - показуємо тільки завдання цього конкретного регіону
+        if (t.serviceRegion !== region) return false;
+        
+        // автоконвертація bonusApprovalDate
+        let bonusApprovalDate = t.bonusApprovalDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+          const [year, month] = bonusApprovalDate.split('-');
+          bonusApprovalDate = `${month}-${year}`;
+        }
+        const workDate = new Date(t.date);
+        const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+        const approvalMonth = parseInt(approvalMonthStr);
+        const approvalYear = parseInt(approvalYearStr);
+        const workMonth = workDate.getMonth() + 1;
+        const workYear = workDate.getFullYear();
+        let bonusMonth, bonusYear;
+        if (workMonth === approvalMonth && workYear === approvalYear) {
+          bonusMonth = workMonth;
+          bonusYear = workYear;
+        } else {
+          if (approvalMonth === 1) {
+            bonusMonth = 12;
+            bonusYear = approvalYear - 1;
+          } else {
+            bonusMonth = approvalMonth - 1;
+            bonusYear = approvalYear;
+          }
+        }
+        return bonusMonth === month && bonusYear === year;
+      });
+      
+      const workDetailsTable = `
+        <h4>Деталізація виконаних робіт - Регіон: ${region}</h4>
         <table class="details">
           <thead>
             <tr>
@@ -1709,6 +2258,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
               <th>Клієнт</th>
               <th>Адреса</th>
               <th>Обладнання</th>
+              <th><b>Найменування робіт</b></th>
               <th>Компанія виконавець</th>
               <th>Загальна сума з матеріалами</th>
               <th>Вартість робіт</th>
@@ -1716,50 +2266,16 @@ function RegionalManagerArea({ tab: propTab, user }) {
             </tr>
           </thead>
           <tbody>
-            ${tasks.filter(t => {
-              if (
-                t.status !== 'Виконано' ||
-                !t.date ||
-                !t.bonusApprovalDate ||
-                !isApproved(t.approvedByWarehouse) ||
-                !isApproved(t.approvedByAccountant) ||
-                !isApproved(t.approvedByRegionalManager)
-              ) return false;
-              // автоконвертація bonusApprovalDate
-              let bonusApprovalDate = t.bonusApprovalDate;
-              if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
-                const [year, month] = bonusApprovalDate.split('-');
-                bonusApprovalDate = `${month}-${year}`;
-              }
-              const workDate = new Date(t.date);
-              const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
-              const approvalMonth = parseInt(approvalMonthStr);
-              const approvalYear = parseInt(approvalYearStr);
-              const workMonth = workDate.getMonth() + 1;
-              const workYear = workDate.getFullYear();
-              let bonusMonth, bonusYear;
-              if (workMonth === approvalMonth && workYear === approvalYear) {
-                bonusMonth = workMonth;
-                bonusYear = workYear;
-              } else {
-                if (approvalMonth === 1) {
-                  bonusMonth = 12;
-                  bonusYear = approvalYear - 1;
-                } else {
-                  bonusMonth = approvalMonth - 1;
-                  bonusYear = approvalYear;
-                }
-              }
-              return bonusMonth === month && bonusYear === year;
-            }).map(t => {
+            ${regionTasks.map(t => {
               const bonus = (parseFloat(t.workPrice) || 0) * 0.25;
               return `
                 <tr>
-                  <td>${t.bonusApprovalDate || ''}</td>
+                  <td>${t.date || ''}</td>
                   <td>${t.engineer1 || ''}${t.engineer2 ? ', ' + t.engineer2 : ''}</td>
                   <td>${t.client || ''}</td>
                   <td>${t.address || ''}</td>
                   <td>${t.equipment || ''}</td>
+                  <td>${t.work || ''}</td>
                   <td>${t.company || ''}</td>
                   <td>${t.serviceTotal || ''}</td>
                   <td>${t.workPrice || ''}</td>
@@ -1769,6 +2285,51 @@ function RegionalManagerArea({ tab: propTab, user }) {
             }).join('')}
           </tbody>
         </table>
+      `;
+      
+      return {
+        timesheetTable,
+        accrualTable,
+        workDetailsTable
+      };
+    };
+    
+    // Генеруємо HTML для кожного регіону
+    const regionsContent = showRegions.map(region => {
+      const regionReport = generateRegionReport(region);
+      return `
+        <div style="margin-bottom: 40px; page-break-after: always;">
+          <h3 style="color: #1976d2; border-bottom: 2px solid #1976d2; padding-bottom: 10px;">Регіон: ${region}</h3>
+          ${regionReport.timesheetTable}
+          ${regionReport.accrualTable}
+          ${regionReport.workDetailsTable}
+        </div>
+      `;
+    }).join('');
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${reportTitle}</title>
+        <style>
+          body { font-family: Arial, sans-serif; background: #f8fafc; color: #222; padding: 24px; }
+          h2 { color: #1976d2; }
+          h3 { color: #1976d2; margin-top: 30px; }
+          h4 { color: #1976d2; margin-top: 20px; }
+          table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
+          th, td { border: 1px solid #bbb; padding: 6px 10px; text-align: center; }
+          th { background: #ffe600; color: #222; }
+          .details th { background: #e0e0e0; }
+          .weekend { background: #e0e0e0 !important; color: #222 !important; }
+          @media print {
+            .page-break { page-break-after: always; }
+          }
+        </style>
+      </head>
+      <body>
+        <h2>${reportTitle}</h2>
+        ${regionsContent}
       </body>
       </html>
     `;
@@ -1793,6 +2354,320 @@ function RegionalManagerArea({ tab: propTab, user }) {
   });
   console.log('[DEBUG][APP] filtered:', filteredAppDebug.map(t => ({id: t.id, serviceRegion: t.serviceRegion})));
 
+  // Додаємо функцію експорту в Excel
+  const exportFilteredToExcel = () => {
+    console.log('[DEBUG] Starting export with filters:', exportFilters);
+    console.log('[DEBUG] Total tasks:', tasks.length);
+    console.log('[DEBUG] User region:', user?.region);
+    
+    // Логуємо всі завдання зі статусом 'Виконано'
+    const completedTasks = tasks.filter(t => t.status === 'Виконано');
+    console.log('[DEBUG] Completed tasks:', completedTasks.length);
+    console.log('[DEBUG] Sample completed task:', completedTasks[0]);
+    
+    // Фільтруємо виконані заявки за діапазоном дат, регіоном та статусом затвердження
+    const filteredTasks = tasks.filter(t => {
+      console.log('[DEBUG] Checking task:', t.id, 'status:', t.status, 'date:', t.date, 'region:', t.serviceRegion, 'approvals:', {
+        warehouse: t.approvedByWarehouse,
+        accountant: t.approvedByAccountant,
+        regionalManager: t.approvedByRegionalManager
+      });
+      
+      if (t.status !== 'Виконано') {
+        console.log('[DEBUG] Task', t.id, 'filtered out: status not Виконано');
+        return false;
+      }
+      
+      if (exportFilters.dateFrom && (!t.date || t.date < exportFilters.dateFrom)) {
+        console.log('[DEBUG] Task', t.id, 'filtered out: date before', exportFilters.dateFrom);
+        return false;
+      }
+      
+      if (exportFilters.dateTo && (!t.date || t.date > exportFilters.dateTo)) {
+        console.log('[DEBUG] Task', t.id, 'filtered out: date after', exportFilters.dateTo);
+        return false;
+      }
+      
+      // Фільтр по регіону користувача
+      if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) {
+        console.log('[DEBUG] Task', t.id, 'filtered out: user region', user.region, 'task region', t.serviceRegion);
+        return false;
+      }
+      
+      if (exportFilters.region && exportFilters.region !== 'Україна' && t.serviceRegion !== exportFilters.region) {
+        console.log('[DEBUG] Task', t.id, 'filtered out: filter region', exportFilters.region, 'task region', t.serviceRegion);
+        return false;
+      }
+      
+      // Фільтр по статусу затвердження
+      if (exportFilters.approvalFilter === 'approved') {
+        // Для затверджених - всі повинні бути затверджені
+        if (!isApproved(t.approvedByWarehouse) || !isApproved(t.approvedByAccountant) || !isApproved(t.approvedByRegionalManager)) {
+          console.log('[DEBUG] Task', t.id, 'filtered out: not approved by all managers');
+          return false;
+        }
+      } else if (exportFilters.approvalFilter === 'not_approved') {
+        // Для незатверджених - хоча б один не затвердив
+        if (isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant) && isApproved(t.approvedByRegionalManager)) {
+          console.log('[DEBUG] Task', t.id, 'filtered out: approved by all managers');
+          return false;
+        }
+        console.log('[DEBUG] Task', t.id, 'included: not approved by at least one manager', {
+          warehouse: t.approvedByWarehouse,
+          accountant: t.approvedByAccountant,
+          regionalManager: t.approvedByRegionalManager
+        });
+      }
+      // Якщо approvalFilter === 'all', то показуємо всі
+      
+      console.log('[DEBUG] Task', t.id, 'passed all filters');
+      return true;
+    });
+
+    console.log('[DEBUG] Filtered tasks for export:', filteredTasks.length, filteredTasks);
+    
+    // Додаткова перевірка - логуємо всі завдання зі статусом 'Виконано' та їх статус затвердження
+    const completedTasksWithApproval = tasks.filter(t => t.status === 'Виконано').map(t => ({
+      id: t.id,
+      approvedByWarehouse: t.approvedByWarehouse,
+      approvedByAccountant: t.approvedByAccountant,
+      approvedByRegionalManager: t.approvedByRegionalManager,
+      isWarehouseApproved: isApproved(t.approvedByWarehouse),
+      isAccountantApproved: isApproved(t.approvedByAccountant),
+      isRegionalManagerApproved: isApproved(t.approvedByRegionalManager),
+      isAllApproved: isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant) && isApproved(t.approvedByRegionalManager)
+    }));
+    console.log('[DEBUG] All completed tasks with approval status:', completedTasksWithApproval);
+
+    // Маппінг колонок згідно з вимогами
+    const columnMapping = [
+      { excelHeader: 'Відповідальний', field: 'engineer1', additionalField: 'engineer2' },
+      { excelHeader: 'ДТС/ДАРЕКС', field: 'company' },
+      { excelHeader: 'Найменування робіт', field: 'work' },
+      { excelHeader: 'Гарантія/не гарантія/волонтерство', field: 'work' },
+      { excelHeader: '№ Заявки', field: 'requestNumber' },
+      { excelHeader: 'дата', field: 'date' },
+      { excelHeader: 'Замовник/повна назва', field: 'client' },
+      { excelHeader: 'Адреса/повна', field: 'address' },
+      { excelHeader: 'Опис заявки', field: 'requestDesc' },
+      { excelHeader: 'Заводський номер обладнання', field: 'equipmentSerial' },
+      { excelHeader: 'Тип обладнання/повна назва', field: 'equipment' },
+      { excelHeader: 'Назва оливи', field: 'oilType' },
+      { excelHeader: 'Використано оливи, л', field: 'oilUsed' },
+      { excelHeader: 'Ціна оливи, грн.', field: 'oilPrice' },
+      { excelHeader: 'Повернуто відпрацьовану оливу, л', field: '' },
+      { excelHeader: 'Фільтр масл, назва', field: 'filterName' },
+      { excelHeader: 'Фільтр масл, штук', field: 'filterCount' },
+      { excelHeader: 'Ціна ФМ, гривень', field: 'filterPrice' },
+      { excelHeader: 'Фільтр палив, назва', field: 'fuelFilterName' },
+      { excelHeader: 'Фільтр палив, штук', field: 'fuelFilterCount' },
+      { excelHeader: 'Ціна ФП, гривень', field: 'fuelFilterPrice' },
+      { excelHeader: 'Фільтр повітряний, назва', field: 'airFilterName' },
+      { excelHeader: 'Фільтр повітряний, штук', field: 'airFilterCount' },
+      { excelHeader: 'Ціна повіт фільтра, гривень', field: 'airFilterPrice' },
+      { excelHeader: 'Антифріз, л', field: 'antifreezeL' },
+      { excelHeader: 'Ціна антифрізу, грн.', field: 'antifreezePrice' },
+      { excelHeader: 'Інші матеріали, назва/шт.', field: 'otherMaterials' },
+      { excelHeader: 'Ціна інш матеріалів,грн.', field: 'otherSum' },
+      { excelHeader: 'Вартість робіт, грн.', field: 'workPrice' },
+      { excelHeader: 'Добові, грн', field: 'perDiem' },
+      { excelHeader: 'Проживання, грн', field: 'living' },
+      { excelHeader: 'Інші витрати, грн', field: 'otherExp' },
+      { excelHeader: 'Держномер автотранспорту (АЕ0000АЕ)', field: 'carNumber' },
+      { excelHeader: 'Транспортні витрати, км', field: 'transportKm' },
+      { excelHeader: 'Вартість тр. витрат, грн.', field: 'transportSum' },
+      { excelHeader: 'Загальна ціна, грн', field: 'serviceTotal' },
+      { excelHeader: 'Вид оплати, нал./безнал/Дата оплати', field: 'paymentType' },
+      { excelHeader: 'Альбіна', field: '' }
+    ];
+
+    // Формуємо заголовки
+    const headers = columnMapping.map(col => col.excelHeader);
+
+    // Формуємо дані для рядків
+    const data = filteredTasks.map(task => {
+      console.log('[DEBUG] Processing task for export:', task.id, task);
+      return columnMapping.map(col => {
+        if (col.field === 'engineer1') {
+          // Об'єднуємо інженерів
+          const engineer1 = task.engineer1 || '';
+          const engineer2 = task.engineer2 || '';
+          const result = engineer2 ? `${engineer1}, ${engineer2}` : engineer1;
+          console.log(`[DEBUG] Field ${col.field} (engineers):`, result);
+          return result;
+        } else if (col.field === '') {
+          return ''; // Порожні поля
+        } else {
+          const value = task[col.field];
+          console.log(`[DEBUG] Field ${col.field}:`, value);
+          return value || '';
+        }
+      });
+    });
+
+    console.log('[DEBUG] Export data:', data);
+    if (data.length > 0) {
+      console.log('[DEBUG] First row data:', data[0]);
+    }
+
+    // Створюємо робочий аркуш
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Заявки');
+
+    // Налаштовуємо фільтри для всіх колонок
+    worksheet['!autofilter'] = { ref: `A1:${String.fromCharCode(65 + headers.length - 1)}${data.length + 1}` };
+
+    // Налаштовуємо стилі для заголовків (жовтий фон)
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+      if (worksheet[cellAddress]) {
+        worksheet[cellAddress].s = {
+          fill: { fgColor: { rgb: "FFFF00" } }, // Жовтий фон
+          font: { bold: true, color: { rgb: "000000" } }, // Жирний чорний текст
+          alignment: { 
+            horizontal: "center", 
+            vertical: "center",
+            wrapText: true // Перенос тексту
+          },
+          border: {
+            top: { style: 'thin', color: { rgb: "000000" } },
+            bottom: { style: 'thin', color: { rgb: "000000" } },
+            left: { style: 'thin', color: { rgb: "000000" } },
+            right: { style: 'thin', color: { rgb: "000000" } }
+          }
+        };
+      }
+    }
+
+    // Налаштовуємо стилі для всіх клітинок у діапазоні (включаючи порожні)
+    for (let row = 0; row <= range.e.r; row++) {
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+        
+        // Якщо клітинка не існує, створюємо її з базовими стилями
+        if (!worksheet[cellAddress]) {
+          worksheet[cellAddress] = { v: '', s: {} };
+        }
+        
+        // Базові стилі для всіх клітинок
+        const baseStyle = {
+          border: {
+            top: { style: 'thin', color: { rgb: "000000" } },
+            bottom: { style: 'thin', color: { rgb: "000000" } },
+            left: { style: 'thin', color: { rgb: "000000" } },
+            right: { style: 'thin', color: { rgb: "000000" } }
+          }
+        };
+        
+        // Додаткові стилі для заголовків
+        if (row === 0) {
+          baseStyle.fill = { fgColor: { rgb: "FFFF00" } }; // Жовтий фон
+          baseStyle.font = { bold: true, color: { rgb: "000000" } }; // Жирний чорний текст
+          baseStyle.alignment = { 
+            horizontal: "center", 
+            vertical: "center",
+            wrapText: true
+          };
+        } else {
+          // Стилі для рядків даних
+          baseStyle.alignment = { 
+            wrapText: true, 
+            vertical: "center",
+            horizontal: "left"
+          };
+          
+          // Зелений фон для затверджених зав. складом
+          const taskIndex = row - 1;
+          if (taskIndex < filteredTasks.length) {
+            const task = filteredTasks[taskIndex];
+            const isWarehouseApproved = isApproved(task.approvedByWarehouse);
+            if (isWarehouseApproved) {
+              baseStyle.fill = { fgColor: { rgb: "90EE90" } }; // Світло-зелений фон
+              baseStyle.font = { color: { rgb: "000000" } }; // Чорний текст
+            }
+          }
+        }
+        
+        // Застосовуємо стилі
+        worksheet[cellAddress].s = {
+          ...worksheet[cellAddress].s,
+          ...baseStyle
+        };
+      }
+    }
+
+    // Налаштовуємо ширину колонок
+    const colWidths = [
+      20, // Відповідальний
+      15, // ДТС/ДАРЕКС
+      25, // Найменування робіт
+      30, // Гарантія/не гарантія/волонтерство
+      12, // № Заявки
+      12, // дата
+      25, // Замовник/повна назва
+      25, // Адреса/повна
+      30, // Опис заявки
+      20, // Заводський номер обладнання
+      25, // Тип обладнання/повна назва
+      15, // Назва оливи
+      15, // Використано оливи, л
+      15, // Ціна оливи, грн.
+      25, // Повернуто відпрацьовану оливу, л
+      20, // Фільтр масл, назва
+      15, // Фільтр масл, штук
+      20, // Ціна ФМ, гривень
+      20, // Фільтр палив, назва
+      15, // Фільтр палив, штук
+      20, // Ціна ФП, гривень
+      20, // Фільтр повітряний, назва
+      20, // Фільтр повітряний, штук
+      25, // Ціна повіт фільтра, гривень
+      15, // Антифріз, л
+      20, // Ціна антифрізу, грн.
+      25, // Інші матеріали, назва/шт.
+      25, // Ціна інш матеріалів,грн.
+      20, // Вартість робіт, грн.
+      15, // Добові, грн
+      15, // Проживання, грн
+      20, // Інші витрати, грн
+      30, // Держномер автотранспорту (АЕ0000АЕ)
+      20, // Транспортні витрати, км
+      25, // Вартість тр. витрат, грн.
+      20, // Загальна ціна, грн
+      30, // Вид оплати, нал./безнал/Дата оплати
+      10  // Альбіна
+    ];
+
+    worksheet['!cols'] = colWidths.map(width => ({ width }));
+
+    // Створюємо назву файлу з урахуванням фільтрів
+    let fileName = 'Звіт_по_заявках_регіонального_керівника';
+    if (exportFilters.dateFrom || exportFilters.dateTo) {
+      fileName += `_${exportFilters.dateFrom || 'з_початку'}_${exportFilters.dateTo || 'до_кінця'}`;
+    }
+    if (exportFilters.region) {
+      fileName += `_${exportFilters.region}`;
+    }
+    if (exportFilters.approvalFilter !== 'all') {
+      fileName += `_${exportFilters.approvalFilter === 'approved' ? 'затверджені' : 'незатверджені'}`;
+    }
+    fileName += '.xlsx';
+
+    // Запускаємо завантаження файлу
+    XLSX.writeFile(workbook, fileName);
+  };
+
+  // Додаємо функцію для обробки зміни фільтрів експорту
+  const handleExportFilterChange = (field, value) => {
+    setExportFilters(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Логіка групування по регіонам для вкладки "Звіт по персоналу"
+  const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
+  const showRegions = user?.region === 'Україна' ? allRegions : [user?.region || 'Без регіону'];
+
   return (
     <>
       <div style={{display:'flex',gap:8,marginBottom:8}}>
@@ -1805,6 +2680,31 @@ function RegionalManagerArea({ tab: propTab, user }) {
             <div style={{display:'flex',gap:8,marginBottom:16}}>
               <button onClick={()=>setTaskTab('pending')} style={{width:220,padding:'10px 0',background:taskTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
               <button onClick={()=>setTaskTab('archive')} style={{width:220,padding:'10px 0',background:taskTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
+              <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
+            </div>
+            <div style={{display:'flex',gap:8,marginBottom:16}}>
+              <label style={{display:'flex',alignItems:'center',gap:4}}>
+                Дата виконаних робіт з:
+                <input type="date" name="dateFrom" value={exportFilters.dateFrom} onChange={(e) => handleExportFilterChange('dateFrom', e.target.value)} />
+                по
+                <input type="date" name="dateTo" value={exportFilters.dateTo} onChange={(e) => handleExportFilterChange('dateTo', e.target.value)} />
+              </label>
+              <label style={{display:'flex',alignItems:'center',gap:4}}>
+                Регіон:
+                <input type="text" name="region" value={exportFilters.region || ''} onChange={(e) => handleExportFilterChange('region', e.target.value)} placeholder="Україна або регіон" />
+              </label>
+              <label style={{display:'flex',alignItems:'center',gap:4}}>
+                Статус затвердження:
+                <select 
+                  value={exportFilters.approvalFilter} 
+                  onChange={(e) => handleExportFilterChange('approvalFilter', e.target.value)}
+                  style={{padding:'4px 8px',borderRadius:'4px',border:'1px solid #ccc'}}
+                >
+                  <option value="all">Всі звіти</option>
+                  <option value="approved">Тільки затверджені</option>
+                  <option value="not_approved">Тільки незатверджені</option>
+                </select>
+              </label>
             </div>
             <ModalTaskForm 
               open={modalOpen} 
@@ -1813,6 +2713,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
               initialData={editTask || {}} 
               mode="regional" 
               user={user}
+              readOnly={editTask?._readOnly || false}
             />
             <TaskTable
               tasks={taskTab === 'pending' ? filtered.filter(t => t.status === 'Виконано' && isPending(t.approvedByRegionalManager)) : filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByRegionalManager))}
@@ -1852,252 +2753,160 @@ function RegionalManagerArea({ tab: propTab, user }) {
             Сформувати звіт
           </button>
           {showTimeReport && timeReportContent}
-          <div style={{overflowX: 'auto', width: '100%', maxWidth: '100vw', boxSizing: 'border-box'}}>
-            <div style={{background: 'rgba(34,51,74,0.85)', borderRadius: 8, padding: '24px 16px', marginBottom: 24, maxWidth: '100%', boxSizing: 'border-box'}}>
-              <div className="horizontal-scroll">
-                <table className="timesheet-table">
-                  <thead>
-                    <tr>
-                      <th style={{width:40, background:'#ffe600', color:'#222'}}>№</th>
-                      <th style={{width:160, minWidth:120, maxWidth:220, background:'#ffe600', color:'#222'}}>ПІБ</th>
-                      {days.map(d => {
-                        const date = new Date(year, month - 1, d);
-                        const dayOfWeek = date.getDay();
-                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                        return (
-                          <th key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : '#ffe600', color: isWeekend ? '#fff' : '#222'}}>{d}</th>
-                        );
-                      })}
-                      <th style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222'}}>Всього годин</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                      {filteredUsers.map((u, idx) => (
-                      <tr key={u.id}>
-                        <td style={{background:'#ffe600', color:'#222', fontWeight:600}}>{idx+1}</td>
-                        <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
-                        {days.map(d => {
-                          const date = new Date(year, month - 1, d);
-                          const dayOfWeek = date.getDay();
-                          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+          {showRegions.map(region => (
+            <div key={region} style={{marginBottom:40}}>
+              <h4 style={{color:'#ffe600',margin:'16px 0 8px 0',fontWeight:700,fontSize:20}}>Регіон: {region}</h4>
+              <div style={{overflowX: 'auto', width: '100%', maxWidth: '100vw', boxSizing: 'border-box'}}>
+                <div style={{background: 'rgba(34,51,74,0.85)', borderRadius: 8, padding: '24px 16px', marginBottom: 24, maxWidth: '100%', boxSizing: 'border-box'}}>
+                  <div className="horizontal-scroll">
+                    <table className="timesheet-table">
+                      <thead>
+                        <tr>
+                          <th style={{width:40, background:'#ffe600', color:'#222'}}>№</th>
+                          <th style={{width:160, minWidth:120, maxWidth:220, background:'#ffe600', color:'#222'}}>ПІБ</th>
+                          {days.map(d => {
+                            const date = new Date(year, month - 1, d);
+                            const dayOfWeek = date.getDay();
+                            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                            return (
+                              <th key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : '#ffe600', color: isWeekend ? '#fff' : '#222'}}>{d}</th>
+                            );
+                          })}
+                          <th style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222'}}>Всього годин</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                          {filteredUsers.filter(u => (u.region || 'Без регіону') === region).map((u, idx) => (
+                          <tr key={u.id}>
+                            <td style={{background:'#ffe600', color:'#222', fontWeight:600}}>{idx+1}</td>
+                            <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
+                            {days.map(d => {
+                              const date = new Date(year, month - 1, d);
+                              const dayOfWeek = date.getDay();
+                              const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                              return (
+                                <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
+                                  <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
+                                </td>
+                              );
+                            })}
+                            <td style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222', fontWeight:600}}>{data[u.id]?.total || 0}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{display:'flex',gap:24,alignItems:'center',margin:'24px 0 8px 0'}}>
+                    <div style={{background:'#ffe600',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
+                      Кількість робочих днів у місяці: {summary.workDays}
+                    </div>
+                    <div style={{background:'#b6ffb6',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
+                      Норма робочих годин у місяці: {summary.workHours}
+                    </div>
+                  </div>
+                  <div style={{marginTop:32}}>
+                    <table style={{width:'100%', color:'#222', background:'#fff', borderRadius:8, overflow:'hidden', fontSize:'1rem'}}>
+                      <thead>
+                        <tr style={{background:'#ffe600', color:'#222', fontWeight:700}}>
+                          <th>ПІБ</th>
+                          <th>Ставка</th>
+                          <th>Фактично відпрацьовано годин</th>
+                          <th>Понаднормові роботи, год</th>
+                          <th>Ціна за год, понаднормові</th>
+                          <th>Доплата за понаднормові</th>
+                          <th>Відпрацьована ставка, грн</th>
+                          <th>Премія за виконання сервісних робіт, грн</th>
+                          <th>Загальна сума по оплаті за місяць</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredUsers.filter(u => (u.region || 'Без регіону') === region).map(u => {
+                          const total = data[u.id]?.total || 0;
+                          const salary = Number(payData[u.id]?.salary) || 25000;
+                          const bonus = Number(payData[u.id]?.bonus) || 0;
+                          const overtime = Math.max(0, total - summary.workHours);
+                          const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
+                          const overtimePay = overtime * overtimeRate;
+                          const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
+                            // Використовуємо завдання з API замість localStorage
+                          const isApproved = v => v === true || v === 'Підтверджено';
+                          const engineerName = u.name;
+                          const monthStr = String(month).padStart(2, '0');
+                          const yearStr = String(year);
+                          let engineerBonus = 0;
+                          tasks.forEach(t => {
+                            if (
+                              t.status === 'Виконано' &&
+                              isApproved(t.approvedByWarehouse) &&
+                              isApproved(t.approvedByAccountant) &&
+                              isApproved(t.approvedByRegionalManager)
+                            ) {
+                              let bonusApprovalDate = t.bonusApprovalDate;
+                              // Автоконвертація з YYYY-MM-DD у MM-YYYY
+                              if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+                                const [year, month] = bonusApprovalDate.split('-');
+                                bonusApprovalDate = `${month}-${year}`;
+                              }
+                              const tDate = t.date;
+                              if (tDate && bonusApprovalDate) {
+                                const workDate = new Date(tDate);
+                                // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
+                                const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+                                const approvalMonth = parseInt(approvalMonthStr);
+                                const approvalYear = parseInt(approvalYearStr);
+                                const workMonth = workDate.getMonth() + 1;
+                                const workYear = workDate.getFullYear();
+                                // Визначаємо місяць для нарахування премії
+                                let bonusMonth, bonusYear;
+                                if (workMonth === approvalMonth && workYear === approvalYear) {
+                                  bonusMonth = workMonth;
+                                  bonusYear = workYear;
+                                } else {
+                                  if (approvalMonth === 1) {
+                                    bonusMonth = 12;
+                                    bonusYear = approvalYear - 1;
+                                  } else {
+                                    bonusMonth = approvalMonth - 1;
+                                    bonusYear = approvalYear;
+                                  }
+                                }
+                                if (bonusMonth === month && bonusYear === year) {
+                                  const workPrice = parseFloat(t.workPrice) || 0;
+                                  const bonus = workPrice * 0.25;
+                                  if (t.engineer1 === engineerName && t.engineer2) {
+                                    engineerBonus += bonus / 2;
+                                  } else if (t.engineer2 === engineerName && t.engineer1) {
+                                    engineerBonus += bonus / 2;
+                                  } else if (t.engineer1 === engineerName && !t.engineer2) {
+                                    engineerBonus += bonus;
+                                  }
+                                }
+                              }
+                            }
+                          });
+                          const payout = basePay + overtimePay + bonus + engineerBonus;
                           return (
-                            <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
-                              <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
-                            </td>
+                            <tr key={u.id}>
+                              <td>{u.name}</td>
+                              <td><input type="number" value={payData[u.id]?.salary || 25000} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
+                              <td>{total}</td>
+                              <td>{overtime}</td>
+                              <td>{overtimeRate.toFixed(2)}</td>
+                              <td>{overtimePay.toFixed(2)}</td>
+                              <td>{basePay}</td>
+                              <td style={{fontWeight:600, background:'#ffe066'}}>{engineerBonus.toFixed(2)}</td>
+                              <td style={{fontWeight:700, background:'#b6ffb6'}}>{payout}</td>
+                            </tr>
                           );
                         })}
-                        <td style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222', fontWeight:600}}>{data[u.id]?.total || 0}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div style={{display:'flex',gap:24,alignItems:'center',margin:'24px 0 8px 0'}}>
-                <div style={{background:'#ffe600',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
-                  Кількість робочих днів у місяці: {summary.workDays}
-                </div>
-                <div style={{background:'#b6ffb6',color:'#222',borderRadius:6,padding:'8px 20px',fontWeight:600}}>
-                  Норма робочих годин у місяці: {summary.workHours}
-                </div>
-              </div>
-              <div style={{marginTop:32}}>
-                <table style={{width:'100%', color:'#222', background:'#fff', borderRadius:8, overflow:'hidden', fontSize:'1rem'}}>
-                  <thead>
-                    <tr style={{background:'#ffe600', color:'#222', fontWeight:700}}>
-                      <th>ПІБ</th>
-                      <th>Ставка</th>
-                      <th>Фактично відпрацьовано годин</th>
-                      <th>Понаднормові роботи, год</th>
-                      <th>Ціна за год, понаднормові</th>
-                      <th>Доплата за понаднормові</th>
-                      <th>Відпрацьована ставка, грн</th>
-                      <th>Премія за виконання сервісних робіт, грн</th>
-                      <th>Загальна сума по оплаті за місяць</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map(u => {
-                      const total = data[u.id]?.total || 0;
-                      const salary = Number(payData[u.id]?.salary) || 25000;
-                      const bonus = Number(payData[u.id]?.bonus) || 0;
-                      const overtime = Math.max(0, total - summary.workHours);
-                      const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
-                      const overtimePay = overtime * overtimeRate;
-                      const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
-                        // Використовуємо завдання з API замість localStorage
-                      const isApproved = v => v === true || v === 'Підтверджено';
-                      const engineerName = u.name;
-                      const monthStr = String(month).padStart(2, '0');
-                      const yearStr = String(year);
-                      let engineerBonus = 0;
-                      tasks.forEach(t => {
-                        if (
-                          t.status === 'Виконано' &&
-                          isApproved(t.approvedByWarehouse) &&
-                          isApproved(t.approvedByAccountant) &&
-                          isApproved(t.approvedByRegionalManager)
-                        ) {
-                          let bonusApprovalDate = t.bonusApprovalDate;
-                          // Автоконвертація з YYYY-MM-DD у MM-YYYY
-                          if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
-                            const [year, month] = bonusApprovalDate.split('-');
-                            bonusApprovalDate = `${month}-${year}`;
-                          }
-                          const tDate = t.date;
-                          if (tDate && bonusApprovalDate) {
-                            const workDate = new Date(tDate);
-                            
-                            // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
-                            const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
-                            const approvalMonth = parseInt(approvalMonthStr);
-                            const approvalYear = parseInt(approvalYearStr);
-                            
-                            const workMonth = workDate.getMonth() + 1;
-                            const workYear = workDate.getFullYear();
-                            
-                            // Визначаємо місяць для нарахування премії
-                            let bonusMonth, bonusYear;
-                            
-                            if (workMonth === approvalMonth && workYear === approvalYear) {
-                              // Якщо місяць/рік виконання співпадає з місяцем/роком затвердження
-                              bonusMonth = workMonth;
-                              bonusYear = workYear;
-                            } else {
-                              // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
-                              if (approvalMonth === 1) {
-                                bonusMonth = 12;
-                                bonusYear = approvalYear - 1;
-                              } else {
-                                bonusMonth = approvalMonth - 1;
-                                bonusYear = approvalYear;
-                              }
-                            }
-                            
-                            // Перевіряємо чи це той місяць, який ми шукаємо
-                            if (bonusMonth === month && bonusYear === year) {
-                              const workPrice = parseFloat(t.workPrice) || 0;
-                              const bonus = workPrice * 0.25;
-                              if (t.engineer1 === engineerName && t.engineer2) {
-                                engineerBonus += bonus / 2;
-                              } else if (t.engineer2 === engineerName && t.engineer1) {
-                                engineerBonus += bonus / 2;
-                              } else if (t.engineer1 === engineerName && !t.engineer2) {
-                                engineerBonus += bonus;
-                              }
-                            }
-                          }
-                        }
-                      });
-                      const payout = basePay + overtimePay + bonus + engineerBonus;
-                      return (
-                        <tr key={u.id}>
-                          <td>{u.name}</td>
-                          <td><input type="number" value={payData[u.id]?.salary || 25000} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
-                          <td>{total}</td>
-                          <td>{overtime}</td>
-                          <td>{overtimeRate.toFixed(2)}</td>
-                          <td>{overtimePay.toFixed(2)}</td>
-                          <td>{basePay}</td>
-                          <td style={{fontWeight:600, background:'#ffe066'}}>{engineerBonus.toFixed(2)}</td>
-                          <td style={{fontWeight:700, background:'#b6ffb6'}}>{payout}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-            {reportDialogOpen && (
-              <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto'}}>
-                <div style={{background:'#fff',borderRadius:12,padding:32,minWidth:400,maxWidth:'90vw',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 32px #0008',position:'relative',marginTop:48}}>
-                  <button onClick={() => { setReportDialogOpen(false); setReportResult(null); setReportResultOpen(false); }} style={{position:'absolute',top:40,right:16,fontSize:24,background:'none',border:'none',cursor:'pointer',color:'#1976d2'}}>×</button>
-                  <div style={{marginBottom:32}}>
-                    <h2 style={{marginBottom:24}}>Звіт по нарахуванню премії</h2>
-                    <div style={{marginBottom:24, display:'flex', gap:32, alignItems:'center'}}>
-                      <label style={{fontWeight:600, fontSize:16, color:'#222'}}>
-                        <input type="radio" name="reportType" value="month" checked={reportType==='month'}
-                          onChange={() => { setReportType('month'); setReportResult(null); setReportResultByPeriod(null); setReportResultOpen(false); }}
-                          style={{marginRight:8}} /> Звіт за місяць
-              </label>
-                      <label style={{fontWeight:600, fontSize:16, color:'#222'}}>
-                        <input type="radio" name="reportType" value="period" checked={reportType==='period'}
-                          onChange={() => { setReportType('period'); setReportResult(null); setReportResultByPeriod(null); setReportResultOpen(false); }}
-                          style={{marginRight:8}} /> Звіт за період
-              </label>
-            </div>
-                    {reportType === 'month' && (
-                      <>
-                        <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24}}>
-                          <label style={{color:'#222'}}>Місяць:
-                            <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))} style={{marginLeft:8}}>
-                  {months.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-                </select>
-                          </label>
-                          <label style={{color:'#222'}}>Рік:
-                            <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))} style={{marginLeft:8}}>
-                  {years.map(y => <option key={y} value={y}>{y}</option>)}
-                            </select>
-                          </label>
-                          <label style={{color:'#222', marginLeft: 16, display:'flex', alignItems:'center', fontSize:16}}>
-                            <input type="checkbox" checked={reportWithDetails} onChange={e => setReportWithDetails(e.target.checked)} style={{marginRight:8}} /> з деталіровкою
-                          </label>
-              </div>
-                        <div style={{display:'flex',gap:16,marginBottom:24}}>
-                          <button style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
-                            onClick={() => { handleFormReport('month'); setReportMode('month'); setReportModalOpen(true); }}
-                          >
-                            Сформувати звіт
-                          </button>
-                          <div style={{position:'relative',display:'inline-block'}}>
-                            <button style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
-                              onClick={()=>setExportMenuOpen(e=>!e)}
-                            >
-                              Експорт
-                            </button>
-                            {exportMenuOpen && (
-                              <div style={{position:'absolute',top:'110%',left:0,background:'#fff',border:'1px solid #bbb',borderRadius:8,boxShadow:'0 2px 12px #0002',zIndex:10,minWidth:180}}>
-                                <button style={{width:'100%',padding:'10px 0',border:'none',background:'none',color:'#222',fontWeight:600,cursor:'pointer'}} onClick={handleExportCSV}>Експорт у Excel (CSV)</button>
-                                <button style={{width:'100%',padding:'10px 0',border:'none',background:'none',color:'#222',fontWeight:600,cursor:'pointer'}} onClick={handleExportXLSX}>Експорт у Excel (XLSX)</button>
-              </div>
-            )}
-                          </div>
-                        </div>
-                        <div id='regional-report-print-block' style={{marginTop:16}}>
-                          {reportMode === 'month' && reportResultOpen && reportResult}
-                        </div>
-                      </>
-                    )}
-                    {reportType === 'period' && (
-                      <>
-                        <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24}}>
-                          <label style={{color:'#222'}}>Початок періоду:
-                            <input type="date" value={reportPeriodStart} onChange={e => setReportPeriodStart(e.target.value)} style={{marginLeft:8}} />
-            </label>
-                          <label style={{color:'#222'}}>Кінець періоду:
-                            <input type="date" value={reportPeriodEnd} onChange={e => setReportPeriodEnd(e.target.value)} style={{marginLeft:8}} />
-                          </label>
-                          <label style={{color:'#222', marginLeft: 16, display:'flex', alignItems:'center', fontSize:16}}>
-                            <input type="checkbox" checked={reportWithDetails} onChange={e => setReportWithDetails(e.target.checked)} style={{marginRight:8}} /> з деталіровкою
-                          </label>
-            </div>
-                        <div style={{display:'flex',gap:16,marginBottom:24}}>
-                          <button style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
-                            onClick={() => { handleFormReport('period'); setReportMode('period'); setReportModalOpen(true); }}
-                          >
-                            Сформувати звіт
-                          </button>
-          </div>
-                        <div id='regional-report-print-block-period' style={{marginTop:16}}>
-                          {reportMode === 'period' && reportResultOpen && reportResultByPeriod}
-        </div>
-                      </>
-                    )}
+                      </tbody>
+                    </table>
                   </div>
-          </div>
-        </div>
-            )}
-          </>
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
       )}
     </div>
       {/* Модальне вікно для звіту */}
@@ -2236,14 +3045,19 @@ function RegionalManagerTabs({ tab, setTab }) {
   );
 }
 
-const areaByRole = {
-  admin: (props) => <AdminArea {...props} />,
+const areas = {
   service: ServiceArea,
   operator: OperatorArea,
   warehouse: WarehouseArea,
   accountant: (props) => <AccountantArea {...props} />,
   regional: (props) => <RegionalManagerArea {...props} />,
   reports: ReportBuilder,
+  materials: (props) => <MaterialsAnalysisArea {...props} />,
+};
+
+// Окремий об'єкт для адміністратора
+const areaByRole = {
+  admin: (props) => <AdminArea {...props} />,
 };
 
 function App() {
@@ -2259,6 +3073,39 @@ function App() {
   const [accessRules, setAccessRules] = useState({});
   const [loadingAccessRules, setLoadingAccessRules] = useState(true);
 
+  // Функція для оновлення активності користувача
+  const updateUserActivity = (userLogin) => {
+    if (!userLogin) return;
+    const now = Date.now();
+    localStorage.setItem(`user_activity_${userLogin}`, now.toString());
+  };
+
+  // Відстеження активності користувача при взаємодії з сторінкою
+  useEffect(() => {
+    if (!user?.login) return;
+
+    const handleUserActivity = () => {
+      updateUserActivity(user.login);
+    };
+
+    // Оновлюємо активність при різних подіях
+    window.addEventListener('mousemove', handleUserActivity);
+    window.addEventListener('keydown', handleUserActivity);
+    window.addEventListener('click', handleUserActivity);
+    window.addEventListener('scroll', handleUserActivity);
+
+    // Початкове оновлення активності
+    updateUserActivity(user.login);
+
+    // Очищення обробників подій
+    return () => {
+      window.removeEventListener('mousemove', handleUserActivity);
+      window.removeEventListener('keydown', handleUserActivity);
+      window.removeEventListener('click', handleUserActivity);
+      window.removeEventListener('scroll', handleUserActivity);
+    };
+  }, [user?.login]);
+
   // Завантаження правил доступу з API
   useEffect(() => {
     const loadAccessRules = async () => {
@@ -2269,13 +3116,24 @@ function App() {
         
         // Потім завантажуємо правила доступу
         const serverRules = await accessRulesAPI.getAll();
+        console.log('[DEBUG][App] Завантажені правила доступу з сервера:', JSON.stringify(serverRules, null, 2));
+        
         if (Object.keys(serverRules).length === 0) {
           // Якщо на сервері немає правил, створюємо за замовчуванням
           const defaultRules = getDefaultAccess(rolesData);
+          console.log('[DEBUG][App] Створюємо правила за замовчуванням:', JSON.stringify(defaultRules, null, 2));
           await accessRulesAPI.save(defaultRules);
           setAccessRules(defaultRules);
         } else {
-          setAccessRules(serverRules);
+          // Оновлюємо існуючі правила, додаючи нову вкладку materials
+          const updatedRules = updateExistingRules(serverRules);
+          if (JSON.stringify(updatedRules) !== JSON.stringify(serverRules)) {
+            console.log('[DEBUG][App] Оновлюємо правила доступу з новою вкладкою materials');
+            await accessRulesAPI.save(updatedRules);
+            setAccessRules(updatedRules);
+          } else {
+            setAccessRules(serverRules);
+          }
         }
       } catch (error) {
         console.error('Помилка завантаження правил доступу:', error);
@@ -2298,6 +3156,24 @@ function App() {
     loadAccessRules();
   }, []);
 
+  // Функція для оновлення існуючих правил з новою вкладкою
+  const updateExistingRules = (existingRules) => {
+    const updatedRules = { ...existingRules };
+    
+    Object.keys(updatedRules).forEach(roleKey => {
+      if (!updatedRules[roleKey].materials) {
+        // Додаємо права для нової вкладки materials
+        if (roleKey === 'admin' || roleKey === 'administrator') {
+          updatedRules[roleKey].materials = 'full';
+        } else {
+          updatedRules[roleKey].materials = 'read';
+        }
+      }
+    });
+    
+    return updatedRules;
+  };
+
   console.log('user:', user, 'currentArea:', currentArea);
 
   useEffect(() => {
@@ -2311,6 +3187,34 @@ function App() {
       .catch(() => setServerMsg('Сервер недоступний...'))
   }, []);
 
+  // Запуск KeepAlive сервісу після успішного входу
+  useEffect(() => {
+    if (user) {
+      console.log('Користувач увійшов, запуск KeepAlive сервісу...');
+      keepAliveService.start();
+      
+      // Обробка подій видимості сторінки
+      const handleVisibilityChange = () => {
+        if (document.hidden) {
+          console.log('Сторінка прихована, зупинка KeepAlive...');
+          keepAliveService.stop();
+        } else {
+          console.log('Сторінка видима, запуск KeepAlive...');
+          keepAliveService.start();
+        }
+      };
+      
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      
+      // Зупинка KeepAlive при виході з додатку
+      return () => {
+        console.log('Користувач вийшов, зупинка KeepAlive сервісу...');
+        keepAliveService.stop();
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    }
+  }, [user]);
+
   if (!user) {
     return <Login onLogin={u => { setUser(u); setCurrentArea(u.role); }} />
   }
@@ -2323,13 +3227,87 @@ function App() {
     );
   }
 
-  const Area = areaByRole[currentArea] || (() => <div>Оберіть область</div>);
+  // Перевіряємо права доступу до поточної вкладки
+  const hasAccessToCurrentArea = accessRules[user.role] && 
+    accessRules[user.role][currentArea] && 
+    accessRules[user.role][currentArea] !== 'none';
+  
+  console.log('[DEBUG][App] User role:', user.role);
+  console.log('[DEBUG][App] Current area:', currentArea);
+  console.log('[DEBUG][App] Access rules for user role:', accessRules[user.role]);
+  console.log('[DEBUG][App] Has access to current area:', hasAccessToCurrentArea);
+
+  // Якщо користувач не має доступу до поточної вкладки, перенаправляємо на першу доступну
+  if (!hasAccessToCurrentArea) {
+    console.log('[DEBUG][App] User does not have access to current area, redirecting...');
+    const availableAreas = Object.keys(accessRules[user.role] || {}).filter(area => 
+      accessRules[user.role][area] && accessRules[user.role][area] !== 'none'
+    );
+    
+    if (availableAreas.length > 0) {
+      console.log('[DEBUG][App] Available areas:', availableAreas);
+      setCurrentArea(availableAreas[0]);
+      return null; // Повертаємо null щоб уникнути рендерингу
+    }
+  }
+
+  // Функція для обробки вибору вкладки з перевіркою прав
+  const handleAreaSelect = (area) => {
+    console.log('[DEBUG][App] Attempting to select area:', area);
+    console.log('[DEBUG][App] User role:', user.role);
+    console.log('[DEBUG][App] Access rules for user role:', accessRules[user.role]);
+    
+    const hasAccess = accessRules[user.role] && 
+      accessRules[user.role][area] && 
+      accessRules[user.role][area] !== 'none';
+    
+    console.log('[DEBUG][App] Has access to area:', area, ':', hasAccess);
+    
+    if (hasAccess) {
+      setCurrentArea(area);
+    } else {
+      console.log('[DEBUG][App] Access denied to area:', area);
+      alert('У вас немає доступу до цієї вкладки');
+    }
+  };
+
+  const Area = currentArea === 'admin' 
+    ? areaByRole.admin 
+    : areas[currentArea] || (() => <div>Оберіть область</div>);
+
+  // Якщо користувач у режимі перегляду, показуємо мобільний інтерфейс
+  if (user.isViewMode) {
+    return (
+      <>
+        <div className='bg-logo'></div>
+        <div style={{ 
+          minHeight: '100vh',
+          background: '#f5f5f5'
+        }}>
+          <div style={{
+            background: '#22334a',
+            color: '#fff',
+            padding: '16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <h1 style={{ margin: 0, fontSize: '20px' }}>{t('company_name')}</h1>
+            <div style={{ fontSize: '14px' }}>
+              {user.name} ({user.role})
+            </div>
+          </div>
+          <MobileViewArea user={user} />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       <div className='bg-logo'></div>
       <div style={{ display: 'flex', minHeight: '100vh' }}>
-        <Sidebar role={user.role} onSelect={setCurrentArea} current={currentArea} accessRules={accessRules} />
+        <Sidebar role={user.role} onSelect={handleAreaSelect} current={currentArea} accessRules={accessRules} />
         <div style={{ flex: 1 }}>
           <h1 style={{marginLeft:24}}>{t('company_name')}</h1>
           {(user.role === 'regional' || (user.role === 'admin' && currentArea === 'regional')) && false /* <RegionalManagerTabs tab={regionalTab} setTab={setRegionalTab} /> */}
@@ -3020,6 +3998,7 @@ function AdminEditTasksArea({ user }) {
         ...t, 
         approvedByAccountant: approved, 
         accountantComment: comment !== undefined ? comment : t.accountantComment,
+        accountantComments: comment !== undefined ? comment : t.accountantComments,
         bonusApprovalDate: bonusApprovalDate
     });
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
@@ -3029,8 +4008,17 @@ function AdminEditTasksArea({ user }) {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
   const handleEdit = t => {
-    setEditTask(t);
+    const isReadOnly = t._readOnly;
+    const taskData = { ...t };
+    delete taskData._readOnly; // Видаляємо прапорець з даних завдання
+    
+    setEditTask(taskData);
     setModalOpen(true);
+    // Передаємо readOnly в ModalTaskForm
+    if (isReadOnly) {
+      // Встановлюємо прапорець для ModalTaskForm
+      setEditTask(prev => ({ ...prev, _readOnly: true }));
+    }
   };
   const handleSave = async (task) => {
     console.log('[DEBUG] handleSave called with task:', task);
@@ -3044,7 +4032,7 @@ function AdminEditTasksArea({ user }) {
       
       setTasks(tasks => {
         console.log('[DEBUG] handleSave - поточні заявки:', tasks.length);
-        const newTasks = tasks.map(t => t.id === updated.id ? updated : t);
+        const newTasks = tasks.map(t => t.id === editTask.id ? updated : t);
         console.log('[DEBUG] handleSave - оновлені заявки:', newTasks.length);
         return newTasks;
       });
@@ -3056,10 +4044,56 @@ function AdminEditTasksArea({ user }) {
     }
     setEditTask(null);
     setLoading(false);
+    
+    // Оновлюємо дані з бази після збереження
+    try {
+      const freshTasks = await tasksAPI.getAll();
+      setTasks(freshTasks);
+      console.log('[DEBUG] handleSave - дані оновлено з бази, завдань:', freshTasks.length);
+      
+      // Оновлюємо editTask, якщо він ще встановлений
+      if (editTask && editTask.id) {
+        const updatedTask = freshTasks.find(t => t.id === editTask.id);
+        if (updatedTask) {
+          setEditTask(updatedTask);
+        }
+      }
+    } catch (error) {
+      console.error('[ERROR] handleSave - помилка оновлення даних з бази:', error);
+    }
+    
     if (task.status === 'Новий' || task.status === 'В роботі') setTab('notDone');
     else if (task.status === 'Виконано' && (!task.approvedByWarehouse || !task.approvedByAccountant || !task.approvedByRegionalManager)) setTab('pending');
     else if (task.status === 'Виконано' && task.approvedByWarehouse && task.approvedByAccountant && task.approvedByRegionalManager) setTab('done');
     else if (task.status === 'Заблоковано') setTab('blocked');
+  };
+  // Функція для збереження тільки поля bonusApprovalDate
+  const handleSaveBonusDate = async (taskId, newDate) => {
+    console.log('[DEBUG] handleSaveBonusDate called with taskId:', taskId, 'newDate:', newDate);
+    
+    setLoading(true);
+    try {
+      // Знаходимо поточну заявку
+      const currentTask = tasks.find(t => t.id === taskId);
+      if (!currentTask) {
+        console.error('[ERROR] handleSaveBonusDate - заявка не знайдена:', taskId);
+        return;
+      }
+      
+      // Оновлюємо тільки поле bonusApprovalDate
+      const updatedTask = { ...currentTask, bonusApprovalDate: newDate };
+      const updated = await tasksAPI.update(taskId, updatedTask);
+      console.log('[DEBUG] handleSaveBonusDate - отримано оновлену заявку:', updated);
+      
+      // Оновлюємо локальний стан
+      setTasks(tasks => tasks.map(t => t.id === taskId ? updated : t));
+      
+      console.log('[DEBUG] handleSaveBonusDate - успішно збережено');
+    } catch (error) {
+      console.error('[ERROR] handleSaveBonusDate - помилка збереження:', error);
+    } finally {
+      setLoading(false);
+    }
   };
   const filtered = tasks.filter(t =>
     (!filters.requestDesc || t.requestDesc.toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
@@ -3088,19 +4122,22 @@ function AdminEditTasksArea({ user }) {
         <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
         <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
       </div>
-      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="admin" user={user} />
+      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="admin" user={user} readOnly={editTask?._readOnly || false} />
       <TaskTable
         tasks={tableData}
         allTasks={tasks}
         onApprove={handleApprove}
         onEdit={handleEdit}
+        onSaveBonusDate={handleSaveBonusDate}
         role="admin"
+        user={user}
         filters={filters}
         onFilterChange={handleFilter}
         columns={columns}
         allColumns={allTaskFields.map(f => ({ key: f.name, label: f.label }))}
         approveField="approvedByAccountant"
         commentField="accountantComment"
+        isArchive={tab === 'archive'}
       />
     </div>
   );

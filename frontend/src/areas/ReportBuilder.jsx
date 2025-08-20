@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { tasksAPI } from '../utils/tasksAPI';
+import * as ExcelJS from 'exceljs';
 
 export default function ReportBuilder() {
   const [tasks, setTasks] = useState([]);
@@ -379,61 +380,133 @@ export default function ReportBuilder() {
     }
   }, [selectedFields]);
 
-  const exportToCSV = () => {
+  const exportToExcel = () => {
+    // Створюємо робочу книгу Excel
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Звіт');
+    
+    // Додаємо заголовки
     const headers = selectedFields.map(field => 
       availableFields.find(f => f.name === field)?.label || field
     );
-
-    const rows = reportData.flatMap(item => {
+    
+    // Встановлюємо стиль для заголовків
+    const headerRow = worksheet.addRow(headers);
+    headerRow.eachCell((cell) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFFF00' } // Жовтий колір
+      };
+      cell.font = {
+        bold: true,
+        color: { argb: 'FF000000' } // Чорний текст
+      };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: 'center',
+        wrapText: true
+      };
+    });
+    
+    // Додаємо дані
+    reportData.forEach(item => {
       if (item.group) {
-        // Групування
-        return [
-          [`${item.group} - Всього: ${item.total}`, ...Array(selectedFields.length - 1).fill('')],
-          ...item.tasks.map(t => 
+        // Групування - додаємо рядок групи
+        const groupRow = worksheet.addRow([`${item.group} - Всього: ${item.total}`, ...Array(selectedFields.length - 1).fill('')]);
+        groupRow.eachCell((cell) => {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFE3F2FD' } // Світло-синій
+          };
+          cell.font = { bold: true };
+          cell.alignment = { wrapText: true };
+        });
+        
+        // Додаємо завдання групи
+        item.tasks.forEach((task, index) => {
+          const dataRow = worksheet.addRow(
             selectedFields.map(field => {
-              const value = t[field];
+              const value = task[field];
               if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
                 return formatApprovalStatus(value);
               }
               return value || '';
             })
-          )
-        ];
+          );
+          
+          // Альтернативні кольори для рядків
+          const bgColor = index % 2 === 0 ? 'FF22334A' : 'FF1A2636';
+          dataRow.eachCell((cell) => {
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: bgColor }
+            };
+            cell.font = { color: { argb: 'FFFFFFFF' } }; // Білий текст
+            cell.alignment = { wrapText: true };
+            cell.border = {
+              top: { style: 'thin' },
+              left: { style: 'thin' },
+              bottom: { style: 'thin' },
+              right: { style: 'thin' }
+            };
+          });
+        });
+      } else {
+        // Звичайний рядок
+        const dataRow = worksheet.addRow(
+          selectedFields.map(field => {
+            const value = item[field];
+            if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
+              return formatApprovalStatus(value);
+            }
+            return value || '';
+          })
+        );
+        
+        dataRow.eachCell((cell) => {
+          cell.alignment = { wrapText: true };
+          cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' }
+          };
+        });
       }
-      return [selectedFields.map(field => {
-        const value = item[field];
-        if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
-          return formatApprovalStatus(value);
-        }
-        return value || '';
-      })];
     });
-
-    // Створюємо CSV контент
-    const csvRows = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => {
-        // Екрануємо коми та лапки в значеннях
-        const escapedCell = String(cell).replace(/"/g, '""');
-        return `"${escapedCell}"`;
-      }).join(','))
-    ];
     
-    const csvContent = csvRows.join('\n');
+    // Автоматично підбираємо ширину колонок
+    worksheet.columns.forEach(column => {
+      let maxLength = 0;
+      column.eachCell({ includeEmpty: true }, (cell) => {
+        const columnLength = cell.value ? cell.value.toString().length : 10;
+        if (columnLength > maxLength) {
+          maxLength = columnLength;
+        }
+      });
+      column.width = Math.min(Math.max(maxLength + 2, 10), 50); // Мінімум 10, максимум 50
+    });
     
-    // Додаємо UTF-8 BOM та кодуємо як UTF-8
-    const BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
-    const encoder = new TextEncoder();
-    const csvBytes = encoder.encode(csvContent);
-    const finalBytes = new Uint8Array(BOM.length + csvBytes.length);
-    finalBytes.set(BOM);
-    finalBytes.set(csvBytes, BOM.length);
-
-    const blob = new Blob([finalBytes], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `report_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
+    // Встановлюємо висоту рядків для переносу слів
+    worksheet.properties.defaultRowHeight = 20;
+    
+    // Генеруємо файл
+    workbook.xlsx.writeBuffer().then(buffer => {
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `report_${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.click();
+    });
   };
 
   const handleFieldToggle = (fieldName) => {
@@ -726,7 +799,7 @@ export default function ReportBuilder() {
           Відкрити в новій вкладці
         </button>
         <button
-          onClick={exportToCSV}
+          onClick={exportToExcel}
           disabled={reportData.length === 0}
           style={{
             padding: '8px 16px',
@@ -738,7 +811,7 @@ export default function ReportBuilder() {
             fontSize: '14px'
           }}
         >
-          Експорт в CSV
+          Експорт в Excel
         </button>
       </div>
       
