@@ -10,7 +10,7 @@ export default function ReportBuilder() {
   const [approvalFilter, setApprovalFilter] = useState('all'); // 'all', 'approved', 'not_approved'
   const [groupBy, setGroupBy] = useState('');
   const [reportData, setReportData] = useState([]);
-  const [selectedFields, setSelectedFields] = useState(['requestDate', 'date', 'paymentDate']); // Початкові поля
+  const [selectedFields, setSelectedFields] = useState(['requestDate', 'date', 'paymentDate', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager']); // Початкові поля
   const [availableFields, setAvailableFields] = useState([
     { name: 'requestDate', label: 'Дата заявки' },
     { name: 'requestDesc', label: 'Опис заявки' },
@@ -39,6 +39,17 @@ export default function ReportBuilder() {
   // Функція для перевірки статусу підтвердження
   function isApproved(value) {
     return value === true || value === 'Підтверджено';
+  }
+
+  // Функція для форматування статусу затвердження
+  function formatApprovalStatus(value) {
+    if (isApproved(value)) {
+      return 'Підтверджено';
+    } else if (value === false || value === 'Відмова') {
+      return 'Відхилено';
+    } else {
+      return 'На розгляді';
+    }
   }
 
   // Додаємо useEffect для оновлення filters при зміні availableFields
@@ -436,7 +447,9 @@ export default function ReportBuilder() {
                         }}>
                           {selectedFields.map(field => (
                             <td key={field} style={{padding: '12px'}}>
-                              {task[field] || ''}
+                              {field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager' 
+                                ? formatApprovalStatus(task[field]) 
+                                : (task[field] || '')}
                             </td>
                           ))}
                         </tr>
@@ -452,7 +465,9 @@ export default function ReportBuilder() {
                     }}>
                       {selectedFields.map(field => (
                         <td key={field} style={{padding: '12px'}}>
-                          {row[field] || ''}
+                          {field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager' 
+                            ? formatApprovalStatus(row[field]) 
+                            : (row[field] || '')}
                         </td>
                       ))}
                     </tr>
