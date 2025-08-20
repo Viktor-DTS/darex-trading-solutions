@@ -5,8 +5,9 @@ export default function ReportBuilder() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
-    requestDate: '', requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: ''
+    requestDate: '', requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: '', approvedByWarehouse: '', approvedByAccountant: '', approvedByRegionalManager: ''
   });
+  const [approvalFilter, setApprovalFilter] = useState('all'); // 'all', 'approved', 'not_approved'
   const [groupBy, setGroupBy] = useState('');
   const [reportData, setReportData] = useState([]);
   const [selectedFields, setSelectedFields] = useState(['requestDate', 'date', 'paymentDate']); // Початкові поля
@@ -29,8 +30,16 @@ export default function ReportBuilder() {
     { name: 'warehouseComment', label: 'Коментар складу' },
     { name: 'accountantComment', label: 'Коментар бухгалтера' },
     { name: 'accountantComments', label: 'Коментарії бухгалтера' },
-    { name: 'regionalManagerComment', label: 'Коментар регіонального менеджера' }
+    { name: 'regionalManagerComment', label: 'Коментар регіонального менеджера' },
+    { name: 'approvedByWarehouse', label: 'Статус затвердження складу' },
+    { name: 'approvedByAccountant', label: 'Статус затвердження бухгалтера' },
+    { name: 'approvedByRegionalManager', label: 'Статус затвердження регіонального менеджера' }
   ]);
+
+  // Функція для перевірки статусу підтвердження
+  function isApproved(value) {
+    return value === true || value === 'Підтверджено';
+  }
 
   // Додаємо useEffect для оновлення filters при зміні availableFields
   // але зберігаємо вже введені користувачем значення
@@ -81,6 +90,21 @@ export default function ReportBuilder() {
           }
         }
       }
+      
+      // Фільтр по статусу затвердження
+      if (approvalFilter === 'approved') {
+        // Для затверджених - всі повинні бути затверджені
+        if (!isApproved(t.approvedByWarehouse) || !isApproved(t.approvedByAccountant) || !isApproved(t.approvedByRegionalManager)) {
+          return false;
+        }
+      } else if (approvalFilter === 'not_approved') {
+        // Для незатверджених - хоча б один не затвердив
+        if (isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant) && isApproved(t.approvedByRegionalManager)) {
+          return false;
+        }
+      }
+      // Якщо approvalFilter === 'all', то показуємо всі
+      
       return true;
     });
 
@@ -122,7 +146,7 @@ export default function ReportBuilder() {
       console.log('[DEBUG][ReportBuilder] Автоматичне оновлення звіту при зміні фільтрів');
       generateReportFromData(tasks);
     }
-  }, [filters, groupBy, tasks]);
+  }, [filters, groupBy, tasks, approvalFilter]);
 
   // Автоматично оновлюємо звіт при зміні вибраних полів
   useEffect(() => {
@@ -184,6 +208,29 @@ export default function ReportBuilder() {
       {/* Фільтри */}
       <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
         <h3 style={{color: '#fff', marginBottom: '12px'}}>Фільтри</h3>
+        
+        {/* Статус затвердження */}
+        <div style={{marginBottom: '16px'}}>
+          <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px', display: 'block'}}>Статус затвердження:</label>
+          <select
+            value={approvalFilter}
+            onChange={(e) => setApprovalFilter(e.target.value)}
+            style={{
+              padding: '8px',
+              borderRadius: '4px',
+              border: '1px solid #29506a',
+              background: '#22334a',
+              color: '#fff',
+              fontSize: '14px',
+              width: '200px'
+            }}
+          >
+            <option value="all">Всі звіти</option>
+            <option value="approved">Тільки затверджені</option>
+            <option value="not_approved">Тільки незатверджені</option>
+          </select>
+        </div>
+        
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
           {availableFields.map(field => (
             <div key={field.name} style={{display: 'flex', flexDirection: 'column'}}>
@@ -289,6 +336,13 @@ export default function ReportBuilder() {
             <strong>Вибрано полів:</strong> {selectedFields.length} з {availableFields.length}
           </div>
         )}
+        <div style={{color: '#fff', fontSize: '14px', marginTop: '4px'}}>
+          <strong>Фільтр статусу затвердження:</strong> {
+            approvalFilter === 'all' ? 'Всі звіти' :
+            approvalFilter === 'approved' ? 'Тільки затверджені' :
+            approvalFilter === 'not_approved' ? 'Тільки незатверджені' : 'Невідомо'
+          }
+        </div>
       </div>
       <div style={{overflowX:'auto'}}>
         {loading ? (
