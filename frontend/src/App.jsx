@@ -20,6 +20,7 @@ import AccountantArea from './areas/AccountantArea';
 import WarehouseArea from './areas/WarehouseArea';
 import OperatorArea from './areas/OperatorArea';
 import MaterialsAnalysisArea from './areas/MaterialsAnalysisArea';
+import ReportBuilder from './areas/ReportBuilder';
 import * as XLSX from 'xlsx-js-style';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import API_BASE_URL from './config.js';
