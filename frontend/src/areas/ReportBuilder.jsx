@@ -386,16 +386,34 @@ export default function ReportBuilder() {
         return [
           [`${item.group} - Всього: ${item.total}`, ...Array(selectedFields.length - 1).fill('')],
           ...item.tasks.map(t => 
-            selectedFields.map(field => t[field] || '')
+            selectedFields.map(field => {
+              const value = t[field];
+              if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
+                return formatApprovalStatus(value);
+              }
+              return value || '';
+            })
           )
         ];
       }
-      return [selectedFields.map(field => item[field] || '')];
+      return [selectedFields.map(field => {
+        const value = item[field];
+        if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
+          return formatApprovalStatus(value);
+        }
+        return value || '';
+      })];
     });
 
-    const csvContent = [
+    // Додаємо UTF-8 BOM для правильного відображення в Excel
+    const BOM = '\uFEFF';
+    const csvContent = BOM + [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ...rows.map(row => row.map(cell => {
+        // Екрануємо коми та лапки в значеннях
+        const escapedCell = String(cell).replace(/"/g, '""');
+        return `"${escapedCell}"`;
+      }).join(','))
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
