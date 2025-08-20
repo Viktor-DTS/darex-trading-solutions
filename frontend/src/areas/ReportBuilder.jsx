@@ -78,6 +78,7 @@ export default function ReportBuilder() {
   // Функція для генерації звіту з переданими даними
   const generateReportFromData = (tasksData) => {
     console.log('[DEBUG][ReportBuilder] Генерація звіту з', tasksData.length, 'завдань');
+    console.log('[DEBUG][ReportBuilder] Поточний approvalFilter:', approvalFilter);
     
     const filtered = tasksData.filter(t => {
       // Перевіряємо всі фільтри динамічно
@@ -95,11 +96,13 @@ export default function ReportBuilder() {
       if (approvalFilter === 'approved') {
         // Для затверджених - всі повинні бути затверджені
         if (!isApproved(t.approvedByWarehouse) || !isApproved(t.approvedByAccountant) || !isApproved(t.approvedByRegionalManager)) {
+          console.log('[DEBUG][ReportBuilder] Завдання', t.id, 'відфільтровано: не всі затвердили');
           return false;
         }
       } else if (approvalFilter === 'not_approved') {
         // Для незатверджених - хоча б один не затвердив
         if (isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant) && isApproved(t.approvedByRegionalManager)) {
+          console.log('[DEBUG][ReportBuilder] Завдання', t.id, 'відфільтровано: всі затвердили');
           return false;
         }
       }
@@ -109,6 +112,13 @@ export default function ReportBuilder() {
     });
 
     console.log('[DEBUG][ReportBuilder] Відфільтровано завдань:', filtered.length);
+    console.log('[DEBUG][ReportBuilder] Приклад завдань після фільтрації:', filtered.slice(0, 3).map(t => ({
+      id: t.id,
+      status: t.status,
+      approvedByWarehouse: t.approvedByWarehouse,
+      approvedByAccountant: t.approvedByAccountant,
+      approvedByRegionalManager: t.approvedByRegionalManager
+    })));
 
     let grouped = filtered;
     if (groupBy) {
@@ -247,6 +257,13 @@ export default function ReportBuilder() {
             >
               {loading ? 'Завантаження...' : 'Сформувати звіт'}
             </button>
+          </div>
+          <div style={{marginTop: '8px', color: '#00bfff', fontSize: '12px'}}>
+            Активний фільтр: {
+              approvalFilter === 'all' ? 'Всі звіти' :
+              approvalFilter === 'approved' ? 'Тільки затверджені' :
+              approvalFilter === 'not_approved' ? 'Тільки незатверджені' : 'Невідомо'
+            }
           </div>
         </div>
         
