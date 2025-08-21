@@ -4,6 +4,8 @@ import FileUpload from './components/FileUpload';
 import { tasksAPI } from './utils/tasksAPI';
 import { regionsAPI } from './utils/regionsAPI';
 import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from './utils/eventLogAPI';
+import { getEquipmentTypes } from './utils/equipmentAPI';
+import MaterialsSelectionModal from './components/MaterialsSelectionModal';
 
 // Функція для отримання коду регіону
 const getRegionCode = (region) => {
@@ -304,6 +306,12 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   const [missingFields, setMissingFields] = useState([]);
   const [showMissingModal, setShowMissingModal] = useState(false);
 
+  // --- Додаємо стан для автодоповнення обладнання ---
+  const [equipmentTypes, setEquipmentTypes] = useState([]);
+  const [showEquipmentDropdown, setShowEquipmentDropdown] = useState(false);
+  const [filteredEquipmentTypes, setFilteredEquipmentTypes] = useState([]);
+  const [materialsModal, setMaterialsModal] = useState({ open: false, equipmentType: '' });
+
   useEffect(() => {
     const f = { ...initialData };
     if ('approvedByWarehouse' in f) f.approvedByWarehouse = toSelectString(f.approvedByWarehouse);
@@ -422,6 +430,21 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     }
   }, [open]);
 
+  // --- Завантаження типів обладнання ---
+  useEffect(() => {
+    if (open) {
+      getEquipmentTypes()
+        .then(types => {
+          setEquipmentTypes(types);
+          console.log('[DEBUG] Завантажено типів обладнання:', types.length);
+        })
+        .catch(error => {
+          console.error('Помилка завантаження типів обладнання:', error);
+          setEquipmentTypes([]);
+        });
+    }
+  }, [open]);
+
   // --- Список сервісних інженерів для вибору ---
   const serviceEngineers = users.filter(u => {
     if (u.role !== 'service') return false;
@@ -501,6 +524,25 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   // --- Додаємо обробник для select з відмовою ---
   const handleChange = e => {
     const { name, value } = e.target;
+    
+    // Спеціальна обробка для поля обладнання
+    if (name === 'equipment') {
+      setForm({ ...form, [name]: value });
+      
+      // Фільтруємо типи обладнання для автодоповнення
+      if (value.trim()) {
+        const filtered = equipmentTypes.filter(type => 
+          type.toLowerCase().includes(value.toLowerCase())
+        );
+        setFilteredEquipmentTypes(filtered);
+        setShowEquipmentDropdown(filtered.length > 0);
+      } else {
+        setShowEquipmentDropdown(false);
+        setFilteredEquipmentTypes([]);
+      }
+      return;
+    }
+    
     // Якщо це поле підтвердження і вибрано "Відмова" — показати модалку
     if (
       (name === 'approvedByWarehouse' || name === 'approvedByAccountant' || name === 'approvedByRegionalManager') &&
@@ -524,6 +566,21 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       return;
     }
     setForm({ ...form, [name]: value });
+  };
+
+  // --- Обробник вибору обладнання з автодоповнення ---
+  const handleEquipmentSelect = (equipmentType) => {
+    setForm({ ...form, equipment: equipmentType });
+    setShowEquipmentDropdown(false);
+    setFilteredEquipmentTypes([]);
+    
+    // Відкриваємо модальне вікно для вибору матеріалів
+    setMaterialsModal({ open: true, equipmentType });
+  };
+
+  // --- Обробник застосування матеріалів ---
+  const handleMaterialsApply = (formUpdates) => {
+    setForm(prev => ({ ...prev, ...formUpdates }));
   };
 
   // --- Підтвердження відмови ---
@@ -838,6 +895,37 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
+                  
+                  // Спеціальний рендеринг для поля обладнання з автодоповненням
+                  if (f.name === 'equipment') {
+                    return (
+                      <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'} style={{ position: 'relative' }}>
+                        <label>{f.label}</label>
+                        <input 
+                          type={f.type} 
+                          name={f.name} 
+                          value={value} 
+                          onChange={handleChange} 
+                          readOnly={isReadOnly(f.name)}
+                          onBlur={() => setTimeout(() => setShowEquipmentDropdown(false), 200)}
+                        />
+                        {showEquipmentDropdown && (
+                          <div className="equipment-dropdown">
+                            {filteredEquipmentTypes.map(type => (
+                              <div 
+                                key={type} 
+                                className="equipment-option"
+                                onClick={() => handleEquipmentSelect(type)}
+                              >
+                                {type}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  
                   return (
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
@@ -1293,6 +1381,15 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           </div>
         </div>
       )}
+      
+      {/* --- Модальне вікно вибору матеріалів --- */}
+      <MaterialsSelectionModal
+        open={materialsModal.open}
+        onClose={() => setMaterialsModal({ open: false, equipmentType: '' })}
+        onApply={handleMaterialsApply}
+        equipmentType={materialsModal.equipmentType}
+        currentFormData={form}
+      />
     </div>
   );
 }

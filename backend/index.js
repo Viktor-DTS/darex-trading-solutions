@@ -1064,6 +1064,76 @@ app.post('/api/analytics/copy-previous', async (req, res) => {
   }
 });
 
+// API для отримання унікальних типів обладнання
+app.get('/api/equipment-types', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/equipment-types - запит отримано');
+    
+    const equipmentTypes = await Task.distinct('equipment');
+    const filteredTypes = equipmentTypes
+      .filter(type => type && type.trim() !== '')
+      .sort();
+    
+    console.log('[DEBUG] GET /api/equipment-types - знайдено типів обладнання:', filteredTypes.length);
+    res.json(filteredTypes);
+  } catch (error) {
+    console.error('[ERROR] GET /api/equipment-types - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для отримання матеріалів по типу обладнання
+app.get('/api/equipment-materials/:equipmentType', async (req, res) => {
+  try {
+    const { equipmentType } = req.params;
+    console.log('[DEBUG] GET /api/equipment-materials/:equipmentType - запит для обладнання:', equipmentType);
+    
+    // Знаходимо всі завдання з цим типом обладнання
+    const tasks = await Task.find({ 
+      equipment: { $regex: new RegExp(equipmentType, 'i') } 
+    });
+    
+    // Збираємо унікальні матеріали
+    const materials = {
+      oil: {
+        types: [...new Set(tasks.map(t => t.oilType).filter(t => t && t.trim()))],
+        quantities: [...new Set(tasks.map(t => t.oilUsed).filter(q => q && q.trim()))]
+      },
+      oilFilter: {
+        names: [...new Set(tasks.map(t => t.filterName).filter(n => n && n.trim()))],
+        quantities: [...new Set(tasks.map(t => t.filterCount).filter(q => q && q.trim()))]
+      },
+      fuelFilter: {
+        names: [...new Set(tasks.map(t => t.fuelFilterName).filter(n => n && n.trim()))],
+        quantities: [...new Set(tasks.map(t => t.fuelFilterCount).filter(q => q && q.trim()))]
+      },
+      airFilter: {
+        names: [...new Set(tasks.map(t => t.airFilterName).filter(n => n && n.trim()))],
+        quantities: [...new Set(tasks.map(t => t.airFilterCount).filter(q => q && q.trim()))]
+      },
+      antifreeze: {
+        types: [...new Set(tasks.map(t => t.antifreezeType).filter(t => t && t.trim()))],
+        quantities: [...new Set(tasks.map(t => t.antifreezeL).filter(q => q && q.trim()))]
+      },
+      otherMaterials: [...new Set(tasks.map(t => t.otherMaterials).filter(m => m && m.trim()))]
+    };
+    
+    console.log('[DEBUG] GET /api/equipment-materials/:equipmentType - знайдено матеріалів:', {
+      oil: materials.oil.types.length,
+      oilFilter: materials.oilFilter.names.length,
+      fuelFilter: materials.fuelFilter.names.length,
+      airFilter: materials.airFilter.names.length,
+      antifreeze: materials.antifreeze.types.length,
+      otherMaterials: materials.otherMaterials.length
+    });
+    
+    res.json(materials);
+  } catch (error) {
+    console.error('[ERROR] GET /api/equipment-materials/:equipmentType - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Сервер запущено на http://localhost:${PORT}`);
 }); 
