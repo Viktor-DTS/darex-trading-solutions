@@ -963,29 +963,34 @@ app.get('/api/analytics/revenue', async (req, res) => {
     taskFilter.status = 'Виконано';
     const tasks = await Task.find(taskFilter);
     
-    // Розраховуємо дохід (сума премій за виконання сервісних робіт помножена на 3)
+    // Розраховуємо дохід (сума премій за виконання сервісних робіт)
     const revenueByMonth = {};
     
     console.log(`[DEBUG] Знайдено ${tasks.length} заявок`);
     let processedTasks = 0;
     
     tasks.forEach(task => {
-      console.log(`[DEBUG] Заявка ${task._id}: bonusApprovalDate=${task.bonusApprovalDate}, workPrice=${task.workPrice}`);
+      console.log(`[DEBUG] Заявка ${task._id}: date=${task.date}, workPrice=${task.workPrice}, approvedByWarehouse=${task.approvedByWarehouse}, approvedByAccountant=${task.approvedByAccountant}, approvedByRegionalManager=${task.approvedByRegionalManager}`);
       
-      if (task.bonusApprovalDate && task.workPrice) {
-        // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
-        const [approvalMonthStr, approvalYearStr] = task.bonusApprovalDate.split('-');
-        const approvalMonth = parseInt(approvalMonthStr);
-        const approvalYear = parseInt(approvalYearStr);
-        const key = `${approvalYear}-${approvalMonth}`;
+      // Перевіряємо чи заявка підтверджена всіма
+      const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
+      const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
+      const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
+      
+      if (task.date && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
+        // date - це дата проведення робіт
+        const date = new Date(task.date);
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const key = `${year}-${month}`;
         
         if (!revenueByMonth[key]) {
           revenueByMonth[key] = 0;
         }
         
-        // Додаємо премію за виконання сервісних робіт (25% від workPrice)
+        // Додаємо премію за виконання сервісних робіт: (workPrice / 4) * 3
         const workPrice = parseFloat(task.workPrice) || 0;
-        const bonusAmount = workPrice * 0.25; // 25% від workPrice
+        const bonusAmount = (workPrice / 4) * 3; // workPrice поділено на 4 та помножено на 3
         revenueByMonth[key] += bonusAmount;
         processedTasks++;
         
@@ -1066,12 +1071,17 @@ app.get('/api/analytics/full', async (req, res) => {
     const companiesByMonth = {};
     
     tasks.forEach(task => {
-      if (task.bonusApprovalDate && task.workPrice) {
-        // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
-        const [approvalMonthStr, approvalYearStr] = task.bonusApprovalDate.split('-');
-        const approvalMonth = parseInt(approvalMonthStr);
-        const approvalYear = parseInt(approvalYearStr);
-        const key = `${approvalYear}-${approvalMonth}`;
+      // Перевіряємо чи заявка підтверджена всіма
+      const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
+      const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
+      const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
+      
+      if (task.date && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
+        // date - це дата проведення робіт
+        const date = new Date(task.date);
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const key = `${year}-${month}`;
         
         if (!revenueByMonth[key]) {
           revenueByMonth[key] = 0;
@@ -1079,16 +1089,18 @@ app.get('/api/analytics/full', async (req, res) => {
           companiesByMonth[key] = new Set();
         }
         
-        // Додаємо премію за виконання сервісних робіт (25% від workPrice)
+        // Додаємо премію за виконання сервісних робіт: (workPrice / 4) * 3
         const workPrice = parseFloat(task.workPrice) || 0;
-        const bonusAmount = workPrice * 0.25; // 25% від workPrice
+        const bonusAmount = (workPrice / 4) * 3; // workPrice поділено на 4 та помножено на 3
         revenueByMonth[key] += bonusAmount;
         
         // Збираємо регіони та компанії для цього місяця
         if (task.serviceRegion) {
+          regionsByMonth[key] = new Set();
           regionsByMonth[key].add(task.serviceRegion);
         }
         if (task.company) {
+          companiesByMonth[key] = new Set();
           companiesByMonth[key].add(task.company);
         }
       }
