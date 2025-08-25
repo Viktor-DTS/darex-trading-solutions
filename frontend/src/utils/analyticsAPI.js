@@ -92,6 +92,28 @@ export const analyticsAPI = {
     }
   },
 
+  // Видалити аналітику
+  async deleteAnalytics(deleteData) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/analytics`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(deleteData),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Помилка видалення аналітики:', error);
+      throw error;
+    }
+  },
+
   // Отримати дохід за період
   async getRevenue(filters = {}) {
     try {

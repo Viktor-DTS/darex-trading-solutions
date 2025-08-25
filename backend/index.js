@@ -871,6 +871,34 @@ app.post('/api/analytics', async (req, res) => {
   }
 });
 
+// Видалити аналітику
+app.delete('/api/analytics', async (req, res) => {
+  try {
+    const { region, company, year, month, user } = req.body;
+    
+    // Перевіряємо права доступу
+    const allowedRoles = ['admin', 'administrator', 'regionalManager', 'regkerivn'];
+    if (!user || !allowedRoles.includes(user.role)) {
+      return res.status(403).json({ error: 'Недостатньо прав для видалення аналітики' });
+    }
+    
+    if (!region || !company || !year || !month) {
+      return res.status(400).json({ error: 'Відсутні обов\'язкові поля: region, company, year, month' });
+    }
+    
+    const result = await Analytics.deleteOne({ region, company, year: parseInt(year), month: parseInt(month) });
+    
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: 'Аналітика не знайдена' });
+    }
+    
+    res.json({ success: true, message: 'Аналітика видалена успішно' });
+  } catch (error) {
+    console.error('Помилка видалення аналітики:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Отримати дохід за період (розрахунок на основі заявок)
 app.get('/api/analytics/revenue', async (req, res) => {
   try {

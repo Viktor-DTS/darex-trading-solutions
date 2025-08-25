@@ -127,6 +127,35 @@ export default function AnalyticsArea({ user }) {
     }
   };
 
+  // Функція для видалення витрат
+  const handleDeleteExpenses = async (item) => {
+    // Перевіряємо права доступу
+    const canDelete = user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'regionalManager' || user?.role === 'regkerivn';
+    
+    if (!canDelete) {
+      alert('У вас немає прав для видалення витрат. Зверніться до адміністратора.');
+      return;
+    }
+
+    if (!confirm(`Ви впевнені, що хочете видалити витрати за ${getMonthName(item.month)} ${item.year} для ${item.region} - ${item.company}?`)) {
+      return;
+    }
+
+    try {
+      await analyticsAPI.deleteAnalytics({
+        region: item.region,
+        company: item.company,
+        year: item.year,
+        month: item.month,
+        user: user
+      });
+      alert('Витрати видалено!');
+      loadAnalytics();
+    } catch (error) {
+      alert('Помилка видалення витрат');
+    }
+  };
+
   // Компонент для редагування витрат
   const ExpenseModal = ({ open, onClose, expense, onSave }) => {
     const [expenses, setExpenses] = useState(expense?.expenses || {});
@@ -573,20 +602,38 @@ export default function AnalyticsArea({ user }) {
                             {formatPercent(item.profitability)}
                           </td>
                           <td style={{padding: '12px', textAlign: 'center'}}>
-                            <button
-                              onClick={() => handleEditExpenses(item)}
-                              style={{
-                                padding: '4px 8px',
-                                background: '#00bfff',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '12px'
-                              }}
-                            >
-                              Редагувати
-                            </button>
+                            <div style={{display: 'flex', gap: '8px', justifyContent: 'center'}}>
+                              <button
+                                onClick={() => handleEditExpenses(item)}
+                                style={{
+                                  padding: '4px 8px',
+                                  background: '#00bfff',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                Редагувати
+                              </button>
+                              {(user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'regionalManager' || user?.role === 'regkerivn') && (
+                                <button
+                                  onClick={() => handleDeleteExpenses(item)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    background: '#dc3545',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    fontSize: '12px'
+                                  }}
+                                >
+                                  Видалити
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
