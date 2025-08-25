@@ -839,8 +839,25 @@ app.post('/api/analytics', async (req, res) => {
   try {
     const { region, company, year, month, expenses, createdBy } = req.body;
     
+    // Валідація обов'язкових полів
+    if (!region || !company || !year || !month) {
+      return res.status(400).json({ 
+        error: 'Відсутні обов\'язкові поля: region, company, year, month',
+        received: { region, company, year, month }
+      });
+    }
+    
+    if (!expenses || typeof expenses !== 'object') {
+      return res.status(400).json({ 
+        error: 'Відсутні або неправильні дані витрат',
+        received: { expenses }
+      });
+    }
+    
+    console.log('Збереження аналітики:', { region, company, year, month, expenses, createdBy });
+    
     // Перевіряємо чи існує запис для цього періоду
-    let analytics = await Analytics.findOne({ region, company, year, month });
+    let analytics = await Analytics.findOne({ region, company, year: parseInt(year), month: parseInt(month) });
     
     if (analytics) {
       // Оновлюємо існуючий запис
@@ -852,8 +869,8 @@ app.post('/api/analytics', async (req, res) => {
       analytics = new Analytics({
         region,
         company,
-        year,
-        month,
+        year: parseInt(year),
+        month: parseInt(month),
         expenses,
         createdBy,
         updatedBy: createdBy
@@ -861,7 +878,7 @@ app.post('/api/analytics', async (req, res) => {
     }
     
     // Розраховуємо загальні витрати
-    analytics.totalExpenses = Object.values(expenses).reduce((sum, value) => sum + (value || 0), 0);
+    analytics.totalExpenses = Object.values(expenses).reduce((sum, value) => sum + (parseFloat(value) || 0), 0);
     
     await analytics.save();
     res.json({ success: true, analytics });

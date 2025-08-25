@@ -141,13 +141,16 @@ export default function AnalyticsArea({ user }) {
   };
 
   // Функція для збереження нових витрат
-  const handleSaveNewExpenses = async (expenses) => {
+  const handleSaveNewExpenses = async (data) => {
     try {
+      // Розділяємо дані на expenses та formData
+      const { region, company, year, month, expenses } = data;
+      
       await analyticsAPI.saveAnalytics({
-        region: editingExpense.region,
-        company: editingExpense.company,
-        year: editingExpense.year,
-        month: editingExpense.month,
+        region,
+        company,
+        year,
+        month,
         expenses,
         createdBy: user.login
       });
@@ -354,7 +357,19 @@ export default function AnalyticsArea({ user }) {
               Скасувати
             </button>
             <button
-              onClick={() => onSave(isNew ? {...expenses, ...formData} : expenses)}
+              onClick={() => {
+                if (isNew) {
+                  // Для нових витрат передаємо formData та expenses окремо
+                  const dataToSave = {
+                    ...formData,
+                    expenses: expenses
+                  };
+                  onSave(dataToSave);
+                } else {
+                  // Для редагування передаємо тільки expenses
+                  onSave(expenses);
+                }
+              }}
               style={{
                 padding: '8px 16px',
                 background: '#28a745',
