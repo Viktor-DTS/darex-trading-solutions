@@ -969,9 +969,9 @@ app.get('/api/analytics/revenue', async (req, res) => {
     let processedTasks = 0;
     
     tasks.forEach(task => {
-      console.log(`[DEBUG] Заявка ${task._id}: date=${task.date}, workPrice=${task.workPrice}, bonusApprovalDate=${task.bonusApprovalDate}`);
+      console.log(`[DEBUG] Заявка ${task._id}: date=${task.date}, workPrice=${task.workPrice}`);
       
-      if (task.date && task.workPrice && task.bonusApprovalDate && task.bonusApprovalDate.trim() !== '') {
+      if (task.date && task.workPrice) {
         const date = new Date(task.date);
         const year = date.getFullYear();
         const month = date.getMonth() + 1;
@@ -1054,13 +1054,15 @@ app.get('/api/analytics/full', async (req, res) => {
     
     const tasks = await Task.find(taskFilter);
     
+    console.log(`[DEBUG] Знайдено ${tasks.length} заявок для аналітики`);
+    
     // Розраховуємо доходи по місяцях (сума премій за виконання сервісних робіт)
     const revenueByMonth = {};
     const regionsByMonth = {};
     const companiesByMonth = {};
     
     tasks.forEach(task => {
-      if (task.date && task.workPrice && task.bonusApprovalDate && task.bonusApprovalDate.trim() !== '') {
+      if (task.date && task.workPrice) {
         const date = new Date(task.date);
         const year = date.getFullYear();
         const month = date.getMonth() + 1;
