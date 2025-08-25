@@ -955,9 +955,9 @@ app.get('/api/analytics/revenue', async (req, res) => {
     let processedTasks = 0;
     
     tasks.forEach(task => {
-      console.log(`[DEBUG] Заявка ${task._id}: date=${task.date}, serviceBonus=${task.serviceBonus}, bonusApprovalDate=${task.bonusApprovalDate}`);
+      console.log(`[DEBUG] Заявка ${task._id}: date=${task.date}, workPrice=${task.workPrice}, bonusApprovalDate=${task.bonusApprovalDate}`);
       
-      if (task.date && task.serviceBonus && task.bonusApprovalDate && task.bonusApprovalDate.trim() !== '') {
+      if (task.date && task.workPrice && task.bonusApprovalDate && task.bonusApprovalDate.trim() !== '') {
         const date = new Date(task.date);
         const year = date.getFullYear();
         const month = date.getMonth() + 1;
@@ -967,12 +967,13 @@ app.get('/api/analytics/revenue', async (req, res) => {
           revenueByMonth[key] = 0;
         }
         
-        // Додаємо премію за виконання сервісних робіт (serviceBonus помножена на 3)
-        const bonusAmount = (parseFloat(task.serviceBonus) || 0) * 3;
+        // Додаємо премію за виконання сервісних робіт (25% від workPrice помножена на 3)
+        const workPrice = parseFloat(task.workPrice) || 0;
+        const bonusAmount = workPrice * 0.25 * 3; // 25% від workPrice помножена на 3
         revenueByMonth[key] += bonusAmount;
         processedTasks++;
         
-        console.log(`[DEBUG] Додано дохід для ${key}: ${bonusAmount} грн`);
+        console.log(`[DEBUG] Додано дохід для ${key}: workPrice=${workPrice}, bonusAmount=${bonusAmount} грн`);
       }
     });
     
@@ -1045,7 +1046,7 @@ app.get('/api/analytics/full', async (req, res) => {
     const companiesByMonth = {};
     
     tasks.forEach(task => {
-      if (task.date && task.serviceBonus && task.bonusApprovalDate && task.bonusApprovalDate.trim() !== '') {
+      if (task.date && task.workPrice && task.bonusApprovalDate && task.bonusApprovalDate.trim() !== '') {
         const date = new Date(task.date);
         const year = date.getFullYear();
         const month = date.getMonth() + 1;
@@ -1057,8 +1058,10 @@ app.get('/api/analytics/full', async (req, res) => {
           companiesByMonth[key] = new Set();
         }
         
-        // Додаємо премію за виконання сервісних робіт (serviceBonus помножена на 3)
-        revenueByMonth[key] += (parseFloat(task.serviceBonus) || 0) * 3;
+        // Додаємо премію за виконання сервісних робіт (25% від workPrice помножена на 3)
+        const workPrice = parseFloat(task.workPrice) || 0;
+        const bonusAmount = workPrice * 0.25 * 3; // 25% від workPrice помножена на 3
+        revenueByMonth[key] += bonusAmount;
         
         // Збираємо регіони та компанії для цього місяця
         if (task.serviceRegion) {
