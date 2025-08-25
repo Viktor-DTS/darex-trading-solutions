@@ -61,7 +61,9 @@ export default function AnalyticsArea({ user }) {
   const loadAnalytics = async () => {
     setLoading(true);
     try {
+      console.log('[DEBUG] Завантаження аналітики з фільтрами:', filters);
       const data = await analyticsAPI.getFullAnalytics(filters);
+      console.log('[DEBUG] Отримані дані аналітики:', data);
       setAnalytics(data);
     } catch (error) {
       console.error('Помилка завантаження аналітики:', error);

@@ -237,6 +237,20 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
+// Додаткові CORS заголовки для всіх запитів
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin);
+  res.header('Access-Control-Allow-Credentials', true);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
+
 // Додатковий middleware для OPTIONS запитів
 app.options('*', cors());
 
