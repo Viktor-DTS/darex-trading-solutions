@@ -948,11 +948,11 @@ app.get('/api/analytics/revenue', async (req, res) => {
     // Отримуємо заявки за період
     const tasks = await Task.find(taskFilter);
     
-    // Розраховуємо дохід (75% від вартості робіт)
+    // Розраховуємо дохід (сума премій за виконання сервісних робіт помножена на 3)
     const revenueByMonth = {};
     
     tasks.forEach(task => {
-      if (task.date && task.workPrice) {
+      if (task.date && task.bonusAmount && task.bonusApprovalDate && task.bonusApprovalDate.trim() !== '') {
         const date = new Date(task.date);
         const year = date.getFullYear();
         const month = date.getMonth() + 1;
@@ -962,8 +962,8 @@ app.get('/api/analytics/revenue', async (req, res) => {
           revenueByMonth[key] = 0;
         }
         
-        // 100% від вартості робіт мінус 25% (тобто 75%)
-        revenueByMonth[key] += (parseFloat(task.workPrice) || 0) * 0.75;
+        // Додаємо премію за виконання сервісних робіт (помножену на 3)
+        revenueByMonth[key] += (parseFloat(task.bonusAmount) || 0) * 3;
       }
     });
     
@@ -1027,11 +1027,13 @@ app.get('/api/analytics/full', async (req, res) => {
     
     const tasks = await Task.find(taskFilter);
     
-    // Розраховуємо доходи по місяцях (тільки заявки з нарахованими преміями)
+    // Розраховуємо доходи по місяцях (сума премій за виконання сервісних робіт)
     const revenueByMonth = {};
+    const regionsByMonth = {};
+    const companiesByMonth = {};
+    
     tasks.forEach(task => {
-      // Перевіряємо, чи є нарахована премія (bonusApprovalDate не порожня)
-      if (task.date && task.workPrice && task.bonusApprovalDate && task.bonusApprovalDate.trim() !== '') {
+      if (task.date && task.bonusAmount && task.bonusApprovalDate && task.bonusApprovalDate.trim() !== '') {
         const date = new Date(task.date);
         const year = date.getFullYear();
         const month = date.getMonth() + 1;
@@ -1039,26 +1041,91 @@ app.get('/api/analytics/full', async (req, res) => {
         
         if (!revenueByMonth[key]) {
           revenueByMonth[key] = 0;
+          regionsByMonth[key] = new Set();
+          companiesByMonth[key] = new Set();
         }
         
-        // 100% від вартості робіт мінус 25% (тобто 75%)
-        revenueByMonth[key] += (parseFloat(task.workPrice) || 0) * 0.75;
+        // Додаємо премію за виконання сервісних робіт (помножену на 3)
+        revenueByMonth[key] += (parseFloat(task.bonusAmount) || 0) * 3;
+        
+        // Збираємо регіони та компанії для цього місяця
+        if (task.serviceRegion) {
+          regionsByMonth[key].add(task.serviceRegion);
+        }
+        if (task.company) {
+          companiesByMonth[key].add(task.company);
+        }
       }
     });
     
-    // Об'єднуємо дані
-    const fullAnalytics = analytics.map(item => {
+    // Об'єднуємо дані та створюємо записи для місяців з доходами
+    const fullAnalytics = [];
+    
+    // Додаємо існуючі записи аналітики
+    analytics.forEach(item => {
       const revenueKey = `${item.year}-${item.month}`;
       const revenue = revenueByMonth[revenueKey] || 0;
       const profit = revenue - item.totalExpenses;
       const profitability = revenue > 0 ? (profit / revenue) * 100 : 0;
       
-      return {
+      fullAnalytics.push({
         ...item.toObject(),
         revenue: Number(revenue.toFixed(2)),
         profit: Number(profit.toFixed(2)),
         profitability: Number(profitability.toFixed(2))
-      };
+      });
+    });
+    
+    // Додаємо записи для місяців з доходами, але без витрат
+    Object.keys(revenueByMonth).forEach(key => {
+      const [year, month] = key.split('-').map(Number);
+      
+      // Перевіряємо, чи вже є запис для цього місяця
+      const existingRecord = fullAnalytics.find(item => item.year === year && item.month === month);
+      
+      if (!existingRecord && revenueByMonth[key] > 0) {
+        // Створюємо новий запис з витратами = 0
+        const revenue = revenueByMonth[key];
+        const regions = Array.from(regionsByMonth[key] || []);
+        const companies = Array.from(companiesByMonth[key] || []);
+        
+        // Створюємо запис для кожної комбінації регіон-компанія
+        if (regions.length > 0 && companies.length > 0) {
+          regions.forEach(region => {
+            companies.forEach(company => {
+              fullAnalytics.push({
+                _id: `auto-${key}-${region}-${company}`,
+                region: region,
+                company: company,
+                year: year,
+                month: month,
+                expenses: {
+                  salary: 0,
+                  fuel: 0,
+                  transport: 0,
+                  materials: 0,
+                  equipment: 0,
+                  office: 0,
+                  marketing: 0,
+                  other: 0
+                },
+                totalExpenses: 0,
+                revenue: Number(revenue.toFixed(2)),
+                profit: Number(revenue.toFixed(2)), // profit = revenue - 0
+                profitability: 100, // 100% рентабельність коли немає витрат
+                createdAt: new Date(),
+                updatedAt: new Date()
+              });
+            });
+          });
+        }
+      }
+    });
+    
+    // Сортуємо за роком та місяцем
+    fullAnalytics.sort((a, b) => {
+      if (a.year !== b.year) return a.year - b.year;
+      return a.month - b.month;
     });
     
     res.json(fullAnalytics);
