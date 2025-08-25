@@ -92,7 +92,7 @@ export const analyticsAPI = {
     }
   },
 
-  // Видалити аналітику
+    // Видалити аналітику
   async deleteAnalytics(deleteData) {
     try {
       const response = await fetch(`${API_BASE_URL}/analytics`, {
@@ -102,6 +102,22 @@ export const analyticsAPI = {
         },
         body: JSON.stringify(deleteData),
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Помилка видалення аналітики:', error);
+      throw error;
+    }
+  },
+
+  // Отримати унікальні регіони з заявок
+  async getUniqueRegions() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/unique-regions`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -109,7 +125,23 @@ export const analyticsAPI = {
       
       return await response.json();
     } catch (error) {
-      console.error('Помилка видалення аналітики:', error);
+      console.error('Помилка отримання регіонів:', error);
+      throw error;
+    }
+  },
+
+  // Отримати унікальні компанії з заявок
+  async getUniqueCompanies() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/unique-companies`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Помилка отримання компаній:', error);
       throw error;
     }
   },

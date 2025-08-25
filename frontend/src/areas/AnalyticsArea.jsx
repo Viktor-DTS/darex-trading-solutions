@@ -7,6 +7,8 @@ export default function AnalyticsArea({ user }) {
   const [loading, setLoading] = useState(true);
   const [regions, setRegions] = useState([]);
   const [companies, setCompanies] = useState([]);
+  const [uniqueRegions, setUniqueRegions] = useState([]);
+  const [uniqueCompanies, setUniqueCompanies] = useState([]);
   const [filters, setFilters] = useState({
     region: '',
     company: '',
@@ -20,17 +22,26 @@ export default function AnalyticsArea({ user }) {
   const [editingExpense, setEditingExpense] = useState(null);
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
 
-  // Завантаження регіонів
+  // Завантаження регіонів та компаній
   useEffect(() => {
-    const loadRegions = async () => {
+    const loadData = async () => {
       try {
+        // Завантажуємо регіони з regionsAPI
         const regionsData = await regionsAPI.getAll();
         setRegions(regionsData);
+        
+        // Завантажуємо унікальні регіони з заявок
+        const uniqueRegionsData = await analyticsAPI.getUniqueRegions();
+        setUniqueRegions(uniqueRegionsData);
+        
+        // Завантажуємо унікальні компанії з заявок
+        const uniqueCompaniesData = await analyticsAPI.getUniqueCompanies();
+        setUniqueCompanies(uniqueCompaniesData);
       } catch (error) {
-        console.error('Помилка завантаження регіонів:', error);
+        console.error('Помилка завантаження даних:', error);
       }
     };
-    loadRegions();
+    loadData();
   }, []);
 
   // Завантаження аналітики
@@ -243,38 +254,46 @@ export default function AnalyticsArea({ user }) {
           {isNew && (
             <div style={{marginBottom: '16px'}}>
               <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px'}}>
-                <div>
-                  <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Регіон:</label>
-                  <input
-                    type="text"
-                    value={formData.region}
-                    onChange={(e) => setFormData(prev => ({...prev, region: e.target.value}))}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '4px',
-                      border: '1px solid #29506a',
-                      background: '#1a2636',
-                      color: '#fff'
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Компанія:</label>
-                  <input
-                    type="text"
-                    value={formData.company}
-                    onChange={(e) => setFormData(prev => ({...prev, company: e.target.value}))}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '4px',
-                      border: '1px solid #29506a',
-                      background: '#1a2636',
-                      color: '#fff'
-                    }}
-                  />
-                </div>
+                                 <div>
+                   <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Регіон сервісного відділу:</label>
+                   <select
+                     value={formData.region}
+                     onChange={(e) => setFormData(prev => ({...prev, region: e.target.value}))}
+                     style={{
+                       width: '100%',
+                       padding: '8px',
+                       borderRadius: '4px',
+                       border: '1px solid #29506a',
+                       background: '#1a2636',
+                       color: '#fff'
+                     }}
+                   >
+                     <option value="">Оберіть регіон</option>
+                     {uniqueRegions.map(region => (
+                       <option key={region} value={region}>{region}</option>
+                     ))}
+                   </select>
+                 </div>
+                 <div>
+                   <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Компанія виконавець:</label>
+                   <select
+                     value={formData.company}
+                     onChange={(e) => setFormData(prev => ({...prev, company: e.target.value}))}
+                     style={{
+                       width: '100%',
+                       padding: '8px',
+                       borderRadius: '4px',
+                       border: '1px solid #29506a',
+                       background: '#1a2636',
+                       color: '#fff'
+                     }}
+                   >
+                     <option value="">Оберіть компанію</option>
+                     {uniqueCompanies.map(company => (
+                       <option key={company} value={company}>{company}</option>
+                     ))}
+                   </select>
+                 </div>
               </div>
               <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px'}}>
                 <div>
@@ -401,44 +420,47 @@ export default function AnalyticsArea({ user }) {
       <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
         <h3 style={{color: '#fff', marginBottom: '12px'}}>Фільтри</h3>
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
-          <div>
-            <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Регіон:</label>
-            <select
-              value={filters.region}
-              onChange={(e) => setFilters(prev => ({...prev, region: e.target.value}))}
-              style={{
-                width: '100%',
-                padding: '8px',
-                borderRadius: '4px',
-                border: '1px solid #29506a',
-                background: '#22334a',
-                color: '#fff'
-              }}
-            >
-              <option value="">Всі регіони</option>
-              {regions.map(region => (
-                <option key={region.name} value={region.name}>{region.name}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div>
-            <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Компанія:</label>
-            <input
-              type="text"
-              value={filters.company}
-              onChange={(e) => setFilters(prev => ({...prev, company: e.target.value}))}
-              placeholder="Назва компанії"
-              style={{
-                width: '100%',
-                padding: '8px',
-                borderRadius: '4px',
-                border: '1px solid #29506a',
-                background: '#22334a',
-                color: '#fff'
-              }}
-            />
-          </div>
+                     <div>
+             <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Регіон сервісного відділу:</label>
+             <select
+               value={filters.region}
+               onChange={(e) => setFilters(prev => ({...prev, region: e.target.value}))}
+               style={{
+                 width: '100%',
+                 padding: '8px',
+                 borderRadius: '4px',
+                 border: '1px solid #29506a',
+                 background: '#22334a',
+                 color: '#fff'
+               }}
+             >
+               <option value="">Всі регіони</option>
+               {uniqueRegions.map(region => (
+                 <option key={region} value={region}>{region}</option>
+               ))}
+             </select>
+           </div>
+           
+           <div>
+             <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Компанія виконавець:</label>
+             <select
+               value={filters.company}
+               onChange={(e) => setFilters(prev => ({...prev, company: e.target.value}))}
+               style={{
+                 width: '100%',
+                 padding: '8px',
+                 borderRadius: '4px',
+                 border: '1px solid #29506a',
+                 background: '#22334a',
+                 color: '#fff'
+               }}
+             >
+               <option value="">Всі компанії</option>
+               {uniqueCompanies.map(company => (
+                 <option key={company} value={company}>{company}</option>
+               ))}
+             </select>
+           </div>
           
           <div>
             <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Рік з:</label>

@@ -1114,6 +1114,42 @@ app.post('/api/analytics/copy-previous', async (req, res) => {
   }
 });
 
+// API для отримання унікальних регіонів з заявок
+app.get('/api/unique-regions', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/unique-regions - запит отримано');
+    
+    const regions = await Task.distinct('serviceRegion');
+    const filteredRegions = regions
+      .filter(region => region && region.trim() !== '')
+      .sort();
+    
+    console.log('[DEBUG] GET /api/unique-regions - знайдено регіонів:', filteredRegions.length);
+    res.json(filteredRegions);
+  } catch (error) {
+    console.error('[ERROR] GET /api/unique-regions - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для отримання унікальних компаній з заявок
+app.get('/api/unique-companies', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/unique-companies - запит отримано');
+    
+    const companies = await Task.distinct('company');
+    const filteredCompanies = companies
+      .filter(company => company && company.trim() !== '')
+      .sort();
+    
+    console.log('[DEBUG] GET /api/unique-companies - знайдено компаній:', filteredCompanies.length);
+    res.json(filteredCompanies);
+  } catch (error) {
+    console.error('[ERROR] GET /api/unique-companies - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // API для отримання унікальних типів обладнання
 app.get('/api/equipment-types', async (req, res) => {
   try {
