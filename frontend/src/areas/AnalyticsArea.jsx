@@ -18,6 +18,7 @@ export default function AnalyticsArea({ user }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
+  const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
 
   // Завантаження регіонів
   useEffect(() => {
@@ -127,6 +128,38 @@ export default function AnalyticsArea({ user }) {
     }
   };
 
+  // Функція для додавання нових витрат
+  const handleAddExpenses = () => {
+    setEditingExpense({
+      region: filters.region || '',
+      company: filters.company || '',
+      year: new Date().getFullYear(),
+      month: new Date().getMonth() + 1,
+      expenses: {}
+    });
+    setShowAddExpenseModal(true);
+  };
+
+  // Функція для збереження нових витрат
+  const handleSaveNewExpenses = async (expenses) => {
+    try {
+      await analyticsAPI.saveAnalytics({
+        region: editingExpense.region,
+        company: editingExpense.company,
+        year: editingExpense.year,
+        month: editingExpense.month,
+        expenses,
+        createdBy: user.login
+      });
+      alert('Витрати додано!');
+      setShowAddExpenseModal(false);
+      setEditingExpense(null);
+      loadAnalytics();
+    } catch (error) {
+      alert('Помилка додавання витрат');
+    }
+  };
+
   // Функція для видалення витрат
   const handleDeleteExpenses = async (item) => {
     // Перевіряємо права доступу
@@ -157,11 +190,23 @@ export default function AnalyticsArea({ user }) {
   };
 
   // Компонент для редагування витрат
-  const ExpenseModal = ({ open, onClose, expense, onSave }) => {
+  const ExpenseModal = ({ open, onClose, expense, onSave, isNew = false }) => {
     const [expenses, setExpenses] = useState(expense?.expenses || {});
+    const [formData, setFormData] = useState({
+      region: expense?.region || '',
+      company: expense?.company || '',
+      year: expense?.year || new Date().getFullYear(),
+      month: expense?.month || new Date().getMonth() + 1
+    });
 
     useEffect(() => {
       setExpenses(expense?.expenses || {});
+      setFormData({
+        region: expense?.region || '',
+        company: expense?.company || '',
+        year: expense?.year || new Date().getFullYear(),
+        month: expense?.month || new Date().getMonth() + 1
+      });
     }, [expense]);
 
     if (!open) return null;
@@ -189,8 +234,84 @@ export default function AnalyticsArea({ user }) {
           overflowY: 'auto'
         }}>
           <h3 style={{color: '#fff', marginBottom: '16px'}}>
-            Редагування витрат: {expense?.region} - {expense?.company} - {getMonthName(expense?.month)} {expense?.year}
+            {isNew ? 'Додавання витрат' : `Редагування витрат: ${expense?.region} - ${expense?.company} - ${getMonthName(expense?.month)} ${expense?.year}`}
           </h3>
+          
+          {isNew && (
+            <div style={{marginBottom: '16px'}}>
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px'}}>
+                <div>
+                  <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Регіон:</label>
+                  <input
+                    type="text"
+                    value={formData.region}
+                    onChange={(e) => setFormData(prev => ({...prev, region: e.target.value}))}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #29506a',
+                      background: '#1a2636',
+                      color: '#fff'
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Компанія:</label>
+                  <input
+                    type="text"
+                    value={formData.company}
+                    onChange={(e) => setFormData(prev => ({...prev, company: e.target.value}))}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #29506a',
+                      background: '#1a2636',
+                      color: '#fff'
+                    }}
+                  />
+                </div>
+              </div>
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px'}}>
+                <div>
+                  <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Рік:</label>
+                  <input
+                    type="number"
+                    value={formData.year}
+                    onChange={(e) => setFormData(prev => ({...prev, year: parseInt(e.target.value)}))}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #29506a',
+                      background: '#1a2636',
+                      color: '#fff'
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Місяць:</label>
+                  <select
+                    value={formData.month}
+                    onChange={(e) => setFormData(prev => ({...prev, month: parseInt(e.target.value)}))}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #29506a',
+                      background: '#1a2636',
+                      color: '#fff'
+                    }}
+                  >
+                    {Array.from({length: 12}, (_, i) => i + 1).map(month => (
+                      <option key={month} value={month}>{getMonthName(month)}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
           
           <div style={{marginBottom: '16px'}}>
             {Object.entries(EXPENSE_CATEGORIES).map(([key, category]) => (
@@ -233,7 +354,7 @@ export default function AnalyticsArea({ user }) {
               Скасувати
             </button>
             <button
-              onClick={() => onSave(expenses)}
+              onClick={() => onSave(isNew ? {...expenses, ...formData} : expenses)}
               style={{
                 padding: '8px 16px',
                 background: '#28a745',
@@ -243,7 +364,7 @@ export default function AnalyticsArea({ user }) {
                 cursor: 'pointer'
               }}
             >
-              Зберегти
+              {isNew ? 'Додати' : 'Зберегти'}
             </button>
           </div>
         </div>
@@ -379,40 +500,54 @@ export default function AnalyticsArea({ user }) {
           </div>
         </div>
         
-        <div style={{marginTop: '12px', display: 'flex', gap: '8px'}}>
-          <button
-            onClick={() => setFilters({
-              region: '', company: '', 
-              startYear: new Date().getFullYear(), 
-              endYear: new Date().getFullYear(),
-              startMonth: 1, endMonth: 12
-            })}
-            style={{
-              padding: '8px 16px',
-              background: '#6c757d',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            Очистити фільтри
-          </button>
-          
-          <button
-            onClick={handleCopyPreviousMonth}
-            style={{
-              padding: '8px 16px',
-              background: '#17a2b8',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            Копіювати з попереднього місяця
-          </button>
-        </div>
+                 <div style={{marginTop: '12px', display: 'flex', gap: '8px'}}>
+           <button
+             onClick={() => setFilters({
+               region: '', company: '', 
+               startYear: new Date().getFullYear(), 
+               endYear: new Date().getFullYear(),
+               startMonth: 1, endMonth: 12
+             })}
+             style={{
+               padding: '8px 16px',
+               background: '#6c757d',
+               color: '#fff',
+               border: 'none',
+               borderRadius: '4px',
+               cursor: 'pointer'
+             }}
+           >
+             Очистити фільтри
+           </button>
+           
+           <button
+             onClick={handleAddExpenses}
+             style={{
+               padding: '8px 16px',
+               background: '#28a745',
+               color: '#fff',
+               border: 'none',
+               borderRadius: '4px',
+               cursor: 'pointer'
+             }}
+           >
+             Додати витрати
+           </button>
+           
+           <button
+             onClick={handleCopyPreviousMonth}
+             style={{
+               padding: '8px 16px',
+               background: '#17a2b8',
+               color: '#fff',
+               border: 'none',
+               borderRadius: '4px',
+               cursor: 'pointer'
+             }}
+           >
+             Копіювати з попереднього місяця
+           </button>
+         </div>
       </div>
 
       {/* Вкладки */}
@@ -668,6 +803,15 @@ export default function AnalyticsArea({ user }) {
         onClose={() => setShowExpenseModal(false)}
         expense={editingExpense}
         onSave={handleSaveExpenses}
+      />
+
+      {/* Модальне вікно додавання витрат */}
+      <ExpenseModal
+        open={showAddExpenseModal}
+        onClose={() => setShowAddExpenseModal(false)}
+        expense={editingExpense}
+        onSave={handleSaveNewExpenses}
+        isNew={true}
       />
     </div>
   );

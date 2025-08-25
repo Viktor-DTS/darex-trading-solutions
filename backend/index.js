@@ -945,7 +945,7 @@ app.get('/api/analytics/revenue', async (req, res) => {
           revenueByMonth[key] = 0;
         }
         
-        // 75% від вартості робіт
+        // 100% від вартості робіт мінус 25% (тобто 75%)
         revenueByMonth[key] += (parseFloat(task.workPrice) || 0) * 0.75;
       }
     });
@@ -1010,10 +1010,11 @@ app.get('/api/analytics/full', async (req, res) => {
     
     const tasks = await Task.find(taskFilter);
     
-    // Розраховуємо доходи по місяцях
+    // Розраховуємо доходи по місяцях (тільки заявки з нарахованими преміями)
     const revenueByMonth = {};
     tasks.forEach(task => {
-      if (task.date && task.workPrice) {
+      // Перевіряємо, чи є нарахована премія (bonusApprovalDate не порожня)
+      if (task.date && task.workPrice && task.bonusApprovalDate && task.bonusApprovalDate.trim() !== '') {
         const date = new Date(task.date);
         const year = date.getFullYear();
         const month = date.getMonth() + 1;
@@ -1023,6 +1024,7 @@ app.get('/api/analytics/full', async (req, res) => {
           revenueByMonth[key] = 0;
         }
         
+        // 100% від вартості робіт мінус 25% (тобто 75%)
         revenueByMonth[key] += (parseFloat(task.workPrice) || 0) * 0.75;
       }
     });
