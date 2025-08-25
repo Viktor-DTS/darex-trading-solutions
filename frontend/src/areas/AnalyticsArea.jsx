@@ -23,7 +23,7 @@ export default function AnalyticsArea({ user }) {
   useEffect(() => {
     const loadRegions = async () => {
       try {
-        const regionsData = await regionsAPI.getRegions();
+        const regionsData = await regionsAPI.getAll();
         setRegions(regionsData);
       } catch (error) {
         console.error('Помилка завантаження регіонів:', error);

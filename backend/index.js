@@ -876,15 +876,18 @@ app.delete('/api/analytics', async (req, res) => {
   try {
     const { region, company, year, month, user } = req.body;
     
-    // Перевіряємо права доступу
+    // Перевіряємо права доступу (спрощена перевірка)
     const allowedRoles = ['admin', 'administrator', 'regionalManager', 'regkerivn'];
-    if (!user || !allowedRoles.includes(user.role)) {
+    if (!user || !user.role || !allowedRoles.includes(user.role)) {
+      console.log('Помилка прав доступу:', { user, allowedRoles });
       return res.status(403).json({ error: 'Недостатньо прав для видалення аналітики' });
     }
     
     if (!region || !company || !year || !month) {
       return res.status(400).json({ error: 'Відсутні обов\'язкові поля: region, company, year, month' });
     }
+    
+    console.log('Видалення аналітики:', { region, company, year, month, userRole: user.role });
     
     const result = await Analytics.deleteOne({ region, company, year: parseInt(year), month: parseInt(month) });
     
