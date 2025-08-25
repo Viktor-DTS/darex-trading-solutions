@@ -117,13 +117,18 @@ export const analyticsAPI = {
   // Отримати унікальні регіони з заявок
   async getUniqueRegions() {
     try {
+      console.log('API: Запит унікальних регіонів...');
       const response = await fetch(`${API_BASE_URL}/unique-regions`);
+      
+      console.log('API: Відповідь для регіонів:', response.status, response.statusText);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      return await response.json();
+      const data = await response.json();
+      console.log('API: Отримані регіони:', data);
+      return data;
     } catch (error) {
       console.error('Помилка отримання регіонів:', error);
       throw error;
@@ -133,13 +138,18 @@ export const analyticsAPI = {
   // Отримати унікальні компанії з заявок
   async getUniqueCompanies() {
     try {
+      console.log('API: Запит унікальних компаній...');
       const response = await fetch(`${API_BASE_URL}/unique-companies`);
+      
+      console.log('API: Відповідь для компаній:', response.status, response.statusText);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      return await response.json();
+      const data = await response.json();
+      console.log('API: Отримані компанії:', data);
+      return data;
     } catch (error) {
       console.error('Помилка отримання компаній:', error);
       throw error;

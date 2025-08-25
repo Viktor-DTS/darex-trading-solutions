@@ -9,6 +9,7 @@ export default function AnalyticsArea({ user }) {
   const [companies, setCompanies] = useState([]);
   const [uniqueRegions, setUniqueRegions] = useState([]);
   const [uniqueCompanies, setUniqueCompanies] = useState([]);
+  const [dataLoading, setDataLoading] = useState(true);
   const [filters, setFilters] = useState({
     region: '',
     company: '',
@@ -26,19 +27,31 @@ export default function AnalyticsArea({ user }) {
   useEffect(() => {
     const loadData = async () => {
       try {
+        setDataLoading(true);
+        console.log('Початок завантаження даних...');
+        
         // Завантажуємо регіони з regionsAPI
         const regionsData = await regionsAPI.getAll();
+        console.log('Регіони з regionsAPI:', regionsData);
         setRegions(regionsData);
         
         // Завантажуємо унікальні регіони з заявок
+        console.log('Завантаження унікальних регіонів...');
         const uniqueRegionsData = await analyticsAPI.getUniqueRegions();
+        console.log('Унікальні регіони:', uniqueRegionsData);
         setUniqueRegions(uniqueRegionsData);
         
         // Завантажуємо унікальні компанії з заявок
+        console.log('Завантаження унікальних компаній...');
         const uniqueCompaniesData = await analyticsAPI.getUniqueCompanies();
+        console.log('Унікальні компанії:', uniqueCompaniesData);
         setUniqueCompanies(uniqueCompaniesData);
+        
+        console.log('Завантаження даних завершено');
       } catch (error) {
         console.error('Помилка завантаження даних:', error);
+      } finally {
+        setDataLoading(false);
       }
     };
     loadData();
@@ -420,47 +433,55 @@ export default function AnalyticsArea({ user }) {
       <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
         <h3 style={{color: '#fff', marginBottom: '12px'}}>Фільтри</h3>
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
-                     <div>
-             <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Регіон сервісного відділу:</label>
-             <select
-               value={filters.region}
-               onChange={(e) => setFilters(prev => ({...prev, region: e.target.value}))}
-               style={{
-                 width: '100%',
-                 padding: '8px',
-                 borderRadius: '4px',
-                 border: '1px solid #29506a',
-                 background: '#22334a',
-                 color: '#fff'
-               }}
-             >
-               <option value="">Всі регіони</option>
-               {uniqueRegions.map(region => (
-                 <option key={region} value={region}>{region}</option>
-               ))}
-             </select>
-           </div>
+                                 <div>
+              <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>
+                Регіон сервісного відділу:
+                {dataLoading && <span style={{color: '#ffa500', marginLeft: '8px'}}>(завантаження...)</span>}
+              </label>
+              <select
+                value={filters.region}
+                onChange={(e) => setFilters(prev => ({...prev, region: e.target.value}))}
+                disabled={dataLoading}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #29506a',
+                  background: dataLoading ? '#1a1a1a' : '#22334a',
+                  color: dataLoading ? '#666' : '#fff'
+                }}
+              >
+                <option value="">Всі регіони</option>
+                {uniqueRegions.map(region => (
+                  <option key={region} value={region}>{region}</option>
+                ))}
+              </select>
+            </div>
            
-           <div>
-             <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Компанія виконавець:</label>
-             <select
-               value={filters.company}
-               onChange={(e) => setFilters(prev => ({...prev, company: e.target.value}))}
-               style={{
-                 width: '100%',
-                 padding: '8px',
-                 borderRadius: '4px',
-                 border: '1px solid #29506a',
-                 background: '#22334a',
-                 color: '#fff'
-               }}
-             >
-               <option value="">Всі компанії</option>
-               {uniqueCompanies.map(company => (
-                 <option key={company} value={company}>{company}</option>
-               ))}
-             </select>
-           </div>
+                       <div>
+              <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>
+                Компанія виконавець:
+                {dataLoading && <span style={{color: '#ffa500', marginLeft: '8px'}}>(завантаження...)</span>}
+              </label>
+              <select
+                value={filters.company}
+                onChange={(e) => setFilters(prev => ({...prev, company: e.target.value}))}
+                disabled={dataLoading}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #29506a',
+                  background: dataLoading ? '#1a1a1a' : '#22334a',
+                  color: dataLoading ? '#666' : '#fff'
+                }}
+              >
+                <option value="">Всі компанії</option>
+                {uniqueCompanies.map(company => (
+                  <option key={company} value={company}>{company}</option>
+                ))}
+              </select>
+            </div>
           
           <div>
             <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Рік з:</label>
