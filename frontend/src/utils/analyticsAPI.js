@@ -1,5 +1,8 @@
 const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions-f.onrender.com/api');
+  (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+
+console.log('[DEBUG] API_BASE_URL:', API_BASE_URL);
+console.log('[DEBUG] window.location.hostname:', window.location.hostname);
 
 export const analyticsAPI = {
   // Отримати аналітику за період
