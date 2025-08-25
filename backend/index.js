@@ -959,7 +959,8 @@ app.get('/api/analytics/revenue', async (req, res) => {
       }
     }
     
-    // Отримуємо заявки за період
+    // Отримуємо виконані заявки за період (архів виконаних заявок)
+    taskFilter.status = 'Виконано';
     const tasks = await Task.find(taskFilter);
     
     // Розраховуємо дохід (сума премій за виконання сервісних робіт помножена на 3)
@@ -969,21 +970,22 @@ app.get('/api/analytics/revenue', async (req, res) => {
     let processedTasks = 0;
     
     tasks.forEach(task => {
-      console.log(`[DEBUG] Заявка ${task._id}: date=${task.date}, workPrice=${task.workPrice}`);
+      console.log(`[DEBUG] Заявка ${task._id}: bonusApprovalDate=${task.bonusApprovalDate}, workPrice=${task.workPrice}`);
       
-      if (task.date && task.workPrice) {
-        const date = new Date(task.date);
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-        const key = `${year}-${month}`;
+      if (task.bonusApprovalDate && task.workPrice) {
+        // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
+        const [approvalMonthStr, approvalYearStr] = task.bonusApprovalDate.split('-');
+        const approvalMonth = parseInt(approvalMonthStr);
+        const approvalYear = parseInt(approvalYearStr);
+        const key = `${approvalYear}-${approvalMonth}`;
         
         if (!revenueByMonth[key]) {
           revenueByMonth[key] = 0;
         }
         
-        // Додаємо премію за виконання сервісних робіт (25% від workPrice помножена на 3)
+        // Додаємо премію за виконання сервісних робіт (25% від workPrice)
         const workPrice = parseFloat(task.workPrice) || 0;
-        const bonusAmount = workPrice * 0.25 * 3; // 25% від workPrice помножена на 3
+        const bonusAmount = workPrice * 0.25; // 25% від workPrice
         revenueByMonth[key] += bonusAmount;
         processedTasks++;
         
@@ -1052,6 +1054,8 @@ app.get('/api/analytics/full', async (req, res) => {
       }
     }
     
+    // Отримуємо виконані заявки за період (архів виконаних заявок)
+    taskFilter.status = 'Виконано';
     const tasks = await Task.find(taskFilter);
     
     console.log(`[DEBUG] Знайдено ${tasks.length} заявок для аналітики`);
@@ -1062,11 +1066,12 @@ app.get('/api/analytics/full', async (req, res) => {
     const companiesByMonth = {};
     
     tasks.forEach(task => {
-      if (task.date && task.workPrice) {
-        const date = new Date(task.date);
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-        const key = `${year}-${month}`;
+      if (task.bonusApprovalDate && task.workPrice) {
+        // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
+        const [approvalMonthStr, approvalYearStr] = task.bonusApprovalDate.split('-');
+        const approvalMonth = parseInt(approvalMonthStr);
+        const approvalYear = parseInt(approvalYearStr);
+        const key = `${approvalYear}-${approvalMonth}`;
         
         if (!revenueByMonth[key]) {
           revenueByMonth[key] = 0;
@@ -1074,9 +1079,9 @@ app.get('/api/analytics/full', async (req, res) => {
           companiesByMonth[key] = new Set();
         }
         
-        // Додаємо премію за виконання сервісних робіт (25% від workPrice помножена на 3)
+        // Додаємо премію за виконання сервісних робіт (25% від workPrice)
         const workPrice = parseFloat(task.workPrice) || 0;
-        const bonusAmount = workPrice * 0.25 * 3; // 25% від workPrice помножена на 3
+        const bonusAmount = workPrice * 0.25; // 25% від workPrice
         revenueByMonth[key] += bonusAmount;
         
         // Збираємо регіони та компанії для цього місяця
