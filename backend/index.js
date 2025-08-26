@@ -1480,6 +1480,57 @@ app.post('/api/expense-categories', async (req, res) => {
   }
 });
 
+// Очистити старі категорії витрат
+app.post('/api/expense-categories/cleanup', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/expense-categories/cleanup - запит отримано');
+    const { categories, createdBy } = req.body;
+    
+    if (!categories || typeof categories !== 'object') {
+      return res.status(400).json({ error: 'Неправильний формат категорій' });
+    }
+    
+    // Отримуємо всі записи аналітики
+    const analyticsRecords = await Analytics.find({});
+    const validCategoryKeys = Object.keys(categories);
+    
+    let updatedCount = 0;
+    
+    // Проходимо по всіх записах та очищаємо старі категорії
+    for (const record of analyticsRecords) {
+      if (record.expenses && typeof record.expenses === 'object') {
+        const originalExpenses = { ...record.expenses };
+        let hasChanges = false;
+        
+        // Видаляємо категорії, яких немає в поточних налаштуваннях
+        Object.keys(record.expenses).forEach(categoryKey => {
+          if (!validCategoryKeys.includes(categoryKey)) {
+            delete record.expenses[categoryKey];
+            hasChanges = true;
+            console.log(`[DEBUG] Видалено стару категорію: ${categoryKey} з запису ${record._id}`);
+          }
+        });
+        
+        // Зберігаємо зміни
+        if (hasChanges) {
+          await record.save();
+          updatedCount++;
+        }
+      }
+    }
+    
+    console.log(`[DEBUG] POST /api/expense-categories/cleanup - очищено ${updatedCount} записів`);
+    res.json({ 
+      success: true, 
+      message: `Очищено ${updatedCount} записів від старих категорій`,
+      updatedCount 
+    });
+  } catch (error) {
+    console.error('[ERROR] POST /api/expense-categories/cleanup - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Сервер запущено на http://localhost:${PORT}`);
 }); 

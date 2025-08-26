@@ -219,6 +219,28 @@ export const analyticsAPI = {
       throw error;
     }
   },
+
+  // Очистити старі категорії витрат
+  async cleanupOldCategories(categories, createdBy) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/expense-categories/cleanup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ categories, createdBy }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Помилка очищення старих категорій витрат:', error);
+      throw error;
+    }
+  },
 };
 
 // Константи для статей витрат

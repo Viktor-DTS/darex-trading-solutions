@@ -103,12 +103,15 @@ export default function AnalyticsArea({ user }) {
       totals.expenses += item.totalExpenses || 0;
       totals.profit += item.profit || 0;
 
-      // Розбивка витрат
+      // Розбивка витрат - фільтруємо тільки актуальні категорії
       Object.keys(item.expenses || {}).forEach(category => {
-        if (!totals.expenseBreakdown[category]) {
-          totals.expenseBreakdown[category] = 0;
+        // Перевіряємо чи існує категорія в поточних налаштуваннях
+        if (customExpenseCategories[category]) {
+          if (!totals.expenseBreakdown[category]) {
+            totals.expenseBreakdown[category] = 0;
+          }
+          totals.expenseBreakdown[category] += item.expenses[category] || 0;
         }
-        totals.expenseBreakdown[category] += item.expenses[category] || 0;
       });
     });
 
@@ -264,6 +267,22 @@ export default function AnalyticsArea({ user }) {
     }
   };
 
+  // Функція для очищення старих категорій
+  const handleCleanupOldCategories = async () => {
+    if (!confirm('Це очистить всі витрати зі старими категоріями (office, marketing тощо). Продовжити?')) {
+      return;
+    }
+
+    try {
+      await analyticsAPI.cleanupOldCategories(customExpenseCategories, user?.login || 'system');
+      alert('Старі категорії очищено!');
+      loadAnalytics();
+    } catch (error) {
+      alert('Помилка очищення старих категорій');
+      console.error('Помилка очищення старих категорій:', error);
+    }
+  };
+
   // Функція для видалення витрат
   const handleDeleteExpenses = async (item) => {
     // Перевіряємо права доступу
@@ -391,48 +410,61 @@ export default function AnalyticsArea({ user }) {
             ))}
           </div>
 
-          <div style={{display: 'flex', gap: '8px', justifyContent: 'space-between'}}>
-            <div style={{display: 'flex', gap: '8px'}}>
-              <button
-                onClick={handleAddCategory}
-                style={{
-                  padding: '8px 16px',
-                  background: '#28a745',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              >
-                Додати категорію
-              </button>
-              <button
-                onClick={handleResetCategories}
-                style={{
-                  padding: '8px 16px',
-                  background: '#ffc107',
-                  color: '#000',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              >
-                Скинути до стандартних
-              </button>
-              <button
-                onClick={handleSaveCategories}
-                style={{
-                  padding: '8px 16px',
-                  background: '#007bff',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              >
-                Зберегти
-              </button>
-            </div>
+                     <div style={{display: 'flex', gap: '8px', justifyContent: 'space-between'}}>
+             <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+               <button
+                 onClick={handleAddCategory}
+                 style={{
+                   padding: '8px 16px',
+                   background: '#28a745',
+                   color: '#fff',
+                   border: 'none',
+                   borderRadius: '4px',
+                   cursor: 'pointer'
+                 }}
+               >
+                 Додати категорію
+               </button>
+               <button
+                 onClick={handleResetCategories}
+                 style={{
+                   padding: '8px 16px',
+                   background: '#ffc107',
+                   color: '#000',
+                   border: 'none',
+                   borderRadius: '4px',
+                   cursor: 'pointer'
+                 }}
+               >
+                 Скинути до стандартних
+               </button>
+               <button
+                 onClick={handleCleanupOldCategories}
+                 style={{
+                   padding: '8px 16px',
+                   background: '#dc3545',
+                   color: '#fff',
+                   border: 'none',
+                   borderRadius: '4px',
+                   cursor: 'pointer'
+                 }}
+               >
+                 Очистити старі категорії
+               </button>
+               <button
+                 onClick={handleSaveCategories}
+                 style={{
+                   padding: '8px 16px',
+                   background: '#007bff',
+                   color: '#fff',
+                   border: 'none',
+                   borderRadius: '4px',
+                   cursor: 'pointer'
+                 }}
+               >
+                 Зберегти
+               </button>
+             </div>
             <button
               onClick={onClose}
               style={{
