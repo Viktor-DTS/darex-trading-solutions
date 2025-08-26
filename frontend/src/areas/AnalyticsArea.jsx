@@ -222,6 +222,14 @@ export default function AnalyticsArea({ user }) {
         [field]: value
       }
     }));
+    
+    // Якщо змінюється назва категорії, оновлюємо відображення
+    if (field === 'label') {
+      // Примусово оновлюємо компонент
+      setTimeout(() => {
+        setAnalytics(prev => [...prev]);
+      }, 100);
+    }
   };
 
   const handleDeleteCategory = (key) => {
@@ -248,6 +256,8 @@ export default function AnalyticsArea({ user }) {
     try {
       await analyticsAPI.saveExpenseCategories(customExpenseCategories, user?.login || 'system');
       alert('Категорії збережено!');
+      // Перезавантажуємо аналітику щоб оновити відображення
+      loadAnalytics();
     } catch (error) {
       alert('Помилка збереження категорій');
       console.error('Помилка збереження категорій:', error);
@@ -951,32 +961,44 @@ export default function AnalyticsArea({ user }) {
                 </div>
               </div>
 
-              {/* Графік витрат */}
-              <div style={{
-                background: '#1a2636',
-                padding: '20px',
-                borderRadius: '8px',
-                marginBottom: '24px'
-              }}>
-                <h3 style={{color: '#fff', marginBottom: '16px'}}>Розбивка витрат</h3>
-                                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
-                   {Object.entries(totals.expenseBreakdown).map(([category, amount]) => (
-                     <div key={category} style={{
-                       background: '#22334a',
-                       padding: '12px',
-                       borderRadius: '6px',
-                       borderLeft: `4px solid ${customExpenseCategories[category]?.color || '#ccc'}`
-                     }}>
-                       <div style={{color: '#fff', fontSize: '14px', marginBottom: '4px'}}>
-                         {customExpenseCategories[category]?.label || category}
-                       </div>
-                       <div style={{color: '#00bfff', fontSize: '18px', fontWeight: 'bold'}}>
-                         {formatCurrency(amount)}
-                       </div>
-                     </div>
-                   ))}
-                 </div>
-              </div>
+                             {/* Графік витрат */}
+               <div style={{
+                 background: '#1a2636',
+                 padding: '20px',
+                 borderRadius: '8px',
+                 marginBottom: '24px'
+               }}>
+                 <h3 style={{color: '#fff', marginBottom: '16px'}}>
+                   Розбивка витрат
+                   <span style={{fontSize: '12px', color: '#ccc', marginLeft: '8px', fontWeight: 'normal'}}>
+                     (відображаються актуальні назви категорій)
+                   </span>
+                 </h3>
+                                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
+                    {Object.entries(totals.expenseBreakdown).map(([category, amount]) => {
+                      // Знаходимо актуальну категорію за ключем
+                      const actualCategory = customExpenseCategories[category];
+                      const displayName = actualCategory?.label || category;
+                      const displayColor = actualCategory?.color || '#ccc';
+                      
+                      return (
+                        <div key={category} style={{
+                          background: '#22334a',
+                          padding: '12px',
+                          borderRadius: '6px',
+                          borderLeft: `4px solid ${displayColor}`
+                        }}>
+                          <div style={{color: '#fff', fontSize: '14px', marginBottom: '4px'}}>
+                            {displayName}
+                          </div>
+                          <div style={{color: '#00bfff', fontSize: '18px', fontWeight: 'bold'}}>
+                            {formatCurrency(amount)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+               </div>
 
               {/* Графік по місяцях */}
               <div style={{
