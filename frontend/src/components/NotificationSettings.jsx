@@ -124,6 +124,33 @@ const NotificationSettings = ({ user }) => {
     }
   };
 
+  const setupWebhook = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/telegram/setup-webhook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        alert('✅ Webhook налаштовано успішно!\n\nТепер ви можете:\n1. Надіслати повідомлення боту @DarexServiceBot\n2. Отримати свій Chat ID\n3. Налаштувати сповіщення');
+      } else {
+        alert('Помилка налаштування webhook: ' + (result.error || 'Невідома помилка'));
+      }
+    } catch (error) {
+      console.error('Помилка налаштування webhook:', error);
+      alert('Помилка налаштування webhook: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const sendTestMessage = async () => {
     if (!settings.telegramChatId || !testMessage.trim()) {
       alert('Введіть Chat ID та тестове повідомлення');
@@ -200,11 +227,32 @@ const NotificationSettings = ({ user }) => {
              <div>🔧 Service Chat ID: {telegramStatus.serviceChatIdConfigured ? '✅ Налаштовано' : '❌ Не налаштовано'}</div>
              <div>📦 Warehouse Chat ID: {telegramStatus.warehouseChatIdConfigured ? '✅ Налаштовано' : '❌ Не налаштовано'}</div>
            </div>
-           {!telegramStatus.botTokenConfigured && (
-             <div style={{ marginTop: '12px', padding: '8px', background: '#dc3545', borderRadius: '4px', fontSize: '12px' }}>
-               ⚠️ Для роботи сповіщень потрібно налаштувати TELEGRAM_BOT_TOKEN в змінних середовища
-             </div>
-           )}
+                       {!telegramStatus.botTokenConfigured && (
+              <div style={{ marginTop: '12px', padding: '8px', background: '#dc3545', borderRadius: '4px', fontSize: '12px' }}>
+                ⚠️ Для роботи сповіщень потрібно налаштувати TELEGRAM_BOT_TOKEN в змінних середовища
+              </div>
+            )}
+            {telegramStatus.botTokenConfigured && (
+              <div style={{ marginTop: '12px', padding: '8px', background: '#28a745', borderRadius: '4px', fontSize: '12px' }}>
+                ✅ Bot Token налаштовано! Тепер налаштуйте webhook для отримання повідомлень
+                <button
+                  onClick={setupWebhook}
+                  disabled={loading}
+                  style={{
+                    marginLeft: '8px',
+                    padding: '4px 8px',
+                    background: '#007bff',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    cursor: loading ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {loading ? 'Налаштування...' : 'Налаштувати Webhook'}
+                </button>
+              </div>
+            )}
          </div>
        )}
 

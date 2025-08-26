@@ -1912,6 +1912,48 @@ app.post('/api/telegram/get-chat-id', async (req, res) => {
   }
 });
 
+// Endpoint для налаштування webhook
+app.post('/api/telegram/setup-webhook', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/telegram/setup-webhook - налаштування webhook');
+    
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      return res.status(400).json({ 
+        error: 'TELEGRAM_BOT_TOKEN не налаштований' 
+      });
+    }
+    
+    const webhookUrl = `https://darex-trading-solutions.onrender.com/api/telegram/webhook`;
+    
+    const response = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: webhookUrl,
+        allowed_updates: ['message']
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.ok) {
+      res.json({ 
+        success: true, 
+        message: 'Webhook налаштовано успішно',
+        webhookUrl: webhookUrl
+      });
+    } else {
+      res.status(400).json({ 
+        error: 'Помилка налаштування webhook',
+        details: result
+      });
+    }
+  } catch (error) {
+    console.error('[ERROR] POST /api/telegram/setup-webhook - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Webhook endpoint для отримання повідомлень від Telegram бота
 app.post('/api/telegram/webhook', async (req, res) => {
   try {
