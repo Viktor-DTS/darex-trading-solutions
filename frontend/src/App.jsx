@@ -391,7 +391,7 @@ function AccessRulesModal({ open, onClose }) {
 function AdminSystemParamsArea({ user }) {
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [form, setForm] = useState({ login: '', password: '', role: 'service', name: '', region: '' });
+  const [form, setForm] = useState({ login: '', password: '', role: 'service', name: '', region: '', telegramChatId: '' });
   const [regions, setRegions] = useState([]);
   const [rolesList, setRolesList] = useState([]);
   const [newRegion, setNewRegion] = useState('');
@@ -540,7 +540,8 @@ function AdminSystemParamsArea({ user }) {
       password: '',
       role: rolesList[0]?.value || '',
       name: '',
-          region: regions[0]?.name || ''
+      region: regions[0]?.name || '',
+      telegramChatId: ''
     });
       } else {
         alert('Помилка збереження користувача');
@@ -679,8 +680,36 @@ function AdminSystemParamsArea({ user }) {
       password: user.password,
       role: user.role,
       name: user.name,
-      region: user.region
+      region: user.region,
+      telegramChatId: user.telegramChatId || ''
     });
+  };
+
+  const handleTelegramChange = (userId, telegramChatId) => {
+    setUsers(users.map(u => 
+      u.id === userId 
+        ? { ...u, telegramChatId } 
+        : u
+    ));
+  };
+
+  const handleTelegramSave = async (userId, telegramChatId) => {
+    try {
+      const user = users.find(u => u.id === userId);
+      if (!user) return;
+
+      const updatedUser = { ...user, telegramChatId };
+      const success = await columnsSettingsAPI.saveUser(updatedUser);
+      
+      if (success) {
+        console.log(`Telegram Chat ID збережено для користувача ${user.login}: ${telegramChatId}`);
+      } else {
+        alert('Помилка збереження Telegram Chat ID');
+      }
+    } catch (error) {
+      console.error('Помилка збереження Telegram Chat ID:', error);
+      alert('Помилка збереження Telegram Chat ID: ' + error.message);
+    }
   };
 
   const handleSaveEdit = async (e) => {
@@ -694,7 +723,7 @@ function AdminSystemParamsArea({ user }) {
         setUsers(users.map(u => u.id === editUser.id ? updatedUser : u));
     setEditMode(false);
     setEditUser(null);
-        setForm({ login: '', password: '', role: rolesList[0]?.value || '', name: '', region: regions[0]?.name || '' });
+        setForm({ login: '', password: '', role: rolesList[0]?.value || '', name: '', region: regions[0]?.name || '', telegramChatId: '' });
       } else {
         alert('Помилка збереження користувача');
       }
@@ -720,6 +749,7 @@ function AdminSystemParamsArea({ user }) {
           </div>
         </div>
         <input name="name" placeholder="ПІБ" value={form.name} onChange={handleChange} style={{flex:'2 1 180px', color: '#333'}} />
+        <input name="telegramChatId" placeholder="Telegram Chat ID" value={form.telegramChatId || ''} onChange={handleChange} style={{flex:'1 1 150px', color: '#333'}} />
         <div style={{display:'flex',flexDirection:'column',minWidth:120}}>
           <select name="region" value={form.region} onChange={handleChange} style={{flex:'1 1 120px', color: '#333'}}>
             {regions.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
@@ -730,7 +760,7 @@ function AdminSystemParamsArea({ user }) {
           </div>
         </div>
         <button type="submit" style={{flex:'1 1 100px', minWidth:100, color: '#333'}}>{editMode ? 'Зберегти' : 'Додати'}</button>
-        {editMode && <button type="button" onClick={() => { setEditMode(false); setEditUser(null); setForm({ login: '', password: '', role: rolesList[0]?.value || '', name: '', region: regions[0]?.name || '' }); }} style={{flex:'1 1 100px', minWidth:100, background:'#f66', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer'}}>Скасувати</button>}
+        {editMode && <button type="button" onClick={() => { setEditMode(false); setEditUser(null); setForm({ login: '', password: '', role: rolesList[0]?.value || '', name: '', region: regions[0]?.name || '', telegramChatId: '' }); }} style={{flex:'1 1 100px', minWidth:100, background:'#f66', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer'}}>Скасувати</button>}
       </form>
       
       {/* Секція управління ролями */}
@@ -782,6 +812,7 @@ function AdminSystemParamsArea({ user }) {
             <th>ПІБ</th>
             <th>Регіон</th>
             <th>Статус</th>
+            <th>Телеграм</th>
             <th></th>
           </tr>
         </thead>
@@ -804,6 +835,24 @@ function AdminSystemParamsArea({ user }) {
                 <span style={{fontSize: '12px'}}>
                   {isUserOnline(u.login) ? 'Онлайн' : 'Офлайн'}
                 </span>
+              </td>
+              <td>
+                <input 
+                  type="text" 
+                  placeholder="Chat ID"
+                  value={u.telegramChatId || ''}
+                  onChange={(e) => handleTelegramChange(u.id, e.target.value)}
+                  onBlur={(e) => handleTelegramSave(u.id, e.target.value)}
+                  style={{
+                    width: '100px',
+                    padding: '4px 8px',
+                    border: '1px solid #555',
+                    borderRadius: '4px',
+                    background: '#2a3a4a',
+                    color: '#fff',
+                    fontSize: '12px'
+                  }}
+                />
               </td>
               <td>
                 <button onClick={() => handleEdit(u)} style={{background:'#4CAF50', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer', marginRight:8}}>Редагувати</button>
