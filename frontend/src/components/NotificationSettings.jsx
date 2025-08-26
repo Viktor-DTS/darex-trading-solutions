@@ -9,6 +9,7 @@ const NotificationSettings = ({ user }) => {
   const [saved, setSaved] = useState(false);
   const [testMessage, setTestMessage] = useState('');
   const [testResult, setTestResult] = useState(null);
+  const [telegramStatus, setTelegramStatus] = useState(null);
 
   const notificationTypes = [
     { key: 'task_created', label: 'Нові заявки', description: 'Коли оператор створює нову заявку' },
@@ -22,8 +23,21 @@ const NotificationSettings = ({ user }) => {
   useEffect(() => {
     if (user?.login) {
       loadSettings();
+      loadTelegramStatus();
     }
   }, [user]);
+
+  const loadTelegramStatus = async () => {
+    try {
+      const response = await fetch('/api/telegram/status');
+      if (response.ok) {
+        const status = await response.json();
+        setTelegramStatus(status);
+      }
+    } catch (error) {
+      console.error('Помилка завантаження статусу Telegram:', error);
+    }
+  };
 
   const loadSettings = async () => {
     try {
@@ -88,7 +102,19 @@ const NotificationSettings = ({ user }) => {
         })
       });
 
-      const result = await response.json();
+      // Перевіряємо статус відповіді
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Перевіряємо чи є контент
+      const text = await response.text();
+      if (!text) {
+        throw new Error('Empty response from server');
+      }
+
+      // Парсимо JSON
+      const result = JSON.parse(text);
       setTestResult(result.success ? 'success' : 'error');
       setTimeout(() => setTestResult(null), 5000);
     } catch (error) {
@@ -122,9 +148,26 @@ const NotificationSettings = ({ user }) => {
       maxWidth: '800px',
       color: '#fff'
     }}>
-      <h2 style={{ marginBottom: '24px', color: '#fff' }}>
-        🔔 Налаштування Telegram сповіщень
-      </h2>
+             <h2 style={{ marginBottom: '24px', color: '#fff' }}>
+         🔔 Налаштування Telegram сповіщень
+       </h2>
+
+       {telegramStatus && (
+         <div style={{ marginBottom: '24px', padding: '16px', background: '#22334a', borderRadius: '6px' }}>
+           <h4 style={{ marginBottom: '12px', color: '#fff' }}>📊 Статус налаштувань:</h4>
+           <div style={{ fontSize: '14px', color: '#ccc' }}>
+             <div>🤖 Bot Token: {telegramStatus.botTokenConfigured ? '✅ Налаштовано' : '❌ Не налаштовано'}</div>
+             <div>👑 Admin Chat ID: {telegramStatus.adminChatIdConfigured ? '✅ Налаштовано' : '❌ Не налаштовано'}</div>
+             <div>🔧 Service Chat ID: {telegramStatus.serviceChatIdConfigured ? '✅ Налаштовано' : '❌ Не налаштовано'}</div>
+             <div>📦 Warehouse Chat ID: {telegramStatus.warehouseChatIdConfigured ? '✅ Налаштовано' : '❌ Не налаштовано'}</div>
+           </div>
+           {!telegramStatus.botTokenConfigured && (
+             <div style={{ marginTop: '12px', padding: '8px', background: '#dc3545', borderRadius: '4px', fontSize: '12px' }}>
+               ⚠️ Для роботи сповіщень потрібно налаштувати TELEGRAM_BOT_TOKEN в змінних середовища
+             </div>
+           )}
+         </div>
+       )}
 
       <div style={{ marginBottom: '24px' }}>
         <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>

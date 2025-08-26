@@ -1597,8 +1597,13 @@ class TelegramNotificationService {
   }
 
   async sendMessage(chatId, message, parseMode = 'HTML') {
-    if (!this.baseUrl) {
+    if (!this.botToken) {
       console.log('[TELEGRAM] Bot token not configured, skipping message');
+      return false;
+    }
+    
+    if (!this.baseUrl) {
+      console.log('[TELEGRAM] Base URL not configured, skipping message');
       return false;
     }
 
@@ -1777,17 +1782,52 @@ app.get('/api/notification-logs', async (req, res) => {
   }
 });
 
+app.get('/api/telegram/status', async (req, res) => {
+  try {
+    const status = {
+      botTokenConfigured: !!process.env.TELEGRAM_BOT_TOKEN,
+      adminChatIdConfigured: !!process.env.TELEGRAM_ADMIN_CHAT_ID,
+      serviceChatIdConfigured: !!process.env.TELEGRAM_SERVICE_CHAT_ID,
+      warehouseChatIdConfigured: !!process.env.TELEGRAM_WAREHOUSE_CHAT_ID
+    };
+    
+    res.json(status);
+  } catch (error) {
+    console.error('[ERROR] GET /api/telegram/status - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/telegram/test', async (req, res) => {
   try {
+    console.log('[DEBUG] POST /api/telegram/test - отримано запит');
+    console.log('[DEBUG] POST /api/telegram/test - body:', req.body);
+    
     const { chatId, message } = req.body;
     
     if (!chatId || !message) {
+      console.log('[DEBUG] POST /api/telegram/test - відсутні обов\'язкові поля');
       return res.status(400).json({ error: 'chatId and message are required' });
     }
     
+    // Перевіряємо налаштування
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      console.log('[DEBUG] POST /api/telegram/test - Bot token не налаштований');
+      return res.status(400).json({ 
+        error: 'Telegram bot token не налаштований. Додайте TELEGRAM_BOT_TOKEN в змінні середовища.' 
+      });
+    }
+    
+    console.log('[DEBUG] POST /api/telegram/test - відправляємо повідомлення');
     const success = await telegramService.sendMessage(chatId, message);
     
-    res.json({ success, message: success ? 'Test message sent successfully' : 'Failed to send test message' });
+    const response = { 
+      success, 
+      message: success ? 'Test message sent successfully' : 'Failed to send test message' 
+    };
+    
+    console.log('[DEBUG] POST /api/telegram/test - відповідь:', response);
+    res.json(response);
   } catch (error) {
     console.error('[ERROR] POST /api/telegram/test - помилка:', error);
     res.status(500).json({ error: error.message });
