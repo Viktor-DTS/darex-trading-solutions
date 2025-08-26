@@ -22,6 +22,8 @@ export default function AnalyticsArea({ user }) {
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
+  const [customExpenseCategories, setCustomExpenseCategories] = useState(EXPENSE_CATEGORIES);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
 
   // Завантаження регіонів та компаній
   useEffect(() => {
@@ -193,6 +195,48 @@ export default function AnalyticsArea({ user }) {
     }
   };
 
+  // Функції для управління категоріями витрат
+  const handleAddCategory = () => {
+    const newKey = `custom_${Date.now()}`;
+    const newCategory = {
+      label: 'Нова категорія',
+      color: '#C9CBCF'
+    };
+    setCustomExpenseCategories(prev => ({
+      ...prev,
+      [newKey]: newCategory
+    }));
+  };
+
+  const handleUpdateCategory = (key, field, value) => {
+    setCustomExpenseCategories(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleDeleteCategory = (key) => {
+    if (Object.keys(customExpenseCategories).length <= 1) {
+      alert('Повинна бути хоча б одна категорія витрат!');
+      return;
+    }
+    
+    setCustomExpenseCategories(prev => {
+      const newCategories = { ...prev };
+      delete newCategories[key];
+      return newCategories;
+    });
+  };
+
+  const handleResetCategories = () => {
+    if (confirm('Ви впевнені, що хочете скинути категорії до стандартних?')) {
+      setCustomExpenseCategories(EXPENSE_CATEGORIES);
+    }
+  };
+
   // Функція для видалення витрат
   const handleDeleteExpenses = async (item) => {
     // Перевіряємо права доступу
@@ -220,6 +264,151 @@ export default function AnalyticsArea({ user }) {
     } catch (error) {
       alert('Помилка видалення витрат');
     }
+  };
+
+  // Компонент для управління категоріями витрат
+  const CategoryManagerModal = ({ open, onClose }) => {
+    if (!open) return null;
+
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0,0,0,0.7)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000
+      }}>
+        <div style={{
+          background: '#22334a',
+          padding: '24px',
+          borderRadius: '8px',
+          minWidth: '600px',
+          maxWidth: '800px',
+          maxHeight: '80vh',
+          overflowY: 'auto'
+        }}>
+          <h3 style={{color: '#fff', marginBottom: '16px'}}>
+            Управління категоріями витрат
+          </h3>
+          
+          <div style={{marginBottom: '16px'}}>
+            {Object.entries(customExpenseCategories).map(([key, category]) => (
+              <div key={key} style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr auto',
+                gap: '12px',
+                marginBottom: '12px',
+                padding: '12px',
+                background: '#1a2636',
+                borderRadius: '6px',
+                alignItems: 'center'
+              }}>
+                <div>
+                  <label style={{color: '#fff', display: 'block', marginBottom: '4px', fontSize: '12px'}}>
+                    Назва категорії:
+                  </label>
+                  <input
+                    type="text"
+                    value={category.label}
+                    onChange={(e) => handleUpdateCategory(key, 'label', e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #29506a',
+                      background: '#22334a',
+                      color: '#fff'
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{color: '#fff', display: 'block', marginBottom: '4px', fontSize: '12px'}}>
+                    Колір:
+                  </label>
+                  <input
+                    type="color"
+                    value={category.color}
+                    onChange={(e) => handleUpdateCategory(key, 'color', e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '4px',
+                      borderRadius: '4px',
+                      border: '1px solid #29506a',
+                      background: '#22334a'
+                    }}
+                  />
+                </div>
+                <div>
+                  <button
+                    onClick={() => handleDeleteCategory(key)}
+                    style={{
+                      padding: '8px 12px',
+                      background: '#dc3545',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Видалити
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{display: 'flex', gap: '8px', justifyContent: 'space-between'}}>
+            <div style={{display: 'flex', gap: '8px'}}>
+              <button
+                onClick={handleAddCategory}
+                style={{
+                  padding: '8px 16px',
+                  background: '#28a745',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Додати категорію
+              </button>
+              <button
+                onClick={handleResetCategories}
+                style={{
+                  padding: '8px 16px',
+                  background: '#ffc107',
+                  color: '#000',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Скинути до стандартних
+              </button>
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                padding: '8px 16px',
+                background: '#6c757d',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Закрити
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Компонент для редагування витрат
@@ -354,31 +543,31 @@ export default function AnalyticsArea({ user }) {
             </div>
           )}
           
-          <div style={{marginBottom: '16px'}}>
-            {Object.entries(EXPENSE_CATEGORIES).map(([key, category]) => (
-              <div key={key} style={{marginBottom: '12px'}}>
-                <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>
-                  {category.label}:
-                </label>
-                <input
-                  type="number"
-                  value={expenses[key] || 0}
-                  onChange={(e) => setExpenses(prev => ({
-                    ...prev,
-                    [key]: parseFloat(e.target.value) || 0
-                  }))}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    borderRadius: '4px',
-                    border: '1px solid #29506a',
-                    background: '#1a2636',
-                    color: '#fff'
-                  }}
-                />
-              </div>
-            ))}
-          </div>
+                     <div style={{marginBottom: '16px'}}>
+             {Object.entries(customExpenseCategories).map(([key, category]) => (
+               <div key={key} style={{marginBottom: '12px'}}>
+                 <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>
+                   {category.label}:
+                 </label>
+                 <input
+                   type="number"
+                   value={expenses[key] || 0}
+                   onChange={(e) => setExpenses(prev => ({
+                     ...prev,
+                     [key]: parseFloat(e.target.value) || 0
+                   }))}
+                   style={{
+                     width: '100%',
+                     padding: '8px',
+                     borderRadius: '4px',
+                     border: '1px solid #29506a',
+                     background: '#1a2636',
+                     color: '#fff'
+                   }}
+                 />
+               </div>
+             ))}
+           </div>
 
           <div style={{display: 'flex', gap: '8px', justifyContent: 'flex-end'}}>
             <button
@@ -598,19 +787,33 @@ export default function AnalyticsArea({ user }) {
              Додати витрати
            </button>
            
-           <button
-             onClick={handleCopyPreviousMonth}
-             style={{
-               padding: '8px 16px',
-               background: '#17a2b8',
-               color: '#fff',
-               border: 'none',
-               borderRadius: '4px',
-               cursor: 'pointer'
-             }}
-           >
-             Копіювати з попереднього місяця
-           </button>
+                       <button
+              onClick={handleCopyPreviousMonth}
+              style={{
+                padding: '8px 16px',
+                background: '#17a2b8',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Копіювати з попереднього місяця
+            </button>
+            
+            <button
+              onClick={() => setShowCategoryManager(true)}
+              style={{
+                padding: '8px 16px',
+                background: '#6f42c1',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Управління категоріями
+            </button>
          </div>
       </div>
 
@@ -725,23 +928,23 @@ export default function AnalyticsArea({ user }) {
                 marginBottom: '24px'
               }}>
                 <h3 style={{color: '#fff', marginBottom: '16px'}}>Розбивка витрат</h3>
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
-                  {Object.entries(totals.expenseBreakdown).map(([category, amount]) => (
-                    <div key={category} style={{
-                      background: '#22334a',
-                      padding: '12px',
-                      borderRadius: '6px',
-                      borderLeft: `4px solid ${EXPENSE_CATEGORIES[category]?.color || '#ccc'}`
-                    }}>
-                      <div style={{color: '#fff', fontSize: '14px', marginBottom: '4px'}}>
-                        {EXPENSE_CATEGORIES[category]?.label || category}
-                      </div>
-                      <div style={{color: '#00bfff', fontSize: '18px', fontWeight: 'bold'}}>
-                        {formatCurrency(amount)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
+                   {Object.entries(totals.expenseBreakdown).map(([category, amount]) => (
+                     <div key={category} style={{
+                       background: '#22334a',
+                       padding: '12px',
+                       borderRadius: '6px',
+                       borderLeft: `4px solid ${customExpenseCategories[category]?.color || '#ccc'}`
+                     }}>
+                       <div style={{color: '#fff', fontSize: '14px', marginBottom: '4px'}}>
+                         {customExpenseCategories[category]?.label || category}
+                       </div>
+                       <div style={{color: '#00bfff', fontSize: '18px', fontWeight: 'bold'}}>
+                         {formatCurrency(amount)}
+                       </div>
+                     </div>
+                   ))}
+                 </div>
               </div>
 
               {/* Графік по місяцях */}
@@ -884,14 +1087,20 @@ export default function AnalyticsArea({ user }) {
         onSave={handleSaveExpenses}
       />
 
-      {/* Модальне вікно додавання витрат */}
-      <ExpenseModal
-        open={showAddExpenseModal}
-        onClose={() => setShowAddExpenseModal(false)}
-        expense={editingExpense}
-        onSave={handleSaveNewExpenses}
-        isNew={true}
-      />
-    </div>
-  );
-} 
+             {/* Модальне вікно додавання витрат */}
+       <ExpenseModal
+         open={showAddExpenseModal}
+         onClose={() => setShowAddExpenseModal(false)}
+         expense={editingExpense}
+         onSave={handleSaveNewExpenses}
+         isNew={true}
+       />
+
+       {/* Модальне вікно управління категоріями */}
+       <CategoryManagerModal
+         open={showCategoryManager}
+         onClose={() => setShowCategoryManager(false)}
+       />
+     </div>
+   );
+ } 
