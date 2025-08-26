@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { analyticsAPI, formatCurrency, formatPercent, getMonthName } from '../utils/analyticsAPI';
 import { regionsAPI } from '../utils/regionsAPI';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, LineChart, Line, Area, AreaChart, ComposedChart
+} from 'recharts';
 
 export default function DetailedReportsArea({ user }) {
   const [analytics, setAnalytics] = useState([]);
@@ -125,8 +129,14 @@ export default function DetailedReportsArea({ user }) {
 
   // Компонент для графіка доходів
   const RevenueChart = () => {
-    const maxRevenue = Math.max(...monthlyData.map(d => d.totalRevenue));
-    const chartHeight = 300;
+    const chartData = monthlyData.map(data => ({
+      name: getMonthName(data.month),
+      'Дохід по роботах': data.workRevenue,
+      'Дохід по матеріалам': data.materialsRevenue,
+      'Загальний дохід': data.totalRevenue
+    }));
+
+    const colors = ['#28a745', '#20c997', '#00bfff'];
     
     return (
       <div style={{
@@ -136,82 +146,52 @@ export default function DetailedReportsArea({ user }) {
         marginBottom: '20px'
       }}>
         <h3 style={{color: '#fff', marginBottom: '16px'}}>Динаміка доходів по місяцях</h3>
-        <div style={{height: chartHeight, position: 'relative', display: 'flex', alignItems: 'end', gap: '8px'}}>
-          {monthlyData.map((data, index) => {
-            const height = maxRevenue > 0 ? (data.totalRevenue / maxRevenue) * chartHeight : 0;
-            const workHeight = maxRevenue > 0 ? (data.workRevenue / maxRevenue) * chartHeight : 0;
-            const materialsHeight = maxRevenue > 0 ? (data.materialsRevenue / maxRevenue) * chartHeight : 0;
-            
-            return (
-              <div key={index} style={{flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-                <div style={{
-                  width: '100%',
-                  height: height,
-                  background: 'linear-gradient(to top, #28a745, #20c997)',
-                  borderRadius: '4px 4px 0 0',
-                  position: 'relative',
-                  minHeight: '20px'
-                }}>
-                  {/* Розбивка на роботи та матеріали */}
-                  <div style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: workHeight,
-                    background: '#28a745',
-                    borderRadius: '4px 4px 0 0'
-                  }} />
-                  <div style={{
-                    position: 'absolute',
-                    bottom: workHeight,
-                    left: 0,
-                    right: 0,
-                    height: materialsHeight,
-                    background: '#20c997',
-                    borderRadius: '4px 4px 0 0'
-                  }} />
-                </div>
-                <div style={{
-                  color: '#fff',
-                  fontSize: '12px',
-                  marginTop: '8px',
-                  textAlign: 'center',
-                  transform: 'rotate(-45deg)',
-                  transformOrigin: 'center'
-                }}>
-                  {getMonthName(data.month)}
-                </div>
-                <div style={{
-                  color: '#00bfff',
-                  fontSize: '10px',
-                  marginTop: '4px',
-                  textAlign: 'center'
-                }}>
-                  {formatCurrency(data.totalRevenue)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div style={{display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '16px'}}>
-          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-            <div style={{width: '16px', height: '16px', background: '#28a745', borderRadius: '2px'}} />
-            <span style={{color: '#fff', fontSize: '12px'}}>Роботи</span>
-          </div>
-          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-            <div style={{width: '16px', height: '16px', background: '#20c997', borderRadius: '2px'}} />
-            <span style={{color: '#fff', fontSize: '12px'}}>Матеріали</span>
-          </div>
-        </div>
+        <ResponsiveContainer width="100%" height={400}>
+          <ComposedChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#29506a" />
+            <XAxis 
+              dataKey="name" 
+              tick={{ fill: '#fff', fontSize: 12 }}
+              axisLine={{ stroke: '#29506a' }}
+            />
+            <YAxis 
+              tick={{ fill: '#fff', fontSize: 12 }}
+              axisLine={{ stroke: '#29506a' }}
+              tickFormatter={(value) => formatCurrency(value)}
+            />
+            <Tooltip 
+              contentStyle={{
+                backgroundColor: '#22334a',
+                border: '1px solid #29506a',
+                borderRadius: '8px',
+                color: '#fff'
+              }}
+              formatter={(value, name) => [formatCurrency(value), name]}
+            />
+            <Legend 
+              wrapperStyle={{ color: '#fff' }}
+            />
+            <Bar dataKey="Дохід по роботах" fill="#28a745" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Дохід по матеріалам" fill="#20c997" radius={[4, 4, 0, 0]} />
+            <Line 
+              type="monotone" 
+              dataKey="Загальний дохід" 
+              stroke="#00bfff" 
+              strokeWidth={3}
+              dot={{ fill: '#00bfff', strokeWidth: 2, r: 6 }}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
     );
   };
 
   // Компонент для графіка витрат
   const ExpensesChart = () => {
-    const maxExpense = Math.max(...monthlyData.map(d => d.expenses));
-    const chartHeight = 300;
+    const chartData = monthlyData.map(data => ({
+      name: getMonthName(data.month),
+      'Витрати': data.expenses
+    }));
     
     return (
       <div style={{
@@ -221,49 +201,49 @@ export default function DetailedReportsArea({ user }) {
         marginBottom: '20px'
       }}>
         <h3 style={{color: '#fff', marginBottom: '16px'}}>Динаміка витрат по місяцях</h3>
-        <div style={{height: chartHeight, position: 'relative', display: 'flex', alignItems: 'end', gap: '8px'}}>
-          {monthlyData.map((data, index) => {
-            const height = maxExpense > 0 ? (data.expenses / maxExpense) * chartHeight : 0;
-            
-            return (
-              <div key={index} style={{flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-                <div style={{
-                  width: '100%',
-                  height: height,
-                  background: 'linear-gradient(to top, #dc3545, #fd7e14)',
-                  borderRadius: '4px 4px 0 0',
-                  minHeight: '20px'
-                }} />
-                <div style={{
-                  color: '#fff',
-                  fontSize: '12px',
-                  marginTop: '8px',
-                  textAlign: 'center',
-                  transform: 'rotate(-45deg)',
-                  transformOrigin: 'center'
-                }}>
-                  {getMonthName(data.month)}
-                </div>
-                <div style={{
-                  color: '#ff6b6b',
-                  fontSize: '10px',
-                  marginTop: '4px',
-                  textAlign: 'center'
-                }}>
-                  {formatCurrency(data.expenses)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <ResponsiveContainer width="100%" height={400}>
+          <AreaChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#29506a" />
+            <XAxis 
+              dataKey="name" 
+              tick={{ fill: '#fff', fontSize: 12 }}
+              axisLine={{ stroke: '#29506a' }}
+            />
+            <YAxis 
+              tick={{ fill: '#fff', fontSize: 12 }}
+              axisLine={{ stroke: '#29506a' }}
+              tickFormatter={(value) => formatCurrency(value)}
+            />
+            <Tooltip 
+              contentStyle={{
+                backgroundColor: '#22334a',
+                border: '1px solid #29506a',
+                borderRadius: '8px',
+                color: '#fff'
+              }}
+              formatter={(value, name) => [formatCurrency(value), name]}
+            />
+            <Area 
+              type="monotone" 
+              dataKey="Витрати" 
+              stroke="#dc3545" 
+              fill="#dc3545"
+              fillOpacity={0.3}
+              strokeWidth={3}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     );
   };
 
   // Компонент для графіка прибутку
   const ProfitChart = () => {
-    const maxProfit = Math.max(...monthlyData.map(d => Math.abs(d.profit)));
-    const chartHeight = 300;
+    const chartData = monthlyData.map(data => ({
+      name: getMonthName(data.month),
+      'Прибуток': data.profit,
+      'Рентабельність': data.profitability
+    }));
     
     return (
       <div style={{
@@ -273,71 +253,92 @@ export default function DetailedReportsArea({ user }) {
         marginBottom: '20px'
       }}>
         <h3 style={{color: '#fff', marginBottom: '16px'}}>Динаміка прибутку по місяцях</h3>
-        <div style={{height: chartHeight, position: 'relative', display: 'flex', alignItems: 'center', gap: '8px'}}>
-          {/* Нульова лінія */}
-          <div style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            top: '50%',
-            height: '1px',
-            background: '#666',
-            zIndex: 1
-          }} />
-          
-          {monthlyData.map((data, index) => {
-            const height = maxProfit > 0 ? (Math.abs(data.profit) / maxProfit) * (chartHeight / 2) : 0;
-            const isPositive = data.profit >= 0;
-            const top = isPositive ? '50%' : 'auto';
-            const bottom = isPositive ? 'auto' : '50%';
-            
-            return (
-              <div key={index} style={{flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-                <div style={{
-                  width: '100%',
-                  height: height,
-                  background: isPositive ? 'linear-gradient(to top, #28a745, #20c997)' : 'linear-gradient(to bottom, #dc3545, #fd7e14)',
-                  borderRadius: '4px',
-                  position: 'absolute',
-                  top,
-                  bottom,
-                  minHeight: '20px',
-                  zIndex: 2
-                }} />
-                <div style={{
-                  color: '#fff',
-                  fontSize: '12px',
-                  marginTop: '8px',
-                  textAlign: 'center',
-                  transform: 'rotate(-45deg)',
-                  transformOrigin: 'center',
-                  position: 'relative',
-                  zIndex: 3
-                }}>
-                  {getMonthName(data.month)}
-                </div>
-                <div style={{
-                  color: isPositive ? '#28a745' : '#dc3545',
-                  fontSize: '10px',
-                  marginTop: '4px',
-                  textAlign: 'center',
-                  position: 'relative',
-                  zIndex: 3
-                }}>
-                  {formatCurrency(data.profit)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <ResponsiveContainer width="100%" height={400}>
+          <ComposedChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#29506a" />
+            <XAxis 
+              dataKey="name" 
+              tick={{ fill: '#fff', fontSize: 12 }}
+              axisLine={{ stroke: '#29506a' }}
+            />
+            <YAxis 
+              yAxisId="left"
+              tick={{ fill: '#fff', fontSize: 12 }}
+              axisLine={{ stroke: '#29506a' }}
+              tickFormatter={(value) => formatCurrency(value)}
+            />
+            <YAxis 
+              yAxisId="right"
+              orientation="right"
+              tick={{ fill: '#fff', fontSize: 12 }}
+              axisLine={{ stroke: '#29506a' }}
+              tickFormatter={(value) => `${value.toFixed(1)}%`}
+            />
+            <Tooltip 
+              contentStyle={{
+                backgroundColor: '#22334a',
+                border: '1px solid #29506a',
+                borderRadius: '8px',
+                color: '#fff'
+              }}
+              formatter={(value, name) => [
+                name === 'Прибуток' ? formatCurrency(value) : `${value.toFixed(1)}%`, 
+                name
+              ]}
+            />
+            <Legend 
+              wrapperStyle={{ color: '#fff' }}
+            />
+            <Bar 
+              yAxisId="left"
+              dataKey="Прибуток" 
+              fill={(data) => data.profit >= 0 ? '#28a745' : '#dc3545'}
+              radius={[4, 4, 0, 0]}
+            />
+            <Line 
+              yAxisId="right"
+              type="monotone" 
+              dataKey="Рентабельність" 
+              stroke="#ffc107" 
+              strokeWidth={3}
+              dot={{ fill: '#ffc107', strokeWidth: 2, r: 6 }}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
     );
   };
 
   // Компонент для кругової діаграми витрат
   const ExpensesPieChart = () => {
-    const totalExpenses = Object.values(categories).reduce((sum, value) => sum + value, 0);
-    const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'];
+    const pieData = Object.entries(categories).map(([category, value], index) => ({
+      name: category,
+      value: value,
+      fill: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'][index % 8]
+    }));
+    
+    const CustomTooltip = ({ active, payload }) => {
+      if (active && payload && payload.length) {
+        const data = payload[0];
+        const totalExpenses = Object.values(categories).reduce((sum, value) => sum + value, 0);
+        const percentage = totalExpenses > 0 ? (data.value / totalExpenses) * 100 : 0;
+        
+        return (
+          <div style={{
+            backgroundColor: '#22334a',
+            border: '1px solid #29506a',
+            borderRadius: '8px',
+            padding: '12px',
+            color: '#fff'
+          }}>
+            <p style={{ margin: 0, fontWeight: 'bold' }}>{data.name}</p>
+            <p style={{ margin: '4px 0 0 0' }}>{formatCurrency(data.value)}</p>
+            <p style={{ margin: '4px 0 0 0', color: '#ccc' }}>{percentage.toFixed(1)}% від загальної суми</p>
+          </div>
+        );
+      }
+      return null;
+    };
     
     return (
       <div style={{
@@ -349,39 +350,35 @@ export default function DetailedReportsArea({ user }) {
         <h3 style={{color: '#fff', marginBottom: '16px'}}>Розподіл витрат по категоріях</h3>
         <div style={{display: 'flex', gap: '20px', alignItems: 'center'}}>
           {/* Кругова діаграма */}
-          <div style={{
-            width: '200px',
-            height: '200px',
-            borderRadius: '50%',
-            background: 'conic-gradient(' +
-              Object.entries(categories).map(([category, value], index) => {
-                const percentage = totalExpenses > 0 ? (value / totalExpenses) * 100 : 0;
-                const color = colors[index % colors.length];
-                return `${color} ${index === 0 ? '0deg' : ''} ${percentage}%`;
-              }).join(', ') +
-            ')',
-            position: 'relative'
-          }}>
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: '60px',
-              height: '60px',
-              background: '#1a2636',
-              borderRadius: '50%'
-            }} />
+          <div style={{width: '300px', height: '300px'}}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={120}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
           
           {/* Легенда */}
           <div style={{flex: 1}}>
-            {Object.entries(categories).map(([category, value], index) => {
-              const percentage = totalExpenses > 0 ? (value / totalExpenses) * 100 : 0;
-              const color = colors[index % colors.length];
+            {pieData.map((entry, index) => {
+              const totalExpenses = Object.values(categories).reduce((sum, value) => sum + value, 0);
+              const percentage = totalExpenses > 0 ? (entry.value / totalExpenses) * 100 : 0;
               
               return (
-                <div key={category} style={{
+                <div key={entry.name} style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
@@ -390,14 +387,14 @@ export default function DetailedReportsArea({ user }) {
                   <div style={{
                     width: '16px',
                     height: '16px',
-                    background: color,
+                    background: entry.fill,
                     borderRadius: '2px'
                   }} />
                   <span style={{color: '#fff', fontSize: '12px', flex: 1}}>
-                    {category}
+                    {entry.name}
                   </span>
                   <span style={{color: '#00bfff', fontSize: '12px'}}>
-                    {formatCurrency(value)}
+                    {formatCurrency(entry.value)}
                   </span>
                   <span style={{color: '#ccc', fontSize: '12px', minWidth: '40px'}}>
                     ({percentage.toFixed(1)}%)
