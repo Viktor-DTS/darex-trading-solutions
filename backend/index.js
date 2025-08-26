@@ -571,16 +571,26 @@ app.put('/api/tasks/:id', async (req, res) => {
     try {
       const user = req.user || { login: 'system', name: 'Система', role: 'system' };
       
-      if (updateData.status === 'Виконано') {
+      console.log('[DEBUG] PUT /api/tasks/:id - перевірка статусу для сповіщення');
+      console.log('[DEBUG] PUT /api/tasks/:id - updateData.status:', updateData.status);
+      console.log('[DEBUG] PUT /api/tasks/:id - updatedTask.status:', updatedTask.status);
+      console.log('[DEBUG] PUT /api/tasks/:id - user:', user);
+      
+      if (updateData.status === 'Виконано' || updatedTask.status === 'Виконано') {
+        console.log('[DEBUG] PUT /api/tasks/:id - відправляємо task_completed сповіщення');
         await telegramService.sendTaskNotification('task_completed', updatedTask, user);
       } else if (updateData.approvedByWarehouse === 'Підтверджено' || 
                  updateData.approvedByAccountant === 'Підтверджено' || 
                  updateData.approvedByRegionalManager === 'Підтверджено') {
+        console.log('[DEBUG] PUT /api/tasks/:id - відправляємо task_approved сповіщення');
         await telegramService.sendTaskNotification('task_approved', updatedTask, user);
       } else if (updateData.approvedByWarehouse === 'Відхилено' || 
                  updateData.approvedByAccountant === 'Відхилено' || 
                  updateData.approvedByRegionalManager === 'Відхилено') {
+        console.log('[DEBUG] PUT /api/tasks/:id - відправляємо task_rejected сповіщення');
         await telegramService.sendTaskNotification('task_rejected', updatedTask, user);
+      } else {
+        console.log('[DEBUG] PUT /api/tasks/:id - статус не підходить для сповіщення');
       }
     } catch (notificationError) {
       console.error('[ERROR] PUT /api/tasks/:id - помилка відправки сповіщення:', notificationError);
@@ -1766,6 +1776,10 @@ class TelegramNotificationService {
   }
 
   formatTaskMessage(type, task, user) {
+    console.log(`[TELEGRAM] formatTaskMessage called with type: ${type}`);
+    console.log(`[TELEGRAM] task.status: ${task.status}`);
+    console.log(`[TELEGRAM] user: ${JSON.stringify(user)}`);
+    
     // Формуємо додаткову інформацію про коментарі
     let commentsInfo = '';
     if (task.comments && task.comments.trim()) {
