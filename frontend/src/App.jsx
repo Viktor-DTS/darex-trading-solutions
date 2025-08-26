@@ -23,6 +23,7 @@ import MaterialsAnalysisArea from './areas/MaterialsAnalysisArea';
 import ReportBuilder from './areas/ReportBuilder';
 import EventLogArea from './areas/EventLogArea';
 import AnalyticsArea from './areas/AnalyticsArea';
+import DetailedReportsArea from './areas/DetailedReportsArea';
 import * as XLSX from 'xlsx-js-style';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import API_BASE_URL from './config.js';
@@ -132,6 +133,7 @@ const getDefaultAccess = (rolesList = []) => {
     { key: 'reports', label: 'Звіти' },
     { key: 'materials', label: 'Аналіз ціни матеріалів' },
     { key: 'analytics', label: 'Аналітика' },
+    { key: 'detailedReports', label: 'Детальна звітність' },
   ];
   
   const defaultAccess = {};
@@ -154,6 +156,13 @@ const getDefaultAccess = (rolesList = []) => {
         defaultAccess[role.value][tab.key] = 'read';
       } else if (tab.key === 'analytics') {
         // Тільки адміністратор та регіональний керівник мають доступ до аналітики
+        if (role.value === 'admin' || role.value === 'regional') {
+          defaultAccess[role.value][tab.key] = 'full';
+        } else {
+          defaultAccess[role.value][tab.key] = 'none';
+        }
+      } else if (tab.key === 'detailedReports') {
+        // Тільки адміністратор та регіональний керівник мають доступ до детальної звітності
         if (role.value === 'admin' || role.value === 'regional') {
           defaultAccess[role.value][tab.key] = 'full';
         } else {
@@ -202,6 +211,7 @@ function AccessRulesModal({ open, onClose }) {
     { key: 'reports', label: 'Звіти' },
     { key: 'materials', label: 'Аналіз ціни матеріалів' },
     { key: 'analytics', label: 'Аналітика' },
+    { key: 'detailedReports', label: 'Детальна звітність' },
   ];
   const accessTypes = [
     { value: 'full', label: 'Повний доступ' },
@@ -278,6 +288,8 @@ function AccessRulesModal({ open, onClose }) {
           } else if (tab.key === 'materials') {
             updatedAccess[role.value][tab.key] = 'read';
           } else if (tab.key === 'analytics') {
+            updatedAccess[role.value][tab.key] = 'full';
+          } else if (tab.key === 'detailedReports') {
             updatedAccess[role.value][tab.key] = 'full';
           } else {
             updatedAccess[role.value][tab.key] = 'none';
@@ -601,6 +613,7 @@ function AdminSystemParamsArea({ user }) {
             { key: 'reports', label: 'Звіти' },
             { key: 'materials', label: 'Аналіз ціни матеріалів' },
             { key: 'analytics', label: 'Аналітика' },
+            { key: 'detailedReports', label: 'Детальна звітність' },
           ];
           
           currentAccess[newRole] = {};
@@ -614,6 +627,8 @@ function AdminSystemParamsArea({ user }) {
             } else if (tab.key === 'materials') {
               currentAccess[newRole][tab.key] = 'read';
             } else if (tab.key === 'analytics') {
+              currentAccess[newRole][tab.key] = 'full';
+            } else if (tab.key === 'detailedReports') {
               currentAccess[newRole][tab.key] = 'full';
             } else {
               currentAccess[newRole][tab.key] = 'none';
@@ -3070,6 +3085,7 @@ const areas = {
   reports: (props) => <ReportBuilder {...props} />,
   materials: (props) => <MaterialsAnalysisArea {...props} />,
   analytics: (props) => <AnalyticsArea {...props} />,
+  detailedReports: (props) => <DetailedReportsArea {...props} />,
 };
 
 // Окремий об'єкт для адміністратора
