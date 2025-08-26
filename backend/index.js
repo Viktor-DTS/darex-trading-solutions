@@ -1767,14 +1767,20 @@ class TelegramNotificationService {
   }
 
   async sendTaskNotification(type, task, user) {
+    console.log(`[TELEGRAM] sendTaskNotification called with type: ${type}`);
+    console.log(`[TELEGRAM] task object:`, JSON.stringify(task, null, 2));
+    console.log(`[TELEGRAM] user object:`, JSON.stringify(user, null, 2));
+    
     const message = this.formatTaskMessage(type, task, user);
     const chatIds = await this.getChatIdsForNotification(type, user.role);
     
     console.log(`[TELEGRAM] Sending ${type} notification to ${chatIds.length} chats`);
+    console.log(`[TELEGRAM] Chat IDs:`, chatIds);
     
     // Якщо це виконана заявка, генеруємо PDF звіт
     let pdfBuffer = null;
     if (type === 'task_completed') {
+      console.log('[TELEGRAM] Type is task_completed, generating PDF...');
       try {
         console.log('[TELEGRAM] Генерація PDF звіту для виконаної заявки');
         pdfBuffer = await generateTaskReportPDF(task, user);
@@ -1782,6 +1788,8 @@ class TelegramNotificationService {
       } catch (error) {
         console.error('[TELEGRAM] Помилка генерації PDF:', error);
       }
+    } else {
+      console.log(`[TELEGRAM] Type is not task_completed (${type}), skipping PDF generation`);
     }
     
     for (const chatId of chatIds) {
@@ -1821,7 +1829,16 @@ class TelegramNotificationService {
   formatTaskMessage(type, task, user) {
     console.log(`[TELEGRAM] formatTaskMessage called with type: ${type}`);
     console.log(`[TELEGRAM] task.status: ${task.status}`);
+    console.log(`[TELEGRAM] task object: ${JSON.stringify(task, null, 2)}`);
     console.log(`[TELEGRAM] user: ${JSON.stringify(user)}`);
+    
+    // Визначаємо правильний статус для відображення
+    let displayStatus = task.status || 'Н/Д';
+    
+    // Якщо це сповіщення про виконану заявку, показуємо "Виконано"
+    if (type === 'task_completed') {
+      displayStatus = 'Виконано';
+    }
     
     // Формуємо додаткову інформацію про коментарі
     let commentsInfo = '';
@@ -1843,8 +1860,8 @@ class TelegramNotificationService {
 
 📋 <b>Номер заявки:</b> ${task.requestNumber || 'Н/Д'}
 👤 <b>Хто створив:</b> ${user.name || user.login || 'Н/Д'}
-📊 <b>Статус заявки:</b> ${task.status || 'Н/Д'}
-📅 <b>Дата заявки:</b> ${task.date || 'Н/Д'}
+📊 <b>Статус заявки:</b> ${displayStatus}
+📅 <b>Дата заявки:</b> ${task.requestDate || task.date || 'Н/Д'}
 🏢 <b>Компанія виконавець:</b> ${task.company || 'Н/Д'}
 📍 <b>Регіон сервісного відділу:</b> ${task.serviceRegion || 'Н/Д'}
 📝 <b>Опис заявки:</b> ${task.requestDesc || 'Н/Д'}
@@ -1873,36 +1890,49 @@ class TelegramNotificationService {
 
   async getChatIdsForNotification(type, userRole) {
     try {
+      console.log(`[TELEGRAM] getChatIdsForNotification called with type: ${type}, userRole: ${userRole}`);
       const chatIds = [];
       
       // Отримуємо глобальні налаштування сповіщень
       const globalSettings = await GlobalNotificationSettings.findOne();
+      console.log(`[TELEGRAM] Global settings found:`, globalSettings ? 'yes' : 'no');
+      
       if (globalSettings?.settings?.[type]) {
         // Отримуємо користувачів, які підписані на цей тип сповіщень
         const userIds = globalSettings.settings[type];
+        console.log(`[TELEGRAM] User IDs for ${type}:`, userIds);
+        
         if (userIds && userIds.length > 0) {
           const users = await User.find({ login: { $in: userIds } });
+          console.log(`[TELEGRAM] Found users:`, users.map(u => ({ login: u.login, telegramChatId: u.telegramChatId })));
+          
           const userChatIds = users
             .filter(user => user.telegramChatId && user.telegramChatId.trim())
             .map(user => user.telegramChatId);
           chatIds.push(...userChatIds);
+          console.log(`[TELEGRAM] Added user chat IDs:`, userChatIds);
         }
       }
       
       // Додаємо загальні канали залежно від ролі (для зворотної сумісності)
       if (process.env.TELEGRAM_ADMIN_CHAT_ID) {
         chatIds.push(process.env.TELEGRAM_ADMIN_CHAT_ID);
+        console.log(`[TELEGRAM] Added admin chat ID:`, process.env.TELEGRAM_ADMIN_CHAT_ID);
       }
       
       if (userRole === 'warehouse' && process.env.TELEGRAM_WAREHOUSE_CHAT_ID) {
         chatIds.push(process.env.TELEGRAM_WAREHOUSE_CHAT_ID);
+        console.log(`[TELEGRAM] Added warehouse chat ID:`, process.env.TELEGRAM_WAREHOUSE_CHAT_ID);
       }
       
       if (userRole === 'service' && process.env.TELEGRAM_SERVICE_CHAT_ID) {
         chatIds.push(process.env.TELEGRAM_SERVICE_CHAT_ID);
+        console.log(`[TELEGRAM] Added service chat ID:`, process.env.TELEGRAM_SERVICE_CHAT_ID);
       }
 
-      return [...new Set(chatIds)]; // Видаляємо дублікати
+      const uniqueChatIds = [...new Set(chatIds)]; // Видаляємо дублікати
+      console.log(`[TELEGRAM] Final unique chat IDs:`, uniqueChatIds);
+      return uniqueChatIds;
     } catch (error) {
       console.error('[TELEGRAM] Error getting chat IDs:', error);
       return [];
