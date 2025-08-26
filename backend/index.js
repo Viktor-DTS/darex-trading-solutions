@@ -491,6 +491,49 @@ app.get('/api/tasks', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Маршрут для отримання конкретного завдання за ID
+app.get('/api/tasks/:id', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/tasks/:id - запит на отримання завдання з ID:', req.params.id);
+    
+    // Шукаємо завдання за _id (якщо id виглядає як ObjectId) або за числовим id
+    let task;
+    if (/^[0-9a-fA-F]{24}$/.test(req.params.id)) {
+      // Якщо id виглядає як ObjectId
+      console.log('[DEBUG] GET /api/tasks/:id - шукаємо за ObjectId:', req.params.id);
+      task = await executeWithRetry(() => Task.findById(req.params.id));
+    } else {
+      // Якщо id числовий або рядковий
+      console.log('[DEBUG] GET /api/tasks/:id - шукаємо за id:', req.params.id);
+      task = await executeWithRetry(() => Task.findOne({ 
+        $or: [
+          { id: Number(req.params.id) },
+          { id: req.params.id },
+          { taskNumber: req.params.id }
+        ]
+      }));
+    }
+    
+    if (!task) {
+      console.error('[ERROR] GET /api/tasks/:id - завдання не знайдено для ID:', req.params.id);
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    console.log('[DEBUG] GET /api/tasks/:id - знайдено завдання:', task._id);
+    
+    // Додаємо числовий id для сумісності з фронтендом
+    const taskWithId = {
+      ...task.toObject(),
+      id: task._id.toString()
+    };
+    
+    res.json(taskWithId);
+  } catch (error) {
+    console.error('[ERROR] GET /api/tasks/:id - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 app.post('/api/tasks', async (req, res) => {
   try {
     console.log('[DEBUG] POST /api/tasks - отримано дані:', JSON.stringify(req.body, null, 2));
