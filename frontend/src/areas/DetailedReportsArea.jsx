@@ -97,18 +97,23 @@ export default function DetailedReportsArea({ user }) {
       monthlyData[monthKey].expenses += item.totalExpenses || 0;
       monthlyData[monthKey].profit += item.profit || 0;
       
-      // Розбивка витрат по категоріях
-      Object.keys(item.expenses || {}).forEach(category => {
-        if (!monthlyData[monthKey].expenseBreakdown[category]) {
-          monthlyData[monthKey].expenseBreakdown[category] = 0;
-        }
-        monthlyData[monthKey].expenseBreakdown[category] += item.expenses[category] || 0;
-        
-        if (!categories[category]) {
-          categories[category] = 0;
-        }
-        categories[category] += item.expenses[category] || 0;
-      });
+      // Розбивка витрат по категоріях - використовуємо актуальні категорії
+      if (item.expenses && typeof item.expenses === 'object') {
+        Object.keys(item.expenses).forEach(category => {
+          const value = item.expenses[category] || 0;
+          if (value > 0) {
+            if (!monthlyData[monthKey].expenseBreakdown[category]) {
+              monthlyData[monthKey].expenseBreakdown[category] = 0;
+            }
+            monthlyData[monthKey].expenseBreakdown[category] += value;
+            
+            if (!categories[category]) {
+              categories[category] = 0;
+            }
+            categories[category] += value;
+          }
+        });
+      }
     });
     
     // Розраховуємо рентабельність
@@ -158,6 +163,7 @@ export default function DetailedReportsArea({ user }) {
               tick={{ fill: '#fff', fontSize: 12 }}
               axisLine={{ stroke: '#29506a' }}
               tickFormatter={(value) => formatCurrency(value)}
+              domain={['dataMin', 'dataMax']}
             />
             <Tooltip 
               contentStyle={{
@@ -213,6 +219,7 @@ export default function DetailedReportsArea({ user }) {
               tick={{ fill: '#fff', fontSize: 12 }}
               axisLine={{ stroke: '#29506a' }}
               tickFormatter={(value) => formatCurrency(value)}
+              domain={['dataMin', 'dataMax']}
             />
             <Tooltip 
               contentStyle={{
@@ -266,6 +273,7 @@ export default function DetailedReportsArea({ user }) {
               tick={{ fill: '#fff', fontSize: 12 }}
               axisLine={{ stroke: '#29506a' }}
               tickFormatter={(value) => formatCurrency(value)}
+              domain={['dataMin', 'dataMax']}
             />
             <YAxis 
               yAxisId="right"
@@ -273,6 +281,7 @@ export default function DetailedReportsArea({ user }) {
               tick={{ fill: '#fff', fontSize: 12 }}
               axisLine={{ stroke: '#29506a' }}
               tickFormatter={(value) => `${value.toFixed(1)}%`}
+              domain={['dataMin', 'dataMax']}
             />
             <Tooltip 
               contentStyle={{
@@ -311,7 +320,10 @@ export default function DetailedReportsArea({ user }) {
 
   // Компонент для кругової діаграми витрат
   const ExpensesPieChart = () => {
-    const pieData = Object.entries(categories).map(([category, value], index) => ({
+    // Фільтруємо категорії, які мають значення більше 0
+    const validCategories = Object.entries(categories).filter(([category, value]) => value > 0);
+    
+    const pieData = validCategories.map(([category, value], index) => ({
       name: category,
       value: value,
       fill: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'][index % 8]
@@ -339,6 +351,23 @@ export default function DetailedReportsArea({ user }) {
       }
       return null;
     };
+    
+    // Якщо немає даних для відображення
+    if (pieData.length === 0) {
+      return (
+        <div style={{
+          background: '#1a2636',
+          padding: '20px',
+          borderRadius: '8px',
+          marginBottom: '20px'
+        }}>
+          <h3 style={{color: '#fff', marginBottom: '16px'}}>Розподіл витрат по категоріях</h3>
+          <div style={{color: '#fff', textAlign: 'center', padding: '40px'}}>
+            Немає даних для відображення розподілу витрат
+          </div>
+        </div>
+      );
+    }
     
     return (
       <div style={{
