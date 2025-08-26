@@ -6,6 +6,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
+const puppeteer = require('puppeteer');
 
 // Додаємо імпорт роуту файлів
 const filesRouter = require('./routes/files');
@@ -1655,14 +1656,86 @@ class TelegramNotificationService {
     }
   }
 
+  async sendDocument(chatId, documentBuffer, filename, caption = '') {
+    if (!this.botToken) {
+      console.log('[TELEGRAM] Bot token not configured, skipping document');
+      return false;
+    }
+    
+    if (!this.baseUrl) {
+      console.log('[TELEGRAM] Base URL not configured, skipping document');
+      return false;
+    }
+
+    try {
+      console.log(`[TELEGRAM] Sending document to ${chatId}: ${filename}`);
+      
+      // Створюємо FormData для відправки файлу
+      const FormData = require('form-data');
+      const form = new FormData();
+      
+      form.append('chat_id', chatId);
+      form.append('document', documentBuffer, {
+        filename: filename,
+        contentType: 'application/pdf'
+      });
+      
+      if (caption) {
+        form.append('caption', caption);
+        form.append('parse_mode', 'HTML');
+      }
+      
+      const response = await fetch(`${this.baseUrl}/sendDocument`, {
+        method: 'POST',
+        body: form
+      });
+      
+      const result = await response.json();
+      
+      if (result.ok) {
+        console.log(`[TELEGRAM] Document sent successfully to ${chatId}`);
+        return true;
+      } else {
+        console.error(`[TELEGRAM] Failed to send document:`, result);
+        return false;
+      }
+    } catch (error) {
+      console.error('[TELEGRAM] Send document error:', error);
+      return false;
+    }
+  }
+
   async sendTaskNotification(type, task, user) {
     const message = this.formatTaskMessage(type, task, user);
     const chatIds = await this.getChatIdsForNotification(type, user.role);
     
     console.log(`[TELEGRAM] Sending ${type} notification to ${chatIds.length} chats`);
     
+    // Якщо це виконана заявка, генеруємо PDF звіт
+    let pdfBuffer = null;
+    if (type === 'task_completed') {
+      try {
+        console.log('[TELEGRAM] Генерація PDF звіту для виконаної заявки');
+        pdfBuffer = await generateTaskReportPDF(task, user);
+      } catch (error) {
+        console.error('[TELEGRAM] Помилка генерації PDF:', error);
+      }
+    }
+    
     for (const chatId of chatIds) {
-      const success = await this.sendMessage(chatId, message);
+      let success = false;
+      
+      // Відправляємо текстове повідомлення
+      success = await this.sendMessage(chatId, message);
+      
+      // Якщо є PDF і це виконана заявка, відправляємо його
+      if (pdfBuffer && type === 'task_completed') {
+        const filename = `Звіт_${task.client || 'замовника'}_${task.requestNumber || 'заявки'}_${new Date().toISOString().split('T')[0]}.pdf`;
+        const caption = `📋 <b>Звіт по виконаній заявці</b>\n\n📄 <b>Файл:</b> ${filename}\n💼 <b>Замовник:</b> ${task.client || 'Н/Д'}\n💰 <b>Загальна сума:</b> ${task.workPrice || 0} грн\n\n📝 <b>Прошу виставити рахунок по даній заявці.</b>`;
+        
+        const pdfSuccess = await this.sendDocument(chatId, pdfBuffer, filename, caption);
+        success = success && pdfSuccess;
+      }
       
       // Логуємо сповіщення
       await NotificationLog.create({
@@ -1765,7 +1838,362 @@ class TelegramNotificationService {
 }
 
 // Створюємо екземпляр сервісу
-const telegramService = new TelegramNotificationService(); 
+const telegramService = new TelegramNotificationService();
+
+// Функція для генерації PDF звіту
+async function generateTaskReportPDF(task, user) {
+  try {
+    console.log('[PDF] Генерація PDF звіту для заявки:', task.requestNumber);
+    
+    // Формуємо HTML шаблон звіту
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Звіт по замовнику: ${task.client || 'Н/Д'}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 20px;
+        }
+        .total-sum {
+            background-color: #007bff;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .status-completed {
+            background-color: #28a745;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            display: inline-block;
+            font-weight: bold;
+        }
+        .task-info {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .task-info h3 {
+            margin-top: 0;
+            color: #007bff;
+        }
+        .task-info p {
+            margin: 8px 0;
+        }
+        .materials-section {
+            margin: 30px 0;
+        }
+        .material-card {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+            background-color: #fff;
+        }
+        .material-title {
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 10px;
+        }
+        .material-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .material-detail {
+            text-align: center;
+            padding: 5px;
+            background-color: #f8f9fa;
+            border-radius: 3px;
+        }
+        .expenses-section {
+            margin: 30px 0;
+            background-color: #fff3cd;
+            padding: 20px;
+            border-radius: 5px;
+            border-left: 4px solid #ffc107;
+        }
+        .expense-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .expense-label {
+            font-weight: bold;
+        }
+        .expense-value {
+            color: #007bff;
+            font-weight: bold;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+        }
+        .user-info {
+            background-color: #e7f3ff;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Звіт по замовнику: ${task.client || 'Н/Д'}</h1>
+        <div class="total-sum">Загальна сума послуги: ${task.workPrice || 0} грн</div>
+    </div>
+
+    <div class="task-info">
+        <h3>Дата проведення робіт: ${task.date || 'Н/Д'}</h3>
+        <div class="status-completed">ВИКОНАНО</div>
+        
+        <p><strong>Дата заявки:</strong> ${task.date || 'Н/Д'}</p>
+        <p><strong>Замовник:</strong> ${task.client || 'Н/Д'}</p>
+        <p><strong>Адреса:</strong> ${task.address || 'Н/Д'}</p>
+        <p><strong>Найменування робіт:</strong> ${task.requestDesc || 'Н/Д'}</p>
+        <p><strong>Сервісні інженери:</strong> ${task.engineers || 'Н/Д'}</p>
+        <p><strong>ЄДРПОУ:</strong> ${task.edrpou || 'Н/Д'}</p>
+        <p><strong>Номер рахунку:</strong> ${task.invoice || 'Н/Д'}</p>
+        <p><strong>Тип обладнання:</strong> ${task.equipment || 'Н/Д'}</p>
+        <p><strong>Компанія виконавець:</strong> ${task.company || 'Н/Д'}</p>
+        <p><strong>Регіон сервісного відділу:</strong> ${task.serviceRegion || 'Н/Д'}</p>
+    </div>
+
+    <div class="user-info">
+        <strong>Статус змінено користувачем:</strong> ${user.name || user.login || 'Н/Д'} (${user.role || 'Н/Д'})
+    </div>
+
+    <div class="materials-section">
+        <h2>Перелік використаних матеріалів:</h2>
+        
+        ${task.oilType ? `
+        <div class="material-card">
+            <div class="material-title">ОЛИВА (OIL)</div>
+            <div class="material-details">
+                <div class="material-detail">
+                    <strong>Тип оливи:</strong><br>${task.oilType}
+                </div>
+                <div class="material-detail">
+                    <strong>Кількість:</strong><br>${task.oilUsed || 0} л
+                </div>
+                <div class="material-detail">
+                    <strong>Ціна за л:</strong><br>${task.oilPrice || 0} грн
+                </div>
+                <div class="material-detail">
+                    <strong>Загальна сума:</strong><br>${task.oilTotal || 0} грн
+                </div>
+            </div>
+        </div>
+        ` : ''}
+        
+        ${task.filterName ? `
+        <div class="material-card">
+            <div class="material-title">МАСЛЯНИЙ ФІЛЬТР (OIL FILTER)</div>
+            <div class="material-details">
+                <div class="material-detail">
+                    <strong>Назва:</strong><br>${task.filterName}
+                </div>
+                <div class="material-detail">
+                    <strong>Кількість:</strong><br>${task.filterCount || 0} шт
+                </div>
+                <div class="material-detail">
+                    <strong>Ціна за шт:</strong><br>${task.filterPrice || 0} грн
+                </div>
+                <div class="material-detail">
+                    <strong>Загальна сума:</strong><br>${task.filterSum || 0} грн
+                </div>
+            </div>
+        </div>
+        ` : ''}
+        
+        ${task.fuelFilterName ? `
+        <div class="material-card">
+            <div class="material-title">ПАЛИВНИЙ ФІЛЬТР (FUEL FILTER)</div>
+            <div class="material-details">
+                <div class="material-detail">
+                    <strong>Назва:</strong><br>${task.fuelFilterName}
+                </div>
+                <div class="material-detail">
+                    <strong>Кількість:</strong><br>${task.fuelFilterCount || 0} шт
+                </div>
+                <div class="material-detail">
+                    <strong>Ціна за шт:</strong><br>${task.fuelFilterPrice || 0} грн
+                </div>
+                <div class="material-detail">
+                    <strong>Загальна сума:</strong><br>${task.fuelFilterSum || 0} грн
+                </div>
+            </div>
+        </div>
+        ` : ''}
+        
+        ${task.airFilterName ? `
+        <div class="material-card">
+            <div class="material-title">ПОВІТРЯНИЙ ФІЛЬТР (AIR FILTER)</div>
+            <div class="material-details">
+                <div class="material-detail">
+                    <strong>Назва:</strong><br>${task.airFilterName}
+                </div>
+                <div class="material-detail">
+                    <strong>Кількість:</strong><br>${task.airFilterCount || 0} шт
+                </div>
+                <div class="material-detail">
+                    <strong>Ціна за шт:</strong><br>${task.airFilterPrice || 0} грн
+                </div>
+                <div class="material-detail">
+                    <strong>Загальна сума:</strong><br>${task.airFilterSum || 0} грн
+                </div>
+            </div>
+        </div>
+        ` : ''}
+        
+        ${task.antifreezeType ? `
+        <div class="material-card">
+            <div class="material-title">АНТИФРИЗ (ANTIFREEZE)</div>
+            <div class="material-details">
+                <div class="material-detail">
+                    <strong>Тип:</strong><br>${task.antifreezeType}
+                </div>
+                <div class="material-detail">
+                    <strong>Кількість:</strong><br>${task.antifreezeL || 0} л
+                </div>
+                <div class="material-detail">
+                    <strong>Ціна за л:</strong><br>${task.antifreezePrice || 0} грн
+                </div>
+                <div class="material-detail">
+                    <strong>Загальна сума:</strong><br>${task.antifreezeSum || 0} грн
+                </div>
+            </div>
+        </div>
+        ` : ''}
+        
+        ${task.otherMaterials ? `
+        <div class="material-card">
+            <div class="material-title">ІНШІ МАТЕРІАЛИ</div>
+            <div class="material-details">
+                <div class="material-detail">
+                    <strong>Опис:</strong><br>${task.otherMaterials}
+                </div>
+                <div class="material-detail">
+                    <strong>Кількість:</strong><br>${task.otherQuantity || 0}
+                </div>
+                <div class="material-detail">
+                    <strong>Ціна:</strong><br>${task.otherPrice || 0} грн
+                </div>
+                <div class="material-detail">
+                    <strong>Загальна сума:</strong><br>${task.otherSum || 0} грн
+                </div>
+            </div>
+        </div>
+        ` : ''}
+    </div>
+
+    <div class="expenses-section">
+        <h2>Додаткові витрати:</h2>
+        <div class="expense-item">
+            <span class="expense-label">Загальна вартість тр. витрат:</span>
+            <span class="expense-value">${task.transportExpenses || 0} грн</span>
+        </div>
+        <div class="expense-item">
+            <span class="expense-label">Вартість робіт, грн:</span>
+            <span class="expense-value">${task.workPrice || 0} грн</span>
+        </div>
+        <div class="expense-item">
+            <span class="expense-label">Добові, грн:</span>
+            <span class="expense-value">${task.dailyExpenses || 0} грн</span>
+        </div>
+        <div class="expense-item">
+            <span class="expense-label">Проживання, грн:</span>
+            <span class="expense-value">${task.accommodationExpenses || 0} грн</span>
+        </div>
+        <div class="expense-item">
+            <span class="expense-label">Інші витрати, грн:</span>
+            <span class="expense-value">${task.otherExpenses || 0} грн</span>
+        </div>
+        ${task.otherMaterialsDescription ? `
+        <div class="expense-item">
+            <span class="expense-label">Опис інших матеріалів:</span>
+            <span class="expense-value">${task.otherMaterialsDescription}</span>
+        </div>
+        ` : ''}
+        <div class="expense-item">
+            <span class="expense-label">Загальна ціна інших матеріалів:</span>
+            <span class="expense-value">${task.otherMaterialsTotal || 0} грн</span>
+        </div>
+    </div>
+
+    <div class="total-sum">
+        Загальна сума послуги: ${task.workPrice || 0} грн
+    </div>
+
+    <div class="footer">
+        <p>Звіт згенеровано автоматично системою Darex Trading Solutions</p>
+        <p>Дата генерації: ${new Date().toLocaleString('uk-UA')}</p>
+    </div>
+</body>
+</html>`;
+
+    // Створюємо тимчасовий файл для HTML
+    const tempHtmlPath = path.join(__dirname, 'temp_report.html');
+    fs.writeFileSync(tempHtmlPath, htmlContent, 'utf8');
+
+    // Генеруємо PDF за допомогою Puppeteer
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    
+    const page = await browser.newPage();
+    await page.goto(`file://${tempHtmlPath}`, { waitUntil: 'networkidle0' });
+    
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '20mm',
+        right: '20mm',
+        bottom: '20mm',
+        left: '20mm'
+      }
+    });
+
+    await browser.close();
+    
+    // Видаляємо тимчасовий HTML файл
+    fs.unlinkSync(tempHtmlPath);
+    
+    console.log('[PDF] PDF звіт успішно згенеровано');
+    return pdfBuffer;
+    
+  } catch (error) {
+    console.error('[PDF] Помилка генерації PDF:', error);
+    throw error;
+  }
+} 
 
 // API для налаштувань Telegram сповіщень
 app.get('/api/notification-settings', async (req, res) => {
