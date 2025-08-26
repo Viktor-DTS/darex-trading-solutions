@@ -4,6 +4,7 @@
     "gridfs-stream": "^1.1.1",
     "mongoose": "^8.16.1",
     "multer-gridfs-storage": "^5.0.2",
+    "node-fetch": "^3.3.2",
     "xlsx-js-style": "^1.2.0"
   }
 }
