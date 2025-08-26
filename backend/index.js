@@ -963,8 +963,9 @@ app.get('/api/analytics/revenue', async (req, res) => {
     taskFilter.status = 'Виконано';
     const tasks = await Task.find(taskFilter);
     
-    // Розраховуємо дохід (сума премій за виконання сервісних робіт)
+    // Розраховуємо дохід по роботах та матеріалам
     const revenueByMonth = {};
+    const materialsRevenueByMonth = {};
     
     console.log(`[DEBUG] Знайдено ${tasks.length} заявок`);
     let processedTasks = 0;
@@ -999,23 +1000,38 @@ app.get('/api/analytics/revenue', async (req, res) => {
           
           if (!revenueByMonth[key]) {
             revenueByMonth[key] = 0;
+            materialsRevenueByMonth[key] = 0;
           }
           
           // Додаємо премію за виконання сервісних робіт: (workPrice / 4) * 3
           const workPrice = parseFloat(task.workPrice) || 0;
           const bonusAmount = (workPrice / 4) * 3; // workPrice поділено на 4 та помножено на 3
           revenueByMonth[key] += bonusAmount;
+          
+          // Додаємо дохід по матеріалам: сума всіх матеріальних витрат / 4
+          const oilTotal = parseFloat(task.oilTotal) || 0;
+          const filterSum = parseFloat(task.filterSum) || 0;
+          const fuelFilterSum = parseFloat(task.fuelFilterSum) || 0;
+          const airFilterSum = parseFloat(task.airFilterSum) || 0;
+          const antifreezeSum = parseFloat(task.antifreezeSum) || 0;
+          const otherSum = parseFloat(task.otherSum) || 0;
+          
+          const totalMaterials = oilTotal + filterSum + fuelFilterSum + airFilterSum + antifreezeSum + otherSum;
+          const materialsRevenue = totalMaterials / 4; // сума матеріалів поділена на 4
+          materialsRevenueByMonth[key] += materialsRevenue;
+          
           processedTasks++;
           
-          console.log(`[DEBUG] Додано дохід для ${key}: workPrice=${workPrice}, bonusAmount=${bonusAmount} грн`);
+          console.log(`[DEBUG] Додано дохід для ${key}: workPrice=${workPrice}, bonusAmount=${bonusAmount} грн, materialsRevenue=${materialsRevenue} грн`);
         }
       }
     });
     
     console.log(`[DEBUG] Оброблено ${processedTasks} заявок з преміями`);
-    console.log(`[DEBUG] Підсумковий дохід:`, revenueByMonth);
+    console.log(`[DEBUG] Підсумковий дохід по роботах:`, revenueByMonth);
+    console.log(`[DEBUG] Підсумковий дохід по матеріалам:`, materialsRevenueByMonth);
     
-    res.json({ revenueByMonth });
+    res.json({ revenueByMonth, materialsRevenueByMonth });
   } catch (error) {
     console.error('Помилка розрахунку доходу:', error);
     res.status(500).json({ error: error.message });
@@ -1079,8 +1095,9 @@ app.get('/api/analytics/full', async (req, res) => {
     
     console.log(`[DEBUG] Знайдено ${tasks.length} заявок для аналітики`);
     
-    // Розраховуємо доходи по місяцях (сума премій за виконання сервісних робіт)
+    // Розраховуємо доходи по місяцях (сума премій за виконання сервісних робіт та матеріалів)
     const revenueByMonth = {};
+    const materialsRevenueByMonth = {};
     const regionsByMonth = {};
     const companiesByMonth = {};
     
@@ -1112,6 +1129,7 @@ app.get('/api/analytics/full', async (req, res) => {
           
           if (!revenueByMonth[key]) {
             revenueByMonth[key] = 0;
+            materialsRevenueByMonth[key] = 0;
             regionsByMonth[key] = new Set();
             companiesByMonth[key] = new Set();
           }
@@ -1120,6 +1138,18 @@ app.get('/api/analytics/full', async (req, res) => {
           const workPrice = parseFloat(task.workPrice) || 0;
           const bonusAmount = (workPrice / 4) * 3; // workPrice поділено на 4 та помножено на 3
           revenueByMonth[key] += bonusAmount;
+          
+          // Додаємо дохід по матеріалам: сума всіх матеріальних витрат / 4
+          const oilTotal = parseFloat(task.oilTotal) || 0;
+          const filterSum = parseFloat(task.filterSum) || 0;
+          const fuelFilterSum = parseFloat(task.fuelFilterSum) || 0;
+          const airFilterSum = parseFloat(task.airFilterSum) || 0;
+          const antifreezeSum = parseFloat(task.antifreezeSum) || 0;
+          const otherSum = parseFloat(task.otherSum) || 0;
+          
+          const totalMaterials = oilTotal + filterSum + fuelFilterSum + airFilterSum + antifreezeSum + otherSum;
+          const materialsRevenue = totalMaterials / 4; // сума матеріалів поділена на 4
+          materialsRevenueByMonth[key] += materialsRevenue;
           
           // Збираємо регіони та компанії для цього місяця
           if (task.serviceRegion) {
@@ -1138,13 +1168,17 @@ app.get('/api/analytics/full', async (req, res) => {
     // Додаємо існуючі записи аналітики
     analytics.forEach(item => {
       const revenueKey = `${item.year}-${item.month}`;
-      const revenue = revenueByMonth[revenueKey] || 0;
-      const profit = revenue - item.totalExpenses;
-      const profitability = revenue > 0 ? (profit / revenue) * 100 : 0;
+      const workRevenue = revenueByMonth[revenueKey] || 0;
+      const materialsRevenue = materialsRevenueByMonth[revenueKey] || 0;
+      const totalRevenue = workRevenue + materialsRevenue;
+      const profit = totalRevenue - item.totalExpenses;
+      const profitability = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
       
       fullAnalytics.push({
         ...item.toObject(),
-        revenue: Number(revenue.toFixed(2)),
+        workRevenue: Number(workRevenue.toFixed(2)),
+        materialsRevenue: Number(materialsRevenue.toFixed(2)),
+        revenue: Number(totalRevenue.toFixed(2)),
         profit: Number(profit.toFixed(2)),
         profitability: Number(profitability.toFixed(2))
       });
@@ -1167,6 +1201,10 @@ app.get('/api/analytics/full', async (req, res) => {
         if (regions.length > 0 && companies.length > 0) {
           regions.forEach(region => {
             companies.forEach(company => {
+              const workRevenue = revenueByMonth[key] || 0;
+              const materialsRevenue = materialsRevenueByMonth[key] || 0;
+              const totalRevenue = workRevenue + materialsRevenue;
+              
               fullAnalytics.push({
                 _id: `auto-${key}-${region}-${company}`,
                 region: region,
@@ -1184,8 +1222,10 @@ app.get('/api/analytics/full', async (req, res) => {
                   other: 0
                 },
                 totalExpenses: 0,
-                revenue: Number(revenue.toFixed(2)),
-                profit: Number(revenue.toFixed(2)), // profit = revenue - 0
+                workRevenue: Number(workRevenue.toFixed(2)),
+                materialsRevenue: Number(materialsRevenue.toFixed(2)),
+                revenue: Number(totalRevenue.toFixed(2)),
+                profit: Number(totalRevenue.toFixed(2)), // profit = revenue - 0
                 profitability: 100, // 100% рентабельність коли немає витрат
                 createdAt: new Date(),
                 updatedAt: new Date()

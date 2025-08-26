@@ -79,6 +79,8 @@ export default function AnalyticsArea({ user }) {
   // Розрахунок загальних показників
   const calculateTotals = () => {
     const totals = {
+      workRevenue: 0,
+      materialsRevenue: 0,
       revenue: 0,
       expenses: 0,
       profit: 0,
@@ -87,6 +89,8 @@ export default function AnalyticsArea({ user }) {
     };
 
     analytics.forEach(item => {
+      totals.workRevenue += item.workRevenue || 0;
+      totals.materialsRevenue += item.materialsRevenue || 0;
       totals.revenue += item.revenue || 0;
       totals.expenses += item.totalExpenses || 0;
       totals.profit += item.profit || 0;
@@ -668,6 +672,9 @@ export default function AnalyticsArea({ user }) {
                   <div style={{fontSize: '24px', fontWeight: 'bold'}}>
                     {formatCurrency(totals.revenue)}
                   </div>
+                  <div style={{fontSize: '12px', marginTop: '4px'}}>
+                    Роботи: {formatCurrency(totals.workRevenue)} | Матеріали: {formatCurrency(totals.materialsRevenue)}
+                  </div>
                 </div>
                 
                 <div style={{
@@ -756,7 +763,13 @@ export default function AnalyticsArea({ user }) {
                           Період
                         </th>
                         <th style={{padding: '12px', textAlign: 'right', background: '#22334a', borderBottom: '1px solid #29506a'}}>
-                          Дохід
+                          Дохід по виконаним роботам
+                        </th>
+                        <th style={{padding: '12px', textAlign: 'right', background: '#22334a', borderBottom: '1px solid #29506a'}}>
+                          Дохід по матеріалам
+                        </th>
+                        <th style={{padding: '12px', textAlign: 'right', background: '#22334a', borderBottom: '1px solid #29506a'}}>
+                          Загальний дохід
                         </th>
                         <th style={{padding: '12px', textAlign: 'right', background: '#22334a', borderBottom: '1px solid #29506a'}}>
                           Витрати
@@ -785,6 +798,12 @@ export default function AnalyticsArea({ user }) {
                             </div>
                           </td>
                           <td style={{padding: '12px', textAlign: 'right', color: '#28a745'}}>
+                            {formatCurrency(item.workRevenue || 0)}
+                          </td>
+                          <td style={{padding: '12px', textAlign: 'right', color: '#28a745'}}>
+                            {formatCurrency(item.materialsRevenue || 0)}
+                          </td>
+                          <td style={{padding: '12px', textAlign: 'right', color: '#28a745', fontWeight: 'bold'}}>
                             {formatCurrency(item.revenue)}
                           </td>
                           <td style={{padding: '12px', textAlign: 'right', color: '#dc3545'}}>
