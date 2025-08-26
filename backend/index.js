@@ -1836,3 +1836,113 @@ app.post('/api/telegram/test', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Endpoint для отримання Chat ID через бота
+app.post('/api/telegram/get-chat-id', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/telegram/get-chat-id - отримано запит');
+    
+    const { message } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ error: 'message is required' });
+    }
+    
+    // Перевіряємо налаштування
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      return res.status(400).json({ 
+        error: 'Telegram bot token не налаштований. Додайте TELEGRAM_BOT_TOKEN в змінні середовища.' 
+      });
+    }
+    
+    // Отримуємо інформацію про бота
+    const botInfoResponse = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/getMe`);
+    const botInfo = await botInfoResponse.json();
+    
+    if (!botInfo.ok) {
+      return res.status(400).json({ 
+        error: 'Не вдалося отримати інформацію про бота. Перевірте токен.' 
+      });
+    }
+    
+    const botUsername = botInfo.result.username;
+    
+    res.json({
+      success: true,
+      message: `Для отримання Chat ID:
+      
+1. Знайдіть бота @${botUsername} в Telegram
+2. Надішліть йому повідомлення: "${message}"
+3. Бот поверне ваш Chat ID
+
+Або використайте бота @userinfobot:
+1. Знайдіть @userinfobot в Telegram
+2. Надішліть йому будь-яке повідомлення
+3. Він поверне ваш Chat ID`,
+      botUsername: botUsername
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] POST /api/telegram/get-chat-id - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Webhook endpoint для отримання повідомлень від Telegram бота
+app.post('/api/telegram/webhook', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/telegram/webhook - отримано повідомлення від бота');
+    console.log('[DEBUG] Webhook body:', JSON.stringify(req.body, null, 2));
+    
+    const { message } = req.body;
+    
+    if (!message) {
+      console.log('[DEBUG] Webhook - немає повідомлення');
+      return res.json({ ok: true });
+    }
+    
+    const { chat, text, from } = message;
+    
+    if (!chat || !text) {
+      console.log('[DEBUG] Webhook - відсутні chat або text');
+      return res.json({ ok: true });
+    }
+    
+    const chatId = chat.id;
+    const chatType = chat.type; // 'private', 'group', 'supergroup', 'channel'
+    const userName = from ? (from.first_name + (from.last_name ? ' ' + from.last_name : '')) : 'Невідомий';
+    
+    console.log(`[DEBUG] Webhook - повідомлення від ${userName} (${chatId}) в чаті ${chatType}: "${text}"`);
+    
+    // Якщо це команда /start або запит на Chat ID
+    if (text.toLowerCase().includes('chat id') || text.toLowerCase().includes('чат id') || text === '/start') {
+      const responseMessage = `🔔 <b>Darex Trading Solutions</b>
+
+👋 Привіт, ${userName}!
+
+📋 <b>Ваш Chat ID:</b> <code>${chatId}</code>
+
+💡 <b>Як використовувати:</b>
+1. Скопіюйте Chat ID вище
+2. Вставте його в налаштування сповіщень
+3. Отримуйте сповіщення про заявки
+
+📱 <b>Типи сповіщень:</b>
+• Нові заявки
+• Виконані заявки  
+• Потребують підтвердження
+• Підтверджені заявки
+• Відхилені заявки
+
+🔧 <b>Для налаштування:</b>
+Зверніться до адміністратора системи.`;
+      
+      await telegramService.sendMessage(chatId, responseMessage);
+    }
+    
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('[ERROR] POST /api/telegram/webhook - помилка:', error);
+    res.json({ ok: true }); // Завжди повертаємо ok для Telegram
+  }
+});

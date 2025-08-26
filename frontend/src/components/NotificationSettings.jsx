@@ -85,6 +85,41 @@ const NotificationSettings = ({ user }) => {
     }
   };
 
+  const getChatIdInstructions = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/telegram/get-chat-id', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: 'Отримати Chat ID'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const text = await response.text();
+      if (!text) {
+        throw new Error('Empty response from server');
+      }
+
+      const result = JSON.parse(text);
+      
+      if (result.success) {
+        alert(result.message);
+      } else {
+        alert('Помилка отримання інструкцій: ' + (result.error || 'Невідома помилка'));
+      }
+    } catch (error) {
+      console.error('Помилка отримання інструкцій:', error);
+      alert('Помилка отримання інструкцій: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const sendTestMessage = async () => {
     if (!settings.telegramChatId || !testMessage.trim()) {
       alert('Введіть Chat ID та тестове повідомлення');
@@ -173,23 +208,41 @@ const NotificationSettings = ({ user }) => {
         <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
           Telegram Chat ID або @username:
         </label>
-        <input
-          type="text"
-          placeholder="Наприклад: 123456789 або @username"
-          value={settings.telegramChatId}
-          onChange={(e) => setSettings({ ...settings, telegramChatId: e.target.value })}
-          style={{
-            width: '100%',
-            padding: '12px',
-            borderRadius: '6px',
-            border: '1px solid #29506a',
-            background: '#22334a',
-            color: '#fff',
-            fontSize: '14px'
-          }}
-        />
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+          <input
+            type="text"
+            placeholder="Наприклад: 123456789 або @username"
+            value={settings.telegramChatId}
+            onChange={(e) => setSettings({ ...settings, telegramChatId: e.target.value })}
+            style={{
+              flex: 1,
+              padding: '12px',
+              borderRadius: '6px',
+              border: '1px solid #29506a',
+              background: '#22334a',
+              color: '#fff',
+              fontSize: '14px'
+            }}
+          />
+          <button
+            onClick={getChatIdInstructions}
+            disabled={loading}
+            style={{
+              padding: '12px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: '#007bff',
+              color: '#fff',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {loading ? '⏳' : '📋'} Отримати Chat ID
+          </button>
+        </div>
         <div style={{ marginTop: '8px', fontSize: '12px', color: '#ccc' }}>
-          💡 Щоб отримати Chat ID, напишіть боту @userinfobot в Telegram
+          💡 Натисніть кнопку "Отримати Chat ID" для інструкцій або напишіть боту @userinfobot в Telegram
         </div>
       </div>
 
