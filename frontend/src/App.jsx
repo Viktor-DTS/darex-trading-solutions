@@ -23,6 +23,7 @@ import MaterialsAnalysisArea from './areas/MaterialsAnalysisArea';
 import ReportBuilder from './areas/ReportBuilder';
 import EventLogArea from './areas/EventLogArea';
 import AnalyticsArea from './areas/AnalyticsArea';
+import NotificationSettings from './components/NotificationSettings';
 
 import * as XLSX from 'xlsx-js-style';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
@@ -3844,11 +3845,13 @@ function AdminArea({ user }) {
         <button onClick={()=>setTab('edit')} style={{padding:'10px 32px',background:tab==='edit'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='edit'?700:400,cursor:'pointer'}}>Редагування заявок</button>
         <button onClick={()=>setTab('backup')} style={{padding:'10px 32px',background:tab==='backup'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='backup'?700:400,cursor:'pointer'}}>Відновлення даних</button>
         <button onClick={()=>setTab('events')} style={{padding:'10px 32px',background:tab==='events'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='events'?700:400,cursor:'pointer'}}>Журнал подій</button>
+        <button onClick={()=>setTab('notifications')} style={{padding:'10px 32px',background:tab==='notifications'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='notifications'?700:400,cursor:'pointer'}}>Telegram сповіщення</button>
       </div>
       {tab === 'system' && <AdminSystemParamsArea />}
       {tab === 'edit' && <AdminEditTasksArea user={user} />}
       {tab === 'backup' && <AdminBackupArea />}
       {tab === 'events' && <EventLogArea user={user} />}
+      {tab === 'notifications' && <NotificationSettings user={user} />}
     </div>
   );
 }

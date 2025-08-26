@@ -99,6 +99,33 @@ const expenseCategoriesSchema = new mongoose.Schema({
 
 const ExpenseCategories = mongoose.model('ExpenseCategories', expenseCategoriesSchema);
 
+// Модель для налаштувань Telegram сповіщень
+const notificationSettingsSchema = new mongoose.Schema({
+  userId: { type: String, required: true },
+  role: { type: String, required: true },
+  telegramChatId: { type: String, required: true },
+  enabledNotifications: { type: [String], default: [] },
+  isActive: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const NotificationSettings = mongoose.model('NotificationSettings', notificationSettingsSchema);
+
+// Модель для логу сповіщень
+const notificationLogSchema = new mongoose.Schema({
+  type: { type: String, required: true },
+  taskId: String,
+  userId: String,
+  message: { type: String, required: true },
+  telegramChatId: { type: String, required: true },
+  sentAt: { type: Date, default: Date.now },
+  status: { type: String, enum: ['sent', 'failed', 'pending'], default: 'pending' },
+  error: String
+});
+
+const NotificationLog = mongoose.model('NotificationLog', notificationLogSchema);
+
 // Функція для підключення до MongoDB
 async function connectToMongoDB() {
   if (!MONGODB_URI) {
@@ -463,6 +490,14 @@ app.post('/api/tasks', async (req, res) => {
     const savedTask = await executeWithRetry(() => newTask.save());
     console.log('[DEBUG] POST /api/tasks - заявка збережена успішно, _id:', savedTask._id);
     
+    // Відправляємо Telegram сповіщення про нову заявку
+    try {
+      const user = req.user || { login: 'system', name: 'Система', role: 'system' };
+      await telegramService.sendTaskNotification('task_created', savedTask, user);
+    } catch (notificationError) {
+      console.error('[ERROR] POST /api/tasks - помилка відправки сповіщення:', notificationError);
+    }
+    
     // Повертаємо заявку з числовим id для сумісності з фронтендом
     const responseTask = {
       ...savedTask.toObject(),
@@ -510,6 +545,25 @@ app.put('/api/tasks/:id', async (req, res) => {
     
     const updatedTask = await executeWithRetry(() => task.save());
     console.log('[DEBUG] PUT /api/tasks/:id - завдання збережено успішно:', updatedTask);
+    
+    // Відправляємо Telegram сповіщення про зміну статусу
+    try {
+      const user = req.user || { login: 'system', name: 'Система', role: 'system' };
+      
+      if (updateData.status === 'Виконано') {
+        await telegramService.sendTaskNotification('task_completed', updatedTask, user);
+      } else if (updateData.approvedByWarehouse === 'Підтверджено' || 
+                 updateData.approvedByAccountant === 'Підтверджено' || 
+                 updateData.approvedByRegionalManager === 'Підтверджено') {
+        await telegramService.sendTaskNotification('task_approved', updatedTask, user);
+      } else if (updateData.approvedByWarehouse === 'Відхилено' || 
+                 updateData.approvedByAccountant === 'Відхилено' || 
+                 updateData.approvedByRegionalManager === 'Відхилено') {
+        await telegramService.sendTaskNotification('task_rejected', updatedTask, user);
+      }
+    } catch (notificationError) {
+      console.error('[ERROR] PUT /api/tasks/:id - помилка відправки сповіщення:', notificationError);
+    }
     
     // Повертаємо заявку з числовим id для сумісності
     const responseTask = {
@@ -1534,3 +1588,208 @@ app.post('/api/expense-categories/cleanup', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Сервер запущено на http://localhost:${PORT}`);
 }); 
+
+// Telegram Notification Service
+class TelegramNotificationService {
+  constructor() {
+    this.botToken = process.env.TELEGRAM_BOT_TOKEN;
+    this.baseUrl = this.botToken ? `https://api.telegram.org/bot${this.botToken}` : null;
+  }
+
+  async sendMessage(chatId, message, parseMode = 'HTML') {
+    if (!this.baseUrl) {
+      console.log('[TELEGRAM] Bot token not configured, skipping message');
+      return false;
+    }
+
+    try {
+      console.log(`[TELEGRAM] Sending message to ${chatId}:`, message.substring(0, 100) + '...');
+      
+      const response = await fetch(`${this.baseUrl}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: message,
+          parse_mode: parseMode
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.ok) {
+        console.log(`[TELEGRAM] Message sent successfully to ${chatId}`);
+        return true;
+      } else {
+        console.error(`[TELEGRAM] Failed to send message:`, result);
+        return false;
+      }
+    } catch (error) {
+      console.error('[TELEGRAM] Send error:', error);
+      return false;
+    }
+  }
+
+  async sendTaskNotification(type, task, user) {
+    const message = this.formatTaskMessage(type, task, user);
+    const chatIds = await this.getChatIdsForNotification(type, user.role);
+    
+    console.log(`[TELEGRAM] Sending ${type} notification to ${chatIds.length} chats`);
+    
+    for (const chatId of chatIds) {
+      const success = await this.sendMessage(chatId, message);
+      
+      // Логуємо сповіщення
+      await NotificationLog.create({
+        type,
+        taskId: task._id || task.id,
+        userId: user.login || user.id,
+        message,
+        telegramChatId: chatId,
+        status: success ? 'sent' : 'failed'
+      });
+    }
+  }
+
+  formatTaskMessage(type, task, user) {
+    const baseMessage = `
+<b>🔔 Сповіщення про заявку</b>
+
+📋 <b>Заявка:</b> ${task.requestNumber || 'Н/Д'}
+👤 <b>Користувач:</b> ${user.name || user.login || 'Н/Д'}
+📍 <b>Регіон:</b> ${task.serviceRegion || 'Н/Д'}
+🏢 <b>Компанія:</b> ${task.company || 'Н/Д'}
+📅 <b>Дата:</b> ${task.date || 'Н/Д'}
+📝 <b>Опис:</b> ${task.requestDesc || 'Н/Д'}
+    `;
+
+    switch (type) {
+      case 'task_created':
+        return baseMessage + '\n✅ <b>Нова заявка створена</b>';
+      case 'task_completed':
+        return baseMessage + '\n✅ <b>Заявка виконана</b>\n⏳ <b>Очікує підтвердження</b>';
+      case 'task_approval':
+        return baseMessage + '\n🔔 <b>Потребує підтвердження</b>';
+      case 'task_approved':
+        return baseMessage + '\n✅ <b>Підтверджено</b>';
+      case 'task_rejected':
+        return baseMessage + '\n❌ <b>Відхилено</b>';
+      default:
+        return baseMessage + '\n📢 <b>Оновлення статусу</b>';
+    }
+  }
+
+  async getChatIdsForNotification(type, userRole) {
+    try {
+      // Отримуємо налаштування сповіщень для цього типу
+      const settings = await NotificationSettings.find({
+        isActive: true,
+        enabledNotifications: type
+      });
+
+      const chatIds = settings.map(s => s.telegramChatId);
+      
+      // Додаємо загальні канали залежно від ролі
+      if (process.env.TELEGRAM_ADMIN_CHAT_ID) {
+        chatIds.push(process.env.TELEGRAM_ADMIN_CHAT_ID);
+      }
+      
+      if (userRole === 'warehouse' && process.env.TELEGRAM_WAREHOUSE_CHAT_ID) {
+        chatIds.push(process.env.TELEGRAM_WAREHOUSE_CHAT_ID);
+      }
+      
+      if (userRole === 'service' && process.env.TELEGRAM_SERVICE_CHAT_ID) {
+        chatIds.push(process.env.TELEGRAM_SERVICE_CHAT_ID);
+      }
+
+      return [...new Set(chatIds)]; // Видаляємо дублікати
+    } catch (error) {
+      console.error('[TELEGRAM] Error getting chat IDs:', error);
+      return [];
+    }
+  }
+}
+
+// Створюємо екземпляр сервісу
+const telegramService = new TelegramNotificationService(); 
+
+// API для налаштувань Telegram сповіщень
+app.get('/api/notification-settings', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+    
+    const settings = await NotificationSettings.findOne({ userId });
+    res.json(settings || { userId, enabledNotifications: [] });
+  } catch (error) {
+    console.error('[ERROR] GET /api/notification-settings - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/notification-settings', async (req, res) => {
+  try {
+    const { userId, role, telegramChatId, enabledNotifications } = req.body;
+    
+    if (!userId || !telegramChatId) {
+      return res.status(400).json({ error: 'userId and telegramChatId are required' });
+    }
+    
+    const settings = await NotificationSettings.findOneAndUpdate(
+      { userId },
+      {
+        userId,
+        role,
+        telegramChatId,
+        enabledNotifications: enabledNotifications || [],
+        isActive: true,
+        updatedAt: new Date()
+      },
+      { upsert: true, new: true }
+    );
+    
+    res.json(settings);
+  } catch (error) {
+    console.error('[ERROR] POST /api/notification-settings - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/notification-logs', async (req, res) => {
+  try {
+    const { userId, type, limit = 50 } = req.query;
+    
+    const filter = {};
+    if (userId) filter.userId = userId;
+    if (type) filter.type = type;
+    
+    const logs = await NotificationLog.find(filter)
+      .sort({ sentAt: -1 })
+      .limit(parseInt(limit));
+    
+    res.json(logs);
+  } catch (error) {
+    console.error('[ERROR] GET /api/notification-logs - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/telegram/test', async (req, res) => {
+  try {
+    const { chatId, message } = req.body;
+    
+    if (!chatId || !message) {
+      return res.status(400).json({ error: 'chatId and message are required' });
+    }
+    
+    const success = await telegramService.sendMessage(chatId, message);
+    
+    res.json({ success, message: success ? 'Test message sent successfully' : 'Failed to send test message' });
+  } catch (error) {
+    console.error('[ERROR] POST /api/telegram/test - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
