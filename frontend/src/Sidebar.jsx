@@ -10,7 +10,7 @@ const roles = [
   { value: 'reports', label: 'Звіти' },
   { value: 'materials', label: 'Аналіз ціни матеріалів' },
   { value: 'analytics', label: 'Аналітика' },
-  { value: 'detailedReports', label: 'Детальна звітність' },
+
 ];
 
 export default function Sidebar({ role, onSelect, current, accessRules }) {
