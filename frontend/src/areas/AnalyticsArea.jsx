@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { analyticsAPI, EXPENSE_CATEGORIES, formatCurrency, formatPercent, getMonthName } from '../utils/analyticsAPI';
 import { regionsAPI } from '../utils/regionsAPI';
+import DetailedAnalyticsArea from './DetailedAnalyticsArea';
 
 export default function AnalyticsArea({ user }) {
   const [analytics, setAnalytics] = useState([]);
@@ -19,6 +20,7 @@ export default function AnalyticsArea({ user }) {
     endMonth: 12
   });
   const [activeTab, setActiveTab] = useState('overview');
+  const [activeSubTab, setActiveSubTab] = useState('general'); // general, detailed
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
@@ -890,37 +892,71 @@ export default function AnalyticsArea({ user }) {
          </div>
       </div>
 
-      {/* Вкладки */}
-      <div style={{marginBottom: '16px'}}>
-        <div style={{display: 'flex', gap: '8px', marginBottom: '16px'}}>
-          <button
-            onClick={() => setActiveTab('overview')}
-            style={{
-              padding: '10px 20px',
-              background: activeTab === 'overview' ? '#00bfff' : '#1a2636',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer'
-            }}
-          >
-            Загальний огляд
-          </button>
-          <button
-            onClick={() => setActiveTab('details')}
-            style={{
-              padding: '10px 20px',
-              background: activeTab === 'details' ? '#00bfff' : '#1a2636',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer'
-            }}
-          >
-            Детальна звітність
-          </button>
-        </div>
-      </div>
+             {/* Вкладки */}
+       <div style={{marginBottom: '16px'}}>
+         <div style={{display: 'flex', gap: '8px', marginBottom: '16px'}}>
+           <button
+             onClick={() => setActiveTab('overview')}
+             style={{
+               padding: '10px 20px',
+               background: activeTab === 'overview' ? '#00bfff' : '#1a2636',
+               color: '#fff',
+               border: 'none',
+               borderRadius: '8px',
+               cursor: 'pointer'
+             }}
+           >
+             Загальний огляд
+           </button>
+           <button
+             onClick={() => setActiveTab('details')}
+             style={{
+               padding: '10px 20px',
+               background: activeTab === 'details' ? '#00bfff' : '#1a2636',
+               color: '#fff',
+               border: 'none',
+               borderRadius: '8px',
+               cursor: 'pointer'
+             }}
+           >
+             Детальна звітність
+           </button>
+         </div>
+         
+         {/* Підкатегорії для детальної звітності */}
+         {activeTab === 'details' && (
+           <div style={{display: 'flex', gap: '8px', marginBottom: '16px', marginLeft: '20px'}}>
+             <button
+               onClick={() => setActiveSubTab('general')}
+               style={{
+                 padding: '8px 16px',
+                 background: activeSubTab === 'general' ? '#28a745' : '#1a2636',
+                 color: '#fff',
+                 border: 'none',
+                 borderRadius: '6px',
+                 cursor: 'pointer',
+                 fontSize: '14px'
+               }}
+             >
+               Загальна аналітика
+             </button>
+             <button
+               onClick={() => setActiveSubTab('detailed')}
+               style={{
+                 padding: '8px 16px',
+                 background: activeSubTab === 'detailed' ? '#28a745' : '#1a2636',
+                 color: '#fff',
+                 border: 'none',
+                 borderRadius: '6px',
+                 cursor: 'pointer',
+                 fontSize: '14px'
+               }}
+             >
+               Графіки та діаграми
+             </button>
+           </div>
+         )}
+       </div>
 
       {loading ? (
         <div style={{color: '#fff', textAlign: 'center', padding: '20px'}}>
@@ -1146,21 +1182,29 @@ export default function AnalyticsArea({ user }) {
             </div>
           )}
 
-          {activeTab === 'details' && (
-            <div>
-              {/* Детальна звітність буде тут */}
-              <div style={{
-                background: '#1a2636',
-                padding: '20px',
-                borderRadius: '8px',
-                color: '#fff',
-                textAlign: 'center'
-              }}>
-                <h3>Детальна звітність</h3>
-                <p>Тут буде детальна звітність з графіками та діаграмами</p>
-              </div>
-            </div>
-          )}
+                     {activeTab === 'details' && (
+             <div>
+               {activeSubTab === 'general' && (
+                 <div>
+                   {/* Загальна аналітика */}
+                   <div style={{
+                     background: '#1a2636',
+                     padding: '20px',
+                     borderRadius: '8px',
+                     color: '#fff',
+                     textAlign: 'center'
+                   }}>
+                     <h3>Загальна аналітика</h3>
+                     <p>Тут буде загальна аналітика з основними показниками</p>
+                   </div>
+                 </div>
+               )}
+               
+               {activeSubTab === 'detailed' && (
+                 <DetailedAnalyticsArea user={user} />
+               )}
+             </div>
+           )}
         </>
       )}
 
