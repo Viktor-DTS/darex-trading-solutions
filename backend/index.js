@@ -1677,30 +1677,51 @@ class TelegramNotificationService {
   }
 
   formatTaskMessage(type, task, user) {
+    // Формуємо додаткову інформацію про коментарі
+    let commentsInfo = '';
+    if (task.comments && task.comments.trim()) {
+      commentsInfo = `\n💬 <b>Коментарі:</b> ${task.comments}`;
+    }
+    if (task.warehouseComment && task.warehouseComment.trim()) {
+      commentsInfo += `\n📦 <b>Коментар складу:</b> ${task.warehouseComment}`;
+    }
+    if (task.accountantComment && task.accountantComment.trim()) {
+      commentsInfo += `\n💰 <b>Коментар бухгалтера:</b> ${task.accountantComment}`;
+    }
+    if (task.regionalManagerComment && task.regionalManagerComment.trim()) {
+      commentsInfo += `\n👨‍💼 <b>Коментар керівника:</b> ${task.regionalManagerComment}`;
+    }
+
     const baseMessage = `
 <b>🔔 Сповіщення про заявку</b>
 
-📋 <b>Заявка:</b> ${task.requestNumber || 'Н/Д'}
-👤 <b>Користувач:</b> ${user.name || user.login || 'Н/Д'}
-📍 <b>Регіон:</b> ${task.serviceRegion || 'Н/Д'}
-🏢 <b>Компанія:</b> ${task.company || 'Н/Д'}
-📅 <b>Дата:</b> ${task.date || 'Н/Д'}
-📝 <b>Опис:</b> ${task.requestDesc || 'Н/Д'}
+📋 <b>Номер заявки:</b> ${task.requestNumber || 'Н/Д'}
+👤 <b>Хто створив:</b> ${user.name || user.login || 'Н/Д'}
+📊 <b>Статус заявки:</b> ${task.status || 'Н/Д'}
+📅 <b>Дата заявки:</b> ${task.date || 'Н/Д'}
+🏢 <b>Компанія виконавець:</b> ${task.company || 'Н/Д'}
+📍 <b>Регіон сервісного відділу:</b> ${task.serviceRegion || 'Н/Д'}
+📝 <b>Опис заявки:</b> ${task.requestDesc || 'Н/Д'}
+🏛️ <b>ЄДРПОУ:</b> ${task.edrpou || 'Н/Д'}
+👥 <b>Замовник:</b> ${task.client || 'Н/Д'}
+🧾 <b>Номер рахунку:</b> ${task.invoice || 'Н/Д'}
+🏠 <b>Адреса:</b> ${task.address || 'Н/Д'}
+⚙️ <b>Тип обладнання:</b> ${task.equipment || 'Н/Д'}${commentsInfo}
     `;
 
     switch (type) {
       case 'task_created':
-        return baseMessage + '\n✅ <b>Нова заявка створена</b>';
+        return baseMessage + '\n✅ <b>🆕 НОВА ЗАЯВКА СТВОРЕНА</b>\n\n💡 <b>Дія:</b> Необхідно розглянути та призначити виконавця';
       case 'task_completed':
-        return baseMessage + '\n✅ <b>Заявка виконана</b>\n⏳ <b>Очікує підтвердження</b>';
+        return baseMessage + '\n✅ <b>🏁 ЗАЯВКА ВИКОНАНА</b>\n⏳ <b>Очікує підтвердження від:</b>\n• Зав. склад\n• Бухгалтер\n• Регіональний керівник';
       case 'task_approval':
-        return baseMessage + '\n🔔 <b>Потребує підтвердження</b>';
+        return baseMessage + '\n🔔 <b>⚠️ ПОТРЕБУЄ ПІДТВЕРДЖЕННЯ</b>\n\n📋 <b>Необхідно перевірити:</b>\n• Правильність виконаних робіт\n• Використані матеріали\n• Вартість послуг';
       case 'task_approved':
-        return baseMessage + '\n✅ <b>Підтверджено</b>';
+        return baseMessage + '\n✅ <b>✅ ПІДТВЕРДЖЕНО</b>\n\n🎉 <b>Заявка готова до оплати</b>';
       case 'task_rejected':
-        return baseMessage + '\n❌ <b>Відхилено</b>';
+        return baseMessage + '\n❌ <b>❌ ВІДХИЛЕНО</b>\n\n⚠️ <b>Необхідно виправити зауваження</b>';
       default:
-        return baseMessage + '\n📢 <b>Оновлення статусу</b>';
+        return baseMessage + '\n📢 <b>📝 ОНОВЛЕННЯ СТАТУСУ</b>';
     }
   }
 
