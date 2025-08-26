@@ -970,31 +970,45 @@ app.get('/api/analytics/revenue', async (req, res) => {
     let processedTasks = 0;
     
     tasks.forEach(task => {
-      console.log(`[DEBUG] Заявка ${task._id}: date=${task.date}, workPrice=${task.workPrice}, approvedByWarehouse=${task.approvedByWarehouse}, approvedByAccountant=${task.approvedByAccountant}, approvedByRegionalManager=${task.approvedByRegionalManager}`);
+      console.log(`[DEBUG] Заявка ${task._id}: bonusApprovalDate=${task.bonusApprovalDate}, workPrice=${task.workPrice}, approvedByWarehouse=${task.approvedByWarehouse}, approvedByAccountant=${task.approvedByAccountant}, approvedByRegionalManager=${task.approvedByRegionalManager}`);
       
       // Перевіряємо чи заявка підтверджена всіма
       const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
       const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
       const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
       
-      if (task.date && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
-        // date - це дата проведення робіт
-        const date = new Date(task.date);
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-        const key = `${year}-${month}`;
+      if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
+        let approvalYear, approvalMonth;
         
-        if (!revenueByMonth[key]) {
-          revenueByMonth[key] = 0;
+        // Парсимо bonusApprovalDate з двох можливих форматів
+        if (task.bonusApprovalDate.includes('-')) {
+          const parts = task.bonusApprovalDate.split('-');
+          if (parts.length === 2) {
+            // Формат "08-2025"
+            approvalMonth = parseInt(parts[0]);
+            approvalYear = parseInt(parts[1]);
+          } else if (parts.length === 3) {
+            // Формат "2025-07-04"
+            approvalYear = parseInt(parts[0]);
+            approvalMonth = parseInt(parts[1]);
+          }
         }
         
-        // Додаємо премію за виконання сервісних робіт: (workPrice / 4) * 3
-        const workPrice = parseFloat(task.workPrice) || 0;
-        const bonusAmount = (workPrice / 4) * 3; // workPrice поділено на 4 та помножено на 3
-        revenueByMonth[key] += bonusAmount;
-        processedTasks++;
-        
-        console.log(`[DEBUG] Додано дохід для ${key}: workPrice=${workPrice}, bonusAmount=${bonusAmount} грн`);
+        if (approvalYear && approvalMonth) {
+          const key = `${approvalYear}-${approvalMonth}`;
+          
+          if (!revenueByMonth[key]) {
+            revenueByMonth[key] = 0;
+          }
+          
+          // Додаємо премію за виконання сервісних робіт: (workPrice / 4) * 3
+          const workPrice = parseFloat(task.workPrice) || 0;
+          const bonusAmount = (workPrice / 4) * 3; // workPrice поділено на 4 та помножено на 3
+          revenueByMonth[key] += bonusAmount;
+          processedTasks++;
+          
+          console.log(`[DEBUG] Додано дохід для ${key}: workPrice=${workPrice}, bonusAmount=${bonusAmount} грн`);
+        }
       }
     });
     
@@ -1076,32 +1090,44 @@ app.get('/api/analytics/full', async (req, res) => {
       const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
       const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
       
-      if (task.date && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
-        // date - це дата проведення робіт
-        const date = new Date(task.date);
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-        const key = `${year}-${month}`;
+      if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
+        let approvalYear, approvalMonth;
         
-        if (!revenueByMonth[key]) {
-          revenueByMonth[key] = 0;
-          regionsByMonth[key] = new Set();
-          companiesByMonth[key] = new Set();
+        // Парсимо bonusApprovalDate з двох можливих форматів
+        if (task.bonusApprovalDate.includes('-')) {
+          const parts = task.bonusApprovalDate.split('-');
+          if (parts.length === 2) {
+            // Формат "08-2025"
+            approvalMonth = parseInt(parts[0]);
+            approvalYear = parseInt(parts[1]);
+          } else if (parts.length === 3) {
+            // Формат "2025-07-04"
+            approvalYear = parseInt(parts[0]);
+            approvalMonth = parseInt(parts[1]);
+          }
         }
         
-        // Додаємо премію за виконання сервісних робіт: (workPrice / 4) * 3
-        const workPrice = parseFloat(task.workPrice) || 0;
-        const bonusAmount = (workPrice / 4) * 3; // workPrice поділено на 4 та помножено на 3
-        revenueByMonth[key] += bonusAmount;
-        
-        // Збираємо регіони та компанії для цього місяця
-        if (task.serviceRegion) {
-          regionsByMonth[key] = new Set();
-          regionsByMonth[key].add(task.serviceRegion);
-        }
-        if (task.company) {
-          companiesByMonth[key] = new Set();
-          companiesByMonth[key].add(task.company);
+        if (approvalYear && approvalMonth) {
+          const key = `${approvalYear}-${approvalMonth}`;
+          
+          if (!revenueByMonth[key]) {
+            revenueByMonth[key] = 0;
+            regionsByMonth[key] = new Set();
+            companiesByMonth[key] = new Set();
+          }
+          
+          // Додаємо премію за виконання сервісних робіт: (workPrice / 4) * 3
+          const workPrice = parseFloat(task.workPrice) || 0;
+          const bonusAmount = (workPrice / 4) * 3; // workPrice поділено на 4 та помножено на 3
+          revenueByMonth[key] += bonusAmount;
+          
+          // Збираємо регіони та компанії для цього місяця
+          if (task.serviceRegion) {
+            regionsByMonth[key].add(task.serviceRegion);
+          }
+          if (task.company) {
+            companiesByMonth[key].add(task.company);
+          }
         }
       }
     });
