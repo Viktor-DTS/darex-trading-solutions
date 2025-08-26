@@ -1669,6 +1669,8 @@ class TelegramNotificationService {
 
     try {
       console.log(`[TELEGRAM] Sending document to ${chatId}: ${filename}`);
+      console.log(`[TELEGRAM] Document buffer size: ${documentBuffer ? documentBuffer.length : 'null'} bytes`);
+      console.log(`[TELEGRAM] Caption: ${caption}`);
       
       // Створюємо FormData для відправки файлу
       const FormData = require('form-data');
@@ -1685,12 +1687,18 @@ class TelegramNotificationService {
         form.append('parse_mode', 'HTML');
       }
       
+      console.log(`[TELEGRAM] FormData created, sending to: ${this.baseUrl}/sendDocument`);
+      
       const response = await fetch(`${this.baseUrl}/sendDocument`, {
         method: 'POST',
         body: form
       });
       
+      console.log(`[TELEGRAM] Response status: ${response.status}`);
+      console.log(`[TELEGRAM] Response headers:`, Object.fromEntries(response.headers.entries()));
+      
       const result = await response.json();
+      console.log(`[TELEGRAM] Response body:`, result);
       
       if (result.ok) {
         console.log(`[TELEGRAM] Document sent successfully to ${chatId}`);
@@ -1717,6 +1725,7 @@ class TelegramNotificationService {
       try {
         console.log('[TELEGRAM] Генерація PDF звіту для виконаної заявки');
         pdfBuffer = await generateTaskReportPDF(task, user);
+        console.log(`[TELEGRAM] PDF buffer generated: ${pdfBuffer ? 'success' : 'failed'}, size: ${pdfBuffer ? pdfBuffer.length : 0} bytes`);
       } catch (error) {
         console.error('[TELEGRAM] Помилка генерації PDF:', error);
       }
@@ -1730,11 +1739,18 @@ class TelegramNotificationService {
       
       // Якщо є PDF і це виконана заявка, відправляємо його
       if (pdfBuffer && type === 'task_completed') {
+        console.log(`[TELEGRAM] Attempting to send PDF document to ${chatId}`);
         const filename = `Звіт_${task.client || 'замовника'}_${task.requestNumber || 'заявки'}_${new Date().toISOString().split('T')[0]}.pdf`;
         const caption = `📋 <b>Звіт по виконаній заявці</b>\n\n📄 <b>Файл:</b> ${filename}\n💼 <b>Замовник:</b> ${task.client || 'Н/Д'}\n💰 <b>Загальна сума:</b> ${task.workPrice || 0} грн\n\n📝 <b>Прошу виставити рахунок по даній заявці.</b>`;
         
+        console.log(`[TELEGRAM] Filename: ${filename}`);
+        console.log(`[TELEGRAM] Caption: ${caption}`);
+        
         const pdfSuccess = await this.sendDocument(chatId, pdfBuffer, filename, caption);
+        console.log(`[TELEGRAM] PDF send result: ${pdfSuccess}`);
         success = success && pdfSuccess;
+      } else {
+        console.log(`[TELEGRAM] Skipping PDF send - pdfBuffer: ${!!pdfBuffer}, type: ${type}`);
       }
       
       // Логуємо сповіщення
@@ -2162,14 +2178,18 @@ async function generateTaskReportPDF(task, user) {
     fs.writeFileSync(tempHtmlPath, htmlContent, 'utf8');
 
     // Генеруємо PDF за допомогою Puppeteer
+    console.log('[PDF] Launching Puppeteer browser...');
     const browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     
+    console.log('[PDF] Creating new page...');
     const page = await browser.newPage();
+    console.log(`[PDF] Loading HTML file: file://${tempHtmlPath}`);
     await page.goto(`file://${tempHtmlPath}`, { waitUntil: 'networkidle0' });
     
+    console.log('[PDF] Generating PDF...');
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -2181,6 +2201,7 @@ async function generateTaskReportPDF(task, user) {
       }
     });
 
+    console.log(`[PDF] PDF generated, buffer size: ${pdfBuffer.length} bytes`);
     await browser.close();
     
     // Видаляємо тимчасовий HTML файл
