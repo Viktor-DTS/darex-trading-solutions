@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
+// API URL налаштування
+const API_BASE_URL = process.env.REACT_APP_API_URL || 
+  (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+
 const NotificationSettings = ({ user }) => {
   const [settings, setSettings] = useState({
     telegramChatId: '',
@@ -29,7 +33,7 @@ const NotificationSettings = ({ user }) => {
 
   const loadTelegramStatus = async () => {
     try {
-      const response = await fetch('/api/telegram/status');
+      const response = await fetch(`${API_BASE_URL}/telegram/status`);
       if (response.ok) {
         const status = await response.json();
         setTelegramStatus(status);
@@ -42,7 +46,7 @@ const NotificationSettings = ({ user }) => {
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/notification-settings?userId=${user.login}`);
+      const response = await fetch(`${API_BASE_URL}/notification-settings?userId=${user.login}`);
       if (response.ok) {
         const data = await response.json();
         setSettings({
@@ -60,7 +64,7 @@ const NotificationSettings = ({ user }) => {
   const saveSettings = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/notification-settings', {
+      const response = await fetch(`${API_BASE_URL}/notification-settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -88,7 +92,7 @@ const NotificationSettings = ({ user }) => {
   const getChatIdInstructions = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/telegram/get-chat-id', {
+      const response = await fetch(`${API_BASE_URL}/telegram/get-chat-id`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -128,7 +132,7 @@ const NotificationSettings = ({ user }) => {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/telegram/test', {
+      const response = await fetch(`${API_BASE_URL}/telegram/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
