@@ -253,6 +253,7 @@ const userSchema = new mongoose.Schema({
   region: String,
   columnsSettings: Object,
   id: Number,
+  telegramChatId: String,
 });
 const User = mongoose.model('User', userSchema);
 
@@ -390,16 +391,23 @@ app.get('/api/users/:login', async (req, res) => {
 app.post('/api/users', async (req, res) => {
   try {
     const userData = req.body;
+    console.log('[DEBUG] POST /api/users - отримано дані:', JSON.stringify(userData, null, 2));
+    
     let user = await User.findOne({ login: userData.login });
     if (user) {
+      console.log('[DEBUG] Оновлюємо існуючого користувача:', userData.login);
       Object.assign(user, userData);
       await user.save();
+      console.log('[DEBUG] Користувача оновлено:', userData.login, 'telegramChatId:', user.telegramChatId);
     } else {
+      console.log('[DEBUG] Створюємо нового користувача:', userData.login);
       user = new User({ ...userData, id: Date.now() });
       await user.save();
+      console.log('[DEBUG] Користувача створено:', userData.login, 'telegramChatId:', user.telegramChatId);
     }
     res.json({ success: true, message: 'Користувача збережено' });
   } catch (error) {
+    console.error('[ERROR] POST /api/users - помилка:', error);
     res.status(500).json({ error: error.message });
   }
 });

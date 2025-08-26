@@ -699,7 +699,11 @@ function AdminSystemParamsArea({ user }) {
       const user = users.find(u => u.id === userId);
       if (!user) return;
 
+      console.log('[DEBUG] handleTelegramSave - користувач:', user.login, 'новий telegramChatId:', telegramChatId);
+      
       const updatedUser = { ...user, telegramChatId };
+      console.log('[DEBUG] handleTelegramSave - відправляємо дані:', JSON.stringify(updatedUser, null, 2));
+      
       const success = await columnsSettingsAPI.saveUser(updatedUser);
       
       if (success) {
