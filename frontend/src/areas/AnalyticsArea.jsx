@@ -49,6 +49,12 @@ export default function AnalyticsArea({ user }) {
         console.log('Унікальні компанії:', uniqueCompaniesData);
         setUniqueCompanies(uniqueCompaniesData);
         
+        // Завантажуємо категорії витрат з бази даних
+        console.log('Завантаження категорій витрат...');
+        const categoriesData = await analyticsAPI.getExpenseCategories();
+        console.log('Категорії витрат:', categoriesData);
+        setCustomExpenseCategories(categoriesData);
+        
         console.log('Завантаження даних завершено');
       } catch (error) {
         console.error('Помилка завантаження даних:', error);
@@ -237,6 +243,17 @@ export default function AnalyticsArea({ user }) {
     }
   };
 
+  // Функція для збереження категорій в базі даних
+  const handleSaveCategories = async () => {
+    try {
+      await analyticsAPI.saveExpenseCategories(customExpenseCategories, user?.login || 'system');
+      alert('Категорії збережено!');
+    } catch (error) {
+      alert('Помилка збереження категорій');
+      console.error('Помилка збереження категорій:', error);
+    }
+  };
+
   // Функція для видалення витрат
   const handleDeleteExpenses = async (item) => {
     // Перевіряємо права доступу
@@ -316,6 +333,7 @@ export default function AnalyticsArea({ user }) {
                     type="text"
                     value={category.label}
                     onChange={(e) => handleUpdateCategory(key, 'label', e.target.value)}
+                    onBlur={(e) => e.target.focus()} // Зберігаємо фокус
                     style={{
                       width: '100%',
                       padding: '8px',
@@ -390,6 +408,19 @@ export default function AnalyticsArea({ user }) {
                 }}
               >
                 Скинути до стандартних
+              </button>
+              <button
+                onClick={handleSaveCategories}
+                style={{
+                  padding: '8px 16px',
+                  background: '#007bff',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Зберегти
               </button>
             </div>
             <button

@@ -181,6 +181,44 @@ export const analyticsAPI = {
       throw error;
     }
   },
+
+  // Отримати категорії витрат
+  async getExpenseCategories() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/expense-categories`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Помилка отримання категорій витрат:', error);
+      throw error;
+    }
+  },
+
+  // Зберегти категорії витрат
+  async saveExpenseCategories(categories, createdBy) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/expense-categories`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ categories, createdBy }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Помилка збереження категорій витрат:', error);
+      throw error;
+    }
+  },
 };
 
 // Константи для статей витрат

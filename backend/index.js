@@ -83,6 +83,22 @@ analyticsSchema.index({ region: 1, company: 1, year: 1, month: 1 });
 
 const Analytics = mongoose.model('Analytics', analyticsSchema);
 
+// Модель для категорій витрат
+const expenseCategoriesSchema = new mongoose.Schema({
+  categories: {
+    type: Map,
+    of: {
+      label: String,
+      color: String
+    },
+    default: {}
+  },
+  createdBy: String,
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const ExpenseCategories = mongoose.model('ExpenseCategories', expenseCategoriesSchema);
+
 // Функція для підключення до MongoDB
 async function connectToMongoDB() {
   if (!MONGODB_URI) {
@@ -1397,6 +1413,69 @@ app.get('/api/equipment-materials/:equipmentType', async (req, res) => {
     res.json(materials);
   } catch (error) {
     console.error('[ERROR] GET /api/equipment-materials/:equipmentType - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для управління категоріями витрат
+app.get('/api/expense-categories', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/expense-categories - запит отримано');
+    
+    // Знаходимо останні налаштування категорій
+    let categoriesDoc = await ExpenseCategories.findOne().sort({ updatedAt: -1 });
+    
+    if (!categoriesDoc) {
+      // Якщо немає збережених категорій, повертаємо стандартні
+      const defaultCategories = {
+        salary: { label: 'Зарплата', color: '#FF6384' },
+        fuel: { label: 'Паливо', color: '#36A2EB' },
+        transport: { label: 'Транспорт', color: '#FFCE56' },
+        materials: { label: 'Матеріали', color: '#4BC0C0' },
+        equipment: { label: 'Обладнання', color: '#9966FF' },
+        office: { label: 'Офісні витрати', color: '#FF9F40' },
+        marketing: { label: 'Маркетинг', color: '#FF6384' },
+        other: { label: 'Інші витрати', color: '#C9CBCF' }
+      };
+      
+      res.json(defaultCategories);
+    } else {
+      // Конвертуємо Map в об'єкт
+      const categories = {};
+      categoriesDoc.categories.forEach((value, key) => {
+        categories[key] = value;
+      });
+      
+      res.json(categories);
+    }
+  } catch (error) {
+    console.error('[ERROR] GET /api/expense-categories - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/expense-categories', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/expense-categories - запит отримано');
+    const { categories, createdBy } = req.body;
+    
+    if (!categories || typeof categories !== 'object') {
+      return res.status(400).json({ error: 'Неправильний формат категорій' });
+    }
+    
+    // Створюємо новий документ з категоріями
+    const categoriesDoc = new ExpenseCategories({
+      categories: new Map(Object.entries(categories)),
+      createdBy: createdBy || 'system',
+      updatedAt: new Date()
+    });
+    
+    await categoriesDoc.save();
+    
+    console.log('[DEBUG] POST /api/expense-categories - категорії збережено');
+    res.json({ success: true, message: 'Категорії збережено' });
+  } catch (error) {
+    console.error('[ERROR] POST /api/expense-categories - помилка:', error);
     res.status(500).json({ error: error.message });
   }
 });
