@@ -129,6 +129,15 @@ const notificationLogSchema = new mongoose.Schema({
 
 const NotificationLog = mongoose.model('NotificationLog', notificationLogSchema);
 
+// Модель для глобальних налаштувань сповіщень
+const globalNotificationSettingsSchema = new mongoose.Schema({
+  settings: { type: Object, default: {} },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const GlobalNotificationSettings = mongoose.model('GlobalNotificationSettings', globalNotificationSettingsSchema);
+
 // Функція для підключення до MongoDB
 async function connectToMongoDB() {
   if (!MONGODB_URI) {
@@ -1689,15 +1698,23 @@ class TelegramNotificationService {
 
   async getChatIdsForNotification(type, userRole) {
     try {
-      // Отримуємо налаштування сповіщень для цього типу
-      const settings = await NotificationSettings.find({
-        isActive: true,
-        enabledNotifications: type
-      });
-
-      const chatIds = settings.map(s => s.telegramChatId);
+      const chatIds = [];
       
-      // Додаємо загальні канали залежно від ролі
+      // Отримуємо глобальні налаштування сповіщень
+      const globalSettings = await GlobalNotificationSettings.findOne();
+      if (globalSettings?.settings?.[type]) {
+        // Отримуємо користувачів, які підписані на цей тип сповіщень
+        const userIds = globalSettings.settings[type];
+        if (userIds && userIds.length > 0) {
+          const users = await User.find({ login: { $in: userIds } });
+          const userChatIds = users
+            .filter(user => user.telegramChatId && user.telegramChatId.trim())
+            .map(user => user.telegramChatId);
+          chatIds.push(...userChatIds);
+        }
+      }
+      
+      // Додаємо загальні канали залежно від ролі (для зворотної сумісності)
       if (process.env.TELEGRAM_ADMIN_CHAT_ID) {
         chatIds.push(process.env.TELEGRAM_ADMIN_CHAT_ID);
       }
@@ -1781,6 +1798,47 @@ app.get('/api/notification-logs', async (req, res) => {
     res.json(logs);
   } catch (error) {
     console.error('[ERROR] GET /api/notification-logs - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для глобальних налаштувань сповіщень
+app.get('/api/notification-settings/global', async (req, res) => {
+  try {
+    // Завантажуємо глобальні налаштування з бази даних
+    const globalSettings = await GlobalNotificationSettings.findOne();
+    res.json(globalSettings?.settings || {});
+  } catch (error) {
+    console.error('[ERROR] GET /api/notification-settings/global - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/notification-settings/global', async (req, res) => {
+  try {
+    const settings = req.body;
+    
+    // Зберігаємо глобальні налаштування
+    await GlobalNotificationSettings.findOneAndUpdate(
+      {},
+      { settings, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    
+    res.json({ success: true, message: 'Глобальні налаштування сповіщень збережено' });
+  } catch (error) {
+    console.error('[ERROR] POST /api/notification-settings/global - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для отримання списку користувачів
+app.get('/api/users', async (req, res) => {
+  try {
+    const users = await User.find({}, 'login name role region telegramChatId');
+    res.json(users);
+  } catch (error) {
+    console.error('[ERROR] GET /api/users - помилка:', error);
     res.status(500).json({ error: error.message });
   }
 });
