@@ -314,6 +314,7 @@ app.options('*', cors());
 // Логування CORS запитів
 app.use((req, res, next) => {
   console.log(`[CORS] ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+  console.log(`[CORS] Headers:`, req.headers);
   next();
 });
 app.use(express.json());
@@ -447,9 +448,12 @@ app.post('/api/roles', async (req, res) => {
 // --- REGIONS через MongoDB ---
 app.get('/api/regions', async (req, res) => {
   try {
+    console.log('[DEBUG] GET /api/regions - запит на отримання регіонів');
     const regions = await Region.find();
+    console.log('[DEBUG] GET /api/regions - знайдено регіонів:', regions.length);
     res.json(regions);
   } catch (error) {
+    console.error('[ERROR] GET /api/regions - помилка:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -721,6 +725,7 @@ app.post('/api/report', (req, res) => {
 });
 
 app.get('/api/ping', (req, res) => {
+  console.log('[DEBUG] GET /api/ping - запит на перевірку стану сервера');
   res.json({ 
     message: 'Сервер працює!',
     timestamp: new Date().toISOString(),
@@ -1947,6 +1952,8 @@ const telegramService = new TelegramNotificationService();
 async function generateTaskReportPDF(task, user) {
   try {
     console.log('[PDF] Генерація PDF звіту для заявки:', task.requestNumber);
+    console.log('[PDF] Task object:', JSON.stringify(task, null, 2));
+    console.log('[PDF] User object:', JSON.stringify(user, null, 2));
     
     // Формуємо HTML шаблон звіту
     const htmlContent = `
@@ -2260,15 +2267,18 @@ async function generateTaskReportPDF(task, user) {
 </body>
 </html>`;
 
+    console.log('[PDF] HTML content generated, length:', htmlContent.length);
+
     // Створюємо тимчасовий файл для HTML
     const tempHtmlPath = path.join(__dirname, 'temp_report.html');
     fs.writeFileSync(tempHtmlPath, htmlContent, 'utf8');
+    console.log('[PDF] HTML file written to:', tempHtmlPath);
 
     // Генеруємо PDF за допомогою Puppeteer
     console.log('[PDF] Launching Puppeteer browser...');
     const browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     });
     
     console.log('[PDF] Creating new page...');
@@ -2299,6 +2309,7 @@ async function generateTaskReportPDF(task, user) {
     
   } catch (error) {
     console.error('[PDF] Помилка генерації PDF:', error);
+    console.error('[PDF] Error stack:', error.stack);
     throw error;
   }
 } 
