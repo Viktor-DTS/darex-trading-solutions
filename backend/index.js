@@ -6,8 +6,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
-const puppeteer = require('puppeteer');
-const htmlPdf = require('html-pdf-node');
+
 
 // Додаємо імпорт роуту файлів
 const filesRouter = require('./routes/files');
@@ -17,8 +16,7 @@ const PORT = process.env.PORT || 3001;
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
-// Глобальна змінна для зберігання логів PDF генерації
-const pdfLogs = [];
+
 
 // Модель для збережених звітів
 const savedReportSchema = new mongoose.Schema({
@@ -1693,18 +1691,14 @@ class TelegramNotificationService {
 
   async sendMessage(chatId, message, parseMode = 'HTML') {
     if (!this.botToken) {
-      console.log('[TELEGRAM] Bot token not configured, skipping message');
       return false;
     }
     
     if (!this.baseUrl) {
-      console.log('[TELEGRAM] Base URL not configured, skipping message');
       return false;
     }
 
     try {
-      console.log(`[TELEGRAM] Sending message to ${chatId}:`, message.substring(0, 100) + '...');
-      
       const response = await fetch(`${this.baseUrl}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1718,152 +1712,23 @@ class TelegramNotificationService {
       const result = await response.json();
       
       if (result.ok) {
-        console.log(`[TELEGRAM] Message sent successfully to ${chatId}`);
         return true;
       } else {
-        console.error(`[TELEGRAM] Failed to send message:`, result);
         return false;
       }
     } catch (error) {
-      console.error('[TELEGRAM] Send error:', error);
       return false;
     }
   }
 
-  async sendDocument(chatId, documentBuffer, filename, caption = '') {
-    console.log(`[TELEGRAM] sendDocument called with chatId: ${chatId}, filename: ${filename}`);
-    console.log(`[TELEGRAM] Document buffer type: ${typeof documentBuffer}`);
-    console.log(`[TELEGRAM] Document buffer is Buffer: ${documentBuffer instanceof Buffer}`);
-    console.log(`[TELEGRAM] Document buffer size: ${documentBuffer ? documentBuffer.length : 'null'} bytes`);
-    
-    if (!this.botToken) {
-      console.log('[TELEGRAM] Bot token not configured, skipping document');
-      return false;
-    }
-    
-    if (!this.baseUrl) {
-      console.log('[TELEGRAM] Base URL not configured, skipping document');
-      return false;
-    }
 
-    if (!documentBuffer) {
-      console.log('[TELEGRAM] Document buffer is null or undefined, skipping document');
-      return false;
-    }
-
-    try {
-      console.log(`[TELEGRAM] Sending document to ${chatId}: ${filename}`);
-      console.log(`[TELEGRAM] Document buffer size: ${documentBuffer ? documentBuffer.length : 'null'} bytes`);
-      console.log(`[TELEGRAM] Caption: ${caption}`);
-      
-      // Створюємо FormData для відправки файлу
-      const FormData = require('form-data');
-      const form = new FormData();
-      
-      form.append('chat_id', chatId);
-      form.append('document', documentBuffer, {
-        filename: filename,
-        contentType: 'application/pdf'
-      });
-      
-      if (caption) {
-        form.append('caption', caption);
-        form.append('parse_mode', 'HTML');
-      }
-      
-      console.log(`[TELEGRAM] FormData created, sending to: ${this.baseUrl}/sendDocument`);
-      
-      const response = await fetch(`${this.baseUrl}/sendDocument`, {
-        method: 'POST',
-        body: form
-      });
-      
-      console.log(`[TELEGRAM] Response status: ${response.status}`);
-      console.log(`[TELEGRAM] Response headers:`, Object.fromEntries(response.headers.entries()));
-      
-      const result = await response.json();
-      console.log(`[TELEGRAM] Response body:`, result);
-      
-      if (result.ok) {
-        console.log(`[TELEGRAM] Document sent successfully to ${chatId}`);
-        return true;
-      } else {
-        console.error(`[TELEGRAM] Failed to send document:`, result);
-        return false;
-      }
-    } catch (error) {
-      console.error('[TELEGRAM] Send document error:', error);
-      return false;
-    }
-  }
 
   async sendTaskNotification(type, task, user) {
-    console.log(`[TELEGRAM] sendTaskNotification called with type: ${type}`);
-    console.log(`[TELEGRAM] task object:`, JSON.stringify(task, null, 2));
-    console.log(`[TELEGRAM] user object:`, JSON.stringify(user, null, 2));
-    
     const message = this.formatTaskMessage(type, task, user);
     const chatIds = await this.getChatIdsForNotification(type, user.role);
     
-    console.log(`[TELEGRAM] Sending ${type} notification to ${chatIds.length} chats`);
-    console.log(`[TELEGRAM] Chat IDs:`, chatIds);
-    
-    // Якщо це виконана заявка, генеруємо PDF звіт
-    let pdfBuffer = null;
-    if (type === 'task_completed') {
-      console.log('[TELEGRAM] Type is task_completed, generating PDF...');
-      console.log('[TELEGRAM] About to call generateTaskReportPDF...');
-      try {
-        console.log('[TELEGRAM] Генерація PDF звіту для виконаної заявки');
-        console.log('[TELEGRAM] Task object for PDF generation:', JSON.stringify(task, null, 2));
-        console.log('[TELEGRAM] User object for PDF generation:', JSON.stringify(user, null, 2));
-        
-        pdfBuffer = await generateTaskReportPDF(task, user);
-        
-        console.log(`[TELEGRAM] PDF buffer generated: ${pdfBuffer ? 'success' : 'failed'}`);
-        console.log(`[TELEGRAM] PDF buffer size: ${pdfBuffer ? pdfBuffer.length : 0} bytes`);
-        console.log(`[TELEGRAM] PDF buffer type: ${typeof pdfBuffer}`);
-        console.log(`[TELEGRAM] PDF buffer is Buffer: ${pdfBuffer instanceof Buffer}`);
-        
-        if (pdfBuffer) {
-          console.log('[TELEGRAM] PDF buffer first 100 bytes:', pdfBuffer.slice(0, 100));
-        }
-      } catch (error) {
-        console.error('[TELEGRAM] Помилка генерації PDF:', error);
-        console.error('[TELEGRAM] Error stack:', error.stack);
-      }
-    } else {
-      console.log(`[TELEGRAM] Type is not task_completed (${type}), skipping PDF generation`);
-    }
-    
     for (const chatId of chatIds) {
-      let success = false;
-      
-      // Відправляємо текстове повідомлення
-      success = await this.sendMessage(chatId, message);
-      
-      // Якщо є PDF і це виконана заявка, відправляємо його
-      if (pdfBuffer && type === 'task_completed') {
-        console.log(`[TELEGRAM] Attempting to send PDF document to ${chatId}`);
-        console.log(`[TELEGRAM] pdfBuffer exists: ${!!pdfBuffer}`);
-        console.log(`[TELEGRAM] pdfBuffer size: ${pdfBuffer ? pdfBuffer.length : 0} bytes`);
-        console.log(`[TELEGRAM] type is task_completed: ${type === 'task_completed'}`);
-        
-        const filename = `Звіт_${task.client || 'замовника'}_${task.requestNumber || 'заявки'}_${new Date().toISOString().split('T')[0]}.pdf`;
-        const caption = `📋 <b>Звіт по виконаній заявці</b>\n\n📄 <b>Файл:</b> ${filename}\n💼 <b>Замовник:</b> ${task.client || 'Н/Д'}\n💰 <b>Загальна сума:</b> ${task.workPrice || 0} грн\n\n📝 <b>Прошу виставити рахунок по даній заявці.</b>`;
-        
-        console.log(`[TELEGRAM] Filename: ${filename}`);
-        console.log(`[TELEGRAM] Caption: ${caption}`);
-        console.log(`[TELEGRAM] About to call sendDocument...`);
-        
-        const pdfSuccess = await this.sendDocument(chatId, pdfBuffer, filename, caption);
-        console.log(`[TELEGRAM] PDF send result: ${pdfSuccess}`);
-        success = success && pdfSuccess;
-      } else {
-        console.log(`[TELEGRAM] Skipping PDF send - pdfBuffer: ${!!pdfBuffer}, type: ${type}`);
-        console.log(`[TELEGRAM] pdfBuffer type: ${typeof pdfBuffer}`);
-        console.log(`[TELEGRAM] pdfBuffer is Buffer: ${pdfBuffer instanceof Buffer}`);
-      }
+      const success = await this.sendMessage(chatId, message);
       
       // Логуємо сповіщення
       await NotificationLog.create({
@@ -1878,11 +1743,6 @@ class TelegramNotificationService {
   }
 
   formatTaskMessage(type, task, user) {
-    console.log(`[TELEGRAM] formatTaskMessage called with type: ${type}`);
-    console.log(`[TELEGRAM] task.status: ${task.status}`);
-    console.log(`[TELEGRAM] task object: ${JSON.stringify(task, null, 2)}`);
-    console.log(`[TELEGRAM] user: ${JSON.stringify(user)}`);
-    
     // Визначаємо правильний статус для відображення
     let displayStatus = task.status || 'Н/Д';
     
@@ -1941,51 +1801,41 @@ class TelegramNotificationService {
 
   async getChatIdsForNotification(type, userRole) {
     try {
-      console.log(`[TELEGRAM] getChatIdsForNotification called with type: ${type}, userRole: ${userRole}`);
       const chatIds = [];
       
       // Отримуємо глобальні налаштування сповіщень
       const globalSettings = await GlobalNotificationSettings.findOne();
-      console.log(`[TELEGRAM] Global settings found:`, globalSettings ? 'yes' : 'no');
       
       if (globalSettings?.settings?.[type]) {
         // Отримуємо користувачів, які підписані на цей тип сповіщень
         const userIds = globalSettings.settings[type];
-        console.log(`[TELEGRAM] User IDs for ${type}:`, userIds);
         
         if (userIds && userIds.length > 0) {
           const users = await User.find({ login: { $in: userIds } });
-          console.log(`[TELEGRAM] Found users:`, users.map(u => ({ login: u.login, telegramChatId: u.telegramChatId })));
           
           const userChatIds = users
             .filter(user => user.telegramChatId && user.telegramChatId.trim())
             .map(user => user.telegramChatId);
           chatIds.push(...userChatIds);
-          console.log(`[TELEGRAM] Added user chat IDs:`, userChatIds);
         }
       }
       
       // Додаємо загальні канали залежно від ролі (для зворотної сумісності)
       if (process.env.TELEGRAM_ADMIN_CHAT_ID) {
         chatIds.push(process.env.TELEGRAM_ADMIN_CHAT_ID);
-        console.log(`[TELEGRAM] Added admin chat ID:`, process.env.TELEGRAM_ADMIN_CHAT_ID);
       }
       
       if (userRole === 'warehouse' && process.env.TELEGRAM_WAREHOUSE_CHAT_ID) {
         chatIds.push(process.env.TELEGRAM_WAREHOUSE_CHAT_ID);
-        console.log(`[TELEGRAM] Added warehouse chat ID:`, process.env.TELEGRAM_WAREHOUSE_CHAT_ID);
       }
       
       if (userRole === 'service' && process.env.TELEGRAM_SERVICE_CHAT_ID) {
         chatIds.push(process.env.TELEGRAM_SERVICE_CHAT_ID);
-        console.log(`[TELEGRAM] Added service chat ID:`, process.env.TELEGRAM_SERVICE_CHAT_ID);
       }
 
       const uniqueChatIds = [...new Set(chatIds)]; // Видаляємо дублікати
-      console.log(`[TELEGRAM] Final unique chat IDs:`, uniqueChatIds);
       return uniqueChatIds;
     } catch (error) {
-      console.error('[TELEGRAM] Error getting chat IDs:', error);
       return [];
     }
   }
@@ -1993,468 +1843,6 @@ class TelegramNotificationService {
 
 // Створюємо екземпляр сервісу
 const telegramService = new TelegramNotificationService();
-
-// Функція для генерації PDF звіту
-async function generateTaskReportPDF(task, user) {
-  const logEntry = {
-    timestamp: new Date().toISOString(),
-    function: 'generateTaskReportPDF',
-    taskId: task.requestNumber || task._id,
-    userId: user.login || user.name,
-    status: 'started'
-  };
-  
-  pdfLogs.push(logEntry);
-  console.log('[PDF] ===== generateTaskReportPDF START =====');
-  console.log('[PDF] Function called with task:', task.requestNumber || task._id);
-  console.log('[PDF] Function called with user:', user.login || user.name);
-  
-  try {
-    console.log('[PDF] Генерація PDF звіту для заявки:', task.requestNumber);
-    console.log('[PDF] Task object:', JSON.stringify(task, null, 2));
-    console.log('[PDF] User object:', JSON.stringify(user, null, 2));
-    
-    // Формуємо HTML шаблон звіту
-    const htmlContent = `
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Звіт по замовнику: ${task.client || 'Н/Д'}</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            line-height: 1.6;
-            color: #333;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 20px;
-        }
-        .total-sum {
-            background-color: #007bff;
-            color: white;
-            padding: 15px;
-            text-align: center;
-            font-size: 18px;
-            font-weight: bold;
-            margin: 20px 0;
-            border-radius: 5px;
-        }
-        .status-completed {
-            background-color: #28a745;
-            color: white;
-            padding: 5px 15px;
-            border-radius: 20px;
-            display: inline-block;
-            font-weight: bold;
-        }
-        .task-info {
-            background-color: #f8f9fa;
-            padding: 20px;
-            border-radius: 5px;
-            margin: 20px 0;
-        }
-        .task-info h3 {
-            margin-top: 0;
-            color: #007bff;
-        }
-        .task-info p {
-            margin: 8px 0;
-        }
-        .materials-section {
-            margin: 30px 0;
-        }
-        .material-card {
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 15px 0;
-            background-color: #fff;
-        }
-        .material-title {
-            font-weight: bold;
-            color: #007bff;
-            margin-bottom: 10px;
-        }
-        .material-details {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr 1fr;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        .material-detail {
-            text-align: center;
-            padding: 5px;
-            background-color: #f8f9fa;
-            border-radius: 3px;
-        }
-        .expenses-section {
-            margin: 30px 0;
-            background-color: #fff3cd;
-            padding: 20px;
-            border-radius: 5px;
-            border-left: 4px solid #ffc107;
-        }
-        .expense-item {
-            display: flex;
-            justify-content: space-between;
-            margin: 10px 0;
-            padding: 5px 0;
-            border-bottom: 1px solid #eee;
-        }
-        .expense-label {
-            font-weight: bold;
-        }
-        .expense-value {
-            color: #007bff;
-            font-weight: bold;
-        }
-        .footer {
-            margin-top: 40px;
-            text-align: center;
-            font-size: 12px;
-            color: #666;
-            border-top: 1px solid #ddd;
-            padding-top: 20px;
-        }
-        .user-info {
-            background-color: #e7f3ff;
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0;
-            border-left: 4px solid #007bff;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>Звіт по замовнику: ${task.client || 'Н/Д'}</h1>
-        <div class="total-sum">Загальна сума послуги: ${task.workPrice || 0} грн</div>
-    </div>
-
-    <div class="task-info">
-        <h3>Дата проведення робіт: ${task.date || 'Н/Д'}</h3>
-        <div class="status-completed">ВИКОНАНО</div>
-        
-        <p><strong>Дата заявки:</strong> ${task.date || 'Н/Д'}</p>
-        <p><strong>Замовник:</strong> ${task.client || 'Н/Д'}</p>
-        <p><strong>Адреса:</strong> ${task.address || 'Н/Д'}</p>
-        <p><strong>Найменування робіт:</strong> ${task.requestDesc || 'Н/Д'}</p>
-        <p><strong>Сервісні інженери:</strong> ${task.engineers || 'Н/Д'}</p>
-        <p><strong>ЄДРПОУ:</strong> ${task.edrpou || 'Н/Д'}</p>
-        <p><strong>Номер рахунку:</strong> ${task.invoice || 'Н/Д'}</p>
-        <p><strong>Тип обладнання:</strong> ${task.equipment || 'Н/Д'}</p>
-        <p><strong>Компанія виконавець:</strong> ${task.company || 'Н/Д'}</p>
-        <p><strong>Регіон сервісного відділу:</strong> ${task.serviceRegion || 'Н/Д'}</p>
-    </div>
-
-    <div class="user-info">
-        <strong>Статус змінено користувачем:</strong> ${user.name || user.login || 'Н/Д'} (${user.role || 'Н/Д'})
-    </div>
-
-    <div class="materials-section">
-        <h2>Перелік використаних матеріалів:</h2>
-        
-        ${task.oilType ? `
-        <div class="material-card">
-            <div class="material-title">ОЛИВА (OIL)</div>
-            <div class="material-details">
-                <div class="material-detail">
-                    <strong>Тип оливи:</strong><br>${task.oilType}
-                </div>
-                <div class="material-detail">
-                    <strong>Кількість:</strong><br>${task.oilUsed || 0} л
-                </div>
-                <div class="material-detail">
-                    <strong>Ціна за л:</strong><br>${task.oilPrice || 0} грн
-                </div>
-                <div class="material-detail">
-                    <strong>Загальна сума:</strong><br>${task.oilTotal || 0} грн
-                </div>
-            </div>
-        </div>
-        ` : ''}
-        
-        ${task.filterName ? `
-        <div class="material-card">
-            <div class="material-title">МАСЛЯНИЙ ФІЛЬТР (OIL FILTER)</div>
-            <div class="material-details">
-                <div class="material-detail">
-                    <strong>Назва:</strong><br>${task.filterName}
-                </div>
-                <div class="material-detail">
-                    <strong>Кількість:</strong><br>${task.filterCount || 0} шт
-                </div>
-                <div class="material-detail">
-                    <strong>Ціна за шт:</strong><br>${task.filterPrice || 0} грн
-                </div>
-                <div class="material-detail">
-                    <strong>Загальна сума:</strong><br>${task.filterSum || 0} грн
-                </div>
-            </div>
-        </div>
-        ` : ''}
-        
-        ${task.fuelFilterName ? `
-        <div class="material-card">
-            <div class="material-title">ПАЛИВНИЙ ФІЛЬТР (FUEL FILTER)</div>
-            <div class="material-details">
-                <div class="material-detail">
-                    <strong>Назва:</strong><br>${task.fuelFilterName}
-                </div>
-                <div class="material-detail">
-                    <strong>Кількість:</strong><br>${task.fuelFilterCount || 0} шт
-                </div>
-                <div class="material-detail">
-                    <strong>Ціна за шт:</strong><br>${task.fuelFilterPrice || 0} грн
-                </div>
-                <div class="material-detail">
-                    <strong>Загальна сума:</strong><br>${task.fuelFilterSum || 0} грн
-                </div>
-            </div>
-        </div>
-        ` : ''}
-        
-        ${task.airFilterName ? `
-        <div class="material-card">
-            <div class="material-title">ПОВІТРЯНИЙ ФІЛЬТР (AIR FILTER)</div>
-            <div class="material-details">
-                <div class="material-detail">
-                    <strong>Назва:</strong><br>${task.airFilterName}
-                </div>
-                <div class="material-detail">
-                    <strong>Кількість:</strong><br>${task.airFilterCount || 0} шт
-                </div>
-                <div class="material-detail">
-                    <strong>Ціна за шт:</strong><br>${task.airFilterPrice || 0} грн
-                </div>
-                <div class="material-detail">
-                    <strong>Загальна сума:</strong><br>${task.airFilterSum || 0} грн
-                </div>
-            </div>
-        </div>
-        ` : ''}
-        
-        ${task.antifreezeType ? `
-        <div class="material-card">
-            <div class="material-title">АНТИФРИЗ (ANTIFREEZE)</div>
-            <div class="material-details">
-                <div class="material-detail">
-                    <strong>Тип:</strong><br>${task.antifreezeType}
-                </div>
-                <div class="material-detail">
-                    <strong>Кількість:</strong><br>${task.antifreezeL || 0} л
-                </div>
-                <div class="material-detail">
-                    <strong>Ціна за л:</strong><br>${task.antifreezePrice || 0} грн
-                </div>
-                <div class="material-detail">
-                    <strong>Загальна сума:</strong><br>${task.antifreezeSum || 0} грн
-                </div>
-            </div>
-        </div>
-        ` : ''}
-        
-        ${task.otherMaterials ? `
-        <div class="material-card">
-            <div class="material-title">ІНШІ МАТЕРІАЛИ</div>
-            <div class="material-details">
-                <div class="material-detail">
-                    <strong>Опис:</strong><br>${task.otherMaterials}
-                </div>
-                <div class="material-detail">
-                    <strong>Кількість:</strong><br>${task.otherQuantity || 0}
-                </div>
-                <div class="material-detail">
-                    <strong>Ціна:</strong><br>${task.otherPrice || 0} грн
-                </div>
-                <div class="material-detail">
-                    <strong>Загальна сума:</strong><br>${task.otherSum || 0} грн
-                </div>
-            </div>
-        </div>
-        ` : ''}
-    </div>
-
-    <div class="expenses-section">
-        <h2>Додаткові витрати:</h2>
-        <div class="expense-item">
-            <span class="expense-label">Загальна вартість тр. витрат:</span>
-            <span class="expense-value">${task.transportExpenses || 0} грн</span>
-        </div>
-        <div class="expense-item">
-            <span class="expense-label">Вартість робіт, грн:</span>
-            <span class="expense-value">${task.workPrice || 0} грн</span>
-        </div>
-        <div class="expense-item">
-            <span class="expense-label">Добові, грн:</span>
-            <span class="expense-value">${task.dailyExpenses || 0} грн</span>
-        </div>
-        <div class="expense-item">
-            <span class="expense-label">Проживання, грн:</span>
-            <span class="expense-value">${task.accommodationExpenses || 0} грн</span>
-        </div>
-        <div class="expense-item">
-            <span class="expense-label">Інші витрати, грн:</span>
-            <span class="expense-value">${task.otherExpenses || 0} грн</span>
-        </div>
-        ${task.otherMaterialsDescription ? `
-        <div class="expense-item">
-            <span class="expense-label">Опис інших матеріалів:</span>
-            <span class="expense-value">${task.otherMaterialsDescription}</span>
-        </div>
-        ` : ''}
-        <div class="expense-item">
-            <span class="expense-label">Загальна ціна інших матеріалів:</span>
-            <span class="expense-value">${task.otherMaterialsTotal || 0} грн</span>
-        </div>
-    </div>
-
-    <div class="total-sum">
-        Загальна сума послуги: ${task.workPrice || 0} грн
-    </div>
-
-    <div class="footer">
-        <p>Звіт згенеровано автоматично системою Darex Trading Solutions</p>
-        <p>Дата генерації: ${new Date().toLocaleString('uk-UA')}</p>
-    </div>
-</body>
-</html>`;
-
-    console.log('[PDF] HTML content generated, length:', htmlContent.length);
-
-    // Створюємо тимчасовий файл для HTML
-    const tempHtmlPath = path.join(__dirname, 'temp_report.html');
-    fs.writeFileSync(tempHtmlPath, htmlContent, 'utf8');
-    console.log('[PDF] HTML file written to:', tempHtmlPath);
-    
-    // Альтернативний спосіб - використовуємо data URL
-    const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`;
-    console.log('[PDF] Data URL created, length:', dataUrl.length);
-
-    // Генеруємо PDF за допомогою Puppeteer
-    console.log('[PDF] Trying Puppeteer first...');
-    let pdfBuffer;
-    
-    try {
-      const browser = await puppeteer.launch({
-        headless: true,
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-        args: [
-          '--no-sandbox', 
-          '--disable-setuid-sandbox', 
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--disable-software-rasterizer',
-          '--disable-extensions',
-          '--disable-background-timer-throttling',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding'
-        ]
-      });
-      
-      console.log('[PDF] Creating new page...');
-      const page = await browser.newPage();
-      
-      // Встановлюємо таймаут
-      page.setDefaultTimeout(30000);
-      
-      console.log(`[PDF] Loading HTML file: file://${tempHtmlPath}`);
-      try {
-        await page.goto(`file://${tempHtmlPath}`, { 
-          waitUntil: 'networkidle0',
-          timeout: 30000 
-        });
-      } catch (fileError) {
-        console.log('[PDF] File loading failed, trying data URL...');
-        await page.goto(dataUrl, { 
-          waitUntil: 'networkidle0',
-          timeout: 30000 
-        });
-      }
-      
-      console.log('[PDF] Generating PDF with Puppeteer...');
-      pdfBuffer = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '20mm',
-          right: '20mm',
-          bottom: '20mm',
-          left: '20mm'
-        }
-      });
-
-      console.log(`[PDF] PDF generated with Puppeteer, buffer size: ${pdfBuffer.length} bytes`);
-      await browser.close();
-      
-    } catch (puppeteerError) {
-      console.log('[PDF] Puppeteer failed, trying html-pdf-node...');
-      console.log('[PDF] Puppeteer error:', puppeteerError.message);
-      
-      // Альтернативний спосіб з html-pdf-node
-      const options = {
-        format: 'A4',
-        margin: {
-          top: '20mm',
-          right: '20mm',
-          bottom: '20mm',
-          left: '20mm'
-        }
-      };
-      
-      const file = { content: htmlContent };
-      pdfBuffer = await htmlPdf.generatePdf(file, options);
-      
-      console.log(`[PDF] PDF generated with html-pdf-node, buffer size: ${pdfBuffer.length} bytes`);
-    }
-    
-    // Видаляємо тимчасовий HTML файл
-    fs.unlinkSync(tempHtmlPath);
-    
-    console.log('[PDF] PDF звіт успішно згенеровано');
-    console.log('[PDF] Returning PDF buffer, size:', pdfBuffer.length, 'bytes');
-    console.log('[PDF] ===== generateTaskReportPDF END =====');
-    
-    // Оновлюємо лог успішного завершення
-    const successLogEntry = {
-      timestamp: new Date().toISOString(),
-      function: 'generateTaskReportPDF',
-      taskId: task.requestNumber || task._id,
-      userId: user.login || user.name,
-      status: 'completed',
-      pdfSize: pdfBuffer.length,
-      message: 'PDF успішно згенеровано'
-    };
-    pdfLogs.push(successLogEntry);
-    
-    return pdfBuffer;
-    
-  } catch (error) {
-    console.error('[PDF] Помилка генерації PDF:', error);
-    console.error('[PDF] Error stack:', error.stack);
-    console.log('[PDF] ===== generateTaskReportPDF ERROR =====');
-    
-    // Додаємо лог помилки
-    const errorLogEntry = {
-      timestamp: new Date().toISOString(),
-      function: 'generateTaskReportPDF',
-      taskId: task.requestNumber || task._id,
-      userId: user.login || user.name,
-      status: 'error',
-      error: error.message,
-      stack: error.stack
-    };
-    pdfLogs.push(errorLogEntry);
-    
-    throw error;
-  }
-} 
 
 // API для налаштувань Telegram сповіщень
 app.get('/api/notification-settings', async (req, res) => {
@@ -2789,95 +2177,11 @@ app.post('/api/telegram/webhook', async (req, res) => {
   }
 });
 
-// Endpoint для перевірки логів PDF генерації
-app.get('/api/debug/pdf-logs', async (req, res) => {
-  try {
-    console.log('[DEBUG] GET /api/debug/pdf-logs - запит на перевірку логів PDF');
-    
-    // Отримуємо останні логи з консолі (це буде працювати тільки для поточного процесу)
-    const logs = [];
-    
-    // Додаємо інформацію про поточний стан
-    logs.push({
-      timestamp: new Date().toISOString(),
-      type: 'info',
-      message: 'Сервер працює, endpoint доступний'
-    });
-    
-    // Перевіряємо наявність Puppeteer
-    try {
-      const puppeteer = require('puppeteer');
-      logs.push({
-        timestamp: new Date().toISOString(),
-        type: 'info',
-        message: 'Puppeteer доступний'
-      });
-    } catch (error) {
-      logs.push({
-        timestamp: new Date().toISOString(),
-        type: 'error',
-        message: `Puppeteer не доступний: ${error.message}`
-      });
-    }
-    
-    // Перевіряємо наявність form-data
-    try {
-      const FormData = require('form-data');
-      logs.push({
-        timestamp: new Date().toISOString(),
-        type: 'info',
-        message: 'FormData доступний'
-      });
-    } catch (error) {
-      logs.push({
-        timestamp: new Date().toISOString(),
-        type: 'error',
-        message: `FormData не доступний: ${error.message}`
-      });
-    }
-    
-    // Перевіряємо змінні середовища
-    logs.push({
-      timestamp: new Date().toISOString(),
-      type: 'info',
-      message: `TELEGRAM_BOT_TOKEN: ${process.env.TELEGRAM_BOT_TOKEN ? 'Налаштований' : 'Не налаштований'}`
-    });
-    
-    logs.push({
-      timestamp: new Date().toISOString(),
-      type: 'info',
-      message: `TELEGRAM_ADMIN_CHAT_ID: ${process.env.TELEGRAM_ADMIN_CHAT_ID || 'Не налаштований'}`
-    });
-    
-    // Додаємо збережені логи PDF генерації
-    logs.push({
-      timestamp: new Date().toISOString(),
-      type: 'info',
-      message: `Збережено логів PDF: ${pdfLogs.length}`
-    });
-    
-    res.json({
-      success: true,
-      logs: logs,
-      pdfLogs: pdfLogs.slice(-10), // Останні 10 логів
-      totalPdfLogs: pdfLogs.length,
-      serverTime: new Date().toISOString(),
-      message: 'Логи PDF генерації доступні'
-    });
-  } catch (error) {
-    console.error('[ERROR] GET /api/debug/pdf-logs - помилка:', error);
-    res.status(500).json({ 
-      error: error.message,
-      serverTime: new Date().toISOString()
-    });
-  }
-});
+
 
 // Тестовий endpoint для перевірки Telegram бота
 app.get('/api/telegram/test-send', async (req, res) => {
   try {
-    console.log('[TELEGRAM TEST] Test endpoint called');
-    
     const testMessage = '🧪 Тестове повідомлення від системи\n\n✅ Бот працює коректно\n📅 Час: ' + new Date().toLocaleString('uk-UA');
     
     // Отримуємо Chat ID з глобальних налаштувань
@@ -2895,8 +2199,6 @@ app.get('/api/telegram/test-send', async (req, res) => {
       }
     }
     
-    console.log('[TELEGRAM TEST] Chat IDs found:', chatIds);
-    
     if (chatIds.length === 0) {
       return res.json({ 
         success: false, 
@@ -2908,10 +2210,8 @@ app.get('/api/telegram/test-send', async (req, res) => {
     
     const results = [];
     for (const chatId of chatIds) {
-      console.log(`[TELEGRAM TEST] Sending test message to ${chatId}`);
       const success = await telegramService.sendMessage(chatId, testMessage);
       results.push({ chatId, success });
-      console.log(`[TELEGRAM TEST] Result for ${chatId}: ${success}`);
     }
     
     res.json({ 
@@ -2923,7 +2223,6 @@ app.get('/api/telegram/test-send', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('[TELEGRAM TEST] Error:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Помилка при відправці тестового повідомлення',
