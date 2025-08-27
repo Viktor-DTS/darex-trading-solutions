@@ -280,12 +280,24 @@ const accessRulesSchema = new mongoose.Schema({
 const AccessRules = mongoose.model('AccessRules', accessRulesSchema);
 
 app.use(cors({
-  origin: [
-    'https://darex-trading-solutions-f.onrender.com', 
-    'https://darex-trading-solutions.onrender.com',
-    'http://localhost:3000',
-    'http://localhost:3001'
-  ],
+  origin: function (origin, callback) {
+    // Дозволяємо запити без origin (наприклад, з Postman або curl)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'https://darex-trading-solutions-f.onrender.com', 
+      'https://darex-trading-solutions.onrender.com',
+      'http://localhost:3000',
+      'http://localhost:3001'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log(`[CORS] Блоковано запит з origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
@@ -294,27 +306,19 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
-// Додаткові CORS заголовки для всіх запитів
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin);
-  res.header('Access-Control-Allow-Credentials', true);
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-  
-  if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
-  } else {
-    next();
-  }
-});
 
-// Додатковий middleware для OPTIONS запитів
-app.options('*', cors());
 
 // Логування CORS запитів
 app.use((req, res, next) => {
   console.log(`[CORS] ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
   console.log(`[CORS] Headers:`, req.headers);
+  
+  // Додаткове логування для діагностики
+  if (req.method === 'OPTIONS') {
+    console.log(`[CORS] OPTIONS запит для ${req.path}`);
+    console.log(`[CORS] Request Headers:`, req.headers);
+  }
+  
   next();
 });
 app.use(express.json());
@@ -336,8 +340,8 @@ app.use((err, req, res, next) => {
 
 // Middleware для перевірки стану MongoDB
 app.use(async (req, res, next) => {
-  if (req.path === '/api/ping') {
-    return next(); // Пропускаємо ping запити
+  if (req.path === '/api/ping' || req.path === '/api/regions') {
+    return next(); // Пропускаємо ping та regions запити
   }
   
   if (mongoose.connection.readyState !== 1) {
