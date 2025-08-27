@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const puppeteer = require('puppeteer');
+const htmlPdf = require('html-pdf-node');
 
 // Додаємо імпорт роуту файлів
 const filesRouter = require('./routes/files');
@@ -2337,56 +2338,81 @@ async function generateTaskReportPDF(task, user) {
     console.log('[PDF] Data URL created, length:', dataUrl.length);
 
     // Генеруємо PDF за допомогою Puppeteer
-    console.log('[PDF] Launching Puppeteer browser...');
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox', 
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-software-rasterizer',
-        '--disable-extensions',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding'
-      ]
-    });
+    console.log('[PDF] Trying Puppeteer first...');
+    let pdfBuffer;
     
-    console.log('[PDF] Creating new page...');
-    const page = await browser.newPage();
-    
-    // Встановлюємо таймаут
-    page.setDefaultTimeout(30000);
-    
-    console.log(`[PDF] Loading HTML file: file://${tempHtmlPath}`);
     try {
-      await page.goto(`file://${tempHtmlPath}`, { 
-        waitUntil: 'networkidle0',
-        timeout: 30000 
+      const browser = await puppeteer.launch({
+        headless: true,
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+        args: [
+          '--no-sandbox', 
+          '--disable-setuid-sandbox', 
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--disable-software-rasterizer',
+          '--disable-extensions',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding'
+        ]
       });
-    } catch (fileError) {
-      console.log('[PDF] File loading failed, trying data URL...');
-      await page.goto(dataUrl, { 
-        waitUntil: 'networkidle0',
-        timeout: 30000 
-      });
-    }
-    
-    console.log('[PDF] Generating PDF...');
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: {
-        top: '20mm',
-        right: '20mm',
-        bottom: '20mm',
-        left: '20mm'
+      
+      console.log('[PDF] Creating new page...');
+      const page = await browser.newPage();
+      
+      // Встановлюємо таймаут
+      page.setDefaultTimeout(30000);
+      
+      console.log(`[PDF] Loading HTML file: file://${tempHtmlPath}`);
+      try {
+        await page.goto(`file://${tempHtmlPath}`, { 
+          waitUntil: 'networkidle0',
+          timeout: 30000 
+        });
+      } catch (fileError) {
+        console.log('[PDF] File loading failed, trying data URL...');
+        await page.goto(dataUrl, { 
+          waitUntil: 'networkidle0',
+          timeout: 30000 
+        });
       }
-    });
+      
+      console.log('[PDF] Generating PDF with Puppeteer...');
+      pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '20mm',
+          right: '20mm',
+          bottom: '20mm',
+          left: '20mm'
+        }
+      });
 
-    console.log(`[PDF] PDF generated, buffer size: ${pdfBuffer.length} bytes`);
-    await browser.close();
+      console.log(`[PDF] PDF generated with Puppeteer, buffer size: ${pdfBuffer.length} bytes`);
+      await browser.close();
+      
+    } catch (puppeteerError) {
+      console.log('[PDF] Puppeteer failed, trying html-pdf-node...');
+      console.log('[PDF] Puppeteer error:', puppeteerError.message);
+      
+      // Альтернативний спосіб з html-pdf-node
+      const options = {
+        format: 'A4',
+        margin: {
+          top: '20mm',
+          right: '20mm',
+          bottom: '20mm',
+          left: '20mm'
+        }
+      };
+      
+      const file = { content: htmlContent };
+      pdfBuffer = await htmlPdf.generatePdf(file, options);
+      
+      console.log(`[PDF] PDF generated with html-pdf-node, buffer size: ${pdfBuffer.length} bytes`);
+    }
     
     // Видаляємо тимчасовий HTML файл
     fs.unlinkSync(tempHtmlPath);
