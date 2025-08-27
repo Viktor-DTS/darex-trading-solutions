@@ -2872,3 +2872,62 @@ app.get('/api/debug/pdf-logs', async (req, res) => {
     });
   }
 });
+
+// Тестовий endpoint для перевірки Telegram бота
+app.get('/api/telegram/test-send', async (req, res) => {
+  try {
+    console.log('[TELEGRAM TEST] Test endpoint called');
+    
+    const testMessage = '🧪 Тестове повідомлення від системи\n\n✅ Бот працює коректно\n📅 Час: ' + new Date().toLocaleString('uk-UA');
+    
+    // Отримуємо Chat ID з глобальних налаштувань
+    const globalSettings = await GlobalNotificationSettings.findOne();
+    let chatIds = [];
+    
+    if (globalSettings?.settings?.task_completed) {
+      const userIds = globalSettings.settings.task_completed;
+      if (userIds && userIds.length > 0) {
+        const users = await User.find({ login: { $in: userIds } });
+        const userChatIds = users
+          .filter(user => user.telegramChatId && user.telegramChatId.trim())
+          .map(user => user.telegramChatId);
+        chatIds.push(...userChatIds);
+      }
+    }
+    
+    console.log('[TELEGRAM TEST] Chat IDs found:', chatIds);
+    
+    if (chatIds.length === 0) {
+      return res.json({ 
+        success: false, 
+        message: 'Не знайдено Chat ID для відправки',
+        chatIds: [],
+        globalSettings: globalSettings?.settings || {}
+      });
+    }
+    
+    const results = [];
+    for (const chatId of chatIds) {
+      console.log(`[TELEGRAM TEST] Sending test message to ${chatId}`);
+      const success = await telegramService.sendMessage(chatId, testMessage);
+      results.push({ chatId, success });
+      console.log(`[TELEGRAM TEST] Result for ${chatId}: ${success}`);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Тестове повідомлення відправлено',
+      results,
+      chatIds,
+      globalSettings: globalSettings?.settings || {}
+    });
+    
+  } catch (error) {
+    console.error('[TELEGRAM TEST] Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка при відправці тестового повідомлення',
+      error: error.message 
+    });
+  }
+});
