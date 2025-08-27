@@ -1727,6 +1727,11 @@ class TelegramNotificationService {
   }
 
   async sendDocument(chatId, documentBuffer, filename, caption = '') {
+    console.log(`[TELEGRAM] sendDocument called with chatId: ${chatId}, filename: ${filename}`);
+    console.log(`[TELEGRAM] Document buffer type: ${typeof documentBuffer}`);
+    console.log(`[TELEGRAM] Document buffer is Buffer: ${documentBuffer instanceof Buffer}`);
+    console.log(`[TELEGRAM] Document buffer size: ${documentBuffer ? documentBuffer.length : 'null'} bytes`);
+    
     if (!this.botToken) {
       console.log('[TELEGRAM] Bot token not configured, skipping document');
       return false;
@@ -1734,6 +1739,11 @@ class TelegramNotificationService {
     
     if (!this.baseUrl) {
       console.log('[TELEGRAM] Base URL not configured, skipping document');
+      return false;
+    }
+
+    if (!documentBuffer) {
+      console.log('[TELEGRAM] Document buffer is null or undefined, skipping document');
       return false;
     }
 
@@ -1798,12 +1808,25 @@ class TelegramNotificationService {
     let pdfBuffer = null;
     if (type === 'task_completed') {
       console.log('[TELEGRAM] Type is task_completed, generating PDF...');
+      console.log('[TELEGRAM] About to call generateTaskReportPDF...');
       try {
         console.log('[TELEGRAM] Генерація PDF звіту для виконаної заявки');
+        console.log('[TELEGRAM] Task object for PDF generation:', JSON.stringify(task, null, 2));
+        console.log('[TELEGRAM] User object for PDF generation:', JSON.stringify(user, null, 2));
+        
         pdfBuffer = await generateTaskReportPDF(task, user);
-        console.log(`[TELEGRAM] PDF buffer generated: ${pdfBuffer ? 'success' : 'failed'}, size: ${pdfBuffer ? pdfBuffer.length : 0} bytes`);
+        
+        console.log(`[TELEGRAM] PDF buffer generated: ${pdfBuffer ? 'success' : 'failed'}`);
+        console.log(`[TELEGRAM] PDF buffer size: ${pdfBuffer ? pdfBuffer.length : 0} bytes`);
+        console.log(`[TELEGRAM] PDF buffer type: ${typeof pdfBuffer}`);
+        console.log(`[TELEGRAM] PDF buffer is Buffer: ${pdfBuffer instanceof Buffer}`);
+        
+        if (pdfBuffer) {
+          console.log('[TELEGRAM] PDF buffer first 100 bytes:', pdfBuffer.slice(0, 100));
+        }
       } catch (error) {
         console.error('[TELEGRAM] Помилка генерації PDF:', error);
+        console.error('[TELEGRAM] Error stack:', error.stack);
       }
     } else {
       console.log(`[TELEGRAM] Type is not task_completed (${type}), skipping PDF generation`);
@@ -1818,17 +1841,24 @@ class TelegramNotificationService {
       // Якщо є PDF і це виконана заявка, відправляємо його
       if (pdfBuffer && type === 'task_completed') {
         console.log(`[TELEGRAM] Attempting to send PDF document to ${chatId}`);
+        console.log(`[TELEGRAM] pdfBuffer exists: ${!!pdfBuffer}`);
+        console.log(`[TELEGRAM] pdfBuffer size: ${pdfBuffer ? pdfBuffer.length : 0} bytes`);
+        console.log(`[TELEGRAM] type is task_completed: ${type === 'task_completed'}`);
+        
         const filename = `Звіт_${task.client || 'замовника'}_${task.requestNumber || 'заявки'}_${new Date().toISOString().split('T')[0]}.pdf`;
         const caption = `📋 <b>Звіт по виконаній заявці</b>\n\n📄 <b>Файл:</b> ${filename}\n💼 <b>Замовник:</b> ${task.client || 'Н/Д'}\n💰 <b>Загальна сума:</b> ${task.workPrice || 0} грн\n\n📝 <b>Прошу виставити рахунок по даній заявці.</b>`;
         
         console.log(`[TELEGRAM] Filename: ${filename}`);
         console.log(`[TELEGRAM] Caption: ${caption}`);
+        console.log(`[TELEGRAM] About to call sendDocument...`);
         
         const pdfSuccess = await this.sendDocument(chatId, pdfBuffer, filename, caption);
         console.log(`[TELEGRAM] PDF send result: ${pdfSuccess}`);
         success = success && pdfSuccess;
       } else {
         console.log(`[TELEGRAM] Skipping PDF send - pdfBuffer: ${!!pdfBuffer}, type: ${type}`);
+        console.log(`[TELEGRAM] pdfBuffer type: ${typeof pdfBuffer}`);
+        console.log(`[TELEGRAM] pdfBuffer is Buffer: ${pdfBuffer instanceof Buffer}`);
       }
       
       // Логуємо сповіщення
@@ -1962,6 +1992,10 @@ const telegramService = new TelegramNotificationService();
 
 // Функція для генерації PDF звіту
 async function generateTaskReportPDF(task, user) {
+  console.log('[PDF] ===== generateTaskReportPDF START =====');
+  console.log('[PDF] Function called with task:', task.requestNumber || task._id);
+  console.log('[PDF] Function called with user:', user.login || user.name);
+  
   try {
     console.log('[PDF] Генерація PDF звіту для заявки:', task.requestNumber);
     console.log('[PDF] Task object:', JSON.stringify(task, null, 2));
@@ -2346,11 +2380,14 @@ async function generateTaskReportPDF(task, user) {
     fs.unlinkSync(tempHtmlPath);
     
     console.log('[PDF] PDF звіт успішно згенеровано');
+    console.log('[PDF] Returning PDF buffer, size:', pdfBuffer.length, 'bytes');
+    console.log('[PDF] ===== generateTaskReportPDF END =====');
     return pdfBuffer;
     
   } catch (error) {
     console.error('[PDF] Помилка генерації PDF:', error);
     console.error('[PDF] Error stack:', error.stack);
+    console.log('[PDF] ===== generateTaskReportPDF ERROR =====');
     throw error;
   }
 } 
