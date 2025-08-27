@@ -16,6 +16,9 @@ const PORT = process.env.PORT || 3001;
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
+// Глобальна змінна для зберігання логів PDF генерації
+const pdfLogs = [];
+
 // Модель для збережених звітів
 const savedReportSchema = new mongoose.Schema({
   userId: { type: String, required: true }, // login користувача
@@ -1992,6 +1995,15 @@ const telegramService = new TelegramNotificationService();
 
 // Функція для генерації PDF звіту
 async function generateTaskReportPDF(task, user) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    function: 'generateTaskReportPDF',
+    taskId: task.requestNumber || task._id,
+    userId: user.login || user.name,
+    status: 'started'
+  };
+  
+  pdfLogs.push(logEntry);
   console.log('[PDF] ===== generateTaskReportPDF START =====');
   console.log('[PDF] Function called with task:', task.requestNumber || task._id);
   console.log('[PDF] Function called with user:', user.login || user.name);
@@ -2382,12 +2394,38 @@ async function generateTaskReportPDF(task, user) {
     console.log('[PDF] PDF звіт успішно згенеровано');
     console.log('[PDF] Returning PDF buffer, size:', pdfBuffer.length, 'bytes');
     console.log('[PDF] ===== generateTaskReportPDF END =====');
+    
+    // Оновлюємо лог успішного завершення
+    const successLogEntry = {
+      timestamp: new Date().toISOString(),
+      function: 'generateTaskReportPDF',
+      taskId: task.requestNumber || task._id,
+      userId: user.login || user.name,
+      status: 'completed',
+      pdfSize: pdfBuffer.length,
+      message: 'PDF успішно згенеровано'
+    };
+    pdfLogs.push(successLogEntry);
+    
     return pdfBuffer;
     
   } catch (error) {
     console.error('[PDF] Помилка генерації PDF:', error);
     console.error('[PDF] Error stack:', error.stack);
     console.log('[PDF] ===== generateTaskReportPDF ERROR =====');
+    
+    // Додаємо лог помилки
+    const errorLogEntry = {
+      timestamp: new Date().toISOString(),
+      function: 'generateTaskReportPDF',
+      taskId: task.requestNumber || task._id,
+      userId: user.login || user.name,
+      status: 'error',
+      error: error.message,
+      stack: error.stack
+    };
+    pdfLogs.push(errorLogEntry);
+    
     throw error;
   }
 } 
@@ -2722,5 +2760,89 @@ app.post('/api/telegram/webhook', async (req, res) => {
   } catch (error) {
     console.error('[ERROR] POST /api/telegram/webhook - помилка:', error);
     res.json({ ok: true }); // Завжди повертаємо ok для Telegram
+  }
+});
+
+// Endpoint для перевірки логів PDF генерації
+app.get('/api/debug/pdf-logs', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/debug/pdf-logs - запит на перевірку логів PDF');
+    
+    // Отримуємо останні логи з консолі (це буде працювати тільки для поточного процесу)
+    const logs = [];
+    
+    // Додаємо інформацію про поточний стан
+    logs.push({
+      timestamp: new Date().toISOString(),
+      type: 'info',
+      message: 'Сервер працює, endpoint доступний'
+    });
+    
+    // Перевіряємо наявність Puppeteer
+    try {
+      const puppeteer = require('puppeteer');
+      logs.push({
+        timestamp: new Date().toISOString(),
+        type: 'info',
+        message: 'Puppeteer доступний'
+      });
+    } catch (error) {
+      logs.push({
+        timestamp: new Date().toISOString(),
+        type: 'error',
+        message: `Puppeteer не доступний: ${error.message}`
+      });
+    }
+    
+    // Перевіряємо наявність form-data
+    try {
+      const FormData = require('form-data');
+      logs.push({
+        timestamp: new Date().toISOString(),
+        type: 'info',
+        message: 'FormData доступний'
+      });
+    } catch (error) {
+      logs.push({
+        timestamp: new Date().toISOString(),
+        type: 'error',
+        message: `FormData не доступний: ${error.message}`
+      });
+    }
+    
+    // Перевіряємо змінні середовища
+    logs.push({
+      timestamp: new Date().toISOString(),
+      type: 'info',
+      message: `TELEGRAM_BOT_TOKEN: ${process.env.TELEGRAM_BOT_TOKEN ? 'Налаштований' : 'Не налаштований'}`
+    });
+    
+    logs.push({
+      timestamp: new Date().toISOString(),
+      type: 'info',
+      message: `TELEGRAM_ADMIN_CHAT_ID: ${process.env.TELEGRAM_ADMIN_CHAT_ID || 'Не налаштований'}`
+    });
+    
+    // Додаємо збережені логи PDF генерації
+    logs.push({
+      timestamp: new Date().toISOString(),
+      type: 'info',
+      message: `Збережено логів PDF: ${pdfLogs.length}`
+    });
+    
+    res.json({
+      success: true,
+      logs: logs,
+      pdfLogs: pdfLogs.slice(-10), // Останні 10 логів
+      totalPdfLogs: pdfLogs.length,
+      serverTime: new Date().toISOString(),
+      message: 'Логи PDF генерації доступні'
+    });
+  } catch (error) {
+    console.error('[ERROR] GET /api/debug/pdf-logs - помилка:', error);
+    res.status(500).json({ 
+      error: error.message,
+      serverTime: new Date().toISOString()
+    });
   }
 });
