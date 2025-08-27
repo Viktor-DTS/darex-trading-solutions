@@ -627,8 +627,16 @@ app.put('/api/tasks/:id', async (req, res) => {
       console.log('[DEBUG] PUT /api/tasks/:id - updatedTask.status:', updatedTask.status);
       console.log('[DEBUG] PUT /api/tasks/:id - user:', user);
       
-      if (updateData.status === 'Виконано' || updatedTask.status === 'Виконано') {
+      // Перевіряємо різні варіанти статусу "Виконано" через проблеми з кодуванням
+      const isCompleted = updateData.status === 'Виконано' || 
+                         updatedTask.status === 'Виконано' ||
+                         updateData.status === '????????' ||
+                         updatedTask.status === '????????';
+      
+      if (isCompleted) {
         console.log('[DEBUG] PUT /api/tasks/:id - відправляємо task_completed сповіщення');
+        console.log('[DEBUG] PUT /api/tasks/:id - updateData.status:', updateData.status);
+        console.log('[DEBUG] PUT /api/tasks/:id - updatedTask.status:', updatedTask.status);
         await telegramService.sendTaskNotification('task_completed', updatedTask, user);
       } else if (updateData.approvedByWarehouse === 'Підтверджено' || 
                  updateData.approvedByAccountant === 'Підтверджено' || 
