@@ -2285,18 +2285,47 @@ async function generateTaskReportPDF(task, user) {
     const tempHtmlPath = path.join(__dirname, 'temp_report.html');
     fs.writeFileSync(tempHtmlPath, htmlContent, 'utf8');
     console.log('[PDF] HTML file written to:', tempHtmlPath);
+    
+    // Альтернативний спосіб - використовуємо data URL
+    const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`;
+    console.log('[PDF] Data URL created, length:', dataUrl.length);
 
     // Генеруємо PDF за допомогою Puppeteer
     console.log('[PDF] Launching Puppeteer browser...');
     const browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox', 
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--disable-extensions',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding'
+      ]
     });
     
     console.log('[PDF] Creating new page...');
     const page = await browser.newPage();
+    
+    // Встановлюємо таймаут
+    page.setDefaultTimeout(30000);
+    
     console.log(`[PDF] Loading HTML file: file://${tempHtmlPath}`);
-    await page.goto(`file://${tempHtmlPath}`, { waitUntil: 'networkidle0' });
+    try {
+      await page.goto(`file://${tempHtmlPath}`, { 
+        waitUntil: 'networkidle0',
+        timeout: 30000 
+      });
+    } catch (fileError) {
+      console.log('[PDF] File loading failed, trying data URL...');
+      await page.goto(dataUrl, { 
+        waitUntil: 'networkidle0',
+        timeout: 30000 
+      });
+    }
     
     console.log('[PDF] Generating PDF...');
     const pdfBuffer = await page.pdf({
