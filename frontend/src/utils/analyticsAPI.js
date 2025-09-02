@@ -51,6 +51,29 @@ export const analyticsAPI = {
     }
   },
 
+  // Отримати запланований дохід
+  async getPlannedRevenue(filters = {}) {
+    try {
+      const params = new URLSearchParams();
+      Object.keys(filters).forEach(key => {
+        if (filters[key] !== undefined && filters[key] !== '') {
+          params.append(key, filters[key]);
+        }
+      });
+
+      const response = await fetch(`${API_BASE_URL}/analytics/planned-revenue?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Помилка отримання запланованого доходу:', error);
+      throw error;
+    }
+  },
+
   // Зберегти аналітику
   async saveAnalytics(analyticsData) {
     try {

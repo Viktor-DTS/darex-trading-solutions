@@ -89,6 +89,9 @@ export default function AnalyticsArea({ user }) {
     const totals = {
       workRevenue: 0,
       materialsRevenue: 0,
+      plannedWorkRevenue: 0,
+      plannedMaterialsRevenue: 0,
+      plannedRevenue: 0,
       revenue: 0,
       expenses: 0,
       profit: 0,
@@ -99,6 +102,9 @@ export default function AnalyticsArea({ user }) {
     analytics.forEach(item => {
       totals.workRevenue += item.workRevenue || 0;
       totals.materialsRevenue += item.materialsRevenue || 0;
+      totals.plannedWorkRevenue += item.plannedWorkRevenue || 0;
+      totals.plannedMaterialsRevenue += item.plannedMaterialsRevenue || 0;
+      totals.plannedRevenue += item.plannedRevenue || 0;
       totals.revenue += item.revenue || 0;
       totals.expenses += item.totalExpenses || 0;
       totals.profit += item.profit || 0;
@@ -956,6 +962,22 @@ export default function AnalyticsArea({ user }) {
                 </div>
                 
                 <div style={{
+                  background: '#17a2b8',
+                  padding: '20px',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  textAlign: 'center'
+                }}>
+                  <h3 style={{margin: '0 0 8px 0', fontSize: '16px'}}>Запланований дохід</h3>
+                  <div style={{fontSize: '24px', fontWeight: 'bold'}}>
+                    {formatCurrency(totals.plannedRevenue)}
+                  </div>
+                  <div style={{fontSize: '12px', marginTop: '4px'}}>
+                    Роботи: {formatCurrency(totals.plannedWorkRevenue)} | Матеріали: {formatCurrency(totals.plannedMaterialsRevenue)}
+                  </div>
+                </div>
+                
+                <div style={{
                   background: '#dc3545',
                   padding: '20px',
                   borderRadius: '8px',
@@ -1062,6 +1084,9 @@ export default function AnalyticsArea({ user }) {
                           Загальний дохід
                         </th>
                         <th style={{padding: '12px', textAlign: 'right', background: '#22334a', borderBottom: '1px solid #29506a'}}>
+                          Запланований дохід
+                        </th>
+                        <th style={{padding: '12px', textAlign: 'right', background: '#22334a', borderBottom: '1px solid #29506a'}}>
                           Витрати
                         </th>
                         <th style={{padding: '12px', textAlign: 'right', background: '#22334a', borderBottom: '1px solid #29506a'}}>
@@ -1095,6 +1120,12 @@ export default function AnalyticsArea({ user }) {
                           </td>
                           <td style={{padding: '12px', textAlign: 'right', color: '#28a745', fontWeight: 'bold'}}>
                             {formatCurrency(item.revenue)}
+                          </td>
+                          <td style={{padding: '12px', textAlign: 'right', color: '#17a2b8'}}>
+                            {formatCurrency(item.plannedRevenue || 0)}
+                            <div style={{fontSize: '11px', color: '#ccc'}}>
+                              Роботи: {formatCurrency(item.plannedWorkRevenue || 0)} | Матеріали: {formatCurrency(item.plannedMaterialsRevenue || 0)}
+                            </div>
                           </td>
                           <td style={{padding: '12px', textAlign: 'right', color: '#dc3545'}}>
                             {formatCurrency(item.totalExpenses)}

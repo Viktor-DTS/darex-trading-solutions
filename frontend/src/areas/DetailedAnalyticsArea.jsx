@@ -78,6 +78,9 @@ export default function DetailedAnalyticsArea({ user }) {
           year: item.year,
           workRevenue: 0,
           materialsRevenue: 0,
+          plannedWorkRevenue: 0,
+          plannedMaterialsRevenue: 0,
+          plannedRevenue: 0,
           totalRevenue: 0,
           expenses: 0,
           profit: 0,
@@ -89,6 +92,9 @@ export default function DetailedAnalyticsArea({ user }) {
       // Сумуємо доходи
       monthlyData[monthKey].workRevenue += item.workRevenue || 0;
       monthlyData[monthKey].materialsRevenue += item.materialsRevenue || 0;
+      monthlyData[monthKey].plannedWorkRevenue += item.plannedWorkRevenue || 0;
+      monthlyData[monthKey].plannedMaterialsRevenue += item.plannedMaterialsRevenue || 0;
+      monthlyData[monthKey].plannedRevenue += item.plannedRevenue || 0;
       monthlyData[monthKey].totalRevenue += item.revenue || 0;
       monthlyData[monthKey].expenses += item.totalExpenses || 0;
       monthlyData[monthKey].profit += item.profit || 0;
@@ -125,7 +131,7 @@ export default function DetailedAnalyticsArea({ user }) {
 
   // Компонент для графіка доходів
   const RevenueChart = () => {
-    const maxRevenue = Math.max(...monthlyData.map(d => d.totalRevenue));
+    const maxRevenue = Math.max(...monthlyData.map(d => d.totalRevenue + d.plannedRevenue));
     const chartHeight = 300;
     
     return (
@@ -138,15 +144,16 @@ export default function DetailedAnalyticsArea({ user }) {
         <h3 style={{color: '#fff', marginBottom: '16px'}}>Динаміка доходів по місяцях</h3>
         <div style={{height: chartHeight, position: 'relative', display: 'flex', alignItems: 'end', gap: '8px'}}>
           {monthlyData.map((data, index) => {
-            const height = maxRevenue > 0 ? (data.totalRevenue / maxRevenue) * chartHeight : 0;
+            const totalHeight = maxRevenue > 0 ? ((data.totalRevenue + data.plannedRevenue) / maxRevenue) * chartHeight : 0;
             const workHeight = maxRevenue > 0 ? (data.workRevenue / maxRevenue) * chartHeight : 0;
             const materialsHeight = maxRevenue > 0 ? (data.materialsRevenue / maxRevenue) * chartHeight : 0;
+            const plannedHeight = maxRevenue > 0 ? (data.plannedRevenue / maxRevenue) * chartHeight : 0;
             
             return (
               <div key={index} style={{flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
                 <div style={{
                   width: '100%',
-                  height: height,
+                  height: totalHeight,
                   background: 'linear-gradient(to top, #28a745, #20c997)',
                   borderRadius: '4px 4px 0 0',
                   position: 'relative',
@@ -171,6 +178,16 @@ export default function DetailedAnalyticsArea({ user }) {
                     background: '#20c997',
                     borderRadius: '4px 4px 0 0'
                   }} />
+                  {/* Запланований дохід поверх підтверджених */}
+                  <div style={{
+                    position: 'absolute',
+                    bottom: workHeight + materialsHeight,
+                    left: 0,
+                    right: 0,
+                    height: plannedHeight,
+                    background: '#17a2b8',
+                    borderRadius: '4px 4px 0 0'
+                  }} />
                 </div>
                 <div style={{
                   color: '#fff',
@@ -190,6 +207,16 @@ export default function DetailedAnalyticsArea({ user }) {
                 }}>
                   {formatCurrency(data.totalRevenue)}
                 </div>
+                {data.plannedRevenue > 0 && (
+                  <div style={{
+                    color: '#17a2b8',
+                    fontSize: '9px',
+                    marginTop: '2px',
+                    textAlign: 'center'
+                  }}>
+                    +{formatCurrency(data.plannedRevenue)}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -202,6 +229,10 @@ export default function DetailedAnalyticsArea({ user }) {
           <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
             <div style={{width: '16px', height: '16px', background: '#20c997', borderRadius: '2px'}} />
             <span style={{color: '#fff', fontSize: '12px'}}>Матеріали</span>
+          </div>
+          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+            <div style={{width: '16px', height: '16px', background: '#17a2b8', borderRadius: '2px'}} />
+            <span style={{color: '#fff', fontSize: '12px'}}>Запланований дохід</span>
           </div>
         </div>
       </div>

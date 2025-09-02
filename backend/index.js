@@ -1264,13 +1264,32 @@ app.get('/api/analytics/full', async (req, res) => {
     const regionsByMonth = {};
     const companiesByMonth = {};
     
+    // Розраховуємо запланований дохід по місяцях
+    const plannedRevenueByMonth = {};
+    const plannedMaterialsRevenueByMonth = {};
+    
     tasks.forEach(task => {
       // Перевіряємо чи заявка підтверджена всіма
       const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
       const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
       const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
       
+      // Розраховуємо дохід по роботах та матеріалам
+      const workPrice = parseFloat(task.workPrice) || 0;
+      const oilTotal = parseFloat(task.oilTotal) || 0;
+      const filterSum = parseFloat(task.filterSum) || 0;
+      const fuelFilterSum = parseFloat(task.fuelFilterSum) || 0;
+      const airFilterSum = parseFloat(task.airFilterSum) || 0;
+      const antifreezeSum = parseFloat(task.antifreezeSum) || 0;
+      const otherSum = parseFloat(task.otherSum) || 0;
+      const totalMaterials = oilTotal + filterSum + fuelFilterSum + airFilterSum + antifreezeSum + otherSum;
+      
+      // Розраховуємо премію та дохід по матеріалам
+      const bonusAmount = (workPrice / 4) * 3;
+      const materialsRevenue = totalMaterials / 4;
+      
       if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
+        // Підтверджена заявка - додаємо до підтверджених доходів
         let approvalYear, approvalMonth;
         
         // Парсимо bonusApprovalDate з двох можливих форматів
@@ -1297,21 +1316,10 @@ app.get('/api/analytics/full', async (req, res) => {
             companiesByMonth[key] = new Set();
           }
           
-          // Додаємо премію за виконання сервісних робіт: (workPrice / 4) * 3
-          const workPrice = parseFloat(task.workPrice) || 0;
-          const bonusAmount = (workPrice / 4) * 3; // workPrice поділено на 4 та помножено на 3
+          // Додаємо премію за виконання сервісних робіт
           revenueByMonth[key] += bonusAmount;
           
-          // Додаємо дохід по матеріалам: сума всіх матеріальних витрат / 4
-          const oilTotal = parseFloat(task.oilTotal) || 0;
-          const filterSum = parseFloat(task.filterSum) || 0;
-          const fuelFilterSum = parseFloat(task.fuelFilterSum) || 0;
-          const airFilterSum = parseFloat(task.airFilterSum) || 0;
-          const antifreezeSum = parseFloat(task.antifreezeSum) || 0;
-          const otherSum = parseFloat(task.otherSum) || 0;
-          
-          const totalMaterials = oilTotal + filterSum + fuelFilterSum + airFilterSum + antifreezeSum + otherSum;
-          const materialsRevenue = totalMaterials / 4; // сума матеріалів поділена на 4
+          // Додаємо дохід по матеріалам
           materialsRevenueByMonth[key] += materialsRevenue;
           
           // Збираємо регіони та компанії для цього місяця
@@ -1321,6 +1329,34 @@ app.get('/api/analytics/full', async (req, res) => {
           if (task.company) {
             companiesByMonth[key].add(task.company);
           }
+        }
+      } else if (task.workPrice) {
+        // Непідтверджена заявка - додаємо до запланованих доходів
+        let taskYear, taskMonth;
+        
+        // Парсимо дату заявки
+        if (task.date && task.date.includes('-')) {
+          const parts = task.date.split('-');
+          if (parts.length === 3) {
+            // Формат "2025-07-04"
+            taskYear = parseInt(parts[0]);
+            taskMonth = parseInt(parts[1]);
+          }
+        }
+        
+        if (taskYear && taskMonth) {
+          const key = `${taskYear}-${taskMonth}`;
+          
+          if (!plannedRevenueByMonth[key]) {
+            plannedRevenueByMonth[key] = 0;
+            plannedMaterialsRevenueByMonth[key] = 0;
+          }
+          
+          // Додаємо заплановану премію за виконання сервісних робіт
+          plannedRevenueByMonth[key] += bonusAmount;
+          
+          // Додаємо запланований дохід по матеріалам
+          plannedMaterialsRevenueByMonth[key] += materialsRevenue;
         }
       }
     });
@@ -1333,7 +1369,10 @@ app.get('/api/analytics/full', async (req, res) => {
       const revenueKey = `${item.year}-${item.month}`;
       const workRevenue = revenueByMonth[revenueKey] || 0;
       const materialsRevenue = materialsRevenueByMonth[revenueKey] || 0;
+      const plannedWorkRevenue = plannedRevenueByMonth[revenueKey] || 0;
+      const plannedMaterialsRevenue = plannedMaterialsRevenueByMonth[revenueKey] || 0;
       const totalRevenue = workRevenue + materialsRevenue;
+      const totalPlannedRevenue = plannedWorkRevenue + plannedMaterialsRevenue;
       const profit = totalRevenue - item.totalExpenses;
       const profitability = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
       
@@ -1341,6 +1380,9 @@ app.get('/api/analytics/full', async (req, res) => {
         ...item.toObject(),
         workRevenue: Number(workRevenue.toFixed(2)),
         materialsRevenue: Number(materialsRevenue.toFixed(2)),
+        plannedWorkRevenue: Number(plannedWorkRevenue.toFixed(2)),
+        plannedMaterialsRevenue: Number(plannedMaterialsRevenue.toFixed(2)),
+        plannedRevenue: Number(totalPlannedRevenue.toFixed(2)),
         revenue: Number(totalRevenue.toFixed(2)),
         profit: Number(profit.toFixed(2)),
         profitability: Number(profitability.toFixed(2))
@@ -1366,7 +1408,10 @@ app.get('/api/analytics/full', async (req, res) => {
             companies.forEach(company => {
               const workRevenue = revenueByMonth[key] || 0;
               const materialsRevenue = materialsRevenueByMonth[key] || 0;
+              const plannedWorkRevenue = plannedRevenueByMonth[key] || 0;
+              const plannedMaterialsRevenue = plannedMaterialsRevenueByMonth[key] || 0;
               const totalRevenue = workRevenue + materialsRevenue;
+              const totalPlannedRevenue = plannedWorkRevenue + plannedMaterialsRevenue;
               
               fullAnalytics.push({
                 _id: `auto-${key}-${region}-${company}`,
@@ -1387,6 +1432,9 @@ app.get('/api/analytics/full', async (req, res) => {
                 totalExpenses: 0,
                 workRevenue: Number(workRevenue.toFixed(2)),
                 materialsRevenue: Number(materialsRevenue.toFixed(2)),
+                plannedWorkRevenue: Number(plannedWorkRevenue.toFixed(2)),
+                plannedMaterialsRevenue: Number(plannedMaterialsRevenue.toFixed(2)),
+                plannedRevenue: Number(totalPlannedRevenue.toFixed(2)),
                 revenue: Number(totalRevenue.toFixed(2)),
                 profit: Number(totalRevenue.toFixed(2)), // profit = revenue - 0
                 profitability: 100, // 100% рентабельність коли немає витрат
@@ -1490,6 +1538,102 @@ app.get('/api/unique-companies', async (req, res) => {
     res.json(filteredCompanies);
   } catch (error) {
     console.error('[ERROR] GET /api/unique-companies - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для отримання запланованого доходу (заявки зі статусом "виконанні" але не підтверджені)
+app.get('/api/analytics/planned-revenue', async (req, res) => {
+  try {
+    const { region, company, startYear, endYear, startMonth, endMonth } = req.query;
+    
+    // Створюємо фільтр для заявок
+    const taskFilter = {};
+    
+    if (region) taskFilter.serviceRegion = region;
+    if (company) taskFilter.company = company;
+    
+    // Фільтр по даті виконання робіт
+    if (startYear || endYear || startMonth || endMonth) {
+      taskFilter.date = {};
+      
+      if (startYear && startMonth) {
+        const startDate = new Date(parseInt(startYear), parseInt(startMonth) - 1, 1);
+        taskFilter.date.$gte = startDate.toISOString().split('T')[0];
+      }
+      
+      if (endYear && endMonth) {
+        const endDate = new Date(parseInt(endYear), parseInt(endMonth), 0);
+        taskFilter.date.$lte = endDate.toISOString().split('T')[0];
+      }
+    }
+    
+    // Отримуємо заявки зі статусом "Виконано" але не підтверджені усіма учасниками
+    taskFilter.status = 'Виконано';
+    const tasks = await Task.find(taskFilter);
+    
+    console.log(`[DEBUG] Знайдено ${tasks.length} заявок для запланованого доходу`);
+    
+    // Розраховуємо запланований дохід по місяцях
+    const plannedRevenueByMonth = {};
+    const plannedMaterialsRevenueByMonth = {};
+    
+    tasks.forEach(task => {
+      // Перевіряємо чи заявка НЕ підтверджена всіма (це запланований дохід)
+      const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
+      const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
+      const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
+      
+      // Якщо хоча б один не підтвердив - це запланований дохід
+      if (task.workPrice && (!isWarehouseApproved || !isAccountantApproved || !isRegionalManagerApproved)) {
+        let taskYear, taskMonth;
+        
+        // Парсимо дату заявки
+        if (task.date && task.date.includes('-')) {
+          const parts = task.date.split('-');
+          if (parts.length === 3) {
+            // Формат "2025-07-04"
+            taskYear = parseInt(parts[0]);
+            taskMonth = parseInt(parts[1]);
+          }
+        }
+        
+        if (taskYear && taskMonth) {
+          const key = `${taskYear}-${taskMonth}`;
+          
+          if (!plannedRevenueByMonth[key]) {
+            plannedRevenueByMonth[key] = 0;
+            plannedMaterialsRevenueByMonth[key] = 0;
+          }
+          
+          // Додаємо заплановану премію за виконання сервісних робіт: (workPrice / 4) * 3
+          const workPrice = parseFloat(task.workPrice) || 0;
+          const plannedBonusAmount = (workPrice / 4) * 3;
+          plannedRevenueByMonth[key] += plannedBonusAmount;
+          
+          // Додаємо запланований дохід по матеріалам: сума всіх матеріальних витрат / 4
+          const oilTotal = parseFloat(task.oilTotal) || 0;
+          const filterSum = parseFloat(task.filterSum) || 0;
+          const fuelFilterSum = parseFloat(task.fuelFilterSum) || 0;
+          const airFilterSum = parseFloat(task.airFilterSum) || 0;
+          const antifreezeSum = parseFloat(task.antifreezeSum) || 0;
+          const otherSum = parseFloat(task.otherSum) || 0;
+          
+          const totalMaterials = oilTotal + filterSum + fuelFilterSum + airFilterSum + antifreezeSum + otherSum;
+          const plannedMaterialsRevenue = totalMaterials / 4;
+          plannedMaterialsRevenueByMonth[key] += plannedMaterialsRevenue;
+          
+          console.log(`[DEBUG] Додано запланований дохід для ${key}: workPrice=${workPrice}, plannedBonusAmount=${plannedBonusAmount} грн, plannedMaterialsRevenue=${plannedMaterialsRevenue} грн`);
+        }
+      }
+    });
+    
+    console.log(`[DEBUG] Підсумковий запланований дохід по роботах:`, plannedRevenueByMonth);
+    console.log(`[DEBUG] Підсумковий запланований дохід по матеріалам:`, plannedMaterialsRevenueByMonth);
+    
+    res.json({ plannedRevenueByMonth, plannedMaterialsRevenueByMonth });
+  } catch (error) {
+    console.error('Помилка розрахунку запланованого доходу:', error);
     res.status(500).json({ error: error.message });
   }
 });
