@@ -879,6 +879,7 @@ function ServiceArea({ user }) {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
+  const [tableKey, setTableKey] = useState(0);
   const allFilterKeys = allTaskFields
     .map(f => f.name)
     .reduce((acc, key) => {
@@ -930,7 +931,10 @@ function ServiceArea({ user }) {
 
   useEffect(() => {
     setLoading(true);
-    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
+    tasksAPI.getAll().then(tasks => {
+      setTasks(tasks);
+      setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
+    }).finally(() => setLoading(false));
   }, []);
 
   // Автоматичне оновлення даних при фокусі на вкладку браузера
@@ -939,6 +943,7 @@ function ServiceArea({ user }) {
       console.log('[DEBUG] ServiceArea - оновлення даних при фокусі на вкладку');
       tasksAPI.getAll().then(freshTasks => {
         setTasks(freshTasks);
+        setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
         console.log('[DEBUG] ServiceArea - дані оновлено при фокусі, завдань:', freshTasks.length);
       }).catch(error => {
         console.error('[ERROR] ServiceArea - помилка оновлення при фокусі:', error);
@@ -991,6 +996,9 @@ function ServiceArea({ user }) {
     setEditTask(null);
     setLoading(false);
     
+    // Примусово оновлюємо таблицю після закриття форми
+    setTableKey(prev => prev + 1);
+    
     // НЕ змінюємо вкладку автоматично - залишаємося на поточній
     // Користувач може сам перейти на потрібну вкладку
   };
@@ -1030,6 +1038,7 @@ function ServiceArea({ user }) {
     setLoading(true);
     await tasksAPI.remove(id);
     setTasks(tasks => tasks.filter(t => t.id !== id));
+    setTableKey(prev => prev + 1); // Примусово оновлюємо таблицю
     setLoading(false);
   };
   const handleFilter = e => {
@@ -1398,6 +1407,7 @@ function ServiceArea({ user }) {
         <button onClick={()=>setTab('blocked')} style={{width:220,padding:'10px 0',background:tab==='blocked'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='blocked'?700:400,cursor:'pointer'}}>Заблоковані заявки</button>
       </div>
       <TaskTable
+        key={tableKey}
         tasks={tableData}
         allTasks={tasks}
         onEdit={handleEdit}
