@@ -114,6 +114,22 @@ export default function WarehouseArea({ user }) {
     }).finally(() => setLoading(false));
   }, []);
 
+  // Автоматичне оновлення даних при фокусі на вкладку браузера
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('[DEBUG] WarehouseArea - оновлення даних при фокусі на вкладку');
+      tasksAPI.getAll().then(freshTasks => {
+        setTasks(freshTasks);
+        console.log('[DEBUG] WarehouseArea - дані оновлено при фокусі, завдань:', freshTasks.length);
+      }).catch(error => {
+        console.error('[ERROR] WarehouseArea - помилка оновлення при фокусі:', error);
+      });
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   const handleApprove = async (id, approved, comment) => {
     setLoading(true);
     const t = tasks.find(t => t.id === id);
@@ -166,32 +182,26 @@ export default function WarehouseArea({ user }) {
   };
   const handleSave = async (task) => {
     setLoading(true);
+    let updatedTask = null;
+    
     if (editTask && editTask.id) {
-      const updated = await tasksAPI.update(editTask.id, task);
-      setTasks(tasks => tasks.map(t => t.id === editTask.id ? updated : t));
+      updatedTask = await tasksAPI.update(editTask.id, task);
     } else {
-      const added = await tasksAPI.add(task);
-      setTasks(tasks => [...tasks, added]);
+      updatedTask = await tasksAPI.add(task);
     }
-    setEditTask(null);
-    setLoading(false);
     
     // Оновлюємо дані з бази після збереження
     try {
       const freshTasks = await tasksAPI.getAll();
       setTasks(freshTasks);
       console.log('[DEBUG] WarehouseArea handleSave - дані оновлено з бази, завдань:', freshTasks.length);
-      
-      // Оновлюємо editTask, якщо він ще встановлений
-      if (editTask && editTask.id) {
-        const updatedTask = freshTasks.find(t => t.id === editTask.id);
-        if (updatedTask) {
-          setEditTask(updatedTask);
-        }
-      }
     } catch (error) {
       console.error('[ERROR] WarehouseArea handleSave - помилка оновлення даних з бази:', error);
     }
+    
+    // Закриваємо модальне вікно
+    setEditTask(null);
+    setLoading(false);
   };
   const filtered = tasks.filter(t => {
     for (const key in filters) {

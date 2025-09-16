@@ -933,6 +933,22 @@ function ServiceArea({ user }) {
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
 
+  // Автоматичне оновлення даних при фокусі на вкладку браузера
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('[DEBUG] ServiceArea - оновлення даних при фокусі на вкладку');
+      tasksAPI.getAll().then(freshTasks => {
+        setTasks(freshTasks);
+        console.log('[DEBUG] ServiceArea - дані оновлено при фокусі, завдань:', freshTasks.length);
+      }).catch(error => {
+        console.error('[ERROR] ServiceArea - помилка оновлення при фокусі:', error);
+      });
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   // useEffect для перевірки та показу нагадування
   useEffect(() => {
     if (!loading && tasks.length > 0 && tab === 'notDone') {
@@ -950,47 +966,33 @@ function ServiceArea({ user }) {
     console.log('[DEBUG] handleSave - editTask:', editTask);
     
     setLoading(true);
+    let updatedTask = null;
+    
     if (editTask && editTask.id) {
       console.log('[DEBUG] handleSave - оновлюємо існуючу заявку з ID:', editTask.id);
-      const updated = await tasksAPI.update(editTask.id, task);
-      console.log('[DEBUG] handleSave - отримано оновлену заявку:', updated);
-      
-      setTasks(tasks => {
-        console.log('[DEBUG] handleSave - поточні заявки:', tasks.length);
-        const newTasks = tasks.map(t => t.id === editTask.id ? updated : t);
-        console.log('[DEBUG] handleSave - оновлені заявки:', newTasks.length);
-        return newTasks;
-      });
+      updatedTask = await tasksAPI.update(editTask.id, task);
+      console.log('[DEBUG] handleSave - отримано оновлену заявку:', updatedTask);
     } else {
       console.log('[DEBUG] handleSave - додаємо нову заявку');
-      const added = await tasksAPI.add(task);
-      console.log('[DEBUG] handleSave - отримано нову заявку:', added);
-      setTasks(tasks => [...tasks, added]);
+      updatedTask = await tasksAPI.add(task);
+      console.log('[DEBUG] handleSave - отримано нову заявку:', updatedTask);
     }
-    setEditTask(null);
-    setLoading(false);
     
     // Оновлюємо дані з бази після збереження
     try {
       const freshTasks = await tasksAPI.getAll();
       setTasks(freshTasks);
       console.log('[DEBUG] handleSave - дані оновлено з бази, завдань:', freshTasks.length);
-      
-      // Оновлюємо editTask, якщо він ще встановлений
-      if (editTask && editTask.id) {
-        const updatedTask = freshTasks.find(t => t.id === editTask.id);
-        if (updatedTask) {
-          setEditTask(updatedTask);
-        }
-      }
     } catch (error) {
       console.error('[ERROR] handleSave - помилка оновлення даних з бази:', error);
     }
     
-    if (task.status === 'Новий' || task.status === 'В роботі') setTab('notDone');
-    else if (task.status === 'Виконано' && (!task.approvedByWarehouse || !task.approvedByAccountant || !task.approvedByRegionalManager)) setTab('pending');
-    else if (task.status === 'Виконано' && task.approvedByWarehouse && task.approvedByAccountant && task.approvedByRegionalManager) setTab('done');
-    else if (task.status === 'Заблоковано') setTab('blocked');
+    // Закриваємо модальне вікно
+    setEditTask(null);
+    setLoading(false);
+    
+    // НЕ змінюємо вкладку автоматично - залишаємося на поточній
+    // Користувач може сам перейти на потрібну вкладку
   };
   const handleEdit = t => {
     const isReadOnly = t._readOnly;
@@ -3771,47 +3773,33 @@ function AdminEditTasksArea({ user }) {
     console.log('[DEBUG] handleSave - editTask:', editTask);
     
     setLoading(true);
+    let updatedTask = null;
+    
     if (editTask && editTask.id) {
       console.log('[DEBUG] handleSave - оновлюємо існуючу заявку з ID:', editTask.id);
-      const updated = await tasksAPI.update(editTask.id, task);
-      console.log('[DEBUG] handleSave - отримано оновлену заявку:', updated);
-      
-      setTasks(tasks => {
-        console.log('[DEBUG] handleSave - поточні заявки:', tasks.length);
-        const newTasks = tasks.map(t => t.id === editTask.id ? updated : t);
-        console.log('[DEBUG] handleSave - оновлені заявки:', newTasks.length);
-        return newTasks;
-      });
+      updatedTask = await tasksAPI.update(editTask.id, task);
+      console.log('[DEBUG] handleSave - отримано оновлену заявку:', updatedTask);
     } else {
       console.log('[DEBUG] handleSave - додаємо нову заявку');
-      const added = await tasksAPI.add(task);
-      console.log('[DEBUG] handleSave - отримано нову заявку:', added);
-      setTasks(tasks => [...tasks, added]);
+      updatedTask = await tasksAPI.add(task);
+      console.log('[DEBUG] handleSave - отримано нову заявку:', updatedTask);
     }
-    setEditTask(null);
-    setLoading(false);
     
     // Оновлюємо дані з бази після збереження
     try {
       const freshTasks = await tasksAPI.getAll();
       setTasks(freshTasks);
       console.log('[DEBUG] handleSave - дані оновлено з бази, завдань:', freshTasks.length);
-      
-      // Оновлюємо editTask, якщо він ще встановлений
-      if (editTask && editTask.id) {
-        const updatedTask = freshTasks.find(t => t.id === editTask.id);
-        if (updatedTask) {
-          setEditTask(updatedTask);
-        }
-      }
     } catch (error) {
       console.error('[ERROR] handleSave - помилка оновлення даних з бази:', error);
     }
     
-    if (task.status === 'Новий' || task.status === 'В роботі') setTab('notDone');
-    else if (task.status === 'Виконано' && (!task.approvedByWarehouse || !task.approvedByAccountant || !task.approvedByRegionalManager)) setTab('pending');
-    else if (task.status === 'Виконано' && task.approvedByWarehouse && task.approvedByAccountant && task.approvedByRegionalManager) setTab('done');
-    else if (task.status === 'Заблоковано') setTab('blocked');
+    // Закриваємо модальне вікно
+    setEditTask(null);
+    setLoading(false);
+    
+    // НЕ змінюємо вкладку автоматично - залишаємося на поточній
+    // Користувач може сам перейти на потрібну вкладку
   };
   // Функція для збереження тільки поля bonusApprovalDate
   const handleSaveBonusDate = async (taskId, newDate) => {
