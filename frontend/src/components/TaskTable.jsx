@@ -224,6 +224,13 @@ function TaskTableComponent({
               if (settings.widths) {
                 console.log('[DEBUG] ✅ Встановлюємо збережену ширину колонок:', settings.widths);
                 setColumnWidths(settings.widths);
+              } else {
+                console.log('[DEBUG] ⚠️ Ширина колонок не знайдена, встановлюємо за замовчуванням');
+                const defaultWidths = {};
+                columns.forEach(col => {
+                  defaultWidths[col.key] = 120;
+                });
+                setColumnWidths(defaultWidths);
               }
               
               setSettingsLoaded(true);
@@ -235,10 +242,18 @@ function TaskTableComponent({
               // Якщо налаштування невалідні, встановлюємо стандартні
               console.log('[DEBUG] ⚠️ Скидаємо на стандартні (defaultKeys):', defaultKeysRef.current);
               setSelected(defaultKeysRef.current);
+              
+              // Встановлюємо ширину за замовчуванням
+              const defaultWidths = {};
+              columns.forEach(col => {
+                defaultWidths[col.key] = 120;
+              });
+              setColumnWidths(defaultWidths);
+              
               setSettingsLoaded(true);
               
               // Зберігаємо дефолтні налаштування в кеш
-              cacheSettings({ visible: defaultKeysRef.current, order: defaultKeysRef.current });
+              cacheSettings({ visible: defaultKeysRef.current, order: defaultKeysRef.current, widths: defaultWidths });
             }
           }
         } catch (error) {
@@ -246,6 +261,14 @@ function TaskTableComponent({
           if (isMounted) {
             console.log('[DEBUG] ⚠️ Встановлюємо стандартні через помилку:', defaultKeysRef.current);
             setSelected(defaultKeysRef.current);
+            
+            // Встановлюємо ширину за замовчуванням
+            const defaultWidths = {};
+            columns.forEach(col => {
+              defaultWidths[col.key] = 120;
+            });
+            setColumnWidths(defaultWidths);
+            
             setSettingsLoaded(true);
             
             // Зберігаємо дефолтні налаштування в кеш
@@ -1246,7 +1269,7 @@ function TaskTableComponent({
               box-shadow: 0 0 2px #00bfff;
             }
             .sticky-table th, .sticky-table td {
-              white-space: nowrap;
+              white-space: normal;
             }
             .sticky-table tbody tr {
               background: #fff;
@@ -1329,25 +1352,28 @@ function TaskTableComponent({
               position: relative;
             }
             
-            .th-auto-height {
-              height: auto !important;
-              min-height: 40px;
-              max-height: 120px;
-              overflow: hidden;
-              word-wrap: break-word;
-              white-space: normal;
-              line-height: 1.2;
-            }
             
             .td-auto-height {
               height: auto !important;
-              min-height: 40px;
-              max-height: 120px; /* Максимум в 3 рази більше стандартної висоти (40px) */
-              overflow: hidden;
-              word-wrap: break-word;
-              white-space: normal;
-              line-height: 1.2;
-              padding: 8px 4px;
+              min-height: 40px !important;
+              max-height: 120px !important; /* Максимум в 3 рази більше стандартної висоти (40px) */
+              overflow: hidden !important;
+              word-wrap: break-word !important;
+              white-space: normal !important;
+              line-height: 1.2 !important;
+              padding: 8px 4px !important;
+              vertical-align: top !important;
+            }
+            
+            .th-auto-height {
+              height: auto !important;
+              min-height: 40px !important;
+              max-height: 120px !important;
+              overflow: hidden !important;
+              word-wrap: break-word !important;
+              white-space: normal !important;
+              line-height: 1.2 !important;
+              vertical-align: top !important;
             }
           `}</style>
           <div className="table-scroll">
