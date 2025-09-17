@@ -1675,7 +1675,7 @@ function TaskTableComponent({
                         }} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
                       )}
                       {/* Кнопки підтвердження для відповідних ролей - в архіві тільки для адміністратора */}
-                      {((role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && (!isArchive || role === 'admin')) && (
+                      {((role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager' || role === 'admin' || role === 'administrator') && (!isArchive || role === 'admin' || role === 'administrator')) && (
                         <>
                           {/* Кнопки підтвердження в другому рядку */}
                           <div style={{marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center'}}>
