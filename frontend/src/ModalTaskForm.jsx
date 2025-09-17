@@ -469,7 +469,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       return mode !== 'admin' && user?.role !== 'administrator';
     }
     
-    if (mode === 'regionalManager') {
+    if (mode === 'regionalManager' || mode === 'regional') {
       // Доступні тільки ці два поля
       return !(name === 'approvedByRegionalManager' || name === 'regionalManagerComment');
     }
