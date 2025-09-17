@@ -295,30 +295,15 @@ const accessRulesSchema = new mongoose.Schema({
 const AccessRules = mongoose.model('AccessRules', accessRulesSchema);
 
 app.use(cors({
-  origin: function (origin, callback) {
-    // Дозволяємо запити без origin (наприклад, з Postman або curl)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      'https://darex-trading-solutions-f.onrender.com', 
-      'https://darex-trading-solutions.onrender.com',
-      'http://localhost:3000',
-      'http://localhost:3001'
-    ];
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log(`[CORS] Блоковано запит з origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: [
+    'https://darex-trading-solutions-f.onrender.com', 
+    'https://darex-trading-solutions.onrender.com',
+    'http://localhost:3000',
+    'http://localhost:3001'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Content-Length', 'X-Requested-With'],
-  preflightContinue: false,
-  optionsSuccessStatus: 200
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
 
 // Додатковий middleware для обробки preflight запитів
@@ -337,14 +322,6 @@ app.use((req, res, next) => {
 // Логування CORS запитів
 app.use((req, res, next) => {
   console.log(`[CORS] ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
-  console.log(`[CORS] Headers:`, req.headers);
-  
-  // Додаткове логування для діагностики
-  if (req.method === 'OPTIONS') {
-    console.log(`[CORS] OPTIONS запит для ${req.path}`);
-    console.log(`[CORS] Request Headers:`, req.headers);
-  }
-  
   next();
 });
 app.use(express.json());
