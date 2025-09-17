@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { tasksAPI } from '../utils/tasksAPI';
 import { savedReportsAPI } from '../utils/savedReportsAPI';
 import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from '../utils/eventLogAPI';
+import { regionsAPI } from '../utils/regionsAPI';
+import { rolesAPI } from '../utils/rolesAPI';
 import * as ExcelJS from 'exceljs';
 
 export default function ReportBuilder({ user }) {
@@ -79,11 +81,46 @@ export default function ReportBuilder({ user }) {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
 
+  // Додаємо стани для dropdown фільтрів
+  const [regions, setRegions] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [statusOptions] = useState(['Новий', 'В роботі', 'Виконано', 'Заблоковано']);
+  const [companyOptions] = useState(['Дарекс Енерго', 'Інша компанія']);
+  const [paymentTypeOptions] = useState(['Безготівка', 'Готівка', 'Картка']);
+  const [approvalOptions] = useState(['Підтверджено', 'Відхилено', 'На розгляді']);
+
   // Завантажуємо збережені звіти при ініціалізації
   useEffect(() => {
     if (user && user.login) {
       loadSavedReports();
     }
+  }, [user]);
+
+  // Завантажуємо регіони та користувачів
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Завантажуємо регіони
+        const regionsData = await regionsAPI.getAll();
+        setRegions(regionsData);
+        
+        // Завантажуємо користувачів
+        const usersData = await rolesAPI.getAll();
+        setUsers(usersData);
+        
+        // Автоматично встановлюємо регіон користувача якщо він не 'Україна'
+        if (user && user.region && user.region !== 'Україна') {
+          setFilters(prev => ({
+            ...prev,
+            serviceRegion: user.region
+          }));
+        }
+      } catch (error) {
+        console.error('Помилка завантаження даних для фільтрів:', error);
+      }
+    };
+    
+    loadData();
   }, [user]);
 
   // Функція для завантаження збережених звітів з сервера
@@ -94,6 +131,43 @@ export default function ReportBuilder({ user }) {
     } catch (error) {
       console.error('Помилка завантаження збережених звітів:', error);
     }
+  };
+
+  // Функції для отримання опцій dropdown фільтрів
+  const getFilterOptions = (fieldName) => {
+    switch (fieldName) {
+      case 'status':
+        return statusOptions;
+      case 'company':
+        return companyOptions;
+      case 'paymentType':
+        return paymentTypeOptions;
+      case 'approvedByWarehouse':
+      case 'approvedByAccountant':
+      case 'approvedByRegionalManager':
+        return approvalOptions;
+      case 'serviceRegion':
+        return regions.map(r => r.name);
+      case 'engineer1':
+      case 'engineer2':
+        // Фільтруємо користувачів по регіону якщо користувач не з 'Україна'
+        if (user && user.region && user.region !== 'Україна') {
+          return users.filter(u => u.region === user.region).map(u => u.name);
+        }
+        return users.map(u => u.name);
+      default:
+        return [];
+    }
+  };
+
+  const isFieldDropdown = (fieldName) => {
+    return ['status', 'company', 'paymentType', 'serviceRegion', 'engineer1', 'engineer2', 
+            'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(fieldName);
+  };
+
+  const isFieldDisabled = (fieldName) => {
+    // Блокуємо регіон обслуговування для користувачів не з 'Україна'
+    return fieldName === 'serviceRegion' && user && user.region && user.region !== 'Україна';
   };
 
   // Функція для перевірки статусу підтвердження
@@ -861,21 +935,44 @@ export default function ReportBuilder({ user }) {
           {availableFields.map(field => (
             <div key={field.name} style={{display: 'flex', flexDirection: 'column'}}>
               <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px'}}>{field.label}</label>
-              <input
-                type="text"
-                name={field.name}
-                value={filters[field.name] || ''}
-                onChange={handleFilter}
-                placeholder={`Фільтр по ${field.label.toLowerCase()}`}
-                style={{
-                  padding: '8px',
-                  borderRadius: '4px',
-                  border: '1px solid #29506a',
-                  background: '#22334a',
-                  color: '#fff',
-                  fontSize: '14px'
-                }}
-              />
+              {isFieldDropdown(field.name) ? (
+                <select
+                  name={field.name}
+                  value={filters[field.name] || ''}
+                  onChange={handleFilter}
+                  disabled={isFieldDisabled(field.name)}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid #29506a',
+                    background: isFieldDisabled(field.name) ? '#444' : '#22334a',
+                    color: isFieldDisabled(field.name) ? '#888' : '#fff',
+                    fontSize: '14px',
+                    cursor: isFieldDisabled(field.name) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <option value="">Всі</option>
+                  {getFilterOptions(field.name).map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  name={field.name}
+                  value={filters[field.name] || ''}
+                  onChange={handleFilter}
+                  placeholder={`Фільтр по ${field.label.toLowerCase()}`}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid #29506a',
+                    background: '#22334a',
+                    color: '#fff',
+                    fontSize: '14px'
+                  }}
+                />
+              )}
             </div>
           ))}
         </div>
