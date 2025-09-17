@@ -4000,15 +4000,53 @@ function AdminBackupArea({ user }) {
     }
   };
 
+  // --- Функція для перегляду бекапу ---
+  const [viewingBackup, setViewingBackup] = useState(null);
+  const [backupPreview, setBackupPreview] = useState(null);
+
+  const viewBackup = (backup) => {
+    try {
+      const tasksData = JSON.parse(backup.data);
+      setBackupPreview({
+        ...backup,
+        tasks: tasksData.slice(0, 10), // Перші 10 завдань
+        totalTasks: tasksData.length
+      });
+      setViewingBackup(backup);
+    } catch (error) {
+      console.error('[ERROR] Помилка парсингу даних бекапу:', error);
+      alert('Помилка при перегляді бекапу');
+    }
+  };
+
+  const closeBackupView = () => {
+    setViewingBackup(null);
+    setBackupPreview(null);
+  };
+
   // --- Додаю створення бекапу ---
   const createBackup = async () => {
     try {
       console.log('[BACKUP] Початок створення бекапу...');
       const now = new Date();
       
+      // Додаємо невелику затримку для забезпечення оновлення бази
+      console.log('[BACKUP] Очікування оновлення бази даних...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       console.log('[BACKUP] Отримання даних завдань з API...');
       const tasksData = await tasksAPI.getAll();
       console.log('[BACKUP] Отримано завдань:', tasksData.length);
+      
+      // Логуємо перші кілька завдань для перевірки актуальності даних
+      if (tasksData.length > 0) {
+        console.log('[BACKUP] Перше завдання для перевірки:', {
+          id: tasksData[0].id,
+          status: tasksData[0].status,
+          company: tasksData[0].company,
+          updatedAt: tasksData[0].updatedAt || 'немає дати оновлення'
+        });
+      }
       
       // Оптимізуємо дані - зберігаємо тільки необхідні поля
       const optimizedTasks = tasksData.map(task => ({
@@ -4315,6 +4353,20 @@ function AdminBackupArea({ user }) {
                 <td style={{padding:12}}>{new Date(b.date).toLocaleString()}</td>
                 <td style={{padding:12}}>
                   <button 
+                    onClick={()=>viewBackup(b)} 
+                    style={{
+                      background:'#17a2b8',
+                      color:'#fff',
+                      border:'none',
+                      borderRadius:4,
+                      padding:'4px 12px',
+                      cursor:'pointer',
+                      marginRight:8
+                    }}
+                  >
+                    Переглянути
+                  </button>
+                  <button 
                     onClick={()=>restoreBackup(b)} 
                     style={{
                       background:'#43a047',
@@ -4368,6 +4420,20 @@ function AdminBackupArea({ user }) {
                 <td style={{padding:12}}>{(b.size / 1024).toFixed(1)} KB</td>
                 <td style={{padding:12}}>
                   <button 
+                    onClick={()=>viewBackup(b)} 
+                    style={{
+                      background:'#17a2b8',
+                      color:'#fff',
+                      border:'none',
+                      borderRadius:4,
+                      padding:'4px 12px',
+                      cursor:'pointer',
+                      marginRight:8
+                    }}
+                  >
+                    Переглянути
+                  </button>
+                  <button 
                     onClick={()=>restoreBackup(b)} 
                     style={{
                       background:'#43a047',
@@ -4407,6 +4473,107 @@ function AdminBackupArea({ user }) {
         onClose={() => setShowExcelImport(false)}
         onImport={handleExcelImport}
       />
+
+      {/* Модальне вікно перегляду бекапу */}
+      {viewingBackup && backupPreview && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: 8,
+            padding: 20,
+            maxWidth: '90%',
+            maxHeight: '90%',
+            overflow: 'auto',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 20,
+              borderBottom: '1px solid #eee',
+              paddingBottom: 10
+            }}>
+              <h3 style={{margin: 0, color: '#333'}}>
+                Перегляд бекапу: {backupPreview.name || 'Бекап'}
+              </h3>
+              <button
+                onClick={closeBackupView}
+                style={{
+                  background: '#f66',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 4,
+                  padding: '8px 16px',
+                  cursor: 'pointer'
+                }}
+              >
+                Закрити
+              </button>
+            </div>
+
+            <div style={{marginBottom: 15}}>
+              <strong>Загальна інформація:</strong>
+              <ul style={{margin: '5px 0', paddingLeft: 20}}>
+                <li>Дата створення: {new Date(backupPreview.date || backupPreview.createdAt).toLocaleString()}</li>
+                <li>Кількість завдань: {backupPreview.totalTasks}</li>
+                <li>Розмір: {backupPreview.size ? (backupPreview.size / 1024).toFixed(1) + ' KB' : 'Невідомо'}</li>
+                <li>Опис: {backupPreview.description || 'Немає опису'}</li>
+              </ul>
+            </div>
+
+            <div>
+              <strong>Перші 10 завдань з бекапу:</strong>
+              <div style={{
+                maxHeight: '400px',
+                overflow: 'auto',
+                border: '1px solid #ddd',
+                borderRadius: 4,
+                marginTop: 10
+              }}>
+                <table style={{width: '100%', borderCollapse: 'collapse'}}>
+                  <thead>
+                    <tr style={{background: '#f5f5f5'}}>
+                      <th style={{padding: 8, border: '1px solid #ddd', textAlign: 'left'}}>№</th>
+                      <th style={{padding: 8, border: '1px solid #ddd', textAlign: 'left'}}>Статус</th>
+                      <th style={{padding: 8, border: '1px solid #ddd', textAlign: 'left'}}>Компанія</th>
+                      <th style={{padding: 8, border: '1px solid #ddd', textAlign: 'left'}}>Клієнт</th>
+                      <th style={{padding: 8, border: '1px solid #ddd', textAlign: 'left'}}>Адреса</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {backupPreview.tasks.map((task, index) => (
+                      <tr key={task.id || index}>
+                        <td style={{padding: 8, border: '1px solid #ddd'}}>{task.taskNumber || index + 1}</td>
+                        <td style={{padding: 8, border: '1px solid #ddd'}}>{task.status || 'Невідомо'}</td>
+                        <td style={{padding: 8, border: '1px solid #ddd'}}>{task.company || 'Невідомо'}</td>
+                        <td style={{padding: 8, border: '1px solid #ddd'}}>{task.client || 'Невідомо'}</td>
+                        <td style={{padding: 8, border: '1px solid #ddd'}}>{task.address || 'Невідомо'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {backupPreview.totalTasks > 10 && (
+                <p style={{marginTop: 10, color: '#666', fontSize: '14px'}}>
+                  ... та ще {backupPreview.totalTasks - 10} завдань
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
