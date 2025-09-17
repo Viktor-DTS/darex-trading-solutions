@@ -3,7 +3,7 @@ import { tasksAPI } from '../utils/tasksAPI';
 import { savedReportsAPI } from '../utils/savedReportsAPI';
 import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from '../utils/eventLogAPI';
 import { regionsAPI } from '../utils/regionsAPI';
-import { rolesAPI } from '../utils/rolesAPI';
+import { usersAPI } from '../utils/usersAPI';
 import * as ExcelJS from 'exceljs';
 
 export default function ReportBuilder({ user }) {
@@ -106,7 +106,7 @@ export default function ReportBuilder({ user }) {
         setRegions(regionsData);
         
         // Завантажуємо користувачів
-        const usersData = await rolesAPI.getAll();
+        const usersData = await usersAPI.getAll();
         console.log('[DEBUG][ReportBuilder] Завантажено користувачів:', usersData.length, usersData);
         setUsers(usersData);
         
@@ -162,11 +162,11 @@ export default function ReportBuilder({ user }) {
       case 'engineer2':
         // Фільтруємо користувачів по регіону якщо користувач не з 'Україна'
         if (user && user.region && user.region !== 'Україна') {
-          const filteredUsers = users.filter(u => u.region === user.region).map(u => u.name);
+          const filteredUsers = users.filter(u => u.region === user.region).map(u => u.name || u.login);
           console.log(`[DEBUG][ReportBuilder] Користувачі для регіону ${user.region}:`, filteredUsers);
           return filteredUsers;
         }
-        const allUsers = users.map(u => u.name);
+        const allUsers = users.map(u => u.name || u.login);
         console.log('[DEBUG][ReportBuilder] Всі користувачі:', allUsers);
         return allUsers;
       default:
