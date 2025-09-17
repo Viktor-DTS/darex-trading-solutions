@@ -270,6 +270,7 @@ const userSchema = new mongoose.Schema({
   columnsSettings: Object,
   id: Number,
   telegramChatId: String,
+  lastActivity: { type: Date, default: Date.now }
 });
 const User = mongoose.model('User', userSchema);
 
@@ -2310,6 +2311,45 @@ app.get('/api/users', async (req, res) => {
     res.json(users);
   } catch (error) {
     console.error('[ERROR] GET /api/users - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для оновлення активності користувача
+app.post('/api/users/activity', async (req, res) => {
+  try {
+    const { login } = req.body;
+    if (!login) {
+      return res.status(400).json({ error: 'Login is required' });
+    }
+
+    // Оновлюємо час останньої активності в базі даних
+    await User.updateOne(
+      { login: login },
+      { lastActivity: new Date() }
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[ERROR] POST /api/users/activity - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для отримання активних користувачів
+app.get('/api/users/active', async (req, res) => {
+  try {
+    const now = new Date();
+    const thirtySecondsAgo = new Date(now.getTime() - 30 * 1000);
+    
+    const activeUsers = await User.find(
+      { lastActivity: { $gte: thirtySecondsAgo } },
+      'login name'
+    );
+    
+    res.json(activeUsers.map(user => user.login));
+  } catch (error) {
+    console.error('[ERROR] GET /api/users/active - помилка:', error);
     res.status(500).json({ error: error.message });
   }
 });

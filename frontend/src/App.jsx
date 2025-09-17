@@ -34,6 +34,7 @@ import { accessRulesAPI } from './utils/accessRulesAPI';
 import { rolesAPI } from './utils/rolesAPI';
 import { regionsAPI } from './utils/regionsAPI';
 import { backupAPI } from './utils/backupAPI';
+import { activityAPI } from './utils/activityAPI';
 import keepAliveService from './utils/keepAlive.js';
 
 const roles = [
@@ -409,9 +410,16 @@ function AdminSystemParamsArea({ user }) {
   };
 
   // Функція для оновлення статусу активності користувача
-  const updateUserActivity = (userLogin) => {
+  const updateUserActivity = async (userLogin) => {
     const now = Date.now();
     localStorage.setItem(`user_activity_${userLogin}`, now.toString());
+    
+    // Також оновлюємо на сервері
+    try {
+      await activityAPI.updateActivity(userLogin);
+    } catch (error) {
+      console.error('Помилка оновлення активності на сервері:', error);
+    }
   };
 
   // Функція для перевірки чи користувач активний (онлайн)
@@ -423,12 +431,23 @@ function AdminSystemParamsArea({ user }) {
     const now = Date.now();
     const timeDiff = now - lastActivityTime;
     
-    // Користувач вважається онлайн, якщо активний протягом останніх 2 хвилин
-    return timeDiff < 2 * 60 * 1000;
+    // Користувач вважається онлайн, якщо активний протягом останніх 30 секунд
+    return timeDiff < 30 * 1000;
   };
 
   // Функція для отримання списку активних користувачів
-  const getActiveUsers = () => {
+  const getActiveUsers = async () => {
+    try {
+      // Спочатку пробуємо отримати з сервера
+      const serverActiveUsers = await activityAPI.getActiveUsers();
+      if (serverActiveUsers && serverActiveUsers.length > 0) {
+        return new Set(serverActiveUsers);
+      }
+    } catch (error) {
+      console.error('Помилка отримання активних користувачів з сервера:', error);
+    }
+    
+    // Fallback до локальної перевірки
     const activeUsers = new Set();
     users.forEach(user => {
       if (checkUserActivity(user.login)) {
@@ -442,10 +461,10 @@ function AdminSystemParamsArea({ user }) {
   useEffect(() => {
     if (!user?.login) return;
 
-    // Оновлюємо активність поточного користувача кожні 30 секунд
+    // Оновлюємо активність поточного користувача кожні 10 секунд
     const activityInterval = setInterval(() => {
       updateUserActivity(user.login);
-    }, 30000);
+    }, 10000);
 
     // Початкове оновлення активності
     updateUserActivity(user.login);
@@ -453,21 +472,23 @@ function AdminSystemParamsArea({ user }) {
     return () => clearInterval(activityInterval);
   }, [user?.login]);
 
-  // Оновлення списку онлайн користувачів
+  // Автоматичне оновлення статусу користувачів кожні 5 секунд
   useEffect(() => {
-    const updateOnlineUsers = () => {
-      const activeUsers = getActiveUsers();
+    const updateOnlineUsers = async () => {
+      const activeUsers = await getActiveUsers();
       setOnlineUsers(activeUsers);
+      console.log('[DEBUG] Оновлено статус користувачів:', Array.from(activeUsers));
     };
 
-    // Оновлюємо список кожні 30 секунд
-    const interval = setInterval(updateOnlineUsers, 30000);
-    
     // Початкове оновлення
     updateOnlineUsers();
 
-    return () => clearInterval(interval);
+    // Оновлюємо кожні 5 секунд
+    const statusInterval = setInterval(updateOnlineUsers, 5000);
+
+    return () => clearInterval(statusInterval);
   }, [users]);
+
 
   // Завантаження користувачів з API
   useEffect(() => {
