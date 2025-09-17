@@ -321,7 +321,18 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
-
+// Додатковий middleware для обробки preflight запитів
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    res.header('Access-Control-Allow-Origin', req.headers.origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.status(200).end();
+    return;
+  }
+  next();
+});
 
 // Логування CORS запитів
 app.use((req, res, next) => {
