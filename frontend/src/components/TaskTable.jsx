@@ -1647,6 +1647,42 @@ function TaskTableComponent({
                           onEdit && onEdit({...t, _readOnly: true});
                         }} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
                       )}
+                      {/* Кнопки підтвердження для відповідних ролей */}
+                      {(role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && approveField && (
+                        <>
+                          {t[approveField] === 'Підтверджено' || t[approveField] === 'Відмова' ? (
+                            <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600, marginLeft: '8px'} : {color:'#f00', fontWeight:600, marginLeft: '8px'}}>
+                              {t[approveField] === 'Підтверджено' ? 'Підтверджено' : 'Відхилено'}
+                            </span>
+                          ) : (
+                            <>
+                              <button onClick={()=>{
+                                // Логуємо затвердження заявки
+                                logUserAction(user, EVENT_ACTIONS.APPROVE, ENTITY_TYPES.TASK, t.id, 
+                                  `Затверджено заявку: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                    requestNumber: t.requestNumber,
+                                    client: t.client,
+                                    work: t.work,
+                                    status: t.status
+                                  });
+                                onApprove(t.id, 'Підтверджено', '');
+                              }} style={{background:'#0a0',color:'#fff', marginLeft: '8px'}}>Підтвердити</button>
+                              <button onClick={()=>setRejectModal({ open: true, taskId: t.id, comment: '' })} style={{background:'#f66',color:'#fff'}}>Відхилити</button>
+                              <button onClick={()=>{
+                                // Логуємо відправку на розгляд
+                                logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
+                                  `Відправлено на розгляд: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                    requestNumber: t.requestNumber,
+                                    client: t.client,
+                                    work: t.work,
+                                    status: t.status
+                                  });
+                                onApprove(t.id, 'На розгляді', '');
+                              }} style={{background:'#ffe066',color:'#22334a'}}>На розгляді</button>
+                            </>
+                          )}
+                        </>
+                      )}
                     </td>
                     {visibleColumns.map(col => <td key={col.key} className="td-auto-height" style={{
                       ...(getRowColor(t) ? {color:'#111'} : {}),
