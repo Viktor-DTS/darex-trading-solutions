@@ -138,7 +138,7 @@ export default function WarehouseArea({ user }) {
     let next = {
       ...t,
       approvedByWarehouse: approved,
-      warehouseComment: comment !== undefined ? comment : t.warehouseComment
+      warehouseComment: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.warehouseComment)
     };
     let bonusApprovalDate = t.bonusApprovalDate;
     if (

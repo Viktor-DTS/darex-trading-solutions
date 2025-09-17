@@ -1682,7 +1682,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
     let next = {
       ...t,
       approvedByRegionalManager: approved,
-      regionalManagerComment: comment !== undefined ? comment : t.regionalManagerComment
+      regionalManagerComment: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.regionalManagerComment)
     };
     let bonusApprovalDate = t.bonusApprovalDate;
     if (
@@ -1710,8 +1710,8 @@ function RegionalManagerArea({ tab: propTab, user }) {
     let next = {
       ...t,
       approvedByAccountant: approved,
-      accountantComment: comment !== undefined ? comment : t.accountantComment,
-      accountantComments: comment !== undefined ? comment : t.accountantComments
+      accountantComment: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.accountantComment),
+      accountantComments: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.accountantComments)
     };
     let bonusApprovalDate = t.bonusApprovalDate;
     if (
@@ -3819,8 +3819,8 @@ function AdminEditTasksArea({ user }) {
     const updated = await tasksAPI.update(id, {
         ...t, 
         approvedByAccountant: approved, 
-        accountantComment: comment !== undefined ? comment : t.accountantComment,
-        accountantComments: comment !== undefined ? comment : t.accountantComments,
+        accountantComment: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.accountantComment),
+        accountantComments: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.accountantComments),
         bonusApprovalDate: bonusApprovalDate
     });
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));

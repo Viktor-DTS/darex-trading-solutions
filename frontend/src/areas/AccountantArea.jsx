@@ -134,8 +134,8 @@ export default function AccountantArea({ user }) {
     let next = {
       ...t,
       approvedByAccountant: approved,
-      accountantComment: comment !== undefined ? comment : t.accountantComment,
-      accountantComments: comment !== undefined ? comment : t.accountantComments
+      accountantComment: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.accountantComment),
+      accountantComments: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.accountantComments)
     };
     let bonusApprovalDate = t.bonusApprovalDate;
     if (
