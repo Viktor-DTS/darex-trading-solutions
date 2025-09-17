@@ -84,6 +84,21 @@ h2 {
   }
 }
 
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.8);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(76, 175, 80, 1);
+    transform: scale(1.1);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.8);
+    transform: scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   a:nth-of-type(2) .logo {
     animation: logo-spin infinite 20s linear;

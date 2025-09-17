@@ -824,21 +824,47 @@ function AdminSystemParamsArea({ user }) {
         </thead>
         <tbody>
           {users.map(u => (
-            <tr key={u.id}>
-              <td>{u.login}</td>
-              <td>{rolesList.find(r => r.value === u.role)?.label || u.role}</td>
-              <td>{u.name}</td>
-              <td>{u.region}</td>
+            <tr key={u.id} style={{
+              background: isUserOnline(u.login) ? 'linear-gradient(135deg, #1a4d1a 0%, #2d5a2d 50%, #1a4d1a 100%)' : '#22334a',
+              border: isUserOnline(u.login) ? '2px solid #4CAF50' : '1px solid #29506a',
+              boxShadow: isUserOnline(u.login) ? '0 0 15px rgba(76, 175, 80, 0.3)' : 'none',
+              transform: isUserOnline(u.login) ? 'scale(1.02)' : 'scale(1)',
+              transition: 'all 0.3s ease'
+            }}>
+              <td style={{
+                fontWeight: isUserOnline(u.login) ? 'bold' : 'normal',
+                color: isUserOnline(u.login) ? '#4CAF50' : '#fff',
+                textShadow: isUserOnline(u.login) ? '0 0 5px rgba(76, 175, 80, 0.5)' : 'none'
+              }}>{u.login}</td>
+              <td style={{
+                color: isUserOnline(u.login) ? '#4CAF50' : '#fff',
+                fontWeight: isUserOnline(u.login) ? 'bold' : 'normal'
+              }}>{rolesList.find(r => r.value === u.role)?.label || u.role}</td>
+              <td style={{
+                color: isUserOnline(u.login) ? '#4CAF50' : '#fff',
+                fontWeight: isUserOnline(u.login) ? 'bold' : 'normal'
+              }}>{u.name}</td>
+              <td style={{
+                color: isUserOnline(u.login) ? '#4CAF50' : '#fff',
+                fontWeight: isUserOnline(u.login) ? 'bold' : 'normal'
+              }}>{u.region}</td>
               <td>
                 <div style={{
-                  width: 12,
-                  height: 12,
+                  width: 16,
+                  height: 16,
                   borderRadius: '50%',
                   backgroundColor: isUserOnline(u.login) ? '#4CAF50' : '#f44336',
                   display: 'inline-block',
-                  marginRight: 8
+                  marginRight: 8,
+                  boxShadow: isUserOnline(u.login) ? '0 0 10px rgba(76, 175, 80, 0.8)' : 'none',
+                  animation: isUserOnline(u.login) ? 'pulse 2s infinite' : 'none'
                 }}></div>
-                <span style={{fontSize: '12px'}}>
+                <span style={{
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  color: isUserOnline(u.login) ? '#4CAF50' : '#f44336',
+                  textShadow: isUserOnline(u.login) ? '0 0 5px rgba(76, 175, 80, 0.5)' : 'none'
+                }}>
                   {isUserOnline(u.login) ? 'Онлайн' : 'Офлайн'}
                 </span>
               </td>
@@ -861,8 +887,27 @@ function AdminSystemParamsArea({ user }) {
                 />
               </td>
               <td>
-                <button onClick={() => handleEdit(u)} style={{background:'#4CAF50', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer', marginRight:8}}>Редагувати</button>
-                <button onClick={() => handleDelete(u.id)} style={{background:'#f66', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer'}}>Видалити</button>
+                <button onClick={() => handleEdit(u)} style={{
+                  background: isUserOnline(u.login) ? '#2E7D32' : '#4CAF50', 
+                  color: '#fff', 
+                  border: isUserOnline(u.login) ? '2px solid #4CAF50' : 'none', 
+                  borderRadius: 4, 
+                  padding: '4px 12px', 
+                  cursor: 'pointer', 
+                  marginRight: 8,
+                  boxShadow: isUserOnline(u.login) ? '0 0 10px rgba(76, 175, 80, 0.5)' : 'none',
+                  fontWeight: isUserOnline(u.login) ? 'bold' : 'normal'
+                }}>Редагувати</button>
+                <button onClick={() => handleDelete(u.id)} style={{
+                  background: isUserOnline(u.login) ? '#D32F2F' : '#f66', 
+                  color: '#fff', 
+                  border: isUserOnline(u.login) ? '2px solid #f44336' : 'none', 
+                  borderRadius: 4, 
+                  padding: '4px 12px', 
+                  cursor: 'pointer',
+                  boxShadow: isUserOnline(u.login) ? '0 0 10px rgba(244, 67, 54, 0.5)' : 'none',
+                  fontWeight: isUserOnline(u.login) ? 'bold' : 'normal'
+                }}>Видалити</button>
               </td>
             </tr>
           ))}
@@ -3915,7 +3960,7 @@ function AdminArea({ user }) {
 function AdminBackupArea({ user }) {
   const [backups, setBackups] = useState(() => {
     try {
-      const saved = localStorage.getItem('backups');
+    const saved = localStorage.getItem('backups');
       if (saved) {
         const parsedBackups = JSON.parse(saved);
         // Обмежуємо кількість завантажених бекапів до 10
@@ -4028,7 +4073,7 @@ function AdminBackupArea({ user }) {
   const createBackup = async () => {
     try {
       console.log('[BACKUP] Початок створення бекапу...');
-      const now = new Date();
+    const now = new Date();
       
       // Додаємо невелику затримку для забезпечення оновлення бази
       console.log('[BACKUP] Очікування оновлення бази даних...');
@@ -4080,8 +4125,8 @@ function AdminBackupArea({ user }) {
       
       // Створюємо бекап для локального зберігання
       const localBackup = {
-        id: Date.now(),
-        date: now.toISOString(),
+      id: Date.now(),
+      date: now.toISOString(),
         data: backupData
       };
       
@@ -4123,12 +4168,12 @@ function AdminBackupArea({ user }) {
         console.log('[BACKUP] Розмір занадто великий, зберігаємо тільки 5 останніх локальних бекапів');
       }
       
-      setBackups(newBackups);
+    setBackups(newBackups);
       
       try {
-        localStorage.setItem('backups', JSON.stringify(newBackups));
-        setLastAutoBackup(now);
-        localStorage.setItem('lastAutoBackup', now.toISOString());
+    localStorage.setItem('backups', JSON.stringify(newBackups));
+    setLastAutoBackup(now);
+    localStorage.setItem('lastAutoBackup', now.toISOString());
         console.log('[BACKUP] Локальний бекап успішно створено та збережено');
         // Перевіряємо, чи вдалося зберегти на сервері
         if (serverSuccess) {
@@ -4163,9 +4208,9 @@ function AdminBackupArea({ user }) {
       }
       
       // Видаляємо локально
-      const newBackups = backups.filter(b => b.id !== id);
-      setBackups(newBackups);
-      localStorage.setItem('backups', JSON.stringify(newBackups));
+    const newBackups = backups.filter(b => b.id !== id);
+    setBackups(newBackups);
+    localStorage.setItem('backups', JSON.stringify(newBackups));
       console.log('[BACKUP] Локальний бекап видалено:', id);
     } catch (error) {
       console.error('[BACKUP] Помилка видалення бекапу:', error);
@@ -4340,18 +4385,18 @@ function AdminBackupArea({ user }) {
       {/* Локальні бекапи */}
       <div style={{marginBottom:24}}>
         <h4 style={{marginBottom:8,color:'#666'}}>Локальні бекапи ({backups.length})</h4>
-        <table style={{width:'100%',background:'#22334a',color:'#fff',borderRadius:8,overflow:'hidden'}}>
-          <thead>
-            <tr>
-              <th style={{padding:12,textAlign:'left'}}>Дата бекапу</th>
-              <th style={{padding:12,textAlign:'left'}}>Дія</th>
-            </tr>
-          </thead>
-          <tbody>
-            {backups.slice().reverse().map(b => (
-              <tr key={b.id}>
-                <td style={{padding:12}}>{new Date(b.date).toLocaleString()}</td>
-                <td style={{padding:12}}>
+      <table style={{width:'100%',background:'#22334a',color:'#fff',borderRadius:8,overflow:'hidden'}}>
+        <thead>
+          <tr>
+            <th style={{padding:12,textAlign:'left'}}>Дата бекапу</th>
+            <th style={{padding:12,textAlign:'left'}}>Дія</th>
+          </tr>
+        </thead>
+        <tbody>
+          {backups.slice().reverse().map(b => (
+            <tr key={b.id}>
+              <td style={{padding:12}}>{new Date(b.date).toLocaleString()}</td>
+              <td style={{padding:12}}>
                   <button 
                     onClick={()=>viewBackup(b)} 
                     style={{
@@ -4366,38 +4411,38 @@ function AdminBackupArea({ user }) {
                   >
                     Переглянути
                   </button>
-                  <button 
-                    onClick={()=>restoreBackup(b)} 
-                    style={{
-                      background:'#43a047',
-                      color:'#fff',
-                      border:'none',
-                      borderRadius:4,
-                      padding:'4px 12px',
-                      cursor:'pointer',
-                      marginRight:8
-                    }}
-                  >
-                    Відновити
-                  </button>
-                  <button 
-                    onClick={()=>deleteBackup(b.id)} 
-                    style={{
-                      background:'#f66',
-                      color:'#fff',
-                      border:'none',
-                      borderRadius:4,
-                      padding:'4px 12px',
-                      cursor:'pointer'
-                    }}
-                  >
-                    Видалити
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                <button 
+                  onClick={()=>restoreBackup(b)} 
+                  style={{
+                    background:'#43a047',
+                    color:'#fff',
+                    border:'none',
+                    borderRadius:4,
+                    padding:'4px 12px',
+                    cursor:'pointer',
+                    marginRight:8
+                  }}
+                >
+                  Відновити
+                </button>
+                <button 
+                  onClick={()=>deleteBackup(b.id)} 
+                  style={{
+                    background:'#f66',
+                    color:'#fff',
+                    border:'none',
+                    borderRadius:4,
+                    padding:'4px 12px',
+                    cursor:'pointer'
+                  }}
+                >
+                  Видалити
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       </div>
 
       {/* Серверні бекапи */}
