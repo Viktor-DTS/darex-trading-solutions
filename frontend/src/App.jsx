@@ -3903,7 +3903,7 @@ function AdminArea({ user }) {
       </div>
       {tab === 'system' && <AdminSystemParamsArea />}
       {tab === 'edit' && <AdminEditTasksArea user={user} />}
-      {tab === 'backup' && <AdminBackupArea />}
+      {tab === 'backup' && <AdminBackupArea user={user} />}
       {tab === 'events' && <EventLogArea user={user} />}
       {tab === 'notifications' && <NotificationSettings user={user} />}
       {tab === 'userNotifications' && <UserNotificationManager user={user} />}
@@ -3912,7 +3912,7 @@ function AdminArea({ user }) {
 }
 
 // --- Компонент для відновлення даних ---
-function AdminBackupArea() {
+function AdminBackupArea({ user }) {
   const [backups, setBackups] = useState(() => {
     try {
       const saved = localStorage.getItem('backups');
