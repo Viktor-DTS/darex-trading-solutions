@@ -1731,44 +1731,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
     setLoading(false);
   };
 
-  // Add filtered tasks definition
-  const filtered = tasks.filter(t => {
-    // Region filtering - використовуємо user.region замість змінної region
-    if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) return false;
-    
-    // Comprehensive field filtering
-    for (const key in filters) {
-      const value = filters[key];
-      if (!value) continue;
-      
-      if (key.endsWith('From')) {
-        const field = key.replace('From', '');
-        if (!t[field] || t[field] < value) return false;
-      } else if (key.endsWith('To')) {
-        const field = key.replace('To', '');
-        if (!t[field] || t[field] > value) return false;
-      } else if ([
-        'approvedByRegionalManager', 'approvedByWarehouse', 'approvedByAccountant', 'paymentType', 'status'
-      ].includes(key)) {
-        if (t[key]?.toString() !== value.toString()) return false;
-      } else if ([
-        'airFilterCount', 'airFilterPrice', 'serviceBonus'
-      ].includes(key)) {
-        if (Number(t[key]) !== Number(value)) return false;
-      } else if ([
-        'bonusApprovalDate'
-      ].includes(key)) {
-        if (t[key] !== value) return false;
-      } else if ([
-        'regionalManagerComment', 'airFilterName'
-      ].includes(key)) {
-        if (!t[key] || !t[key].toString().toLowerCase().includes(value.toLowerCase())) return false;
-      } else if (typeof t[key] === 'string' || typeof t[key] === 'number') {
-        if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
-      }
-    }
-    return true;
-  });
 
   // --- Додаю month, year, storageKey для табеля ---
   const storageKey = `timesheetData_${year}_${month}`;
@@ -2496,17 +2458,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
   const regionAppDebug = user?.region || '';
   console.log('[DEBUG][APP] user.region:', regionAppDebug);
   console.log('[DEBUG][APP] tasks.map(serviceRegion):', tasks.map(t => t.serviceRegion));
-  // Додаю фільтрацію як у areas/RegionalManagerArea.jsx
-  const filteredAppDebug = tasks.filter(t => {
-    if (
-      regionAppDebug !== '' &&
-      regionAppDebug !== 'Україна' &&
-      (typeof t.serviceRegion !== 'string' ||
-        t.serviceRegion.trim().toLowerCase() !== regionAppDebug.trim().toLowerCase())
-    ) return false;
-    return true;
-  });
-  console.log('[DEBUG][APP] filtered:', filteredAppDebug.map(t => ({id: t.id, serviceRegion: t.serviceRegion})));
+  console.log('[DEBUG][APP] filtered:', filtered.map(t => ({id: t.id, serviceRegion: t.serviceRegion})));
 
   // Додаємо функцію експорту в Excel
   const exportFilteredToExcel = () => {
