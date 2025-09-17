@@ -102,14 +102,17 @@ export default function ReportBuilder({ user }) {
       try {
         // Завантажуємо регіони
         const regionsData = await regionsAPI.getAll();
+        console.log('[DEBUG][ReportBuilder] Завантажено регіонів:', regionsData.length, regionsData);
         setRegions(regionsData);
         
         // Завантажуємо користувачів
         const usersData = await rolesAPI.getAll();
+        console.log('[DEBUG][ReportBuilder] Завантажено користувачів:', usersData.length, usersData);
         setUsers(usersData);
         
         // Автоматично встановлюємо регіон користувача якщо він не 'Україна'
         if (user && user.region && user.region !== 'Україна') {
+          console.log('[DEBUG][ReportBuilder] Встановлюємо регіон користувача:', user.region);
           setFilters(prev => ({
             ...prev,
             serviceRegion: user.region
@@ -135,27 +138,39 @@ export default function ReportBuilder({ user }) {
 
   // Функції для отримання опцій dropdown фільтрів
   const getFilterOptions = (fieldName) => {
+    console.log(`[DEBUG][ReportBuilder] getFilterOptions для ${fieldName}, user.region:`, user?.region);
     switch (fieldName) {
       case 'status':
+        console.log('[DEBUG][ReportBuilder] Статуси:', statusOptions);
         return statusOptions;
       case 'company':
+        console.log('[DEBUG][ReportBuilder] Компанії:', companyOptions);
         return companyOptions;
       case 'paymentType':
+        console.log('[DEBUG][ReportBuilder] Типи оплати:', paymentTypeOptions);
         return paymentTypeOptions;
       case 'approvedByWarehouse':
       case 'approvedByAccountant':
       case 'approvedByRegionalManager':
+        console.log('[DEBUG][ReportBuilder] Статуси підтвердження:', approvalOptions);
         return approvalOptions;
       case 'serviceRegion':
-        return regions.map(r => r.name);
+        const regionNames = regions.map(r => r.name);
+        console.log('[DEBUG][ReportBuilder] Регіони:', regionNames);
+        return regionNames;
       case 'engineer1':
       case 'engineer2':
         // Фільтруємо користувачів по регіону якщо користувач не з 'Україна'
         if (user && user.region && user.region !== 'Україна') {
-          return users.filter(u => u.region === user.region).map(u => u.name);
+          const filteredUsers = users.filter(u => u.region === user.region).map(u => u.name);
+          console.log(`[DEBUG][ReportBuilder] Користувачі для регіону ${user.region}:`, filteredUsers);
+          return filteredUsers;
         }
-        return users.map(u => u.name);
+        const allUsers = users.map(u => u.name);
+        console.log('[DEBUG][ReportBuilder] Всі користувачі:', allUsers);
+        return allUsers;
       default:
+        console.log('[DEBUG][ReportBuilder] Невідоме поле:', fieldName);
         return [];
     }
   };
@@ -255,8 +270,20 @@ export default function ReportBuilder({ user }) {
         const filterValue = filters[field.name];
         if (filterValue && filterValue.trim() !== '') {
           const fieldValue = t[field.name];
-          if (!fieldValue || !fieldValue.toString().toLowerCase().includes(filterValue.toLowerCase())) {
-            return false;
+          console.log(`[DEBUG][ReportBuilder] Фільтр ${field.name}: шукаємо "${filterValue}", значення в завданні: "${fieldValue}"`);
+          
+          // Для dropdown полів використовуємо точне співпадіння
+          if (isFieldDropdown(field.name)) {
+            if (!fieldValue || fieldValue.toString() !== filterValue) {
+              console.log(`[DEBUG][ReportBuilder] Завдання ${t.id} відфільтровано по полю ${field.name} (точне співпадіння)`);
+              return false;
+            }
+          } else {
+            // Для text полів використовуємо includes
+            if (!fieldValue || !fieldValue.toString().toLowerCase().includes(filterValue.toLowerCase())) {
+              console.log(`[DEBUG][ReportBuilder] Завдання ${t.id} відфільтровано по полю ${field.name} (includes)`);
+              return false;
+            }
           }
         }
       }
@@ -316,6 +343,7 @@ export default function ReportBuilder({ user }) {
     const newFilters = { ...filters, [e.target.name]: e.target.value };
     setFilters(newFilters);
     console.log('[DEBUG][ReportBuilder] Фільтр змінено:', e.target.name, '=', e.target.value);
+    console.log('[DEBUG][ReportBuilder] Всі фільтри:', newFilters);
   };
 
   const generateReport = () => {
