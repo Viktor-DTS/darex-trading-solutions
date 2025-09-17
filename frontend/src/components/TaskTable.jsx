@@ -177,7 +177,28 @@ function TaskTableComponent({
     const cachedSettings = getCachedSettings();
     if (cachedSettings && cachedSettings.visible && cachedSettings.visible.length > 0) {
       console.log('[DEBUG] Використовуємо кешовані налаштування');
+      console.log('[DEBUG] 🔍 Кешована ширина колонок:', cachedSettings.widths);
+      
       setSelected(cachedSettings.visible);
+      
+      // Встановлюємо порядок з кешу
+      if (cachedSettings.order && cachedSettings.order.length > 0) {
+        setSelected(cachedSettings.order);
+      }
+      
+      // Встановлюємо ширину з кешу
+      if (cachedSettings.widths && typeof cachedSettings.widths === 'object' && Object.keys(cachedSettings.widths).length > 0) {
+        console.log('[DEBUG] ✅ Встановлюємо ширину з кешу:', cachedSettings.widths);
+        setColumnWidths(cachedSettings.widths);
+      } else {
+        console.log('[DEBUG] ⚠️ Ширина в кеші відсутня, встановлюємо за замовчуванням');
+        const defaultWidths = {};
+        columns.forEach(col => {
+          defaultWidths[col.key] = 120;
+        });
+        setColumnWidths(defaultWidths);
+      }
+      
       setSettingsLoaded(true);
       setLoadingSettings(false);
       return;
