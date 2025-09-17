@@ -710,9 +710,9 @@ function TaskTableComponent({
     return 'text';
   };
 
-  // Функція для обробки кліку на заголовок колонки
+  // Функція для обробки подвійного кліку на заголовок колонки
   const handleSort = (field) => {
-    console.log('[DEBUG] Клік на заголовок:', field);
+    console.log('[DEBUG] Подвійний клік на заголовок:', field);
     
     setSortConfig(prevConfig => {
       // Якщо клікаємо на ту ж колонку, змінюємо напрямок
@@ -1472,7 +1472,7 @@ function TaskTableComponent({
                       onDragStart={e => handleDragStart(e, idx)}
                       onDrop={e => handleDrop(e, idx)}
                       onDragOver={handleDragOver}
-                      onClick={() => handleSort(col.key)}
+                      onDoubleClick={() => handleSort(col.key)}
                       style={{
                         width: columnWidths[col.key] || 120,
                         minWidth: columnWidths[col.key] || 120,
@@ -1482,7 +1482,7 @@ function TaskTableComponent({
                       }}
                     >
                       <div style={{marginBottom:4, display:'flex', alignItems:'center', justifyContent:'space-between'}}>
-                        <span title="Клік для сортування">{col.label}</span>
+                        <span title="Подвійний клік для сортування">{col.label}</span>
                         {sortConfig.field === col.key && (
                           <span style={{fontSize:'12px', marginLeft:'4px'}} title={`Сортовано ${sortConfig.direction === 'asc' ? 'від А до Я' : 'від Я до А'}`}>
                             {sortConfig.direction === 'asc' ? '↑' : '↓'}
