@@ -1066,11 +1066,12 @@ function TaskTableComponent({
           />
         )}
         {/* СПІЛЬНИЙ КОНТЕЙНЕР для фільтрів і таблиці */}
-        <div style={{width:'97vw',maxWidth:'none',margin:'0 auto'}}>
+        <div style={{width:'97vw',maxWidth:'none',margin:'0 auto', background:'#fff', borderRadius:'8px', padding:'16px'}}>
           {/* Окремий контейнер для таблиці з sticky-заголовками */}
           <style>{`
             .table-scroll {
-              max-height: 60vh;
+              max-height: 70vh;
+              min-height: 400px;
               overflow: scroll;
               width: 100%;
               background: #fff;
@@ -1171,9 +1172,9 @@ function TaskTableComponent({
                       </div>
                       {col.filter && (
                           col.key === 'date' || col.key === 'requestDate' ? (
-                            <div style={{display:'flex',flexDirection:'column',minWidth:120}}>
-                              <input type="date" name={col.key+"From"} value={filters[col.key+"From"] || ''} onChange={onFilterChange} style={{marginBottom:2}} />
-                              <input type="date" name={col.key+"To"} value={filters[col.key+"To"] || ''} onChange={onFilterChange} />
+                            <div style={{display:'flex',flexDirection:'column',minWidth:120, background:'#fff'}}>
+                              <input type="date" name={col.key+"From"} value={filters[col.key+"From"] || ''} onChange={onFilterChange} style={{marginBottom:2, background:'#fff'}} />
+                              <input type="date" name={col.key+"To"} value={filters[col.key+"To"] || ''} onChange={onFilterChange} style={{background:'#fff'}} />
                             </div>
                           ) : (
                             <input
@@ -1185,7 +1186,7 @@ function TaskTableComponent({
                                 console.log('[DEBUG] Current filters state:', filters);
                                 onFilterChange(e);
                               }}
-                              style={{width:'100%'}}
+                              style={{width:'100%', background:'#fff'}}
                             />
                           )
                       )}
