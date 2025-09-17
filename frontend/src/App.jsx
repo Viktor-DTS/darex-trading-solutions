@@ -315,7 +315,7 @@ function AccessRulesModal({ open, onClose }) {
     setAccess(a => ({ ...a, [role]: { ...a[role], [tab]: value } }));
   };
   
-  const handleSave = async () => {
+  const handleSaveAccessRules = async () => {
     try {
       console.log('[DEBUG][AccessRulesModal] Зберігаємо правила доступу:', JSON.stringify(access, null, 2));
       const success = await accessRulesAPI.save(access);
@@ -383,7 +383,7 @@ function AccessRulesModal({ open, onClose }) {
           </tbody>
         </table>
         <div style={{display:'flex',gap:12}}>
-          <button onClick={handleSave} style={{flex:1,background:'#00bfff',color:'#fff',padding:'12px 0',fontWeight:600}}>Зберегти</button>
+          <button onClick={handleSaveAccessRules} style={{flex:1,background:'#00bfff',color:'#fff',padding:'12px 0',fontWeight:600}}>Зберегти</button>
           <button onClick={onClose} style={{flex:1,background:'#888',color:'#fff',padding:'12px 0'}}>Скасувати</button>
         </div>
       </div>
@@ -3841,39 +3841,6 @@ function AdminEditTasksArea({ user }) {
       // Встановлюємо прапорець для ModalTaskForm
       setEditTask(prev => ({ ...prev, _readOnly: true }));
     }
-  };
-  const handleSave = async (task) => {
-    console.log('[DEBUG] handleSave called with task:', task);
-    console.log('[DEBUG] handleSave - editTask:', editTask);
-    
-    setLoading(true);
-    let updatedTask = null;
-    
-    if (editTask && editTask.id) {
-      console.log('[DEBUG] handleSave - оновлюємо існуючу заявку з ID:', editTask.id);
-      updatedTask = await tasksAPI.update(editTask.id, task);
-      console.log('[DEBUG] handleSave - отримано оновлену заявку:', updatedTask);
-    } else {
-      console.log('[DEBUG] handleSave - додаємо нову заявку');
-      updatedTask = await tasksAPI.add(task);
-      console.log('[DEBUG] handleSave - отримано нову заявку:', updatedTask);
-    }
-    
-    // Оновлюємо дані з бази після збереження
-    try {
-      const freshTasks = await tasksAPI.getAll();
-      setTasks(freshTasks);
-      console.log('[DEBUG] handleSave - дані оновлено з бази, завдань:', freshTasks.length);
-    } catch (error) {
-      console.error('[ERROR] handleSave - помилка оновлення даних з бази:', error);
-    }
-    
-    // Закриваємо модальне вікно
-    setEditTask(null);
-    setLoading(false);
-    
-    // НЕ змінюємо вкладку автоматично - залишаємося на поточній
-    // Користувач може сам перейти на потрібну вкладку
   };
   // Функція для збереження тільки поля bonusApprovalDate
   const handleSaveBonusDate = async (taskId, newDate) => {
