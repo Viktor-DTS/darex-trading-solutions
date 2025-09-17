@@ -3960,22 +3960,34 @@ function AdminBackupArea() {
   // --- Додаю створення бекапу ---
   const createBackup = async () => {
     try {
-    const now = new Date();
+      console.log('[BACKUP] Початок створення бекапу...');
+      const now = new Date();
+      
+      console.log('[BACKUP] Отримання даних завдань з API...');
       const tasksData = await tasksAPI.getAll();
-    const backup = {
-      id: Date.now(),
-      date: now.toISOString(),
+      console.log('[BACKUP] Отримано завдань:', tasksData.length);
+      
+      const backup = {
+        id: Date.now(),
+        date: now.toISOString(),
         data: JSON.stringify(tasksData) // зберігаємо дані завдань з API
-    };
-    let newBackups = [...backups, backup];
-    if (newBackups.length > 50) newBackups = newBackups.slice(newBackups.length - 50);
-    setBackups(newBackups);
-    localStorage.setItem('backups', JSON.stringify(newBackups));
-    setLastAutoBackup(now);
-    localStorage.setItem('lastAutoBackup', now.toISOString());
+      };
+      
+      console.log('[BACKUP] Створено об\'єкт бекапу:', backup.id);
+      
+      let newBackups = [...backups, backup];
+      if (newBackups.length > 50) newBackups = newBackups.slice(newBackups.length - 50);
+      
+      setBackups(newBackups);
+      localStorage.setItem('backups', JSON.stringify(newBackups));
+      setLastAutoBackup(now);
+      localStorage.setItem('lastAutoBackup', now.toISOString());
+      
+      console.log('[BACKUP] Бекап успішно створено та збережено');
+      alert('Бекап успішно створено!');
     } catch (error) {
-      console.error('Помилка створення бекапу:', error);
-      alert('Помилка при створенні бекапу. Спробуйте ще раз.');
+      console.error('[BACKUP] Помилка створення бекапу:', error);
+      alert(`Помилка при створенні бекапу: ${error.message}. Спробуйте ще раз.`);
     }
   };
 
