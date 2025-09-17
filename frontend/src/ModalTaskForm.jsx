@@ -659,8 +659,23 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       (parseFloat(form.transportSum)||0)
     );
     
+    // --- Автоматичне заповнення коментарів при підтвердженні ---
+    const finalForm = { ...form };
+    
+    // Автоматично заповнюємо коментарі при підтвердженні
+    if (form.approvedByWarehouse === 'Підтверджено' && !form.warehouseComment) {
+      finalForm.warehouseComment = `Погоджено, претензій не маю. ${user?.name || 'Користувач'}`;
+    }
+    if (form.approvedByAccountant === 'Підтверджено' && !form.accountantComment) {
+      finalForm.accountantComment = `Погоджено, претензій не маю. ${user?.name || 'Користувач'}`;
+      finalForm.accountantComments = `Погоджено, претензій не маю. ${user?.name || 'Користувач'}`;
+    }
+    if (form.approvedByRegionalManager === 'Підтверджено' && !form.regionalManagerComment) {
+      finalForm.regionalManagerComment = `Погоджено, претензій не маю. ${user?.name || 'Користувач'}`;
+    }
+    
     onSave({
-      ...form,
+      ...finalForm,
       bonusApprovalDate,
       oilTotal,
       filterSum,
