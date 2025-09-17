@@ -1924,7 +1924,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
           body { font-family: Arial, sans-serif; background: #f8fafc; color: #222; padding: 24px; }
           h2 { color: #1976d2; }
           table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
-          th, td { border: 1px solid #bbb; padding: 6px 10px; text-align: center; }
+          th, td { border: 1px solid #000; padding: 6px 10px; text-align: center; }
           th { background: #ffe600; color: #222; }
         </style>
       </head>
@@ -2208,7 +2208,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
           h3 { color: #1976d2; margin-top: 30px; }
           h4 { color: #1976d2; margin-top: 20px; }
           table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
-          th, td { border: 1px solid #bbb; padding: 6px 10px; text-align: center; }
+          th, td { border: 1px solid #000; padding: 6px 10px; text-align: center; }
           th { background: #ffe600; color: #222; }
           .details th { background: #e0e0e0; }
           .weekend { background: #e0e0e0 !important; color: #222 !important; }

@@ -300,7 +300,7 @@ export default function WarehouseArea({ user }) {
           body { font-family: Arial, sans-serif; background: #f8fafc; color: #222; padding: 24px; }
           h2 { color: #1976d2; }
           table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
-          th, td { border: 1px solid #bbb; padding: 6px 10px; text-align: center; }
+          th, td { border: 1px solid #000; padding: 6px 10px; text-align: center; }
           th { background: #ffe600; color: #222; }
         </style>
       </head>

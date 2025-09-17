@@ -329,7 +329,7 @@ export default function ReportBuilder({ user }) {
           th, td {
             padding: 12px;
             text-align: left;
-            border-bottom: 1px solid #eee;
+            border: 1px solid #000;
           }
           th {
             background: #ffe600;
