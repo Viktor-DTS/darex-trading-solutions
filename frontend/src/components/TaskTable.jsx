@@ -1652,7 +1652,11 @@ function TaskTableComponent({
                     </td>
                     {(role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && approveField && (
                       <td className="action-buttons" style={getRowColor(t) ? {color:'#111'} : {}}>
-                        {t.status === 'Виконано' ? (
+                        {t[approveField] === 'Підтверджено' || t[approveField] === 'Відмова' ? (
+                          <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600} : {color:'#f00', fontWeight:600}}>
+                            {t[approveField] === 'Підтверджено' ? 'Підтверджено' : 'Відхилено'}
+                          </span>
+                        ) : (
                           <>
                             <button onClick={()=>{
                               // Логуємо затвердження заявки
@@ -1677,11 +1681,8 @@ function TaskTableComponent({
                                 });
                               onApprove(t.id, 'На розгляді', '');
                             }} style={{background:'#ffe066',color:'#22334a'}}>На розгляді</button>
-                            <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600} : t[approveField] === 'Відмова' ? {color:'#f00', fontWeight:600} : {color:'#aaa'}}>
-                              {t[approveField] === 'Підтверджено' ? 'Підтверджено' : t[approveField] === 'Відмова' ? 'Відхилено' : 'На розгляді'}
-                            </span>
                           </>
-                        ) : <span style={{color:'#aaa'}}>—</span>}
+                        )}
                       </td>
                     )}
                     {visibleColumns.map(col => <td key={col.key} className="td-auto-height" style={{
@@ -1714,7 +1715,11 @@ function TaskTableComponent({
                     </td>}
                     {role !== 'warehouse' && role !== 'regional' && role !== 'accountant' && role !== 'regionalManager' && role !== 'admin' && approveField && (
                       <td className="action-buttons" style={getRowColor(t) ? {color:'#111'} : {}}>
-                        {t.status === 'Виконано' ? (
+                        {t[approveField] === 'Підтверджено' || t[approveField] === 'Відмова' ? (
+                          <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600} : {color:'#f00', fontWeight:600}}>
+                            {t[approveField] === 'Підтверджено' ? 'Підтверджено' : 'Відхилено'}
+                          </span>
+                        ) : (
                           <>
                             <button onClick={()=>{
                               // Логуємо затвердження заявки
@@ -1739,11 +1744,8 @@ function TaskTableComponent({
                                 });
                               onApprove(t.id, 'На розгляді', '');
                             }} style={{background:'#ffe066',color:'#22334a'}}>На розгляді</button>
-                            <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600} : t[approveField] === 'Відмова' ? {color:'#f00', fontWeight:600} : {color:'#aaa'}}>
-                              {t[approveField] === 'Підтверджено' ? 'Підтверджено' : t[approveField] === 'Відмова' ? 'Відхилено' : 'На розгляді'}
-                            </span>
                           </>
-                        ) : <span style={{color:'#aaa'}}>—</span>}
+                        )}
                       </td>
                     )}
                     {commentField && (
