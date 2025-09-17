@@ -1648,9 +1648,10 @@ function TaskTableComponent({
                         }} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
                       )}
                       {/* Кнопки підтвердження для відповідних ролей */}
-                      {(role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && approveField && (
+                      {(role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && (
+                        console.log('[DEBUG] Warehouse buttons - role:', role, 'approveField:', approveField, 'onApprove:', !!onApprove),
                         <>
-                          {t[approveField] === 'Підтверджено' || t[approveField] === 'Відмова' ? (
+                          {approveField && (t[approveField] === 'Підтверджено' || t[approveField] === 'Відмова') ? (
                             <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600, marginLeft: '8px'} : {color:'#f00', fontWeight:600, marginLeft: '8px'}}>
                               {t[approveField] === 'Підтверджено' ? 'Підтверджено' : 'Відхилено'}
                             </span>
@@ -1665,7 +1666,7 @@ function TaskTableComponent({
                                     work: t.work,
                                     status: t.status
                                   });
-                                onApprove(t.id, 'Підтверджено', '');
+                                onApprove && onApprove(t.id, 'Підтверджено', '');
                               }} style={{background:'#0a0',color:'#fff', marginLeft: '8px'}}>Підтвердити</button>
                               <button onClick={()=>setRejectModal({ open: true, taskId: t.id, comment: '' })} style={{background:'#f66',color:'#fff'}}>Відхилити</button>
                               <button onClick={()=>{
@@ -1677,7 +1678,7 @@ function TaskTableComponent({
                                     work: t.work,
                                     status: t.status
                                   });
-                                onApprove(t.id, 'На розгляді', '');
+                                onApprove && onApprove(t.id, 'На розгляді', '');
                               }} style={{background:'#ffe066',color:'#22334a'}}>На розгляді</button>
                             </>
                           )}
