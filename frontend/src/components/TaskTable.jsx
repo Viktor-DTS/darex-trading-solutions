@@ -1438,7 +1438,6 @@ function TaskTableComponent({
               <thead>
                 <tr>
                   <th>Дія</th>
-                  {(role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && approveField && <th>Підтвердження</th>}
                   {visibleColumns.map((col, idx) => (
                     <th
                       key={col.key}
@@ -1534,7 +1533,6 @@ function TaskTableComponent({
                   ))}
                   <th>Статус</th>
                   {role === 'admin' && <th>Дата підтвердження</th>}
-                  {role !== 'warehouse' && role !== 'regional' && role !== 'accountant' && role !== 'regionalManager' && role !== 'admin' && approveField && <th>Статус заявки</th>}
                   {commentField && <th>Коментар</th>}
                 </tr>
               </thead>
@@ -1650,41 +1648,6 @@ function TaskTableComponent({
                         }} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
                       )}
                     </td>
-                    {(role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && approveField && (
-                      <td className="action-buttons" style={getRowColor(t) ? {color:'#111'} : {}}>
-                        {t[approveField] === 'Підтверджено' || t[approveField] === 'Відмова' ? (
-                          <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600} : {color:'#f00', fontWeight:600}}>
-                            {t[approveField] === 'Підтверджено' ? 'Підтверджено' : 'Відхилено'}
-                          </span>
-                        ) : (
-                          <>
-                            <button onClick={()=>{
-                              // Логуємо затвердження заявки
-                              logUserAction(user, EVENT_ACTIONS.APPROVE, ENTITY_TYPES.TASK, t.id, 
-                                `Затверджено заявку: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
-                                  requestNumber: t.requestNumber,
-                                  client: t.client,
-                                  work: t.work,
-                                  status: t.status
-                                });
-                              onApprove(t.id, 'Підтверджено', '');
-                            }} style={{background:'#0a0',color:'#fff'}}>Підтвердити</button>
-                            <button onClick={()=>setRejectModal({ open: true, taskId: t.id, comment: '' })} style={{background:'#f66',color:'#fff'}}>Відхилити</button>
-                            <button onClick={()=>{
-                              // Логуємо відправку на розгляд
-                              logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
-                                `Відправлено на розгляд: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
-                                  requestNumber: t.requestNumber,
-                                  client: t.client,
-                                  work: t.work,
-                                  status: t.status
-                                });
-                              onApprove(t.id, 'На розгляді', '');
-                            }} style={{background:'#ffe066',color:'#22334a'}}>На розгляді</button>
-                          </>
-                        )}
-                      </td>
-                    )}
                     {visibleColumns.map(col => <td key={col.key} className="td-auto-height" style={{
                       ...(getRowColor(t) ? {color:'#111'} : {}),
                       width: columnWidths[col.key] || 120,
@@ -1713,23 +1676,6 @@ function TaskTableComponent({
                         setEditDateModal({ open: true, taskId: t.id, month: mm, year: yyyy });
                       }}>Змінити</button>
                     </td>}
-                    {role !== 'warehouse' && role !== 'regional' && role !== 'accountant' && role !== 'regionalManager' && role !== 'admin' && approveField && (
-                      <td className="td-auto-height" style={{
-                        ...(getRowColor(t) ? {color:'#111'} : {}),
-                        width: columnWidths['status'] || 120,
-                        minWidth: columnWidths['status'] || 120,
-                        maxWidth: columnWidths['status'] || 120
-                      }}>
-                        <span style={{
-                          color: t.status === 'Виконано' ? '#0f0' : 
-                                 t.status === 'В роботі' ? '#ffa500' : 
-                                 t.status === 'Новий' ? '#2196f3' : '#666',
-                          fontWeight: 600
-                        }}>
-                          {t.status}
-                        </span>
-                      </td>
-                    )}
                     {commentField && (
                       <td style={getRowColor(t) ? {color:'#111'} : {}}>
                         <input
