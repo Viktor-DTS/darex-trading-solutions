@@ -1073,11 +1073,13 @@ function TaskTableComponent({
               max-height: 60vh;
               overflow: scroll;
               width: 100%;
+              background: #fff;
+              border-radius: 8px;
             }
             .sticky-table {
               min-width: 2000px;
               width: 100%;
-              background: #fff;
+              background: transparent;
               color: #333;
               border-radius: 8px;
               border-spacing: 0;
@@ -1114,14 +1116,14 @@ function TaskTableComponent({
               white-space: nowrap;
             }
             .sticky-table tbody tr {
-              background: #fff;
+              background: transparent;
               color: #333;
             }
             .sticky-table tbody tr:nth-child(even) {
-              background: #f8f9fa;
+              background: rgba(248, 249, 250, 0.8);
             }
             .sticky-table tbody tr:hover {
-              background: #e3f2fd;
+              background: rgba(227, 242, 253, 0.8);
             }
             .table-scroll::-webkit-scrollbar {
               height: 12px;
