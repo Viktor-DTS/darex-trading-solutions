@@ -1581,7 +1581,7 @@ function TaskTableComponent({
                         }
                       }} style={{background:'#00bfff',color:'#fff'}}>Історія проведення робіт</button>
                       {/* Кнопка редагування - в архіві тільки для адміністратора */}
-                      {(!isArchive || role === 'admin') && (
+                      {(!isArchive || role === 'admin' || user?.role === 'admin' || user?.role === 'administrator') && (
                         <>
                           {(role === 'service' || role === 'operator' || role === 'admin') && (
                             <>
@@ -1661,7 +1661,7 @@ function TaskTableComponent({
                         </>
                       )}
                       {/* Кнопка інформації - в архіві для всіх ролей крім адміністратора */}
-                      {isArchive && role !== 'admin' && (
+                      {isArchive && role !== 'admin' && user?.role !== 'admin' && user?.role !== 'administrator' && (
                         <button onClick={()=>{
                           // Логуємо перегляд інформації заявки
                           logUserAction(user, EVENT_ACTIONS.VIEW, ENTITY_TYPES.TASK, t.id, 
@@ -1675,7 +1675,7 @@ function TaskTableComponent({
                         }} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
                       )}
                       {/* Кнопки підтвердження для відповідних ролей - в архіві тільки для адміністратора */}
-                      {((role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager' || role === 'admin' || role === 'administrator') && (!isArchive || role === 'admin' || role === 'administrator')) && (
+                      {((role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager' || role === 'admin' || role === 'administrator' || user?.role === 'admin' || user?.role === 'administrator') && (!isArchive || role === 'admin' || role === 'administrator' || user?.role === 'admin' || user?.role === 'administrator')) && (
                         <>
                           {/* Кнопки підтвердження в другому рядку */}
                           <div style={{marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center'}}>
