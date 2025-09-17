@@ -1656,8 +1656,30 @@ function RegionalManagerArea({ tab: propTab, user }) {
     ...columns.filter(c => c.key !== 'approvedByRegionalManager')
   ];
 
-  // --- Заглушка для handleSave, якщо немає ---
-  function handleSave() {}
+  // --- Функція handleSave для збереження завдань ---
+  async function handleSave(task) {
+    setLoading(true);
+    let updatedTask = null;
+    
+    if (editTask && editTask.id) {
+      updatedTask = await tasksAPI.update(editTask.id, task);
+    } else {
+      updatedTask = await tasksAPI.add(task);
+    }
+    
+    // Оновлюємо дані з бази після збереження
+    try {
+      const freshTasks = await tasksAPI.getAll();
+      setTasks(freshTasks);
+      console.log('[DEBUG] RegionalManagerArea handleSave - дані оновлено з бази, завдань:', freshTasks.length);
+    } catch (error) {
+      console.error('[ERROR] RegionalManagerArea handleSave - помилка оновлення даних з бази:', error);
+    }
+    
+    // Закриваємо модальне вікно
+    setEditTask(null);
+    setLoading(false);
+  }
 
   // --- Функція handleEdit для редагування задачі ---
   function handleEdit(task) {
