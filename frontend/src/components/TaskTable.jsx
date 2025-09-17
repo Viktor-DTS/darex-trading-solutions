@@ -1411,6 +1411,27 @@ function TaskTableComponent({
               line-height: 1.2 !important;
               vertical-align: top !important;
             }
+            
+            .action-buttons {
+              display: flex !important;
+              flex-wrap: nowrap !important;
+              gap: 4px !important;
+              align-items: center !important;
+              justify-content: flex-start !important;
+            }
+            
+            .action-buttons button {
+              font-size: 10px !important;
+              padding: 4px 6px !important;
+              border-radius: 3px !important;
+              border: none !important;
+              cursor: pointer !important;
+              white-space: nowrap !important;
+              min-width: auto !important;
+              height: 24px !important;
+              line-height: 1 !important;
+              margin-right: 0 !important;
+            }
           `}</style>
           <div className="table-scroll">
             <table className="sticky-table">
@@ -1520,7 +1541,7 @@ function TaskTableComponent({
               <tbody>
                 {sortData(tasks, sortConfig.field, sortConfig.direction).map(t => (
                   <tr key={t.id} className={getRowClass(t)} style={getRowColor(t) ? {background:getRowColor(t)} : {}}>
-                    <td style={getRowColor(t) ? {color:'#111'} : {}}>
+                    <td className="action-buttons" style={getRowColor(t) ? {color:'#111'} : {}}>
                       <button onClick={()=>{
                         if (onHistoryClick && role === 'materials') {
                           // Для вкладки аналізу матеріалів - відкриваємо звіт по обладнанню
@@ -1533,7 +1554,7 @@ function TaskTableComponent({
                           setInfoTask(t);
                           setShowInfo(true);
                         }
-                      }} style={{marginRight:8,background:'#00bfff',color:'#fff'}}>Історія проведення робіт</button>
+                      }} style={{background:'#00bfff',color:'#fff'}}>Історія проведення робіт</button>
                       {/* Кнопка редагування - в архіві тільки для адміністратора */}
                       {(!isArchive || role === 'admin') && (
                         <>
@@ -1549,7 +1570,7 @@ function TaskTableComponent({
                                     status: t.status
                                   });
                                 onEdit && onEdit(t);
-                              }} style={{marginRight:8}}>Редагувати</button>
+                              }}>Редагувати</button>
                               {/* Кнопка видалення - тільки для регіональних керівників та адміністраторів */}
                               {(() => {
                                 const canDelete = user?.role === 'regionalManager' || user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'regkerivn' || user?.role === 'regkerzavskl';
@@ -1576,7 +1597,7 @@ function TaskTableComponent({
                                   } else {
                                     console.error('[ERROR] Неможливо видалити заявку: ID відсутній або onDelete не передано', { taskId: t.id, hasOnDelete: !!onDelete });
                                   }
-                                }} style={{background:'#f66',color:'#fff', marginRight:8}}>Видалити</button>
+                                }} style={{background:'#f66',color:'#fff'}}>Видалити</button>
                               )}
                               {/* Кнопка наряду - тільки для сервісної служби */}
                               {role === 'service' && (
