@@ -2458,7 +2458,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
   const regionAppDebug = user?.region || '';
   console.log('[DEBUG][APP] user.region:', regionAppDebug);
   console.log('[DEBUG][APP] tasks.map(serviceRegion):', tasks.map(t => t.serviceRegion));
-  console.log('[DEBUG][APP] filtered:', filtered.map(t => ({id: t.id, serviceRegion: t.serviceRegion})));
+  // Видалено посилання на filtered, оскільки воно не доступне в цій області видимості
 
   // Додаємо функцію експорту в Excel
   const exportFilteredToExcel = () => {
@@ -2773,6 +2773,29 @@ function RegionalManagerArea({ tab: propTab, user }) {
   // Логіка групування по регіонам для вкладки "Звіт по персоналу"
   const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
   const showRegions = user?.region === 'Україна' ? allRegions : [user?.region || 'Без регіону'];
+
+  // Фільтрація завдань для регіонального керівника
+  const filtered = tasks.filter(t => {
+    if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) return false;
+    for (const key in filters) {
+      const value = filters[key];
+      if (!value) continue;
+      if (key.endsWith('From')) {
+        const field = key.replace('From', '');
+        if (!t[field] || t[field] < value) return false;
+      } else if (key.endsWith('To')) {
+        const field = key.replace('To', '');
+        if (!t[field] || t[field] > value) return false;
+      } else if (key === 'date' || key === 'requestDate') {
+        if (!t[key] || !t[key].includes(value)) return false;
+      } else if (typeof t[key] === 'string') {
+        if (!t[key].toLowerCase().includes(value.toLowerCase())) return false;
+      } else if (t[key] !== value) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   return (
     <>
