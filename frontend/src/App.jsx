@@ -4050,6 +4050,7 @@ function AdminBackupArea({ user }) {
       console.log('[BACKUP] Створено об\'єкт бекапу:', localBackup.id);
       
       // Зберігаємо на сервері
+      let serverSuccess = false;
       try {
         console.log('[BACKUP] Збереження бекапу на сервері...');
         const serverBackup = await backupAPI.create({
@@ -4061,6 +4062,7 @@ function AdminBackupArea({ user }) {
           isAuto: false
         });
         console.log('[BACKUP] Бекап збережено на сервері:', serverBackup.backup._id);
+        serverSuccess = true;
       } catch (serverError) {
         console.error('[BACKUP] Помилка збереження на сервері:', serverError);
         // Продовжуємо з локальним збереженням навіть якщо сервер недоступний
@@ -4090,7 +4092,12 @@ function AdminBackupArea({ user }) {
         setLastAutoBackup(now);
         localStorage.setItem('lastAutoBackup', now.toISOString());
         console.log('[BACKUP] Локальний бекап успішно створено та збережено');
-        alert('Бекап успішно створено! Збережено локально та на сервері.');
+        // Перевіряємо, чи вдалося зберегти на сервері
+        if (serverSuccess) {
+          alert('Бекап успішно створено! Збережено локально та на сервері.');
+        } else {
+          alert('Бекап створено локально, але не вдалося зберегти на сервері. Спробуйте ще раз пізніше.');
+        }
       } catch (storageError) {
         console.error('[BACKUP] Помилка збереження в localStorage:', storageError);
         // Якщо localStorage переповнений, зберігаємо тільки 3 останні бекапи

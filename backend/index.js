@@ -801,13 +801,25 @@ app.get('/api/backups', async (req, res) => {
 // Створити новий бекап
 app.post('/api/backups', async (req, res) => {
   try {
+    console.log('[BACKUP] POST /api/backups - початок створення бекапу');
     const { userId, name, description, data, taskCount, isAuto = false } = req.body;
     
+    console.log('[BACKUP] Дані запиту:', { 
+      userId, 
+      name, 
+      description: description?.substring(0, 50) + '...', 
+      dataLength: data?.length, 
+      taskCount, 
+      isAuto 
+    });
+    
     if (!userId || !name || !data) {
+      console.log('[BACKUP] Відсутні обов\'язкові поля:', { userId: !!userId, name: !!name, data: !!data });
       return res.status(400).json({ error: 'userId, name, and data are required' });
     }
     
-    const size = new Blob([data]).size;
+    const size = Buffer.byteLength(data, 'utf8');
+    console.log('[BACKUP] Розмір даних:', size, 'байт');
     
     const backup = new Backup({
       userId,
@@ -819,12 +831,15 @@ app.post('/api/backups', async (req, res) => {
       isAuto
     });
     
+    console.log('[BACKUP] Збереження бекапу в MongoDB...');
     const savedBackup = await executeWithRetry(() => backup.save());
+    console.log('[BACKUP] Бекап збережено з ID:', savedBackup._id);
     
     res.json({ success: true, backup: savedBackup });
   } catch (error) {
     console.error('[ERROR] POST /api/backups - помилка:', error);
-    res.status(500).json({ error: error.message });
+    console.error('[ERROR] Stack trace:', error.stack);
+    res.status(500).json({ error: 'Внутрішня помилка сервера' });
   }
 });
 
