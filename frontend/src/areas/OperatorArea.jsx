@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
 import { tasksAPI } from '../utils/tasksAPI';
-
 const initialTask = {
   id: null,
   status: '',
@@ -56,7 +55,6 @@ const initialTask = {
   transportKm: '',
   transportSum: '',
 };
-
 export default function OperatorArea({ user }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -75,7 +73,6 @@ export default function OperatorArea({ user }) {
   const [editTask, setEditTask] = useState(null);
   const [tab, setTab] = useState('inProgress');
   const region = user?.region || '';
-
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
   // але зберігаємо вже введені користувачем значення
   useEffect(() => {
@@ -89,7 +86,6 @@ export default function OperatorArea({ user }) {
         }
         return acc;
       }, {});
-    
     // Оновлюємо filters, зберігаючи вже введені значення
     setFilters(prevFilters => {
       const updatedFilters = { ...newFilterKeys };
@@ -102,63 +98,49 @@ export default function OperatorArea({ user }) {
       return updatedFilters;
     });
   }, [allTaskFields]); // Залежність від allTaskFields
-
   useEffect(() => {
     setLoading(true);
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
-
   // Автоматичне оновлення даних при фокусі на вкладку браузера
   useEffect(() => {
     const handleFocus = () => {
-      console.log('[DEBUG] OperatorArea - оновлення даних при фокусі на вкладку');
       tasksAPI.getAll().then(freshTasks => {
         setTasks(freshTasks);
-        console.log('[DEBUG] OperatorArea - дані оновлено при фокусі, завдань:', freshTasks.length);
       }).catch(error => {
         console.error('[ERROR] OperatorArea - помилка оновлення при фокусі:', error);
       });
     };
-
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, []);
-
   const handleSave = async (task) => {
     setLoading(true);
     let updatedTask = null;
-    
     if (editTask && editTask.id) {
       updatedTask = await tasksAPI.update(editTask.id, task);
     } else {
       updatedTask = await tasksAPI.add(task);
     }
-    
     // Оновлюємо дані з бази після збереження
     try {
       const freshTasks = await tasksAPI.getAll();
       setTasks(freshTasks);
-      console.log('[DEBUG] OperatorArea handleSave - дані оновлено з бази, завдань:', freshTasks.length);
     } catch (error) {
       console.error('[ERROR] OperatorArea handleSave - помилка оновлення даних з бази:', error);
     }
-    
     // Закриваємо модальне вікно
     setEditTask(null);
     setLoading(false);
   };
   const handleFilter = e => {
-    console.log('[DEBUG] OperatorArea handleFilter called:', e.target.name, e.target.value);
-    console.log('[DEBUG] Current filters before update:', filters);
     const newFilters = { ...filters, [e.target.name]: e.target.value };
-    console.log('[DEBUG] New filters after update:', newFilters);
     setFilters(newFilters);
   };
   const handleEdit = t => {
     const isReadOnly = t._readOnly;
     const taskData = { ...t };
     delete taskData._readOnly; // Видаляємо прапорець з даних завдання
-    
     setEditTask(taskData);
     setModalOpen(true);
     // Передаємо readOnly в ModalTaskForm
@@ -216,7 +198,6 @@ export default function OperatorArea({ user }) {
     }
     return true;
   });
-
   const handleApprove = async (id, approved, comment) => {
     setLoading(true);
     const t = tasks.find(t => t.id === id);
@@ -230,35 +211,28 @@ export default function OperatorArea({ user }) {
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);
   };
-
   // Заявки на виконанні (статус "Заявка" та "В роботі")
   const inProgress = filtered.filter(t => 
     t.status === 'Заявка' || t.status === 'В роботі'
   ).sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
-
   // Архів виконаних заявок (всі інші статуси)
   const archive = filtered.filter(t => 
     t.status !== 'Заявка' && t.status !== 'В роботі'
   );
-
   const tableData = tab === 'inProgress' ? inProgress : archive;
-
   // Функція для створення звіту по замовнику
   const openClientReport = (clientName) => {
     const clientTasks = tasks.filter(task => task.client === clientName);
-    
     if (clientTasks.length === 0) {
       alert('Немає даних для даного замовника');
       return;
     }
-
     // Сортуємо завдання за датою (від найновішої до найстарішої)
     const sortedTasks = clientTasks.sort((a, b) => {
       const dateA = new Date(a.date || a.requestDate || 0);
       const dateB = new Date(b.date || b.requestDate || 0);
       return dateB - dateA;
     });
-
     // Створюємо HTML звіт
     const reportHTML = `
       <!DOCTYPE html>
@@ -406,13 +380,11 @@ export default function OperatorArea({ user }) {
       </head>
       <body>
         <button class="print-button" onclick="window.print()">🖨️ Друкувати</button>
-        
         <div class="header">
           <h1>Звіт по замовнику: ${clientName}</h1>
           <p>Кількість проведених робіт: ${sortedTasks.length}</p>
           <p>Дата створення звіту: ${new Date().toLocaleDateString('uk-UA')}</p>
         </div>
-
         ${sortedTasks.map(task => `
           <div class="task-card">
             <div class="task-header">
@@ -421,7 +393,6 @@ export default function OperatorArea({ user }) {
                 ${task.status || 'Невідомо'}
               </div>
             </div>
-            
             <div class="task-info">
               <div class="info-row">
                 <span class="info-label">Дата заявки:</span>
@@ -444,7 +415,6 @@ export default function OperatorArea({ user }) {
                 <span class="info-value">${task.engineer1 || ''} ${task.engineer2 ? ', ' + task.engineer2 : ''}</span>
               </div>
             </div>
-
             <div class="materials-grid">
               ${task.oilType || task.oilUsed || task.oilPrice ? `
                 <div class="material-section">
@@ -455,7 +425,6 @@ export default function OperatorArea({ user }) {
                   ${task.oilTotal ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.oilTotal} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.filterName || task.filterCount || task.filterPrice ? `
                 <div class="material-section">
                   <h4>Масляний фільтр</h4>
@@ -465,7 +434,6 @@ export default function OperatorArea({ user }) {
                   ${task.filterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.filterSum} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.airFilterName || task.airFilterCount || task.airFilterPrice ? `
                 <div class="material-section">
                   <h4>Повітряний фільтр</h4>
@@ -475,7 +443,6 @@ export default function OperatorArea({ user }) {
                   ${task.airFilterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.airFilterSum} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.antifreezeType || task.antifreezeL || task.antifreezePrice ? `
                 <div class="material-section">
                   <h4>Антифриз</h4>
@@ -485,7 +452,6 @@ export default function OperatorArea({ user }) {
                   ${task.antifreezeSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.antifreezeSum} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.fuelFilterName || task.fuelFilterCount || task.fuelFilterPrice ? `
                 <div class="material-section">
                   <h4>Паливний фільтр</h4>
@@ -495,7 +461,6 @@ export default function OperatorArea({ user }) {
                   ${task.fuelFilterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.fuelFilterSum} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.otherMaterials || task.otherSum ? `
                 <div class="material-section">
                   <h4>Інші матеріали</h4>
@@ -504,7 +469,6 @@ export default function OperatorArea({ user }) {
                 </div>
               ` : ''}
             </div>
-
             ${task.serviceTotal ? `
               <div class="summary">
                 <h3>Загальна сума послуги: ${task.serviceTotal} грн</h3>
@@ -512,7 +476,6 @@ export default function OperatorArea({ user }) {
             ` : ''}
           </div>
         `).join('')}
-
         <div class="summary">
           <h3>Підсумок по замовнику ${clientName}</h3>
           <p>Всього проведено робіт: ${sortedTasks.length}</p>
@@ -521,20 +484,18 @@ export default function OperatorArea({ user }) {
       </body>
       </html>
     `;
-
     // Відкриваємо нове вікно з звітом
     const newWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
     newWindow.document.write(reportHTML);
     newWindow.document.close();
   };
-
   return (
     <div style={{padding:32}}>
       <h2>Заявки оператора</h2>
       {loading && <div>Завантаження...</div>}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <button onClick={()=>{console.log('Set tab inProgress'); setTab('inProgress')}} style={{width:220,padding:'10px 0',background:tab==='inProgress'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='inProgress'?700:400,cursor:'pointer'}}>Заявки на виконанні</button>
-        <button onClick={()=>{console.log('Set tab archive'); setTab('archive')}} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
+        <button onClick={()=>{setTab('inProgress')}} style={{width:220,padding:'10px 0',background:tab==='inProgress'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='inProgress'?700:400,cursor:'pointer'}}>Заявки на виконанні</button>
+        <button onClick={()=>{setTab('archive')}} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
       </div>
       <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16}}>Додати заявку</button>
       <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="operator" user={user} readOnly={editTask?._readOnly || false} />

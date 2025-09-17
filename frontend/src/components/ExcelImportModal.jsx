@@ -1,13 +1,11 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
-
 const ExcelImportModal = ({ open, onClose, onImport }) => {
   const [excelData, setExcelData] = useState(null);
   const [excelColumns, setExcelColumns] = useState([]);
   const [fieldMapping, setFieldMapping] = useState({});
   const [isMappingComplete, setIsMappingComplete] = useState(false);
   const fileInputRef = useRef(null);
-
   // Поля форми завдання
   const taskFields = [
     { name: 'requestDate', label: 'Дата заявки' },
@@ -51,7 +49,6 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
     { name: 'transportKm', label: 'Кілометри транспорту' },
     { name: 'transportSum', label: 'Сума транспорту' }
   ];
-
   // Додаю функцію для конвертації дат з Excel-формату у ISO-формат
   function excelDateToISO(excelDate) {
     if (!excelDate) return '';
@@ -66,11 +63,9 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
     }
     return excelDate;
   }
-
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -79,18 +74,14 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
         if (jsonData.length === 0) {
           alert('Файл порожній або не містить даних');
           return;
         }
-
         const headers = jsonData[0];
         const rows = jsonData.slice(1).filter(row => row.some(cell => cell !== null && cell !== undefined && cell !== ''));
-
         setExcelColumns(headers);
         setExcelData(rows);
-        
         // Автоматичне мапінгування на основі схожих назв
         const autoMapping = {};
         headers.forEach((header, index) => {
@@ -104,7 +95,6 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
             autoMapping[matchedField.name] = index;
           }
         });
-        
         setFieldMapping(autoMapping);
         checkMappingComplete(autoMapping);
       } catch (error) {
@@ -114,7 +104,6 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
     };
     reader.readAsArrayBuffer(file);
   };
-
   const handleMappingChange = (taskField, excelColumnIndex) => {
     const newMapping = { ...fieldMapping };
     if (excelColumnIndex === '') {
@@ -125,20 +114,17 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
     setFieldMapping(newMapping);
     checkMappingComplete(newMapping);
   };
-
   const checkMappingComplete = (mapping) => {
     // Перевіряємо, чи є хоча б основні поля
     const requiredFields = ['requestDesc', 'serviceRegion', 'address', 'equipment'];
     const hasRequiredFields = requiredFields.some(field => mapping[field] !== undefined);
     setIsMappingComplete(hasRequiredFields);
   };
-
   const handleImport = () => {
     if (!excelData || !isMappingComplete) {
       alert('Будь ласка, налаштуйте мапінг полів');
       return;
     }
-
     const importedTasks = excelData.map((row, index) => {
       const task = {
         id: Date.now() + index,
@@ -152,7 +138,6 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
         approvedByRegionalManager: null,
         regionalComment: ''
       };
-
       // Заповнюємо поля на основі мапінгу
       Object.entries(fieldMapping).forEach(([taskField, excelIndex]) => {
         let value = row[excelIndex];
@@ -166,17 +151,13 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
           task[taskField] = String(value);
         }
       });
-
       // Якщо після мапінгу статус все ще порожній, ставимо 'Виконано'
       if (!task.status) task.status = 'Виконано';
-
       return task;
     });
-
     onImport(importedTasks);
     onClose();
   };
-
   const resetForm = () => {
     setExcelData(null);
     setExcelColumns([]);
@@ -186,9 +167,7 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
       fileInputRef.current.value = '';
     }
   };
-
   if (!open) return null;
-
   return (
     <div style={{
       position: 'fixed',
@@ -227,7 +206,6 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
             ×
           </button>
         </div>
-
         {/* Завантаження файлу */}
         <div style={{ marginBottom: '24px' }}>
           <input
@@ -243,7 +221,6 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
             </div>
           )}
         </div>
-
         {/* Таблиця мапінгу */}
         {excelData && (
           <div style={{ marginBottom: '24px' }}>
@@ -272,7 +249,6 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
                   ))}
                 </div>
               </div>
-
               <div>
                 <h4 style={{ marginBottom: '12px', color: '#22334a' }}>Колонки Excel файлу</h4>
                 <div style={{ border: '1px solid #ddd', borderRadius: '4px', padding: '8px' }}>
@@ -294,7 +270,6 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
                 </div>
               </div>
             </div>
-
             {/* Таблиця мапінгу */}
             <div style={{ marginTop: '16px' }}>
               <h4 style={{ marginBottom: '12px', color: '#22334a' }}>Залежність полів</h4>
@@ -355,7 +330,6 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
             </div>
           </div>
         )}
-
         {/* Кнопки */}
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
           <button
@@ -400,7 +374,6 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
             Завантажити дані
           </button>
         </div>
-
         {!isMappingComplete && excelData && (
           <div style={{ 
             marginTop: '12px', 
@@ -417,5 +390,4 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
     </div>
   );
 };
-
 export default ExcelImportModal; 

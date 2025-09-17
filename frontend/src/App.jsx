@@ -1,11 +1,9 @@
-import React from 'react'
-import { useState, useEffect, useMemo } from 'react'
+import React, { Suspense } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import './App.css'
 import './i18n'
 import { useTranslation } from 'react-i18next'
 import logoImg from './assets/Designer (4).jpeg'
-import FinancialReport from './FinancialReport'
-import ReportsList from './ReportsList'
 import Login from './Login'
 import Sidebar from './Sidebar'
 import ModalTaskForm, { fields as allTaskFields } from './ModalTaskForm'
@@ -14,18 +12,20 @@ import ExcelImportModal from './components/ExcelImportModal'
 import ServiceReminderModal from './components/ServiceReminderModal'
 import MobileViewArea from './components/MobileViewArea'
 // Підключення кастомного шрифту Roboto для jsPDF відбувається через <script src="/Roboto-normal.js"></script> у public/index.html
-
 // Додаю імпорт на початку файлу
-import AccountantArea from './areas/AccountantArea';
-import WarehouseArea from './areas/WarehouseArea';
-import OperatorArea from './areas/OperatorArea';
+
+// Lazy loading для великих компонентів
+const FinancialReport = React.lazy(() => import('./FinancialReport'));
+const ReportsList = React.lazy(() => import('./ReportsList'));
+const AccountantArea = React.lazy(() => import('./areas/AccountantArea'));
+const WarehouseArea = React.lazy(() => import('./areas/WarehouseArea'));
+const OperatorArea = React.lazy(() => import('./areas/OperatorArea'));
 import MaterialsAnalysisArea from './areas/MaterialsAnalysisArea';
 import ReportBuilder from './areas/ReportBuilder';
 import EventLogArea from './areas/EventLogArea';
 import AnalyticsArea from './areas/AnalyticsArea';
 import NotificationSettings from './components/NotificationSettings';
 import UserNotificationManager from './components/UserNotificationManager';
-
 import * as XLSX from 'xlsx-js-style';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import API_BASE_URL from './config.js';
@@ -36,7 +36,6 @@ import { regionsAPI } from './utils/regionsAPI';
 import { backupAPI } from './utils/backupAPI';
 import { activityAPI } from './utils/activityAPI';
 import keepAliveService from './utils/keepAlive.js';
-
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
   { value: 'service', label: 'Сервісна служба' },
@@ -45,7 +44,6 @@ const roles = [
   { value: 'accountant', label: 'Бухгалтер' },
   { value: 'regional', label: 'Регіональний керівник' },
 ];
-
 // === Єдиний шаблон заявки для всіх областей ===
 const initialTask = {
   id: null,
@@ -100,23 +98,19 @@ const initialTask = {
   transportKm: '',
   transportSum: '',
 };
-
 // --- Додаю компонент для керування доступом до вкладок ---
 // Функція для перевірки статусу підтвердження
 function isApproved(value) {
   return value === true || value === 'Підтверджено';
 }
-
 // Функція для перевірки статусу відмови
 function isRejected(value) {
   return value === false || value === 'Відмова';
 }
-
 // Функція для перевірки статусу на розгляді
 function isPending(value) {
   return value === null || value === undefined || value === 'На розгляді';
 }
-
 const getDefaultAccess = (rolesList = []) => {
   const roles = rolesList.length > 0 ? rolesList : [
     { value: 'admin', label: 'Адміністратор' },
@@ -126,7 +120,6 @@ const getDefaultAccess = (rolesList = []) => {
     { value: 'accountant', label: 'Бухгалтер' },
     { value: 'regional', label: 'Регіональний керівник' },
   ];
-  
   const tabs = [
     { key: 'service', label: 'Сервісна служба' },
     { key: 'operator', label: 'Оператор' },
@@ -137,11 +130,8 @@ const getDefaultAccess = (rolesList = []) => {
     { key: 'reports', label: 'Звіти' },
     { key: 'materials', label: 'Аналіз ціни матеріалів' },
     { key: 'analytics', label: 'Аналітика' },
-
   ];
-  
   const defaultAccess = {};
-  
   // Створюємо права доступу для кожної ролі
   roles.forEach(role => {
     defaultAccess[role.value] = {};
@@ -165,22 +155,18 @@ const getDefaultAccess = (rolesList = []) => {
         } else {
           defaultAccess[role.value][tab.key] = 'none';
         }
-
       } else {
         // Для інших вкладок - немає доступу
         defaultAccess[role.value][tab.key] = 'none';
       }
     });
   });
-  
   return defaultAccess;
 };
-
 function AccessRulesModal({ open, onClose }) {
   const [access, setAccess] = React.useState({});
   const [loading, setLoading] = React.useState(true);
   const [roles, setRoles] = React.useState([]);
-  
   // Отримуємо поточний список ролей з API
   const getCurrentRoles = async () => {
     try {
@@ -198,7 +184,6 @@ function AccessRulesModal({ open, onClose }) {
   ];
     }
   };
-  
   const tabs = [
     { key: 'service', label: 'Сервісна служба' },
     { key: 'operator', label: 'Оператор' },
@@ -209,7 +194,6 @@ function AccessRulesModal({ open, onClose }) {
     { key: 'reports', label: 'Звіти' },
     { key: 'materials', label: 'Аналіз ціни матеріалів' },
     { key: 'analytics', label: 'Аналітика' },
-
   ];
   const accessTypes = [
     { value: 'full', label: 'Повний доступ' },
@@ -217,7 +201,6 @@ function AccessRulesModal({ open, onClose }) {
     { value: 'none', label: 'Немає доступу' },
   ];
   const [selectedRole, setSelectedRole] = React.useState('admin');
-  
   // Завантаження правил доступу з API
   React.useEffect(() => {
     const loadAccessRules = async () => {
@@ -227,15 +210,11 @@ function AccessRulesModal({ open, onClose }) {
         const rolesData = await getCurrentRoles();
         setRoles(rolesData);
         setSelectedRole(rolesData[0]?.value || 'admin');
-        
         // Завантажуємо правила доступу
         const serverRules = await accessRulesAPI.getAll();
-        console.log('[DEBUG][AccessRulesModal] Завантажені правила з сервера:', JSON.stringify(serverRules, null, 2));
-        
         if (Object.keys(serverRules).length === 0) {
           // Якщо на сервері немає правил, використовуємо за замовчуванням
           const defaultRules = getDefaultAccess(rolesData);
-          console.log('[DEBUG][AccessRulesModal] Створюємо правила за замовчуванням:', JSON.stringify(defaultRules, null, 2));
           await accessRulesAPI.save(defaultRules);
           setAccess(defaultRules);
         } else {
@@ -259,20 +238,16 @@ function AccessRulesModal({ open, onClose }) {
         setLoading(false);
       }
     };
-    
     if (open) {
       loadAccessRules();
     }
   }, [open]);
-  
   // Оновлюємо права доступу при зміні списку ролей
   React.useEffect(() => {
     const currentRoleValues = roles.map(r => r.value);
-    
     // Додаємо нові ролі з правами за замовчуванням
     let updatedAccess = { ...access };
     let hasChanges = false;
-    
     roles.forEach(role => {
       if (!updatedAccess[role.value]) {
         updatedAccess[role.value] = {};
@@ -287,7 +262,6 @@ function AccessRulesModal({ open, onClose }) {
             updatedAccess[role.value][tab.key] = 'read';
           } else if (tab.key === 'analytics') {
             updatedAccess[role.value][tab.key] = 'full';
-
           } else {
             updatedAccess[role.value][tab.key] = 'none';
           }
@@ -295,7 +269,6 @@ function AccessRulesModal({ open, onClose }) {
         hasChanges = true;
       }
     });
-    
     // Видаляємо права для ролей, які більше не існують
     Object.keys(updatedAccess).forEach(roleKey => {
       if (!currentRoleValues.includes(roleKey)) {
@@ -303,24 +276,19 @@ function AccessRulesModal({ open, onClose }) {
         hasChanges = true;
       }
     });
-    
     if (hasChanges) {
       setAccess(updatedAccess);
       // НЕ зберігаємо автоматично на сервері - тільки оновлюємо локальний стан
       // accessRulesAPI.save(updatedAccess);
     }
   }, [roles]);
-  
-  const handleChange = (role, tab, value) => {
+  const handleChange = useCallback((role, tab, value) => {
     setAccess(a => ({ ...a, [role]: { ...a[role], [tab]: value } }));
-  };
-  
-  const handleSaveAccessRules = async () => {
+  }, []);
+  const handleSaveAccessRules = useCallback(async () => {
     try {
-      console.log('[DEBUG][AccessRulesModal] Зберігаємо правила доступу:', JSON.stringify(access, null, 2));
       const success = await accessRulesAPI.save(access);
       if (success) {
-        console.log('[DEBUG][AccessRulesModal] Правила доступу успішно збережено');
         onClose();
       } else {
         console.error('[DEBUG][AccessRulesModal] Помилка збереження правил доступу');
@@ -330,10 +298,8 @@ function AccessRulesModal({ open, onClose }) {
       console.error('[DEBUG][AccessRulesModal] Помилка збереження правил доступу:', error);
       alert('Помилка збереження правил доступу: ' + error.message);
     }
-  };
-  
+  }, [access, onClose]);
   if (!open) return null;
-  
   if (loading) {
     return (
       <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -343,7 +309,6 @@ function AccessRulesModal({ open, onClose }) {
       </div>
     );
   }
-  
   return (
     <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{background:'#fff',color:'#111',padding:32,borderRadius:8,minWidth:400,maxWidth:600}}>
@@ -390,7 +355,6 @@ function AccessRulesModal({ open, onClose }) {
     </div>
   );
 }
-
 function AdminSystemParamsArea({ user }) {
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -403,17 +367,14 @@ function AdminSystemParamsArea({ user }) {
   const [editUser, setEditUser] = useState(null);
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState(new Set());
-
   // Функція для визначення статусу користувача
   const isUserOnline = (userLogin) => {
     return onlineUsers.has(userLogin);
   };
-
   // Функція для оновлення статусу активності користувача
   const updateUserActivity = async (userLogin) => {
     const now = Date.now();
     localStorage.setItem(`user_activity_${userLogin}`, now.toString());
-    
     // Також оновлюємо на сервері
     try {
       await activityAPI.updateActivity(userLogin);
@@ -421,20 +382,16 @@ function AdminSystemParamsArea({ user }) {
       console.error('Помилка оновлення активності на сервері:', error);
     }
   };
-
   // Функція для перевірки чи користувач активний (онлайн)
   const checkUserActivity = (userLogin) => {
     const lastActivity = localStorage.getItem(`user_activity_${userLogin}`);
     if (!lastActivity) return false;
-    
     const lastActivityTime = parseInt(lastActivity);
     const now = Date.now();
     const timeDiff = now - lastActivityTime;
-    
     // Користувач вважається онлайн, якщо активний протягом останніх 30 секунд
     return timeDiff < 30 * 1000;
   };
-
   // Функція для отримання списку активних користувачів
   const getActiveUsers = async () => {
     try {
@@ -446,7 +403,6 @@ function AdminSystemParamsArea({ user }) {
     } catch (error) {
       console.error('Помилка отримання активних користувачів з сервера:', error);
     }
-    
     // Fallback до локальної перевірки
     const activeUsers = new Set();
     users.forEach(user => {
@@ -456,40 +412,29 @@ function AdminSystemParamsArea({ user }) {
     });
     return activeUsers;
   };
-
   // Відстеження активності поточного користувача
   useEffect(() => {
     if (!user?.login) return;
-
     // Оновлюємо активність поточного користувача кожні 10 секунд
     const activityInterval = setInterval(() => {
       updateUserActivity(user.login);
     }, 10000);
-
     // Початкове оновлення активності
     updateUserActivity(user.login);
-
     return () => clearInterval(activityInterval);
   }, [user?.login]);
-
   // Автоматичне оновлення статусу користувачів кожні 5 секунд
   useEffect(() => {
     const updateOnlineUsers = async () => {
       const activeUsers = await getActiveUsers();
       setOnlineUsers(activeUsers);
-      console.log('[DEBUG] Оновлено статус користувачів:', Array.from(activeUsers));
     };
-
     // Початкове оновлення
     updateOnlineUsers();
-
     // Оновлюємо кожні 5 секунд
     const statusInterval = setInterval(updateOnlineUsers, 5000);
-
     return () => clearInterval(statusInterval);
   }, [users]);
-
-
   // Завантаження користувачів з API
   useEffect(() => {
     const loadUsers = async () => {
@@ -505,7 +450,6 @@ function AdminSystemParamsArea({ user }) {
     };
     loadUsers();
   }, []);
-
   // Додаю useEffect для завантаження регіонів при монтуванні
   useEffect(() => {
     const loadRegions = async () => {
@@ -518,7 +462,6 @@ function AdminSystemParamsArea({ user }) {
     };
     loadRegions();
   }, []);
-
   // Завантаження ролей з API
   useEffect(() => {
     const loadRoles = async () => {
@@ -531,29 +474,23 @@ function AdminSystemParamsArea({ user }) {
     };
     loadRoles();
   }, []);
-
   const handleChange = e => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
-
   const handleAdd = async (e) => {
     e.preventDefault();
-    
     if (!form.login || !form.password || !form.role || !form.name || !form.region) {
       alert('Будь ласка, заповніть всі поля');
       return;
     }
-    
     if (users.some(u => u.login === form.login)) {
       alert('Користувач з таким логіном вже існує');
       return;
     }
-
     const newUser = {
       ...form,
       id: Date.now()
     };
-
     try {
       const success = await columnsSettingsAPI.saveUser(newUser);
       if (success) {
@@ -573,11 +510,9 @@ function AdminSystemParamsArea({ user }) {
       alert('Помилка збереження користувача: ' + error.message);
     }
   };
-
   const handleDelete = async (id) => {
     const userToDelete = users.find(u => u.id === id);
     if (!userToDelete) return;
-
     try {
       const success = await columnsSettingsAPI.deleteUser(userToDelete.login);
       if (success) {
@@ -589,7 +524,6 @@ function AdminSystemParamsArea({ user }) {
       alert('Помилка видалення користувача: ' + error.message);
     }
   };
-
   const handleAddRegion = async () => {
     if (newRegion && !regions.some(r => r.name === newRegion)) {
       const updatedRegions = [...regions, { name: newRegion }];
@@ -606,20 +540,16 @@ function AdminSystemParamsArea({ user }) {
       }
     }
   };
-  
   const handleAddRole = async () => {
     if (newRole && !rolesList.some(r => r.value === newRole)) {
       const updatedRolesList = [...rolesList, { value: newRole, label: newRole }];
-      
       try {
         // Зберігаємо нову роль
         const rolesSuccess = await rolesAPI.save(updatedRolesList);
         if (rolesSuccess) {
           setRolesList(updatedRolesList);
-          
           // Автоматично оновлюємо права доступу для нової ролі
           const currentAccess = await accessRulesAPI.getAll();
-          
           // Додаємо права для нової ролі
           const tabs = [
             { key: 'service', label: 'Сервісна служба' },
@@ -631,9 +561,7 @@ function AdminSystemParamsArea({ user }) {
             { key: 'reports', label: 'Звіти' },
             { key: 'materials', label: 'Аналіз ціни матеріалів' },
             { key: 'analytics', label: 'Аналітика' },
-    
           ];
-          
           currentAccess[newRole] = {};
           tabs.forEach(tab => {
             if (newRole === tab.key) {
@@ -646,12 +574,10 @@ function AdminSystemParamsArea({ user }) {
               currentAccess[newRole][tab.key] = 'read';
             } else if (tab.key === 'analytics') {
               currentAccess[newRole][tab.key] = 'full';
-
             } else {
               currentAccess[newRole][tab.key] = 'none';
             }
           });
-          
           await accessRulesAPI.save(currentAccess);
       setNewRole('');
         } else {
@@ -663,7 +589,6 @@ function AdminSystemParamsArea({ user }) {
       }
     }
   };
-
   const handleDeleteRole = async (roleToDelete) => {
     // Перевіряємо, чи є користувачі з цією роллю
     const usersWithRole = users.filter(u => u.role === roleToDelete);
@@ -671,18 +596,14 @@ function AdminSystemParamsArea({ user }) {
       alert(`Не можна видалити роль "${roleToDelete}" - є користувачі з цією роллю: ${usersWithRole.map(u => u.login).join(', ')}`);
       return;
     }
-    
     // Видаляємо роль зі списку
     const updatedRolesList = rolesList.filter(r => r.value !== roleToDelete);
-    
     try {
       const rolesSuccess = await rolesAPI.save(updatedRolesList);
       if (rolesSuccess) {
         setRolesList(updatedRolesList);
-        
         // Видаляємо права доступу для цієї ролі
         const currentAccess = await accessRulesAPI.getAll();
-        
         if (currentAccess[roleToDelete]) {
           delete currentAccess[roleToDelete];
           await accessRulesAPI.save(currentAccess);
@@ -694,7 +615,6 @@ function AdminSystemParamsArea({ user }) {
       console.error('Помилка видалення правил доступу:', error);
     }
   };
-
   const handleEdit = (user) => {
     setEditMode(true);
     setEditUser(user);
@@ -707,7 +627,6 @@ function AdminSystemParamsArea({ user }) {
       telegramChatId: user.telegramChatId || ''
     });
   };
-
   const handleTelegramChange = (userId, telegramChatId) => {
     setUsers(users.map(u => 
       u.id === userId 
@@ -715,21 +634,13 @@ function AdminSystemParamsArea({ user }) {
         : u
     ));
   };
-
   const handleTelegramSave = async (userId, telegramChatId) => {
     try {
       const user = users.find(u => u.id === userId);
       if (!user) return;
-
-      console.log('[DEBUG] handleTelegramSave - користувач:', user.login, 'новий telegramChatId:', telegramChatId);
-      
       const updatedUser = { ...user, telegramChatId };
-      console.log('[DEBUG] handleTelegramSave - відправляємо дані:', JSON.stringify(updatedUser, null, 2));
-      
       const success = await columnsSettingsAPI.saveUser(updatedUser);
-      
       if (success) {
-        console.log(`Telegram Chat ID збережено для користувача ${user.login}: ${telegramChatId}`);
       } else {
         alert('Помилка збереження Telegram Chat ID');
       }
@@ -738,11 +649,9 @@ function AdminSystemParamsArea({ user }) {
       alert('Помилка збереження Telegram Chat ID: ' + error.message);
     }
   };
-
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (!form.login || !form.password || !form.role || !form.name || !form.region) return;
-    
     try {
       const updatedUser = { ...form, id: editUser.id };
       const success = await columnsSettingsAPI.saveUser(updatedUser);
@@ -758,7 +667,6 @@ function AdminSystemParamsArea({ user }) {
       alert('Помилка збереження користувача: ' + error.message);
     }
   };
-
   return (
     <div style={{padding:32}}>
       <h2 style={{color: '#333'}}>Додавання працівника</h2>
@@ -789,7 +697,6 @@ function AdminSystemParamsArea({ user }) {
         <button type="submit" style={{flex:'1 1 100px', minWidth:100, color: '#333'}}>{editMode ? 'Зберегти' : 'Додати'}</button>
         {editMode && <button type="button" onClick={() => { setEditMode(false); setEditUser(null); setForm({ login: '', password: '', role: rolesList[0]?.value || '', name: '', region: regions[0]?.name || '', telegramChatId: '' }); }} style={{flex:'1 1 100px', minWidth:100, background:'#f66', color:'#fff', border:'none', borderRadius:4, padding:'4px 12px', cursor:'pointer'}}>Скасувати</button>}
       </form>
-      
       {/* Секція управління ролями */}
       <div style={{marginBottom: 24, padding: 16, background: '#f5f5f5', borderRadius: 8}}>
         <h3 style={{marginTop: 0, marginBottom: 16, color: '#333'}}>Управління ролями</h3>
@@ -824,7 +731,6 @@ function AdminSystemParamsArea({ user }) {
           ))}
         </div>
       </div>
-      
       <h3 style={{color: '#333'}}>Список працівників</h3>
       {isLoading ? (
         <div style={{textAlign: 'center', padding: '20px', color: '#666'}}>
@@ -939,7 +845,6 @@ function AdminSystemParamsArea({ user }) {
     </div>
   );
 }
-
 function ServiceArea({ user }) {
   const region = user?.region || '';
   const [tasks, setTasks] = useState([]);
@@ -961,7 +866,6 @@ function ServiceArea({ user }) {
   const [editTask, setEditTask] = useState(null);
   const [tab, setTab] = useState('notDone');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
-
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
   // але зберігаємо вже введені користувачем значення
   useEffect(() => {
@@ -975,7 +879,6 @@ function ServiceArea({ user }) {
         }
         return acc;
       }, {});
-    
     // Оновлюємо filters, зберігаючи вже введені значення
     setFilters(prevFilters => {
       const updatedFilters = { ...newFilterKeys };
@@ -988,14 +891,12 @@ function ServiceArea({ user }) {
       return updatedFilters;
     });
   }, [allTaskFields]); // Залежність від allTaskFields
-
   // Кешуємо колонки за допомогою useMemo
   const columns = useMemo(() => allTaskFields.map(f => ({
     key: f.name,
     label: f.label,
     filter: true
   })), []);
-
   useEffect(() => {
     setLoading(true);
     tasksAPI.getAll().then(tasks => {
@@ -1003,77 +904,55 @@ function ServiceArea({ user }) {
       setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
     }).finally(() => setLoading(false));
   }, []);
-
   // Автоматичне оновлення даних при фокусі на вкладку браузера
   useEffect(() => {
     const handleFocus = () => {
-      console.log('[DEBUG] ServiceArea - оновлення даних при фокусі на вкладку');
       tasksAPI.getAll().then(freshTasks => {
         setTasks(freshTasks);
         setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
-        console.log('[DEBUG] ServiceArea - дані оновлено при фокусі, завдань:', freshTasks.length);
       }).catch(error => {
         console.error('[ERROR] ServiceArea - помилка оновлення при фокусі:', error);
       });
     };
-
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, []);
-
   // useEffect для перевірки та показу нагадування
   useEffect(() => {
     if (!loading && tasks.length > 0 && tab === 'notDone') {
       // Фільтруємо заявки по регіону користувача
       const requestTasks = tasks.filter(task => {
         if (task.status !== 'Заявка') return false;
-        
         // Якщо користувач має регіон "Україна", показуємо всі заявки
         if (user?.region === 'Україна') return true;
-        
         // Інакше показуємо тільки заявки свого регіону
         return task.serviceRegion === user?.region;
       });
-      
       if (requestTasks.length > 0) {
         setReminderModalOpen(true);
       }
     }
   }, [loading, tasks, tab, user?.region]);
-
   const handleSave = async (task) => {
-    console.log('[DEBUG] handleSave called with task:', task);
-    console.log('[DEBUG] handleSave - editTask:', editTask);
-    
     setLoading(true);
     let updatedTask = null;
-    
     if (editTask && editTask.id) {
-      console.log('[DEBUG] handleSave - оновлюємо існуючу заявку з ID:', editTask.id);
       updatedTask = await tasksAPI.update(editTask.id, task);
-      console.log('[DEBUG] handleSave - отримано оновлену заявку:', updatedTask);
     } else {
-      console.log('[DEBUG] handleSave - додаємо нову заявку');
       updatedTask = await tasksAPI.add(task);
-      console.log('[DEBUG] handleSave - отримано нову заявку:', updatedTask);
     }
-    
     // Оновлюємо дані з бази після збереження
     try {
       const freshTasks = await tasksAPI.getAll();
       setTasks(freshTasks);
-      console.log('[DEBUG] handleSave - дані оновлено з бази, завдань:', freshTasks.length);
     } catch (error) {
       console.error('[ERROR] handleSave - помилка оновлення даних з бази:', error);
     }
-    
     // Закриваємо модальне вікно
     setEditTask(null);
     setLoading(false);
-    
     // Примусово оновлюємо таблицю після закриття форми
     setTableKey(prev => prev + 1);
-    
     // НЕ змінюємо вкладку автоматично - залишаємося на поточній
     // Користувач може сам перейти на потрібну вкладку
   };
@@ -1081,7 +960,6 @@ function ServiceArea({ user }) {
     const isReadOnly = t._readOnly;
     const taskData = { ...t };
     delete taskData._readOnly; // Видаляємо прапорець з даних завдання
-    
     setEditTask(taskData);
     setModalOpen(true);
     // Передаємо readOnly в ModalTaskForm
@@ -1116,14 +994,11 @@ function ServiceArea({ user }) {
     setTableKey(prev => prev + 1); // Примусово оновлюємо таблицю
     setLoading(false);
   };
-  const handleFilter = e => {
-    console.log('[DEBUG] handleFilter called:', e.target.name, e.target.value);
-    console.log('[DEBUG] Current filters before update:', filters);
+  const handleFilter = useCallback(e => {
     const newFilters = { ...filters, [e.target.name]: e.target.value };
-    console.log('[DEBUG] New filters after update:', newFilters);
     setFilters(newFilters);
-  };
-  const filtered = tasks.filter(t => {
+  }, [filters]);
+  const filtered = useMemo(() => tasks.filter(t => {
     if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) return false;
     for (const key in filters) {
       const value = filters[key];
@@ -1155,43 +1030,39 @@ function ServiceArea({ user }) {
       }
     }
     return true;
-  });
-  const notDone = filtered.filter(t => t.status === 'Заявка' || t.status === 'В роботі');
-  const pending = filtered.filter(t => t.status === 'Виконано' && (
+  }), [tasks, user?.region, filters]);
+  const notDone = useMemo(() => filtered.filter(t => t.status === 'Заявка' || t.status === 'В роботі'), [filtered]);
+  const pending = useMemo(() => filtered.filter(t => t.status === 'Виконано' && (
     isPending(t.approvedByWarehouse) ||
     isPending(t.approvedByAccountant) ||
     isPending(t.approvedByRegionalManager) ||
     isRejected(t.approvedByWarehouse) ||
     isRejected(t.approvedByAccountant) ||
     isRejected(t.approvedByRegionalManager)
-  ));
-  const done = filtered.filter(t => t.status === 'Виконано' && 
+  )), [filtered]);
+  const done = useMemo(() => filtered.filter(t => t.status === 'Виконано' && 
     isApproved(t.approvedByWarehouse) && 
     isApproved(t.approvedByAccountant) && 
     isApproved(t.approvedByRegionalManager)
-  );
-  const blocked = filtered.filter(t => t.status === 'Заблоковано');
+  ), [filtered]);
+  const blocked = useMemo(() => filtered.filter(t => t.status === 'Заблоковано'), [filtered]);
   let tableData = notDone;
   if (tab === 'pending') tableData = pending;
   if (tab === 'done') tableData = done;
   if (tab === 'blocked') tableData = blocked;
-
   // Функція для створення звіту по замовнику
   const openClientReport = (clientName) => {
     const clientTasks = tasks.filter(task => task.client === clientName);
-    
     if (clientTasks.length === 0) {
       alert('Немає даних для даного замовника');
       return;
     }
-
     // Сортуємо завдання за датою (від найновішої до найстарішої)
     const sortedTasks = clientTasks.sort((a, b) => {
       const dateA = new Date(a.date || a.requestDate || 0);
       const dateB = new Date(b.date || b.requestDate || 0);
       return dateB - dateA;
     });
-
     // Створюємо HTML звіт
     const reportHTML = `
       <!DOCTYPE html>
@@ -1339,13 +1210,11 @@ function ServiceArea({ user }) {
       </head>
       <body>
         <button class="print-button" onclick="window.print()">🖨️ Друкувати</button>
-        
         <div class="header">
           <h1>Звіт по замовнику: ${clientName}</h1>
           <p>Кількість проведених робіт: ${sortedTasks.length}</p>
           <p>Дата створення звіту: ${new Date().toLocaleDateString('uk-UA')}</p>
         </div>
-
         ${sortedTasks.map(task => `
           <div class="task-card">
             <div class="task-header">
@@ -1354,7 +1223,6 @@ function ServiceArea({ user }) {
                 ${task.status || 'Невідомо'}
               </div>
             </div>
-            
             <div class="task-info">
               <div class="info-row">
                 <span class="info-label">Дата заявки:</span>
@@ -1377,7 +1245,6 @@ function ServiceArea({ user }) {
                 <span class="info-value">${task.engineer1 || ''} ${task.engineer2 ? ', ' + task.engineer2 : ''}</span>
               </div>
             </div>
-
             <div class="materials-grid">
               ${task.oilType || task.oilUsed || task.oilPrice ? `
                 <div class="material-section">
@@ -1388,7 +1255,6 @@ function ServiceArea({ user }) {
                   ${task.oilTotal ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.oilTotal} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.filterName || task.filterCount || task.filterPrice ? `
                 <div class="material-section">
                   <h4>Масляний фільтр</h4>
@@ -1398,7 +1264,6 @@ function ServiceArea({ user }) {
                   ${task.filterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.filterSum} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.airFilterName || task.airFilterCount || task.airFilterPrice ? `
                 <div class="material-section">
                   <h4>Повітряний фільтр</h4>
@@ -1408,7 +1273,6 @@ function ServiceArea({ user }) {
                   ${task.airFilterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.airFilterSum} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.antifreezeType || task.antifreezeL || task.antifreezePrice ? `
                 <div class="material-section">
                   <h4>Антифриз</h4>
@@ -1418,7 +1282,6 @@ function ServiceArea({ user }) {
                   ${task.antifreezeSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.antifreezeSum} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.fuelFilterName || task.fuelFilterCount || task.fuelFilterPrice ? `
                 <div class="material-section">
                   <h4>Паливний фільтр</h4>
@@ -1428,7 +1291,6 @@ function ServiceArea({ user }) {
                   ${task.fuelFilterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.fuelFilterSum} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.otherMaterials || task.otherSum ? `
                 <div class="material-section">
                   <h4>Інші матеріали</h4>
@@ -1437,7 +1299,6 @@ function ServiceArea({ user }) {
                 </div>
               ` : ''}
             </div>
-
             ${task.serviceTotal ? `
               <div class="summary">
                 <h3>Загальна сума послуги: ${task.serviceTotal} грн</h3>
@@ -1445,7 +1306,6 @@ function ServiceArea({ user }) {
             ` : ''}
           </div>
         `).join('')}
-
         <div class="summary">
           <h3>Підсумок по замовнику ${clientName}</h3>
           <p>Всього проведено робіт: ${sortedTasks.length}</p>
@@ -1454,13 +1314,11 @@ function ServiceArea({ user }) {
       </body>
       </html>
     `;
-
     // Відкриваємо нове вікно з звітом
     const newWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
     newWindow.document.write(reportHTML);
     newWindow.document.close();
   };
-
   return (
     <div style={{padding:32}}>
       <h2>Заявки сервісної служби</h2>
@@ -1508,7 +1366,6 @@ function ServiceArea({ user }) {
     </div>
   );
 }
-
 function RegionalManagerArea({ tab: propTab, user }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState(propTab || 'tasks');
@@ -1544,7 +1401,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
   const [selectReportOpen, setSelectReportOpen] = useState(false);
   const [reportType, setReportType] = useState('month');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
-  
   // Додаємо стани для фільтрів експорту
   const [exportFilters, setExportFilters] = useState({
     dateFrom: '',
@@ -1552,7 +1408,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
     region: '',
     approvalFilter: 'all'
   });
-
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
   // але зберігаємо вже введені користувачем значення
   useEffect(() => {
@@ -1566,7 +1421,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
         }
         return acc;
       }, {});
-    
     // Оновлюємо filters, зберігаючи вже введені значення
     setFilters(prevFilters => {
       const updatedFilters = { ...newFilterKeys };
@@ -1579,13 +1433,11 @@ function RegionalManagerArea({ tab: propTab, user }) {
       return updatedFilters;
     });
   }, [allTaskFields]); // Залежність від allTaskFields
-
   // Завантаження завдань з API
   useEffect(() => {
     setLoading(true);
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
-
   // Додаю useEffect для завантаження користувачів з бази
   useEffect(() => {
     const loadUsers = async () => {
@@ -1599,12 +1451,10 @@ function RegionalManagerArea({ tab: propTab, user }) {
     };
     loadUsers();
   }, []);
-
   // --- Додаю month, year, storageKey для табеля ---
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1); // 1-12
   const [year, setYear] = useState(now.getFullYear());
-
   const [reportMonth, setReportMonth] = useState(month);
   const [reportYear, setReportYear] = useState(year);
   const [reportPeriodStart, setReportPeriodStart] = useState('');
@@ -1613,24 +1463,19 @@ function RegionalManagerArea({ tab: propTab, user }) {
   const [reportResult, setReportResult] = useState(null);
   // Додаю окремий стан для звіту за період
   const [reportResultByPeriod, setReportResultByPeriod] = useState(null);
-
   // --- Масив співробітників для табеля ---
   const filteredUsers = users.filter(u => {
     // Якщо користувач має роль 'service'
     if (u.role !== 'service') return false;
-    
     // Якщо регіон користувача "Україна" - показуємо всіх
     if (user?.region === 'Україна') return true;
-    
     // Якщо регіон користувача не "Україна" - показуємо тільки його регіон
     if (user?.region && user.region !== 'Україна') {
       return u.region === user.region;
     }
-    
     // Якщо регіон користувача не встановлений - показуємо всіх
     return true;
   });
-
   // Групуємо користувачів по регіонам для відображення
   const usersByRegion = filteredUsers.reduce((acc, user) => {
     const region = user.region || 'Не вказано';
@@ -1640,10 +1485,8 @@ function RegionalManagerArea({ tab: propTab, user }) {
     acc[region].push(user);
     return acc;
   }, {});
-
   // Отримуємо список регіонів для відображення
   const regions = Object.keys(usersByRegion).sort();
-
   // --- Колонки для TaskTable ---
   const columns = allTaskFields.map(f => ({
     key: f.name,
@@ -1655,47 +1498,36 @@ function RegionalManagerArea({ tab: propTab, user }) {
     { key: 'approvedByRegionalManager', label: 'Підтвердження' },
     ...columns.filter(c => c.key !== 'approvedByRegionalManager')
   ];
-
   // --- Функція handleSave для збереження завдань ---
   async function handleSave(task) {
     setLoading(true);
     let updatedTask = null;
-    
     if (editTask && editTask.id) {
       updatedTask = await tasksAPI.update(editTask.id, task);
     } else {
       updatedTask = await tasksAPI.add(task);
     }
-    
     // Оновлюємо дані з бази після збереження
     try {
       const freshTasks = await tasksAPI.getAll();
       setTasks(freshTasks);
-      console.log('[DEBUG] RegionalManagerArea handleSave - дані оновлено з бази, завдань:', freshTasks.length);
     } catch (error) {
       console.error('[ERROR] RegionalManagerArea handleSave - помилка оновлення даних з бази:', error);
     }
-    
     // Закриваємо модальне вікно
     setEditTask(null);
     setLoading(false);
   }
-
   // --- Функція handleEdit для редагування задачі ---
   function handleEdit(task) {
     setEditTask(task);
     setModalOpen(true);
   }
-
   // --- Функція handleFilter для TaskTable ---
   function handleFilter(e) {
-    console.log('[DEBUG] handleFilter called:', e.target.name, e.target.value);
-    console.log('[DEBUG] Current filters before update:', filters);
     const newFilters = { ...filters, [e.target.name]: e.target.value };
-    console.log('[DEBUG] New filters after update:', newFilters);
     setFilters(newFilters);
   }
-
   // --- Функція handleApprove для підтвердження задач ---
   async function handleApprove(id, approved, comment) {
     setLoading(true);
@@ -1723,7 +1555,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);
   }
-
   // --- Аналогічно для handleApprove адміністратора ---
   const handleApproveAdmin = async (id, approved, comment) => {
     setLoading(true);
@@ -1752,18 +1583,14 @@ function RegionalManagerArea({ tab: propTab, user }) {
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);
   };
-
-
   // --- Додаю month, year, storageKey для табеля ---
   const storageKey = `timesheetData_${year}_${month}`;
-
   // Кількість днів у місяці
   function getDaysInMonth(year, month) {
     return new Date(year, month, 0).getDate();
   }
   const daysInMonth = getDaysInMonth(year, month);
   const days = Array.from({length: daysInMonth}, (_, i) => i + 1);
-
   // --- Функція для зміни значень у таблиці часу ---
   function handleChange(userId, day, value) {
     setData(prev => {
@@ -1774,7 +1601,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
       return { ...prev, [userId]: newUserData };
     });
   }
-
   // --- Оголошення data/setData тільки ОДНЕ! ---
   const [data, setData] = useState(() => {
     const saved = localStorage.getItem(storageKey);
@@ -1788,7 +1614,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(data));
   }, [data, storageKey]);
-
   // --- Автоматичне заповнення: робочі дні = 8, вихідні = 0 ---
   function getDefaultTimesheet() {
     const result = {};
@@ -1804,7 +1629,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
     });
     return result;
   }
-
   // --- Підсумковий блок ---
   // Зберігаємо налаштування підсумку по періоду
   const summaryKey = `timesheetSummary_${year}_${month}`;
@@ -1832,7 +1656,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
   useEffect(() => {
     localStorage.setItem(summaryKey, JSON.stringify(summary));
   }, [summary, summaryKey]);
-
   // --- Параметри для кожного співробітника ---
   const [payData, setPayData] = useState(() => {
     const saved = localStorage.getItem(`payData_${year}_${month}`);
@@ -1845,7 +1668,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
   useEffect(() => {
     localStorage.setItem(`payData_${year}_${month}`, JSON.stringify(payData));
   }, [payData, year, month]);
-
   // --- Функція для зміни параметрів виплат ---
   const handlePayChange = (userId, field, value) => {
     setPayData(prev => {
@@ -1854,7 +1676,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
       return { ...prev, [userId]: newUserPay };
     });
   };
-
   // --- Експорт у Excel (CSV) ---
   function exportToCSV() {
     let csv = '';
@@ -1886,14 +1707,12 @@ function RegionalManagerArea({ tab: propTab, user }) {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }
-
   // --- Масиви місяців і років ---
   const months = [
     'Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'
   ];
   const years = [];
   for (let y = now.getFullYear() - 2; y <= now.getFullYear() + 1; y++) years.push(y);
-
   // --- Функція для формування звіту ---
   const handleFormReport = (type) => {
     if (type === 'month') {
@@ -1902,25 +1721,20 @@ function RegionalManagerArea({ tab: propTab, user }) {
       handleGenerateReportByPeriod();
     }
   };
-
   const handleGenerateReport = () => {
     // Використовуємо ту ж логіку фільтрації, що й для основного filteredUsers
     const filteredUsers = users.filter(u => {
       // Якщо користувач має роль 'service'
       if (u.role !== 'service') return false;
-      
       // Якщо регіон користувача "Україна" - показуємо всіх
       if (user?.region === 'Україна') return true;
-      
       // Якщо регіон користувача не "Україна" - показуємо тільки його регіон
       if (user?.region && user.region !== 'Україна') {
         return u.region === user.region;
       }
-      
       // Якщо регіон користувача не встановлений - показуємо всіх
       return true;
     });
-    
     const storageKey = `timesheetData_${reportYear}_${reportMonth}`;
     const data = JSON.parse(localStorage.getItem(storageKey) || '{}');
     const summaryKey = `timesheetSummary_${reportYear}_${reportMonth}`;
@@ -1958,18 +1772,14 @@ function RegionalManagerArea({ tab: propTab, user }) {
               const tDate = t.date;
               if (tDate && bonusApprovalDate) {
                 const workDate = new Date(tDate);
-                
                 // bonusApprovalDate має формат "MM-YYYY", наприклад "04-2025"
                 const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
                 const approvalMonth = parseInt(approvalMonthStr);
                 const approvalYear = parseInt(approvalYearStr);
-                
                 const workMonth = workDate.getMonth() + 1;
                 const workYear = workDate.getFullYear();
-                
                 // Визначаємо місяць для нарахування премії
                 let bonusMonth, bonusYear;
-                
                 if (workMonth === approvalMonth && workYear === approvalYear) {
                   // Якщо місяць/рік виконання співпадає з місяцем/роком затвердження
                   bonusMonth = workMonth;
@@ -1984,31 +1794,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                     bonusYear = approvalYear;
                   }
                 }
-                
                 // Перевіряємо чи це той місяць, який ми шукаємо
-                console.log('[DEBUG] Bonus calculation:', {
-                  taskId: t.id,
-                  engineerName: u.name,
-                  workDate: tDate,
-                  bonusApprovalDate: bonusApprovalDate,
-                  workMonth,
-                  workYear,
-                  approvalMonth,
-                  approvalYear,
-                  bonusMonth,
-                  bonusYear,
-                  currentMonth: month,
-                  currentYear: year,
-                  monthStr,
-                  yearStr,
-                  workPrice: t.workPrice,
-                  engineer1: t.engineer1,
-                  engineer2: t.engineer2,
-                  status: t.status,
-                  approvedByWarehouse: t.approvedByWarehouse,
-                  approvedByAccountant: t.approvedByAccountant,
-                  approvedByRegionalManager: t.approvedByRegionalManager
-                });
                 if (bonusMonth === month && bonusYear === year) {
                   const workPrice = parseFloat(t.workPrice) || 0;
                   const bonusVal = workPrice * 0.25;
@@ -2020,15 +1806,11 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   const hasEngineer2 = !!engineer2;
                   if (engineer1 === userName && hasEngineer2) {
                     addBonus = bonusVal / 2;
-                    console.log('[PREMIUM][OK] Інженер1 з інженером2:', {taskId: t.id, engineer1, engineer2, userName, workPrice, bonusVal, addBonus});
                   } else if (engineer2 === userName && engineer1) {
                     addBonus = bonusVal / 2;
-                    console.log('[PREMIUM][OK] Інженер2 з інженером1:', {taskId: t.id, engineer1, engineer2, userName, workPrice, bonusVal, addBonus});
                   } else if (engineer1 === userName && !hasEngineer2) {
                     addBonus = bonusVal;
-                    console.log('[PREMIUM][OK] Тільки інженер1:', {taskId: t.id, engineer1, engineer2, userName, workPrice, bonusVal, addBonus});
                   } else {
-                    console.log('[PREMIUM][NO BONUS] Не співпадає інженер:', {taskId: t.id, engineer1, engineer2, userName, workPrice, bonusVal});
                   }
                   if (addBonus > 0) {
                     engineerBonus += addBonus;
@@ -2048,11 +1830,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   }
                 } else {
                   // Діагностика чому не співпав місяць/рік
-                  console.log('[PREMIUM][NO BONUS] Місяць/рік не співпав:', {
-                    taskId: t.id,
-                    bonusMonth, month, bonusYear, year,
-                    tDate, bonusApprovalDate: t.bonusApprovalDate
-                  });
                 }
               }
             }
@@ -2133,11 +1910,9 @@ function RegionalManagerArea({ tab: propTab, user }) {
     setReportResultByPeriod(null); // очищаю період
     setReportResultOpen(true);
   };
-
   const handleGenerateReportByPeriod = () => {
     // Implement period report generation logic
   };
-
   const handleOpenReport = () => {
     generateReport();
     // Формуємо HTML для нового вікна
@@ -2176,25 +1951,15 @@ function RegionalManagerArea({ tab: propTab, user }) {
     win.document.write(html);
     win.document.close();
   };
-
   const handleCloseReport = () => {
     setReportModalOpen(false);
   };
-
   // Додаю стан для звіту
   const [showTimeReport, setShowTimeReport] = useState(false);
   const [timeReportContent, setTimeReportContent] = useState(null);
-
   // Функція формування звіту у новому вікні
   const handleFormTimeReport = () => {
-    console.log('[DEBUG][REPORT] month:', month, 'year:', year);
-    console.log('[DEBUG][REPORT] filteredUsers:', filteredUsers);
-    console.log('[DEBUG][REPORT] data:', data);
-    console.log('[DEBUG][REPORT] payData:', payData);
-    console.log('[DEBUG][REPORT] summary:', summary);
-    console.log('[DEBUG][REPORT] tasks:', tasks);
     // Додаю детальний вивід задач для діагностики
-    console.log('[DEBUG][REPORT][ALL TASKS]', JSON.stringify(tasks, null, 2));
     // Додатковий лог по bonusApprovalDate
     tasks.forEach((t, i) => {
       if (!t.bonusApprovalDate) {
@@ -2205,15 +1970,12 @@ function RegionalManagerArea({ tab: propTab, user }) {
     });
     const monthName = months[month - 1];
     const reportTitle = `Звіт по табелю часу та виконаних робіт за ${monthName} ${year}`;
-    
     // Логіка групування по регіонам для звіту
     const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
     const showRegions = user?.region === 'Україна' ? allRegions : [user?.region || 'Без регіону'];
-    
     // Генеруємо звіт з групуванням по регіонам
     const generateRegionReport = (region) => {
       const regionUsers = filteredUsers.filter(u => (u.region || 'Без регіону') === region);
-      
       // Формування таблиці нарахувань для регіону
       const accrualTable = `
         <h4>Таблиця нарахування по персоналу - Регіон: ${region}</h4>
@@ -2249,10 +2011,8 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   !isApproved(t.approvedByAccountant) ||
                   !isApproved(t.approvedByRegionalManager)
                 ) return false;
-                
                 // Фільтрація по регіону - показуємо тільки завдання цього конкретного регіону
                 if (t.serviceRegion !== region) return false;
-                
                 // автоконвертація bonusApprovalDate
                 let bonusApprovalDate = t.bonusApprovalDate;
                 if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
@@ -2310,7 +2070,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
           </tbody>
         </table>
       `;
-      
       // Формування таблиці табеля для регіону
       const timesheetTable = `
         <h4>Табель часу - Регіон: ${region}</h4>
@@ -2343,7 +2102,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
           </tbody>
         </table>
       `;
-      
       // Формування таблиці виконаних робіт для регіону
       const regionTasks = tasks.filter(t => {
         if (
@@ -2354,10 +2112,8 @@ function RegionalManagerArea({ tab: propTab, user }) {
           !isApproved(t.approvedByAccountant) ||
           !isApproved(t.approvedByRegionalManager)
         ) return false;
-        
         // Фільтрація по регіону - показуємо тільки завдання цього конкретного регіону
         if (t.serviceRegion !== region) return false;
-        
         // автоконвертація bonusApprovalDate
         let bonusApprovalDate = t.bonusApprovalDate;
         if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
@@ -2385,7 +2141,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
         }
         return bonusMonth === month && bonusYear === year;
       });
-      
       const workDetailsTable = `
         <h4>Деталізація виконаних робіт - Регіон: ${region}</h4>
         <table class="details">
@@ -2424,14 +2179,12 @@ function RegionalManagerArea({ tab: propTab, user }) {
           </tbody>
         </table>
       `;
-      
       return {
         timesheetTable,
         accrualTable,
         workDetailsTable
       };
     };
-    
     // Генеруємо HTML для кожного регіону
     const regionsContent = showRegions.map(region => {
       const regionReport = generateRegionReport(region);
@@ -2444,7 +2197,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
         </div>
       `;
     }).join('');
-    
     const html = `
       <!DOCTYPE html>
       <html>
@@ -2475,85 +2227,46 @@ function RegionalManagerArea({ tab: propTab, user }) {
     win.document.write(html);
     win.document.close();
   };
-
   // Діагностика
   const regionAppDebug = user?.region || '';
-  console.log('[DEBUG][APP] user.region:', regionAppDebug);
-  console.log('[DEBUG][APP] tasks.map(serviceRegion):', tasks.map(t => t.serviceRegion));
   // Видалено посилання на filtered, оскільки воно не доступне в цій області видимості
-
   // Додаємо функцію експорту в Excel
   const exportFilteredToExcel = () => {
-    console.log('[DEBUG] Starting export with filters:', exportFilters);
-    console.log('[DEBUG] Total tasks:', tasks.length);
-    console.log('[DEBUG] User region:', user?.region);
-    
     // Логуємо всі завдання зі статусом 'Виконано'
     const completedTasks = tasks.filter(t => t.status === 'Виконано');
-    console.log('[DEBUG] Completed tasks:', completedTasks.length);
-    console.log('[DEBUG] Sample completed task:', completedTasks[0]);
-    
     // Фільтруємо виконані заявки за діапазоном дат, регіоном та статусом затвердження
     const filteredTasks = tasks.filter(t => {
-      console.log('[DEBUG] Checking task:', t.id, 'status:', t.status, 'date:', t.date, 'region:', t.serviceRegion, 'approvals:', {
-        warehouse: t.approvedByWarehouse,
-        accountant: t.approvedByAccountant,
-        regionalManager: t.approvedByRegionalManager
-      });
-      
       if (t.status !== 'Виконано') {
-        console.log('[DEBUG] Task', t.id, 'filtered out: status not Виконано');
         return false;
       }
-      
       if (exportFilters.dateFrom && (!t.date || t.date < exportFilters.dateFrom)) {
-        console.log('[DEBUG] Task', t.id, 'filtered out: date before', exportFilters.dateFrom);
         return false;
       }
-      
       if (exportFilters.dateTo && (!t.date || t.date > exportFilters.dateTo)) {
-        console.log('[DEBUG] Task', t.id, 'filtered out: date after', exportFilters.dateTo);
         return false;
       }
-      
       // Фільтр по регіону користувача
       if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) {
-        console.log('[DEBUG] Task', t.id, 'filtered out: user region', user.region, 'task region', t.serviceRegion);
         return false;
       }
-      
       if (exportFilters.region && exportFilters.region !== 'Україна' && t.serviceRegion !== exportFilters.region) {
-        console.log('[DEBUG] Task', t.id, 'filtered out: filter region', exportFilters.region, 'task region', t.serviceRegion);
         return false;
       }
-      
       // Фільтр по статусу затвердження
       if (exportFilters.approvalFilter === 'approved') {
         // Для затверджених - всі повинні бути затверджені
         if (!isApproved(t.approvedByWarehouse) || !isApproved(t.approvedByAccountant) || !isApproved(t.approvedByRegionalManager)) {
-          console.log('[DEBUG] Task', t.id, 'filtered out: not approved by all managers');
           return false;
         }
       } else if (exportFilters.approvalFilter === 'not_approved') {
         // Для незатверджених - хоча б один не затвердив
         if (isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant) && isApproved(t.approvedByRegionalManager)) {
-          console.log('[DEBUG] Task', t.id, 'filtered out: approved by all managers');
           return false;
         }
-        console.log('[DEBUG] Task', t.id, 'included: not approved by at least one manager', {
-          warehouse: t.approvedByWarehouse,
-          accountant: t.approvedByAccountant,
-          regionalManager: t.approvedByRegionalManager
-        });
       }
       // Якщо approvalFilter === 'all', то показуємо всі
-      
-      console.log('[DEBUG] Task', t.id, 'passed all filters');
       return true;
     });
-
-    console.log('[DEBUG] Filtered tasks for export:', filteredTasks.length, filteredTasks);
-    
     // Додаткова перевірка - логуємо всі завдання зі статусом 'Виконано' та їх статус затвердження
     const completedTasksWithApproval = tasks.filter(t => t.status === 'Виконано').map(t => ({
       id: t.id,
@@ -2565,8 +2278,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
       isRegionalManagerApproved: isApproved(t.approvedByRegionalManager),
       isAllApproved: isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant) && isApproved(t.approvedByRegionalManager)
     }));
-    console.log('[DEBUG] All completed tasks with approval status:', completedTasksWithApproval);
-
     // Маппінг колонок згідно з вимогами
     const columnMapping = [
       { excelHeader: 'Відповідальний', field: 'engineer1', additionalField: 'engineer2' },
@@ -2608,44 +2319,33 @@ function RegionalManagerArea({ tab: propTab, user }) {
       { excelHeader: 'Вид оплати, нал./безнал/Дата оплати', field: 'paymentType' },
       { excelHeader: 'Альбіна', field: '' }
     ];
-
     // Формуємо заголовки
     const headers = columnMapping.map(col => col.excelHeader);
-
     // Формуємо дані для рядків
     const data = filteredTasks.map(task => {
-      console.log('[DEBUG] Processing task for export:', task.id, task);
       return columnMapping.map(col => {
         if (col.field === 'engineer1') {
           // Об'єднуємо інженерів
           const engineer1 = task.engineer1 || '';
           const engineer2 = task.engineer2 || '';
           const result = engineer2 ? `${engineer1}, ${engineer2}` : engineer1;
-          console.log(`[DEBUG] Field ${col.field} (engineers):`, result);
           return result;
         } else if (col.field === '') {
           return ''; // Порожні поля
         } else {
           const value = task[col.field];
-          console.log(`[DEBUG] Field ${col.field}:`, value);
           return value || '';
         }
       });
     });
-
-    console.log('[DEBUG] Export data:', data);
     if (data.length > 0) {
-      console.log('[DEBUG] First row data:', data[0]);
     }
-
     // Створюємо робочий аркуш
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Заявки');
-
     // Налаштовуємо фільтри для всіх колонок
     worksheet['!autofilter'] = { ref: `A1:${String.fromCharCode(65 + headers.length - 1)}${data.length + 1}` };
-
     // Налаштовуємо стилі для заголовків (жовтий фон)
     const range = XLSX.utils.decode_range(worksheet['!ref']);
     for (let col = range.s.c; col <= range.e.c; col++) {
@@ -2668,17 +2368,14 @@ function RegionalManagerArea({ tab: propTab, user }) {
         };
       }
     }
-
     // Налаштовуємо стилі для всіх клітинок у діапазоні (включаючи порожні)
     for (let row = 0; row <= range.e.r; row++) {
       for (let col = range.s.c; col <= range.e.c; col++) {
         const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
-        
         // Якщо клітинка не існує, створюємо її з базовими стилями
         if (!worksheet[cellAddress]) {
           worksheet[cellAddress] = { v: '', s: {} };
         }
-        
         // Базові стилі для всіх клітинок
         const baseStyle = {
           border: {
@@ -2688,7 +2385,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
             right: { style: 'thin', color: { rgb: "000000" } }
           }
         };
-        
         // Додаткові стилі для заголовків
         if (row === 0) {
           baseStyle.fill = { fgColor: { rgb: "FFFF00" } }; // Жовтий фон
@@ -2705,7 +2401,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
             vertical: "center",
             horizontal: "left"
           };
-          
           // Зелений фон для затверджених зав. складом
           const taskIndex = row - 1;
           if (taskIndex < filteredTasks.length) {
@@ -2717,7 +2412,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
             }
           }
         }
-        
         // Застосовуємо стилі
         worksheet[cellAddress].s = {
           ...worksheet[cellAddress].s,
@@ -2725,7 +2419,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
         };
       }
     }
-
     // Налаштовуємо ширину колонок
     const colWidths = [
       20, // Відповідальний
@@ -2767,9 +2460,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
       30, // Вид оплати, нал./безнал/Дата оплати
       10  // Альбіна
     ];
-
     worksheet['!cols'] = colWidths.map(width => ({ width }));
-
     // Створюємо назву файлу з урахуванням фільтрів
     let fileName = 'Звіт_по_заявках_регіонального_керівника';
     if (exportFilters.dateFrom || exportFilters.dateTo) {
@@ -2782,20 +2473,16 @@ function RegionalManagerArea({ tab: propTab, user }) {
       fileName += `_${exportFilters.approvalFilter === 'approved' ? 'затверджені' : 'незатверджені'}`;
     }
     fileName += '.xlsx';
-
     // Запускаємо завантаження файлу
     XLSX.writeFile(workbook, fileName);
   };
-
   // Додаємо функцію для обробки зміни фільтрів експорту
   const handleExportFilterChange = (field, value) => {
     setExportFilters(prev => ({ ...prev, [field]: value }));
   };
-
   // Логіка групування по регіонам для вкладки "Звіт по персоналу"
   const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
   const showRegions = user?.region === 'Україна' ? allRegions : [user?.region || 'Без регіону'];
-
   // Фільтрація завдань для регіонального керівника
   const filtered = tasks.filter(t => {
     if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) return false;
@@ -2818,7 +2505,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
     }
     return true;
   });
-
   return (
     <>
       <div style={{display:'flex',gap:8,marginBottom:8}}>
@@ -3160,7 +2846,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
     </>
   );
 }
-
 function RegionalManagerTabs({ tab, setTab }) {
   return (
     <div style={{display:'flex',gap:8}}>
@@ -3195,24 +2880,32 @@ function RegionalManagerTabs({ tab, setTab }) {
     </div>
   );
 }
-
 const areas = {
   service: ServiceArea,
-  operator: OperatorArea,
-  warehouse: WarehouseArea,
-  accountant: (props) => <AccountantArea {...props} />,
+  operator: (props) => (
+    <Suspense fallback={<div style={{padding: '20px', textAlign: 'center'}}>Завантаження...</div>}>
+      <OperatorArea {...props} />
+    </Suspense>
+  ),
+  warehouse: (props) => (
+    <Suspense fallback={<div style={{padding: '20px', textAlign: 'center'}}>Завантаження...</div>}>
+      <WarehouseArea {...props} />
+    </Suspense>
+  ),
+  accountant: (props) => (
+    <Suspense fallback={<div style={{padding: '20px', textAlign: 'center'}}>Завантаження...</div>}>
+      <AccountantArea {...props} />
+    </Suspense>
+  ),
   regional: (props) => <RegionalManagerArea {...props} />,
   reports: (props) => <ReportBuilder {...props} />,
   materials: (props) => <MaterialsAnalysisArea {...props} />,
   analytics: (props) => <AnalyticsArea {...props} />,
-
 };
-
 // Окремий об'єкт для адміністратора
 const areaByRole = {
   admin: (props) => <AdminArea {...props} />,
 };
-
 function App() {
   const { t } = useTranslation();
   const [serverMsg, setServerMsg] = useState('');
@@ -3225,31 +2918,25 @@ function App() {
   // Додаю accessRules у стан
   const [accessRules, setAccessRules] = useState({});
   const [loadingAccessRules, setLoadingAccessRules] = useState(true);
-
   // Функція для оновлення активності користувача
   const updateUserActivity = (userLogin) => {
     if (!userLogin) return;
     const now = Date.now();
     localStorage.setItem(`user_activity_${userLogin}`, now.toString());
   };
-
   // Відстеження активності користувача при взаємодії з сторінкою
   useEffect(() => {
     if (!user?.login) return;
-
     const handleUserActivity = () => {
       updateUserActivity(user.login);
     };
-
     // Оновлюємо активність при різних подіях
     window.addEventListener('mousemove', handleUserActivity);
     window.addEventListener('keydown', handleUserActivity);
     window.addEventListener('click', handleUserActivity);
     window.addEventListener('scroll', handleUserActivity);
-
     // Початкове оновлення активності
     updateUserActivity(user.login);
-
     // Очищення обробників подій
     return () => {
       window.removeEventListener('mousemove', handleUserActivity);
@@ -3258,7 +2945,6 @@ function App() {
       window.removeEventListener('scroll', handleUserActivity);
     };
   }, [user?.login]);
-
   // Завантаження правил доступу з API
   useEffect(() => {
     const loadAccessRules = async () => {
@@ -3266,22 +2952,17 @@ function App() {
       try {
         // Спочатку завантажуємо ролі
         const rolesData = await rolesAPI.getAll();
-        
         // Потім завантажуємо правила доступу
         const serverRules = await accessRulesAPI.getAll();
-        console.log('[DEBUG][App] Завантажені правила доступу з сервера:', JSON.stringify(serverRules, null, 2));
-        
         if (Object.keys(serverRules).length === 0) {
           // Якщо на сервері немає правил, створюємо за замовчуванням
           const defaultRules = getDefaultAccess(rolesData);
-          console.log('[DEBUG][App] Створюємо правила за замовчуванням:', JSON.stringify(defaultRules, null, 2));
           await accessRulesAPI.save(defaultRules);
           setAccessRules(defaultRules);
         } else {
           // Оновлюємо існуючі правила, додаючи нову вкладку materials
           const updatedRules = updateExistingRules(serverRules);
           if (JSON.stringify(updatedRules) !== JSON.stringify(serverRules)) {
-            console.log('[DEBUG][App] Оновлюємо правила доступу з новою вкладкою materials');
             await accessRulesAPI.save(updatedRules);
             setAccessRules(updatedRules);
           } else {
@@ -3304,15 +2985,11 @@ function App() {
         setLoadingAccessRules(false);
       }
     };
-    
-    
     loadAccessRules();
   }, []);
-
   // Функція для оновлення існуючих правил з новою вкладкою
   const updateExistingRules = (existingRules) => {
     const updatedRules = { ...existingRules };
-    
     Object.keys(updatedRules).forEach(roleKey => {
       if (!updatedRules[roleKey].materials) {
         // Додаємо права для нової вкладки materials
@@ -3323,55 +3000,40 @@ function App() {
         }
       }
     });
-    
     return updatedRules;
   };
-
-  console.log('user:', user, 'currentArea:', currentArea);
-
   useEffect(() => {
     localStorage.setItem('regionalTab', regionalTab);
   }, [regionalTab]);
-
   useEffect(() => {
     fetch(`${API_BASE_URL}/ping`)
       .then(res => res.json())
       .then(data => setServerMsg(data.message))
       .catch(() => setServerMsg('Сервер недоступний...'))
   }, []);
-
   // Запуск KeepAlive сервісу після успішного входу
   useEffect(() => {
     if (user) {
-      console.log('Користувач увійшов, запуск KeepAlive сервісу...');
       keepAliveService.start();
-      
       // Обробка подій видимості сторінки
       const handleVisibilityChange = () => {
         if (document.hidden) {
-          console.log('Сторінка прихована, зупинка KeepAlive...');
           keepAliveService.stop();
         } else {
-          console.log('Сторінка видима, запуск KeepAlive...');
           keepAliveService.start();
         }
       };
-      
       document.addEventListener('visibilitychange', handleVisibilityChange);
-      
       // Зупинка KeepAlive при виході з додатку
       return () => {
-        console.log('Користувач вийшов, зупинка KeepAlive сервісу...');
         keepAliveService.stop();
         document.removeEventListener('visibilitychange', handleVisibilityChange);
       };
     }
   }, [user]);
-
   if (!user) {
     return <Login onLogin={u => { setUser(u); setCurrentArea(u.role); }} />
   }
-
   if (loadingAccessRules) {
     return (
       <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh'}}>
@@ -3379,55 +3041,34 @@ function App() {
       </div>
     );
   }
-
   // Перевіряємо права доступу до поточної вкладки
   const hasAccessToCurrentArea = accessRules[user.role] && 
     accessRules[user.role][currentArea] && 
     accessRules[user.role][currentArea] !== 'none';
-  
-  console.log('[DEBUG][App] User role:', user.role);
-  console.log('[DEBUG][App] Current area:', currentArea);
-  console.log('[DEBUG][App] Access rules for user role:', accessRules[user.role]);
-  console.log('[DEBUG][App] Has access to current area:', hasAccessToCurrentArea);
-
   // Якщо користувач не має доступу до поточної вкладки, перенаправляємо на першу доступну
   if (!hasAccessToCurrentArea) {
-    console.log('[DEBUG][App] User does not have access to current area, redirecting...');
     const availableAreas = Object.keys(accessRules[user.role] || {}).filter(area => 
       accessRules[user.role][area] && accessRules[user.role][area] !== 'none'
     );
-    
     if (availableAreas.length > 0) {
-      console.log('[DEBUG][App] Available areas:', availableAreas);
       setCurrentArea(availableAreas[0]);
       return null; // Повертаємо null щоб уникнути рендерингу
     }
   }
-
   // Функція для обробки вибору вкладки з перевіркою прав
   const handleAreaSelect = (area) => {
-    console.log('[DEBUG][App] Attempting to select area:', area);
-    console.log('[DEBUG][App] User role:', user.role);
-    console.log('[DEBUG][App] Access rules for user role:', accessRules[user.role]);
-    
     const hasAccess = accessRules[user.role] && 
       accessRules[user.role][area] && 
       accessRules[user.role][area] !== 'none';
-    
-    console.log('[DEBUG][App] Has access to area:', area, ':', hasAccess);
-    
     if (hasAccess) {
       setCurrentArea(area);
     } else {
-      console.log('[DEBUG][App] Access denied to area:', area);
       alert('У вас немає доступу до цієї вкладки');
     }
   };
-
   const Area = currentArea === 'admin' 
     ? areaByRole.admin 
     : areas[currentArea] || (() => <div>Оберіть область</div>);
-
   // Якщо користувач у режимі перегляду, показуємо мобільний інтерфейс
   if (user.isViewMode) {
     return (
@@ -3455,7 +3096,6 @@ function App() {
       </>
     );
   }
-
   return (
     <>
       <div className='bg-logo'></div>
@@ -3472,22 +3112,18 @@ function App() {
     </>
   )
 }
-
 function calcTotal(row) {
   return [row.d1, row.d2, row.d3, row.d4, row.d5].reduce((sum, v) => sum + (isNaN(Number(v)) ? 0 : Number(v)), 0);
 }
-
 function PersonnelTimesheet({ user }) {
   const [users, setUsers] = useState([]);
   const allRegions = Array.from(new Set(users.map(u => u.region).filter(Boolean)));
   const [region, setRegion] = useState('');
-
   // Завантаження користувачів з MongoDB
   useEffect(() => {
     const loadUsers = async () => {
       try {
         const usersData = await columnsSettingsAPI.getAllUsers();
-        console.log('[DEBUG][PersonnelTimesheet] usersData from API:', usersData);
         setUsers(usersData);
       } catch (error) {
         console.error('Помилка завантаження користувачів:', error);
@@ -3496,7 +3132,6 @@ function PersonnelTimesheet({ user }) {
     };
     loadUsers();
   }, []);
-
   const serviceUsers = users.filter(u => {
     if (u.role !== 'service') return false;
     if (user?.region === 'Україна') return true;
@@ -3505,20 +3140,16 @@ function PersonnelTimesheet({ user }) {
     }
     return true;
   });
-
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1); // 1-12
   const [year, setYear] = useState(now.getFullYear());
-
   const storageKey = `timesheetData_${year}_${month}`;
-
   // Кількість днів у місяці згідно календаря
   function getDaysInMonth(year, month) {
     return new Date(year, month, 0).getDate(); // month: 1-12
   }
   const daysInMonth = getDaysInMonth(year, month);
   const days = Array.from({length: daysInMonth}, (_, i) => i + 1);
-
   // --- Автоматичне заповнення: робочі дні = 8, вихідні = 0 ---
   function getDefaultTimesheet() {
     const result = {};
@@ -3534,7 +3165,6 @@ function PersonnelTimesheet({ user }) {
     });
     return result;
   }
-
   const [data, setData] = useState(() => {
     const saved = localStorage.getItem(storageKey);
     if (saved) return JSON.parse(saved);
@@ -3547,7 +3177,6 @@ function PersonnelTimesheet({ user }) {
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(data));
   }, [data, storageKey]);
-
   // --- Підсумковий блок ---
   // Зберігаємо налаштування підсумку по періоду
   const summaryKey = `timesheetSummary_${year}_${month}`;
@@ -3575,7 +3204,6 @@ function PersonnelTimesheet({ user }) {
   useEffect(() => {
     localStorage.setItem(summaryKey, JSON.stringify(summary));
   }, [summary, summaryKey]);
-
   // --- Параметри для кожного співробітника ---
   const [payData, setPayData] = useState(() => {
     const saved = localStorage.getItem(`payData_${year}_${month}`);
@@ -3588,7 +3216,6 @@ function PersonnelTimesheet({ user }) {
   useEffect(() => {
     localStorage.setItem(`payData_${year}_${month}`, JSON.stringify(payData));
   }, [payData, year, month]);
-
   // --- Функція для зміни параметрів виплат ---
   const handlePayChange = (userId, field, value) => {
     setPayData(prev => {
@@ -3597,7 +3224,6 @@ function PersonnelTimesheet({ user }) {
       return { ...prev, [userId]: newUserPay };
     });
   };
-
   // --- Експорт у Excel (CSV) ---
   function exportToCSV() {
     let csv = '';
@@ -3629,14 +3255,12 @@ function PersonnelTimesheet({ user }) {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }
-
   // --- Масиви місяців і років ---
   const months = [
     'Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'
   ];
   const years = [];
   for (let y = now.getFullYear() - 2; y <= now.getFullYear() + 1; y++) years.push(y);
-
   useEffect(() => {
     if (serviceUsers.length === 0) {
       // Очищаємо всі дані табеля, виплат і підсумків для всіх місяців/років
@@ -3647,7 +3271,6 @@ function PersonnelTimesheet({ user }) {
       });
     }
   }, [serviceUsers.length]);
-
   return (
     <div style={{overflowX: 'auto', width: '100%', maxWidth: '100vw', boxSizing: 'border-box'}}>
       <div style={{background: 'rgba(34,51,74,0.85)', borderRadius: 8, padding: '24px 16px', marginBottom: 24, maxWidth: '100%', boxSizing: 'border-box'}}>
@@ -3752,7 +3375,6 @@ function PersonnelTimesheet({ user }) {
     </div>
   );
 }
-
 // 2. Додаю компонент для редагування заявок адміністратором
 function AdminEditTasksArea({ user }) {
   const [tasks, setTasks] = useState([]);
@@ -3766,14 +3388,12 @@ function AdminEditTasksArea({ user }) {
     const savedTab = localStorage.getItem('adminEditTab');
     return savedTab || 'pending';
   });
-
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
   // але зберігаємо вже введені користувачем значення
   useEffect(() => {
     const newFilterKeys = {
       requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: ''
     };
-    
     // Оновлюємо filters, зберігаючи вже введені значення
     setFilters(prevFilters => {
       const updatedFilters = { ...newFilterKeys };
@@ -3786,21 +3406,17 @@ function AdminEditTasksArea({ user }) {
       return updatedFilters;
     });
   }, []); // Запускаємо тільки один раз при монтуванні
-
   useEffect(() => {
     localStorage.setItem('adminEditTab', tab);
   }, [tab]);
-
   useEffect(() => {
     setLoading(true);
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
-
   const handleApprove = async (id, approved, comment) => {
     setLoading(true);
     const t = tasks.find(t => t.id === id);
     if (!t) return;
-    
     // Перевіряємо чи всі підтвердження пройшли для автоматичного заповнення bonusApprovalDate
     let bonusApprovalDate = t.bonusApprovalDate;
     if (
@@ -3812,7 +3428,6 @@ function AdminEditTasksArea({ user }) {
       const d = new Date();
       bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
     }
-    
     const updated = await tasksAPI.update(id, {
         ...t, 
         approvedByAccountant: approved, 
@@ -3830,7 +3445,6 @@ function AdminEditTasksArea({ user }) {
     const isReadOnly = t._readOnly;
     const taskData = { ...t };
     delete taskData._readOnly; // Видаляємо прапорець з даних завдання
-    
     setEditTask(taskData);
     setModalOpen(true);
     // Передаємо readOnly в ModalTaskForm
@@ -3841,8 +3455,6 @@ function AdminEditTasksArea({ user }) {
   };
   // Функція для збереження тільки поля bonusApprovalDate
   const handleSaveBonusDate = async (taskId, newDate) => {
-    console.log('[DEBUG] handleSaveBonusDate called with taskId:', taskId, 'newDate:', newDate);
-    
     setLoading(true);
     try {
       // Знаходимо поточну заявку
@@ -3851,16 +3463,11 @@ function AdminEditTasksArea({ user }) {
         console.error('[ERROR] handleSaveBonusDate - заявка не знайдена:', taskId);
         return;
       }
-      
       // Оновлюємо тільки поле bonusApprovalDate
       const updatedTask = { ...currentTask, bonusApprovalDate: newDate };
       const updated = await tasksAPI.update(taskId, updatedTask);
-      console.log('[DEBUG] handleSaveBonusDate - отримано оновлену заявку:', updated);
-      
       // Оновлюємо локальний стан
       setTasks(tasks => tasks.map(t => t.id === taskId ? updated : t));
-      
-      console.log('[DEBUG] handleSaveBonusDate - успішно збережено');
     } catch (error) {
       console.error('[ERROR] handleSaveBonusDate - помилка збереження:', error);
     } finally {
@@ -3914,7 +3521,6 @@ function AdminEditTasksArea({ user }) {
     </div>
   );
 }
-
 // 3. Оновлюю AdminArea для підвкладок
 function AdminArea({ user }) {
   const [tab, setTab] = useState('system');
@@ -3937,7 +3543,6 @@ function AdminArea({ user }) {
     </div>
   );
 }
-
 // --- Компонент для відновлення даних ---
 function AdminBackupArea({ user }) {
   const [backups, setBackups] = useState(() => {
@@ -3949,7 +3554,6 @@ function AdminBackupArea({ user }) {
         if (parsedBackups.length > 10) {
           const limitedBackups = parsedBackups.slice(-10);
           localStorage.setItem('backups', JSON.stringify(limitedBackups));
-          console.log('[BACKUP] Обмежено кількість бекапів до 10 при завантаженні');
           return limitedBackups;
         }
         return parsedBackups;
@@ -3970,24 +3574,19 @@ function AdminBackupArea({ user }) {
     const saved = localStorage.getItem('lastAutoBackup');
     return saved ? new Date(saved) : null;
   });
-
   // Завантаження бекапів з сервера
   const loadServerBackups = async () => {
     if (!user?.login) return;
-    
     try {
       setLoadingBackups(true);
-      console.log('[BACKUP] Завантаження бекапів з сервера...');
       const serverBackupsData = await backupAPI.getAll(user.login);
       setServerBackups(serverBackupsData);
-      console.log('[BACKUP] Завантажено серверних бекапів:', serverBackupsData.length);
     } catch (error) {
       console.error('[BACKUP] Помилка завантаження серверних бекапів:', error);
     } finally {
       setLoadingBackups(false);
     }
   };
-
   // Завантажуємо серверні бекапи при зміні користувача
   useEffect(() => {
     if (user?.login) {
@@ -3995,30 +3594,24 @@ function AdminBackupArea({ user }) {
     }
   }, [user?.login]);
   const [showExcelImport, setShowExcelImport] = useState(false);
-
   // --- Функція для експорту всіх завдань в Excel ---
   const handleExportToExcel = async () => {
     try {
       const tasksToExport = await tasksAPI.getAll();
-
     if (tasksToExport.length === 0) {
       alert('Немає завдань для експорту.');
       return;
     }
-
     // Використовуємо українські назви з allTaskFields для заголовків
     const headers = allTaskFields.map(field => field.label);
-    
     // Формуємо дані для рядків
     const data = tasksToExport.map(task => {
       return allTaskFields.map(field => task[field.name] || '');
     });
-
     // Створюємо робочий аркуш
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Усі завдання');
-
     // Запускаємо завантаження файлу
     XLSX.writeFile(workbook, 'export_all_tasks.xlsx');
     } catch (error) {
@@ -4026,11 +3619,9 @@ function AdminBackupArea({ user }) {
       alert('Помилка при експорті завдань. Спробуйте ще раз.');
     }
   };
-
   // --- Функція для перегляду бекапу ---
   const [viewingBackup, setViewingBackup] = useState(null);
   const [backupPreview, setBackupPreview] = useState(null);
-
   const viewBackup = (backup) => {
     try {
       const tasksData = JSON.parse(backup.data);
@@ -4045,36 +3636,20 @@ function AdminBackupArea({ user }) {
       alert('Помилка при перегляді бекапу');
     }
   };
-
   const closeBackupView = () => {
     setViewingBackup(null);
     setBackupPreview(null);
   };
-
   // --- Додаю створення бекапу ---
   const createBackup = async () => {
     try {
-      console.log('[BACKUP] Початок створення бекапу...');
     const now = new Date();
-      
       // Додаємо невелику затримку для забезпечення оновлення бази
-      console.log('[BACKUP] Очікування оновлення бази даних...');
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      console.log('[BACKUP] Отримання даних завдань з API...');
       const tasksData = await tasksAPI.getAll();
-      console.log('[BACKUP] Отримано завдань:', tasksData.length);
-      
       // Логуємо перші кілька завдань для перевірки актуальності даних
       if (tasksData.length > 0) {
-        console.log('[BACKUP] Перше завдання для перевірки:', {
-          id: tasksData[0].id,
-          status: tasksData[0].status,
-          company: tasksData[0].company,
-          updatedAt: tasksData[0].updatedAt || 'немає дати оновлення'
-        });
       }
-      
       // Оптимізуємо дані - зберігаємо тільки необхідні поля
       const optimizedTasks = tasksData.map(task => ({
         id: task.id,
@@ -4101,23 +3676,17 @@ function AdminBackupArea({ user }) {
         bonusApprovalDate: task.bonusApprovalDate,
         accountantComments: task.accountantComments
       }));
-      
       const backupData = JSON.stringify(optimizedTasks);
       const backupName = `Бекап ${now.toLocaleDateString('uk-UA')} ${now.toLocaleTimeString('uk-UA')}`;
-      
       // Створюємо бекап для локального зберігання
       const localBackup = {
       id: Date.now(),
       date: now.toISOString(),
         data: backupData
       };
-      
-      console.log('[BACKUP] Створено об\'єкт бекапу:', localBackup.id);
-      
       // Зберігаємо на сервері
       let serverSuccess = false;
       try {
-        console.log('[BACKUP] Збереження бекапу на сервері...');
         const serverBackup = await backupAPI.create({
           userId: user?.login || 'system',
           name: backupName,
@@ -4126,37 +3695,27 @@ function AdminBackupArea({ user }) {
           taskCount: tasksData.length,
           isAuto: false
         });
-        console.log('[BACKUP] Бекап збережено на сервері:', serverBackup.backup._id);
         serverSuccess = true;
       } catch (serverError) {
         console.error('[BACKUP] Помилка збереження на сервері:', serverError);
         // Продовжуємо з локальним збереженням навіть якщо сервер недоступний
       }
-      
       // Зберігаємо локально
       let newBackups = [...backups, localBackup];
       if (newBackups.length > 10) {
         newBackups = newBackups.slice(newBackups.length - 10);
-        console.log('[BACKUP] Видалено старі локальні бекапи, залишено 10 останніх');
       }
-      
       // Перевіряємо розмір перед збереженням
       const backupString = JSON.stringify(newBackups);
       const sizeInMB = new Blob([backupString]).size / (1024 * 1024);
-      console.log('[BACKUP] Розмір локальних бекапів:', sizeInMB.toFixed(2), 'MB');
-      
       if (sizeInMB > 4) { // Якщо більше 4MB, зберігаємо тільки 5 останніх
         newBackups = newBackups.slice(-5);
-        console.log('[BACKUP] Розмір занадто великий, зберігаємо тільки 5 останніх локальних бекапів');
       }
-      
     setBackups(newBackups);
-      
       try {
     localStorage.setItem('backups', JSON.stringify(newBackups));
     setLastAutoBackup(now);
     localStorage.setItem('lastAutoBackup', now.toISOString());
-        console.log('[BACKUP] Локальний бекап успішно створено та збережено');
         // Перевіряємо, чи вдалося зберегти на сервері
         if (serverSuccess) {
           alert('Бекап успішно створено! Збережено локально та на сервері.');
@@ -4176,30 +3735,25 @@ function AdminBackupArea({ user }) {
       alert(`Помилка при створенні бекапу: ${error.message}. Спробуйте ще раз.`);
     }
   };
-
   // --- Видалення бекапу ---
   const deleteBackup = async (id) => {
     try {
       // Видаляємо з сервера (якщо це серверний бекап)
       try {
         await backupAPI.delete(id, user?.login || 'system');
-        console.log('[BACKUP] Бекап видалено з сервера:', id);
       } catch (serverError) {
         console.error('[BACKUP] Помилка видалення з сервера:', serverError);
         // Продовжуємо з локальним видаленням
       }
-      
       // Видаляємо локально
     const newBackups = backups.filter(b => b.id !== id);
     setBackups(newBackups);
     localStorage.setItem('backups', JSON.stringify(newBackups));
-      console.log('[BACKUP] Локальний бекап видалено:', id);
     } catch (error) {
       console.error('[BACKUP] Помилка видалення бекапу:', error);
       alert('Помилка при видаленні бекапу. Спробуйте ще раз.');
     }
   };
-
   // --- Автоматичний бекап ---
   useEffect(() => {
     if (!lastAutoBackup) return;
@@ -4212,13 +3766,11 @@ function AdminBackupArea({ user }) {
     if (now >= nextBackup) createBackup();
     // eslint-disable-next-line
   }, [autoInterval, lastAutoBackup]);
-
   // --- Зміна інтервалу ---
   const handleIntervalChange = e => {
     setAutoInterval(e.target.value);
     localStorage.setItem('backupInterval', e.target.value);
   };
-
   // --- Відновлення з бекапу ---
   const restoreBackup = async backup => {
     if (window.confirm('Відновити дані з цього бекапу? Поточні дані будуть замінені.')) {
@@ -4244,7 +3796,6 @@ function AdminBackupArea({ user }) {
       }
     }
   };
-
   // --- Обробка імпорту Excel ---
   const handleExcelImport = async (importedTasks) => {
     try {
@@ -4252,12 +3803,9 @@ function AdminBackupArea({ user }) {
       for (const task of importedTasks) {
         await tasksAPI.add(task);
       }
-      
       // Створюємо бекап перед імпортом
       await createBackup();
-      
       alert(`Успішно імпортовано ${importedTasks.length} завдань!`);
-      
       // Оновлюємо сторінку для відображення нових завдань
       window.location.reload();
     } catch (error) {
@@ -4265,11 +3813,9 @@ function AdminBackupArea({ user }) {
       alert('Помилка при імпорті завдань. Спробуйте ще раз.');
     }
   };
-
   return (
     <div style={{padding:32}}>
       <h2>Відновлення даних</h2>
-      
       {/* Кнопки імпорту та бекапу */}
       <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:24,flexWrap:'wrap'}}>
         <button 
@@ -4327,7 +3873,6 @@ function AdminBackupArea({ user }) {
           Останній бекап: {lastAutoBackup ? new Date(lastAutoBackup).toLocaleString() : '—'}
         </span>
       </div>
-
       {/* Інформація про імпорт */}
       <div style={{
         background:'#e8f5e8',
@@ -4343,7 +3888,6 @@ function AdminBackupArea({ user }) {
           Імпортовані завдання будуть додані до бази даних та розподілені по відповідних вкладках.
         </p>
       </div>
-
       {/* Таблиця бекапів */}
       <div style={{marginBottom:16,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <h3 style={{color:'#22334a',margin:0}}>Історія бекапів</h3>
@@ -4363,7 +3907,6 @@ function AdminBackupArea({ user }) {
           {loadingBackups ? 'Завантаження...' : 'Оновити з сервера'}
         </button>
       </div>
-
       {/* Локальні бекапи */}
       <div style={{marginBottom:24}}>
         <h4 style={{marginBottom:8,color:'#666'}}>Локальні бекапи ({backups.length})</h4>
@@ -4426,7 +3969,6 @@ function AdminBackupArea({ user }) {
         </tbody>
       </table>
       </div>
-
       {/* Серверні бекапи */}
       <div>
         <h4 style={{marginBottom:8,color:'#666'}}>Серверні бекапи ({serverBackups.length})</h4>
@@ -4493,14 +4035,12 @@ function AdminBackupArea({ user }) {
           </tbody>
         </table>
       </div>
-
       {/* Модальне вікно імпорту Excel */}
       <ExcelImportModal
         open={showExcelImport}
         onClose={() => setShowExcelImport(false)}
         onImport={handleExcelImport}
       />
-
       {/* Модальне вікно перегляду бекапу */}
       {viewingBackup && backupPreview && (
         <div style={{
@@ -4549,7 +4089,6 @@ function AdminBackupArea({ user }) {
                 Закрити
               </button>
             </div>
-
             <div style={{marginBottom: 15, color: '#333'}}>
               <strong style={{color: '#333'}}>Загальна інформація:</strong>
               <ul style={{margin: '5px 0', paddingLeft: 20, color: '#333'}}>
@@ -4559,7 +4098,6 @@ function AdminBackupArea({ user }) {
                 <li style={{color: '#333'}}>Опис: {backupPreview.description || 'Немає опису'}</li>
               </ul>
             </div>
-
             <div style={{color: '#333'}}>
               <strong style={{color: '#333'}}>Перші 10 завдань з бекапу:</strong>
               <div style={{
@@ -4604,5 +4142,4 @@ function AdminBackupArea({ user }) {
     </div>
   );
 }
-
 export default App

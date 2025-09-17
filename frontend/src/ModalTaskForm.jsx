@@ -6,10 +6,8 @@ import { regionsAPI } from './utils/regionsAPI';
 import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from './utils/eventLogAPI';
 import { getEquipmentTypes } from './utils/equipmentAPI';
 import MaterialsSelectionModal from './components/MaterialsSelectionModal';
-
 // Функція для отримання коду регіону
 const getRegionCode = (region) => {
-  console.log('[DEBUG] getRegionCode called with region:', region);
   const regionMap = {
     'Київський': 'KV',
     'Дніпровський': 'DP', 
@@ -17,36 +15,26 @@ const getRegionCode = (region) => {
     'Хмельницький': 'HY'
   };
   const result = regionMap[region] || 'UA';
-  console.log('[DEBUG] getRegionCode result:', result);
   return result;
 };
-
 // Функція для генерації наступного номера заявки
 const generateNextRequestNumber = async (region) => {
-  console.log('[DEBUG] generateNextRequestNumber called with region:', region);
   try {
     const allTasks = await tasksAPI.getAll();
     const regionCode = getRegionCode(region);
-    console.log('[DEBUG] Generated region code:', regionCode);
     const pattern = new RegExp(`^${regionCode}-(\\d+)$`);
-    
     // Знаходимо всі номери заявок для цього регіону
     const regionNumbers = allTasks
       .map(task => task.requestNumber)
       .filter(number => number && pattern.test(number))
       .map(number => parseInt(number.match(pattern)[1]))
       .sort((a, b) => a - b);
-    
-    console.log('[DEBUG] Found existing numbers for region', regionCode, ':', regionNumbers);
-    
     // Знаходимо наступний номер
     let nextNumber = 1;
     if (regionNumbers.length > 0) {
       nextNumber = Math.max(...regionNumbers) + 1;
     }
-    
     const result = `${regionCode}-${String(nextNumber).padStart(7, '0')}`;
-    console.log('[DEBUG] Generated request number:', result);
     return result;
   } catch (error) {
     console.error('Помилка при генерації номера заявки:', error);
@@ -54,7 +42,6 @@ const generateNextRequestNumber = async (region) => {
     return `${regionCode}-0000001`;
   }
 };
-
 export const fields = [
   { name: 'status', label: 'Статус заявки', type: 'select', options: ['', 'Заявка', 'В роботі', 'Виконано', 'Заблоковано'] },
   { name: 'requestDate', label: 'Дата заявки', type: 'date' },
@@ -116,13 +103,10 @@ export const fields = [
   { name: 'bonusApprovalDate', label: 'Дата затвердження премії', type: 'date' },
   { name: 'serviceBonus', label: 'Премія за виконання сервісних робіт, грн', type: 'text' },
 ];
-
 // Додаю поле для детального опису блокування заявки
 const blockDescField = { name: 'blockDetail', label: 'Детальний опис блокування заявки', type: 'textarea' };
-
 // Додаємо нове поле для звітного місяця/року
 const reportMonthYearField = { name: 'reportMonthYear', label: 'Місяць/рік для звіту', type: 'text', readOnly: true };
-
 // Групи полів
 const group1 = ['requestDesc'];
 const group2 = ['warehouseComment', 'accountantComment', 'accountantComments', 'regionalManagerComment'];
@@ -130,10 +114,8 @@ const group3 = ['work', 'engineer1', 'engineer2'];
 const group4 = ['oilType', 'oilUsed', 'oilPrice', 'oilTotal'];
 const group5 = ['spareParts', 'sparePartsPrice', 'sparePartsTotal'];
 const group6 = ['totalAmount'];
-
 // Для textarea
 const textareaFields = ['requestDesc','address','warehouseComment','accountantComment','accountantComments','regionalManagerComment','comments','blockDetail','otherMaterials'];
-
 // Групи для компактного відображення
 const oilGroup = ['oilType', 'oilUsed', 'oilPrice', 'oilTotal'];
 const filterGroup = ['filterName', 'filterCount', 'filterPrice', 'filterSum'];
@@ -152,13 +134,10 @@ const warehouseGroup = ['approvedByWarehouse', 'warehouseComment'];
 const accountantGroup = ['approvedByAccountant', 'accountantComment', 'accountantComments'];
 const regionalManagerGroup = ['approvedByRegionalManager', 'regionalManagerComment'];
 const commentsGroup = ['comments'];
-
 // Додаю групу для першого рядка
 const mainHeaderGroup = ['status', 'requestDate', 'company', 'serviceRegion'];
-
 // Додаю mainHeaderRow для першого рядку
 const mainHeaderRow = ['status', 'requestDate', 'company', 'serviceRegion'];
-
 // Новий порядок полів
 const orderedFields = [
   'requestDesc',
@@ -179,10 +158,8 @@ const orderedFields = [
   ...regionalManagerGroup,
   ...commentsGroup,
 ];
-
 // Додаємо поле bonusApprovalDate для адміністратора
 // const bonusApprovalDateField = { ... } // (залишити, якщо потрібно)
-
 // Для полів, які мають бути з label над input
 const labelAboveFields = [
   'status', 'requestDate', 'requestDesc', 'address', 'paymentDate', 'paymentType', 'otherMaterials',
@@ -190,44 +167,37 @@ const labelAboveFields = [
   'approvedByAccountant', 'accountantComment', 'accountantComments',
   'approvedByRegionalManager', 'regionalManagerComment', 'comments'
 ];
-
 export default function ModalTaskForm({ open, onClose, onSave, initialData = {}, mode = 'service', user, readOnly = false }) {
   const isRegionReadOnly = user && user.region && user.region !== 'Україна';
-
   function toSelectString(val) {
     if (val === true) return 'Підтверджено';
     if (val === false) return 'Відмова';
     if (val === 'Підтверджено' || val === 'Відмова' || val === 'На розгляді') return val;
     return 'На розгляді';
   }
-
   // Функція для отримання поточної дати у форматі YYYY-MM-DD
   function getCurrentDate() {
     const now = new Date();
     return now.toISOString().split('T')[0];
   }
-
   // Функція для отримання дати попереднього місяця у форматі YYYY-MM-DD
   function getPreviousMonthDate() {
     const now = new Date();
     now.setMonth(now.getMonth() - 1);
     return now.toISOString().split('T')[0];
   }
-
   // Функція для перевірки чи дата в тому ж місяці та році
   function isSameMonthAndYear(date1, date2) {
     const d1 = new Date(date1);
     const d2 = new Date(date2);
     return d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
   }
-
   // Функція для отримання місяця та року у форматі MM.YYYY
   function getMonthYear(date) {
     if (!date) return '';
     const d = new Date(date);
     return `${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
   }
-
   // Функція для отримання попереднього місяця та року у форматі MM.YYYY
   function getPrevMonthYear(date) {
     if (!date) return '';
@@ -235,16 +205,13 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     d.setMonth(d.getMonth() - 1);
     return `${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
   }
-
   const [form, setForm] = useState(() => {
     const f = { ...initialData };
     if ('approvedByWarehouse' in f) f.approvedByWarehouse = toSelectString(f.approvedByWarehouse);
     if ('approvedByAccountant' in f) f.approvedByAccountant = toSelectString(f.approvedByAccountant);
     if ('approvedByRegionalManager' in f) f.approvedByRegionalManager = toSelectString(f.approvedByRegionalManager);
-
     // Значення за замовчуванням для компанії
     if (!('company' in f)) f.company = '';
-
     // Автозаповнення дати
     if (f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
@@ -257,7 +224,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         f.date = getPreviousMonthDate();
       }
     }
-
     // Автозаповнення reportMonthYear
     if (f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
@@ -279,15 +245,12 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     } else {
       f.reportMonthYear = '';
     }
-
     return f;
   });
-
   const [users, setUsers] = useState(() => {
     const saved = localStorage.getItem('users');
     return saved ? JSON.parse(saved) : [];
   });
-
   const [regions, setRegions] = useState(() => {
     const saved = localStorage.getItem('regions');
     return saved ? JSON.parse(saved) : [
@@ -296,28 +259,22 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       { name: 'Львівський' }
     ];
   });
-
   // --- Додаємо стан для модального вікна відмови ---
   const [rejectModal, setRejectModal] = useState({ open: false, field: '', comment: '' });
-
   const [error, setError] = useState('');
-
   // --- Додаю стан для модального вікна з помилками ---
   const [missingFields, setMissingFields] = useState([]);
   const [showMissingModal, setShowMissingModal] = useState(false);
-
   // --- Додаємо стан для автодоповнення обладнання ---
   const [equipmentTypes, setEquipmentTypes] = useState([]);
   const [showEquipmentDropdown, setShowEquipmentDropdown] = useState(false);
   const [filteredEquipmentTypes, setFilteredEquipmentTypes] = useState([]);
   const [materialsModal, setMaterialsModal] = useState({ open: false, equipmentType: '' });
-
   useEffect(() => {
     const f = { ...initialData };
     if ('approvedByWarehouse' in f) f.approvedByWarehouse = toSelectString(f.approvedByWarehouse);
     if ('approvedByAccountant' in f) f.approvedByAccountant = toSelectString(f.approvedByAccountant);
     if ('approvedByRegionalManager' in f) f.approvedByRegionalManager = toSelectString(f.approvedByRegionalManager);
-
     // Автозаповнення дати при зміні статусу або підтверджень
     if (f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
@@ -330,7 +287,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         f.date = getPreviousMonthDate();
       }
     }
-
     // Автозаповнення reportMonthYear
     if (f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
@@ -352,46 +308,30 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     } else {
       f.reportMonthYear = '';
     }
-
     setForm(f);
   }, [initialData, open]);
-
   useEffect(() => {
     if (open) {
       columnsSettingsAPI.getAllUsers().then(setUsers).catch(() => setUsers([]));
       regionsAPI.getAll().then(setRegions).catch(() => setRegions([]));
     }
   }, [open]);
-
   // useEffect для автоматичного заповнення номера заявки
   useEffect(() => {
     const autoFillRequestNumber = async () => {
-      console.log('[DEBUG] autoFillRequestNumber called with:', {
-        hasId: !!initialData.id,
-        requestNumber: form.requestNumber,
-        serviceRegion: form.serviceRegion
-      });
-      
       // Тільки для нових завдань (коли немає ID) і якщо номер заявки порожній
       if (!initialData.id && !form.requestNumber && form.serviceRegion) {
-        console.log('[DEBUG] Will generate new request number for region:', form.serviceRegion);
         try {
           const nextNumber = await generateNextRequestNumber(form.serviceRegion);
-          console.log('[DEBUG] Setting form requestNumber to:', nextNumber);
           setForm(prev => ({ ...prev, requestNumber: nextNumber }));
         } catch (error) {
           console.error('Помилка при автозаповненні номера заявки:', error);
         }
       } else {
-        console.log('[DEBUG] Skipping request number generation:', {
-          reason: initialData.id ? 'has ID' : !form.requestNumber ? 'no requestNumber' : 'no serviceRegion'
-        });
       }
     };
-
     autoFillRequestNumber();
   }, [form.serviceRegion, initialData.id, form.requestNumber]);
-
   useEffect(() => {
     // Підставляти регіон лише якщо створюється нова заявка (form.serviceRegion порожнє і initialData.serviceRegion порожнє)
     if (
@@ -401,7 +341,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       setForm(f => ({ ...f, serviceRegion: user.region }));
     }
   }, [user, form.serviceRegion, initialData.serviceRegion]);
-
   // Очищаємо поля інженерів при зміні регіону заявки
   useEffect(() => {
     if (form.serviceRegion) {
@@ -410,33 +349,28 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         if (form.serviceRegion === 'Україна') return true;
         return u.region === form.serviceRegion;
       });
-      
       // Якщо вибраний інженер1 не доступний у новому регіоні, очищаємо поле
       if (form.engineer1 && !availableEngineers.some(u => u.name === form.engineer1)) {
         setForm(f => ({ ...f, engineer1: '' }));
       }
-      
       // Якщо вибраний інженер2 не доступний у новому регіоні, очищаємо поле
       if (form.engineer2 && !availableEngineers.some(u => u.name === form.engineer2)) {
         setForm(f => ({ ...f, engineer2: '' }));
       }
     }
   }, [form.serviceRegion, users]);
-
   // --- Завантаження користувачів з бази ---
   useEffect(() => {
     if (open) {
       columnsSettingsAPI.getAllUsers().then(setUsers).catch(() => setUsers([]));
     }
   }, [open]);
-
   // --- Завантаження типів обладнання ---
   useEffect(() => {
     if (open) {
       getEquipmentTypes()
         .then(types => {
           setEquipmentTypes(types);
-          console.log('[DEBUG] Завантажено типів обладнання:', types.length);
         })
         .catch(error => {
           console.error('Помилка завантаження типів обладнання:', error);
@@ -444,7 +378,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         });
     }
   }, [open]);
-
   // --- Список сервісних інженерів для вибору ---
   const serviceEngineers = users.filter(u => {
     if (u.role !== 'service') return false;
@@ -454,21 +387,17 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     }
     return true;
   });
-
   if (!open) return null;
-
   // Визначаємо, які поля заблоковані
   const isReadOnly = name => {
     // Якщо режим readOnly, всі поля тільки для читання
     if (readOnly) {
       return true;
     }
-    
     // Поле bonusApprovalDate доступне тільки для адміністратора
     if (name === 'bonusApprovalDate') {
       return mode !== 'admin' && user?.role !== 'administrator';
     }
-    
     if (mode === 'regionalManager' || mode === 'regional') {
       // Доступні тільки ці два поля
       return !(name === 'approvedByRegionalManager' || name === 'regionalManagerComment');
@@ -493,7 +422,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     }
     // Для оператора поле 'client' (Замовник) завжди доступне для редагування
     if (mode === 'operator' && name === 'client') return false;
-
     if (fields.find(f => f.name === name && f.role) && (!mode || fields.find(f => f.name === name).role !== mode)) return true;
     if (mode === 'operator') {
       return !['status','requestDate','requestDesc','serviceRegion','company','customer','requestNumber','paymentDate','invoiceNumber','paymentType','address','equipmentSerial','equipment'].includes(name);
@@ -501,7 +429,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     // Видаляємо перевірку для режиму service, щоб поля requestDate та requestDesc були доступні для редагування
     return false;
   };
-
   const sortedFields = [...fields].sort((a, b) => {
     const order = {
       status: 0,
@@ -520,15 +447,12 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     };
     return (order[a.name] || 99) - (order[b.name] || 99);
   });
-
   // --- Додаємо обробник для select з відмовою ---
   const handleChange = e => {
     const { name, value } = e.target;
-    
     // Спеціальна обробка для поля обладнання
     if (name === 'equipment') {
       setForm({ ...form, [name]: value });
-      
       // Фільтруємо типи обладнання для автодоповнення
       if (value.trim()) {
         const filtered = equipmentTypes.filter(type => 
@@ -542,7 +466,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       }
       return;
     }
-    
     // Якщо це поле підтвердження і вибрано "Відмова" — показати модалку
     if (
       (name === 'approvedByWarehouse' || name === 'approvedByAccountant' || name === 'approvedByRegionalManager') &&
@@ -567,22 +490,18 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     }
     setForm({ ...form, [name]: value });
   };
-
   // --- Обробник вибору обладнання з автодоповнення ---
   const handleEquipmentSelect = (equipmentType) => {
     setForm({ ...form, equipment: equipmentType });
     setShowEquipmentDropdown(false);
     setFilteredEquipmentTypes([]);
-    
     // Відкриваємо модальне вікно для вибору матеріалів
     setMaterialsModal({ open: true, equipmentType });
   };
-
   // --- Обробник застосування матеріалів ---
   const handleMaterialsApply = (formUpdates) => {
     setForm(prev => ({ ...prev, ...formUpdates }));
   };
-
   // --- Підтвердження відмови ---
   const handleRejectConfirm = () => {
     let newForm = { ...form };
@@ -602,12 +521,10 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     setForm(newForm);
     setRejectModal({ open: false, field: '', comment: '' });
   };
-
   // --- Відміна відмови ---
   const handleRejectCancel = () => {
     setRejectModal({ open: false, field: '', comment: '' });
   };
-
   const handleSubmit = e => {
     e.preventDefault();
     const required = [
@@ -641,10 +558,8 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     const fuelFilterSum = (parseFloat(form.fuelFilterCount)||0) * (parseFloat(form.fuelFilterPrice)||0);
     const airFilterSum = (parseFloat(form.airFilterCount)||0) * (parseFloat(form.airFilterPrice)||0);
     const antifreezeSum = (parseFloat(form.antifreezeL)||0) * (parseFloat(form.antifreezePrice)||0);
-    
     // Загальна сума послуги береться з форми (ручне введення)
     const serviceTotal = parseFloat(form.serviceTotal) || 0;
-    
     // Вартість робіт розраховується як різниця
     const workPrice = serviceTotal - (
       oilTotal +
@@ -658,10 +573,8 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       (parseFloat(form.otherExp)||0) +
       (parseFloat(form.transportSum)||0)
     );
-    
     // --- Автоматичне заповнення коментарів при підтвердженні ---
     const finalForm = { ...form };
-    
     // Автоматично заповнюємо коментарі при підтвердженні
     if (form.approvedByWarehouse === 'Підтверджено' && !form.warehouseComment) {
       finalForm.warehouseComment = `Погоджено, претензій не маю. ${user?.name || 'Користувач'}`;
@@ -673,7 +586,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     if (form.approvedByRegionalManager === 'Підтверджено' && !form.regionalManagerComment) {
       finalForm.regionalManagerComment = `Погоджено, претензій не маю. ${user?.name || 'Користувач'}`;
     }
-    
     onSave({
       ...finalForm,
       bonusApprovalDate,
@@ -685,13 +597,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       serviceTotal,
       workPrice
     });
-    
     // Логуємо створення або редагування заявки
     const action = form.id ? EVENT_ACTIONS.UPDATE : EVENT_ACTIONS.CREATE;
     const description = form.id ? 
       `Редагування заявки: ${form.requestNumber || 'Без номера'} - ${form.client || 'Без клієнта'}` :
       `Створення нової заявки: ${form.requestNumber || 'Без номера'} - ${form.client || 'Без клієнта'}`;
-    
     logUserAction(user, action, ENTITY_TYPES.TASK, form.id, description, {
       requestNumber: form.requestNumber,
       client: form.client,
@@ -700,10 +610,8 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       serviceTotal: form.serviceTotal,
       company: form.company
     });
-    
     onClose();
   };
-
   // Додаю розрахунок для полів
   const calcOilTotal = () => (parseFloat(form.oilUsed)||0)*(parseFloat(form.oilPrice)||0);
   const calcFilterSum = () => (parseFloat(form.filterCount)||0)*(parseFloat(form.filterPrice)||0);
@@ -725,7 +633,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       (parseFloat(form.transportSum)||0);
     return serviceTotal - totalExpenses;
   };
-
   return (
     <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto'}}>
       <style>{`
@@ -775,7 +682,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         <button type="button" onClick={onClose} style={{position:'absolute',top:40,right:24,fontSize:28,background:'none',border:'none',color:'#fff',cursor:'pointer',zIndex:10}} aria-label="Закрити">×</button>
         <h2 style={{marginTop:0}}>Завдання</h2>
         {error && <div style={{color:'#ff6666',marginBottom:16,fontWeight:600}}>{error}</div>}
-        
         {/* Окремий рядок для номера заявки/наряду */}
         <div style={{display:'flex',gap:16,marginBottom:24,justifyContent:'center'}}>
           <div className="field" style={{flex:1,maxWidth:400}}>
@@ -789,7 +695,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             />
           </div>
         </div>
-        
         <div style={{display:'flex',gap:16,marginBottom:24}}>
           {mainHeaderRow.map(n => {
             const f = fields.find(f=>f.name===n);
@@ -910,7 +815,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
-                  
                   // Спеціальний рендеринг для поля обладнання з автодоповненням
                   if (f.name === 'equipment') {
                     return (
@@ -940,7 +844,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                       </div>
                     );
                   }
-                  
                   return (
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
@@ -1347,17 +1250,14 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             </div>
           );
         })}
-        
         {/* Додаємо FileUpload тільки якщо є ID завдання (режим редагування) */}
         {initialData.id && (
           <FileUpload 
             taskId={initialData.id} 
             onFilesUploaded={(files) => {
-              console.log('Файли завантажено:', files);
             }}
           />
         )}
-        
         <div style={{display:'flex',gap:12,marginTop:24}}>
           {!readOnly && <button type="submit" style={{flex:1}}>Зберегти</button>}
           <button type="button" onClick={onClose} style={{flex:1,background:readOnly ? '#00bfff' : '#888',color:'#fff'}}>
@@ -1396,7 +1296,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           </div>
         </div>
       )}
-      
       {/* --- Модальне вікно вибору матеріалів --- */}
       <MaterialsSelectionModal
         open={materialsModal.open}

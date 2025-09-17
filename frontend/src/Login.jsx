@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import API_BASE_URL from './config.js';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from './utils/eventLogAPI';
-
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
   { value: 'service', label: 'Сервісна служба' },
@@ -11,7 +10,6 @@ const roles = [
   { value: 'accountant', label: 'Бухгалтер' },
   { value: 'regional', label: 'Регіональний керівник' },
 ];
-
 export default function Login({ onLogin }) {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
@@ -19,7 +17,6 @@ export default function Login({ onLogin }) {
   const [roleLocked, setRoleLocked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
-
   // Перевіряємо URL параметри при завантаженні
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -28,7 +25,6 @@ export default function Login({ onLogin }) {
       setIsViewMode(true);
     }
   }, []);
-
   useEffect(() => {
     if (!login.trim()) {
       setRole('admin');
@@ -53,14 +49,12 @@ export default function Login({ onLogin }) {
     }, 400); // 400 мс після останнього введення
     return () => clearTimeout(timeout);
   }, [login]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!login.trim() || !password.trim()) {
       alert('Введіть логін та пароль');
       return;
     }
-    
     setIsLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/auth`, {
@@ -70,7 +64,6 @@ export default function Login({ onLogin }) {
         },
         body: JSON.stringify({ login, password }),
       });
-      
       if (response.ok) {
         const result = await response.json();
         // Додаємо інформацію про режим до об'єкта користувача
@@ -78,7 +71,6 @@ export default function Login({ onLogin }) {
           ...result.user,
           isViewMode: isViewMode
         };
-        
         // Логуємо успішний вхід в систему
         logUserAction(userWithMode, EVENT_ACTIONS.LOGIN, ENTITY_TYPES.SYSTEM, null, 
           `Успішний вхід в систему: ${userWithMode.name} (${userWithMode.role})`, {
@@ -86,7 +78,6 @@ export default function Login({ onLogin }) {
             role: userWithMode.role,
             isViewMode: isViewMode
           });
-        
         onLogin(userWithMode);
     } else {
         const error = await response.json();
@@ -99,7 +90,6 @@ export default function Login({ onLogin }) {
       setIsLoading(false);
     }
   };
-
   return (
     <>
       <div className='bg-logo'></div>

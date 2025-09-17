@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
 import { tasksAPI } from '../utils/tasksAPI';
-
 const initialTask = {
   id: null,
   status: '',
@@ -56,7 +55,6 @@ const initialTask = {
   transportKm: '',
   transportSum: '',
 };
-
 export default function WarehouseArea({ user }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +74,6 @@ export default function WarehouseArea({ user }) {
   const [editTask, setEditTask] = useState(null);
   const [tab, setTab] = useState('pending');
   const region = user?.region || '';
-
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
   // але зберігаємо вже введені користувачем значення
   useEffect(() => {
@@ -90,7 +87,6 @@ export default function WarehouseArea({ user }) {
         }
         return acc;
       }, {});
-    
     // Оновлюємо filters, зберігаючи вже введені значення
     setFilters(prevFilters => {
       const updatedFilters = { ...newFilterKeys };
@@ -103,33 +99,24 @@ export default function WarehouseArea({ user }) {
       return updatedFilters;
     });
   }, [allTaskFields]); // Залежність від allTaskFields
-
   useEffect(() => {
     setLoading(true);
     tasksAPI.getAll().then(tasks => {
-      console.log(`[DEBUG][WarehouseArea] Завантажено завдань: ${tasks.length}`);
-      console.log(`[DEBUG][WarehouseArea] Регіон користувача: ${region}`);
-      console.log(`[DEBUG][WarehouseArea] Приклади регіонів завдань:`, tasks.slice(0, 5).map(t => ({ id: t.id, region: t.serviceRegion })));
       setTasks(tasks);
     }).finally(() => setLoading(false));
   }, []);
-
   // Автоматичне оновлення даних при фокусі на вкладку браузера
   useEffect(() => {
     const handleFocus = () => {
-      console.log('[DEBUG] WarehouseArea - оновлення даних при фокусі на вкладку');
       tasksAPI.getAll().then(freshTasks => {
         setTasks(freshTasks);
-        console.log('[DEBUG] WarehouseArea - дані оновлено при фокусі, завдань:', freshTasks.length);
       }).catch(error => {
         console.error('[ERROR] WarehouseArea - помилка оновлення при фокусі:', error);
       });
     };
-
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, []);
-
   const handleApprove = async (id, approved, comment) => {
     setLoading(true);
     const t = tasks.find(t => t.id === id);
@@ -161,17 +148,13 @@ export default function WarehouseArea({ user }) {
     setLoading(false);
   };
   const handleFilter = e => {
-    console.log('[DEBUG] WarehouseArea handleFilter called:', e.target.name, e.target.value);
-    console.log('[DEBUG] Current filters before update:', filters);
     const newFilters = { ...filters, [e.target.name]: e.target.value };
-    console.log('[DEBUG] New filters after update:', newFilters);
     setFilters(newFilters);
   };
   const handleEdit = t => {
     const isReadOnly = t._readOnly;
     const taskData = { ...t };
     delete taskData._readOnly; // Видаляємо прапорець з даних завдання
-    
     setEditTask(taskData);
     setModalOpen(true);
     // Передаємо readOnly в ModalTaskForm
@@ -183,22 +166,18 @@ export default function WarehouseArea({ user }) {
   const handleSave = async (task) => {
     setLoading(true);
     let updatedTask = null;
-    
     if (editTask && editTask.id) {
       updatedTask = await tasksAPI.update(editTask.id, task);
     } else {
       updatedTask = await tasksAPI.add(task);
     }
-    
     // Оновлюємо дані з бази після збереження
     try {
       const freshTasks = await tasksAPI.getAll();
       setTasks(freshTasks);
-      console.log('[DEBUG] WarehouseArea handleSave - дані оновлено з бази, завдань:', freshTasks.length);
     } catch (error) {
       console.error('[ERROR] WarehouseArea handleSave - помилка оновлення даних з бази:', error);
     }
-    
     // Закриваємо модальне вікно
     setEditTask(null);
     setLoading(false);
@@ -251,18 +230,14 @@ export default function WarehouseArea({ user }) {
     }
     // Інакше показуємо тільки заявки регіону користувача
     const matchesRegion = t.serviceRegion === region;
-    console.log(`[DEBUG][WarehouseArea] Task ${t.id}: user region=${region}, task region=${t.serviceRegion}, matches=${matchesRegion}`);
     return matchesRegion;
   });
-  
-  console.log(`[DEBUG][WarehouseArea] User region: ${region}, Archive tasks: ${archive.length}, Total filtered: ${filtered.length}`);
   const tableData = tab === 'pending' ? pending : archive;
   const columns = allTaskFields.map(f => ({
     key: f.name,
     label: f.label,
     filter: true
   }));
-
   // --- Формування звіту ---
   const handleFormReport = () => {
     // Фільтруємо виконані заявки за діапазоном дат
@@ -397,23 +372,19 @@ export default function WarehouseArea({ user }) {
     win.document.write(html);
     win.document.close();
   };
-
   // Функція для створення звіту по замовнику
   const openClientReport = (clientName) => {
     const clientTasks = tasks.filter(task => task.client === clientName);
-    
     if (clientTasks.length === 0) {
       alert('Немає даних для даного замовника');
       return;
     }
-
     // Сортуємо завдання за датою (від найновішої до найстарішої)
     const sortedTasks = clientTasks.sort((a, b) => {
       const dateA = new Date(a.date || a.requestDate || 0);
       const dateB = new Date(b.date || b.requestDate || 0);
       return dateB - dateA;
     });
-
     // Створюємо HTML звіт
     const reportHTML = `
       <!DOCTYPE html>
@@ -561,13 +532,11 @@ export default function WarehouseArea({ user }) {
       </head>
       <body>
         <button class="print-button" onclick="window.print()">🖨️ Друкувати</button>
-        
         <div class="header">
           <h1>Звіт по замовнику: ${clientName}</h1>
           <p>Кількість проведених робіт: ${sortedTasks.length}</p>
           <p>Дата створення звіту: ${new Date().toLocaleDateString('uk-UA')}</p>
         </div>
-
         ${sortedTasks.map(task => `
           <div class="task-card">
             <div class="task-header">
@@ -576,7 +545,6 @@ export default function WarehouseArea({ user }) {
                 ${task.status || 'Невідомо'}
               </div>
             </div>
-            
             <div class="task-info">
               <div class="info-row">
                 <span class="info-label">Дата заявки:</span>
@@ -599,7 +567,6 @@ export default function WarehouseArea({ user }) {
                 <span class="info-value">${task.engineer1 || ''} ${task.engineer2 ? ', ' + task.engineer2 : ''}</span>
               </div>
             </div>
-
             <div class="materials-grid">
               ${task.oilType || task.oilUsed || task.oilPrice ? `
                 <div class="material-section">
@@ -610,7 +577,6 @@ export default function WarehouseArea({ user }) {
                   ${task.oilTotal ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.oilTotal} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.filterName || task.filterCount || task.filterPrice ? `
                 <div class="material-section">
                   <h4>Масляний фільтр</h4>
@@ -620,7 +586,6 @@ export default function WarehouseArea({ user }) {
                   ${task.filterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.filterSum} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.airFilterName || task.airFilterCount || task.airFilterPrice ? `
                 <div class="material-section">
                   <h4>Повітряний фільтр</h4>
@@ -630,7 +595,6 @@ export default function WarehouseArea({ user }) {
                   ${task.airFilterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.airFilterSum} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.antifreezeType || task.antifreezeL || task.antifreezePrice ? `
                 <div class="material-section">
                   <h4>Антифриз</h4>
@@ -640,7 +604,6 @@ export default function WarehouseArea({ user }) {
                   ${task.antifreezeSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.antifreezeSum} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.fuelFilterName || task.fuelFilterCount || task.fuelFilterPrice ? `
                 <div class="material-section">
                   <h4>Паливний фільтр</h4>
@@ -650,7 +613,6 @@ export default function WarehouseArea({ user }) {
                   ${task.fuelFilterSum ? `<div class="material-item"><span class="material-label">Загальна сума:</span><span class="material-value">${task.fuelFilterSum} грн</span></div>` : ''}
                 </div>
               ` : ''}
-
               ${task.otherMaterials || task.otherSum ? `
                 <div class="material-section">
                   <h4>Інші матеріали</h4>
@@ -659,7 +621,6 @@ export default function WarehouseArea({ user }) {
                 </div>
               ` : ''}
             </div>
-
             ${task.serviceTotal ? `
               <div class="summary">
                 <h3>Загальна сума послуги: ${task.serviceTotal} грн</h3>
@@ -667,7 +628,6 @@ export default function WarehouseArea({ user }) {
             ` : ''}
           </div>
         `).join('')}
-
         <div class="summary">
           <h3>Підсумок по замовнику ${clientName}</h3>
           <p>Всього проведено робіт: ${sortedTasks.length}</p>
@@ -676,13 +636,11 @@ export default function WarehouseArea({ user }) {
       </body>
       </html>
     `;
-
     // Відкриваємо нове вікно з звітом
     const newWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
     newWindow.document.write(reportHTML);
     newWindow.document.close();
   };
-
   return (
     <div style={{padding:32}}>
       <h2>Завдання для затвердження (Зав. склад)</h2>

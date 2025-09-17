@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from './config.js';
-
 const initial = {
   status: '',
   requestDesc: '',
@@ -42,11 +41,9 @@ const initial = {
   transportKm: '',
   transportSum: '',
 };
-
 export default function FinancialReport() {
   const [data, setData] = useState(initial);
   const [success, setSuccess] = useState(null);
-
   // Авторозрахунок
   const calcOilTotal = () => {
     const used = parseFloat(data.oilUsed) || 0;
@@ -82,7 +79,6 @@ export default function FinancialReport() {
       (parseFloat(data.transportSum) || 0)
     );
   };
-
   // Автозаповнення (приклад)
   const handleEquipmentChange = (e) => {
     const value = e.target.value;
@@ -92,13 +88,11 @@ export default function FinancialReport() {
       oilType: value === 'EMSA BD EM 0022' ? '10W40' : '',
     });
   };
-
   // Оновлення полів
   const handleChange = (e) => {
     const { name, value } = e.target;
     setData({ ...data, [name]: value });
   };
-
   // Оновлення розрахункових полів
   const handleBlur = () => {
     setData((prev) => ({
@@ -109,7 +103,6 @@ export default function FinancialReport() {
       antifreezeSum: calcAntifreezeSum(),
     }));
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSuccess(null);
@@ -138,7 +131,6 @@ export default function FinancialReport() {
       setSuccess('Помилка при збереженні!');
     }
   };
-
   return (
     <form className="fin-report" onBlur={handleBlur} onSubmit={handleSubmit}>
       <h2>Фінансовий звіт по сервісу</h2>

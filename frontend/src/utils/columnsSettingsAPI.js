@@ -1,6 +1,5 @@
 // Утиліта для роботи з налаштуваннями колонок через API
 import API_BASE_URL from '../config.js';
-
 export const columnsSettingsAPI = {
   // Завантажити налаштування колонок для користувача та області
   async loadSettings(userLogin, area) {
@@ -18,26 +17,17 @@ export const columnsSettingsAPI = {
       return { visible: [], order: [] };
     }
   },
-
   // Зберегти налаштування колонок для користувача та області
   async saveSettings(userLogin, area, visible, order, widths = {}) {
-    console.log('[DEBUG] API saveSettings викликано з параметрами:', { userLogin, area, visible, order, widths });
     try {
       const requestBody = { area, visible, order, widths };
-      console.log('[DEBUG] Відправляємо запит на:', `${API_BASE_URL}/users/${userLogin}/columns-settings`);
-      console.log('[DEBUG] Тіло запиту:', requestBody);
-      
       const response = await fetch(`${API_BASE_URL}/users/${userLogin}/columns-settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
-      
-      console.log('[DEBUG] Отримано відповідь:', response.status, response.statusText);
-      
       if (response.ok) {
         const result = await response.json();
-        console.log('[DEBUG] Результат збереження:', result);
         return result.success;
       } else {
         const errorText = await response.text();
@@ -49,7 +39,6 @@ export const columnsSettingsAPI = {
       return false;
     }
   },
-
   // Отримати всіх користувачів
   async getAllUsers() {
     try {
@@ -62,7 +51,6 @@ export const columnsSettingsAPI = {
     }
     return [];
   },
-
   // Отримати конкретного користувача
   async getUser(userLogin) {
     try {
@@ -75,7 +63,6 @@ export const columnsSettingsAPI = {
     }
     return null;
   },
-
   // Зберегти/оновити користувача
   async saveUser(userData) {
     try {
@@ -84,7 +71,6 @@ export const columnsSettingsAPI = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData)
       });
-      
       if (response.ok) {
         const result = await response.json();
         return result.success;
@@ -94,14 +80,12 @@ export const columnsSettingsAPI = {
     }
     return false;
   },
-
   // Видалити користувача
   async deleteUser(userLogin) {
     try {
       const response = await fetch(`${API_BASE_URL}/users/${userLogin}`, {
         method: 'DELETE'
       });
-      
       if (response.ok) {
         const result = await response.json();
         return result.success;

@@ -288,6 +288,20 @@ const Region = mongoose.model('Region', regionSchema);
 const taskSchema = new mongoose.Schema({
   // Додайте потрібні поля для задачі
 }, { strict: false });
+
+// Додаємо індекси для оптимізації запитів
+taskSchema.index({ requestDate: -1 }); // Для сортування по даті заявки
+taskSchema.index({ status: 1 }); // Для фільтрації по статусу
+taskSchema.index({ serviceRegion: 1 }); // Для фільтрації по регіону
+taskSchema.index({ client: 1 }); // Для пошуку по клієнту
+taskSchema.index({ engineer1: 1 }); // Для пошуку по інженеру
+taskSchema.index({ engineer2: 1 }); // Для пошуку по інженеру
+taskSchema.index({ approvedByWarehouse: 1 }); // Для фільтрації по підтвердженню складу
+taskSchema.index({ approvedByAccountant: 1 }); // Для фільтрації по підтвердженню бухгалтера
+taskSchema.index({ approvedByRegionalManager: 1 }); // Для фільтрації по підтвердженню регіонального керівника
+taskSchema.index({ date: -1 }); // Для сортування по даті виконання
+taskSchema.index({ requestNumber: 1 }); // Для пошуку по номеру заявки
+
 const Task = mongoose.model('Task', taskSchema);
 
 // Схема для бекапів
@@ -500,13 +514,24 @@ app.post('/api/regions', async (req, res) => {
 app.get('/api/tasks', async (req, res) => {
   try {
     console.log('[DEBUG] GET /api/tasks - запит на отримання завдань');
-    const tasks = await executeWithRetry(() => Task.find());
+    
+    // Отримуємо параметри запиту
+    const { limit = 1000, skip = 0, sort = '-requestDate' } = req.query;
+    
+    // Оптимізований запит з обмеженнями та сортуванням
+    const tasks = await executeWithRetry(() => 
+      Task.find()
+        .sort(sort)
+        .limit(parseInt(limit))
+        .skip(parseInt(skip))
+        .lean() // Використовуємо lean() для кращої продуктивності
+    );
     
     console.log('[DEBUG] GET /api/tasks - знайдено завдань:', tasks.length);
     
     // Додаємо числовий id для сумісності з фронтендом
     const tasksWithId = tasks.map(task => ({
-      ...task.toObject(),
+      ...task,
       id: task._id.toString()
     }));
     
@@ -1223,7 +1248,14 @@ app.get('/api/analytics', async (req, res) => {
       }
     }
     
-    const analytics = await Analytics.find(filter).sort({ year: 1, month: 1 });
+    // Використовуємо агрегацію для оптимізації
+    const analytics = await executeWithRetry(() => 
+      Analytics.aggregate([
+        { $match: filter },
+        { $sort: { year: 1, month: 1 } },
+        { $limit: 1000 } // Обмежуємо кількість результатів
+      ])
+    );
     res.json(analytics);
   } catch (error) {
     console.error('Помилка отримання аналітики:', error);

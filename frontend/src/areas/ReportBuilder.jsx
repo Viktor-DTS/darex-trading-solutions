@@ -5,7 +5,6 @@ import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from '../utils/eventLogAPI
 import { regionsAPI } from '../utils/regionsAPI';
 import { usersAPI } from '../utils/usersAPI';
 import * as ExcelJS from 'exceljs';
-
 export default function ReportBuilder({ user }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -69,18 +68,15 @@ export default function ReportBuilder({ user }) {
     { name: 'status', label: 'Статус' },
     { name: 'company', label: 'Компанія' }
   ]);
-
   // Додаємо стани для фільтрів дат з діапазоном
   const [dateRangeFilter, setDateRangeFilter] = useState({ from: '', to: '' });
   const [paymentDateRangeFilter, setPaymentDateRangeFilter] = useState({ from: '', to: '' });
   const [requestDateRangeFilter, setRequestDateRangeFilter] = useState({ from: '', to: '' });
-
   // Додаємо стани для збереження звітів
   const [savedReports, setSavedReports] = useState([]);
   const [reportName, setReportName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
-
   // Додаємо стани для dropdown фільтрів
   const [regions, setRegions] = useState([]);
   const [users, setUsers] = useState([]);
@@ -88,31 +84,24 @@ export default function ReportBuilder({ user }) {
   const [companyOptions] = useState(['Дарекс Енерго', 'Інша компанія']);
   const [paymentTypeOptions] = useState(['Безготівка', 'Готівка', 'Картка']);
   const [approvalOptions] = useState(['Підтверджено', 'Відхилено', 'На розгляді']);
-
   // Завантажуємо збережені звіти при ініціалізації
   useEffect(() => {
     if (user && user.login) {
       loadSavedReports();
     }
   }, [user]);
-
   // Завантажуємо регіони та користувачів
   useEffect(() => {
     const loadData = async () => {
       try {
         // Завантажуємо регіони
         const regionsData = await regionsAPI.getAll();
-        console.log('[DEBUG][ReportBuilder] Завантажено регіонів:', regionsData.length, regionsData);
         setRegions(regionsData);
-        
         // Завантажуємо користувачів
         const usersData = await usersAPI.getAll();
-        console.log('[DEBUG][ReportBuilder] Завантажено користувачів:', usersData.length, usersData);
         setUsers(usersData);
-        
         // Автоматично встановлюємо регіон користувача якщо він не 'Україна'
         if (user && user.region && user.region !== 'Україна') {
-          console.log('[DEBUG][ReportBuilder] Встановлюємо регіон користувача:', user.region);
           setFilters(prev => ({
             ...prev,
             serviceRegion: user.region
@@ -122,10 +111,8 @@ export default function ReportBuilder({ user }) {
         console.error('Помилка завантаження даних для фільтрів:', error);
       }
     };
-    
     loadData();
   }, [user]);
-
   // Функція для завантаження збережених звітів з сервера
   const loadSavedReports = async () => {
     try {
@@ -135,61 +122,47 @@ export default function ReportBuilder({ user }) {
       console.error('Помилка завантаження збережених звітів:', error);
     }
   };
-
   // Функції для отримання опцій dropdown фільтрів
   const getFilterOptions = (fieldName) => {
-    console.log(`[DEBUG][ReportBuilder] getFilterOptions для ${fieldName}, user.region:`, user?.region);
     switch (fieldName) {
       case 'status':
-        console.log('[DEBUG][ReportBuilder] Статуси:', statusOptions);
         return statusOptions;
       case 'company':
-        console.log('[DEBUG][ReportBuilder] Компанії:', companyOptions);
         return companyOptions;
       case 'paymentType':
-        console.log('[DEBUG][ReportBuilder] Типи оплати:', paymentTypeOptions);
         return paymentTypeOptions;
       case 'approvedByWarehouse':
       case 'approvedByAccountant':
       case 'approvedByRegionalManager':
-        console.log('[DEBUG][ReportBuilder] Статуси підтвердження:', approvalOptions);
         return approvalOptions;
       case 'serviceRegion':
         const regionNames = regions.map(r => r.name);
-        console.log('[DEBUG][ReportBuilder] Регіони:', regionNames);
         return regionNames;
       case 'engineer1':
       case 'engineer2':
         // Фільтруємо користувачів по регіону якщо користувач не з 'Україна'
         if (user && user.region && user.region !== 'Україна') {
           const filteredUsers = users.filter(u => u.region === user.region).map(u => u.name || u.login);
-          console.log(`[DEBUG][ReportBuilder] Користувачі для регіону ${user.region}:`, filteredUsers);
           return filteredUsers;
         }
         const allUsers = users.map(u => u.name || u.login);
-        console.log('[DEBUG][ReportBuilder] Всі користувачі:', allUsers);
         return allUsers;
       default:
-        console.log('[DEBUG][ReportBuilder] Невідоме поле:', fieldName);
         return [];
     }
   };
-
   const isFieldDropdown = (fieldName) => {
     return ['status', 'company', 'paymentType', 'serviceRegion', 'engineer1', 'engineer2', 
             'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(fieldName);
   };
-
   const isFieldDisabled = (fieldName) => {
     // Блокуємо регіон обслуговування для користувачів не з 'Україна'
     return fieldName === 'serviceRegion' && user && user.region && user.region !== 'Україна';
   };
-
   // Функція для перевірки статусу підтвердження
   function isApproved(value) {
     return value === true || value === 'Підтверджено';
   }
-
   // Функція для форматування статусу затвердження
   function formatApprovalStatus(value) {
     if (isApproved(value)) {
@@ -200,7 +173,6 @@ export default function ReportBuilder({ user }) {
       return 'На розгляді';
     }
   }
-
   // Додаємо useEffect для оновлення filters при зміні availableFields
   // але зберігаємо вже введені користувачем значення
   useEffect(() => {
@@ -208,7 +180,6 @@ export default function ReportBuilder({ user }) {
     availableFields.forEach(field => {
       newFilterKeys[field.name] = '';
     });
-    
     // Оновлюємо filters, зберігаючи вже введені значення
     setFilters(prevFilters => {
       const updatedFilters = { ...newFilterKeys };
@@ -221,25 +192,18 @@ export default function ReportBuilder({ user }) {
       return updatedFilters;
     });
   }, [availableFields]); // Залежність від availableFields
-
   useEffect(() => {
     setLoading(true);
     tasksAPI.getAll().then(tasks => {
-      console.log('[DEBUG][ReportBuilder] Завантажено завдань:', tasks.length);
       setTasks(tasks);
       // Автоматично генеруємо звіт після завантаження даних
       if (tasks.length > 0) {
-        console.log('[DEBUG][ReportBuilder] Автоматична генерація звіту після завантаження');
         generateReportFromData(tasks);
       }
     }).finally(() => setLoading(false));
   }, []);
-
   // Функція для генерації звіту з переданими даними
   const generateReportFromData = (tasksData) => {
-    console.log('[DEBUG][ReportBuilder] Генерація звіту з', tasksData.length, 'завдань');
-    console.log('[DEBUG][ReportBuilder] Поточний approvalFilter:', approvalFilter);
-    
     const filtered = tasksData.filter(t => {
       // Фільтр по діапазону дати проведення робіт
       if (dateRangeFilter.from && (!t.date || t.date < dateRangeFilter.from)) {
@@ -248,7 +212,6 @@ export default function ReportBuilder({ user }) {
       if (dateRangeFilter.to && (!t.date || t.date > dateRangeFilter.to)) {
         return false;
       }
-      
       // Фільтр по діапазону дати оплати
       if (paymentDateRangeFilter.from && (!t.paymentDate || t.paymentDate < paymentDateRangeFilter.from)) {
         return false;
@@ -256,7 +219,6 @@ export default function ReportBuilder({ user }) {
       if (paymentDateRangeFilter.to && (!t.paymentDate || t.paymentDate > paymentDateRangeFilter.to)) {
         return false;
       }
-      
       // Фільтр по діапазону дати заявки
       if (requestDateRangeFilter.from && (!t.requestDate || t.requestDate < requestDateRangeFilter.from)) {
         return false;
@@ -264,62 +226,42 @@ export default function ReportBuilder({ user }) {
       if (requestDateRangeFilter.to && (!t.requestDate || t.requestDate > requestDateRangeFilter.to)) {
         return false;
       }
-      
       // Перевіряємо всі інші фільтри динамічно
       for (const field of availableFields) {
         const filterValue = filters[field.name];
         if (filterValue && filterValue.trim() !== '') {
           const fieldValue = t[field.name];
-          console.log(`[DEBUG][ReportBuilder] Фільтр ${field.name}: шукаємо "${filterValue}", значення в завданні: "${fieldValue}"`);
-          
           // Для dropdown полів використовуємо точне співпадіння
           if (isFieldDropdown(field.name)) {
             if (!fieldValue || fieldValue.toString() !== filterValue) {
-              console.log(`[DEBUG][ReportBuilder] Завдання ${t.id} відфільтровано по полю ${field.name} (точне співпадіння)`);
               return false;
             }
           } else {
             // Для text полів використовуємо includes
             if (!fieldValue || !fieldValue.toString().toLowerCase().includes(filterValue.toLowerCase())) {
-              console.log(`[DEBUG][ReportBuilder] Завдання ${t.id} відфільтровано по полю ${field.name} (includes)`);
               return false;
             }
           }
         }
       }
-      
       // Фільтр по статусу затвердження
       if (approvalFilter === 'approved') {
         // Для затверджених - всі повинні бути затверджені
         if (!isApproved(t.approvedByWarehouse) || !isApproved(t.approvedByAccountant) || !isApproved(t.approvedByRegionalManager)) {
-          console.log('[DEBUG][ReportBuilder] Завдання', t.id, 'відфільтровано: не всі затвердили');
           return false;
         }
       } else if (approvalFilter === 'not_approved') {
         // Для незатверджених - хоча б один не затвердив, АЛЕ не заблоковані заявки
         if (t.status === 'Заблоковані' || t.status === 'Заблоковано') {
-          console.log('[DEBUG][ReportBuilder] Завдання', t.id, 'відфільтровано: заблокована заявка');
           return false;
         }
         if (isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant) && isApproved(t.approvedByRegionalManager)) {
-          console.log('[DEBUG][ReportBuilder] Завдання', t.id, 'відфільтровано: всі затвердили');
           return false;
         }
       }
       // Якщо approvalFilter === 'all', то показуємо всі
-      
       return true;
     });
-
-    console.log('[DEBUG][ReportBuilder] Відфільтровано завдань:', filtered.length);
-    console.log('[DEBUG][ReportBuilder] Приклад завдань після фільтрації:', filtered.slice(0, 3).map(t => ({
-      id: t.id,
-      status: t.status,
-      approvedByWarehouse: t.approvedByWarehouse,
-      approvedByAccountant: t.approvedByAccountant,
-      approvedByRegionalManager: t.approvedByRegionalManager
-    })));
-
     let grouped = filtered;
     if (groupBy) {
       const groups = {};
@@ -334,32 +276,19 @@ export default function ReportBuilder({ user }) {
         total: Number(tasks.reduce((sum, t) => sum + (parseFloat(t.serviceTotal) || 0), 0).toFixed(2))
       }));
     }
-
     setReportData(grouped);
-    console.log('[DEBUG][ReportBuilder] Звіт згенеровано, рядків:', grouped.length);
   };
-
   const handleFilter = e => {
     const newFilters = { ...filters, [e.target.name]: e.target.value };
     setFilters(newFilters);
-    console.log('[DEBUG][ReportBuilder] Фільтр змінено:', e.target.name, '=', e.target.value);
-    console.log('[DEBUG][ReportBuilder] Всі фільтри:', newFilters);
   };
-
   const generateReport = () => {
-    console.log('[DEBUG][ReportBuilder] Ручна генерація звіту');
     generateReportFromData(tasks);
   };
-
   // Функція для відкриття звіту в новій вкладці
   const openReportInNewTab = () => {
-    console.log('[DEBUG][ReportBuilder] Відкриття звіту в новій вкладці');
-    console.log('[DEBUG][ReportBuilder] reportData:', reportData);
-    console.log('[DEBUG][ReportBuilder] selectedFields:', selectedFields);
-    
     // Генеруємо звіт спочатку
     generateReportFromData(tasks);
-    
     // Створюємо HTML для нового вікна
     const html = `
       <!DOCTYPE html>
@@ -433,13 +362,11 @@ export default function ReportBuilder({ user }) {
       </head>
       <body>
         <button class="print-button" onclick="window.print()">🖨️ Друкувати</button>
-        
         <div class="header">
           <h1>Звіт</h1>
           <p>Дата створення: ${new Date().toLocaleDateString('uk-UA')}</p>
           <p>Кількість записів: ${reportData.length}</p>
         </div>
-
         <table>
           <thead>
             <tr>
@@ -451,7 +378,6 @@ export default function ReportBuilder({ user }) {
           </thead>
           <tbody>
             ${reportData.map((item, index) => {
-              console.log('[DEBUG][ReportBuilder] Генерація рядка', index + 1, 'для item:', item);
               if (item.group) {
                 // Групування
                 return `
@@ -490,14 +416,10 @@ export default function ReportBuilder({ user }) {
       </body>
       </html>
     `;
-
-    console.log('[DEBUG][ReportBuilder] Згенерований HTML:', html);
-
     // Відкриваємо нове вікно з звітом
     const newWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
     newWindow.document.write(html);
     newWindow.document.close();
-    
     // Логуємо відкриття звіту
     logUserAction(user, EVENT_ACTIONS.VIEW, ENTITY_TYPES.REPORT, null, 
       `Відкрито звіт в новій вкладці: ${reportData.length} рядків`, {
@@ -505,33 +427,26 @@ export default function ReportBuilder({ user }) {
         selectedFields: selectedFields.length
       });
   };
-
   // Автоматично оновлюємо звіт при зміні фільтрів
   useEffect(() => {
     if (tasks.length > 0) {
-      console.log('[DEBUG][ReportBuilder] Автоматичне оновлення звіту при зміні фільтрів');
       generateReportFromData(tasks);
     }
   }, [filters, groupBy, tasks, approvalFilter, dateRangeFilter, paymentDateRangeFilter, requestDateRangeFilter]);
-
   // Автоматично оновлюємо звіт при зміні вибраних полів
   useEffect(() => {
     if (tasks.length > 0 && selectedFields.length > 0) {
-      console.log('[DEBUG][ReportBuilder] Автоматичне оновлення звіту при зміні вибраних полів');
       generateReportFromData(tasks);
     }
   }, [selectedFields]);
-
   const exportToExcel = () => {
     // Створюємо робочу книгу Excel
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Звіт');
-    
     // Додаємо заголовки
     const headers = ['№', ...selectedFields.map(field => 
       availableFields.find(f => f.name === field)?.label || field
     )];
-    
     // Встановлюємо стиль для заголовків
     const headerRow = worksheet.addRow(headers);
     headerRow.eachCell((cell) => {
@@ -556,7 +471,6 @@ export default function ReportBuilder({ user }) {
         wrapText: true
       };
     });
-    
     // Додаємо дані
     let rowNumber = 1;
     reportData.forEach((item, index) => {
@@ -572,7 +486,6 @@ export default function ReportBuilder({ user }) {
           cell.font = { bold: true };
           cell.alignment = { wrapText: true };
         });
-        
         // Додаємо завдання групи
         item.tasks.forEach((task, taskIndex) => {
           const dataRow = worksheet.addRow([
@@ -585,7 +498,6 @@ export default function ReportBuilder({ user }) {
               return value || '';
             })
           ]);
-          
           // Альтернативні кольори для рядків
           const bgColor = taskIndex % 2 === 0 ? 'FF22334A' : 'FF1A2636';
           dataRow.eachCell((cell) => {
@@ -616,7 +528,6 @@ export default function ReportBuilder({ user }) {
             return value || '';
           })
         ]);
-        
         dataRow.eachCell((cell) => {
           cell.alignment = { wrapText: true };
           cell.border = {
@@ -628,7 +539,6 @@ export default function ReportBuilder({ user }) {
         });
       }
     });
-    
     // Автоматично підбираємо ширину колонок
     worksheet.columns.forEach(column => {
       let maxLength = 0;
@@ -640,10 +550,8 @@ export default function ReportBuilder({ user }) {
       });
       column.width = Math.min(Math.max(maxLength + 2, 10), 50); // Мінімум 10, максимум 50
     });
-    
     // Встановлюємо висоту рядків для переносу слів
     worksheet.properties.defaultRowHeight = 20;
-    
     // Генеруємо файл
     workbook.xlsx.writeBuffer().then(buffer => {
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -651,7 +559,6 @@ export default function ReportBuilder({ user }) {
       link.href = URL.createObjectURL(blob);
       link.download = `report_${new Date().toISOString().split('T')[0]}.xlsx`;
       link.click();
-      
       // Логуємо експорт звіту
       logUserAction(user, EVENT_ACTIONS.EXPORT, ENTITY_TYPES.REPORT, null, 
         `Експорт звіту в Excel: ${reportData.length} рядків`, {
@@ -661,7 +568,6 @@ export default function ReportBuilder({ user }) {
         });
     });
   };
-
   const handleFieldToggle = (fieldName) => {
     if (selectedFields.includes(fieldName)) {
       setSelectedFields(selectedFields.filter(f => f !== fieldName));
@@ -669,14 +575,12 @@ export default function ReportBuilder({ user }) {
       setSelectedFields([...selectedFields, fieldName]);
     }
   };
-
   // Функція для збереження звіту
   const saveReport = async () => {
     if (!reportName.trim()) {
       alert('Будь ласка, введіть назву звіту');
       return;
     }
-
     setSavingReport(true);
     try {
       const reportData = {
@@ -691,10 +595,8 @@ export default function ReportBuilder({ user }) {
         selectedFields: [...selectedFields],
         groupBy
       };
-
       await savedReportsAPI.saveReport(reportData);
       await loadSavedReports(); // Оновлюємо список збережених звітів
-      
       // Логуємо збереження звіту
       logUserAction(user, EVENT_ACTIONS.SAVE_REPORT, ENTITY_TYPES.REPORT, null, 
         `Збережено звіт: ${reportName}`, {
@@ -702,7 +604,6 @@ export default function ReportBuilder({ user }) {
           selectedFields: selectedFields.length,
           filters: Object.keys(filters).filter(key => filters[key]).length
         });
-      
       alert(`Звіт "${reportName}" збережено!`);
     } catch (error) {
       console.error('Помилка збереження звіту:', error);
@@ -713,13 +614,11 @@ export default function ReportBuilder({ user }) {
       setSavingReport(false);
     }
   };
-
   // Функція для завантаження звіту
   const loadReport = (report) => {
     try {
       // Перетворюємо MongoDB об'єкт в звичайний об'єкт
       const reportData = report.toObject ? report.toObject() : report;
-      
       setFilters(reportData.filters);
       setApprovalFilter(reportData.approvalFilter);
       setDateRangeFilter(reportData.dateRangeFilter);
@@ -727,7 +626,6 @@ export default function ReportBuilder({ user }) {
       setRequestDateRangeFilter(reportData.requestDateRangeFilter);
       setSelectedFields(reportData.selectedFields);
       setGroupBy(reportData.groupBy);
-      
       // Логуємо завантаження звіту
       logUserAction(user, EVENT_ACTIONS.LOAD_REPORT, ENTITY_TYPES.REPORT, reportData._id, 
         `Завантажено звіт: ${reportData.name}`, {
@@ -735,14 +633,12 @@ export default function ReportBuilder({ user }) {
           selectedFields: reportData.selectedFields.length,
           filters: Object.keys(reportData.filters).filter(key => reportData.filters[key]).length
         });
-      
       alert(`Звіт "${reportData.name}" завантажено!`);
     } catch (error) {
       console.error('Помилка завантаження звіту:', error);
       alert('Помилка завантаження звіту. Спробуйте пізніше.');
     }
   };
-
   // Функція для видалення збереженого звіту
   const deleteReport = async (reportId) => {
     if (confirm('Ви впевнені, що хочете видалити цей збережений звіт?')) {
@@ -751,7 +647,6 @@ export default function ReportBuilder({ user }) {
         const idToDelete = reportId._id || reportId;
         await savedReportsAPI.deleteReport(idToDelete);
         await loadSavedReports(); // Оновлюємо список збережених звітів
-        
         // Логуємо видалення звіту
         const reportData = reportId.toObject ? reportId.toObject() : reportId;
         logUserAction(user, EVENT_ACTIONS.DELETE_REPORT, ENTITY_TYPES.REPORT, idToDelete, 
@@ -759,7 +654,6 @@ export default function ReportBuilder({ user }) {
             reportName: reportData.name,
             reportId: idToDelete
           });
-        
         alert('Звіт видалено!');
       } catch (error) {
         console.error('Помилка видалення звіту:', error);
@@ -767,7 +661,6 @@ export default function ReportBuilder({ user }) {
       }
     }
   };
-
   return (
     <div style={{
       padding: '24px',
@@ -778,14 +671,9 @@ export default function ReportBuilder({ user }) {
     }}>
       <h2>Конструктор звітів</h2>
       {loading && <div style={{color: '#fff', marginBottom: '16px'}}>Завантаження...</div>}
-      
-      {/* Додаткове логування */}
-      {console.log('[DEBUG][ReportBuilder] Рендеринг компонента, approvalFilter:', approvalFilter)}
-      
       {/* Фільтри */}
       <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
         <h3 style={{color: '#fff', marginBottom: '12px'}}>Фільтри</h3>
-        
         {/* Статус затвердження - ЗАВЖДА ВИДИМИЙ */}
         <div style={{
           marginBottom: '16px', 
@@ -843,7 +731,6 @@ export default function ReportBuilder({ user }) {
             }
           </div>
         </div>
-        
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
           {/* Фільтри дат з діапазоном - вертикальне розташування */}
           <div style={{display: 'flex', flexDirection: 'column', gridColumn: '1 / -1', marginBottom: '16px'}}>
@@ -884,7 +771,6 @@ export default function ReportBuilder({ user }) {
                   />
                 </div>
               </div>
-              
               <div style={{display: 'flex', flexDirection: 'column'}}>
                 <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px'}}>Дата оплати (з - по)</label>
                 <div style={{display: 'flex', gap: '8px'}}>
@@ -920,7 +806,6 @@ export default function ReportBuilder({ user }) {
                   />
                 </div>
               </div>
-              
               <div style={{display: 'flex', flexDirection: 'column'}}>
                 <label style={{color: '#fff', marginBottom: '4px', fontSize: '14px'}}>Дата заявки (з - по)</label>
                 <div style={{display: 'flex', gap: '8px'}}>
@@ -958,7 +843,6 @@ export default function ReportBuilder({ user }) {
               </div>
             </div>
           </div>
-          
           {/* Інші фільтри */}
           {availableFields.map(field => (
             <div key={field.name} style={{display: 'flex', flexDirection: 'column'}}>
@@ -1005,7 +889,6 @@ export default function ReportBuilder({ user }) {
           ))}
         </div>
       </div>
-      
       {/* Вибір полів */}
       <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
         <h3 style={{color: '#fff', marginBottom: '12px'}}>Вибір полів для звіту</h3>
@@ -1102,7 +985,6 @@ export default function ReportBuilder({ user }) {
           💾 Зберегти звіт
         </button>
       </div>
-
       {/* Діалог збереження звіту */}
       {showSaveDialog && (
         <div style={{
@@ -1180,7 +1062,6 @@ export default function ReportBuilder({ user }) {
           </div>
         </div>
       )}
-
       {/* Збережені звіти */}
       {savedReports.length > 0 && (
         <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
@@ -1189,7 +1070,6 @@ export default function ReportBuilder({ user }) {
             {savedReports.map(report => {
               // Перетворюємо MongoDB об'єкт в звичайний об'єкт
               const reportData = report.toObject ? report.toObject() : report;
-              
               return (
                 <div key={reportData._id || reportData.id} style={{
                   display: 'flex',
@@ -1247,7 +1127,6 @@ export default function ReportBuilder({ user }) {
           </div>
         </div>
       )}
-      
       {/* Інформація про стан */}
       <div style={{marginBottom: '16px', padding: '12px', background: '#1a2636', borderRadius: '8px'}}>
         <div style={{color: '#fff', fontSize: '14px'}}>

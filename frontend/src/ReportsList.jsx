@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import API_BASE_URL from './config.js';
-
 export default function ReportsList() {
   const [reports, setReports] = useState([]);
   const [selected, setSelected] = useState(null);
-
   useEffect(() => {
     const fetchReports = async () => {
       try {
@@ -19,7 +17,6 @@ export default function ReportsList() {
     };
     fetchReports();
   }, []);
-
   if (selected) {
     return (
       <div style={{background:'#1a2636', color:'#fff', borderRadius:12, padding:24, margin:'32px auto', maxWidth:900}}>
@@ -38,7 +35,6 @@ export default function ReportsList() {
       </div>
     );
   }
-
   return (
     <div style={{background:'#1a2636', color:'#fff', borderRadius:12, padding:24, margin:'32px auto', maxWidth:900}}>
       <h2>Всі фінансові звіти</h2>

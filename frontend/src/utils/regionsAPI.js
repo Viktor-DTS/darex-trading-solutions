@@ -1,5 +1,4 @@
 import API_BASE_URL from '../config.js';
-
 export const regionsAPI = {
   // Отримати всі регіони
   async getAll() {
@@ -14,7 +13,6 @@ export const regionsAPI = {
       return [];
     }
   },
-
   // Зберегти регіони
   async save(regions) {
     try {
@@ -25,11 +23,9 @@ export const regionsAPI = {
         },
         body: JSON.stringify(regions),
       });
-      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
       const result = await response.json();
       return result.success;
     } catch (error) {
