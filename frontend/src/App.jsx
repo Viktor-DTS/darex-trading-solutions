@@ -4523,18 +4523,18 @@ function AdminBackupArea({ user }) {
               </button>
             </div>
 
-            <div style={{marginBottom: 15}}>
-              <strong>Загальна інформація:</strong>
-              <ul style={{margin: '5px 0', paddingLeft: 20}}>
-                <li>Дата створення: {new Date(backupPreview.date || backupPreview.createdAt).toLocaleString()}</li>
-                <li>Кількість завдань: {backupPreview.totalTasks}</li>
-                <li>Розмір: {backupPreview.size ? (backupPreview.size / 1024).toFixed(1) + ' KB' : 'Невідомо'}</li>
-                <li>Опис: {backupPreview.description || 'Немає опису'}</li>
+            <div style={{marginBottom: 15, color: '#333'}}>
+              <strong style={{color: '#333'}}>Загальна інформація:</strong>
+              <ul style={{margin: '5px 0', paddingLeft: 20, color: '#333'}}>
+                <li style={{color: '#333'}}>Дата створення: {new Date(backupPreview.date || backupPreview.createdAt).toLocaleString()}</li>
+                <li style={{color: '#333'}}>Кількість завдань: {backupPreview.totalTasks}</li>
+                <li style={{color: '#333'}}>Розмір: {backupPreview.size ? (backupPreview.size / 1024).toFixed(1) + ' KB' : 'Невідомо'}</li>
+                <li style={{color: '#333'}}>Опис: {backupPreview.description || 'Немає опису'}</li>
               </ul>
             </div>
 
-            <div>
-              <strong>Перші 10 завдань з бекапу:</strong>
+            <div style={{color: '#333'}}>
+              <strong style={{color: '#333'}}>Перші 10 завдань з бекапу:</strong>
               <div style={{
                 maxHeight: '400px',
                 overflow: 'auto',
@@ -4555,18 +4555,18 @@ function AdminBackupArea({ user }) {
                   <tbody>
                     {backupPreview.tasks.map((task, index) => (
                       <tr key={task.id || index}>
-                        <td style={{padding: 8, border: '1px solid #ddd'}}>{task.taskNumber || index + 1}</td>
-                        <td style={{padding: 8, border: '1px solid #ddd'}}>{task.status || 'Невідомо'}</td>
-                        <td style={{padding: 8, border: '1px solid #ddd'}}>{task.company || 'Невідомо'}</td>
-                        <td style={{padding: 8, border: '1px solid #ddd'}}>{task.client || 'Невідомо'}</td>
-                        <td style={{padding: 8, border: '1px solid #ddd'}}>{task.address || 'Невідомо'}</td>
+                        <td style={{padding: 8, border: '1px solid #ddd', color: '#333'}}>{task.taskNumber || index + 1}</td>
+                        <td style={{padding: 8, border: '1px solid #ddd', color: '#333'}}>{task.status || 'Невідомо'}</td>
+                        <td style={{padding: 8, border: '1px solid #ddd', color: '#333'}}>{task.company || 'Невідомо'}</td>
+                        <td style={{padding: 8, border: '1px solid #ddd', color: '#333'}}>{task.client || 'Невідомо'}</td>
+                        <td style={{padding: 8, border: '1px solid #ddd', color: '#333'}}>{task.address || 'Невідомо'}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               {backupPreview.totalTasks > 10 && (
-                <p style={{marginTop: 10, color: '#666', fontSize: '14px'}}>
+                <p style={{marginTop: 10, color: '#333', fontSize: '14px'}}>
                   ... та ще {backupPreview.totalTasks - 10} завдань
                 </p>
               )}
