@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ModalTaskForm from '../ModalTaskForm';
 import { columnsSettingsAPI } from '../utils/columnsSettingsAPI';
+import { regionsAPI } from '../utils/regionsAPI';
 import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from '../utils/eventLogAPI';
 
 function ColumnSettings({ allColumns, selected, onChange, onClose, onSave }) {
@@ -77,6 +78,7 @@ function TaskTableComponent({
   const [rejectModal, setRejectModal] = useState({ open: false, taskId: null, comment: '' });
   const [deleteConfirmModal, setDeleteConfirmModal] = useState({ open: false, taskId: null, taskInfo: null });
   const [editDateModal, setEditDateModal] = useState({ open: false, taskId: null, month: '', year: '' });
+  const [regions, setRegions] = useState([]);
   
   // Додаю стан для сортування
   const [sortConfig, setSortConfig] = useState({ field: null, direction: 'asc' });
@@ -250,6 +252,24 @@ function TaskTableComponent({
     return () => { isMounted = false; };
   }, [userLoginRef.current, areaRef.current, defaultKeysRef.current, settingsLoaded]); // Використовуємо refs як залежності
   
+  // Завантаження регіонів
+  useEffect(() => {
+    regionsAPI.getAll().then(setRegions).catch(() => setRegions([]));
+  }, []);
+
+  // Автоматичне встановлення регіону користувача для поля serviceRegion
+  useEffect(() => {
+    if (user?.region && user.region !== 'Україна' && filters.serviceRegion === '') {
+      // Автоматично встановлюємо регіон користувача для заблокованого поля
+      onFilterChange({
+        target: {
+          name: 'serviceRegion',
+          value: user.region
+        }
+      });
+    }
+  }, [user?.region, filters.serviceRegion, onFilterChange]);
+  
   const visibleColumns = selected
     .map(key => allColumns.find(c => c.key === key))
     .filter(Boolean);
@@ -342,6 +362,30 @@ function TaskTableComponent({
     if (wh) return 'warehouse-approved';
     if (reg) return 'regional-approved';
     return '';
+  }
+
+  // Функція для визначення типу фільтра
+  function getFilterType(colKey) {
+    const selectFields = {
+      'status': ['', 'Заявка', 'В роботі', 'Виконано', 'Заблоковано'],
+      'company': ['', 'ДТС', 'Дарекс Енерго', 'інша'],
+      'paymentType': ['не вибрано', 'Безготівка', 'Готівка', 'На карту', 'Інше'],
+      'approvedByWarehouse': ['На розгляді', 'Підтверджено', 'Відмова'],
+      'approvedByAccountant': ['На розгляді', 'Підтверджено', 'Відмова'],
+      'approvedByRegionalManager': ['На розгляді', 'Підтверджено', 'Відмова'],
+      'serviceRegion': regions.length > 0 ? ['', ...regions.map(r => r.name)] : []
+    };
+    
+    return selectFields[colKey] || null;
+  }
+
+  // Функція для визначення, чи поле заблоковане
+  function isFieldDisabled(colKey) {
+    if (colKey === 'serviceRegion') {
+      // Заблоковане для всіх, крім користувачів з регіоном "Україна"
+      return user?.region !== 'Україна';
+    }
+    return false;
   }
 
   // Вибір історії по замовнику
@@ -1235,6 +1279,31 @@ function TaskTableComponent({
                               <input type="date" name={col.key+"From"} value={filters[col.key+"From"] || ''} onChange={onFilterChange} style={{marginBottom:2, background:'#fff'}} />
                               <input type="date" name={col.key+"To"} value={filters[col.key+"To"] || ''} onChange={onFilterChange} style={{background:'#fff'}} />
                             </div>
+                          ) : getFilterType(col.key) ? (
+                            <select
+                              name={col.key}
+                              value={filters[col.key] || ''}
+                              onChange={(e) => {
+                                console.log('[DEBUG] TaskTable filter select changed:', col.key, e.target.value);
+                                console.log('[DEBUG] Current filters state:', filters);
+                                onFilterChange(e);
+                              }}
+                              disabled={isFieldDisabled(col.key)}
+                              style={{
+                                width:'100%', 
+                                background:'#fff',
+                                border:'1px solid #ccc',
+                                borderRadius:'2px',
+                                padding:'2px',
+                                fontSize:'10px'
+                              }}
+                            >
+                              {getFilterType(col.key).map(option => (
+                                <option key={option} value={option}>
+                                  {option || 'Всі'}
+                                </option>
+                              ))}
+                            </select>
                           ) : (
                             <input
                               name={col.key}
