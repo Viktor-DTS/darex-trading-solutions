@@ -6,6 +6,7 @@ if (process.env.NODE_ENV === 'production') {
   console.log('[ENV] Production mode detected');
   console.log('[ENV] MONGODB_URI exists:', !!process.env.MONGODB_URI);
   console.log('[ENV] PORT:', process.env.PORT);
+  console.log('[ENV] MONGODB_URI preview:', process.env.MONGODB_URI ? process.env.MONGODB_URI.substring(0, 20) + '...' : 'NOT SET');
 }
 
 const express = require('express');
@@ -759,8 +760,40 @@ app.get('/api/ping', (req, res) => {
     mongodb: {
       connected: mongoose.connection.readyState === 1,
       readyState: mongoose.connection.readyState
+    },
+    env: {
+      nodeEnv: process.env.NODE_ENV,
+      port: process.env.PORT,
+      mongoUriExists: !!process.env.MONGODB_URI
     }
   });
+});
+
+// Тестовий ендпоінт для перевірки MongoDB
+app.get('/api/test-mongo', async (req, res) => {
+  try {
+    console.log('[TEST] Testing MongoDB connection...');
+    const testDoc = { test: true, timestamp: new Date() };
+    const result = await executeWithRetry(() => 
+      mongoose.connection.db.collection('test').insertOne(testDoc)
+    );
+    console.log('[TEST] MongoDB test successful:', result.insertedId);
+    res.json({ 
+      success: true, 
+      message: 'MongoDB connection test successful',
+      insertedId: result.insertedId 
+    });
+  } catch (error) {
+    console.error('[TEST] MongoDB test failed:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      mongodb: {
+        connected: mongoose.connection.readyState === 1,
+        readyState: mongoose.connection.readyState
+      }
+    });
+  }
 });
 
 app.get('/api/reports', (req, res) => {
