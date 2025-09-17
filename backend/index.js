@@ -1,6 +1,13 @@
 // Завантаження змінних середовища
 require('dotenv').config({ path: './config.env' });
 
+// Додаткова перевірка для Render
+if (process.env.NODE_ENV === 'production') {
+  console.log('[ENV] Production mode detected');
+  console.log('[ENV] MONGODB_URI exists:', !!process.env.MONGODB_URI);
+  console.log('[ENV] PORT:', process.env.PORT);
+}
+
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -15,6 +22,11 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 const MONGODB_URI = process.env.MONGODB_URI;
+
+console.log('[STARTUP] Server starting...');
+console.log('[STARTUP] PORT:', PORT);
+console.log('[STARTUP] MONGODB_URI exists:', !!MONGODB_URI);
+console.log('[STARTUP] NODE_ENV:', process.env.NODE_ENV);
 
 
 
@@ -1939,7 +1951,9 @@ app.post('/api/expense-categories/cleanup', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Сервер запущено на http://localhost:${PORT}`);
+  console.log(`[STARTUP] Сервер запущено на порту ${PORT}`);
+  console.log(`[STARTUP] MongoDB readyState: ${mongoose.connection.readyState}`);
+  console.log(`[STARTUP] Server is ready to accept requests`);
 }); 
 
 // Telegram Notification Service
