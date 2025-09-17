@@ -1649,13 +1649,10 @@ function TaskTableComponent({
                       )}
                       {/* Кнопки підтвердження для відповідних ролей */}
                       {(role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && (
-                        console.log('[DEBUG] Warehouse buttons - role:', role, 'approveField:', approveField, 'onApprove:', !!onApprove),
+                        console.log('[DEBUG] Warehouse buttons - role:', role, 'approveField:', approveField, 'onApprove:', !!onApprove, 'task approveField value:', t[approveField]),
                         <>
-                          {approveField && (t[approveField] === 'Підтверджено' || t[approveField] === 'Відмова') ? (
-                            <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600, marginLeft: '8px'} : {color:'#f00', fontWeight:600, marginLeft: '8px'}}>
-                              {t[approveField] === 'Підтверджено' ? 'Підтверджено' : 'Відхилено'}
-                            </span>
-                          ) : (
+                          {/* Завжди показуємо кнопки для warehouse ролі */}
+                          {role === 'warehouse' ? (
                             <>
                               <button onClick={()=>{
                                 // Логуємо затвердження заявки
@@ -1680,7 +1677,46 @@ function TaskTableComponent({
                                   });
                                 onApprove && onApprove(t.id, 'На розгляді', '');
                               }} style={{background:'#ffe066',color:'#22334a'}}>На розгляді</button>
+                              {/* Показуємо поточний статус */}
+                              {approveField && t[approveField] && (
+                                <span style={{color:'#666', marginLeft: '8px', fontSize: '12px'}}>
+                                  (Поточний: {t[approveField] === 'Підтверджено' ? 'Підтверджено' : t[approveField] === 'Відмова' ? 'Відхилено' : t[approveField]})
+                                </span>
+                              )}
                             </>
+                          ) : (
+                            /* Для інших ролей - стандартна логіка */
+                            approveField && (t[approveField] === 'Підтверджено' || t[approveField] === 'Відмова') ? (
+                              <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600, marginLeft: '8px'} : {color:'#f00', fontWeight:600, marginLeft: '8px'}}>
+                                {t[approveField] === 'Підтверджено' ? 'Підтверджено' : 'Відхилено'}
+                              </span>
+                            ) : (
+                              <>
+                                <button onClick={()=>{
+                                  // Логуємо затвердження заявки
+                                  logUserAction(user, EVENT_ACTIONS.APPROVE, ENTITY_TYPES.TASK, t.id, 
+                                    `Затверджено заявку: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                      requestNumber: t.requestNumber,
+                                      client: t.client,
+                                      work: t.work,
+                                      status: t.status
+                                    });
+                                  onApprove && onApprove(t.id, 'Підтверджено', '');
+                                }} style={{background:'#0a0',color:'#fff', marginLeft: '8px'}}>Підтвердити</button>
+                                <button onClick={()=>setRejectModal({ open: true, taskId: t.id, comment: '' })} style={{background:'#f66',color:'#fff'}}>Відхилити</button>
+                                <button onClick={()=>{
+                                  // Логуємо відправку на розгляд
+                                  logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
+                                    `Відправлено на розгляд: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                      requestNumber: t.requestNumber,
+                                      client: t.client,
+                                      work: t.work,
+                                      status: t.status
+                                    });
+                                  onApprove && onApprove(t.id, 'На розгляді', '');
+                                }} style={{background:'#ffe066',color:'#22334a'}}>На розгляді</button>
+                              </>
+                            )
                           )}
                         </>
                       )}
