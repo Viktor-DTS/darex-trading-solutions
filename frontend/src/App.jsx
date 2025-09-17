@@ -3913,8 +3913,24 @@ function AdminArea({ user }) {
 // --- Компонент для відновлення даних ---
 function AdminBackupArea() {
   const [backups, setBackups] = useState(() => {
-    const saved = localStorage.getItem('backups');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('backups');
+      if (saved) {
+        const parsedBackups = JSON.parse(saved);
+        // Обмежуємо кількість завантажених бекапів до 10
+        if (parsedBackups.length > 10) {
+          const limitedBackups = parsedBackups.slice(-10);
+          localStorage.setItem('backups', JSON.stringify(limitedBackups));
+          console.log('[BACKUP] Обмежено кількість бекапів до 10 при завантаженні');
+          return limitedBackups;
+        }
+        return parsedBackups;
+      }
+      return [];
+    } catch (error) {
+      console.error('[BACKUP] Помилка парсингу бекапів при ініціалізації:', error);
+      return [];
+    }
   });
   const [autoInterval, setAutoInterval] = useState(() => {
     const saved = localStorage.getItem('backupInterval');
@@ -3967,24 +3983,74 @@ function AdminBackupArea() {
       const tasksData = await tasksAPI.getAll();
       console.log('[BACKUP] Отримано завдань:', tasksData.length);
       
+      // Оптимізуємо дані - зберігаємо тільки необхідні поля
+      const optimizedTasks = tasksData.map(task => ({
+        id: task.id,
+        taskNumber: task.taskNumber,
+        status: task.status,
+        company: task.company,
+        client: task.client,
+        address: task.address,
+        workDescription: task.workDescription,
+        serviceEngineers: task.serviceEngineers,
+        workPrice: task.workPrice,
+        serviceTotal: task.serviceTotal,
+        paymentType: task.paymentType,
+        paymentDate: task.paymentDate,
+        requestDate: task.requestDate,
+        date: task.date,
+        serviceRegion: task.serviceRegion,
+        approvedByWarehouse: task.approvedByWarehouse,
+        approvedByAccountant: task.approvedByAccountant,
+        approvedByRegionalManager: task.approvedByRegionalManager,
+        warehouseComment: task.warehouseComment,
+        accountantComment: task.accountantComment,
+        regionalManagerComment: task.regionalManagerComment,
+        bonusApprovalDate: task.bonusApprovalDate,
+        accountantComments: task.accountantComments
+      }));
+      
       const backup = {
         id: Date.now(),
         date: now.toISOString(),
-        data: JSON.stringify(tasksData) // зберігаємо дані завдань з API
+        data: JSON.stringify(optimizedTasks) // зберігаємо оптимізовані дані
       };
       
       console.log('[BACKUP] Створено об\'єкт бекапу:', backup.id);
       
+      // Обмежуємо кількість бекапів до 10 (замість 50)
       let newBackups = [...backups, backup];
-      if (newBackups.length > 50) newBackups = newBackups.slice(newBackups.length - 50);
+      if (newBackups.length > 10) {
+        newBackups = newBackups.slice(newBackups.length - 10);
+        console.log('[BACKUP] Видалено старі бекапи, залишено 10 останніх');
+      }
+      
+      // Перевіряємо розмір перед збереженням
+      const backupString = JSON.stringify(newBackups);
+      const sizeInMB = new Blob([backupString]).size / (1024 * 1024);
+      console.log('[BACKUP] Розмір бекапів:', sizeInMB.toFixed(2), 'MB');
+      
+      if (sizeInMB > 4) { // Якщо більше 4MB, зберігаємо тільки 5 останніх
+        newBackups = newBackups.slice(-5);
+        console.log('[BACKUP] Розмір занадто великий, зберігаємо тільки 5 останніх бекапів');
+      }
       
       setBackups(newBackups);
-      localStorage.setItem('backups', JSON.stringify(newBackups));
-      setLastAutoBackup(now);
-      localStorage.setItem('lastAutoBackup', now.toISOString());
       
-      console.log('[BACKUP] Бекап успішно створено та збережено');
-      alert('Бекап успішно створено!');
+      try {
+        localStorage.setItem('backups', JSON.stringify(newBackups));
+        setLastAutoBackup(now);
+        localStorage.setItem('lastAutoBackup', now.toISOString());
+        console.log('[BACKUP] Бекап успішно створено та збережено');
+        alert('Бекап успішно створено!');
+      } catch (storageError) {
+        console.error('[BACKUP] Помилка збереження в localStorage:', storageError);
+        // Якщо localStorage переповнений, зберігаємо тільки 3 останні бекапи
+        const minimalBackups = newBackups.slice(-3);
+        localStorage.setItem('backups', JSON.stringify(minimalBackups));
+        setBackups(minimalBackups);
+        alert('Бекап створено, але збережено тільки 3 останні бекапи через обмеження браузера');
+      }
     } catch (error) {
       console.error('[BACKUP] Помилка створення бекапу:', error);
       alert(`Помилка при створенні бекапу: ${error.message}. Спробуйте ще раз.`);
