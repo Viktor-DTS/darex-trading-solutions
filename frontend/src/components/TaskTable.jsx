@@ -1066,7 +1066,7 @@ function TaskTableComponent({
           />
         )}
         {/* СПІЛЬНИЙ КОНТЕЙНЕР для фільтрів і таблиці */}
-        <div style={{width:'97vw',maxWidth:'none',margin:'0 auto', background:'#fff', borderRadius:'8px', padding:'16px'}}>
+        <div style={{width:'97vw',maxWidth:'none',margin:'0 auto', background:'#fff', borderRadius:'8px', padding:'16px', position:'relative', zIndex:10}}>
           {/* Окремий контейнер для таблиці з sticky-заголовками */}
           <style>{`
             .table-scroll {
@@ -1074,8 +1074,10 @@ function TaskTableComponent({
               min-height: 400px;
               overflow: scroll;
               width: 100%;
-              background: #fff;
+              background: #fff !important;
               border-radius: 8px;
+              position: relative;
+              z-index: 5;
             }
             .sticky-table {
               min-width: 2000px;
@@ -1117,14 +1119,14 @@ function TaskTableComponent({
               white-space: nowrap;
             }
             .sticky-table tbody tr {
-              background: transparent;
+              background: #fff !important;
               color: #333;
             }
             .sticky-table tbody tr:nth-child(even) {
-              background: rgba(248, 249, 250, 0.8);
+              background: #f8f9fa !important;
             }
             .sticky-table tbody tr:hover {
-              background: rgba(227, 242, 253, 0.8);
+              background: #e3f2fd !important;
             }
             .table-scroll::-webkit-scrollbar {
               height: 12px;
