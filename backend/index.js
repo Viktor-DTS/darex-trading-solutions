@@ -854,8 +854,28 @@ app.post('/api/backups', async (req, res) => {
     });
     
     console.log('[BACKUP] Збереження бекапу в MongoDB...');
+    console.log('[BACKUP] Backup object before save:', {
+      userId: backup.userId,
+      name: backup.name,
+      dataLength: backup.data.length,
+      size: backup.size,
+      taskCount: backup.taskCount
+    });
+    
+    // Перевіряємо, чи існує колекція backups
+    const collections = await mongoose.connection.db.listCollections().toArray();
+    const backupCollectionExists = collections.some(col => col.name === 'backups');
+    console.log('[BACKUP] Collections in database:', collections.map(c => c.name));
+    console.log('[BACKUP] Backup collection exists:', backupCollectionExists);
+    
     const savedBackup = await executeWithRetry(() => backup.save());
     console.log('[BACKUP] Бекап збережено з ID:', savedBackup._id);
+    console.log('[BACKUP] Saved backup details:', {
+      _id: savedBackup._id,
+      userId: savedBackup.userId,
+      name: savedBackup.name,
+      createdAt: savedBackup.createdAt
+    });
     
     res.json({ success: true, backup: savedBackup });
   } catch (error) {
