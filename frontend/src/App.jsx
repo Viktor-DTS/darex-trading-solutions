@@ -1024,14 +1024,22 @@ function ServiceArea({ user }) {
   // useEffect для перевірки та показу нагадування
   useEffect(() => {
     if (!loading && tasks.length > 0 && tab === 'notDone') {
-      // Перевіряємо, чи є заявки зі статусом "Заявка"
-      const requestTasks = tasks.filter(task => task.status === 'Заявка');
+      // Фільтруємо заявки по регіону користувача
+      const requestTasks = tasks.filter(task => {
+        if (task.status !== 'Заявка') return false;
+        
+        // Якщо користувач має регіон "Україна", показуємо всі заявки
+        if (user?.region === 'Україна') return true;
+        
+        // Інакше показуємо тільки заявки свого регіону
+        return task.serviceRegion === user?.region;
+      });
       
       if (requestTasks.length > 0) {
         setReminderModalOpen(true);
       }
     }
-  }, [loading, tasks, tab]);
+  }, [loading, tasks, tab, user?.region]);
 
   const handleSave = async (task) => {
     console.log('[DEBUG] handleSave called with task:', task);
@@ -1495,6 +1503,7 @@ function ServiceArea({ user }) {
         isOpen={reminderModalOpen}
         onClose={() => setReminderModalOpen(false)}
         tasks={tasks}
+        user={user}
       />
     </div>
   );
@@ -1576,18 +1585,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
     setLoading(true);
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
-
-  // useEffect для перевірки та показу нагадування
-  useEffect(() => {
-    if (!loading && tasks.length > 0 && tab === 'notDone') {
-      // Перевіряємо, чи є заявки зі статусом "Заявка"
-      const requestTasks = tasks.filter(task => task.status === 'Заявка');
-      
-      if (requestTasks.length > 0) {
-        setReminderModalOpen(true);
-      }
-    }
-  }, [loading, tasks, tab]);
 
   // Додаю useEffect для завантаження користувачів з бази
   useEffect(() => {

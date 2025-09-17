@@ -1,9 +1,18 @@
 import React from 'react';
 
-const ServiceReminderModal = ({ isOpen, onClose, tasks }) => {
+const ServiceReminderModal = ({ isOpen, onClose, tasks, user }) => {
   if (!isOpen) return null;
 
-  const requestTasks = tasks.filter(task => task.status === 'Заявка');
+  // Фільтруємо заявки по регіону користувача
+  const requestTasks = tasks.filter(task => {
+    if (task.status !== 'Заявка') return false;
+    
+    // Якщо користувач має регіон "Україна", показуємо всі заявки
+    if (user?.region === 'Україна') return true;
+    
+    // Інакше показуємо тільки заявки свого регіону
+    return task.serviceRegion === user?.region;
+  });
 
   return (
     <div style={{
