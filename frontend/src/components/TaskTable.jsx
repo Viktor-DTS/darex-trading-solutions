@@ -1651,7 +1651,7 @@ function TaskTableComponent({
                       )}
                     </td>
                     {(role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && approveField && (
-                      <td style={getRowColor(t) ? {color:'#111'} : {}}>
+                      <td className="action-buttons" style={getRowColor(t) ? {color:'#111'} : {}}>
                         {t.status === 'Виконано' ? (
                           <>
                             <button onClick={()=>{
@@ -1664,8 +1664,8 @@ function TaskTableComponent({
                                   status: t.status
                                 });
                               onApprove(t.id, 'Підтверджено', '');
-                            }} style={{background:'#0a0',color:'#fff',marginRight:8}}>Підтвердити</button>
-                            <button onClick={()=>setRejectModal({ open: true, taskId: t.id, comment: '' })} style={{background:'#f66',color:'#fff',marginRight:8}}>Відхилити</button>
+                            }} style={{background:'#0a0',color:'#fff'}}>Підтвердити</button>
+                            <button onClick={()=>setRejectModal({ open: true, taskId: t.id, comment: '' })} style={{background:'#f66',color:'#fff'}}>Відхилити</button>
                             <button onClick={()=>{
                               // Логуємо відправку на розгляд
                               logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
@@ -1676,7 +1676,7 @@ function TaskTableComponent({
                                   status: t.status
                                 });
                               onApprove(t.id, 'На розгляді', '');
-                            }} style={{background:'#ffe066',color:'#22334a',marginRight:8}}>На розгляді</button>
+                            }} style={{background:'#ffe066',color:'#22334a'}}>На розгляді</button>
                             <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600} : t[approveField] === 'Відмова' ? {color:'#f00', fontWeight:600} : {color:'#aaa'}}>
                               {t[approveField] === 'Підтверджено' ? 'Підтверджено' : t[approveField] === 'Відмова' ? 'Відхилено' : 'На розгляді'}
                             </span>
@@ -1713,7 +1713,7 @@ function TaskTableComponent({
                       }}>Змінити</button>
                     </td>}
                     {role !== 'warehouse' && role !== 'regional' && role !== 'accountant' && role !== 'regionalManager' && role !== 'admin' && approveField && (
-                      <td style={getRowColor(t) ? {color:'#111'} : {}}>
+                      <td className="action-buttons" style={getRowColor(t) ? {color:'#111'} : {}}>
                         {t.status === 'Виконано' ? (
                           <>
                             <button onClick={()=>{
@@ -1726,8 +1726,8 @@ function TaskTableComponent({
                                   status: t.status
                                 });
                               onApprove(t.id, 'Підтверджено', '');
-                            }} style={{background:'#0a0',color:'#fff',marginRight:8}}>Підтвердити</button>
-                            <button onClick={()=>setRejectModal({ open: true, taskId: t.id, comment: '' })} style={{background:'#f66',color:'#fff',marginRight:8}}>Відхилити</button>
+                            }} style={{background:'#0a0',color:'#fff'}}>Підтвердити</button>
+                            <button onClick={()=>setRejectModal({ open: true, taskId: t.id, comment: '' })} style={{background:'#f66',color:'#fff'}}>Відхилити</button>
                             <button onClick={()=>{
                               // Логуємо відправку на розгляд
                               logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
@@ -1738,7 +1738,7 @@ function TaskTableComponent({
                                   status: t.status
                                 });
                               onApprove(t.id, 'На розгляді', '');
-                            }} style={{background:'#ffe066',color:'#22334a',marginRight:8}}>На розгляді</button>
+                            }} style={{background:'#ffe066',color:'#22334a'}}>На розгляді</button>
                             <span style={t[approveField] === 'Підтверджено' ? {color:'#0f0', fontWeight:600} : t[approveField] === 'Відмова' ? {color:'#f00', fontWeight:600} : {color:'#aaa'}}>
                               {t[approveField] === 'Підтверджено' ? 'Підтверджено' : t[approveField] === 'Відмова' ? 'Відхилено' : 'На розгляді'}
                             </span>
