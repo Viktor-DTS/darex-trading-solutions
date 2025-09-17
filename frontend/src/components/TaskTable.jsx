@@ -1306,7 +1306,7 @@ function TaskTableComponent({
             }
             .sticky-table th, .sticky-table td {
               white-space: normal;
-              border: 1px solid #ddd !important;
+              border: 1px solid #000 !important;
               border-collapse: collapse;
             }
             .sticky-table {
