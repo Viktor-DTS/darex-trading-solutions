@@ -55,6 +55,12 @@ export default function AnalyticsArea({ user }) {
         console.log('Категорії витрат:', categoriesData);
         setCustomExpenseCategories(categoriesData);
         
+        // Автоматично встановлюємо регіон користувача, якщо він не "Україна"
+        if (user?.region && user.region !== 'Україна') {
+          console.log('Автоматично встановлюємо регіон користувача:', user.region);
+          setFilters(prev => ({...prev, region: user.region}));
+        }
+        
         console.log('Завантаження даних завершено');
       } catch (error) {
         console.error('Помилка завантаження даних:', error);
@@ -63,7 +69,7 @@ export default function AnalyticsArea({ user }) {
       }
     };
     loadData();
-  }, []);
+  }, [user?.region]);
 
   // Завантаження аналітики
   const loadAnalytics = async () => {
@@ -711,18 +717,19 @@ export default function AnalyticsArea({ user }) {
               <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>
                 Регіон сервісного відділу:
                 {dataLoading && <span style={{color: '#ffa500', marginLeft: '8px'}}>(завантаження...)</span>}
+                {user?.region && user.region !== 'Україна' && <span style={{color: '#4CAF50', marginLeft: '8px'}}>(автоматично встановлено)</span>}
               </label>
               <select
                 value={filters.region}
                 onChange={(e) => setFilters(prev => ({...prev, region: e.target.value}))}
-                disabled={dataLoading}
+                disabled={dataLoading || (user?.region && user.region !== 'Україна')}
                 style={{
                   width: '100%',
                   padding: '8px',
                   borderRadius: '4px',
                   border: '1px solid #29506a',
-                  background: dataLoading ? '#1a1a1a' : '#22334a',
-                  color: dataLoading ? '#666' : '#fff'
+                  background: (dataLoading || (user?.region && user.region !== 'Україна')) ? '#1a1a1a' : '#22334a',
+                  color: (dataLoading || (user?.region && user.region !== 'Україна')) ? '#666' : '#fff'
                 }}
               >
                 <option value="">Всі регіони</option>
