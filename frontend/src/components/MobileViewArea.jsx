@@ -17,6 +17,7 @@ export default function MobileViewArea({ user }) {
   const [selectedFiles, setSelectedFiles] = useState(null); // Обрані файли
   const [filePhotoType, setFilePhotoType] = useState('document'); // Тип фото для завантаження з пристрою
   const [activeTab, setActiveTab] = useState('pending'); // Активна вкладка: pending, confirmed, completed
+  const [searchQuery, setSearchQuery] = useState(''); // Пошук по номеру заявки
 
   // Функція для перевірки, чи поле заповнене
   const isFieldFilled = (value) => {
@@ -242,7 +243,7 @@ export default function MobileViewArea({ user }) {
     if (user && user.region) {
       // Якщо користувач з регіону "Україна", показуємо всі заявки
       if (user.region === 'Україна') {
-        return filteredTasks;
+        // Не змінюємо filteredTasks
       } else {
         // Інакше показуємо тільки заявки з регіону користувача
         filteredTasks = filteredTasks.filter(task => {
@@ -251,6 +252,39 @@ export default function MobileViewArea({ user }) {
           return taskRegion === user.region;
         });
       }
+    }
+    
+    // Додаємо пошук по номеру заявки
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filteredTasks = filteredTasks.filter(task => {
+        // Пошук по ID заявки (якщо це число)
+        if (task.id && task.id.toString().includes(query)) {
+          return true;
+        }
+        
+        // Пошук по _id (MongoDB ID)
+        if (task._id && task._id.toString().toLowerCase().includes(query)) {
+          return true;
+        }
+        
+        // Пошук по номеру заявки (якщо є таке поле)
+        if (task.requestNumber && task.requestNumber.toString().toLowerCase().includes(query)) {
+          return true;
+        }
+        
+        // Пошук по клієнту (може містити номер)
+        if (task.client && task.client.toLowerCase().includes(query)) {
+          return true;
+        }
+        
+        // Пошук по адресі (може містити номер)
+        if (task.address && task.address.toLowerCase().includes(query)) {
+          return true;
+        }
+        
+        return false;
+      });
     }
     
     return filteredTasks;
@@ -1134,7 +1168,7 @@ export default function MobileViewArea({ user }) {
   console.log('Відображення основного контенту. Стан:', { tasks: tasks.length, loading, activeTab });
 
   return (
-    <div style={{ padding: '16px', maxWidth: '100%' }}>
+    <div style={{ padding: '16px', maxWidth: '100%', background: '#fff', minHeight: '100vh' }}>
       <h2 style={{ 
         marginBottom: '20px', 
         color: '#22334a',
@@ -1295,6 +1329,63 @@ export default function MobileViewArea({ user }) {
             🔍 Показати всі заявки ({getFilteredTasks().length})
           </button>
         </div>
+      </div>
+
+      {/* Поле пошуку */}
+      <div style={{ 
+        marginBottom: '20px',
+        padding: '16px',
+        background: '#f8f9fa',
+        borderRadius: '8px',
+        border: '1px solid #dee2e6'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <div style={{ fontSize: '20px' }}>🔍</div>
+          <input
+            type="text"
+            placeholder="Пошук по номеру заявки, клієнту, адресі..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              flex: 1,
+              padding: '12px 16px',
+              border: '1px solid #ced4da',
+              borderRadius: '6px',
+              fontSize: '16px',
+              outline: 'none',
+              background: '#fff'
+            }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                background: '#6c757d',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '12px 16px',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}
+            >
+              ✕ Очистити
+            </button>
+          )}
+        </div>
+        {searchQuery && (
+          <div style={{
+            marginTop: '8px',
+            fontSize: '14px',
+            color: '#666'
+          }}>
+            Знайдено: {getFilteredTasks().length} заявок
+          </div>
+        )}
       </div>
 
       {/* Список заявок */}
