@@ -978,12 +978,17 @@ app.post('/api/auth', async (req, res) => {
 // Отримати налаштування колонок для користувача і області
 app.get('/api/users/:login/columns-settings/:area', async (req, res) => {
   try {
+    console.log('[DEBUG] 📥 Завантаження налаштувань для:', req.params.login, req.params.area);
     const user = await User.findOne({ login: req.params.login });
     if (!user || !user.columnsSettings || !user.columnsSettings[req.params.area]) {
+      console.log('[DEBUG] 📥 Налаштування не знайдено для:', req.params.login, req.params.area);
       return res.status(404).json({ error: 'Налаштування не знайдено' });
     }
+    console.log('[DEBUG] 📥 Знайдені налаштування:', user.columnsSettings[req.params.area]);
+    console.log('[DEBUG] 📥 Ширина колонок:', user.columnsSettings[req.params.area].widths);
     res.json(user.columnsSettings[req.params.area]);
   } catch (error) {
+    console.error('[DEBUG] 📥 Помилка завантаження налаштувань:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -991,13 +996,29 @@ app.get('/api/users/:login/columns-settings/:area', async (req, res) => {
 app.post('/api/users/:login/columns-settings', async (req, res) => {
   try {
     const { area, visible, order, widths } = req.body;
+    console.log('[DEBUG] 🔧 Збереження налаштувань колонок:', { 
+      login: req.params.login, 
+      area, 
+      visible: visible?.length, 
+      order: order?.length, 
+      widths: widths ? Object.keys(widths).length : 0 
+    });
+    console.log('[DEBUG] 🔧 Ширина колонок:', widths);
+    
     let user = await User.findOne({ login: req.params.login });
     if (!user) {
       return res.status(404).json({ error: 'Користувача не знайдено' });
     }
     if (!user.columnsSettings) user.columnsSettings = {};
     user.columnsSettings[area] = { visible, order, widths: widths || {} };
+    
+    console.log('[DEBUG] 🔧 Зберігаємо в базу:', user.columnsSettings[area]);
     await user.save();
+    
+    // Перевіряємо, що збереглося
+    const savedUser = await User.findOne({ login: req.params.login });
+    console.log('[DEBUG] 🔧 Перевірка після збереження:', savedUser.columnsSettings[area]);
+    
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });

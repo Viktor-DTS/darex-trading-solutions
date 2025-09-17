@@ -221,15 +221,21 @@ function TaskTableComponent({
               }
               
               // Завантажуємо ширину колонок
-              if (settings.widths) {
+              console.log('[DEBUG] 🔍 Перевіряємо settings.widths:', settings.widths);
+              console.log('[DEBUG] 🔍 Тип settings.widths:', typeof settings.widths);
+              console.log('[DEBUG] 🔍 settings.widths є об\'єктом:', settings.widths && typeof settings.widths === 'object');
+              console.log('[DEBUG] 🔍 Ключі в settings.widths:', settings.widths ? Object.keys(settings.widths) : 'немає');
+              
+              if (settings.widths && typeof settings.widths === 'object' && Object.keys(settings.widths).length > 0) {
                 console.log('[DEBUG] ✅ Встановлюємо збережену ширину колонок:', settings.widths);
                 setColumnWidths(settings.widths);
               } else {
-                console.log('[DEBUG] ⚠️ Ширина колонок не знайдена, встановлюємо за замовчуванням');
+                console.log('[DEBUG] ⚠️ Ширина колонок не знайдена або порожня, встановлюємо за замовчуванням');
                 const defaultWidths = {};
                 columns.forEach(col => {
                   defaultWidths[col.key] = 120;
                 });
+                console.log('[DEBUG] 🔧 Встановлюємо ширину за замовчуванням:', defaultWidths);
                 setColumnWidths(defaultWidths);
               }
               
@@ -600,18 +606,27 @@ function TaskTableComponent({
   const saveColumnWidths = async (widths) => {
     if (user?.login && areaRef.current) {
       try {
-        console.log('[DEBUG] Зберігаємо ширину колонок:', widths);
+        console.log('[DEBUG] 💾 Зберігаємо ширину колонок:', widths);
+        console.log('[DEBUG] 💾 Користувач:', userLoginRef.current);
+        console.log('[DEBUG] 💾 Область:', areaRef.current);
+        console.log('[DEBUG] 💾 Видимі колонки:', selected);
+        
         const success = await columnsSettingsAPI.saveSettings(userLoginRef.current, areaRef.current, selected, selected, widths);
         if (!success) {
-          console.error('Помилка збереження ширини колонок');
+          console.error('❌ Помилка збереження ширини колонок');
         } else {
-          console.log('[DEBUG] Ширина колонок успішно збережена');
+          console.log('[DEBUG] ✅ Ширина колонок успішно збережена в базі');
           // Оновлюємо кеш з новою шириною
           cacheSettings({ visible: selected, order: selected, widths: widths });
+          console.log('[DEBUG] ✅ Кеш оновлено з новою шириною');
         }
       } catch (error) {
-        console.error('Помилка збереження ширини колонок:', error);
+        console.error('❌ Помилка збереження ширини колонок:', error);
       }
+    } else {
+      console.log('[DEBUG] ⚠️ Не можу зберегти ширину - немає user.login або areaRef.current');
+      console.log('[DEBUG] ⚠️ user?.login:', user?.login);
+      console.log('[DEBUG] ⚠️ areaRef.current:', areaRef.current);
     }
   };
 
