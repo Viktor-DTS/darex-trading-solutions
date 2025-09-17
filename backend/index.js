@@ -990,13 +990,13 @@ app.get('/api/users/:login/columns-settings/:area', async (req, res) => {
 // Зберегти налаштування колонок для користувача і області
 app.post('/api/users/:login/columns-settings', async (req, res) => {
   try {
-    const { area, visible, order } = req.body;
+    const { area, visible, order, widths } = req.body;
     let user = await User.findOne({ login: req.params.login });
     if (!user) {
       return res.status(404).json({ error: 'Користувача не знайдено' });
     }
     if (!user.columnsSettings) user.columnsSettings = {};
-    user.columnsSettings[area] = { visible, order };
+    user.columnsSettings[area] = { visible, order, widths: widths || {} };
     await user.save();
     res.json({ success: true });
   } catch (error) {

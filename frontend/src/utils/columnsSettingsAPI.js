@@ -20,10 +20,10 @@ export const columnsSettingsAPI = {
   },
 
   // Зберегти налаштування колонок для користувача та області
-  async saveSettings(userLogin, area, visible, order) {
-    console.log('[DEBUG] API saveSettings викликано з параметрами:', { userLogin, area, visible, order });
+  async saveSettings(userLogin, area, visible, order, widths = {}) {
+    console.log('[DEBUG] API saveSettings викликано з параметрами:', { userLogin, area, visible, order, widths });
     try {
-      const requestBody = { area, visible, order };
+      const requestBody = { area, visible, order, widths };
       console.log('[DEBUG] Відправляємо запит на:', `${API_BASE_URL}/users/${userLogin}/columns-settings`);
       console.log('[DEBUG] Тіло запиту:', requestBody);
       

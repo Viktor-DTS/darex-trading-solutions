@@ -114,6 +114,7 @@ function TaskTableComponent({
   // Додаємо стан для завантаження налаштувань
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [selected, setSelected] = useState([]);
+  const [columnWidths, setColumnWidths] = useState({});
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   
   // Додаємо логування при зміні selected
@@ -217,6 +218,12 @@ function TaskTableComponent({
                 setSelected(settings.order);
               } else {
                 console.log('[DEBUG] ⚠️ Порядок колонок невалідний, використовуємо visible:', settings.visible);
+              }
+              
+              // Завантажуємо ширину колонок
+              if (settings.widths) {
+                console.log('[DEBUG] ✅ Встановлюємо збережену ширину колонок:', settings.widths);
+                setColumnWidths(settings.widths);
               }
               
               setSettingsLoaded(true);
@@ -529,13 +536,13 @@ function TaskTableComponent({
       try {
         console.log('[DEBUG] Зберігаємо новий порядок колонок:', newOrder);
         // Зберігаємо новий порядок як і visible, і як order
-        const success = await columnsSettingsAPI.saveSettings(userLoginRef.current, areaRef.current, newOrder, newOrder);
+        const success = await columnsSettingsAPI.saveSettings(userLoginRef.current, areaRef.current, newOrder, newOrder, columnWidths);
         if (!success) {
           console.error('Помилка збереження порядку колонок');
         } else {
           console.log('[DEBUG] Порядок колонок успішно збережено');
           // Оновлюємо кеш з новим порядком
-          cacheSettings({ visible: newOrder, order: newOrder });
+          cacheSettings({ visible: newOrder, order: newOrder, widths: columnWidths });
         }
       } catch (error) {
         console.error('Помилка збереження порядку колонок:', error);
@@ -544,6 +551,39 @@ function TaskTableComponent({
   };
   
   const handleDragOver = e => e.preventDefault();
+
+  // --- Функція для зміни ширини колонки ---
+  const handleColumnResize = (columnKey, newWidth) => {
+    console.log('[DEBUG] Зміна ширини колонки:', { columnKey, newWidth });
+    const clampedWidth = Math.max(80, Math.min(500, newWidth)); // Мінімум 80px, максимум 500px
+    setColumnWidths(prev => ({
+      ...prev,
+      [columnKey]: clampedWidth
+    }));
+    
+    // Зберігаємо з debounce
+    clearTimeout(window.columnResizeTimeout);
+    window.columnResizeTimeout = setTimeout(() => {
+      saveColumnWidths({ ...columnWidths, [columnKey]: clampedWidth });
+    }, 500);
+  };
+
+  // --- Збереження ширини колонок ---
+  const saveColumnWidths = async (widths) => {
+    if (user?.login && areaRef.current) {
+      try {
+        console.log('[DEBUG] Зберігаємо ширину колонок:', widths);
+        const success = await columnsSettingsAPI.saveSettings(userLoginRef.current, areaRef.current, selected, selected, widths);
+        if (!success) {
+          console.error('Помилка збереження ширини колонок');
+        } else {
+          console.log('[DEBUG] Ширина колонок успішно збережена');
+        }
+      } catch (error) {
+        console.error('Помилка збереження ширини колонок:', error);
+      }
+    }
+  };
 
   // Функція для обробки кліків по заголовках колонок для сортування
   const handleColumnClick = (field) => {
@@ -1262,6 +1302,25 @@ function TaskTableComponent({
               scrollbar-color: #00bfff #f0f0f0;
               scrollbar-width: thin;
             }
+            
+            .resize-handle {
+              position: absolute;
+              top: 0;
+              right: 0;
+              width: 4px;
+              height: 100%;
+              background: transparent;
+              cursor: col-resize;
+              z-index: 10;
+            }
+            
+            .resize-handle:hover {
+              background: #00bfff;
+            }
+            
+            .th-resizable {
+              position: relative;
+            }
           `}</style>
           <div className="table-scroll">
             <table className="sticky-table">
@@ -1272,13 +1331,15 @@ function TaskTableComponent({
                   {visibleColumns.map((col, idx) => (
                     <th
                       key={col.key}
+                      className="th-resizable"
                       draggable
                       onDragStart={e => handleDragStart(e, idx)}
                       onDrop={e => handleDrop(e, idx)}
                       onDragOver={handleDragOver}
-                      onClick={() => handleColumnClick(col.key)}
-                      onDoubleClick={() => handleColumnDoubleClick(col.key)}
                       style={{
+                        width: columnWidths[col.key] || 120,
+                        minWidth: columnWidths[col.key] || 120,
+                        maxWidth: columnWidths[col.key] || 120,
                         cursor: 'pointer',
                         background: sortConfig.field === col.key ? '#1565c0' : '#1976d2'
                       }}
@@ -1336,6 +1397,28 @@ function TaskTableComponent({
                             />
                           )
                       )}
+                      <div
+                        className="resize-handle"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const startX = e.clientX;
+                          const startWidth = columnWidths[col.key] || 120;
+                          
+                          const handleMouseMove = (e) => {
+                            const newWidth = startWidth + (e.clientX - startX);
+                            handleColumnResize(col.key, newWidth);
+                          };
+                          
+                          const handleMouseUp = () => {
+                            document.removeEventListener('mousemove', handleMouseMove);
+                            document.removeEventListener('mouseup', handleMouseUp);
+                          };
+                          
+                          document.addEventListener('mousemove', handleMouseMove);
+                          document.addEventListener('mouseup', handleMouseUp);
+                        }}
+                      />
                       </th>
                   ))}
                   <th>Статус</th>
@@ -1490,7 +1573,12 @@ function TaskTableComponent({
                         ) : <span style={{color:'#aaa'}}>—</span>}
                       </td>
                     )}
-                    {visibleColumns.map(col => <td key={col.key} style={getRowColor(t) ? {color:'#111'} : {}}>{
+                    {visibleColumns.map(col => <td key={col.key} style={{
+                      ...(getRowColor(t) ? {color:'#111'} : {}),
+                      width: columnWidths[col.key] || 120,
+                      minWidth: columnWidths[col.key] || 120,
+                      maxWidth: columnWidths[col.key] || 120
+                    }}>{
                       col.key === 'approvedByWarehouse' ? (t.approvedByWarehouse === 'Підтверджено' ? 'Підтверджено' : t.approvedByWarehouse === 'Відмова' ? 'Відмова' : 'На розгляді') :
                       col.key === 'approvedByAccountant' ? (t.approvedByAccountant === 'Підтверджено' ? 'Підтверджено' : t.approvedByAccountant === 'Відмова' ? 'Відмова' : 'На розгляді') :
                       col.key === 'approvedByRegionalManager' ? (t.approvedByRegionalManager === 'Підтверджено' ? 'Підтверджено' : t.approvedByRegionalManager === 'Відмова' ? 'Відхилено' : 'На розгляді') :
