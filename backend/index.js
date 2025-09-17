@@ -843,15 +843,31 @@ app.post('/api/backups', async (req, res) => {
     const size = Buffer.byteLength(data, 'utf8');
     console.log('[BACKUP] Розмір даних:', size, 'байт');
     
-    const backup = new Backup({
-      userId,
-      name,
-      description,
-      data,
-      size,
-      taskCount,
-      isAuto
-    });
+    // Перевіряємо розмір даних
+    if (size > 16 * 1024 * 1024) { // 16MB ліміт
+      console.log('[BACKUP] Дані занадто великі, обмежуємо до 16MB');
+      const limitedData = data.substring(0, 16 * 1024 * 1024);
+      backup.data = limitedData;
+      backup.size = Buffer.byteLength(limitedData, 'utf8');
+      console.log('[BACKUP] Новий розмір даних:', backup.size, 'байт');
+    }
+    
+    let backup;
+    try {
+      backup = new Backup({
+        userId,
+        name,
+        description,
+        data,
+        size,
+        taskCount,
+        isAuto
+      });
+      console.log('[BACKUP] Backup object created successfully');
+    } catch (createError) {
+      console.error('[BACKUP] Error creating Backup object:', createError);
+      throw new Error(`Failed to create Backup object: ${createError.message}`);
+    }
     
     console.log('[BACKUP] Збереження бекапу в MongoDB...');
     console.log('[BACKUP] Backup object before save:', {
