@@ -276,6 +276,19 @@ const taskSchema = new mongoose.Schema({
 }, { strict: false });
 const Task = mongoose.model('Task', taskSchema);
 
+// Схема для бекапів
+const backupSchema = new mongoose.Schema({
+  userId: { type: String, required: true }, // login користувача
+  name: { type: String, required: true }, // назва бекапу
+  description: { type: String }, // опис бекапу
+  data: { type: String, required: true }, // JSON рядок з даними
+  size: { type: Number, required: true }, // розмір в байтах
+  taskCount: { type: Number, required: true }, // кількість завдань
+  createdAt: { type: Date, default: Date.now },
+  isAuto: { type: Boolean, default: false } // чи це автоматичний бекап
+});
+const Backup = mongoose.model('Backup', backupSchema);
+
 const accessRulesSchema = new mongoose.Schema({
   rules: Object,
 }, { strict: false });
@@ -752,6 +765,106 @@ app.get('/api/ping', (req, res) => {
 
 app.get('/api/reports', (req, res) => {
   res.json(reports);
+});
+
+// --- BACKUP API ---
+// Отримати всі бекапи користувача
+app.get('/api/backups', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+    
+    const backups = await executeWithRetry(() => 
+      Backup.find({ userId }).sort({ createdAt: -1 }).limit(50)
+    );
+    
+    res.json(backups);
+  } catch (error) {
+    console.error('[ERROR] GET /api/backups - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Створити новий бекап
+app.post('/api/backups', async (req, res) => {
+  try {
+    const { userId, name, description, data, taskCount, isAuto = false } = req.body;
+    
+    if (!userId || !name || !data) {
+      return res.status(400).json({ error: 'userId, name, and data are required' });
+    }
+    
+    const size = new Blob([data]).size;
+    
+    const backup = new Backup({
+      userId,
+      name,
+      description,
+      data,
+      size,
+      taskCount,
+      isAuto
+    });
+    
+    const savedBackup = await executeWithRetry(() => backup.save());
+    
+    res.json({ success: true, backup: savedBackup });
+  } catch (error) {
+    console.error('[ERROR] POST /api/backups - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Видалити бекап
+app.delete('/api/backups/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+    
+    const result = await executeWithRetry(() => 
+      Backup.findOneAndDelete({ _id: id, userId })
+    );
+    
+    if (!result) {
+      return res.status(404).json({ error: 'Backup not found' });
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[ERROR] DELETE /api/backups/:id - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Отримати конкретний бекап
+app.get('/api/backups/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+    
+    const backup = await executeWithRetry(() => 
+      Backup.findOne({ _id: id, userId })
+    );
+    
+    if (!backup) {
+      return res.status(404).json({ error: 'Backup not found' });
+    }
+    
+    res.json(backup);
+  } catch (error) {
+    console.error('[ERROR] GET /api/backups/:id - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // API для авторизації користувача

@@ -33,6 +33,7 @@ import { tasksAPI } from './utils/tasksAPI';
 import { accessRulesAPI } from './utils/accessRulesAPI';
 import { rolesAPI } from './utils/rolesAPI';
 import { regionsAPI } from './utils/regionsAPI';
+import { backupAPI } from './utils/backupAPI';
 import keepAliveService from './utils/keepAlive.js';
 
 const roles = [
@@ -3932,6 +3933,8 @@ function AdminBackupArea() {
       return [];
     }
   });
+  const [serverBackups, setServerBackups] = useState([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
   const [autoInterval, setAutoInterval] = useState(() => {
     const saved = localStorage.getItem('backupInterval');
     return saved || 'day';
@@ -3940,6 +3943,30 @@ function AdminBackupArea() {
     const saved = localStorage.getItem('lastAutoBackup');
     return saved ? new Date(saved) : null;
   });
+
+  // Завантаження бекапів з сервера
+  const loadServerBackups = async () => {
+    if (!user?.login) return;
+    
+    try {
+      setLoadingBackups(true);
+      console.log('[BACKUP] Завантаження бекапів з сервера...');
+      const serverBackupsData = await backupAPI.getAll(user.login);
+      setServerBackups(serverBackupsData);
+      console.log('[BACKUP] Завантажено серверних бекапів:', serverBackupsData.length);
+    } catch (error) {
+      console.error('[BACKUP] Помилка завантаження серверних бекапів:', error);
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
+
+  // Завантажуємо серверні бекапи при зміні користувача
+  useEffect(() => {
+    if (user?.login) {
+      loadServerBackups();
+    }
+  }, [user?.login]);
   const [showExcelImport, setShowExcelImport] = useState(false);
 
   // --- Функція для експорту всіх завдань в Excel ---
@@ -4010,29 +4037,50 @@ function AdminBackupArea() {
         accountantComments: task.accountantComments
       }));
       
-      const backup = {
+      const backupData = JSON.stringify(optimizedTasks);
+      const backupName = `Бекап ${now.toLocaleDateString('uk-UA')} ${now.toLocaleTimeString('uk-UA')}`;
+      
+      // Створюємо бекап для локального зберігання
+      const localBackup = {
         id: Date.now(),
         date: now.toISOString(),
-        data: JSON.stringify(optimizedTasks) // зберігаємо оптимізовані дані
+        data: backupData
       };
       
-      console.log('[BACKUP] Створено об\'єкт бекапу:', backup.id);
+      console.log('[BACKUP] Створено об\'єкт бекапу:', localBackup.id);
       
-      // Обмежуємо кількість бекапів до 10 (замість 50)
-      let newBackups = [...backups, backup];
+      // Зберігаємо на сервері
+      try {
+        console.log('[BACKUP] Збереження бекапу на сервері...');
+        const serverBackup = await backupAPI.create({
+          userId: user?.login || 'system',
+          name: backupName,
+          description: `Автоматичний бекап з ${tasksData.length} завданнями`,
+          data: backupData,
+          taskCount: tasksData.length,
+          isAuto: false
+        });
+        console.log('[BACKUP] Бекап збережено на сервері:', serverBackup.backup._id);
+      } catch (serverError) {
+        console.error('[BACKUP] Помилка збереження на сервері:', serverError);
+        // Продовжуємо з локальним збереженням навіть якщо сервер недоступний
+      }
+      
+      // Зберігаємо локально
+      let newBackups = [...backups, localBackup];
       if (newBackups.length > 10) {
         newBackups = newBackups.slice(newBackups.length - 10);
-        console.log('[BACKUP] Видалено старі бекапи, залишено 10 останніх');
+        console.log('[BACKUP] Видалено старі локальні бекапи, залишено 10 останніх');
       }
       
       // Перевіряємо розмір перед збереженням
       const backupString = JSON.stringify(newBackups);
       const sizeInMB = new Blob([backupString]).size / (1024 * 1024);
-      console.log('[BACKUP] Розмір бекапів:', sizeInMB.toFixed(2), 'MB');
+      console.log('[BACKUP] Розмір локальних бекапів:', sizeInMB.toFixed(2), 'MB');
       
       if (sizeInMB > 4) { // Якщо більше 4MB, зберігаємо тільки 5 останніх
         newBackups = newBackups.slice(-5);
-        console.log('[BACKUP] Розмір занадто великий, зберігаємо тільки 5 останніх бекапів');
+        console.log('[BACKUP] Розмір занадто великий, зберігаємо тільки 5 останніх локальних бекапів');
       }
       
       setBackups(newBackups);
@@ -4041,15 +4089,15 @@ function AdminBackupArea() {
         localStorage.setItem('backups', JSON.stringify(newBackups));
         setLastAutoBackup(now);
         localStorage.setItem('lastAutoBackup', now.toISOString());
-        console.log('[BACKUP] Бекап успішно створено та збережено');
-        alert('Бекап успішно створено!');
+        console.log('[BACKUP] Локальний бекап успішно створено та збережено');
+        alert('Бекап успішно створено! Збережено локально та на сервері.');
       } catch (storageError) {
         console.error('[BACKUP] Помилка збереження в localStorage:', storageError);
         // Якщо localStorage переповнений, зберігаємо тільки 3 останні бекапи
         const minimalBackups = newBackups.slice(-3);
         localStorage.setItem('backups', JSON.stringify(minimalBackups));
         setBackups(minimalBackups);
-        alert('Бекап створено, але збережено тільки 3 останні бекапи через обмеження браузера');
+        alert('Бекап створено на сервері, але локально збережено тільки 3 останні бекапи через обмеження браузера');
       }
     } catch (error) {
       console.error('[BACKUP] Помилка створення бекапу:', error);
@@ -4058,10 +4106,26 @@ function AdminBackupArea() {
   };
 
   // --- Видалення бекапу ---
-  const deleteBackup = id => {
-    const newBackups = backups.filter(b => b.id !== id);
-    setBackups(newBackups);
-    localStorage.setItem('backups', JSON.stringify(newBackups));
+  const deleteBackup = async (id) => {
+    try {
+      // Видаляємо з сервера (якщо це серверний бекап)
+      try {
+        await backupAPI.delete(id, user?.login || 'system');
+        console.log('[BACKUP] Бекап видалено з сервера:', id);
+      } catch (serverError) {
+        console.error('[BACKUP] Помилка видалення з сервера:', serverError);
+        // Продовжуємо з локальним видаленням
+      }
+      
+      // Видаляємо локально
+      const newBackups = backups.filter(b => b.id !== id);
+      setBackups(newBackups);
+      localStorage.setItem('backups', JSON.stringify(newBackups));
+      console.log('[BACKUP] Локальний бекап видалено:', id);
+    } catch (error) {
+      console.error('[BACKUP] Помилка видалення бекапу:', error);
+      alert('Помилка при видаленні бекапу. Спробуйте ще раз.');
+    }
   };
 
   // --- Автоматичний бекап ---
@@ -4209,51 +4273,126 @@ function AdminBackupArea() {
       </div>
 
       {/* Таблиця бекапів */}
-      <h3 style={{marginBottom:16,color:'#22334a'}}>Історія бекапів</h3>
-      <table style={{width:'100%',background:'#22334a',color:'#fff',borderRadius:8,overflow:'hidden'}}>
-        <thead>
-          <tr>
-            <th style={{padding:12,textAlign:'left'}}>Дата бекапу</th>
-            <th style={{padding:12,textAlign:'left'}}>Дія</th>
-          </tr>
-        </thead>
-        <tbody>
-          {backups.slice().reverse().map(b => (
-            <tr key={b.id}>
-              <td style={{padding:12}}>{new Date(b.date).toLocaleString()}</td>
-              <td style={{padding:12}}>
-                <button 
-                  onClick={()=>restoreBackup(b)} 
-                  style={{
-                    background:'#43a047',
-                    color:'#fff',
-                    border:'none',
-                    borderRadius:4,
-                    padding:'4px 12px',
-                    cursor:'pointer',
-                    marginRight:8
-                  }}
-                >
-                  Відновити
-                </button>
-                <button 
-                  onClick={()=>deleteBackup(b.id)} 
-                  style={{
-                    background:'#f66',
-                    color:'#fff',
-                    border:'none',
-                    borderRadius:4,
-                    padding:'4px 12px',
-                    cursor:'pointer'
-                  }}
-                >
-                  Видалити
-                </button>
-              </td>
+      <div style={{marginBottom:16,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <h3 style={{color:'#22334a',margin:0}}>Історія бекапів</h3>
+        <button 
+          onClick={loadServerBackups}
+          disabled={loadingBackups}
+          style={{
+            background: loadingBackups ? '#ccc' : '#007bff',
+            color:'#fff',
+            border:'none',
+            padding:'6px 12px',
+            borderRadius:4,
+            fontSize:'12px',
+            cursor: loadingBackups ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {loadingBackups ? 'Завантаження...' : 'Оновити з сервера'}
+        </button>
+      </div>
+
+      {/* Локальні бекапи */}
+      <div style={{marginBottom:24}}>
+        <h4 style={{marginBottom:8,color:'#666'}}>Локальні бекапи ({backups.length})</h4>
+        <table style={{width:'100%',background:'#22334a',color:'#fff',borderRadius:8,overflow:'hidden'}}>
+          <thead>
+            <tr>
+              <th style={{padding:12,textAlign:'left'}}>Дата бекапу</th>
+              <th style={{padding:12,textAlign:'left'}}>Дія</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {backups.slice().reverse().map(b => (
+              <tr key={b.id}>
+                <td style={{padding:12}}>{new Date(b.date).toLocaleString()}</td>
+                <td style={{padding:12}}>
+                  <button 
+                    onClick={()=>restoreBackup(b)} 
+                    style={{
+                      background:'#43a047',
+                      color:'#fff',
+                      border:'none',
+                      borderRadius:4,
+                      padding:'4px 12px',
+                      cursor:'pointer',
+                      marginRight:8
+                    }}
+                  >
+                    Відновити
+                  </button>
+                  <button 
+                    onClick={()=>deleteBackup(b.id)} 
+                    style={{
+                      background:'#f66',
+                      color:'#fff',
+                      border:'none',
+                      borderRadius:4,
+                      padding:'4px 12px',
+                      cursor:'pointer'
+                    }}
+                  >
+                    Видалити
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Серверні бекапи */}
+      <div>
+        <h4 style={{marginBottom:8,color:'#666'}}>Серверні бекапи ({serverBackups.length})</h4>
+        <table style={{width:'100%',background:'#e3f2fd',color:'#333',borderRadius:8,overflow:'hidden'}}>
+          <thead>
+            <tr style={{background:'#bbdefb'}}>
+              <th style={{padding:12,textAlign:'left'}}>Назва</th>
+              <th style={{padding:12,textAlign:'left'}}>Дата</th>
+              <th style={{padding:12,textAlign:'left'}}>Розмір</th>
+              <th style={{padding:12,textAlign:'left'}}>Дія</th>
+            </tr>
+          </thead>
+          <tbody>
+            {serverBackups.slice().reverse().map(b => (
+              <tr key={b._id}>
+                <td style={{padding:12}}>{b.name}</td>
+                <td style={{padding:12}}>{new Date(b.createdAt).toLocaleString()}</td>
+                <td style={{padding:12}}>{(b.size / 1024).toFixed(1)} KB</td>
+                <td style={{padding:12}}>
+                  <button 
+                    onClick={()=>restoreBackup(b)} 
+                    style={{
+                      background:'#43a047',
+                      color:'#fff',
+                      border:'none',
+                      borderRadius:4,
+                      padding:'4px 12px',
+                      cursor:'pointer',
+                      marginRight:8
+                    }}
+                  >
+                    Відновити
+                  </button>
+                  <button 
+                    onClick={()=>deleteBackup(b._id)} 
+                    style={{
+                      background:'#f66',
+                      color:'#fff',
+                      border:'none',
+                      borderRadius:4,
+                      padding:'4px 12px',
+                      cursor:'pointer'
+                    }}
+                  >
+                    Видалити
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {/* Модальне вікно імпорту Excel */}
       <ExcelImportModal
