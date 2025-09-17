@@ -1077,8 +1077,8 @@ function TaskTableComponent({
             .sticky-table {
               min-width: 2000px;
               width: 100%;
-              background: #22334a;
-              color: #fff;
+              background: #fff;
+              color: #333;
               border-radius: 8px;
               border-spacing: 0;
               table-layout: auto;
@@ -1113,19 +1113,29 @@ function TaskTableComponent({
             .sticky-table th, .sticky-table td {
               white-space: nowrap;
             }
+            .sticky-table tbody tr {
+              background: #fff;
+              color: #333;
+            }
+            .sticky-table tbody tr:nth-child(even) {
+              background: #f8f9fa;
+            }
+            .sticky-table tbody tr:hover {
+              background: #e3f2fd;
+            }
             .table-scroll::-webkit-scrollbar {
               height: 12px;
-              background: #22334a;
+              background: #f0f0f0;
             }
             .table-scroll::-webkit-scrollbar-thumb {
               background: #00bfff;
               border-radius: 6px;
             }
             .table-scroll::-webkit-scrollbar-track {
-              background: #22334a;
+              background: #f0f0f0;
             }
             .table-scroll {
-              scrollbar-color: #00bfff #22334a;
+              scrollbar-color: #00bfff #f0f0f0;
               scrollbar-width: thin;
             }
           `}</style>
@@ -1405,7 +1415,7 @@ function TaskTableComponent({
             </table>
           </div>
           {/* Індикатор кількості рядків та кнопка "На початок" */}
-          <div style={{padding:'8px 16px', background:'#22334a', color:'#fff', borderTop:'1px solid #444', fontSize:'14px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+          <div style={{padding:'8px 16px', background:'#f8f9fa', color:'#333', borderTop:'1px solid #ddd', fontSize:'14px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
             <span>Всього рядків: {sortedTasks.length}</span>
             <button 
               onClick={() => {
