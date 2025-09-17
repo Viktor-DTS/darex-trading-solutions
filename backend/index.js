@@ -2091,7 +2091,7 @@ class TelegramNotificationService {
 
   async sendTaskNotification(type, task, user) {
     const message = this.formatTaskMessage(type, task, user);
-    const chatIds = await this.getChatIdsForNotification(type, user.role);
+    const chatIds = await this.getChatIdsForNotification(type, user.role, task);
     
     for (const chatId of chatIds) {
       const success = await this.sendMessage(chatId, message);
@@ -2165,7 +2165,7 @@ class TelegramNotificationService {
     }
   }
 
-  async getChatIdsForNotification(type, userRole) {
+  async getChatIdsForNotification(type, userRole, task) {
     try {
       const chatIds = [];
       
@@ -2179,7 +2179,18 @@ class TelegramNotificationService {
         if (userIds && userIds.length > 0) {
           const users = await User.find({ login: { $in: userIds } });
           
-          const userChatIds = users
+          // Фільтруємо користувачів по регіону заявки
+          const filteredUsers = users.filter(user => {
+            // Якщо користувач має регіон "Україна", показуємо всі заявки
+            if (user.region === 'Україна') return true;
+            
+            // Інакше показуємо тільки заявки свого регіону
+            return task.serviceRegion === user.region;
+          });
+          
+          console.log(`[DEBUG] Telegram notification filtering - Task region: ${task.serviceRegion}, Users before filter: ${users.length}, After filter: ${filteredUsers.length}`);
+          
+          const userChatIds = filteredUsers
             .filter(user => user.telegramChatId && user.telegramChatId.trim())
             .map(user => user.telegramChatId);
           chatIds.push(...userChatIds);
