@@ -23,6 +23,8 @@ export default defineConfig({
           ui: ['react-i18next', 'i18next'],
           // API чанки
           api: ['axios'],
+          // Excel чанки
+          excel: ['exceljs', 'xlsx', 'xlsx-js-style'],
         },
       },
     },
