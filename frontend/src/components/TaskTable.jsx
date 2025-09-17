@@ -204,7 +204,17 @@ function TaskTableComponent({
                 settings.visible.length > 0 && 
                 settings.visible.every(k => columns.some(c => c.key === k))) {
               console.log('[DEBUG] ✅ Встановлюємо збережені налаштування:', settings.visible);
+              console.log('[DEBUG] ✅ Порядок колонок з сервера:', settings.order);
+              
+              // Встановлюємо видимі колонки
               setSelected(settings.visible);
+              
+              // Якщо є збережений порядок, використовуємо його
+              if (settings.order && settings.order.length > 0) {
+                console.log('[DEBUG] ✅ Встановлюємо збережений порядок колонок:', settings.order);
+                setSelected(settings.order);
+              }
+              
               setSettingsLoaded(true);
               setLoadingSettings(false);
               
@@ -513,7 +523,8 @@ function TaskTableComponent({
     if (user?.login && areaRef.current) {
       try {
         console.log('[DEBUG] Зберігаємо новий порядок колонок:', newOrder);
-        const success = await columnsSettingsAPI.saveSettings(userLoginRef.current, areaRef.current, newOrder, newOrder);
+        // Зберігаємо order як новий порядок, а visible залишаємо як є
+        const success = await columnsSettingsAPI.saveSettings(userLoginRef.current, areaRef.current, selected, newOrder);
         if (!success) {
           console.error('Помилка збереження порядку колонок');
         } else {
