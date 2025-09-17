@@ -1674,9 +1674,8 @@ function TaskTableComponent({
                           onEdit && onEdit({...t, _readOnly: true});
                         }} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
                       )}
-                      {/* Кнопки підтвердження для відповідних ролей */}
-                      {(role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && (
-                        console.log('[DEBUG] Warehouse buttons - role:', role, 'approveField:', approveField, 'onApprove:', !!onApprove, 'task approveField value:', t[approveField]),
+                      {/* Кнопки підтвердження для відповідних ролей - в архіві тільки для адміністратора */}
+                      {((role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager') && (!isArchive || role === 'admin')) && (
                         <>
                           {/* Кнопки підтвердження в другому рядку */}
                           <div style={{marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center'}}>
