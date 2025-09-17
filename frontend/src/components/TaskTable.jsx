@@ -209,10 +209,14 @@ function TaskTableComponent({
               // Встановлюємо видимі колонки
               setSelected(settings.visible);
               
-              // Якщо є збережений порядок, використовуємо його
-              if (settings.order && settings.order.length > 0) {
+              // Якщо є збережений порядок і він валідний, використовуємо його
+              if (settings.order && 
+                  settings.order.length > 0 && 
+                  settings.order.every(k => columns.some(c => c.key === k))) {
                 console.log('[DEBUG] ✅ Встановлюємо збережений порядок колонок:', settings.order);
                 setSelected(settings.order);
+              } else {
+                console.log('[DEBUG] ⚠️ Порядок колонок невалідний, використовуємо visible:', settings.visible);
               }
               
               setSettingsLoaded(true);
@@ -530,6 +534,8 @@ function TaskTableComponent({
           console.error('Помилка збереження порядку колонок');
         } else {
           console.log('[DEBUG] Порядок колонок успішно збережено');
+          // Оновлюємо кеш з новим порядком
+          cacheSettings({ visible: newOrder, order: newOrder });
         }
       } catch (error) {
         console.error('Помилка збереження порядку колонок:', error);
