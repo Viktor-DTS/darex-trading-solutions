@@ -323,6 +323,27 @@ function TaskTableComponent({
     return '';
   }
 
+  // Функція для визначення CSS класу рядка
+  function getRowClass(t) {
+    // Перевіряємо, чи хтось відхилив заявку
+    if (t.approvedByAccountant === 'Відмова' || t.approvedByWarehouse === 'Відмова' || t.approvedByRegionalManager === 'Відмова') {
+      return 'rejected';
+    }
+    
+    const acc = t.approvedByAccountant === true || t.approvedByAccountant === 'Підтверджено';
+    const wh = t.approvedByWarehouse === true || t.approvedByWarehouse === 'Підтверджено';
+    const reg = t.approvedByRegionalManager === true || t.approvedByRegionalManager === 'Підтверджено';
+    
+    if (acc && wh && reg) return 'all-approved';
+    if (acc && wh) return 'accountant-warehouse';
+    if (acc && reg) return 'accountant-regional';
+    if (wh && reg) return 'warehouse-regional';
+    if (acc) return 'accountant-approved';
+    if (wh) return 'warehouse-approved';
+    if (reg) return 'regional-approved';
+    return '';
+  }
+
   // Вибір історії по замовнику
   const getClientHistory = (client) => (allTasks.length ? allTasks : tasks).filter(t => t.client === client);
 
@@ -1119,14 +1140,50 @@ function TaskTableComponent({
               white-space: nowrap;
             }
             .sticky-table tbody tr {
-              background: #fff !important;
+              background: #fff;
               color: #333;
             }
             .sticky-table tbody tr:nth-child(even) {
-              background: #f8f9fa !important;
+              background: #f8f9fa;
             }
             .sticky-table tbody tr:hover {
-              background: #e3f2fd !important;
+              background: #e3f2fd;
+            }
+            /* Спеціальні кольори для завдань з різними статусами */
+            .sticky-table tbody tr.rejected {
+              background: #ff9999 !important;
+              color: #111 !important;
+            }
+            .sticky-table tbody tr.rejected:hover {
+              background: #ff7777 !important;
+            }
+            .sticky-table tbody tr.accountant-approved {
+              background: #ffb6e6 !important;
+              color: #111 !important;
+            }
+            .sticky-table tbody tr.warehouse-approved {
+              background: #ffe066 !important;
+              color: #111 !important;
+            }
+            .sticky-table tbody tr.regional-approved {
+              background: #66d9ff !important;
+              color: #111 !important;
+            }
+            .sticky-table tbody tr.accountant-warehouse {
+              background: linear-gradient(90deg, #ffb6e6 50%, #ffe066 50%) !important;
+              color: #111 !important;
+            }
+            .sticky-table tbody tr.accountant-regional {
+              background: linear-gradient(90deg, #ffb6e6 50%, #66d9ff 50%) !important;
+              color: #111 !important;
+            }
+            .sticky-table tbody tr.warehouse-regional {
+              background: linear-gradient(90deg, #ffe066 50%, #66d9ff 50%) !important;
+              color: #111 !important;
+            }
+            .sticky-table tbody tr.all-approved {
+              background: linear-gradient(90deg, #ffb6e6 33%, #ffe066 33%, #66d9ff 66%) !important;
+              color: #111 !important;
             }
             .table-scroll::-webkit-scrollbar {
               height: 12px;
@@ -1202,7 +1259,7 @@ function TaskTableComponent({
               </thead>
               <tbody>
                 {sortData(tasks, sortConfig.field, sortConfig.direction).map(t => (
-                  <tr key={t.id} style={getRowColor(t) ? {background:getRowColor(t)} : {}}>
+                  <tr key={t.id} className={getRowClass(t)} style={getRowColor(t) ? {background:getRowColor(t)} : {}}>
                     <td style={getRowColor(t) ? {color:'#111'} : {}}>
                       <button onClick={()=>{
                         if (onHistoryClick && role === 'materials') {
