@@ -517,14 +517,15 @@ function TaskTableComponent({
     const newOrder = [...selected];
     const [removed] = newOrder.splice(fromIdx, 1);
     newOrder.splice(idx, 0, removed);
+    console.log('[DEBUG] Перетягування колонки:', { fromIdx, toIdx: idx, oldOrder: selected, newOrder });
     setSelected(newOrder);
     
     // Зберігаємо новий порядок через API
     if (user?.login && areaRef.current) {
       try {
         console.log('[DEBUG] Зберігаємо новий порядок колонок:', newOrder);
-        // Зберігаємо order як новий порядок, а visible залишаємо як є
-        const success = await columnsSettingsAPI.saveSettings(userLoginRef.current, areaRef.current, selected, newOrder);
+        // Зберігаємо новий порядок як і visible, і як order
+        const success = await columnsSettingsAPI.saveSettings(userLoginRef.current, areaRef.current, newOrder, newOrder);
         if (!success) {
           console.error('Помилка збереження порядку колонок');
         } else {
