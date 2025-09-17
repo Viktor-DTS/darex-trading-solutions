@@ -564,7 +564,12 @@ function TaskTableComponent({
     // Зберігаємо з debounce
     clearTimeout(window.columnResizeTimeout);
     window.columnResizeTimeout = setTimeout(() => {
-      saveColumnWidths({ ...columnWidths, [columnKey]: clampedWidth });
+      // Отримуємо актуальний стан columnWidths
+      setColumnWidths(currentWidths => {
+        const newWidths = { ...currentWidths, [columnKey]: clampedWidth };
+        saveColumnWidths(newWidths);
+        return currentWidths; // Не змінюємо стан тут, він вже оновлений вище
+      });
     }, 500);
   };
 
@@ -578,6 +583,8 @@ function TaskTableComponent({
           console.error('Помилка збереження ширини колонок');
         } else {
           console.log('[DEBUG] Ширина колонок успішно збережена');
+          // Оновлюємо кеш з новою шириною
+          cacheSettings({ visible: selected, order: selected, widths: widths });
         }
       } catch (error) {
         console.error('Помилка збереження ширини колонок:', error);
@@ -1321,6 +1328,27 @@ function TaskTableComponent({
             .th-resizable {
               position: relative;
             }
+            
+            .th-auto-height {
+              height: auto !important;
+              min-height: 40px;
+              max-height: 120px;
+              overflow: hidden;
+              word-wrap: break-word;
+              white-space: normal;
+              line-height: 1.2;
+            }
+            
+            .td-auto-height {
+              height: auto !important;
+              min-height: 40px;
+              max-height: 120px; /* Максимум в 3 рази більше стандартної висоти (40px) */
+              overflow: hidden;
+              word-wrap: break-word;
+              white-space: normal;
+              line-height: 1.2;
+              padding: 8px 4px;
+            }
           `}</style>
           <div className="table-scroll">
             <table className="sticky-table">
@@ -1331,7 +1359,7 @@ function TaskTableComponent({
                   {visibleColumns.map((col, idx) => (
                     <th
                       key={col.key}
-                      className="th-resizable"
+                      className="th-resizable th-auto-height"
                       draggable
                       onDragStart={e => handleDragStart(e, idx)}
                       onDrop={e => handleDrop(e, idx)}
@@ -1573,7 +1601,7 @@ function TaskTableComponent({
                         ) : <span style={{color:'#aaa'}}>—</span>}
                       </td>
                     )}
-                    {visibleColumns.map(col => <td key={col.key} style={{
+                    {visibleColumns.map(col => <td key={col.key} className="td-auto-height" style={{
                       ...(getRowColor(t) ? {color:'#111'} : {}),
                       width: columnWidths[col.key] || 120,
                       minWidth: columnWidths[col.key] || 120,
