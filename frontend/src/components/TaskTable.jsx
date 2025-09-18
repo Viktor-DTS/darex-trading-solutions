@@ -449,14 +449,22 @@ function TaskTableComponent({
       'serviceRegion': (() => {
         if (regions.length === 0) return [];
         
+        console.log('DEBUG getFilterType: user.region =', user?.region);
+        console.log('DEBUG getFilterType: regions =', regions.map(r => r.name));
+        
         // Якщо користувач має множинні регіони, показуємо тільки "Загальний" + їх регіони
         if (user?.region && user.region.includes(',')) {
           const userRegions = user.region.split(',').map(r => r.trim());
-          return ['', 'Загальний', ...userRegions];
+          console.log('DEBUG getFilterType: userRegions =', userRegions);
+          const result = ['', 'Загальний', ...userRegions];
+          console.log('DEBUG getFilterType: result for multi-region user =', result);
+          return result;
         }
         
         // Якщо користувач має доступ до всіх регіонів або один регіон
-        return ['', ...regions.map(r => r.name)];
+        const result = ['', ...regions.map(r => r.name)];
+        console.log('DEBUG getFilterType: result for single-region user =', result);
+        return result;
       })()
     };
     

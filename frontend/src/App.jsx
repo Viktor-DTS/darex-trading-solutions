@@ -1004,12 +1004,24 @@ function ServiceArea({ user }) {
       // Якщо користувач має множинні регіони (через кому)
       if (user.region.includes(',')) {
         const userRegions = user.region.split(',').map(r => r.trim());
+        console.log('DEBUG filter: filters.serviceRegion =', filters.serviceRegion);
+        console.log('DEBUG filter: t.serviceRegion =', t.serviceRegion);
+        console.log('DEBUG filter: userRegions =', userRegions);
+        
         // Якщо вибрано "Загальний" або нічого не вибрано, показуємо всі регіони користувача
         if (filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
-          if (!userRegions.includes(t.serviceRegion)) return false;
+          console.log('DEBUG filter: Showing all user regions');
+          if (!userRegions.includes(t.serviceRegion)) {
+            console.log('DEBUG filter: Filtering out task - region not in user regions');
+            return false;
+          }
         } else {
           // Якщо вибрано конкретний регіон
-          if (t.serviceRegion !== filters.serviceRegion) return false;
+          console.log('DEBUG filter: Showing specific region');
+          if (t.serviceRegion !== filters.serviceRegion) {
+            console.log('DEBUG filter: Filtering out task - region does not match');
+            return false;
+          }
         }
       } else {
         // Якщо користувач має один регіон
@@ -2509,12 +2521,24 @@ function RegionalManagerArea({ tab: propTab, user }) {
       // Якщо користувач має множинні регіони (через кому)
       if (user.region.includes(',')) {
         const userRegions = user.region.split(',').map(r => r.trim());
+        console.log('DEBUG filter: filters.serviceRegion =', filters.serviceRegion);
+        console.log('DEBUG filter: t.serviceRegion =', t.serviceRegion);
+        console.log('DEBUG filter: userRegions =', userRegions);
+        
         // Якщо вибрано "Загальний" або нічого не вибрано, показуємо всі регіони користувача
         if (filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
-          if (!userRegions.includes(t.serviceRegion)) return false;
+          console.log('DEBUG filter: Showing all user regions');
+          if (!userRegions.includes(t.serviceRegion)) {
+            console.log('DEBUG filter: Filtering out task - region not in user regions');
+            return false;
+          }
         } else {
           // Якщо вибрано конкретний регіон
-          if (t.serviceRegion !== filters.serviceRegion) return false;
+          console.log('DEBUG filter: Showing specific region');
+          if (t.serviceRegion !== filters.serviceRegion) {
+            console.log('DEBUG filter: Filtering out task - region does not match');
+            return false;
+          }
         }
       } else {
         // Якщо користувач має один регіон
