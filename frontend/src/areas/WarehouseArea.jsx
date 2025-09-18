@@ -233,8 +233,13 @@ export default function WarehouseArea({ user }) {
             console.log('DEBUG WarehouseArea filtered: Task region', t.serviceRegion, 'is in user regions?', userRegions.includes(t.serviceRegion));
             console.log('DEBUG WarehouseArea filtered: userRegions =', userRegions);
             console.log('DEBUG WarehouseArea filtered: t.serviceRegion =', t.serviceRegion);
+            console.log('DEBUG WarehouseArea filtered: t.serviceRegion type =', typeof t.serviceRegion);
+            console.log('DEBUG WarehouseArea filtered: t.serviceRegion length =', t.serviceRegion?.length);
+            console.log('DEBUG WarehouseArea filtered: t.serviceRegion JSON =', JSON.stringify(t.serviceRegion));
             console.log('DEBUG WarehouseArea filtered: userRegions.includes(t.serviceRegion) =', userRegions.includes(t.serviceRegion));
-            if (!userRegions.includes(t.serviceRegion)) {
+            console.log('DEBUG WarehouseArea filtered: userRegions.map(r => r.trim()) =', userRegions.map(r => r.trim()));
+            console.log('DEBUG WarehouseArea filtered: userRegions.map(r => r.trim()).includes(t.serviceRegion?.trim()) =', userRegions.map(r => r.trim()).includes(t.serviceRegion?.trim()));
+            if (!userRegions.map(r => r.trim()).includes(t.serviceRegion?.trim())) {
               console.log('DEBUG WarehouseArea filtered: Filtering out task - region not in user regions');
               return false;
             }
