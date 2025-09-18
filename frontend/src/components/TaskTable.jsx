@@ -452,6 +452,8 @@ function TaskTableComponent({
         if (regions.length === 0) return [];
         
         console.log('DEBUG getFilterType: user.region =', user?.region);
+        console.log('DEBUG getFilterType: user.region type =', typeof user?.region);
+        console.log('DEBUG getFilterType: user.region includes comma =', user?.region?.includes(','));
         console.log('DEBUG getFilterType: regions =', regions.map(r => r.name));
         
         // Якщо користувач має множинні регіони, показуємо тільки "Загальний" + їх регіони
