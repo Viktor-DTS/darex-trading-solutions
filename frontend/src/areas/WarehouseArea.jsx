@@ -220,12 +220,20 @@ export default function WarehouseArea({ user }) {
       console.log('DEBUG WarehouseArea filtered: filters =', filters);
       console.log('DEBUG WarehouseArea filtered: filters.serviceRegion =', filters.serviceRegion);
       
+      // Додаткове логування для завдань з регіонами користувача
+      if (t.serviceRegion === 'Львівський' || t.serviceRegion === 'Хмельницький') {
+        console.log('DEBUG WarehouseArea filtered: FOUND USER REGION TASK!', t.id, 'serviceRegion =', t.serviceRegion);
+      }
+      
       // Перевірка доступу до регіону заявки
       if (user?.region && user.region !== 'Україна') {
         // Якщо користувач має множинні регіони (через кому)
         if (user.region.includes(',')) {
           const userRegions = user.region.split(',').map(r => r.trim());
           console.log('DEBUG WarehouseArea filtered: Multi-region user, userRegions =', userRegions);
+          console.log('DEBUG WarehouseArea filtered: user.region =', user.region);
+          console.log('DEBUG WarehouseArea filtered: user.region.split(",") =', user.region.split(','));
+          console.log('DEBUG WarehouseArea filtered: user.region.split(",").map(r => r.trim()) =', user.region.split(',').map(r => r.trim()));
           
           // Якщо вибрано "Загальний" або нічого не вибрано, показуємо всі регіони користувача
           if (filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
