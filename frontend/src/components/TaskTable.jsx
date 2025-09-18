@@ -65,6 +65,8 @@ function TaskTableComponent({
   console.log('[LOG] TaskTable received columns:', columns);
   console.log('[LOG] TaskTable role:', role);
   console.log('[LOG] TaskTable user:', user);
+  console.log('[LOG] TaskTable user?.region:', user?.region);
+  console.log('[LOG] TaskTable filters:', filters);
   console.log('[LOG] TaskTable onDelete:', onDelete);
   console.log('[LOG] TaskTable user?.role:', user?.role);
   
