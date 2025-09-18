@@ -101,6 +101,18 @@ export default function WarehouseArea({ user }) {
       return updatedFilters;
     });
   }, [allTaskFields]); // Залежність від allTaskFields
+  
+  // Автоматично встановлюємо "Загальний" для користувачів з множинними регіонами
+  useEffect(() => {
+    console.log('DEBUG WarehouseArea useEffect: user?.region =', user?.region);
+    console.log('DEBUG WarehouseArea useEffect: filters.serviceRegion =', filters.serviceRegion);
+    console.log('DEBUG WarehouseArea useEffect: user.region.includes(",") =', user?.region?.includes(','));
+    if (user?.region && user.region.includes(',') && filters.serviceRegion === '') {
+      console.log('DEBUG WarehouseArea: Auto-setting serviceRegion to "Загальний" for multi-region user');
+      setFilters(prev => ({ ...prev, serviceRegion: 'Загальний' }));
+    }
+  }, [user?.region, filters.serviceRegion]);
+  
   useEffect(() => {
     setLoading(true);
     tasksAPI.getAll().then(tasks => {
@@ -150,7 +162,11 @@ export default function WarehouseArea({ user }) {
     setLoading(false);
   };
   const handleFilter = e => {
+    console.log('DEBUG WarehouseArea: handleFilter CALLED - e.target.name =', e.target.name);
+    console.log('DEBUG WarehouseArea: handleFilter CALLED - e.target.value =', e.target.value);
+    console.log('DEBUG WarehouseArea: handleFilter CALLED - current filters =', filters);
     const newFilters = { ...filters, [e.target.name]: e.target.value };
+    console.log('DEBUG WarehouseArea: handleFilter - newFilters =', newFilters);
     setFilters(newFilters);
   };
   const handleEdit = t => {
@@ -185,6 +201,48 @@ export default function WarehouseArea({ user }) {
     setLoading(false);
   };
   const filtered = tasks.filter(t => {
+    console.log('DEBUG WarehouseArea filtered: Processing task', t.id, 'serviceRegion =', t.serviceRegion);
+    console.log('DEBUG WarehouseArea filtered: filters =', filters);
+    console.log('DEBUG WarehouseArea filtered: filters.serviceRegion =', filters.serviceRegion);
+    
+    // Перевірка доступу до регіону заявки
+    if (user?.region && user.region !== 'Україна') {
+      // Якщо користувач має множинні регіони (через кому)
+      if (user.region.includes(',')) {
+        const userRegions = user.region.split(',').map(r => r.trim());
+        console.log('DEBUG WarehouseArea filtered: Multi-region user, userRegions =', userRegions);
+        
+        // Якщо вибрано "Загальний" або нічого не вибрано, показуємо всі регіони користувача
+        if (filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
+          console.log('DEBUG WarehouseArea filtered: Showing all user regions');
+          console.log('DEBUG WarehouseArea filtered: Task region', t.serviceRegion, 'is in user regions?', userRegions.includes(t.serviceRegion));
+          if (!userRegions.includes(t.serviceRegion)) {
+            console.log('DEBUG WarehouseArea filtered: Filtering out task - region not in user regions');
+            return false;
+          }
+          console.log('DEBUG WarehouseArea filtered: Task passed region filter');
+        } else {
+          // Якщо вибрано конкретний регіон
+          console.log('DEBUG WarehouseArea filtered: Showing specific region');
+          console.log('DEBUG WarehouseArea filtered: Task region', t.serviceRegion, 'matches filter?', t.serviceRegion === filters.serviceRegion);
+          if (t.serviceRegion !== filters.serviceRegion) {
+            console.log('DEBUG WarehouseArea filtered: Filtering out task - region does not match');
+            return false;
+          }
+          console.log('DEBUG WarehouseArea filtered: Task passed region filter');
+        }
+      } else {
+        // Якщо користувач має один регіон
+        console.log('DEBUG WarehouseArea filtered: Single region user, region =', user.region);
+        if (t.serviceRegion !== user.region) {
+          console.log('DEBUG WarehouseArea filtered: Filtering out task - region does not match user region');
+          return false;
+        }
+        console.log('DEBUG WarehouseArea filtered: Task passed region filter');
+      }
+    }
+    
+    // Інші фільтри
     for (const key in filters) {
       const value = filters[key];
       if (!value) continue;
@@ -214,6 +272,7 @@ export default function WarehouseArea({ user }) {
         if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
       }
     }
+    console.log('DEBUG WarehouseArea filtered: Task passed all filters');
     return true;
   });
   const pending = filtered.filter(
