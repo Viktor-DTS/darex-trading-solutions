@@ -2074,6 +2074,24 @@ app.post('/api/expense-categories/cleanup', async (req, res) => {
   }
 });
 
+// API для отримання активних користувачів
+app.get('/api/users/active', async (req, res) => {
+  try {
+    const now = new Date();
+    const thirtySecondsAgo = new Date(now.getTime() - 30 * 1000);
+    
+    const activeUsers = await User.find(
+      { lastActivity: { $gte: thirtySecondsAgo } },
+      'login name'
+    );
+    
+    res.json(activeUsers.map(user => user.login));
+  } catch (error) {
+    console.error('[ERROR] GET /api/users/active - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[STARTUP] Сервер запущено на порту ${PORT}`);
   console.log(`[STARTUP] MongoDB readyState: ${mongoose.connection.readyState}`);
@@ -2375,24 +2393,6 @@ app.post('/api/users/activity', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('[ERROR] POST /api/users/activity - помилка:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// API для отримання активних користувачів
-app.get('/api/users/active', async (req, res) => {
-  try {
-    const now = new Date();
-    const thirtySecondsAgo = new Date(now.getTime() - 30 * 1000);
-    
-    const activeUsers = await User.find(
-      { lastActivity: { $gte: thirtySecondsAgo } },
-      'login name'
-    );
-    
-    res.json(activeUsers.map(user => user.login));
-  } catch (error) {
-    console.error('[ERROR] GET /api/users/active - помилка:', error);
     res.status(500).json({ error: error.message });
   }
 });

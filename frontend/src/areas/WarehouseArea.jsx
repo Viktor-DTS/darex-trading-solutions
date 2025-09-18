@@ -246,8 +246,11 @@ export default function WarehouseArea({ user }) {
             const isInUserRegions = userRegionsTrimmed.includes(taskRegion);
             
             console.log('🔍 GENERAL FILTER: taskRegion =', taskRegion, '| userRegions =', userRegionsTrimmed, '| isInUserRegions =', isInUserRegions);
+            console.log('🔍 GENERAL FILTER: userRegionsTrimmed[0] =', userRegionsTrimmed[0]);
+            console.log('🔍 GENERAL FILTER: userRegionsTrimmed[1] =', userRegionsTrimmed[1]);
             
             if (!isInUserRegions) {
+              console.log('🔍 GENERAL FILTER: Filtering out task - region not in user regions');
               return false;
             }
           } else {
