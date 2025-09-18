@@ -69,6 +69,7 @@ function TaskTableComponent({
   console.log('[LOG] TaskTable filters:', filters);
   console.log('[LOG] TaskTable onDelete:', onDelete);
   console.log('[LOG] TaskTable user?.role:', user?.role);
+  console.log('[LOG] TaskTable onFilterChange:', onFilterChange);
   
   // Всі хуки повинні бути на початку компонента
   const [showSettings, setShowSettings] = useState(false);
