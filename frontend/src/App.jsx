@@ -1077,6 +1077,11 @@ function ServiceArea({ user }) {
   console.log('DEBUG App filtered: result =', result);
   return result;
   }, [tasks, user?.region, filters]);
+  
+  console.log('DEBUG App: useMemo dependencies - tasks.length =', tasks.length);
+  console.log('DEBUG App: useMemo dependencies - user?.region =', user?.region);
+  console.log('DEBUG App: useMemo dependencies - filters =', filters);
+  console.log('DEBUG App: useMemo dependencies - filters.serviceRegion =', filters.serviceRegion);
   const notDone = useMemo(() => filtered.filter(t => t.status === 'Заявка' || t.status === 'В роботі'), [filtered]);
   const pending = useMemo(() => filtered.filter(t => t.status === 'Виконано' && (
     isPending(t.approvedByWarehouse) ||
