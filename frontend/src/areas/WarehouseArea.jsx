@@ -239,7 +239,17 @@ export default function WarehouseArea({ user }) {
             console.log('DEBUG WarehouseArea filtered: userRegions.includes(t.serviceRegion) =', userRegions.includes(t.serviceRegion));
             console.log('DEBUG WarehouseArea filtered: userRegions.map(r => r.trim()) =', userRegions.map(r => r.trim()));
             console.log('DEBUG WarehouseArea filtered: userRegions.map(r => r.trim()).includes(t.serviceRegion?.trim()) =', userRegions.map(r => r.trim()).includes(t.serviceRegion?.trim()));
-            if (!userRegions.map(r => r.trim()).includes(t.serviceRegion?.trim())) {
+            
+            // Перевіряємо, чи регіон завдання є в списку регіонів користувача
+            const taskRegion = t.serviceRegion?.trim();
+            const userRegionsTrimmed = userRegions.map(r => r.trim());
+            const isInUserRegions = userRegionsTrimmed.includes(taskRegion);
+            
+            console.log('DEBUG WarehouseArea filtered: taskRegion =', taskRegion);
+            console.log('DEBUG WarehouseArea filtered: userRegionsTrimmed =', userRegionsTrimmed);
+            console.log('DEBUG WarehouseArea filtered: isInUserRegions =', isInUserRegions);
+            
+            if (!isInUserRegions) {
               console.log('DEBUG WarehouseArea filtered: Filtering out task - region not in user regions');
               return false;
             }
