@@ -242,6 +242,7 @@ export default function WarehouseArea({ user }) {
             }
           } else {
             // Якщо вибрано конкретний регіон
+            console.log('🎯 SPECIFIC FILTER: taskRegion =', t.serviceRegion, '| filter =', filters.serviceRegion, '| match =', t.serviceRegion === filters.serviceRegion);
             if (t.serviceRegion !== filters.serviceRegion) {
               return false;
             }
