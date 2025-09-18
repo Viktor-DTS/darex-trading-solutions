@@ -247,6 +247,9 @@ export default function WarehouseArea({ user }) {
             
             console.log('DEBUG WarehouseArea filtered: taskRegion =', taskRegion);
             console.log('DEBUG WarehouseArea filtered: userRegionsTrimmed =', userRegionsTrimmed);
+            console.log('DEBUG WarehouseArea filtered: userRegionsTrimmed[0] =', userRegionsTrimmed[0]);
+            console.log('DEBUG WarehouseArea filtered: userRegionsTrimmed[1] =', userRegionsTrimmed[1]);
+            console.log('DEBUG WarehouseArea filtered: userRegionsTrimmed.length =', userRegionsTrimmed.length);
             console.log('DEBUG WarehouseArea filtered: isInUserRegions =', isInUserRegions);
             
             if (!isInUserRegions) {
