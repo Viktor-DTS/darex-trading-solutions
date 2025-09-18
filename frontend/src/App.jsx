@@ -896,6 +896,9 @@ function ServiceArea({ user }) {
   
   // Автоматично встановлюємо "Загальний" для користувачів з множинними регіонами
   useEffect(() => {
+    console.log('DEBUG App useEffect: user?.region =', user?.region);
+    console.log('DEBUG App useEffect: filters.serviceRegion =', filters.serviceRegion);
+    console.log('DEBUG App useEffect: user.region.includes(",") =', user?.region?.includes(','));
     if (user?.region && user.region.includes(',') && filters.serviceRegion === '') {
       console.log('DEBUG App: Auto-setting serviceRegion to "Загальний" for multi-region user');
       setFilters(prev => ({ ...prev, serviceRegion: 'Загальний' }));
@@ -1025,6 +1028,9 @@ function ServiceArea({ user }) {
     console.log('DEBUG App filtered: filters =', filters);
     console.log('DEBUG App filtered: filters.serviceRegion =', filters.serviceRegion);
     console.log('DEBUG App filtered: useMemo dependencies = [tasks, user?.region, filters]');
+    console.log('DEBUG App filtered: tasks type =', typeof tasks);
+    console.log('DEBUG App filtered: user type =', typeof user);
+    console.log('DEBUG App filtered: filters type =', typeof filters);
     
     const result = tasks.filter(t => {
     // Перевірка доступу до регіону заявки
