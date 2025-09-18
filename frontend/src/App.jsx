@@ -2565,6 +2565,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                 approveField="approvedByRegionalManager"
                 commentField="regionalManagerComment"
                 user={user}
+                isArchive={taskTab === 'archive'}
               />
         </>
       )}
