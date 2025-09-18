@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
 import { tasksAPI } from '../utils/tasksAPI';
@@ -204,81 +204,89 @@ export default function WarehouseArea({ user }) {
     setEditTask(null);
     setLoading(false);
   };
-  const filtered = tasks.filter(t => {
-    console.log('DEBUG WarehouseArea filtered: Processing task', t.id, 'serviceRegion =', t.serviceRegion);
+  const filtered = useMemo(() => {
+    console.log('DEBUG WarehouseArea filtered: useMemo dependencies changed, recalculating...');
+    console.log('DEBUG WarehouseArea filtered: tasks.length =', tasks?.length);
     console.log('DEBUG WarehouseArea filtered: filters =', filters);
-    console.log('DEBUG WarehouseArea filtered: filters.serviceRegion =', filters.serviceRegion);
+    console.log('DEBUG WarehouseArea filtered: user =', user);
+    console.log('DEBUG WarehouseArea filtered: useMemo dependencies = [tasks, filters, user]');
     
-    // Перевірка доступу до регіону заявки
-    if (user?.region && user.region !== 'Україна') {
-      // Якщо користувач має множинні регіони (через кому)
-      if (user.region.includes(',')) {
-        const userRegions = user.region.split(',').map(r => r.trim());
-        console.log('DEBUG WarehouseArea filtered: Multi-region user, userRegions =', userRegions);
-        
-        // Якщо вибрано "Загальний" або нічого не вибрано, показуємо всі регіони користувача
-        if (filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
-          console.log('DEBUG WarehouseArea filtered: Showing all user regions');
-          console.log('DEBUG WarehouseArea filtered: Task region', t.serviceRegion, 'is in user regions?', userRegions.includes(t.serviceRegion));
-          if (!userRegions.includes(t.serviceRegion)) {
-            console.log('DEBUG WarehouseArea filtered: Filtering out task - region not in user regions');
-            return false;
+    return tasks.filter(t => {
+      console.log('DEBUG WarehouseArea filtered: Processing task', t.id, 'serviceRegion =', t.serviceRegion);
+      console.log('DEBUG WarehouseArea filtered: filters =', filters);
+      console.log('DEBUG WarehouseArea filtered: filters.serviceRegion =', filters.serviceRegion);
+      
+      // Перевірка доступу до регіону заявки
+      if (user?.region && user.region !== 'Україна') {
+        // Якщо користувач має множинні регіони (через кому)
+        if (user.region.includes(',')) {
+          const userRegions = user.region.split(',').map(r => r.trim());
+          console.log('DEBUG WarehouseArea filtered: Multi-region user, userRegions =', userRegions);
+          
+          // Якщо вибрано "Загальний" або нічого не вибрано, показуємо всі регіони користувача
+          if (filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
+            console.log('DEBUG WarehouseArea filtered: Showing all user regions');
+            console.log('DEBUG WarehouseArea filtered: Task region', t.serviceRegion, 'is in user regions?', userRegions.includes(t.serviceRegion));
+            if (!userRegions.includes(t.serviceRegion)) {
+              console.log('DEBUG WarehouseArea filtered: Filtering out task - region not in user regions');
+              return false;
+            }
+            console.log('DEBUG WarehouseArea filtered: Task passed region filter');
+          } else {
+            // Якщо вибрано конкретний регіон
+            console.log('DEBUG WarehouseArea filtered: Showing specific region');
+            console.log('DEBUG WarehouseArea filtered: Task region', t.serviceRegion, 'matches filter?', t.serviceRegion === filters.serviceRegion);
+            if (t.serviceRegion !== filters.serviceRegion) {
+              console.log('DEBUG WarehouseArea filtered: Filtering out task - region does not match');
+              return false;
+            }
+            console.log('DEBUG WarehouseArea filtered: Task passed region filter');
           }
-          console.log('DEBUG WarehouseArea filtered: Task passed region filter');
         } else {
-          // Якщо вибрано конкретний регіон
-          console.log('DEBUG WarehouseArea filtered: Showing specific region');
-          console.log('DEBUG WarehouseArea filtered: Task region', t.serviceRegion, 'matches filter?', t.serviceRegion === filters.serviceRegion);
-          if (t.serviceRegion !== filters.serviceRegion) {
-            console.log('DEBUG WarehouseArea filtered: Filtering out task - region does not match');
+          // Якщо користувач має один регіон
+          console.log('DEBUG WarehouseArea filtered: Single region user, region =', user.region);
+          if (t.serviceRegion !== user.region) {
+            console.log('DEBUG WarehouseArea filtered: Filtering out task - region does not match user region');
             return false;
           }
           console.log('DEBUG WarehouseArea filtered: Task passed region filter');
         }
-      } else {
-        // Якщо користувач має один регіон
-        console.log('DEBUG WarehouseArea filtered: Single region user, region =', user.region);
-        if (t.serviceRegion !== user.region) {
-          console.log('DEBUG WarehouseArea filtered: Filtering out task - region does not match user region');
-          return false;
+      }
+      
+      // Інші фільтри
+      for (const key in filters) {
+        const value = filters[key];
+        if (!value) continue;
+        if (key.endsWith('From')) {
+          const field = key.replace('From', '');
+          if (!t[field] || t[field] < value) return false;
+        } else if (key.endsWith('To')) {
+          const field = key.replace('To', '');
+          if (!t[field] || t[field] > value) return false;
+        } else if ([
+          'approvedByRegionalManager', 'approvedByWarehouse', 'approvedByAccountant', 'paymentType', 'status'
+        ].includes(key)) {
+          if (t[key]?.toString() !== value.toString()) return false;
+        } else if ([
+          'airFilterCount', 'airFilterPrice', 'serviceBonus'
+        ].includes(key)) {
+          if (Number(t[key]) !== Number(value)) return false;
+        } else if ([
+          'bonusApprovalDate'
+        ].includes(key)) {
+          if (t[key] !== value) return false;
+        } else if ([
+          'regionalManagerComment', 'airFilterName'
+        ].includes(key)) {
+          if (!t[key] || !t[key].toString().toLowerCase().includes(value.toLowerCase())) return false;
+        } else if (typeof t[key] === 'string' || typeof t[key] === 'number') {
+          if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
         }
-        console.log('DEBUG WarehouseArea filtered: Task passed region filter');
       }
-    }
-    
-    // Інші фільтри
-    for (const key in filters) {
-      const value = filters[key];
-      if (!value) continue;
-      if (key.endsWith('From')) {
-        const field = key.replace('From', '');
-        if (!t[field] || t[field] < value) return false;
-      } else if (key.endsWith('To')) {
-        const field = key.replace('To', '');
-        if (!t[field] || t[field] > value) return false;
-      } else if ([
-        'approvedByRegionalManager', 'approvedByWarehouse', 'approvedByAccountant', 'paymentType', 'status'
-      ].includes(key)) {
-        if (t[key]?.toString() !== value.toString()) return false;
-      } else if ([
-        'airFilterCount', 'airFilterPrice', 'serviceBonus'
-      ].includes(key)) {
-        if (Number(t[key]) !== Number(value)) return false;
-      } else if ([
-        'bonusApprovalDate'
-      ].includes(key)) {
-        if (t[key] !== value) return false;
-      } else if ([
-        'regionalManagerComment', 'airFilterName'
-      ].includes(key)) {
-        if (!t[key] || !t[key].toString().toLowerCase().includes(value.toLowerCase())) return false;
-      } else if (typeof t[key] === 'string' || typeof t[key] === 'number') {
-        if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
-      }
-    }
-    console.log('DEBUG WarehouseArea filtered: Task passed all filters');
-    return true;
-  });
+      console.log('DEBUG WarehouseArea filtered: Task passed all filters');
+      return true;
+    });
+  }, [tasks, filters, user]);
   
   console.log('DEBUG WarehouseArea filtered: result =', filtered);
   console.log('DEBUG WarehouseArea filtered: result.length =', filtered.length);
