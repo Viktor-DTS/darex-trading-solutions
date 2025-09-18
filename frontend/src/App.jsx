@@ -1004,7 +1004,16 @@ function ServiceArea({ user }) {
       // Якщо користувач має множинні регіони (через кому)
       if (user.region.includes(',')) {
         const userRegions = user.region.split(',').map(r => r.trim());
-        if (!userRegions.includes(t.serviceRegion)) return false;
+        // Якщо вибрано "Загальний", показуємо всі регіони користувача
+        if (filters.serviceRegion === 'Загальний') {
+          if (!userRegions.includes(t.serviceRegion)) return false;
+        } else if (filters.serviceRegion && filters.serviceRegion !== '') {
+          // Якщо вибрано конкретний регіон
+          if (t.serviceRegion !== filters.serviceRegion) return false;
+        } else {
+          // Якщо нічого не вибрано, показуємо всі регіони користувача
+          if (!userRegions.includes(t.serviceRegion)) return false;
+        }
       } else {
         // Якщо користувач має один регіон
         if (t.serviceRegion !== user.region) return false;
@@ -2503,7 +2512,16 @@ function RegionalManagerArea({ tab: propTab, user }) {
       // Якщо користувач має множинні регіони (через кому)
       if (user.region.includes(',')) {
         const userRegions = user.region.split(',').map(r => r.trim());
-        if (!userRegions.includes(t.serviceRegion)) return false;
+        // Якщо вибрано "Загальний", показуємо всі регіони користувача
+        if (filters.serviceRegion === 'Загальний') {
+          if (!userRegions.includes(t.serviceRegion)) return false;
+        } else if (filters.serviceRegion && filters.serviceRegion !== '') {
+          // Якщо вибрано конкретний регіон
+          if (t.serviceRegion !== filters.serviceRegion) return false;
+        } else {
+          // Якщо нічого не вибрано, показуємо всі регіони користувача
+          if (!userRegions.includes(t.serviceRegion)) return false;
+        }
       } else {
         // Якщо користувач має один регіон
         if (t.serviceRegion !== user.region) return false;
