@@ -56,6 +56,8 @@ const initialTask = {
   transportSum: '',
 };
 export default function WarehouseArea({ user }) {
+  console.log('DEBUG WarehouseArea: user =', user);
+  console.log('DEBUG WarehouseArea: user.region =', user?.region);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   // Ініціалізую filters з усіма можливими ключами для фільтрації

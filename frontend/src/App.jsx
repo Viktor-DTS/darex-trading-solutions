@@ -846,6 +846,8 @@ function AdminSystemParamsArea({ user }) {
   );
 }
 function ServiceArea({ user }) {
+  console.log('DEBUG ServiceArea: user =', user);
+  console.log('DEBUG ServiceArea: user.region =', user?.region);
   const region = user?.region || '';
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1405,6 +1407,8 @@ function ServiceArea({ user }) {
   );
 }
 function RegionalManagerArea({ tab: propTab, user }) {
+  console.log('DEBUG RegionalManagerArea: user =', user);
+  console.log('DEBUG RegionalManagerArea: user.region =', user?.region);
   const { t } = useTranslation();
   const [tab, setTab] = useState(propTab || 'tasks');
   const [modalOpen, setModalOpen] = useState(false);
