@@ -893,6 +893,15 @@ function ServiceArea({ user }) {
       return updatedFilters;
     });
   }, [allTaskFields]); // Залежність від allTaskFields
+  
+  // Автоматично встановлюємо "Загальний" для користувачів з множинними регіонами
+  useEffect(() => {
+    if (user?.region && user.region.includes(',') && filters.serviceRegion === '') {
+      console.log('DEBUG App: Auto-setting serviceRegion to "Загальний" for multi-region user');
+      setFilters(prev => ({ ...prev, serviceRegion: 'Загальний' }));
+    }
+  }, [user?.region, filters.serviceRegion]);
+  
   // Кешуємо колонки за допомогою useMemo
   const columns = useMemo(() => allTaskFields.map(f => ({
     key: f.name,
@@ -1025,17 +1034,21 @@ function ServiceArea({ user }) {
         // Якщо вибрано "Загальний" або нічого не вибрано, показуємо всі регіони користувача
         if (filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
           console.log('DEBUG filter: Showing all user regions');
+          console.log('DEBUG filter: Task region', t.serviceRegion, 'is in user regions?', userRegions.includes(t.serviceRegion));
           if (!userRegions.includes(t.serviceRegion)) {
             console.log('DEBUG filter: Filtering out task - region not in user regions');
             return false;
           }
+          console.log('DEBUG filter: Task passed region filter');
         } else {
           // Якщо вибрано конкретний регіон
           console.log('DEBUG filter: Showing specific region');
+          console.log('DEBUG filter: Task region', t.serviceRegion, 'matches filter?', t.serviceRegion === filters.serviceRegion);
           if (t.serviceRegion !== filters.serviceRegion) {
             console.log('DEBUG filter: Filtering out task - region does not match');
             return false;
           }
+          console.log('DEBUG filter: Task passed region filter');
         }
       } else {
         // Якщо користувач має один регіон
@@ -1075,6 +1088,7 @@ function ServiceArea({ user }) {
   });
   
   console.log('DEBUG App filtered: result =', result);
+  console.log('DEBUG App filtered: result.length =', result.length);
   return result;
   }, [tasks, user?.region, filters]);
   
@@ -1486,6 +1500,15 @@ function RegionalManagerArea({ tab: propTab, user }) {
       return updatedFilters;
     });
   }, [allTaskFields]); // Залежність від allTaskFields
+  
+  // Автоматично встановлюємо "Загальний" для користувачів з множинними регіонами
+  useEffect(() => {
+    if (user?.region && user.region.includes(',') && filters.serviceRegion === '') {
+      console.log('DEBUG RegionalManagerArea: Auto-setting serviceRegion to "Загальний" for multi-region user');
+      setFilters(prev => ({ ...prev, serviceRegion: 'Загальний' }));
+    }
+  }, [user?.region, filters.serviceRegion]);
+  
   // Завантаження завдань з API
   useEffect(() => {
     setLoading(true);
@@ -2553,17 +2576,21 @@ function RegionalManagerArea({ tab: propTab, user }) {
         // Якщо вибрано "Загальний" або нічого не вибрано, показуємо всі регіони користувача
         if (filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
           console.log('DEBUG filter: Showing all user regions');
+          console.log('DEBUG filter: Task region', t.serviceRegion, 'is in user regions?', userRegions.includes(t.serviceRegion));
           if (!userRegions.includes(t.serviceRegion)) {
             console.log('DEBUG filter: Filtering out task - region not in user regions');
             return false;
           }
+          console.log('DEBUG filter: Task passed region filter');
         } else {
           // Якщо вибрано конкретний регіон
           console.log('DEBUG filter: Showing specific region');
+          console.log('DEBUG filter: Task region', t.serviceRegion, 'matches filter?', t.serviceRegion === filters.serviceRegion);
           if (t.serviceRegion !== filters.serviceRegion) {
             console.log('DEBUG filter: Filtering out task - region does not match');
             return false;
           }
+          console.log('DEBUG filter: Task passed region filter');
         }
       } else {
         // Якщо користувач має один регіон
