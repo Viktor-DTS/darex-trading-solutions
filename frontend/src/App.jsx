@@ -1006,22 +1006,25 @@ function ServiceArea({ user }) {
     setLoading(false);
   };
   const handleFilter = useCallback(e => {
-    console.log('DEBUG App: handleFilter - e.target.name =', e.target.name);
-    console.log('DEBUG App: handleFilter - e.target.value =', e.target.value);
+    console.log('DEBUG App: handleFilter CALLED - e.target.name =', e.target.name);
+    console.log('DEBUG App: handleFilter CALLED - e.target.value =', e.target.value);
+    console.log('DEBUG App: handleFilter CALLED - current filters =', filters);
     setFilters(prevFilters => {
       const newFilters = { ...prevFilters, [e.target.name]: e.target.value };
       console.log('DEBUG App: handleFilter - old filters =', prevFilters);
       console.log('DEBUG App: handleFilter - newFilters =', newFilters);
+      console.log('DEBUG App: handleFilter - setFilters called with newFilters');
       return newFilters;
     });
   }, []);
   const filtered = useMemo(() => {
+    console.log('DEBUG App filtered: useMemo dependencies changed, recalculating...');
     console.log('DEBUG App filtered: user =', user);
     console.log('DEBUG App filtered: user.region =', user?.region);
-    console.log('DEBUG App filtered: tasks =', tasks);
+    console.log('DEBUG App filtered: tasks.length =', tasks?.length);
     console.log('DEBUG App filtered: filters =', filters);
     console.log('DEBUG App filtered: filters.serviceRegion =', filters.serviceRegion);
-    console.log('DEBUG App filtered: useMemo dependencies changed, recalculating...');
+    console.log('DEBUG App filtered: useMemo dependencies = [tasks, user?.region, filters]');
     
     const result = tasks.filter(t => {
     // Перевірка доступу до регіону заявки

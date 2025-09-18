@@ -1532,7 +1532,14 @@ function TaskTableComponent({
                                 console.log('[DEBUG] TaskTable filter select changed:', col.key, e.target.value);
                                 console.log('[DEBUG] Current filters state:', filters);
                                 console.log('[DEBUG] TaskTable calling onFilterChange with:', e.target.name, e.target.value);
-                                onFilterChange(e);
+                                console.log('[DEBUG] TaskTable onFilterChange function:', onFilterChange);
+                                console.log('[DEBUG] TaskTable onFilterChange type:', typeof onFilterChange);
+                                if (typeof onFilterChange === 'function') {
+                                  console.log('[DEBUG] TaskTable calling onFilterChange function');
+                                  onFilterChange(e);
+                                } else {
+                                  console.error('[ERROR] TaskTable onFilterChange is not a function!');
+                                }
                               }}
                               disabled={isFieldDisabled(col.key)}
                               style={{
@@ -1558,7 +1565,15 @@ function TaskTableComponent({
                               onChange={(e) => {
                                 console.log('[DEBUG] TaskTable filter input changed:', col.key, e.target.value);
                                 console.log('[DEBUG] Current filters state:', filters);
-                                onFilterChange(e);
+                                console.log('[DEBUG] TaskTable calling onFilterChange with:', e.target.name, e.target.value);
+                                console.log('[DEBUG] TaskTable onFilterChange function:', onFilterChange);
+                                console.log('[DEBUG] TaskTable onFilterChange type:', typeof onFilterChange);
+                                if (typeof onFilterChange === 'function') {
+                                  console.log('[DEBUG] TaskTable calling onFilterChange function');
+                                  onFilterChange(e);
+                                } else {
+                                  console.error('[ERROR] TaskTable onFilterChange is not a function!');
+                                }
                               }}
                               style={{width:'100%', background:'#fff'}}
                             />
