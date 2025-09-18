@@ -1530,6 +1530,7 @@ function TaskTableComponent({
                               onChange={(e) => {
                                 console.log('[DEBUG] TaskTable filter select changed:', col.key, e.target.value);
                                 console.log('[DEBUG] Current filters state:', filters);
+                                console.log('[DEBUG] TaskTable calling onFilterChange with:', e.target.name, e.target.value);
                                 onFilterChange(e);
                               }}
                               disabled={isFieldDisabled(col.key)}

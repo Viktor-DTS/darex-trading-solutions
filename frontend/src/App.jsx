@@ -1006,6 +1006,7 @@ function ServiceArea({ user }) {
     console.log('DEBUG App filtered: user.region =', user?.region);
     console.log('DEBUG App filtered: tasks =', tasks);
     console.log('DEBUG App filtered: filters =', filters);
+    console.log('DEBUG App filtered: filters.serviceRegion =', filters.serviceRegion);
     
     const result = tasks.filter(t => {
     // Перевірка доступу до регіону заявки
