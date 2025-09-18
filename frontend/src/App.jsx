@@ -1006,13 +1006,15 @@ function ServiceArea({ user }) {
     setLoading(false);
   };
   const handleFilter = useCallback(e => {
-    const newFilters = { ...filters, [e.target.name]: e.target.value };
     console.log('DEBUG App: handleFilter - e.target.name =', e.target.name);
     console.log('DEBUG App: handleFilter - e.target.value =', e.target.value);
-    console.log('DEBUG App: handleFilter - old filters =', filters);
-    console.log('DEBUG App: handleFilter - newFilters =', newFilters);
-    setFilters(newFilters);
-  }, [filters]);
+    setFilters(prevFilters => {
+      const newFilters = { ...prevFilters, [e.target.name]: e.target.value };
+      console.log('DEBUG App: handleFilter - old filters =', prevFilters);
+      console.log('DEBUG App: handleFilter - newFilters =', newFilters);
+      return newFilters;
+    });
+  }, []);
   const filtered = useMemo(() => {
     console.log('DEBUG App filtered: user =', user);
     console.log('DEBUG App filtered: user.region =', user?.region);
@@ -1600,10 +1602,16 @@ function RegionalManagerArea({ tab: propTab, user }) {
     setModalOpen(true);
   }
   // --- Функція handleFilter для TaskTable ---
-  function handleFilter(e) {
-    const newFilters = { ...filters, [e.target.name]: e.target.value };
-    setFilters(newFilters);
-  }
+  const handleFilter = useCallback(e => {
+    console.log('DEBUG RegionalManagerArea: handleFilter - e.target.name =', e.target.name);
+    console.log('DEBUG RegionalManagerArea: handleFilter - e.target.value =', e.target.value);
+    setFilters(prevFilters => {
+      const newFilters = { ...prevFilters, [e.target.name]: e.target.value };
+      console.log('DEBUG RegionalManagerArea: handleFilter - old filters =', prevFilters);
+      console.log('DEBUG RegionalManagerArea: handleFilter - newFilters =', newFilters);
+      return newFilters;
+    });
+  }, []);
   // --- Функція handleApprove для підтвердження задач ---
   async function handleApprove(id, approved, comment) {
     setLoading(true);
@@ -3552,9 +3560,16 @@ function AdminEditTasksArea({ user }) {
     setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
     setLoading(false);
   };
-  const handleFilter = e => {
-    setFilters({ ...filters, [e.target.name]: e.target.value });
-  };
+  const handleFilter = useCallback(e => {
+    console.log('DEBUG AccountantArea: handleFilter - e.target.name =', e.target.name);
+    console.log('DEBUG AccountantArea: handleFilter - e.target.value =', e.target.value);
+    setFilters(prevFilters => {
+      const newFilters = { ...prevFilters, [e.target.name]: e.target.value };
+      console.log('DEBUG AccountantArea: handleFilter - old filters =', prevFilters);
+      console.log('DEBUG AccountantArea: handleFilter - newFilters =', newFilters);
+      return newFilters;
+    });
+  }, []);
   const handleEdit = t => {
     const isReadOnly = t._readOnly;
     const taskData = { ...t };
