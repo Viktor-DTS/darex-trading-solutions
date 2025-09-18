@@ -216,13 +216,9 @@ export default function WarehouseArea({ user }) {
     console.log('DEBUG WarehouseArea filtered: user.region =', user?.region);
     
     const result = tasks.filter(t => {
-      console.log('DEBUG WarehouseArea filtered: Processing task', t.id, 'serviceRegion =', t.serviceRegion);
-      console.log('DEBUG WarehouseArea filtered: filters =', filters);
-      console.log('DEBUG WarehouseArea filtered: filters.serviceRegion =', filters.serviceRegion);
-      
       // Додаткове логування для завдань з регіонами користувача
       if (t.serviceRegion === 'Львівський' || t.serviceRegion === 'Хмельницький') {
-        console.log('DEBUG WarehouseArea filtered: FOUND USER REGION TASK!', t.id, 'serviceRegion =', t.serviceRegion);
+        console.log('🔍 FOUND USER REGION TASK!', t.id, 'serviceRegion =', t.serviceRegion);
       }
       
       // Перевірка доступу до регіону заявки
@@ -230,59 +226,31 @@ export default function WarehouseArea({ user }) {
         // Якщо користувач має множинні регіони (через кому)
         if (user.region.includes(',')) {
           const userRegions = user.region.split(',').map(r => r.trim());
-          console.log('DEBUG WarehouseArea filtered: Multi-region user, userRegions =', userRegions);
-          console.log('DEBUG WarehouseArea filtered: user.region =', user.region);
-          console.log('DEBUG WarehouseArea filtered: user.region.split(",") =', user.region.split(','));
-          console.log('DEBUG WarehouseArea filtered: user.region.split(",").map(r => r.trim()) =', user.region.split(',').map(r => r.trim()));
+          console.log('🌍 Multi-region user, userRegions =', userRegions);
           
           // Якщо вибрано "Загальний" або нічого не вибрано, показуємо всі регіони користувача
           if (filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
-            console.log('DEBUG WarehouseArea filtered: Showing all user regions');
-            console.log('DEBUG WarehouseArea filtered: Task region', t.serviceRegion, 'is in user regions?', userRegions.includes(t.serviceRegion));
-            console.log('DEBUG WarehouseArea filtered: userRegions =', userRegions);
-            console.log('DEBUG WarehouseArea filtered: t.serviceRegion =', t.serviceRegion);
-            console.log('DEBUG WarehouseArea filtered: t.serviceRegion type =', typeof t.serviceRegion);
-            console.log('DEBUG WarehouseArea filtered: t.serviceRegion length =', t.serviceRegion?.length);
-            console.log('DEBUG WarehouseArea filtered: t.serviceRegion JSON =', JSON.stringify(t.serviceRegion));
-            console.log('DEBUG WarehouseArea filtered: userRegions.includes(t.serviceRegion) =', userRegions.includes(t.serviceRegion));
-            console.log('DEBUG WarehouseArea filtered: userRegions.map(r => r.trim()) =', userRegions.map(r => r.trim()));
-            console.log('DEBUG WarehouseArea filtered: userRegions.map(r => r.trim()).includes(t.serviceRegion?.trim()) =', userRegions.map(r => r.trim()).includes(t.serviceRegion?.trim()));
-            
             // Перевіряємо, чи регіон завдання є в списку регіонів користувача
             const taskRegion = t.serviceRegion?.trim();
             const userRegionsTrimmed = userRegions.map(r => r.trim());
             const isInUserRegions = userRegionsTrimmed.includes(taskRegion);
             
-            console.log('DEBUG WarehouseArea filtered: taskRegion =', taskRegion);
-            console.log('DEBUG WarehouseArea filtered: userRegionsTrimmed =', userRegionsTrimmed);
-            console.log('DEBUG WarehouseArea filtered: userRegionsTrimmed[0] =', userRegionsTrimmed[0]);
-            console.log('DEBUG WarehouseArea filtered: userRegionsTrimmed[1] =', userRegionsTrimmed[1]);
-            console.log('DEBUG WarehouseArea filtered: userRegionsTrimmed.length =', userRegionsTrimmed.length);
-            console.log('DEBUG WarehouseArea filtered: isInUserRegions =', isInUserRegions);
+            console.log('🔍 GENERAL FILTER: taskRegion =', taskRegion, '| userRegions =', userRegionsTrimmed, '| isInUserRegions =', isInUserRegions);
             
             if (!isInUserRegions) {
-              console.log('DEBUG WarehouseArea filtered: Filtering out task - region not in user regions');
               return false;
             }
-            console.log('DEBUG WarehouseArea filtered: Task passed region filter');
           } else {
             // Якщо вибрано конкретний регіон
-            console.log('DEBUG WarehouseArea filtered: Showing specific region');
-            console.log('DEBUG WarehouseArea filtered: Task region', t.serviceRegion, 'matches filter?', t.serviceRegion === filters.serviceRegion);
             if (t.serviceRegion !== filters.serviceRegion) {
-              console.log('DEBUG WarehouseArea filtered: Filtering out task - region does not match');
               return false;
             }
-            console.log('DEBUG WarehouseArea filtered: Task passed region filter');
           }
         } else {
           // Якщо користувач має один регіон
-          console.log('DEBUG WarehouseArea filtered: Single region user, region =', user.region);
           if (t.serviceRegion !== user.region) {
-            console.log('DEBUG WarehouseArea filtered: Filtering out task - region does not match user region');
             return false;
           }
-          console.log('DEBUG WarehouseArea filtered: Task passed region filter');
         }
       }
       
@@ -320,13 +288,9 @@ export default function WarehouseArea({ user }) {
     return true;
   });
     
-    console.log('DEBUG WarehouseArea filtered: useMemo result.length =', result.length);
-    console.log('DEBUG WarehouseArea filtered: useMemo result =', result);
+    console.log('✅ FILTERED RESULT: length =', result.length);
     return result;
   }, [tasks, filters, user]);
-  
-  console.log('DEBUG WarehouseArea filtered: result =', filtered);
-  console.log('DEBUG WarehouseArea filtered: result.length =', filtered.length);
   const pending = filtered.filter(
     t => t.status === 'Виконано' && t.approvedByWarehouse !== 'Підтверджено'
   );
