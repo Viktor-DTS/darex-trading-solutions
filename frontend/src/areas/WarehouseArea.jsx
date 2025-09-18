@@ -109,7 +109,11 @@ export default function WarehouseArea({ user }) {
     console.log('DEBUG WarehouseArea useEffect: user.region.includes(",") =', user?.region?.includes(','));
     if (user?.region && user.region.includes(',') && filters.serviceRegion === '') {
       console.log('DEBUG WarehouseArea: Auto-setting serviceRegion to "Загальний" for multi-region user');
-      setFilters(prev => ({ ...prev, serviceRegion: 'Загальний' }));
+      setFilters(prev => {
+        const newFilters = { ...prev, serviceRegion: 'Загальний' };
+        console.log('DEBUG WarehouseArea: setFilters called with newFilters =', newFilters);
+        return newFilters;
+      });
     }
   }, [user?.region, filters.serviceRegion]);
   
@@ -275,6 +279,9 @@ export default function WarehouseArea({ user }) {
     console.log('DEBUG WarehouseArea filtered: Task passed all filters');
     return true;
   });
+  
+  console.log('DEBUG WarehouseArea filtered: result =', filtered);
+  console.log('DEBUG WarehouseArea filtered: result.length =', filtered.length);
   const pending = filtered.filter(
     t => t.status === 'Виконано' && t.approvedByWarehouse !== 'Підтверджено'
   );
