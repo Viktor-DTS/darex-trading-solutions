@@ -2080,6 +2080,37 @@ app.get('/api/test-active', (req, res) => {
   res.json({ message: 'Test endpoint works', timestamp: new Date().toISOString() });
 });
 
+// Альтернативний endpoint для активних користувачів
+app.get('/api/active-users', async (req, res) => {
+  console.log('[DEBUG] GET /api/active-users - alternative endpoint called');
+  console.log('[DEBUG] GET /api/active-users - MongoDB readyState:', mongoose.connection.readyState);
+  
+  try {
+    // Перевіряємо підключення до MongoDB
+    if (mongoose.connection.readyState !== 1) {
+      console.log('[DEBUG] GET /api/active-users - MongoDB not connected, readyState:', mongoose.connection.readyState);
+      return res.status(503).json({ error: 'Database not connected' });
+    }
+    
+    const now = new Date();
+    const thirtySecondsAgo = new Date(now.getTime() - 30 * 1000);
+    
+    console.log('[DEBUG] GET /api/active-users - searching for active users since:', thirtySecondsAgo);
+    
+    const activeUsers = await User.find(
+      { lastActivity: { $gte: thirtySecondsAgo } },
+      'login name'
+    );
+    
+    console.log('[DEBUG] GET /api/active-users - found active users:', activeUsers.length);
+    
+    res.json(activeUsers.map(user => user.login));
+  } catch (error) {
+    console.error('[ERROR] GET /api/active-users - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // API для отримання активних користувачів
 app.get('/api/users/active', async (req, res) => {
   console.log('[DEBUG] GET /api/users/active - endpoint called');
