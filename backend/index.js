@@ -2074,16 +2074,27 @@ app.post('/api/expense-categories/cleanup', async (req, res) => {
   }
 });
 
+// Тестовий endpoint для перевірки
+app.get('/api/test-active', (req, res) => {
+  console.log('[DEBUG] GET /api/test-active - test endpoint called');
+  res.json({ message: 'Test endpoint works', timestamp: new Date().toISOString() });
+});
+
 // API для отримання активних користувачів
 app.get('/api/users/active', async (req, res) => {
+  console.log('[DEBUG] GET /api/users/active - endpoint called');
   try {
     const now = new Date();
     const thirtySecondsAgo = new Date(now.getTime() - 30 * 1000);
+    
+    console.log('[DEBUG] GET /api/users/active - searching for active users since:', thirtySecondsAgo);
     
     const activeUsers = await User.find(
       { lastActivity: { $gte: thirtySecondsAgo } },
       'login name'
     );
+    
+    console.log('[DEBUG] GET /api/users/active - found active users:', activeUsers.length);
     
     res.json(activeUsers.map(user => user.login));
   } catch (error) {
