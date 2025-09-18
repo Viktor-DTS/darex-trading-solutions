@@ -107,7 +107,9 @@ export default function WarehouseArea({ user }) {
     console.log('DEBUG WarehouseArea useEffect: user?.region =', user?.region);
     console.log('DEBUG WarehouseArea useEffect: filters.serviceRegion =', filters.serviceRegion);
     console.log('DEBUG WarehouseArea useEffect: user.region.includes(",") =', user?.region?.includes(','));
-    if (user?.region && user.region.includes(',') && filters.serviceRegion === '') {
+    console.log('DEBUG WarehouseArea useEffect: filters.serviceRegion === "" =', filters.serviceRegion === '');
+    console.log('DEBUG WarehouseArea useEffect: filters.serviceRegion === "" || filters.serviceRegion === undefined =', filters.serviceRegion === '' || filters.serviceRegion === undefined);
+    if (user?.region && user.region.includes(',') && (filters.serviceRegion === '' || filters.serviceRegion === undefined)) {
       console.log('DEBUG WarehouseArea: Auto-setting serviceRegion to "Загальний" for multi-region user');
       setFilters(prev => {
         const newFilters = { ...prev, serviceRegion: 'Загальний' };
@@ -116,7 +118,7 @@ export default function WarehouseArea({ user }) {
       });
     }
   }, [user?.region, filters.serviceRegion]);
-  
+
   useEffect(() => {
     setLoading(true);
     tasksAPI.getAll().then(tasks => {
@@ -210,8 +212,10 @@ export default function WarehouseArea({ user }) {
     console.log('DEBUG WarehouseArea filtered: filters =', filters);
     console.log('DEBUG WarehouseArea filtered: user =', user);
     console.log('DEBUG WarehouseArea filtered: useMemo dependencies = [tasks, filters, user]');
+    console.log('DEBUG WarehouseArea filtered: filters.serviceRegion =', filters.serviceRegion);
+    console.log('DEBUG WarehouseArea filtered: user.region =', user?.region);
     
-    return tasks.filter(t => {
+    const result = tasks.filter(t => {
       console.log('DEBUG WarehouseArea filtered: Processing task', t.id, 'serviceRegion =', t.serviceRegion);
       console.log('DEBUG WarehouseArea filtered: filters =', filters);
       console.log('DEBUG WarehouseArea filtered: filters.serviceRegion =', filters.serviceRegion);
@@ -254,38 +258,42 @@ export default function WarehouseArea({ user }) {
       }
       
       // Інші фільтри
-      for (const key in filters) {
-        const value = filters[key];
-        if (!value) continue;
-        if (key.endsWith('From')) {
-          const field = key.replace('From', '');
-          if (!t[field] || t[field] < value) return false;
-        } else if (key.endsWith('To')) {
-          const field = key.replace('To', '');
-          if (!t[field] || t[field] > value) return false;
-        } else if ([
-          'approvedByRegionalManager', 'approvedByWarehouse', 'approvedByAccountant', 'paymentType', 'status'
-        ].includes(key)) {
-          if (t[key]?.toString() !== value.toString()) return false;
-        } else if ([
-          'airFilterCount', 'airFilterPrice', 'serviceBonus'
-        ].includes(key)) {
-          if (Number(t[key]) !== Number(value)) return false;
-        } else if ([
-          'bonusApprovalDate'
-        ].includes(key)) {
-          if (t[key] !== value) return false;
-        } else if ([
-          'regionalManagerComment', 'airFilterName'
-        ].includes(key)) {
-          if (!t[key] || !t[key].toString().toLowerCase().includes(value.toLowerCase())) return false;
-        } else if (typeof t[key] === 'string' || typeof t[key] === 'number') {
-          if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
-        }
+    for (const key in filters) {
+      const value = filters[key];
+      if (!value) continue;
+      if (key.endsWith('From')) {
+        const field = key.replace('From', '');
+        if (!t[field] || t[field] < value) return false;
+      } else if (key.endsWith('To')) {
+        const field = key.replace('To', '');
+        if (!t[field] || t[field] > value) return false;
+      } else if ([
+        'approvedByRegionalManager', 'approvedByWarehouse', 'approvedByAccountant', 'paymentType', 'status'
+      ].includes(key)) {
+        if (t[key]?.toString() !== value.toString()) return false;
+      } else if ([
+        'airFilterCount', 'airFilterPrice', 'serviceBonus'
+      ].includes(key)) {
+        if (Number(t[key]) !== Number(value)) return false;
+      } else if ([
+        'bonusApprovalDate'
+      ].includes(key)) {
+        if (t[key] !== value) return false;
+      } else if ([
+        'regionalManagerComment', 'airFilterName'
+      ].includes(key)) {
+        if (!t[key] || !t[key].toString().toLowerCase().includes(value.toLowerCase())) return false;
+      } else if (typeof t[key] === 'string' || typeof t[key] === 'number') {
+        if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
       }
+    }
       console.log('DEBUG WarehouseArea filtered: Task passed all filters');
-      return true;
-    });
+    return true;
+  });
+    
+    console.log('DEBUG WarehouseArea filtered: useMemo result.length =', result.length);
+    console.log('DEBUG WarehouseArea filtered: useMemo result =', result);
+    return result;
   }, [tasks, filters, user]);
   
   console.log('DEBUG WarehouseArea filtered: result =', filtered);
