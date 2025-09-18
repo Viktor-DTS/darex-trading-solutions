@@ -449,7 +449,7 @@ function TaskTableComponent({
       'serviceRegion': (() => {
         if (regions.length === 0) return [];
         
-        // Якщо користувач має множинні регіони, показуємо "Загальний" + їх регіони
+        // Якщо користувач має множинні регіони, показуємо тільки "Загальний" + їх регіони
         if (user?.region && user.region.includes(',')) {
           const userRegions = user.region.split(',').map(r => r.trim());
           return ['', 'Загальний', ...userRegions];
