@@ -226,6 +226,9 @@ export default function WarehouseArea({ user }) {
         console.log('📍 TASK REGION:', t.id, 'serviceRegion =', t.serviceRegion);
       }
       
+      // Логування всіх регіонів завдань для діагностики
+      console.log('📋 ALL TASK REGIONS:', t.id, 'serviceRegion =', t.serviceRegion);
+      
       // Перевірка доступу до регіону заявки
       if (user?.region && user.region !== 'Україна') {
         // Якщо користувач має множинні регіони (через кому)
