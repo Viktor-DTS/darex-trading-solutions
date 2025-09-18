@@ -109,7 +109,9 @@ export default function WarehouseArea({ user }) {
     console.log('🔄 useEffect: user.region.includes(",") =', user?.region?.includes(','));
     console.log('🔄 useEffect: filters.serviceRegion === "" =', filters.serviceRegion === '');
     console.log('🔄 useEffect: filters.serviceRegion === "" || filters.serviceRegion === undefined =', filters.serviceRegion === '' || filters.serviceRegion === undefined);
-    if (user?.region && user.region.includes(',') && (filters.serviceRegion === '' || filters.serviceRegion === undefined)) {
+    
+    // Завжди встановлюємо "Загальний" для користувачів з множинними регіонами
+    if (user?.region && user.region.includes(',')) {
       console.log('🔄 Auto-setting serviceRegion to "Загальний" for multi-region user');
       setFilters(prev => {
         const newFilters = { ...prev, serviceRegion: 'Загальний' };
@@ -117,7 +119,7 @@ export default function WarehouseArea({ user }) {
         return newFilters;
       });
     }
-  }, [user?.region, filters.serviceRegion]);
+  }, [user?.region]);
 
   useEffect(() => {
     setLoading(true);
