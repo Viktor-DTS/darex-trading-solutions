@@ -331,13 +331,15 @@ function TaskTableComponent({
   // Автоматичне встановлення регіону користувача для поля serviceRegion
   useEffect(() => {
     if (user?.region && user.region !== 'Україна' && filters.serviceRegion === '') {
-      // Автоматично встановлюємо регіон користувача для заблокованого поля
-      onFilterChange({
-        target: {
-          name: 'serviceRegion',
-          value: user.region
-        }
-      });
+      // Автоматично встановлюємо регіон користувача тільки якщо у нього один регіон
+      if (!user.region.includes(',')) {
+        onFilterChange({
+          target: {
+            name: 'serviceRegion',
+            value: user.region
+          }
+        });
+      }
     }
   }, [user?.region, filters.serviceRegion, onFilterChange]);
   
@@ -444,7 +446,18 @@ function TaskTableComponent({
       'approvedByWarehouse': ['На розгляді', 'Підтверджено', 'Відмова'],
       'approvedByAccountant': ['На розгляді', 'Підтверджено', 'Відмова'],
       'approvedByRegionalManager': ['На розгляді', 'Підтверджено', 'Відмова'],
-      'serviceRegion': regions.length > 0 ? ['', ...regions.map(r => r.name)] : []
+      'serviceRegion': (() => {
+        if (regions.length === 0) return [];
+        
+        // Якщо користувач має множинні регіони, показуємо тільки їх
+        if (user?.region && user.region.includes(',')) {
+          const userRegions = user.region.split(',').map(r => r.trim());
+          return ['', ...userRegions];
+        }
+        
+        // Якщо користувач має доступ до всіх регіонів або один регіон
+        return ['', ...regions.map(r => r.name)];
+      })()
     };
     
     return selectFields[colKey] || null;
@@ -453,8 +466,11 @@ function TaskTableComponent({
   // Функція для визначення, чи поле заблоковане
   function isFieldDisabled(colKey) {
     if (colKey === 'serviceRegion') {
-      // Заблоковане для всіх, крім користувачів з регіоном "Україна"
-      return user?.region !== 'Україна';
+      // Розблоковуємо для користувачів з множинними регіонами або з регіоном "Україна"
+      if (user?.region === 'Україна') return false;
+      if (user?.region && user.region.includes(',')) return false;
+      // Блокуємо для користувачів з одним регіоном
+      return true;
     }
     return false;
   }
