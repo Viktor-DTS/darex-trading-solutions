@@ -460,7 +460,7 @@ function TaskTableComponent({
         if (user?.region && user.region.includes(',')) {
           const userRegions = user.region.split(',').map(r => r.trim());
           console.log('DEBUG getFilterType: userRegions =', userRegions);
-          const result = ['', 'Загальний', ...userRegions];
+          const result = ['Загальний', ...userRegions];
           console.log('DEBUG getFilterType: result for multi-region user =', result);
           return result;
         }

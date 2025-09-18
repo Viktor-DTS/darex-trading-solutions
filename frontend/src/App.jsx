@@ -998,6 +998,7 @@ function ServiceArea({ user }) {
   };
   const handleFilter = useCallback(e => {
     const newFilters = { ...filters, [e.target.name]: e.target.value };
+    console.log('DEBUG App: handleFilter - newFilters =', newFilters);
     setFilters(newFilters);
   }, [filters]);
   const filtered = useMemo(() => {
