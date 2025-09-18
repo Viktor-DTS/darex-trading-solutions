@@ -998,7 +998,13 @@ function ServiceArea({ user }) {
     const newFilters = { ...filters, [e.target.name]: e.target.value };
     setFilters(newFilters);
   }, [filters]);
-  const filtered = useMemo(() => tasks.filter(t => {
+  const filtered = useMemo(() => {
+    console.log('DEBUG App filtered: user =', user);
+    console.log('DEBUG App filtered: user.region =', user?.region);
+    console.log('DEBUG App filtered: tasks =', tasks);
+    console.log('DEBUG App filtered: filters =', filters);
+    
+    return tasks.filter(t => {
     // Перевірка доступу до регіону заявки
     if (user?.region && user.region !== 'Україна') {
       // Якщо користувач має множинні регіони (через кому)
@@ -1058,7 +1064,11 @@ function ServiceArea({ user }) {
       }
     }
     return true;
-  }), [tasks, user?.region, filters]);
+  });
+  
+  console.log('DEBUG App filtered: result =', filtered);
+  return filtered;
+  }, [tasks, user?.region, filters]);
   const notDone = useMemo(() => filtered.filter(t => t.status === 'Заявка' || t.status === 'В роботі'), [filtered]);
   const pending = useMemo(() => filtered.filter(t => t.status === 'Виконано' && (
     isPending(t.approvedByWarehouse) ||
