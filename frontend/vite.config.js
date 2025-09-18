@@ -9,7 +9,7 @@ export default defineConfig({
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true, // Видаляємо console.log в продакшені
+        drop_console: false, // НЕ видаляємо console.log в продакшені для діагностики
         drop_debugger: true,
       },
     },
@@ -43,6 +43,6 @@ export default defineConfig({
   },
   // Оптимізація esbuild
   esbuild: {
-    // drop: ['console', 'debugger'], // Видаляємо console.log в продакшені - закоментовано для розробки
+    drop: [], // НЕ видаляємо console.log в продакшені для діагностики
   },
 })
