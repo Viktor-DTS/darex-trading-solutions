@@ -2982,6 +2982,7 @@ const areaByRole = {
 };
 function App() {
   console.log('DEBUG App: App component rendered');
+  console.log('DEBUG App: This is a test log');
   const { t } = useTranslation();
   const [serverMsg, setServerMsg] = useState('');
   const [user, setUser] = useState(null);
