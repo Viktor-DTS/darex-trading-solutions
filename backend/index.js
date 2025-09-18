@@ -2083,7 +2083,15 @@ app.get('/api/test-active', (req, res) => {
 // API для отримання активних користувачів
 app.get('/api/users/active', async (req, res) => {
   console.log('[DEBUG] GET /api/users/active - endpoint called');
+  console.log('[DEBUG] GET /api/users/active - MongoDB readyState:', mongoose.connection.readyState);
+  
   try {
+    // Перевіряємо підключення до MongoDB
+    if (mongoose.connection.readyState !== 1) {
+      console.log('[DEBUG] GET /api/users/active - MongoDB not connected, readyState:', mongoose.connection.readyState);
+      return res.status(503).json({ error: 'Database not connected' });
+    }
+    
     const now = new Date();
     const thirtySecondsAgo = new Date(now.getTime() - 30 * 1000);
     
