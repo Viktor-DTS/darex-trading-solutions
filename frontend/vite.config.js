@@ -43,6 +43,6 @@ export default defineConfig({
   },
   // Оптимізація esbuild
   esbuild: {
-    drop: ['console', 'debugger'], // Видаляємо console.log в продакшені
+    // drop: ['console', 'debugger'], // Видаляємо console.log в продакшені - закоментовано для розробки
   },
 })
