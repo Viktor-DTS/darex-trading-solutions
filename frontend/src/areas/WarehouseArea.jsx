@@ -221,6 +221,11 @@ export default function WarehouseArea({ user }) {
         console.log('🔍 FOUND USER REGION TASK!', t.id, 'serviceRegion =', t.serviceRegion);
       }
       
+      // Логування всіх унікальних регіонів завдань
+      if (t.serviceRegion && t.serviceRegion !== 'Київський') {
+        console.log('📍 TASK REGION:', t.id, 'serviceRegion =', t.serviceRegion);
+      }
+      
       // Перевірка доступу до регіону заявки
       if (user?.region && user.region !== 'Україна') {
         // Якщо користувач має множинні регіони (через кому)
