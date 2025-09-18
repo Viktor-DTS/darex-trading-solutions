@@ -999,7 +999,17 @@ function ServiceArea({ user }) {
     setFilters(newFilters);
   }, [filters]);
   const filtered = useMemo(() => tasks.filter(t => {
-    if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) return false;
+    // Перевірка доступу до регіону заявки
+    if (user?.region && user.region !== 'Україна') {
+      // Якщо користувач має множинні регіони (через кому)
+      if (user.region.includes(',')) {
+        const userRegions = user.region.split(',').map(r => r.trim());
+        if (!userRegions.includes(t.serviceRegion)) return false;
+      } else {
+        // Якщо користувач має один регіон
+        if (t.serviceRegion !== user.region) return false;
+      }
+    }
     for (const key in filters) {
       const value = filters[key];
       if (!value) continue;
@@ -2482,10 +2492,23 @@ function RegionalManagerArea({ tab: propTab, user }) {
   };
   // Логіка групування по регіонам для вкладки "Звіт по персоналу"
   const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
-  const showRegions = user?.region === 'Україна' ? allRegions : [user?.region || 'Без регіону'];
+  const showRegions = user?.region === 'Україна' ? allRegions : 
+    user?.region && user.region.includes(',') ? 
+      user.region.split(',').map(r => r.trim()) : 
+      [user?.region || 'Без регіону'];
   // Фільтрація завдань для регіонального керівника
   const filtered = tasks.filter(t => {
-    if (user?.region && user.region !== 'Україна' && t.serviceRegion !== user.region) return false;
+    // Перевірка доступу до регіону заявки
+    if (user?.region && user.region !== 'Україна') {
+      // Якщо користувач має множинні регіони (через кому)
+      if (user.region.includes(',')) {
+        const userRegions = user.region.split(',').map(r => r.trim());
+        if (!userRegions.includes(t.serviceRegion)) return false;
+      } else {
+        // Якщо користувач має один регіон
+        if (t.serviceRegion !== user.region) return false;
+      }
+    }
     for (const key in filters) {
       const value = filters[key];
       if (!value) continue;
