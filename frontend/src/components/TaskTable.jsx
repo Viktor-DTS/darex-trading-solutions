@@ -441,6 +441,10 @@ function TaskTableComponent({
 
   // Функція для визначення типу фільтра
   function getFilterType(colKey) {
+    console.log('DEBUG getFilterType called with colKey:', colKey);
+    console.log('DEBUG getFilterType user:', user);
+    console.log('DEBUG getFilterType regions:', regions);
+    
     const selectFields = {
       'status': ['', 'Заявка', 'В роботі', 'Виконано', 'Заблоковано'],
       'company': ['', 'ДТС', 'Дарекс Енерго', 'інша'],
