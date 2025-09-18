@@ -104,16 +104,16 @@ export default function WarehouseArea({ user }) {
   
   // Автоматично встановлюємо "Загальний" для користувачів з множинними регіонами
   useEffect(() => {
-    console.log('DEBUG WarehouseArea useEffect: user?.region =', user?.region);
-    console.log('DEBUG WarehouseArea useEffect: filters.serviceRegion =', filters.serviceRegion);
-    console.log('DEBUG WarehouseArea useEffect: user.region.includes(",") =', user?.region?.includes(','));
-    console.log('DEBUG WarehouseArea useEffect: filters.serviceRegion === "" =', filters.serviceRegion === '');
-    console.log('DEBUG WarehouseArea useEffect: filters.serviceRegion === "" || filters.serviceRegion === undefined =', filters.serviceRegion === '' || filters.serviceRegion === undefined);
+    console.log('🔄 useEffect: user?.region =', user?.region);
+    console.log('🔄 useEffect: filters.serviceRegion =', filters.serviceRegion);
+    console.log('🔄 useEffect: user.region.includes(",") =', user?.region?.includes(','));
+    console.log('🔄 useEffect: filters.serviceRegion === "" =', filters.serviceRegion === '');
+    console.log('🔄 useEffect: filters.serviceRegion === "" || filters.serviceRegion === undefined =', filters.serviceRegion === '' || filters.serviceRegion === undefined);
     if (user?.region && user.region.includes(',') && (filters.serviceRegion === '' || filters.serviceRegion === undefined)) {
-      console.log('DEBUG WarehouseArea: Auto-setting serviceRegion to "Загальний" for multi-region user');
+      console.log('🔄 Auto-setting serviceRegion to "Загальний" for multi-region user');
       setFilters(prev => {
         const newFilters = { ...prev, serviceRegion: 'Загальний' };
-        console.log('DEBUG WarehouseArea: setFilters called with newFilters =', newFilters);
+        console.log('🔄 setFilters called with newFilters =', newFilters);
         return newFilters;
       });
     }
