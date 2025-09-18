@@ -998,6 +998,9 @@ function ServiceArea({ user }) {
   };
   const handleFilter = useCallback(e => {
     const newFilters = { ...filters, [e.target.name]: e.target.value };
+    console.log('DEBUG App: handleFilter - e.target.name =', e.target.name);
+    console.log('DEBUG App: handleFilter - e.target.value =', e.target.value);
+    console.log('DEBUG App: handleFilter - old filters =', filters);
     console.log('DEBUG App: handleFilter - newFilters =', newFilters);
     setFilters(newFilters);
   }, [filters]);
@@ -1007,6 +1010,7 @@ function ServiceArea({ user }) {
     console.log('DEBUG App filtered: tasks =', tasks);
     console.log('DEBUG App filtered: filters =', filters);
     console.log('DEBUG App filtered: filters.serviceRegion =', filters.serviceRegion);
+    console.log('DEBUG App filtered: useMemo dependencies changed, recalculating...');
     
     const result = tasks.filter(t => {
     // Перевірка доступу до регіону заявки
