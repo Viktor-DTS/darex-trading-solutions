@@ -2981,6 +2981,7 @@ const areaByRole = {
   admin: (props) => <AdminArea {...props} />,
 };
 function App() {
+  console.log('DEBUG App: App component rendered');
   const { t } = useTranslation();
   const [serverMsg, setServerMsg] = useState('');
   const [user, setUser] = useState(null);

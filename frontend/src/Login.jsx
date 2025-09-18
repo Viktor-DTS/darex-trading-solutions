@@ -11,6 +11,7 @@ const roles = [
   { value: 'regional', label: 'Регіональний керівник' },
 ];
 export default function Login({ onLogin }) {
+  console.log('DEBUG Login: Login component rendered');
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('admin');
@@ -78,6 +79,7 @@ export default function Login({ onLogin }) {
             role: userWithMode.role,
             isViewMode: isViewMode
           });
+        console.log('DEBUG Login: User logged in successfully:', userWithMode);
         onLogin(userWithMode);
     } else {
         const error = await response.json();
