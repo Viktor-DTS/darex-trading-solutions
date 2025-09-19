@@ -136,8 +136,15 @@ export default function ReportBuilder({ user }) {
       case 'approvedByRegionalManager':
         return approvalOptions;
       case 'serviceRegion':
+        // Якщо користувач має множинні регіони, показуємо тільки їх регіони (без "Загальний")
+        if (user?.region && user.region.includes(',')) {
+          const userRegions = user.region.split(',').map(r => r.trim());
+          console.log('DEBUG ReportBuilder getFilterOptions: userRegions =', userRegions);
+          return ['', ...userRegions];
+        }
+        // Якщо користувач має доступ до всіх регіонів або один регіон
         const regionNames = regions.map(r => r.name);
-        return regionNames;
+        return ['', ...regionNames];
       case 'engineer1':
       case 'engineer2':
         // Фільтруємо користувачів по регіону якщо користувач не з 'Україна'
@@ -156,8 +163,16 @@ export default function ReportBuilder({ user }) {
             'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(fieldName);
   };
   const isFieldDisabled = (fieldName) => {
-    // Блокуємо регіон обслуговування для користувачів не з 'Україна'
-    return fieldName === 'serviceRegion' && user && user.region && user.region !== 'Україна';
+    // Блокуємо регіон обслуговування тільки для користувачів з одним регіоном (не з 'Україна' і не з множинними регіонами)
+    if (fieldName === 'serviceRegion' && user && user.region && user.region !== 'Україна') {
+      // Розблоковуємо для користувачів з множинними регіонами
+      if (user.region.includes(',')) {
+        return false;
+      }
+      // Блокуємо для користувачів з одним регіоном
+      return true;
+    }
+    return false;
   };
   // Функція для перевірки статусу підтвердження
   function isApproved(value) {
@@ -205,6 +220,43 @@ export default function ReportBuilder({ user }) {
   // Функція для генерації звіту з переданими даними
   const generateReportFromData = (tasksData) => {
     const filtered = tasksData.filter(t => {
+      // Перевірка доступу до регіону заявки
+      if (user?.region && user.region !== 'Україна') {
+        // Якщо користувач має множинні регіони (через кому)
+        if (user.region.includes(',')) {
+          const userRegions = user.region.split(',').map(r => r.trim());
+          console.log('🌍 ReportBuilder Multi-region user, userRegions =', userRegions);
+          
+          // Для користувачів з множинними регіонами перевіряємо, чи регіон завдання є в їх регіонах
+          if (!filters.serviceRegion || filters.serviceRegion === '') {
+            // Якщо нічого не вибрано, показуємо всі регіони користувача
+            const taskRegion = t.serviceRegion?.trim();
+            const userRegionsTrimmed = userRegions.map(r => r.trim());
+            const isInUserRegions = userRegionsTrimmed.includes(taskRegion);
+            
+            console.log('🔍 ReportBuilder MULTI-REGION FILTER (empty): taskRegion =', taskRegion, '| userRegions =', userRegionsTrimmed, '| isInUserRegions =', isInUserRegions);
+            
+            if (!isInUserRegions) {
+              console.log('🔍 ReportBuilder MULTI-REGION FILTER: Filtering out task - region not in user regions');
+              return false;
+            } else {
+              console.log('✅ ReportBuilder MULTI-REGION FILTER: Task passed - region is in user regions');
+            }
+          } else {
+            // Якщо вибрано конкретний регіон
+            console.log('🎯 ReportBuilder SPECIFIC FILTER: taskRegion =', t.serviceRegion, '| filter =', filters.serviceRegion, '| match =', t.serviceRegion === filters.serviceRegion);
+            if (t.serviceRegion !== filters.serviceRegion) {
+              return false;
+            }
+          }
+        } else {
+          // Якщо користувач має один регіон
+          if (t.serviceRegion !== user.region) {
+            return false;
+          }
+        }
+      }
+      
       // Фільтр по діапазону дати проведення робіт
       if (dateRangeFilter.from && (!t.date || t.date < dateRangeFilter.from)) {
         return false;
