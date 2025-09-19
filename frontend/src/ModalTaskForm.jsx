@@ -535,6 +535,12 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       required.push({ name: 'serviceRegion', label: 'Регіон сервісного відділу' });
     }
     const missing = required.filter(f => !form[f.name]);
+    
+    // Додаткова перевірка: якщо статус "Виконано", то поле "Дата проведення робіт" обов'язкове
+    if (form.status === 'Виконано' && !form.date) {
+      missing.push({ name: 'date', label: 'Дата проведення робіт' });
+    }
+    
     if (missing.length > 0) {
       setMissingFields(missing.map(f => f.label));
       setShowMissingModal(true);
