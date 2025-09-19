@@ -236,6 +236,14 @@ export default function ReportBuilder({ user }) {
     }
   }, [user?.region]);
   
+  // Додатковий useEffect для генерації звіту після встановлення serviceRegion для множинних регіонів
+  useEffect(() => {
+    if (user?.region && user.region.includes(',') && filters.serviceRegion === '' && tasks.length > 0) {
+      console.log('🔄 ReportBuilder Generating report for multi-region user with empty serviceRegion');
+      generateReportFromData(tasks);
+    }
+  }, [filters.serviceRegion, user?.region, tasks]);
+  
   // Функція для генерації звіту з переданими даними
   const generateReportFromData = (tasksData) => {
     const filtered = tasksData.filter(t => {
