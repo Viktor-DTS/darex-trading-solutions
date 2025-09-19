@@ -7,12 +7,6 @@ html, body, #root {
   /* overflow: hidden; */
 }
 
-/* Мобільна версія - білий фон */
-@media (max-width: 768px) {
-  html, body, #root {
-    background: #ffffff !important;
-  }
-}
 
 body {
   background: #22334a url('/assets/Designer (4).jpeg') center center no-repeat fixed;
@@ -24,13 +18,6 @@ body {
   position: relative;
 }
 
-/* Мобільна версія - білий фон без зображення */
-@media (max-width: 768px) {
-  body {
-    background: #ffffff !important;
-    color: #333;
-  }
-}
 body::before {
   content: '';
   display: none;
@@ -240,6 +227,14 @@ h2 {
   background: url('/assets/Designer (4).jpeg') center center no-repeat;
   background-size: cover;
   opacity: 0.25;
+}
+
+/* Мобільна версія - білий фон замість логотипу */
+@media (max-width: 768px) {
+  .bg-logo {
+    background: #ffffff !important;
+    opacity: 1;
+  }
 }
 
 /* Стилі для модального вікна вибору матеріалів */

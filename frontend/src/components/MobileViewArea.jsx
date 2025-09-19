@@ -978,7 +978,7 @@ export default function MobileViewArea({ user }) {
     );
   }
   return (
-    <div style={{ padding: '16px', maxWidth: '100%', background: '#ffffff', minHeight: '100vh' }}>
+    <div style={{ padding: '16px', maxWidth: '100%', background: 'transparent', minHeight: '100vh' }}>
       <h2 style={{ 
         marginBottom: '20px', 
         color: '#22334a',
