@@ -7,6 +7,13 @@ html, body, #root {
   /* overflow: hidden; */
 }
 
+/* Мобільна версія - білий фон */
+@media (max-width: 768px) {
+  html, body, #root {
+    background: #ffffff !important;
+  }
+}
+
 body {
   background: #22334a url('/assets/Designer (4).jpeg') center center no-repeat fixed;
   background-size: cover;
@@ -15,6 +22,14 @@ body {
   color: #fff;
   font-family: 'Segoe UI', 'Arial', sans-serif;
   position: relative;
+}
+
+/* Мобільна версія - білий фон без зображення */
+@media (max-width: 768px) {
+  body {
+    background: #ffffff !important;
+    color: #333;
+  }
 }
 body::before {
   content: '';
