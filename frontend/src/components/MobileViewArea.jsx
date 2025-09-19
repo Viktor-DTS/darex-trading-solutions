@@ -971,7 +971,7 @@ export default function MobileViewArea({ user }) {
         alignItems: 'center', 
         height: '50vh',
         fontSize: '18px',
-        color: '#666'
+        color: '#000000'
       }}>
         Завантаження заявок...
       </div>
@@ -981,7 +981,7 @@ export default function MobileViewArea({ user }) {
     <div style={{ padding: '16px', maxWidth: '100%', background: 'transparent', minHeight: '100vh' }}>
       <h2 style={{ 
         marginBottom: '20px', 
-        color: '#22334a',
+        color: '#000000',
         fontSize: '24px',
         textAlign: 'center'
       }}>
@@ -1002,13 +1002,13 @@ export default function MobileViewArea({ user }) {
           <div style={{
             fontSize: '14px',
             fontWeight: '600',
-            color: user.region === 'Україна' ? '#1976d2' : '#f57c00'
+            color: '#000000'
           }}>
             🌍 Регіон: {user.region}
           </div>
           <div style={{
             fontSize: '12px',
-            color: user.region === 'Україна' ? '#1976d2' : '#f57c00',
+            color: '#000000',
             marginTop: '2px'
           }}>
             {user.region === 'Україна' ? 'Переглядаєте всі заявки' : `Переглядаєте заявки регіону "${user.region}"`}
@@ -1073,7 +1073,7 @@ export default function MobileViewArea({ user }) {
               padding: '12px 8px',
               border: 'none',
               background: activeTab === 'pending' ? '#007bff' : '#f8f9fa',
-              color: activeTab === 'pending' ? '#fff' : '#666',
+              color: activeTab === 'pending' ? '#fff' : '#000000',
               fontSize: '14px',
               fontWeight: activeTab === 'pending' ? '600' : '400',
               cursor: 'pointer',
@@ -1089,7 +1089,7 @@ export default function MobileViewArea({ user }) {
               padding: '12px 8px',
               border: 'none',
               background: activeTab === 'confirmed' ? '#ffc107' : '#f8f9fa',
-              color: activeTab === 'confirmed' ? '#000' : '#666',
+              color: activeTab === 'confirmed' ? '#000' : '#000000',
               fontSize: '14px',
               fontWeight: activeTab === 'confirmed' ? '600' : '400',
               cursor: 'pointer',
@@ -1105,7 +1105,7 @@ export default function MobileViewArea({ user }) {
               padding: '12px 8px',
               border: 'none',
               background: activeTab === 'completed' ? '#28a745' : '#f8f9fa',
-              color: activeTab === 'completed' ? '#fff' : '#666',
+              color: activeTab === 'completed' ? '#fff' : '#000000',
               fontSize: '14px',
               fontWeight: activeTab === 'completed' ? '600' : '400',
               cursor: 'pointer',
@@ -1186,7 +1186,7 @@ export default function MobileViewArea({ user }) {
           <div style={{
             marginTop: '8px',
             fontSize: '14px',
-            color: '#666'
+            color: '#000000'
           }}>
             Знайдено: {getFilteredTasks().length} заявок
           </div>
@@ -1199,7 +1199,7 @@ export default function MobileViewArea({ user }) {
           return filteredTasks.length === 0 ? (
             <div style={{ 
               textAlign: 'center', 
-              color: '#666', 
+              color: '#000000', 
               padding: '40px 20px',
               fontSize: '16px'
             }}>
@@ -1227,7 +1227,7 @@ export default function MobileViewArea({ user }) {
                   }}
                 >
                   <div style={{ marginBottom: '8px' }}>
-                    <strong style={{ color: '#22334a' }}>
+                    <strong style={{ color: '#000000' }}>
                       №{task.requestNumber || task.id}
                     </strong>
                     {task.status && (
@@ -1263,41 +1263,41 @@ export default function MobileViewArea({ user }) {
                   >
                     {isFieldFilled(task.date) && (
                       <div>
-                        <span style={{ color: '#333' }}>Дата проведення робіт:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>
+                        <span style={{ color: '#000000' }}>Дата проведення робіт:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>
                           {formatDate(task.date)}
                         </span>
                       </div>
                     )}
                     {isFieldFilled(task.requestDate) && (
                       <div>
-                        <span style={{ color: '#333' }}>Дата заявки:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>
+                        <span style={{ color: '#000000' }}>Дата заявки:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>
                           {formatDate(task.requestDate)}
                         </span>
                       </div>
                     )}
                     {isFieldFilled(task.client) && (
                       <div>
-                        <span style={{ color: '#333' }}>Компанія:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.client}</span>
+                        <span style={{ color: '#000000' }}>Компанія:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.client}</span>
                       </div>
                     )}
                     {isFieldFilled(task.serviceRegion) && (
                       <div>
-                        <span style={{ color: '#333' }}>Регіон:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.serviceRegion}</span>
+                        <span style={{ color: '#000000' }}>Регіон:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.serviceRegion}</span>
                       </div>
                     )}
                     {isFieldFilled(task.equipment) && (
                       <div>
-                        <span style={{ color: '#333' }}>Обладнання:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.equipment}</span>
+                        <span style={{ color: '#000000' }}>Обладнання:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.equipment}</span>
                       </div>
                     )}
                     {isFieldFilled(task.serviceTotal) && (
                       <div>
-                        <span style={{ color: '#333' }}>Сума:</span><br />
+                        <span style={{ color: '#000000' }}>Сума:</span><br />
                         <span style={{ fontWeight: '500', color: '#28a745' }}>
                           {task.serviceTotal} грн
                         </span>
@@ -1305,43 +1305,43 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.address) && (
                       <div>
-                        <span style={{ color: '#333' }}>Адреса:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.address}</span>
+                        <span style={{ color: '#000000' }}>Адреса:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.address}</span>
                       </div>
                     )}
                     {isFieldFilled(task.equipmentSerial) && (
                       <div>
-                        <span style={{ color: '#333' }}>Серійний номер:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.equipmentSerial}</span>
+                        <span style={{ color: '#000000' }}>Серійний номер:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.equipmentSerial}</span>
                       </div>
                     )}
                     {isFieldFilled(task.engineer1) && (
                       <div>
-                        <span style={{ color: '#333' }}>Інженер 1:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.engineer1}</span>
+                        <span style={{ color: '#000000' }}>Інженер 1:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.engineer1}</span>
                       </div>
                     )}
                     {isFieldFilled(task.engineer2) && (
                       <div>
-                        <span style={{ color: '#333' }}>Інженер 2:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.engineer2}</span>
+                        <span style={{ color: '#000000' }}>Інженер 2:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.engineer2}</span>
                       </div>
                     )}
                     {isFieldFilled(task.paymentType) && (
                       <div>
-                        <span style={{ color: '#333' }}>Тип оплати:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.paymentType}</span>
+                        <span style={{ color: '#000000' }}>Тип оплати:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.paymentType}</span>
                       </div>
                     )}
                     {isFieldFilled(task.work) && (
                       <div>
-                        <span style={{ color: '#333' }}>Роботи:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.work}</span>
+                        <span style={{ color: '#000000' }}>Роботи:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.work}</span>
                       </div>
                     )}
                     {isFieldFilled(task.workPrice) && (
                       <div>
-                        <span style={{ color: '#333' }}>Вартість робіт:</span><br />
+                        <span style={{ color: '#000000' }}>Вартість робіт:</span><br />
                         <span style={{ fontWeight: '500', color: '#007bff' }}>
                           {task.workPrice} грн
                         </span>
@@ -1349,7 +1349,7 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.transportSum) && (
                       <div>
-                        <span style={{ color: '#333' }}>Транспорт:</span><br />
+                        <span style={{ color: '#000000' }}>Транспорт:</span><br />
                         <span style={{ fontWeight: '500', color: '#ff6b35' }}>
                           {task.transportSum} грн
                         </span>
@@ -1357,13 +1357,13 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.otherMaterials) && (
                       <div>
-                        <span style={{ color: '#333' }}>Матеріали:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.otherMaterials}</span>
+                        <span style={{ color: '#000000' }}>Матеріали:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.otherMaterials}</span>
                       </div>
                     )}
                     {isFieldFilled(task.otherSum) && (
                       <div>
-                        <span style={{ color: '#333' }}>Вартість матеріалів:</span><br />
+                        <span style={{ color: '#000000' }}>Вартість матеріалів:</span><br />
                         <span style={{ fontWeight: '500', color: '#6f42c1' }}>
                           {task.otherSum} грн
                         </span>
@@ -1371,7 +1371,7 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.oilTotal) && task.oilTotal > 0 && (
                       <div>
-                        <span style={{ color: '#333' }}>Масло:</span><br />
+                        <span style={{ color: '#000000' }}>Масло:</span><br />
                         <span style={{ fontWeight: '500', color: '#fd7e14' }}>
                           {task.oilTotal} грн
                         </span>
@@ -1379,7 +1379,7 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.airFilterSum) && task.airFilterSum > 0 && (
                       <div>
-                        <span style={{ color: '#333' }}>Повітряний фільтр:</span><br />
+                        <span style={{ color: '#000000' }}>Повітряний фільтр:</span><br />
                         <span style={{ fontWeight: '500', color: '#20c997' }}>
                           {task.airFilterSum} грн
                         </span>
@@ -1387,7 +1387,7 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.fuelFilterSum) && task.fuelFilterSum > 0 && (
                       <div>
-                        <span style={{ color: '#333' }}>Паливний фільтр:</span><br />
+                        <span style={{ color: '#000000' }}>Паливний фільтр:</span><br />
                         <span style={{ fontWeight: '500', color: '#20c997' }}>
                           {task.fuelFilterSum} грн
                         </span>
@@ -1395,7 +1395,7 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.filterSum) && task.filterSum > 0 && (
                       <div>
-                        <span style={{ color: '#333' }}>Інші фільтри:</span><br />
+                        <span style={{ color: '#000000' }}>Інші фільтри:</span><br />
                         <span style={{ fontWeight: '500', color: '#20c997' }}>
                           {task.filterSum} грн
                         </span>
@@ -1403,7 +1403,7 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.antifreezePrice) && (
                       <div>
-                        <span style={{ color: '#333' }}>Ціна антифризу за л:</span><br />
+                        <span style={{ color: '#000000' }}>Ціна антифризу за л:</span><br />
                         <span style={{ fontWeight: '500', color: '#17a2b8' }}>
                           {task.antifreezePrice} грн
                         </span>
@@ -1411,7 +1411,7 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.antifreezeSum) && task.antifreezeSum > 0 && (
                       <div>
-                        <span style={{ color: '#333' }}>Загальна сума антифризу:</span><br />
+                        <span style={{ color: '#000000' }}>Загальна сума антифризу:</span><br />
                         <span style={{ fontWeight: '500', color: '#17a2b8' }}>
                           {task.antifreezeSum} грн
                         </span>
@@ -1419,19 +1419,19 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.oilType) && (
                       <div>
-                        <span style={{ color: '#333' }}>Тип оливи:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.oilType}</span>
+                        <span style={{ color: '#000000' }}>Тип оливи:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.oilType}</span>
                       </div>
                     )}
                     {isFieldFilled(task.oilUsed) && (
                       <div>
-                        <span style={{ color: '#333' }}>Кількість оливи:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.oilUsed} л</span>
+                        <span style={{ color: '#000000' }}>Кількість оливи:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.oilUsed} л</span>
                       </div>
                     )}
                     {isFieldFilled(task.oilPrice) && (
                       <div>
-                        <span style={{ color: '#333' }}>Ціна оливи за л:</span><br />
+                        <span style={{ color: '#000000' }}>Ціна оливи за л:</span><br />
                         <span style={{ fontWeight: '500', color: '#fd7e14' }}>
                           {task.oilPrice} грн
                         </span>
@@ -1439,19 +1439,19 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.filterName) && (
                       <div>
-                        <span style={{ color: '#333' }}>Масляний фільтр:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.filterName}</span>
+                        <span style={{ color: '#000000' }}>Масляний фільтр:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.filterName}</span>
                       </div>
                     )}
                     {isFieldFilled(task.filterCount) && (
                       <div>
-                        <span style={{ color: '#333' }}>Кількість масл. фільтрів:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.filterCount} шт</span>
+                        <span style={{ color: '#000000' }}>Кількість масл. фільтрів:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.filterCount} шт</span>
                       </div>
                     )}
                     {isFieldFilled(task.filterPrice) && (
                       <div>
-                        <span style={{ color: '#333' }}>Ціна масл. фільтра:</span><br />
+                        <span style={{ color: '#000000' }}>Ціна масл. фільтра:</span><br />
                         <span style={{ fontWeight: '500', color: '#20c997' }}>
                           {task.filterPrice} грн
                         </span>
@@ -1459,19 +1459,19 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.fuelFilterName) && (
                       <div>
-                        <span style={{ color: '#333' }}>Паливний фільтр:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.fuelFilterName}</span>
+                        <span style={{ color: '#000000' }}>Паливний фільтр:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.fuelFilterName}</span>
                       </div>
                     )}
                     {isFieldFilled(task.fuelFilterCount) && (
                       <div>
-                        <span style={{ color: '#333' }}>Кількість палив. фільтрів:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.fuelFilterCount} шт</span>
+                        <span style={{ color: '#000000' }}>Кількість палив. фільтрів:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.fuelFilterCount} шт</span>
                       </div>
                     )}
                     {isFieldFilled(task.fuelFilterPrice) && (
                       <div>
-                        <span style={{ color: '#333' }}>Ціна палив. фільтра:</span><br />
+                        <span style={{ color: '#000000' }}>Ціна палив. фільтра:</span><br />
                         <span style={{ fontWeight: '500', color: '#20c997' }}>
                           {task.fuelFilterPrice} грн
                         </span>
@@ -1479,19 +1479,19 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.airFilterName) && (
                       <div>
-                        <span style={{ color: '#333' }}>Повітряний фільтр:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.airFilterName}</span>
+                        <span style={{ color: '#000000' }}>Повітряний фільтр:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.airFilterName}</span>
                       </div>
                     )}
                     {isFieldFilled(task.airFilterCount) && (
                       <div>
-                        <span style={{ color: '#333' }}>Кількість повітр. фільтрів:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.airFilterCount} шт</span>
+                        <span style={{ color: '#000000' }}>Кількість повітр. фільтрів:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.airFilterCount} шт</span>
                       </div>
                     )}
                     {isFieldFilled(task.airFilterPrice) && (
                       <div>
-                        <span style={{ color: '#333' }}>Ціна повітр. фільтра:</span><br />
+                        <span style={{ color: '#000000' }}>Ціна повітр. фільтра:</span><br />
                         <span style={{ fontWeight: '500', color: '#20c997' }}>
                           {task.airFilterPrice} грн
                         </span>
@@ -1499,19 +1499,19 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.antifreezeType) && (
                       <div>
-                        <span style={{ color: '#333' }}>Тип антифризу:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.antifreezeType}</span>
+                        <span style={{ color: '#000000' }}>Тип антифризу:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.antifreezeType}</span>
                       </div>
                     )}
                     {isFieldFilled(task.antifreezeL) && (
                       <div>
-                        <span style={{ color: '#333' }}>Кількість антифризу:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.antifreezeL} л</span>
+                        <span style={{ color: '#000000' }}>Кількість антифризу:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.antifreezeL} л</span>
                       </div>
                     )}
                     {isFieldFilled(task.antifreezePrice) && (
                       <div>
-                        <span style={{ color: '#333' }}>Ціна антифризу за л:</span><br />
+                        <span style={{ color: '#000000' }}>Ціна антифризу за л:</span><br />
                         <span style={{ fontWeight: '500', color: '#17a2b8' }}>
                           {task.antifreezePrice} грн
                         </span>
@@ -1519,7 +1519,7 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.antifreezeSum) && task.antifreezeSum > 0 && (
                       <div>
-                        <span style={{ color: '#333' }}>Загальна сума антифризу:</span><br />
+                        <span style={{ color: '#000000' }}>Загальна сума антифризу:</span><br />
                         <span style={{ fontWeight: '500', color: '#17a2b8' }}>
                           {task.antifreezeSum} грн
                         </span>
@@ -1527,74 +1527,74 @@ export default function MobileViewArea({ user }) {
                     )}
                     {isFieldFilled(task.company) && (
                       <div>
-                        <span style={{ color: '#333' }}>Компанія:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.company}</span>
+                        <span style={{ color: '#000000' }}>Компанія:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.company}</span>
                       </div>
                     )}
                     {isFieldFilled(task.reportMonthYear) && (
                       <div>
-                        <span style={{ color: '#333' }}>Звітний місяць:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.reportMonthYear}</span>
+                        <span style={{ color: '#000000' }}>Звітний місяць:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.reportMonthYear}</span>
                       </div>
                     )}
                     {isFieldFilled(task.invoice) && (
                       <div>
-                        <span style={{ color: '#333' }}>Номер рахунку:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.invoice}</span>
+                        <span style={{ color: '#000000' }}>Номер рахунку:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.invoice}</span>
                       </div>
                     )}
                     {isFieldFilled(task.bonusApprovalDate) && (
                       <div>
-                        <span style={{ color: '#333' }}>Дата затвердження премії:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.bonusApprovalDate}</span>
+                        <span style={{ color: '#000000' }}>Дата затвердження премії:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.bonusApprovalDate}</span>
                       </div>
                     )}
                     {isFieldFilled(task.approvedByWarehouse) && (
                       <div>
-                        <span style={{ color: '#333' }}>Підтверджено складом:</span><br />
+                        <span style={{ color: '#000000' }}>Підтверджено складом:</span><br />
                         <span style={{ fontWeight: '500', color: '#28a745' }}>{task.approvedByWarehouse}</span>
                       </div>
                     )}
                     {isFieldFilled(task.warehouseComment) && (
                       <div>
-                        <span style={{ color: '#333' }}>Коментар складу:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.warehouseComment}</span>
+                        <span style={{ color: '#000000' }}>Коментар складу:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.warehouseComment}</span>
                       </div>
                     )}
                     {isFieldFilled(task.approvedByAccountant) && (
                       <div>
-                        <span style={{ color: '#333' }}>Підтверджено бухгалтером:</span><br />
+                        <span style={{ color: '#000000' }}>Підтверджено бухгалтером:</span><br />
                         <span style={{ fontWeight: '500', color: '#28a745' }}>{task.approvedByAccountant}</span>
                       </div>
                     )}
                     {isFieldFilled(task.accountantComment) && (
                       <div>
-                        <span style={{ color: '#333' }}>Коментар бухгалтера:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.accountantComment}</span>
+                        <span style={{ color: '#000000' }}>Коментар бухгалтера:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.accountantComment}</span>
                       </div>
                     )}
                     {isFieldFilled(task.approvedByRegional) && (
                       <div>
-                        <span style={{ color: '#333' }}>Підтверджено регіональним:</span><br />
+                        <span style={{ color: '#000000' }}>Підтверджено регіональним:</span><br />
                         <span style={{ fontWeight: '500', color: '#28a745' }}>{task.approvedByRegional}</span>
                       </div>
                     )}
                     {isFieldFilled(task.regionalComment) && (
                       <div>
-                        <span style={{ color: '#333' }}>Коментар регіонального:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.regionalComment}</span>
+                        <span style={{ color: '#000000' }}>Коментар регіонального:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.regionalComment}</span>
                       </div>
                     )}
                     {isFieldFilled(task.approvedByRegionalManager) && (
                       <div>
-                        <span style={{ color: '#333' }}>Підтверджено рег. менеджером:</span><br />
+                        <span style={{ color: '#000000' }}>Підтверджено рег. менеджером:</span><br />
                         <span style={{ fontWeight: '500', color: '#28a745' }}>{task.approvedByRegionalManager}</span>
                       </div>
                     )}
                     {isFieldFilled(task.regionalManagerComment) && (
                       <div>
-                        <span style={{ color: '#333' }}>Коментар рег. менеджера:</span><br />
-                        <span style={{ fontWeight: '500', color: '#000' }}>{task.regionalManagerComment}</span>
+                        <span style={{ color: '#000000' }}>Коментар рег. менеджера:</span><br />
+                        <span style={{ fontWeight: '500', color: '#000000' }}>{task.regionalManagerComment}</span>
                       </div>
                     )}
                   </div>
@@ -1688,7 +1688,7 @@ export default function MobileViewArea({ user }) {
                   border: 'none',
                   fontSize: '24px',
                   cursor: 'pointer',
-                  color: '#666'
+                  color: '#000000'
                 }}
               >
                 ×
@@ -1758,7 +1758,7 @@ export default function MobileViewArea({ user }) {
                 return (
                   <div key={key} style={{ marginBottom: '12px' }}>
                     <div style={{ 
-                      color: '#666', 
+                      color: '#000000', 
                       fontSize: '14px',
                       marginBottom: '4px'
                     }}>
@@ -1814,7 +1814,7 @@ export default function MobileViewArea({ user }) {
                 {loadingFiles[selectedTask.id] ? (
                   <div style={{ 
                     textAlign: 'center', 
-                    color: '#666', 
+                    color: '#000000', 
                     padding: '20px',
                     fontSize: '14px'
                   }}>
@@ -1882,7 +1882,7 @@ export default function MobileViewArea({ user }) {
                                     {file.description && (
                                       <div style={{ 
                                         fontSize: '11px', 
-                                        color: '#666',
+                                        color: '#000000',
                                         marginBottom: '2px',
                                         wordBreak: 'break-word'
                                       }}>
@@ -1944,7 +1944,7 @@ export default function MobileViewArea({ user }) {
                 ) : (
                   <div style={{ 
                     textAlign: 'center', 
-                    color: '#666', 
+                    color: '#000000', 
                     padding: '20px',
                     fontSize: '14px',
                     background: '#f8f9fa',
@@ -2024,7 +2024,7 @@ export default function MobileViewArea({ user }) {
                       <label style={{ 
                         display: 'block', 
                         fontSize: '14px', 
-                        color: '#666', 
+                        color: '#000000', 
                         marginBottom: '4px' 
                       }}>
                         Опис файлів (необов'язково):
@@ -2049,7 +2049,7 @@ export default function MobileViewArea({ user }) {
                       <label style={{ 
                         display: 'block', 
                         fontSize: '14px', 
-                        color: '#666', 
+                        color: '#000000', 
                         marginBottom: '4px' 
                       }}>
                         Тип фото:
@@ -2140,7 +2140,7 @@ export default function MobileViewArea({ user }) {
                 {uploadingFiles && (
                   <div style={{
                     textAlign: 'center',
-                    color: '#666',
+                    color: '#000000',
                     fontSize: '14px',
                     padding: '12px'
                   }}>
