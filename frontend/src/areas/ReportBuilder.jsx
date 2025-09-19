@@ -217,6 +217,25 @@ export default function ReportBuilder({ user }) {
       }
     }).finally(() => setLoading(false));
   }, []);
+  
+  // Автоматично встановлюємо serviceRegion = '' для користувачів з множинними регіонами
+  useEffect(() => {
+    console.log('🔄 ReportBuilder useEffect: user?.region =', user?.region);
+    console.log('🔄 ReportBuilder useEffect: filters.serviceRegion =', filters.serviceRegion);
+    console.log('🔄 ReportBuilder useEffect: user.region.includes(",") =', user?.region?.includes(','));
+    
+    // Встановлюємо serviceRegion = '' для користувачів з множинними регіонами
+    if (user?.region && user.region.includes(',')) {
+      console.log('🔄 ReportBuilder Auto-setting serviceRegion to "" for multi-region user');
+      setFilters(prev => {
+        const newFilters = { ...prev, serviceRegion: '' };
+        console.log('🔄 ReportBuilder setFilters called with newFilters =', newFilters);
+        console.log('🔄 ReportBuilder setFilters: newFilters.serviceRegion =', newFilters.serviceRegion);
+        return newFilters;
+      });
+    }
+  }, [user?.region]);
+  
   // Функція для генерації звіту з переданими даними
   const generateReportFromData = (tasksData) => {
     const filtered = tasksData.filter(t => {
