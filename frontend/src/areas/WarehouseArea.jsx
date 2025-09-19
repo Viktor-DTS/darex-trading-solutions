@@ -240,6 +240,12 @@ export default function WarehouseArea({ user }) {
           const userRegions = user.region.split(',').map(r => r.trim());
           console.log('🌍 Multi-region user, userRegions =', userRegions);
           
+          // ТИМЧАСОВИЙ ТЕСТ: додаємо "Київський" до регіонів користувача для тестування
+          if (!userRegions.includes('Київський')) {
+            userRegions.push('Київський');
+            console.log('🧪 TEST: Added Київський to userRegions for testing:', userRegions);
+          }
+          
           // Якщо вибрано "Загальний" або нічого не вибрано, показуємо всі регіони користувача
           if (filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
             // Перевіряємо, чи регіон завдання є в списку регіонів користувача
