@@ -3207,7 +3207,7 @@ function App() {
         <div className='bg-logo'></div>
         <div style={{ 
           minHeight: '100vh',
-          background: '#f5f5f5'
+          background: '#ffffff'
         }}>
           <div style={{
             background: '#22334a',
