@@ -234,6 +234,7 @@ h2 {
   .bg-logo {
     background: #ffffff !important;
     opacity: 1;
+    z-index: -1;
   }
 }
 
