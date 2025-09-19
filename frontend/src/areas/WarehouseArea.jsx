@@ -102,25 +102,8 @@ export default function WarehouseArea({ user }) {
     });
   }, [allTaskFields]); // Залежність від allTaskFields
   
-  // Автоматично встановлюємо "Загальний" для користувачів з множинними регіонами
-  useEffect(() => {
-    console.log('🔄 useEffect: user?.region =', user?.region);
-    console.log('🔄 useEffect: filters.serviceRegion =', filters.serviceRegion);
-    console.log('🔄 useEffect: user.region.includes(",") =', user?.region?.includes(','));
-    console.log('🔄 useEffect: filters.serviceRegion === "" =', filters.serviceRegion === '');
-    console.log('🔄 useEffect: filters.serviceRegion === "" || filters.serviceRegion === undefined =', filters.serviceRegion === '' || filters.serviceRegion === undefined);
-    
-    // Завжди встановлюємо "Загальний" для користувачів з множинними регіонами
-    if (user?.region && user.region.includes(',')) {
-      console.log('🔄 Auto-setting serviceRegion to "Загальний" for multi-region user');
-      setFilters(prev => {
-        const newFilters = { ...prev, serviceRegion: 'Загальний' };
-        console.log('🔄 setFilters called with newFilters =', newFilters);
-        console.log('🔄 setFilters: newFilters.serviceRegion =', newFilters.serviceRegion);
-        return newFilters;
-      });
-    }
-  }, [user?.region]);
+  // Для користувачів з множинними регіонами не встановлюємо автоматично жодного фільтра
+  // Вони будуть бачити всі свої регіони за замовчуванням
 
   useEffect(() => {
     setLoading(true);
@@ -240,32 +223,20 @@ export default function WarehouseArea({ user }) {
           const userRegions = user.region.split(',').map(r => r.trim());
           console.log('🌍 Multi-region user, userRegions =', userRegions);
           
-          // ТИМЧАСОВИЙ ТЕСТ: додаємо "Київський" до регіонів користувача для тестування
-          if (!userRegions.includes('Київський')) {
-            userRegions.push('Київський');
-            console.log('🧪 TEST: Added Київський to userRegions for testing:', userRegions);
-          }
-          
-          // Якщо вибрано "Загальний" або нічого не вибрано, показуємо всі регіони користувача
-          if (filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
-            // Перевіряємо, чи регіон завдання є в списку регіонів користувача
+          // Для користувачів з множинними регіонами перевіряємо, чи регіон завдання є в їх регіонах
+          if (!filters.serviceRegion || filters.serviceRegion === '') {
+            // Якщо нічого не вибрано, показуємо всі регіони користувача
             const taskRegion = t.serviceRegion?.trim();
             const userRegionsTrimmed = userRegions.map(r => r.trim());
             const isInUserRegions = userRegionsTrimmed.includes(taskRegion);
             
-            console.log('🔍 GENERAL FILTER: taskRegion =', taskRegion, '| userRegions =', userRegionsTrimmed, '| isInUserRegions =', isInUserRegions);
-            console.log('🔍 GENERAL FILTER: userRegionsTrimmed[0] =', userRegionsTrimmed[0]);
-            console.log('🔍 GENERAL FILTER: userRegionsTrimmed[1] =', userRegionsTrimmed[1]);
-            
-            // Додаткова перевірка для діагностики
-            console.log('🔍 GENERAL FILTER: taskRegion === userRegionsTrimmed[0] =', taskRegion === userRegionsTrimmed[0]);
-            console.log('🔍 GENERAL FILTER: taskRegion === userRegionsTrimmed[1] =', taskRegion === userRegionsTrimmed[1]);
+            console.log('🔍 MULTI-REGION FILTER (empty): taskRegion =', taskRegion, '| userRegions =', userRegionsTrimmed, '| isInUserRegions =', isInUserRegions);
             
             if (!isInUserRegions) {
-              console.log('🔍 GENERAL FILTER: Filtering out task - region not in user regions');
+              console.log('🔍 MULTI-REGION FILTER: Filtering out task - region not in user regions');
               return false;
             } else {
-              console.log('✅ GENERAL FILTER: Task passed - region is in user regions');
+              console.log('✅ MULTI-REGION FILTER: Task passed - region is in user regions');
             }
           } else {
             // Якщо вибрано конкретний регіон

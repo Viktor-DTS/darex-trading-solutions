@@ -457,12 +457,12 @@ function TaskTableComponent({
         console.log('DEBUG getFilterType: user.region includes comma =', user?.region?.includes(','));
         console.log('DEBUG getFilterType: regions =', regions.map(r => r.name));
         
-        // Якщо користувач має множинні регіони, показуємо тільки "Загальний" + їх регіони
+        // Якщо користувач має множинні регіони, показуємо тільки їх регіони (без "Загальний")
         if (user?.region && user.region.includes(',')) {
           const userRegions = user.region.split(',').map(r => r.trim());
           console.log('DEBUG getFilterType: userRegions =', userRegions);
-          const result = ['Загальний', ...userRegions];
-          console.log('DEBUG getFilterType: result for multi-region user =', result);
+          const result = ['', ...userRegions];
+          console.log('DEBUG getFilterType: result for multi-region user (without Загальний) =', result);
           return result;
         }
         
