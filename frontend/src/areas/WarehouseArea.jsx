@@ -116,6 +116,7 @@ export default function WarehouseArea({ user }) {
       setFilters(prev => {
         const newFilters = { ...prev, serviceRegion: 'Загальний' };
         console.log('🔄 setFilters called with newFilters =', newFilters);
+        console.log('🔄 setFilters: newFilters.serviceRegion =', newFilters.serviceRegion);
         return newFilters;
       });
     }
@@ -175,6 +176,7 @@ export default function WarehouseArea({ user }) {
     console.log('DEBUG WarehouseArea: handleFilter CALLED - current filters =', filters);
     const newFilters = { ...filters, [e.target.name]: e.target.value };
     console.log('DEBUG WarehouseArea: handleFilter - newFilters =', newFilters);
+    console.log('DEBUG WarehouseArea: handleFilter - newFilters.serviceRegion =', newFilters.serviceRegion);
     setFilters(newFilters);
   };
   const handleEdit = t => {
@@ -218,6 +220,9 @@ export default function WarehouseArea({ user }) {
     console.log('DEBUG WarehouseArea filtered: user.region =', user?.region);
     
     const result = tasks.filter(t => {
+      // Логування всіх завдань для діагностики
+      console.log('📋 PROCESSING TASK:', t.id, 'serviceRegion =', t.serviceRegion, 'status =', t.status);
+      
       // Додаткове логування для завдань з регіонами користувача
       if (t.serviceRegion === 'Львівський' || t.serviceRegion === 'Хмельницький') {
         console.log('🔍 FOUND USER REGION TASK!', t.id, 'serviceRegion =', t.serviceRegion);
@@ -227,9 +232,6 @@ export default function WarehouseArea({ user }) {
       if (t.serviceRegion && t.serviceRegion !== 'Київський') {
         console.log('📍 TASK REGION:', t.id, 'serviceRegion =', t.serviceRegion);
       }
-      
-      // Логування всіх регіонів завдань для діагностики
-      console.log('📋 ALL TASK REGIONS:', t.id, 'serviceRegion =', t.serviceRegion);
       
       // Перевірка доступу до регіону заявки
       if (user?.region && user.region !== 'Україна') {
@@ -249,9 +251,15 @@ export default function WarehouseArea({ user }) {
             console.log('🔍 GENERAL FILTER: userRegionsTrimmed[0] =', userRegionsTrimmed[0]);
             console.log('🔍 GENERAL FILTER: userRegionsTrimmed[1] =', userRegionsTrimmed[1]);
             
+            // Додаткова перевірка для діагностики
+            console.log('🔍 GENERAL FILTER: taskRegion === userRegionsTrimmed[0] =', taskRegion === userRegionsTrimmed[0]);
+            console.log('🔍 GENERAL FILTER: taskRegion === userRegionsTrimmed[1] =', taskRegion === userRegionsTrimmed[1]);
+            
             if (!isInUserRegions) {
               console.log('🔍 GENERAL FILTER: Filtering out task - region not in user regions');
               return false;
+            } else {
+              console.log('✅ GENERAL FILTER: Task passed - region is in user regions');
             }
           } else {
             // Якщо вибрано конкретний регіон
@@ -308,22 +316,17 @@ export default function WarehouseArea({ user }) {
   const pending = filtered.filter(
     t => t.status === 'Виконано' && t.approvedByWarehouse !== 'Підтверджено'
   );
+  console.log('📋 PENDING TASKS:', pending.length);
+  
   function isApproved(v) {
     return v === true || v === 'Підтверджено';
   }
   const archive = filtered.filter(
     t => t.status === 'Виконано' && t.approvedByWarehouse === 'Підтверджено'
-  ).filter(t => {
-    // Фільтрація за регіоном для архіву
-    // Якщо користувач має регіон "Україна", показуємо всі заявки
-    if (region === 'Україна') {
-      return true;
-    }
-    // Інакше показуємо тільки заявки регіону користувача
-    const matchesRegion = t.serviceRegion === region;
-    return matchesRegion;
-  });
+  );
+  console.log('📋 ARCHIVE TASKS:', archive.length);
   const tableData = tab === 'pending' ? pending : archive;
+  console.log('📋 TABLE DATA:', tableData.length, 'for tab:', tab);
   const columns = allTaskFields.map(f => ({
     key: f.name,
     label: f.label,
