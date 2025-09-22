@@ -1471,7 +1471,7 @@ app.get('/api/analytics/revenue', async (req, res) => {
 // Отримати повну аналітику з доходами та прибутком
 app.get('/api/analytics/full', async (req, res) => {
   try {
-    const { region, company, startYear, endYear, startMonth, endMonth } = req.query;
+    const { region, company, startYear, endYear, startMonth, endMonth, details, year, month } = req.query;
     
     // Отримуємо аналітику витрат
     const analyticsFilter = {};
@@ -1759,6 +1759,140 @@ app.get('/api/analytics/full', async (req, res) => {
       if (a.year !== b.year) return a.year - b.year;
       return a.month - b.month;
     });
+    
+    // Якщо запитується деталізація для конкретного місяця
+    if (details === 'true' && year && month) {
+      const monthNames = [
+        'Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
+        'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'
+      ];
+
+      // Отримуємо заявки з фільтрами
+      const taskFilter = {};
+      if (region) taskFilter.serviceRegion = region;
+      if (company) taskFilter.company = company;
+      taskFilter.status = 'Виконано';
+
+      const tasks = await Task.find(taskFilter);
+      
+      const workTasks = [];
+      const materialsTasks = [];
+      let totalWorkRevenue = 0;
+      let totalMaterialsRevenue = 0;
+
+      // Обробляємо заявки для доходу по роботах
+      tasks.forEach(task => {
+        const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
+        const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
+        const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
+
+        if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
+          // Розраховуємо місяць для нарахування премії
+          let bonusApprovalDate = task.bonusApprovalDate;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+            const [year, month] = bonusApprovalDate.split('-');
+            bonusApprovalDate = `${month}-${year}`;
+          }
+
+          const workDate = new Date(task.date);
+          const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+          const approvalMonth = parseInt(approvalMonthStr);
+          const approvalYear = parseInt(approvalYearStr);
+          const workMonth = workDate.getMonth() + 1;
+          const workYear = workDate.getFullYear();
+
+          let bonusMonth, bonusYear;
+          if (workMonth === approvalMonth && workYear === approvalYear) {
+            bonusMonth = workMonth;
+            bonusYear = workYear;
+          } else {
+            if (approvalMonth === 1) {
+              bonusMonth = 12;
+              bonusYear = approvalYear - 1;
+            } else {
+              bonusMonth = approvalMonth - 1;
+              bonusYear = approvalYear;
+            }
+          }
+
+          // Перевіряємо чи це потрібний місяць
+          if (bonusMonth === parseInt(month) && bonusYear === parseInt(year)) {
+            const workPrice = parseFloat(task.workPrice) || 0;
+            const baseBonus = workPrice * 0.25;
+            
+            // Розраховуємо фактичну премію з урахуванням розподілу між інженерами
+            let actualBonus = 0;
+            const engineer1 = (task.engineer1 || '').trim();
+            const engineer2 = (task.engineer2 || '').trim();
+            
+            if (engineer1 && engineer2) {
+              actualBonus = baseBonus; // Два інженери - загальна сума = повна премія
+            } else if (engineer1 || engineer2) {
+              actualBonus = baseBonus; // Один інженер - повна сума
+            }
+
+            const revenue = actualBonus * 3;
+            totalWorkRevenue += revenue;
+
+            workTasks.push({
+              workDate: task.date,
+              approvalDate: task.bonusApprovalDate,
+              engineer1: task.engineer1,
+              engineer2: task.engineer2,
+              client: task.client,
+              workPrice: workPrice,
+              baseBonus: baseBonus,
+              actualBonus: actualBonus,
+              revenue: revenue
+            });
+          }
+        }
+
+        // Обробляємо заявки для доходу по матеріалам
+        if (task.date) {
+          const workDate = new Date(task.date);
+          const workMonth = workDate.getMonth() + 1;
+          const workYear = workDate.getFullYear();
+
+          if (workMonth === parseInt(month) && workYear === parseInt(year)) {
+            const oilTotal = parseFloat(task.oilTotal) || 0;
+            const filterSum = parseFloat(task.filterSum) || 0;
+            const fuelFilterSum = parseFloat(task.fuelFilterSum) || 0;
+            const airFilterSum = parseFloat(task.airFilterSum) || 0;
+            const antifreezeSum = parseFloat(task.antifreezeSum) || 0;
+            const otherSum = parseFloat(task.otherSum) || 0;
+            
+            const totalMaterials = oilTotal + filterSum + fuelFilterSum + airFilterSum + antifreezeSum + otherSum;
+            const materialsRevenue = totalMaterials / 4;
+            totalMaterialsRevenue += materialsRevenue;
+
+            materialsTasks.push({
+              workDate: task.date,
+              client: task.client,
+              oilTotal: oilTotal,
+              filtersTotal: filterSum + fuelFilterSum + airFilterSum,
+              antifreezeSum: antifreezeSum,
+              otherSum: otherSum,
+              totalMaterials: totalMaterials,
+              materialsRevenue: materialsRevenue
+            });
+          }
+        }
+      });
+
+      return res.json({
+        year: parseInt(year),
+        month: parseInt(month),
+        monthName: monthNames[parseInt(month) - 1],
+        region: region || 'Всі регіони',
+        company: company || 'Всі компанії',
+        workRevenue: totalWorkRevenue,
+        materialsRevenue: totalMaterialsRevenue,
+        totalRevenue: totalWorkRevenue + totalMaterialsRevenue,
+        workTasks: workTasks,
+        materialsTasks: materialsTasks
+      });
+    }
     
     res.json(fullAnalytics);
   } catch (error) {

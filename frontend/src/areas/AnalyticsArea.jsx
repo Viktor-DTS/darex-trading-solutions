@@ -255,7 +255,7 @@ export default function AnalyticsArea({ user }) {
   // Функція для показу деталей розрахунку
   const handleShowDetails = async (item) => {
     try {
-      const response = await fetch(`/api/analytics/details?year=${item.year}&month=${item.month}&region=${item.region}&company=${item.company}`);
+      const response = await fetch(`/api/analytics/full?details=true&year=${item.year}&month=${item.month}&region=${item.region}&company=${item.company}`);
       const data = await response.json();
       setDetailsData(data);
       setShowDetailsModal(true);
