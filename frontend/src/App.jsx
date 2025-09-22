@@ -2069,6 +2069,67 @@ function RegionalManagerArea({ tab: propTab, user }) {
     // Генеруємо звіт з групуванням по регіонам
     const generateRegionReport = (region) => {
       const regionUsers = filteredUsers.filter(u => (u.region || 'Без регіону') === region);
+      
+      // Фільтруємо користувачів з нульовою загальною сумою по оплаті
+      const usersWithPayment = regionUsers.filter(u => {
+        const total = data[u.id]?.total || 0;
+        const salary = Number(payData[u.id]?.salary) || 25000;
+        const bonus = Number(payData[u.id]?.bonus) || 0;
+        const overtime = Math.max(0, total - summary.workHours);
+        const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
+        const overtimePay = overtime * overtimeRate;
+        const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
+        
+        // Розраховуємо премію за виконання сервісних робіт
+        let engineerBonus = 0;
+        tasks.forEach(t => {
+          if (
+            t.status === 'Виконано' &&
+            isApproved(t.approvedByWarehouse) &&
+            isApproved(t.approvedByAccountant) &&
+            isApproved(t.approvedByRegionalManager)
+          ) {
+            let bonusApprovalDate = t.bonusApprovalDate;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+              const [year, month] = bonusApprovalDate.split('-');
+              bonusApprovalDate = `${month}-${year}`;
+            }
+            const workDate = new Date(t.date);
+            const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+            const approvalMonth = parseInt(approvalMonthStr);
+            const approvalYear = parseInt(approvalYearStr);
+            const workMonth = workDate.getMonth() + 1;
+            const workYear = workDate.getFullYear();
+            let bonusMonth, bonusYear;
+            if (workMonth === approvalMonth && workYear === approvalYear) {
+              bonusMonth = workMonth;
+              bonusYear = workYear;
+            } else {
+              if (approvalMonth === 1) {
+                bonusMonth = 12;
+                bonusYear = approvalYear - 1;
+              } else {
+                bonusMonth = approvalMonth - 1;
+                bonusYear = approvalYear;
+              }
+            }
+            if (bonusMonth === reportMonth && bonusYear === reportYear) {
+              const workPrice = parseFloat(t.workPrice) || 0;
+              const bonusVal = workPrice * 0.25;
+              if (t.engineer1 === u.name && t.engineer2) {
+                engineerBonus += bonusVal / 2;
+              } else if (t.engineer2 === u.name && t.engineer1) {
+                engineerBonus += bonusVal / 2;
+              } else if (t.engineer1 === u.name && !t.engineer2) {
+                engineerBonus += bonusVal;
+              }
+            }
+          }
+        });
+        
+        const payout = basePay + overtimePay + bonus + engineerBonus;
+        return payout > 0; // Включаємо тільки користувачів з сумою > 0
+      });
       // Формування таблиці нарахувань для регіону
       const accrualTable = `
         <h4>Таблиця нарахування по персоналу - Регіон: ${region}</h4>
@@ -2087,7 +2148,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
             </tr>
           </thead>
           <tbody>
-            ${regionUsers.map(u => {
+            ${usersWithPayment.map(u => {
               const total = data[u.id]?.total || 0;
               const salary = Number(payData[u.id]?.salary) || 25000;
               const bonus = Number(payData[u.id]?.bonus) || 0;
@@ -2180,7 +2241,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
             </tr>
           </thead>
           <tbody>
-            ${regionUsers.map(u => `
+            ${usersWithPayment.map(u => `
               <tr>
                 <td>${u.name}</td>
                 ${days.map(d => {
@@ -2207,6 +2268,14 @@ function RegionalManagerArea({ tab: propTab, user }) {
         ) return false;
         // Фільтрація по регіону - показуємо тільки завдання цього конкретного регіону
         if (t.serviceRegion !== region) return false;
+        
+        // Перевіряємо чи інженер є серед користувачів з ненульовою оплатою
+        const engineer1 = (t.engineer1 || '').trim();
+        const engineer2 = (t.engineer2 || '').trim();
+        const hasEngineer1 = usersWithPayment.some(u => (u.name || '').trim() === engineer1);
+        const hasEngineer2 = usersWithPayment.some(u => (u.name || '').trim() === engineer2);
+        
+        if (!hasEngineer1 && !hasEngineer2) return false;
         // автоконвертація bonusApprovalDate
         let bonusApprovalDate = t.bonusApprovalDate;
         if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
