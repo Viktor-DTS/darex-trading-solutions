@@ -1615,90 +1615,115 @@ app.get('/api/analytics/full', async (req, res) => {
       }
     });
     
-    // Об'єднуємо дані та створюємо записи для місяців з доходами
-    const fullAnalytics = [];
+    // Групуємо дані по місяцях (загальні суми для кожного місяця)
+    const monthlyData = {};
     
-    // Додаємо існуючі записи аналітики
+    // Додаємо існуючі записи аналітики, групуємо по місяцях
     analytics.forEach(item => {
-      const revenueKey = `${item.year}-${item.month}`;
-      const workRevenue = revenueByMonth[revenueKey] || 0;
-      const materialsRevenue = materialsRevenueByMonth[revenueKey] || 0;
-      const plannedWorkRevenue = plannedRevenueByMonth[revenueKey] || 0;
-      const plannedMaterialsRevenue = plannedMaterialsRevenueByMonth[revenueKey] || 0;
-      const totalRevenue = workRevenue + materialsRevenue;
-      const totalPlannedRevenue = plannedWorkRevenue + plannedMaterialsRevenue;
-      const profit = totalRevenue - item.totalExpenses;
-      const profitability = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+      const key = `${item.year}-${item.month}`;
       
-      fullAnalytics.push({
-        ...item.toObject(),
-        workRevenue: Number(workRevenue.toFixed(2)),
-        materialsRevenue: Number(materialsRevenue.toFixed(2)),
-        plannedWorkRevenue: Number(plannedWorkRevenue.toFixed(2)),
-        plannedMaterialsRevenue: Number(plannedMaterialsRevenue.toFixed(2)),
-        plannedRevenue: Number(totalPlannedRevenue.toFixed(2)),
-        revenue: Number(totalRevenue.toFixed(2)),
-        profit: Number(profit.toFixed(2)),
-        profitability: Number(profitability.toFixed(2))
+      if (!monthlyData[key]) {
+        monthlyData[key] = {
+          year: item.year,
+          month: item.month,
+          workRevenue: 0,
+          materialsRevenue: 0,
+          plannedWorkRevenue: 0,
+          plannedMaterialsRevenue: 0,
+          totalExpenses: 0,
+          expenses: {
+            salary: 0,
+            fuel: 0,
+            transport: 0,
+            materials: 0,
+            equipment: 0,
+            office: 0,
+            marketing: 0,
+            other: 0
+          },
+          regions: new Set(),
+          companies: new Set()
+        };
+      }
+      
+      // Додаємо витрати
+      monthlyData[key].totalExpenses += item.totalExpenses || 0;
+      Object.keys(item.expenses || {}).forEach(category => {
+        monthlyData[key].expenses[category] = (monthlyData[key].expenses[category] || 0) + (item.expenses[category] || 0);
       });
+      
+      // Додаємо регіони та компанії
+      if (item.region) monthlyData[key].regions.add(item.region);
+      if (item.company) monthlyData[key].companies.add(item.company);
     });
     
-    // Додаємо записи для місяців з доходами, але без витрат
+    // Додаємо доходи для кожного місяця
     Object.keys(revenueByMonth).forEach(key => {
-      const [year, month] = key.split('-').map(Number);
-      
-      // Перевіряємо, чи вже є запис для цього місяця
-      const existingRecord = fullAnalytics.find(item => item.year === year && item.month === month);
-      
-      if (!existingRecord && revenueByMonth[key] > 0) {
-        // Створюємо новий запис з витратами = 0
-        const revenue = revenueByMonth[key];
-        const regions = Array.from(regionsByMonth[key] || []);
-        const companies = Array.from(companiesByMonth[key] || []);
-        
-        // Створюємо запис для кожної комбінації регіон-компанія
-        if (regions.length > 0 && companies.length > 0) {
-          regions.forEach(region => {
-            companies.forEach(company => {
-              const workRevenue = revenueByMonth[key] || 0;
-              const materialsRevenue = materialsRevenueByMonth[key] || 0;
-              const plannedWorkRevenue = plannedRevenueByMonth[key] || 0;
-              const plannedMaterialsRevenue = plannedMaterialsRevenueByMonth[key] || 0;
-              const totalRevenue = workRevenue + materialsRevenue;
-              const totalPlannedRevenue = plannedWorkRevenue + plannedMaterialsRevenue;
-              
-              fullAnalytics.push({
-                _id: `auto-${key}-${region}-${company}`,
-                region: region,
-                company: company,
-                year: year,
-                month: month,
-                expenses: {
-                  salary: 0,
-                  fuel: 0,
-                  transport: 0,
-                  materials: 0,
-                  equipment: 0,
-                  office: 0,
-                  marketing: 0,
-                  other: 0
-                },
-                totalExpenses: 0,
-                workRevenue: Number(workRevenue.toFixed(2)),
-                materialsRevenue: Number(materialsRevenue.toFixed(2)),
-                plannedWorkRevenue: Number(plannedWorkRevenue.toFixed(2)),
-                plannedMaterialsRevenue: Number(plannedMaterialsRevenue.toFixed(2)),
-                plannedRevenue: Number(totalPlannedRevenue.toFixed(2)),
-                revenue: Number(totalRevenue.toFixed(2)),
-                profit: Number(totalRevenue.toFixed(2)), // profit = revenue - 0
-                profitability: 100, // 100% рентабельність коли немає витрат
-                createdAt: new Date(),
-                updatedAt: new Date()
-              });
-            });
-          });
-        }
+      if (!monthlyData[key]) {
+        monthlyData[key] = {
+          year: parseInt(key.split('-')[0]),
+          month: parseInt(key.split('-')[1]),
+          workRevenue: 0,
+          materialsRevenue: 0,
+          plannedWorkRevenue: 0,
+          plannedMaterialsRevenue: 0,
+          totalExpenses: 0,
+          expenses: {
+            salary: 0,
+            fuel: 0,
+            transport: 0,
+            materials: 0,
+            equipment: 0,
+            office: 0,
+            marketing: 0,
+            other: 0
+          },
+          regions: new Set(),
+          companies: new Set()
+        };
       }
+      
+      // Додаємо доходи
+      monthlyData[key].workRevenue += revenueByMonth[key] || 0;
+      monthlyData[key].materialsRevenue += materialsRevenueByMonth[key] || 0;
+      monthlyData[key].plannedWorkRevenue += plannedRevenueByMonth[key] || 0;
+      monthlyData[key].plannedMaterialsRevenue += plannedMaterialsRevenueByMonth[key] || 0;
+      
+      // Додаємо регіони та компанії з доходів
+      if (regionsByMonth[key]) {
+        regionsByMonth[key].forEach(region => monthlyData[key].regions.add(region));
+      }
+      if (companiesByMonth[key]) {
+        companiesByMonth[key].forEach(company => monthlyData[key].companies.add(company));
+      }
+    });
+    
+    // Створюємо фінальний масив з згрупованими даними
+    const fullAnalytics = Object.values(monthlyData).map(data => {
+      const totalRevenue = data.workRevenue + data.materialsRevenue;
+      const totalPlannedRevenue = data.plannedWorkRevenue + data.plannedMaterialsRevenue;
+      const profit = totalRevenue - data.totalExpenses;
+      const profitability = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+      
+      return {
+        _id: `monthly-${data.year}-${data.month}`,
+        region: Array.from(data.regions).join(', '),
+        company: Array.from(data.companies).join(', '),
+        year: data.year,
+        month: data.month,
+        workRevenue: Number(data.workRevenue.toFixed(2)),
+        materialsRevenue: Number(data.materialsRevenue.toFixed(2)),
+        plannedWorkRevenue: Number(data.plannedWorkRevenue.toFixed(2)),
+        plannedMaterialsRevenue: Number(data.plannedMaterialsRevenue.toFixed(2)),
+        plannedRevenue: Number(totalPlannedRevenue.toFixed(2)),
+        revenue: Number(totalRevenue.toFixed(2)),
+        totalExpenses: Number(data.totalExpenses.toFixed(2)),
+        expenses: data.expenses,
+        profit: Number(profit.toFixed(2)),
+        profitability: Number(profitability.toFixed(2)),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
     });
     
     // Сортуємо за роком та місяцем
