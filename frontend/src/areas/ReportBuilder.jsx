@@ -83,7 +83,7 @@ export default function ReportBuilder({ user }) {
   const [statusOptions] = useState(['Новий', 'В роботі', 'Виконано', 'Заблоковано']);
   const [companyOptions] = useState(['Дарекс Енерго', 'Інша компанія']);
   const [paymentTypeOptions] = useState(['Безготівка', 'Готівка', 'Картка']);
-  const [approvalOptions] = useState(['Підтверджено', 'Відхилено', 'На розгляді']);
+  const [approvalOptions] = useState(['Підтверджено', 'Відмова', 'На розгляді']);
   // Завантажуємо збережені звіти при ініціалізації
   useEffect(() => {
     if (user && user.login) {
@@ -183,7 +183,7 @@ export default function ReportBuilder({ user }) {
     if (isApproved(value)) {
       return 'Підтверджено';
     } else if (value === false || value === 'Відмова') {
-      return 'Відхилено';
+      return 'Відмова';
     } else {
       return 'На розгляді';
     }
