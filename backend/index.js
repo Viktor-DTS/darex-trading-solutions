@@ -1418,10 +1418,11 @@ app.get('/api/analytics/revenue', async (req, res) => {
             materialsRevenueByMonth[key] = 0;
           }
           
-          // Додаємо премію за виконання сервісних робіт: (workPrice / 4) * 3
+          // Додаємо дохід по виконаним роботам: Премія за виконання сервісних робіт × 3
           const workPrice = parseFloat(task.workPrice) || 0;
-          const bonusAmount = (workPrice / 4) * 3; // workPrice поділено на 4 та помножено на 3
-          revenueByMonth[key] += bonusAmount;
+          const serviceBonus = workPrice * 0.25; // Премія за виконання сервісних робіт (25% від workPrice)
+          const workRevenue = serviceBonus * 3; // Дохід по роботах = премія × 3
+          revenueByMonth[key] += workRevenue;
           
           // Додаємо дохід по матеріалам: сума всіх матеріальних витрат / 4
           const oilTotal = parseFloat(task.oilTotal) || 0;
@@ -1437,7 +1438,7 @@ app.get('/api/analytics/revenue', async (req, res) => {
           
           processedTasks++;
           
-          console.log(`[DEBUG] Додано дохід для ${key}: workPrice=${workPrice}, bonusAmount=${bonusAmount} грн, materialsRevenue=${materialsRevenue} грн`);
+          console.log(`[DEBUG] Додано дохід для ${key}: workPrice=${workPrice}, serviceBonus=${serviceBonus} грн, workRevenue=${workRevenue} грн, materialsRevenue=${materialsRevenue} грн`);
         }
       }
     });
@@ -1536,9 +1537,10 @@ app.get('/api/analytics/full', async (req, res) => {
       const otherSum = parseFloat(task.otherSum) || 0;
       const totalMaterials = oilTotal + filterSum + fuelFilterSum + airFilterSum + antifreezeSum + otherSum;
       
-      // Розраховуємо премію та дохід по матеріалам
-      const bonusAmount = (workPrice / 4) * 3;
-      const materialsRevenue = totalMaterials / 4;
+      // Розраховуємо дохід по роботах та матеріалам
+      const serviceBonus = workPrice * 0.25; // Премія за виконання сервісних робіт (25% від workPrice)
+      const workRevenue = serviceBonus * 3; // Дохід по роботах = премія × 3
+      const materialsRevenue = totalMaterials / 4; // Дохід по матеріалам = сума матеріалів ÷ 4
       
       if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
         // Підтверджена заявка - додаємо до підтверджених доходів
@@ -1568,8 +1570,8 @@ app.get('/api/analytics/full', async (req, res) => {
             companiesByMonth[key] = new Set();
           }
           
-          // Додаємо премію за виконання сервісних робіт
-          revenueByMonth[key] += bonusAmount;
+          // Додаємо дохід по виконаним роботам
+          revenueByMonth[key] += workRevenue;
           
           // Додаємо дохід по матеріалам
           materialsRevenueByMonth[key] += materialsRevenue;
@@ -1604,8 +1606,8 @@ app.get('/api/analytics/full', async (req, res) => {
             plannedMaterialsRevenueByMonth[key] = 0;
           }
           
-          // Додаємо заплановану премію за виконання сервісних робіт
-          plannedRevenueByMonth[key] += bonusAmount;
+          // Додаємо запланований дохід по роботах
+          plannedRevenueByMonth[key] += workRevenue;
           
           // Додаємо запланований дохід по матеріалам
           plannedMaterialsRevenueByMonth[key] += materialsRevenue;
