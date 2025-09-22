@@ -1418,10 +1418,24 @@ app.get('/api/analytics/revenue', async (req, res) => {
             materialsRevenueByMonth[key] = 0;
           }
           
-          // Додаємо дохід по виконаним роботам: Премія за виконання сервісних робіт × 3
+          // Додаємо дохід по виконаним роботам з правильною логікою розподілу між інженерами
           const workPrice = parseFloat(task.workPrice) || 0;
-          const serviceBonus = workPrice * 0.25; // Премія за виконання сервісних робіт (25% від workPrice)
-          const workRevenue = serviceBonus * 3; // Дохід по роботах = премія × 3
+          const bonusVal = workPrice * 0.25; // Базова премія (25% від workPrice)
+          
+          // Розраховуємо фактичну премію з урахуванням розподілу між інженерами
+          let actualBonus = 0;
+          const engineer1 = (task.engineer1 || '').trim();
+          const engineer2 = (task.engineer2 || '').trim();
+          
+          if (engineer1 && engineer2) {
+            // Два інженери - кожен отримує половину, загальна сума = повна премія
+            actualBonus = bonusVal;
+          } else if (engineer1 || engineer2) {
+            // Один інженер - отримує повну суму
+            actualBonus = bonusVal;
+          }
+          
+          const workRevenue = actualBonus * 3; // Дохід по роботах = фактична премія × 3
           revenueByMonth[key] += workRevenue;
           
           // Додаємо дохід по матеріалам: сума всіх матеріальних витрат / 4
@@ -1438,7 +1452,7 @@ app.get('/api/analytics/revenue', async (req, res) => {
           
           processedTasks++;
           
-          console.log(`[DEBUG] Додано дохід для ${key}: workPrice=${workPrice}, serviceBonus=${serviceBonus} грн, workRevenue=${workRevenue} грн, materialsRevenue=${materialsRevenue} грн`);
+          console.log(`[DEBUG] Додано дохід для ${key}: workPrice=${workPrice}, bonusVal=${bonusVal} грн, actualBonus=${actualBonus} грн, workRevenue=${workRevenue} грн, materialsRevenue=${materialsRevenue} грн`);
         }
       }
     });
@@ -1537,9 +1551,23 @@ app.get('/api/analytics/full', async (req, res) => {
       const otherSum = parseFloat(task.otherSum) || 0;
       const totalMaterials = oilTotal + filterSum + fuelFilterSum + airFilterSum + antifreezeSum + otherSum;
       
-      // Розраховуємо дохід по роботах та матеріалам
-      const serviceBonus = workPrice * 0.25; // Премія за виконання сервісних робіт (25% від workPrice)
-      const workRevenue = serviceBonus * 3; // Дохід по роботах = премія × 3
+      // Розраховуємо дохід по роботах та матеріалам з правильною логікою розподілу між інженерами
+      const bonusVal = workPrice * 0.25; // Базова премія (25% від workPrice)
+      
+      // Розраховуємо фактичну премію з урахуванням розподілу між інженерами
+      let actualBonus = 0;
+      const engineer1 = (task.engineer1 || '').trim();
+      const engineer2 = (task.engineer2 || '').trim();
+      
+      if (engineer1 && engineer2) {
+        // Два інженери - кожен отримує половину, загальна сума = повна премія
+        actualBonus = bonusVal;
+      } else if (engineer1 || engineer2) {
+        // Один інженер - отримує повну суму
+        actualBonus = bonusVal;
+      }
+      
+      const workRevenue = actualBonus * 3; // Дохід по роботах = фактична премія × 3
       const materialsRevenue = totalMaterials / 4; // Дохід по матеріалам = сума матеріалів ÷ 4
       
       if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
