@@ -23,6 +23,8 @@ export default function AnalyticsArea({ user }) {
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [customExpenseCategories, setCustomExpenseCategories] = useState(EXPENSE_CATEGORIES);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [detailsData, setDetailsData] = useState(null);
   // Завантаження регіонів та компаній
   useEffect(() => {
     const loadData = async () => {
@@ -250,6 +252,19 @@ export default function AnalyticsArea({ user }) {
       console.error('Помилка очищення старих категорій:', error);
     }
   };
+  // Функція для показу деталей розрахунку
+  const handleShowDetails = async (item) => {
+    try {
+      const response = await fetch(`/api/analytics/details?year=${item.year}&month=${item.month}&region=${item.region}&company=${item.company}`);
+      const data = await response.json();
+      setDetailsData(data);
+      setShowDetailsModal(true);
+    } catch (error) {
+      console.error('Помилка завантаження деталей:', error);
+      alert('Помилка завантаження деталей');
+    }
+  };
+
   // Функція для видалення витрат
   const handleDeleteExpenses = async (item) => {
     // Перевіряємо права доступу
@@ -1063,7 +1078,21 @@ export default function AnalyticsArea({ user }) {
                             {formatPercent(item.profitability)}
                           </td>
                           <td style={{padding: '12px', textAlign: 'center'}}>
-                            <div style={{display: 'flex', gap: '8px', justifyContent: 'center'}}>
+                            <div style={{display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap'}}>
+                              <button
+                                onClick={() => handleShowDetails(item)}
+                                style={{
+                                  padding: '4px 8px',
+                                  background: '#28a745',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                Деталізація
+                              </button>
                               <button
                                 onClick={() => handleEditExpenses(item)}
                                 style={{
@@ -1141,6 +1170,219 @@ export default function AnalyticsArea({ user }) {
          open={showCategoryManager}
          onClose={() => setShowCategoryManager(false)}
        />
+       {/* Модальне вікно деталей розрахунку */}
+       <DetailsModal
+         open={showDetailsModal}
+         onClose={() => setShowDetailsModal(false)}
+         data={detailsData}
+       />
      </div>
    );
- } 
+ }
+
+// Компонент для модального вікна деталей розрахунку
+const DetailsModal = ({ open, onClose, data }) => {
+  if (!open || !data) return null;
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('uk-UA', {
+      style: 'currency',
+      currency: 'UAH',
+      minimumFractionDigits: 2
+    }).format(amount || 0);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('uk-UA');
+  };
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0,0,0,0.7)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000,
+      padding: '20px'
+    }}>
+      <div style={{
+        background: '#22334a',
+        padding: '24px',
+        borderRadius: '8px',
+        minWidth: '800px',
+        maxWidth: '90vw',
+        maxHeight: '90vh',
+        overflowY: 'auto'
+      }}>
+        <h3 style={{color: '#fff', marginBottom: '16px'}}>
+          Деталізація розрахунку доходу за {data.monthName} {data.year}
+        </h3>
+        
+        {/* Загальна інформація */}
+        <div style={{marginBottom: '20px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
+          <h4 style={{color: '#fff', marginBottom: '12px'}}>Загальна інформація</h4>
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
+            <div>
+              <strong style={{color: '#00bfff'}}>Дохід по виконаним роботам:</strong>
+              <div style={{color: '#28a745', fontSize: '18px', fontWeight: 'bold'}}>
+                {formatCurrency(data.workRevenue)}
+              </div>
+            </div>
+            <div>
+              <strong style={{color: '#00bfff'}}>Дохід по матеріалам:</strong>
+              <div style={{color: '#28a745', fontSize: '18px', fontWeight: 'bold'}}>
+                {formatCurrency(data.materialsRevenue)}
+              </div>
+            </div>
+            <div>
+              <strong style={{color: '#00bfff'}}>Загальний дохід:</strong>
+              <div style={{color: '#28a745', fontSize: '18px', fontWeight: 'bold'}}>
+                {formatCurrency(data.totalRevenue)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Деталі по заявках для доходу по роботах */}
+        <div style={{marginBottom: '20px'}}>
+          <h4 style={{color: '#fff', marginBottom: '12px'}}>Заявки для розрахунку доходу по виконаним роботам</h4>
+          <div style={{overflowX: 'auto'}}>
+            <table style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              color: '#fff',
+              background: '#1a2636',
+              borderRadius: '8px',
+              overflow: 'hidden'
+            }}>
+              <thead>
+                <tr style={{background: '#22334a'}}>
+                  <th style={{padding: '12px', textAlign: 'left'}}>Дата виконання</th>
+                  <th style={{padding: '12px', textAlign: 'left'}}>Дата затвердження</th>
+                  <th style={{padding: '12px', textAlign: 'left'}}>Інженери</th>
+                  <th style={{padding: '12px', textAlign: 'left'}}>Клієнт</th>
+                  <th style={{padding: '12px', textAlign: 'right'}}>Вартість робіт</th>
+                  <th style={{padding: '12px', textAlign: 'right'}}>Базова премія (25%)</th>
+                  <th style={{padding: '12px', textAlign: 'right'}}>Фактична премія</th>
+                  <th style={{padding: '12px', textAlign: 'right'}}>Дохід (×3)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.workTasks?.map((task, index) => (
+                  <tr key={index} style={{
+                    background: index % 2 === 0 ? '#1a2636' : '#22334a',
+                    borderBottom: '1px solid #29506a'
+                  }}>
+                    <td style={{padding: '12px'}}>{formatDate(task.workDate)}</td>
+                    <td style={{padding: '12px'}}>{formatDate(task.approvalDate)}</td>
+                    <td style={{padding: '12px'}}>
+                      {[task.engineer1, task.engineer2].filter(Boolean).join(', ')}
+                    </td>
+                    <td style={{padding: '12px'}}>{task.client}</td>
+                    <td style={{padding: '12px', textAlign: 'right'}}>{formatCurrency(task.workPrice)}</td>
+                    <td style={{padding: '12px', textAlign: 'right'}}>{formatCurrency(task.baseBonus)}</td>
+                    <td style={{padding: '12px', textAlign: 'right', color: '#ffc107'}}>
+                      {formatCurrency(task.actualBonus)}
+                    </td>
+                    <td style={{padding: '12px', textAlign: 'right', color: '#28a745', fontWeight: 'bold'}}>
+                      {formatCurrency(task.revenue)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Деталі по заявках для доходу по матеріалам */}
+        <div style={{marginBottom: '20px'}}>
+          <h4 style={{color: '#fff', marginBottom: '12px'}}>Заявки для розрахунку доходу по матеріалам</h4>
+          <div style={{overflowX: 'auto'}}>
+            <table style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              color: '#fff',
+              background: '#1a2636',
+              borderRadius: '8px',
+              overflow: 'hidden'
+            }}>
+              <thead>
+                <tr style={{background: '#22334a'}}>
+                  <th style={{padding: '12px', textAlign: 'left'}}>Дата виконання</th>
+                  <th style={{padding: '12px', textAlign: 'left'}}>Клієнт</th>
+                  <th style={{padding: '12px', textAlign: 'right'}}>Олива</th>
+                  <th style={{padding: '12px', textAlign: 'right'}}>Фільтри</th>
+                  <th style={{padding: '12px', textAlign: 'right'}}>Антифриз</th>
+                  <th style={{padding: '12px', textAlign: 'right'}}>Інші</th>
+                  <th style={{padding: '12px', textAlign: 'right'}}>Загальна сума</th>
+                  <th style={{padding: '12px', textAlign: 'right'}}>Дохід (÷4)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.materialsTasks?.map((task, index) => (
+                  <tr key={index} style={{
+                    background: index % 2 === 0 ? '#1a2636' : '#22334a',
+                    borderBottom: '1px solid #29506a'
+                  }}>
+                    <td style={{padding: '12px'}}>{formatDate(task.workDate)}</td>
+                    <td style={{padding: '12px'}}>{task.client}</td>
+                    <td style={{padding: '12px', textAlign: 'right'}}>{formatCurrency(task.oilTotal)}</td>
+                    <td style={{padding: '12px', textAlign: 'right'}}>{formatCurrency(task.filtersTotal)}</td>
+                    <td style={{padding: '12px', textAlign: 'right'}}>{formatCurrency(task.antifreezeSum)}</td>
+                    <td style={{padding: '12px', textAlign: 'right'}}>{formatCurrency(task.otherSum)}</td>
+                    <td style={{padding: '12px', textAlign: 'right'}}>{formatCurrency(task.totalMaterials)}</td>
+                    <td style={{padding: '12px', textAlign: 'right', color: '#28a745', fontWeight: 'bold'}}>
+                      {formatCurrency(task.materialsRevenue)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Алгоритм розрахунку */}
+        <div style={{marginBottom: '20px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
+          <h4 style={{color: '#fff', marginBottom: '12px'}}>Алгоритм розрахунку</h4>
+          <div style={{color: '#ccc', fontSize: '14px', lineHeight: '1.6'}}>
+            <p><strong>Дохід по виконаним роботам:</strong></p>
+            <ul style={{marginLeft: '20px', marginBottom: '16px'}}>
+              <li>Базова премія = Вартість робіт × 25%</li>
+              <li>Якщо 1 інженер: Фактична премія = Базова премія</li>
+              <li>Якщо 2 інженери: Фактична премія = Базова премія (кожен отримує половину)</li>
+              <li>Дохід = Фактична премія × 3</li>
+            </ul>
+            <p><strong>Дохід по матеріалам:</strong></p>
+            <ul style={{marginLeft: '20px'}}>
+              <li>Загальна сума матеріалів = Олива + Фільтри + Антифриз + Інші</li>
+              <li>Дохід = Загальна сума матеріалів ÷ 4</li>
+            </ul>
+          </div>
+        </div>
+
+        <div style={{display: 'flex', gap: '8px', justifyContent: 'flex-end'}}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '8px 16px',
+              background: '#6c757d',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Закрити
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}; 
