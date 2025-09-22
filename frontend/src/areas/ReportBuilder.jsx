@@ -445,27 +445,13 @@ export default function ReportBuilder({ user }) {
           <h1>Звіт</h1>
           <p>Дата створення: ${new Date().toLocaleDateString('uk-UA')}</p>
           <p>Кількість записів: ${reportData.length}</p>
-          ${selectedFields.includes('serviceTotal') ? `
-            <p>Загальна сума послуг: ${reportData.reduce((total, item) => {
-              if (item.group) {
-                return total + item.total;
-              } else {
-                return total + (parseFloat(item.serviceTotal) || 0);
-              }
-            }, 0).toFixed(2)} грн</p>
-          ` : ''}
-          ${reportData.some(item => item.serviceTotal || (item.group && item.total)) ? `
-            <p>Загальна сума послуг (альтернативний): ${reportData.reduce((total, item) => {
-              if (item.group) {
-                return total + (item.total || 0);
-              } else {
-                return total + (parseFloat(item.serviceTotal) || 0);
-              }
-            }, 0).toFixed(2)} грн</p>
-          ` : ''}
-          <p>DEBUG: selectedFields = ${JSON.stringify(selectedFields)}</p>
-          <p>DEBUG: hasServiceTotal = ${selectedFields.includes('serviceTotal')}</p>
-          <p>DEBUG: reportData.length = ${reportData.length}</p>
+          <p>Загальна сума послуг: ${reportData.reduce((total, item) => {
+            if (item.group) {
+              return total + (item.total || 0);
+            } else {
+              return total + (parseFloat(item.serviceTotal) || 0);
+            }
+          }, 0).toFixed(2)} грн</p>
         </div>
         <table>
           <thead>
@@ -1247,11 +1233,11 @@ export default function ReportBuilder({ user }) {
             approvalFilter === 'not_approved' ? 'Тільки незатверджені' : 'Невідомо'
           }
         </div>
-        {selectedFields.includes('serviceTotal') && reportData.length > 0 && (
+        {reportData.length > 0 && (
           <div style={{color: '#fff', fontSize: '14px', marginTop: '4px'}}>
             <strong>Загальна сума послуг:</strong> {reportData.reduce((total, item) => {
               if (item.group) {
-                return total + item.total;
+                return total + (item.total || 0);
               } else {
                 return total + (parseFloat(item.serviceTotal) || 0);
               }
