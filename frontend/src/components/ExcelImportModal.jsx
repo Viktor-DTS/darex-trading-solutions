@@ -6,48 +6,159 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
   const [fieldMapping, setFieldMapping] = useState({});
   const [isMappingComplete, setIsMappingComplete] = useState(false);
   const fileInputRef = useRef(null);
-  // Поля форми завдання
+  // Поля форми завдання (повний список з ModalTaskForm.jsx)
   const taskFields = [
+    // Основні поля
+    { name: 'status', label: 'Статус заявки' },
     { name: 'requestDate', label: 'Дата заявки' },
-    { name: 'requestDesc', label: 'Опис заявки' },
-    { name: 'serviceRegion', label: 'Сервісний регіон' },
-    { name: 'address', label: 'Адреса' },
-    { name: 'equipmentSerial', label: 'Серійний номер обладнання' },
-    { name: 'equipment', label: 'Обладнання' },
-    { name: 'work', label: 'Робота' },
-    { name: 'date', label: 'Дата виконання' },
-    { name: 'engineer1', label: 'Інженер 1' },
-    { name: 'engineer2', label: 'Інженер 2' },
-    { name: 'client', label: 'Клієнт' },
+    { name: 'date', label: 'Дата проведення робіт' },
+    { name: 'paymentDate', label: 'Дата оплати' },
     { name: 'company', label: 'Компанія виконавець' },
-    { name: 'invoice', label: 'Рахунок' },
-    { name: 'paymentType', label: 'Тип оплати' },
-    { name: 'serviceTotal', label: 'Загальна сума сервісу' },
-    { name: 'oilType', label: 'Тип масла' },
-    { name: 'oilUsed', label: 'Використано масла' },
-    { name: 'oilPrice', label: 'Ціна масла' },
-    { name: 'oilTotal', label: 'Загальна сума масла' },
-    { name: 'filterName', label: 'Назва фільтра' },
-    { name: 'filterCount', label: 'Кількість фільтрів' },
-    { name: 'filterPrice', label: 'Ціна фільтра' },
-    { name: 'filterSum', label: 'Сума фільтрів' },
-    { name: 'fuelFilterName', label: 'Назва паливного фільтра' },
-    { name: 'fuelFilterCount', label: 'Кількість паливних фільтрів' },
-    { name: 'fuelFilterPrice', label: 'Ціна паливного фільтра' },
-    { name: 'fuelFilterSum', label: 'Сума паливних фільтрів' },
-    { name: 'antifreezeType', label: 'Тип антифризу' },
-    { name: 'antifreezeL', label: 'Літри антифризу' },
+    { name: 'edrpou', label: 'ЄДРПОУ' },
+    { name: 'requestDesc', label: 'Опис заявки' },
+    { name: 'serviceRegion', label: 'Регіон сервісного відділу' },
+    { name: 'client', label: 'Замовник' },
+    { name: 'requestNumber', label: 'Номер заявки/наряду' },
+    { name: 'invoice', label: 'Номер рахунку' },
+    { name: 'paymentType', label: 'Вид оплати' },
+    { name: 'address', label: 'Адреса' },
+    
+    // Обладнання
+    { name: 'equipmentSerial', label: 'Заводський номер обладнання' },
+    { name: 'equipment', label: 'Тип обладнання' },
+    { name: 'equipmentModel', label: 'Модель обладнання' },
+    { name: 'equipmentYear', label: 'Рік випуску обладнання' },
+    { name: 'equipmentWarranty', label: 'Гарантія обладнання' },
+    
+    // Роботи
+    { name: 'work', label: 'Найменування робіт' },
+    { name: 'engineer1', label: 'Сервісний інженер №1' },
+    { name: 'engineer2', label: 'Сервісний інженер №2' },
+    { name: 'serviceTotal', label: 'Загальна сума послуги' },
+    { name: 'workPrice', label: 'Вартість робіт, грн' },
+    { name: 'serviceType', label: 'Тип сервісу' },
+    { name: 'serviceCategory', label: 'Категорія сервісу' },
+    { name: 'serviceLevel', label: 'Рівень сервісу' },
+    
+    // Матеріали - олива
+    { name: 'oilType', label: 'Тип оливи' },
+    { name: 'oilUsed', label: 'Використано оливи, л' },
+    { name: 'oilPrice', label: 'Ціна оливи за 1 л, грн' },
+    { name: 'oilTotal', label: 'Загальна сума за оливу, грн' },
+    
+    // Матеріали - масляний фільтр
+    { name: 'filterName', label: 'Фільтр масл. назва' },
+    { name: 'filterCount', label: 'Фільтр масл. штук' },
+    { name: 'filterPrice', label: 'Ціна одного масляного фільтра' },
+    { name: 'filterSum', label: 'Загальна сума за фільтри масляні' },
+    
+    // Матеріали - паливний фільтр
+    { name: 'fuelFilterName', label: 'Фільтр палив. назва' },
+    { name: 'fuelFilterCount', label: 'Фільтр палив. штук' },
+    { name: 'fuelFilterPrice', label: 'Ціна одного паливного фільтра' },
+    { name: 'fuelFilterSum', label: 'Загальна сума за паливні фільтри' },
+    
+    // Матеріали - повітряний фільтр
+    { name: 'airFilterName', label: 'Фільтр повітряний назва' },
+    { name: 'airFilterCount', label: 'Фільтр повітряний штук' },
+    { name: 'airFilterPrice', label: 'Ціна одного повітряного фільтра' },
+    { name: 'airFilterSum', label: 'Загальна сума за повітряні фільтри' },
+    
+    // Матеріали - антифриз
+    { name: 'antifreezeType', label: 'Антифриз тип' },
+    { name: 'antifreezeL', label: 'Антифриз, л' },
     { name: 'antifreezePrice', label: 'Ціна антифризу' },
-    { name: 'antifreezeSum', label: 'Сума антифризу' },
-    { name: 'otherMaterials', label: 'Інші матеріали' },
-    { name: 'otherSum', label: 'Сума інших матеріалів' },
-    { name: 'workPrice', label: 'Ціна роботи' },
-    { name: 'perDiem', label: 'Добові' },
-    { name: 'living', label: 'Проживання' },
-    { name: 'otherExp', label: 'Інші витрати' },
-    { name: 'carNumber', label: 'Номер автомобіля' },
-    { name: 'transportKm', label: 'Кілометри транспорту' },
-    { name: 'transportSum', label: 'Сума транспорту' }
+    { name: 'antifreezeSum', label: 'Загальна сума за антифриз' },
+    
+    // Інші матеріали
+    { name: 'otherMaterials', label: 'Опис інших матеріалів' },
+    { name: 'otherSum', label: 'Загальна ціна інших матеріалів' },
+    { name: 'spareParts', label: 'Запасні частини' },
+    { name: 'sparePartsPrice', label: 'Ціна запасних частин' },
+    { name: 'sparePartsTotal', label: 'Загальна сума запасних частин' },
+    
+    // Витрати
+    { name: 'perDiem', label: 'Добові, грн' },
+    { name: 'living', label: 'Проживання, грн' },
+    { name: 'otherExp', label: 'Інші витрати, грн' },
+    
+    // Транспорт
+    { name: 'carNumber', label: 'Держномер автотранспорту' },
+    { name: 'transportKm', label: 'Транспортні витрати, км' },
+    { name: 'transportSum', label: 'Загальна вартість тр. витрат' },
+    
+    // Підтвердження складу
+    { name: 'approvedByWarehouse', label: 'Підтвердження зав. складу' },
+    { name: 'warehouseComment', label: 'Опис відмови (зав. склад)' },
+    
+    // Підтвердження бухгалтера
+    { name: 'approvedByAccountant', label: 'Підтвердження бухгалтера' },
+    { name: 'accountantComment', label: 'Опис відмови (бухгалтер)' },
+    { name: 'accountantComments', label: 'Коментарії бухгалтера' },
+    
+    // Підтвердження регіонального керівника
+    { name: 'approvedByRegionalManager', label: 'Підтвердження регіонального керівника' },
+    { name: 'regionalManagerComment', label: 'Опис відмови (регіональний керівник)' },
+    
+    // Додаткові поля
+    { name: 'comments', label: 'Коментарі' },
+    { name: 'approvalDate', label: 'Дата затвердження' },
+    { name: 'bonusApprovalDate', label: 'Дата затвердження премії' },
+    { name: 'serviceBonus', label: 'Премія за виконання сервісних робіт, грн' },
+    { name: 'blockDetail', label: 'Детальний опис блокування заявки' },
+    { name: 'reportMonthYear', label: 'Місяць/рік для звіту' },
+    
+    // Поля для клієнта
+    { name: 'clientContact', label: 'Контакт клієнта' },
+    { name: 'clientPhone', label: 'Телефон клієнта' },
+    { name: 'clientEmail', label: 'Email клієнта' },
+    
+    // Поля для планування
+    { name: 'plannedDate', label: 'Запланована дата' },
+    { name: 'deadline', label: 'Термін виконання' },
+    { name: 'completionDate', label: 'Дата завершення' },
+    
+    // Поля для пріоритету
+    { name: 'priority', label: 'Пріоритет' },
+    
+    // Поля для якості
+    { name: 'qualityRating', label: 'Оцінка якості' },
+    { name: 'customerSatisfaction', label: 'Задоволеність клієнта' },
+    
+    // Поля для фінансів
+    { name: 'costCenter', label: 'Центр витрат' },
+    { name: 'profitMargin', label: 'Маржа прибутку' },
+    { name: 'discount', label: 'Знижка' },
+    { name: 'tax', label: 'Податок' },
+    { name: 'totalAmount', label: 'Загальна сума' },
+    
+    // Поля для часу
+    { name: 'estimatedTime', label: 'Орієнтовний час виконання' },
+    { name: 'actualTime', label: 'Фактичний час виконання' },
+    
+    // Поля для локації
+    { name: 'latitude', label: 'Широта' },
+    { name: 'longitude', label: 'Довгота' },
+    { name: 'location', label: 'Локація' },
+    
+    // Поля для ресурсів
+    { name: 'requiredSkills', label: 'Необхідні навички' },
+    { name: 'requiredTools', label: 'Необхідні інструменти' },
+    { name: 'requiredMaterials', label: 'Необхідні матеріали' },
+    
+    // Поля для ризиків
+    { name: 'riskLevel', label: 'Рівень ризику' },
+    { name: 'riskDescription', label: 'Опис ризику' },
+    { name: 'mitigationPlan', label: 'План зменшення ризику' },
+    
+    // Поля для комунікації
+    { name: 'communicationLog', label: 'Журнал комунікації' },
+    { name: 'stakeholders', label: 'Зацікавлені сторони' },
+    
+    // Поля для аналітики
+    { name: 'performanceMetrics', label: 'Метрики продуктивності' },
+    { name: 'efficiency', label: 'Ефективність' },
+    { name: 'productivity', label: 'Продуктивність' }
   ];
   // Додаю функцію для конвертації дат з Excel-формату у ISO-формат
   function excelDateToISO(excelDate) {
@@ -85,14 +196,61 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
         // Автоматичне мапінгування на основі схожих назв
         const autoMapping = {};
         headers.forEach((header, index) => {
-          const headerLower = header.toLowerCase();
-          const matchedField = taskFields.find(field => 
-            field.label.toLowerCase().includes(headerLower) || 
-            headerLower.includes(field.name.toLowerCase()) ||
-            field.name.toLowerCase().includes(headerLower)
-          );
+          if (!header || header.trim() === '') return;
+          
+          const headerLower = header.toLowerCase().trim();
+          const matchedField = taskFields.find(field => {
+            const fieldLabelLower = field.label.toLowerCase();
+            const fieldNameLower = field.name.toLowerCase();
+            
+            // Точне співпадіння
+            if (fieldLabelLower === headerLower || fieldNameLower === headerLower) {
+              return true;
+            }
+            
+            // Часткове співпадіння в назві поля
+            if (fieldLabelLower.includes(headerLower) || headerLower.includes(fieldLabelLower)) {
+              return true;
+            }
+            
+            // Співпадіння з іменем поля
+            if (fieldNameLower.includes(headerLower) || headerLower.includes(fieldNameLower)) {
+              return true;
+            }
+            
+            // Спеціальні випадки для поширених назв
+            const specialMappings = {
+              'дата': ['requestDate', 'date', 'paymentDate'],
+              'сума': ['serviceTotal', 'workPrice', 'oilTotal', 'filterSum'],
+              'ціна': ['oilPrice', 'filterPrice', 'fuelFilterPrice'],
+              'кількість': ['filterCount', 'fuelFilterCount', 'airFilterCount'],
+              'назва': ['filterName', 'fuelFilterName', 'airFilterName'],
+              'тип': ['oilType', 'antifreezeType', 'serviceType'],
+              'номер': ['requestNumber', 'invoice', 'equipmentSerial'],
+              'адреса': ['address'],
+              'клієнт': ['client'],
+              'компанія': ['company'],
+              'обладнання': ['equipment'],
+              'робота': ['work'],
+              'інженер': ['engineer1', 'engineer2'],
+              'регіон': ['serviceRegion'],
+              'статус': ['status'],
+              'опис': ['requestDesc', 'comments'],
+              'коментар': ['comments', 'warehouseComment', 'accountantComment']
+            };
+            
+            for (const [keyword, fields] of Object.entries(specialMappings)) {
+              if (headerLower.includes(keyword)) {
+                return fields.includes(field.name);
+              }
+            }
+            
+            return false;
+          });
+          
           if (matchedField) {
             autoMapping[matchedField.name] = index;
+            console.log(`[IMPORT] Автоматичне мапінгування: "${header}" -> "${matchedField.label}" (${matchedField.name})`);
           }
         });
         setFieldMapping(autoMapping);
@@ -125,6 +283,10 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
       alert('Будь ласка, налаштуйте мапінг полів');
       return;
     }
+    
+    console.log(`[IMPORT] Початок імпорту ${excelData.length} завдань`);
+    console.log(`[IMPORT] Мапінг полів:`, fieldMapping);
+    
     const importedTasks = excelData.map((row, index) => {
       const task = {
         id: Date.now() + index,
@@ -142,10 +304,17 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
       Object.entries(fieldMapping).forEach(([taskField, excelIndex]) => {
         let value = row[excelIndex];
         // Якщо поле є датою, конвертуємо у ISO-формат
-        if ([
-          'requestDate', 'date', 'Дата заявки', 'Дата виконання', 'Дата проведення робіт', 'Дата затвердження премії'
-        ].includes(taskField)) {
+        const dateFields = [
+          'requestDate', 'date', 'paymentDate', 'approvalDate', 'bonusApprovalDate', 
+          'plannedDate', 'deadline', 'completionDate'
+        ];
+        
+        if (dateFields.includes(taskField)) {
+          const originalValue = value;
           value = excelDateToISO(value);
+          if (originalValue && value !== originalValue) {
+            console.log(`[IMPORT] Конвертація дати: "${originalValue}" -> "${value}" для поля ${taskField}`);
+          }
         }
         if (value !== undefined && value !== null) {
           task[taskField] = String(value);
@@ -153,8 +322,18 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
       });
       // Якщо після мапінгу статус все ще порожній, ставимо 'Виконано'
       if (!task.status) task.status = 'Виконано';
+      
+      // Логуємо створене завдання
+      if (index < 3) { // Логуємо тільки перші 3 завдання для діагностики
+        console.log(`[IMPORT] Завдання ${index + 1}:`, task);
+      }
+      
       return task;
     });
+    
+    console.log(`[IMPORT] Успішно створено ${importedTasks.length} завдань для імпорту`);
+    console.log(`[IMPORT] Приклад першого завдання:`, importedTasks[0]);
+    
     onImport(importedTasks);
     onClose();
   };
