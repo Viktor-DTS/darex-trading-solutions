@@ -2477,6 +2477,86 @@ app.get('/api/users/active', async (req, res) => {
   }
 });
 
+// API endpoint для відправки системних повідомлень
+app.post('/api/notifications/send-system-message', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/notifications/send-system-message - отримано запит');
+    console.log('[DEBUG] POST /api/notifications/send-system-message - body:', req.body);
+    
+    const { message, notificationType } = req.body;
+    
+    if (!message || !notificationType) {
+      return res.status(400).json({ error: 'message and notificationType are required' });
+    }
+    
+    // Перевіряємо налаштування
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      return res.status(400).json({ 
+        error: 'Telegram bot token не налаштований. Додайте TELEGRAM_BOT_TOKEN в змінні середовища.' 
+      });
+    }
+    
+    // Отримуємо користувачів, які підписані на системні сповіщення
+    const globalSettings = await GlobalNotificationSettings.findOne();
+    let chatIds = [];
+    
+    if (globalSettings?.settings?.[notificationType]) {
+      const userIds = globalSettings.settings[notificationType];
+      if (userIds && userIds.length > 0) {
+        const users = await User.find({ login: { $in: userIds } });
+        const userChatIds = users
+          .filter(user => user.telegramChatId && user.telegramChatId.trim())
+          .map(user => user.telegramChatId);
+        chatIds.push(...userChatIds);
+      }
+    }
+    
+    if (chatIds.length === 0) {
+      return res.json({ 
+        success: false, 
+        message: 'Не знайдено користувачів з увімкненими системними сповіщеннями',
+        chatIds: []
+      });
+    }
+    
+    // Формуємо повідомлення
+    const systemMessage = `🔔 <b>Системне повідомлення</b>
+
+📝 <b>Повідомлення від адміністратора:</b>
+${message}
+
+📅 <b>Час відправки:</b> ${new Date().toLocaleString('uk-UA')}`;
+    
+    // Відправляємо повідомлення всім підписаним користувачам
+    const results = [];
+    for (const chatId of chatIds) {
+      const success = await telegramService.sendMessage(chatId, systemMessage);
+      results.push({ chatId, success });
+    }
+    
+    const successCount = results.filter(r => r.success).length;
+    
+    console.log(`[DEBUG] POST /api/notifications/send-system-message - відправлено ${successCount}/${chatIds.length} повідомлень`);
+    
+    res.json({ 
+      success: true, 
+      message: `Системне повідомлення відправлено ${successCount} з ${chatIds.length} користувачів`,
+      results,
+      chatIds,
+      successCount,
+      totalCount: chatIds.length
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] POST /api/notifications/send-system-message - помилка:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка при відправці системного повідомлення',
+      error: error.message 
+    });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[STARTUP] Сервер запущено на порту ${PORT}`);
   console.log(`[STARTUP] MongoDB readyState: ${mongoose.connection.readyState}`);
