@@ -712,9 +712,15 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   <label>{f.label}</label>
                   <select name={f.name} value={value} onChange={handleChange} disabled={isRegionReadOnly}>
                     <option value="">Виберіть регіон</option>
-                    {regions.map(r => (
-                      <option key={r.name || r} value={r.name || r}>{r.name || r}</option>
-                    ))}
+                    {regions
+                      .filter(r => {
+                        const regionName = r.name || r;
+                        // Приховуємо мульти-регіони (які містять кому)
+                        return !regionName.includes(',');
+                      })
+                      .map(r => (
+                        <option key={r.name || r} value={r.name || r}>{r.name || r}</option>
+                      ))}
                   </select>
                 </div>
               );
@@ -1081,9 +1087,15 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                 <label>{f.label}</label>
                 <select name={f.name} value={value} onChange={handleChange} disabled={isRegionReadOnly}>
                   <option value="">Виберіть регіон</option>
-                  {regions.map(r => (
-                    <option key={r.name || r} value={r.name || r}>{r.name || r}</option>
-                  ))}
+                  {regions
+                    .filter(r => {
+                      const regionName = r.name || r;
+                      // Приховуємо мульти-регіони (які містять кому)
+                      return !regionName.includes(',');
+                    })
+                    .map(r => (
+                      <option key={r.name || r} value={r.name || r}>{r.name || r}</option>
+                    ))}
                 </select>
               </div>
             );
