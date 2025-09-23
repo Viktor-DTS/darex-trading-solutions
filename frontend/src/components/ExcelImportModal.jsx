@@ -106,59 +106,7 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
     { name: 'bonusApprovalDate', label: 'Дата затвердження премії' },
     { name: 'serviceBonus', label: 'Премія за виконання сервісних робіт, грн' },
     { name: 'blockDetail', label: 'Детальний опис блокування заявки' },
-    { name: 'reportMonthYear', label: 'Місяць/рік для звіту' },
-    
-    // Поля для клієнта
-    { name: 'clientContact', label: 'Контакт клієнта' },
-    { name: 'clientPhone', label: 'Телефон клієнта' },
-    { name: 'clientEmail', label: 'Email клієнта' },
-    
-    // Поля для планування
-    { name: 'plannedDate', label: 'Запланована дата' },
-    { name: 'deadline', label: 'Термін виконання' },
-    { name: 'completionDate', label: 'Дата завершення' },
-    
-    // Поля для пріоритету
-    { name: 'priority', label: 'Пріоритет' },
-    
-    // Поля для якості
-    { name: 'qualityRating', label: 'Оцінка якості' },
-    { name: 'customerSatisfaction', label: 'Задоволеність клієнта' },
-    
-    // Поля для фінансів
-    { name: 'costCenter', label: 'Центр витрат' },
-    { name: 'profitMargin', label: 'Маржа прибутку' },
-    { name: 'discount', label: 'Знижка' },
-    { name: 'tax', label: 'Податок' },
-    { name: 'totalAmount', label: 'Загальна сума' },
-    
-    // Поля для часу
-    { name: 'estimatedTime', label: 'Орієнтовний час виконання' },
-    { name: 'actualTime', label: 'Фактичний час виконання' },
-    
-    // Поля для локації
-    { name: 'latitude', label: 'Широта' },
-    { name: 'longitude', label: 'Довгота' },
-    { name: 'location', label: 'Локація' },
-    
-    // Поля для ресурсів
-    { name: 'requiredSkills', label: 'Необхідні навички' },
-    { name: 'requiredTools', label: 'Необхідні інструменти' },
-    { name: 'requiredMaterials', label: 'Необхідні матеріали' },
-    
-    // Поля для ризиків
-    { name: 'riskLevel', label: 'Рівень ризику' },
-    { name: 'riskDescription', label: 'Опис ризику' },
-    { name: 'mitigationPlan', label: 'План зменшення ризику' },
-    
-    // Поля для комунікації
-    { name: 'communicationLog', label: 'Журнал комунікації' },
-    { name: 'stakeholders', label: 'Зацікавлені сторони' },
-    
-    // Поля для аналітики
-    { name: 'performanceMetrics', label: 'Метрики продуктивності' },
-    { name: 'efficiency', label: 'Ефективність' },
-    { name: 'productivity', label: 'Продуктивність' }
+    { name: 'reportMonthYear', label: 'Місяць/рік для звіту' }
   ];
   // Додаю функцію для конвертації дат з Excel-формату у ISO-формат
   function excelDateToISO(excelDate) {
@@ -305,8 +253,7 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
         let value = row[excelIndex];
         // Якщо поле є датою, конвертуємо у ISO-формат
         const dateFields = [
-          'requestDate', 'date', 'paymentDate', 'approvalDate', 'bonusApprovalDate', 
-          'plannedDate', 'deadline', 'completionDate'
+          'requestDate', 'date', 'paymentDate', 'approvalDate', 'bonusApprovalDate'
         ];
         
         if (dateFields.includes(taskField)) {
