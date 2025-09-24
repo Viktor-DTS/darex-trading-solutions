@@ -3578,15 +3578,17 @@ function PersonnelTimesheet({ user }) {
 // 2. Додаю компонент для редагування заявок адміністратором
 function AdminEditTasksArea({ user }) {
   const [tasks, setTasks] = useState([]);
+  const [importedTasks, setImportedTasks] = useState([]); // Новий стан для імпортованих заявок
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: ''
   });
   const [modalOpen, setModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false); // Новий стан для модального вікна імпорту
   const [editTask, setEditTask] = useState(null);
   const [tab, setTab] = useState(() => {
     const savedTab = localStorage.getItem('adminEditTab');
-    return savedTab || 'pending';
+    return savedTab || 'imported'; // Змінюємо початкову вкладку на імпортовані
   });
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
   // але зберігаємо вже введені користувачем значення
@@ -3681,6 +3683,51 @@ function AdminEditTasksArea({ user }) {
       setLoading(false);
     }
   };
+
+  // Функція для обробки імпортованих заявок
+  const handleImportTasks = (importedTasksData) => {
+    console.log('[IMPORT] Отримано імпортовані заявки:', importedTasksData);
+    setImportedTasks(importedTasksData);
+    alert(`Успішно імпортовано ${importedTasksData.length} заявок. Вони з'явилися у вкладці "Імпортовані заявки".`);
+  };
+
+  // Модифікована функція handleSave для роботи з імпортованими заявками
+  const handleSaveImported = async (taskData) => {
+    setLoading(true);
+    try {
+      if (editTask) {
+        // Якщо це імпортована заявка, переміщуємо її в основну базу
+        if (importedTasks.find(t => t.id === editTask.id)) {
+          const newTask = await tasksAPI.create(taskData);
+          setTasks(tasks => [...tasks, newTask]);
+          setImportedTasks(importedTasks => importedTasks.filter(t => t.id !== editTask.id));
+          alert('Заявка успішно додана до системи!');
+        } else {
+          // Звичайне оновлення існуючої заявки
+          const updated = await tasksAPI.update(editTask.id, taskData);
+          setTasks(tasks => tasks.map(t => t.id === editTask.id ? updated : t));
+        }
+      } else {
+        const newTask = await tasksAPI.create(taskData);
+        setTasks(tasks => [...tasks, newTask]);
+      }
+      setModalOpen(false);
+      setEditTask(null);
+    } catch (error) {
+      console.error('Помилка збереження заявки:', error);
+      alert('Помилка збереження заявки');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Функція для видалення імпортованих заявок
+  const handleDeleteImported = (taskId) => {
+    if (window.confirm('Ви впевнені, що хочете видалити цю імпортовану заявку?')) {
+      setImportedTasks(importedTasks => importedTasks.filter(t => t.id !== taskId));
+      alert('Імпортована заявка видалена!');
+    }
+  };
   const filtered = tasks.filter(t =>
     (!filters.requestDesc || t.requestDesc.toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
     (!filters.serviceRegion || t.serviceRegion.toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
@@ -3690,9 +3737,23 @@ function AdminEditTasksArea({ user }) {
     (!filters.work || t.work.toLowerCase().includes(filters.work.toLowerCase())) &&
     (!filters.date || t.date.includes(filters.date))
   );
+  
+  // Фільтрація імпортованих заявок
+  const filteredImported = importedTasks.filter(t =>
+    (!filters.requestDesc || t.requestDesc.toLowerCase().includes(filters.requestDesc.toLowerCase())) &&
+    (!filters.serviceRegion || t.serviceRegion.toLowerCase().includes(filters.serviceRegion.toLowerCase())) &&
+    (!filters.address || t.address.toLowerCase().includes(filters.address.toLowerCase())) &&
+    (!filters.equipmentSerial || t.equipmentSerial.toLowerCase().includes(filters.equipmentSerial.toLowerCase())) &&
+    (!filters.equipment || t.equipment.toLowerCase().includes(filters.equipment.toLowerCase())) &&
+    (!filters.work || t.work.toLowerCase().includes(filters.work.toLowerCase())) &&
+    (!filters.date || t.date.includes(filters.date))
+  );
+  
   const pending = filtered.filter(t => t.status === 'Виконано' && isPending(t.approvedByAccountant));
   const archive = filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByAccountant));
-  const tableData = tab === 'pending' ? pending : archive;
+  
+  // Визначаємо дані для таблиці залежно від вкладки
+  const tableData = tab === 'imported' ? filteredImported : (tab === 'pending' ? pending : archive);
   const columns = allTaskFields.map(f => ({
     key: f.name,
     label: f.label,
@@ -3704,17 +3765,58 @@ function AdminEditTasksArea({ user }) {
     <div style={{padding:32}}>
       <h2>Редагування заявок (Адміністратор)</h2>
       {loading && <div>Завантаження...</div>}
+      
+      {/* Кнопка імпорту Excel */}
+      <div style={{marginBottom:16, display:'flex', gap:8, alignItems:'center'}}>
+        <button 
+          onClick={() => setImportModalOpen(true)}
+          style={{
+            padding: '10px 20px',
+            background: '#28a745',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
+          📊 Завантажити дані з Excel
+        </button>
+        <span style={{color: '#666', fontSize: '14px'}}>
+          Імпортовано заявок: {importedTasks.length}
+        </span>
+      </div>
+      
+      {/* Модальне вікно імпорту Excel */}
+      <ExcelImportModal 
+        open={importModalOpen} 
+        onClose={() => setImportModalOpen(false)} 
+        onImport={handleImportTasks}
+      />
+      
       <div style={{display:'flex',gap:8,marginBottom:16}}>
+        <button onClick={()=>setTab('imported')} style={{width:220,padding:'10px 0',background:tab==='imported'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='imported'?700:400,cursor:'pointer'}}>Імпортовані заявки</button>
         <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
         <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
       </div>
-      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="admin" user={user} readOnly={editTask?._readOnly || false} />
+      
+      <ModalTaskForm 
+        open={modalOpen} 
+        onClose={()=>{setModalOpen(false);setEditTask(null);}} 
+        onSave={tab === 'imported' ? handleSaveImported : handleSave} 
+        initialData={editTask || {}} 
+        mode="admin" 
+        user={user} 
+        readOnly={editTask?._readOnly || false} 
+      />
+      
       <TaskTable
         tasks={tableData}
-        allTasks={tasks}
-        onApprove={handleApprove}
+        allTasks={tab === 'imported' ? importedTasks : tasks}
+        onApprove={tab === 'imported' ? undefined : handleApprove}
         onEdit={handleEdit}
-        onSaveBonusDate={handleSaveBonusDate}
+        onDelete={tab === 'imported' ? handleDeleteImported : undefined}
+        onSaveBonusDate={tab === 'imported' ? undefined : handleSaveBonusDate}
         role="admin"
         user={user}
         filters={filters}
@@ -3724,6 +3826,7 @@ function AdminEditTasksArea({ user }) {
         approveField="approvedByAccountant"
         commentField="accountantComment"
         isArchive={tab === 'archive'}
+        isImported={tab === 'imported'}
       />
     </div>
   );

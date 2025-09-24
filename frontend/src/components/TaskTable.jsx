@@ -60,6 +60,7 @@ function TaskTableComponent({
   setDateRange,
   user,
   isArchive = false,
+  isImported = false, // Новий параметр для імпортованих заявок
   onHistoryClick,
 }) {
   console.log('[LOG] TaskTable received columns:', columns);
@@ -1630,23 +1631,42 @@ function TaskTableComponent({
                         <>
                           {(role === 'service' || role === 'operator' || role === 'admin') && (
                             <>
-                              <button onClick={()=>{
-                                // Логуємо редагування заявки
-                                logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
-                                  `Редагування заявки: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
-                                    requestNumber: t.requestNumber,
-                                    client: t.client,
-                                    work: t.work,
-                                    status: t.status
-                                  });
-                                onEdit && onEdit(t);
-                              }}>Редагувати</button>
+                              {/* Спеціальна логіка для імпортованих заявок */}
+                              {isImported ? (
+                                <button onClick={()=>{
+                                  // Логуємо редагування імпортованої заявки
+                                  logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
+                                    `Редагування імпортованої заявки: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                      requestNumber: t.requestNumber,
+                                      client: t.client,
+                                      work: t.work,
+                                      status: t.status,
+                                      isImported: true
+                                    });
+                                  onEdit && onEdit(t);
+                                }} style={{background:'#ff9800',color:'#fff'}}>
+                                  Перевірити та зберегти
+                                </button>
+                              ) : (
+                                <button onClick={()=>{
+                                  // Логуємо редагування заявки
+                                  logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
+                                    `Редагування заявки: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                      requestNumber: t.requestNumber,
+                                      client: t.client,
+                                      work: t.work,
+                                      status: t.status
+                                    });
+                                  onEdit && onEdit(t);
+                                }}>Редагувати</button>
+                              )}
                               {/* Кнопка видалення - тільки для регіональних керівників та адміністраторів */}
                               {(() => {
                                 const canDelete = user?.role === 'regionalManager' || user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'regkerivn' || user?.role === 'regkerzavskl';
                                 const hasTaskId = !!t.id;
                                 const hasOnDeleteFunc = !!onDelete;
-                                const shouldShowButton = canDelete && hasTaskId && hasOnDeleteFunc;
+                                // Для імпортованих заявок завжди показуємо кнопку видалення
+                                const shouldShowButton = isImported || (canDelete && hasTaskId && hasOnDeleteFunc);
                                 
                                 console.log('[DEBUG] Перевірка доступу до видалення:', {
                                   role,
