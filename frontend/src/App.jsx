@@ -30,6 +30,7 @@ import * as XLSX from 'xlsx-js-style';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import API_BASE_URL from './config.js';
 import { tasksAPI } from './utils/tasksAPI';
+import { importedTasksAPI } from './utils/importedTasksAPI';
 import { accessRulesAPI } from './utils/accessRulesAPI';
 import { rolesAPI } from './utils/rolesAPI';
 import { regionsAPI } from './utils/regionsAPI';
@@ -3613,7 +3614,13 @@ function AdminEditTasksArea({ user }) {
   }, [tab]);
   useEffect(() => {
     setLoading(true);
-    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
+    Promise.all([
+      tasksAPI.getAll(),
+      importedTasksAPI.getAll()
+    ]).then(([tasksData, importedData]) => {
+      setTasks(tasksData);
+      setImportedTasks(importedData);
+    }).finally(() => setLoading(false));
   }, []);
   const handleApprove = async (id, approved, comment) => {
     setLoading(true);
@@ -3706,10 +3713,19 @@ function AdminEditTasksArea({ user }) {
   };
 
   // Функція для обробки імпортованих заявок
-  const handleImportTasks = (importedTasksData) => {
+  const handleImportTasks = async (importedTasksData) => {
     console.log('[IMPORT] Отримано імпортовані заявки:', importedTasksData);
-    setImportedTasks(importedTasksData);
-    alert(`Успішно імпортовано ${importedTasksData.length} заявок. Вони з'явилися у вкладці "Імпортовані заявки".`);
+    try {
+      setLoading(true);
+      const savedTasks = await importedTasksAPI.create(importedTasksData);
+      setImportedTasks(savedTasks);
+      alert(`Успішно імпортовано ${savedTasks.length} заявок. Вони з'явилися у вкладці "Імпортовані заявки".`);
+    } catch (error) {
+      console.error('[ERROR] handleImportTasks - помилка:', error);
+      alert('Помилка збереження імпортованих заявок');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Модифікована функція handleSave для роботи з імпортованими заявками
@@ -3718,10 +3734,10 @@ function AdminEditTasksArea({ user }) {
     try {
       if (editTask) {
         // Якщо це імпортована заявка, переміщуємо її в основну базу
-        if (importedTasks.find(t => t.id === editTask.id)) {
-          const newTask = await tasksAPI.create(taskData);
+        if (importedTasks.find(t => t._id === editTask._id)) {
+          const newTask = await importedTasksAPI.approve(editTask._id, taskData);
           setTasks(tasks => [...tasks, newTask]);
-          setImportedTasks(importedTasks => importedTasks.filter(t => t.id !== editTask.id));
+          setImportedTasks(importedTasks => importedTasks.filter(t => t._id !== editTask._id));
           alert('Заявка успішно додана до системи!');
         } else {
           // Звичайне оновлення існуючої заявки
@@ -3743,10 +3759,19 @@ function AdminEditTasksArea({ user }) {
   };
 
   // Функція для видалення імпортованих заявок
-  const handleDeleteImported = (taskId) => {
+  const handleDeleteImported = async (taskId) => {
     if (window.confirm('Ви впевнені, що хочете видалити цю імпортовану заявку?')) {
-      setImportedTasks(importedTasks => importedTasks.filter(t => t.id !== taskId));
-      alert('Імпортована заявка видалена!');
+      try {
+        setLoading(true);
+        await importedTasksAPI.delete(taskId);
+        setImportedTasks(importedTasks => importedTasks.filter(t => t._id !== taskId));
+        alert('Імпортована заявка видалена!');
+      } catch (error) {
+        console.error('[ERROR] handleDeleteImported - помилка:', error);
+        alert('Помилка видалення імпортованої заявки');
+      } finally {
+        setLoading(false);
+      }
     }
   };
   const filtered = tasks.filter(t =>

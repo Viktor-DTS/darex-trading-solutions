@@ -730,6 +730,123 @@ app.delete('/api/tasks/:id', async (req, res) => {
   }
 });
 
+// API endpoints для імпортованих заявок
+app.get('/api/tasks/imported', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/tasks/imported - отримано запит');
+    
+    if (FALLBACK_MODE) {
+      console.log('[DEBUG] GET /api/tasks/imported - FALLBACK_MODE активний, повертаємо порожній масив');
+      return res.json([]);
+    }
+    
+    const importedTasks = await executeWithRetry(() => 
+      Task.find({ isImported: true }).sort({ requestDate: -1 })
+    );
+    
+    console.log(`[DEBUG] GET /api/tasks/imported - знайдено ${importedTasks.length} імпортованих заявок`);
+    res.json(importedTasks);
+  } catch (error) {
+    console.error('[ERROR] GET /api/tasks/imported - помилка:', error);
+    res.status(500).json({ error: 'Помилка отримання імпортованих заявок' });
+  }
+});
+
+app.post('/api/tasks/imported', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/tasks/imported - отримано запит');
+    console.log('[DEBUG] POST /api/tasks/imported - body:', req.body);
+    
+    if (FALLBACK_MODE) {
+      console.log('[DEBUG] POST /api/tasks/imported - FALLBACK_MODE активний, повертаємо помилку');
+      return res.status(503).json({ error: 'Сервер в режимі fallback, імпорт недоступний' });
+    }
+    
+    const { tasks } = req.body;
+    
+    if (!tasks || !Array.isArray(tasks)) {
+      return res.status(400).json({ error: 'Необхідно передати масив заявок' });
+    }
+    
+    // Додаємо поле isImported: true до кожної заявки
+    const importedTasks = tasks.map(task => ({
+      ...task,
+      isImported: true,
+      status: 'Імпортовано' // Спеціальний статус для імпортованих заявок
+    }));
+    
+    const savedTasks = await executeWithRetry(() => 
+      Task.insertMany(importedTasks)
+    );
+    
+    console.log(`[DEBUG] POST /api/tasks/imported - збережено ${savedTasks.length} імпортованих заявок`);
+    res.json(savedTasks);
+  } catch (error) {
+    console.error('[ERROR] POST /api/tasks/imported - помилка:', error);
+    res.status(500).json({ error: 'Помилка збереження імпортованих заявок' });
+  }
+});
+
+app.delete('/api/tasks/imported/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`[DEBUG] DELETE /api/tasks/imported/${id} - отримано запит`);
+    
+    if (FALLBACK_MODE) {
+      console.log('[DEBUG] DELETE /api/tasks/imported - FALLBACK_MODE активний, повертаємо помилку');
+      return res.status(503).json({ error: 'Сервер в режимі fallback, видалення недоступне' });
+    }
+    
+    const deletedTask = await executeWithRetry(() => 
+      Task.findOneAndDelete({ _id: id, isImported: true })
+    );
+    
+    if (!deletedTask) {
+      return res.status(404).json({ error: 'Імпортована заявка не знайдена' });
+    }
+    
+    console.log(`[DEBUG] DELETE /api/tasks/imported/${id} - імпортована заявка видалена`);
+    res.json({ message: 'Імпортована заявка видалена' });
+  } catch (error) {
+    console.error('[ERROR] DELETE /api/tasks/imported - помилка:', error);
+    res.status(500).json({ error: 'Помилка видалення імпортованої заявки' });
+  }
+});
+
+app.post('/api/tasks/imported/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { taskData } = req.body;
+    console.log(`[DEBUG] POST /api/tasks/imported/${id}/approve - отримано запит`);
+    
+    if (FALLBACK_MODE) {
+      console.log('[DEBUG] POST /api/tasks/imported/approve - FALLBACK_MODE активний, повертаємо помилку');
+      return res.status(503).json({ error: 'Сервер в режимі fallback, схвалення недоступне' });
+    }
+    
+    // Видаляємо імпортовану заявку
+    await executeWithRetry(() => 
+      Task.findOneAndDelete({ _id: id, isImported: true })
+    );
+    
+    // Створюємо нову заявку в основній базі
+    const newTask = await executeWithRetry(() => {
+      const taskToCreate = {
+        ...taskData,
+        isImported: false, // Видаляємо позначку імпорту
+        status: 'Виконано' // Встановлюємо нормальний статус
+      };
+      return Task.create(taskToCreate);
+    });
+    
+    console.log(`[DEBUG] POST /api/tasks/imported/${id}/approve - заявка схвалена та переміщена в основну базу`);
+    res.json(newTask);
+  } catch (error) {
+    console.error('[ERROR] POST /api/tasks/imported/approve - помилка:', error);
+    res.status(500).json({ error: 'Помилка схвалення імпортованої заявки' });
+  }
+});
+
 // --- ACCESS RULES через MongoDB ---
 app.get('/api/accessRules', async (req, res) => {
   try {
