@@ -154,6 +154,9 @@ const globalNotificationSettingsSchema = new mongoose.Schema({
 
 const GlobalNotificationSettings = mongoose.model('GlobalNotificationSettings', globalNotificationSettingsSchema);
 
+// Змінна для режиму fallback
+let FALLBACK_MODE = false;
+
 // Функція для підключення до MongoDB
 async function connectToMongoDB() {
   if (!MONGODB_URI) {
