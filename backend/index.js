@@ -771,18 +771,24 @@ app.post('/api/tasks/imported', async (req, res) => {
       return res.status(400).json({ error: 'Необхідно передати масив заявок' });
     }
     
-    // Додаємо поле isImported: true до кожної заявки
-    const importedTasks = tasks.map(task => ({
-      ...task,
-      isImported: true,
-      status: 'Імпортовано' // Спеціальний статус для імпортованих заявок
-    }));
+    // Додаємо поле isImported: true до кожної заявки та видаляємо поле id
+    const importedTasks = tasks.map(task => {
+      const { id, ...taskWithoutId } = task;
+      return {
+        ...taskWithoutId,
+        isImported: true,
+        status: 'Імпортовано' // Спеціальний статус для імпортованих заявок
+      };
+    });
+    
+    console.log(`[DEBUG] POST /api/tasks/imported - приклад заявки перед збереженням:`, importedTasks[0]);
     
     const savedTasks = await executeWithRetry(() => 
       Task.insertMany(importedTasks)
     );
     
     console.log(`[DEBUG] POST /api/tasks/imported - збережено ${savedTasks.length} імпортованих заявок`);
+    console.log(`[DEBUG] POST /api/tasks/imported - приклад збереженої заявки:`, savedTasks[0]);
     res.json(savedTasks);
   } catch (error) {
     console.error('[ERROR] POST /api/tasks/imported - помилка:', error);
