@@ -3684,6 +3684,27 @@ function AdminEditTasksArea({ user }) {
     }
   };
 
+  // Основна функція handleSave
+  const handleSave = async (taskData) => {
+    setLoading(true);
+    try {
+      if (editTask) {
+        const updated = await tasksAPI.update(editTask.id, taskData);
+        setTasks(tasks => tasks.map(t => t.id === editTask.id ? updated : t));
+      } else {
+        const newTask = await tasksAPI.create(taskData);
+        setTasks(tasks => [...tasks, newTask]);
+      }
+      setModalOpen(false);
+      setEditTask(null);
+    } catch (error) {
+      console.error('Помилка збереження заявки:', error);
+      alert('Помилка збереження заявки');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Функція для обробки імпортованих заявок
   const handleImportTasks = (importedTasksData) => {
     console.log('[IMPORT] Отримано імпортовані заявки:', importedTasksData);
