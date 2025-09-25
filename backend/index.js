@@ -514,6 +514,75 @@ app.post('/api/regions', async (req, res) => {
 });
 
 // --- TASKS через MongoDB ---
+// API endpoints для імпортованих заявок (мають бути перед /api/tasks)
+app.get('/api/tasks/imported', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/tasks/imported - отримано запит');
+    
+    if (FALLBACK_MODE) {
+      console.log('[DEBUG] GET /api/tasks/imported - FALLBACK_MODE активний, повертаємо порожній масив');
+      return res.json([]);
+    }
+    
+    console.log(`[DEBUG] GET /api/tasks/imported - шукаємо заявки з isImported: true`);
+    
+    const importedTasks = await executeWithRetry(() => 
+      Task.find({ isImported: true }).sort({ requestDate: -1 })
+    );
+    
+    console.log(`[DEBUG] GET /api/tasks/imported - знайдено ${importedTasks.length} імпортованих заявок`);
+    console.log(`[DEBUG] GET /api/tasks/imported - приклад заявки:`, importedTasks[0]);
+    res.json(importedTasks);
+  } catch (error) {
+    console.error('[ERROR] GET /api/tasks/imported - помилка:', error);
+    res.status(500).json({ error: 'Помилка отримання імпортованих заявок' });
+  }
+});
+
+app.post('/api/tasks/imported', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/tasks/imported - отримано запит');
+    console.log('[DEBUG] POST /api/tasks/imported - body:', req.body);
+    
+    if (FALLBACK_MODE) {
+      console.log('[DEBUG] POST /api/tasks/imported - FALLBACK_MODE активний, повертаємо порожній масив');
+      return res.json([]);
+    }
+    
+    const { tasks } = req.body;
+    
+    if (!tasks || !Array.isArray(tasks)) {
+      return res.status(400).json({ error: 'Необхідно передати масив завдань' });
+    }
+    
+    console.log(`[DEBUG] POST /api/tasks/imported - отримано ${tasks.length} завдань для імпорту`);
+    
+    // Додаємо поле isImported: true до кожної заявки та видаляємо поле id
+    const importedTasks = tasks.map(task => {
+      const { id, ...taskWithoutId } = task; // Remove 'id' field
+      return {
+        ...taskWithoutId,
+        isImported: true,
+        status: 'Імпортовано' // Спеціальний статус для імпортованих заявок
+      };
+    });
+    
+    console.log(`[DEBUG] POST /api/tasks/imported - приклад заявки перед збереженням:`, importedTasks[0]);
+    
+    const savedTasks = await executeWithRetry(() => 
+      Task.insertMany(importedTasks)
+    );
+    
+    console.log(`[DEBUG] POST /api/tasks/imported - збережено ${savedTasks.length} імпортованих заявок`);
+    console.log(`[DEBUG] POST /api/tasks/imported - приклад збереженої заявки:`, savedTasks[0]);
+    
+    res.json(savedTasks);
+  } catch (error) {
+    console.error('[ERROR] POST /api/tasks/imported - помилка:', error);
+    res.status(500).json({ error: 'Помилка збереження імпортованих заявок' });
+  }
+});
+
 app.get('/api/tasks', async (req, res) => {
   try {
     console.log('[DEBUG] GET /api/tasks - запит на отримання завдань');
@@ -733,71 +802,6 @@ app.delete('/api/tasks/:id', async (req, res) => {
   }
 });
 
-// API endpoints для імпортованих заявок
-app.get('/api/tasks/imported', async (req, res) => {
-  try {
-    console.log('[DEBUG] GET /api/tasks/imported - отримано запит');
-    
-    if (FALLBACK_MODE) {
-      console.log('[DEBUG] GET /api/tasks/imported - FALLBACK_MODE активний, повертаємо порожній масив');
-      return res.json([]);
-    }
-    
-    console.log(`[DEBUG] GET /api/tasks/imported - шукаємо заявки з isImported: true`);
-    
-    const importedTasks = await executeWithRetry(() => 
-      Task.find({ isImported: true }).sort({ requestDate: -1 })
-    );
-    
-    console.log(`[DEBUG] GET /api/tasks/imported - знайдено ${importedTasks.length} імпортованих заявок`);
-    console.log(`[DEBUG] GET /api/tasks/imported - приклад заявки:`, importedTasks[0]);
-    res.json(importedTasks);
-  } catch (error) {
-    console.error('[ERROR] GET /api/tasks/imported - помилка:', error);
-    res.status(500).json({ error: 'Помилка отримання імпортованих заявок' });
-  }
-});
-
-app.post('/api/tasks/imported', async (req, res) => {
-  try {
-    console.log('[DEBUG] POST /api/tasks/imported - отримано запит');
-    console.log('[DEBUG] POST /api/tasks/imported - body:', req.body);
-    
-    if (FALLBACK_MODE) {
-      console.log('[DEBUG] POST /api/tasks/imported - FALLBACK_MODE активний, повертаємо помилку');
-      return res.status(503).json({ error: 'Сервер в режимі fallback, імпорт недоступний' });
-    }
-    
-    const { tasks } = req.body;
-    
-    if (!tasks || !Array.isArray(tasks)) {
-      return res.status(400).json({ error: 'Необхідно передати масив заявок' });
-    }
-    
-    // Додаємо поле isImported: true до кожної заявки та видаляємо поле id
-    const importedTasks = tasks.map(task => {
-      const { id, ...taskWithoutId } = task;
-      return {
-        ...taskWithoutId,
-        isImported: true,
-        status: 'Імпортовано' // Спеціальний статус для імпортованих заявок
-      };
-    });
-    
-    console.log(`[DEBUG] POST /api/tasks/imported - приклад заявки перед збереженням:`, importedTasks[0]);
-    
-    const savedTasks = await executeWithRetry(() => 
-      Task.insertMany(importedTasks)
-    );
-    
-    console.log(`[DEBUG] POST /api/tasks/imported - збережено ${savedTasks.length} імпортованих заявок`);
-    console.log(`[DEBUG] POST /api/tasks/imported - приклад збереженої заявки:`, savedTasks[0]);
-    res.json(savedTasks);
-  } catch (error) {
-    console.error('[ERROR] POST /api/tasks/imported - помилка:', error);
-    res.status(500).json({ error: 'Помилка збереження імпортованих заявок' });
-  }
-});
 
 app.delete('/api/tasks/imported/:id', async (req, res) => {
   try {
