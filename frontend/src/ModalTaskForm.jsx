@@ -424,7 +424,13 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     if (mode === 'operator' && name === 'client') return false;
     if (fields.find(f => f.name === name && f.role) && (!mode || fields.find(f => f.name === name).role !== mode)) return true;
     if (mode === 'operator') {
-      return !['status','requestDate','requestDesc','serviceRegion','company','customer','requestNumber','paymentDate','invoiceNumber','paymentType','address','equipmentSerial','equipment'].includes(name);
+      // Оператор НЕ може редагувати поля підтвердження від інших ролей:
+      const operatorReadOnlyFields = [
+        'approvedByWarehouse', 'warehouseComment',
+        'approvedByAccountant', 'accountantComment', 'accountantComments',
+        'approvedByRegionalManager', 'regionalManagerComment'
+      ];
+      return operatorReadOnlyFields.includes(name);
     }
     // Видаляємо перевірку для режиму service, щоб поля requestDate та requestDesc були доступні для редагування
     return false;
