@@ -743,11 +743,14 @@ app.get('/api/tasks/imported', async (req, res) => {
       return res.json([]);
     }
     
+    console.log(`[DEBUG] GET /api/tasks/imported - шукаємо заявки з isImported: true`);
+    
     const importedTasks = await executeWithRetry(() => 
       Task.find({ isImported: true }).sort({ requestDate: -1 })
     );
     
     console.log(`[DEBUG] GET /api/tasks/imported - знайдено ${importedTasks.length} імпортованих заявок`);
+    console.log(`[DEBUG] GET /api/tasks/imported - приклад заявки:`, importedTasks[0]);
     res.json(importedTasks);
   } catch (error) {
     console.error('[ERROR] GET /api/tasks/imported - помилка:', error);
