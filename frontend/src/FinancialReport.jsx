@@ -44,39 +44,53 @@ const initial = {
 export default function FinancialReport() {
   const [data, setData] = useState(initial);
   const [success, setSuccess] = useState(null);
+  // Функція для правильного парсингу чисел з комою як роздільником
+  const parseNumber = (value) => {
+    if (!value) return 0;
+    // Замінюємо кому на крапку для правильного парсингу
+    const normalizedValue = String(value).replace(',', '.');
+    return parseFloat(normalizedValue) || 0;
+  };
+
+  // Функція для форматування чисел з двома знаками після коми
+  const formatNumber = (value) => {
+    if (value === 0 || value === '0') return '0,00';
+    return Number(value).toFixed(2).replace('.', ',');
+  };
+
   // Авторозрахунок
   const calcOilTotal = () => {
-    const used = parseFloat(data.oilUsed) || 0;
-    const price = parseFloat(data.oilPrice) || 0;
+    const used = parseNumber(data.oilUsed);
+    const price = parseNumber(data.oilPrice);
     return used * price;
   };
   const calcFilterSum = () => {
-    const count = parseFloat(data.filterCount) || 0;
-    const price = parseFloat(data.filterPrice) || 0;
+    const count = parseNumber(data.filterCount);
+    const price = parseNumber(data.filterPrice);
     return count * price;
   };
   const calcFuelFilterSum = () => {
-    const count = parseFloat(data.fuelFilterCount) || 0;
-    const price = parseFloat(data.fuelFilterPrice) || 0;
+    const count = parseNumber(data.fuelFilterCount);
+    const price = parseNumber(data.fuelFilterPrice);
     return count * price;
   };
   const calcAntifreezeSum = () => {
-    const l = parseFloat(data.antifreezeL) || 0;
-    const price = parseFloat(data.antifreezePrice) || 0;
+    const l = parseNumber(data.antifreezeL);
+    const price = parseNumber(data.antifreezePrice);
     return l * price;
   };
   const calcServiceTotal = () => {
     return (
-      (parseFloat(calcOilTotal()) || 0) +
-      (parseFloat(calcFilterSum()) || 0) +
-      (parseFloat(calcFuelFilterSum()) || 0) +
-      (parseFloat(calcAntifreezeSum()) || 0) +
-      (parseFloat(data.otherSum) || 0) +
-      (parseFloat(data.workPrice) || 0) +
-      (parseFloat(data.perDiem) || 0) +
-      (parseFloat(data.living) || 0) +
-      (parseFloat(data.otherExp) || 0) +
-      (parseFloat(data.transportSum) || 0)
+      calcOilTotal() +
+      calcFilterSum() +
+      calcFuelFilterSum() +
+      calcAntifreezeSum() +
+      parseNumber(data.otherSum) +
+      parseNumber(data.workPrice) +
+      parseNumber(data.perDiem) +
+      parseNumber(data.living) +
+      parseNumber(data.otherExp) +
+      parseNumber(data.transportSum)
     );
   };
   // Автозаповнення (приклад)
@@ -171,7 +185,7 @@ export default function FinancialReport() {
         <label>Тип оливи <input name="oilType" value={data.oilType} onChange={handleChange} /></label>
         <label>Використано оливи, л <input name="oilUsed" value={data.oilUsed} onChange={handleChange} /></label>
         <label>Ціна оливи за 1 л, грн <input name="oilPrice" value={data.oilPrice} onChange={handleChange} /></label>
-        <label>Загальна сума за оливу, грн <input name="oilTotal" value={calcOilTotal()} readOnly /></label>
+        <label>Загальна сума за оливу, грн <input name="oilTotal" value={formatNumber(calcOilTotal())} readOnly /></label>
       </div>
       <div className="fin-row">
         <label>Фільтр масл. назва <input name="filterName" value={data.filterName} onChange={handleChange} /></label>

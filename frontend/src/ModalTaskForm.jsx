@@ -565,13 +565,13 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
     }
     // Розрахунок кожної суми на льоту
-    const oilTotal = (parseFloat(form.oilUsed)||0) * (parseFloat(form.oilPrice)||0);
-    const filterSum = (parseFloat(form.filterCount)||0) * (parseFloat(form.filterPrice)||0);
-    const fuelFilterSum = (parseFloat(form.fuelFilterCount)||0) * (parseFloat(form.fuelFilterPrice)||0);
-    const airFilterSum = (parseFloat(form.airFilterCount)||0) * (parseFloat(form.airFilterPrice)||0);
-    const antifreezeSum = (parseFloat(form.antifreezeL)||0) * (parseFloat(form.antifreezePrice)||0);
+    const oilTotal = parseNumber(form.oilUsed) * parseNumber(form.oilPrice);
+    const filterSum = parseNumber(form.filterCount) * parseNumber(form.filterPrice);
+    const fuelFilterSum = parseNumber(form.fuelFilterCount) * parseNumber(form.fuelFilterPrice);
+    const airFilterSum = parseNumber(form.airFilterCount) * parseNumber(form.airFilterPrice);
+    const antifreezeSum = parseNumber(form.antifreezeL) * parseNumber(form.antifreezePrice);
     // Загальна сума послуги береться з форми (ручне введення)
-    const serviceTotal = parseFloat(form.serviceTotal) || 0;
+    const serviceTotal = parseNumber(form.serviceTotal);
     // Вартість робіт розраховується як різниця
     const workPrice = serviceTotal - (
       oilTotal +
@@ -579,11 +579,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       fuelFilterSum +
       airFilterSum +
       antifreezeSum +
-      (parseFloat(form.otherSum)||0) +
-      (parseFloat(form.perDiem)||0) +
-      (parseFloat(form.living)||0) +
-      (parseFloat(form.otherExp)||0) +
-      (parseFloat(form.transportSum)||0)
+      parseNumber(form.otherSum) +
+      parseNumber(form.perDiem) +
+      parseNumber(form.living) +
+      parseNumber(form.otherExp) +
+      parseNumber(form.transportSum)
     );
     // --- Автоматичне заповнення коментарів при підтвердженні ---
     const finalForm = { ...form };
@@ -624,25 +624,39 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     });
     onClose();
   };
+  // Функція для правильного парсингу чисел з комою як роздільником
+  const parseNumber = (value) => {
+    if (!value) return 0;
+    // Замінюємо кому на крапку для правильного парсингу
+    const normalizedValue = String(value).replace(',', '.');
+    return parseFloat(normalizedValue) || 0;
+  };
+
+  // Функція для форматування чисел з двома знаками після коми
+  const formatNumber = (value) => {
+    if (value === 0 || value === '0') return '0,00';
+    return Number(value).toFixed(2).replace('.', ',');
+  };
+
   // Додаю розрахунок для полів
-  const calcOilTotal = () => (parseFloat(form.oilUsed)||0)*(parseFloat(form.oilPrice)||0);
-  const calcFilterSum = () => (parseFloat(form.filterCount)||0)*(parseFloat(form.filterPrice)||0);
-  const calcFuelFilterSum = () => (parseFloat(form.fuelFilterCount)||0)*(parseFloat(form.fuelFilterPrice)||0);
-  const calcAirFilterSum = () => (parseFloat(form.airFilterCount)||0)*(parseFloat(form.airFilterPrice)||0);
-  const calcAntifreezeSum = () => (parseFloat(form.antifreezeL)||0)*(parseFloat(form.antifreezePrice)||0);
+  const calcOilTotal = () => parseNumber(form.oilUsed) * parseNumber(form.oilPrice);
+  const calcFilterSum = () => parseNumber(form.filterCount) * parseNumber(form.filterPrice);
+  const calcFuelFilterSum = () => parseNumber(form.fuelFilterCount) * parseNumber(form.fuelFilterPrice);
+  const calcAirFilterSum = () => parseNumber(form.airFilterCount) * parseNumber(form.airFilterPrice);
+  const calcAntifreezeSum = () => parseNumber(form.antifreezeL) * parseNumber(form.antifreezePrice);
   const calcWorkPrice = () => {
-    const serviceTotal = parseFloat(form.serviceTotal) || 0;
+    const serviceTotal = parseNumber(form.serviceTotal);
     const totalExpenses = 
-      (parseFloat(calcOilTotal())||0)+
-      (parseFloat(calcFilterSum())||0)+
-      (parseFloat(calcFuelFilterSum())||0)+
-      (parseFloat(calcAirFilterSum())||0)+
-      (parseFloat(calcAntifreezeSum())||0)+
-      (parseFloat(form.otherSum)||0)+
-      (parseFloat(form.perDiem)||0)+
-      (parseFloat(form.living)||0)+
-      (parseFloat(form.otherExp)||0)+
-      (parseFloat(form.transportSum)||0);
+      calcOilTotal() +
+      calcFilterSum() +
+      calcFuelFilterSum() +
+      calcAirFilterSum() +
+      calcAntifreezeSum() +
+      parseNumber(form.otherSum) +
+      parseNumber(form.perDiem) +
+      parseNumber(form.living) +
+      parseNumber(form.otherExp) +
+      parseNumber(form.transportSum);
     return serviceTotal - totalExpenses;
   };
   return (
@@ -885,7 +899,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
-                  if (f.name === 'oilTotal') value = (parseFloat(form.oilUsed)||0)*(parseFloat(form.oilPrice)||0) || '';
+                  if (f.name === 'oilTotal') value = formatNumber(calcOilTotal());
                   return (
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
@@ -903,7 +917,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
-                  if (f.name === 'filterSum') value = (parseFloat(form.filterCount)||0)*(parseFloat(form.filterPrice)||0) || '';
+                  if (f.name === 'filterSum') value = formatNumber(calcFilterSum());
                   return (
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
@@ -921,7 +935,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
-                  if (f.name === 'fuelFilterSum') value = (parseFloat(form.fuelFilterCount)||0)*(parseFloat(form.fuelFilterPrice)||0) || '';
+                  if (f.name === 'fuelFilterSum') value = formatNumber(calcFuelFilterSum());
                   return (
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
@@ -939,7 +953,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
-                  if (f.name === 'airFilterSum') value = (parseFloat(form.airFilterCount)||0)*(parseFloat(form.airFilterPrice)||0) || '';
+                  if (f.name === 'airFilterSum') value = formatNumber(calcAirFilterSum());
                   return (
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
@@ -957,7 +971,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
-                  if (f.name === 'antifreezeSum') value = (parseFloat(form.antifreezeL)||0)*(parseFloat(form.antifreezePrice)||0) || '';
+                  if (f.name === 'antifreezeSum') value = formatNumber(calcAntifreezeSum());
                   return (
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
@@ -976,7 +990,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   if (!f) return null;
                   let value = form[f.name] || '';
                   if (n === 'workPrice') {
-                    value = calcWorkPrice();
+                    value = formatNumber(calcWorkPrice());
                   }
                   return (
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
