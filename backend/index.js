@@ -3036,7 +3036,13 @@ app.post('/api/notification-settings/global', async (req, res) => {
 app.get('/api/test-telegram', async (req, res) => {
   try {
     console.log('[DEBUG] GET /api/test-telegram - тестовий endpoint');
-    res.json({ message: 'Test endpoint працює', timestamp: new Date().toISOString() });
+    console.log('[DEBUG] Request headers:', req.headers);
+    res.json({ 
+      message: 'Test endpoint працює', 
+      timestamp: new Date().toISOString(),
+      origin: req.headers.origin,
+      userAgent: req.headers['user-agent']
+    });
   } catch (error) {
     console.error('[ERROR] GET /api/test-telegram - помилка:', error);
     res.status(500).json({ error: error.message });

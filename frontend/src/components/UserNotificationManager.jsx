@@ -26,12 +26,31 @@ const UserNotificationManager = ({ user }) => {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/users/with-telegram`);
-      if (response.ok) {
+      console.log('[DEBUG] Завантаження користувачів з Telegram...');
+      console.log('[DEBUG] API_BASE_URL:', API_BASE_URL);
+      
+      // Спочатку спробуємо новий endpoint
+      let response = await fetch(`${API_BASE_URL}/users/with-telegram`);
+      
+      if (!response.ok) {
+        console.log('[DEBUG] Новий endpoint не працює, спробуємо старий...');
+        // Fallback до старого endpoint
+        response = await fetch(`${API_BASE_URL}/users`);
+        if (response.ok) {
+          const usersData = await response.json();
+          // Фільтруємо тільки користувачів з налаштованим Telegram Chat ID
+          const usersWithTelegram = usersData.filter(u => 
+            u.telegramChatId && 
+            u.telegramChatId.trim() && 
+            u.telegramChatId !== 'Chat ID'
+          );
+          setUsers(usersWithTelegram);
+          console.log('[DEBUG] Використано fallback, знайдено користувачів:', usersWithTelegram.length);
+        }
+      } else {
         const usersData = await response.json();
         setUsers(usersData);
-      } else {
-        console.error('Помилка завантаження користувачів:', response.status, response.statusText);
+        console.log('[DEBUG] Використано новий endpoint, знайдено користувачів:', usersData.length);
       }
     } catch (error) {
       console.error('Помилка завантаження користувачів:', error);
