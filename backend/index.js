@@ -185,6 +185,9 @@ async function connectToMongoDB() {
 // Підключаємося до MongoDB
 connectToMongoDB().then(async (connected) => {
   if (connected) {
+    console.log('MongoDB підключена успішно');
+    FALLBACK_MODE = false;
+    
     // --- Додаємо дефолтного адміністратора, якщо його немає ---
     const adminLogin = 'bugai';
     const adminUser = await User.findOne({ login: adminLogin });
@@ -199,24 +202,34 @@ connectToMongoDB().then(async (connected) => {
       });
       console.log('Дефолтного адміністратора створено!');
     }
+  } else {
+    console.error('MongoDB не підключена, активуємо FALLBACK_MODE');
+    FALLBACK_MODE = true;
   }
+}).catch(err => {
+  console.error('MongoDB connection error:', err);
+  FALLBACK_MODE = true;
 });
 
 // Обробники подій для моніторингу з'єднання MongoDB
 mongoose.connection.on('connected', () => {
   console.log('MongoDB підключено');
+  FALLBACK_MODE = false;
 });
 
 mongoose.connection.on('error', (err) => {
   console.error('MongoDB помилка з\'єднання:', err);
+  FALLBACK_MODE = true;
 });
 
 mongoose.connection.on('disconnected', () => {
   console.log('MongoDB відключено');
+  FALLBACK_MODE = true;
 });
 
 mongoose.connection.on('reconnected', () => {
   console.log('MongoDB перепідключено');
+  FALLBACK_MODE = false;
 });
 
 // Функція для перевірки та відновлення з'єднання
@@ -404,6 +417,30 @@ app.use(async (req, res, next) => {
 });
 
 const reports = [];
+
+// --- SYSTEM STATUS ---
+app.get('/api/system-status', async (req, res) => {
+  try {
+    const mongoStatus = mongoose.connection.readyState;
+    const isConnected = mongoStatus === 1;
+    
+    res.json({
+      mongoStatus,
+      isConnected,
+      fallbackMode: FALLBACK_MODE,
+      readyState: mongoose.connection.readyState,
+      host: mongoose.connection.host,
+      port: mongoose.connection.port,
+      name: mongoose.connection.name
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: error.message,
+      mongoStatus: mongoose.connection.readyState,
+      fallbackMode: FALLBACK_MODE
+    });
+  }
+});
 
 // --- USERS через MongoDB ---
 app.get('/api/users', async (req, res) => {
@@ -1266,6 +1303,21 @@ app.post('/api/event-log', async (req, res) => {
 // Отримати журнал подій з фільтрами
 app.get('/api/event-log', async (req, res) => {
   try {
+    console.log('[DEBUG] GET /api/event-log - отримано запит');
+    
+    if (FALLBACK_MODE) {
+      console.log('[DEBUG] GET /api/event-log - FALLBACK_MODE активний, повертаємо порожній масив');
+      return res.json({
+        events: [],
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 0,
+          pages: 0
+        }
+      });
+    }
+    
     const { 
       page = 1, 
       limit = 50, 
@@ -1276,6 +1328,8 @@ app.get('/api/event-log', async (req, res) => {
       endDate,
       search 
     } = req.query;
+    
+    console.log('[DEBUG] GET /api/event-log - параметри:', { page, limit, userId, action, entityType, startDate, endDate, search });
     
     const filter = {};
     
@@ -1299,12 +1353,20 @@ app.get('/api/event-log', async (req, res) => {
     
     const skip = (page - 1) * limit;
     
-    const events = await EventLog.find(filter)
-      .sort({ timestamp: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    console.log('[DEBUG] GET /api/event-log - фільтр:', filter);
     
-    const total = await EventLog.countDocuments(filter);
+    const events = await executeWithRetry(() => 
+      EventLog.find(filter)
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+    );
+    
+    const total = await executeWithRetry(() => 
+      EventLog.countDocuments(filter)
+    );
+    
+    console.log(`[DEBUG] GET /api/event-log - знайдено ${events.length} подій з ${total} загальних`);
     
     res.json({
       events,
@@ -1316,7 +1378,7 @@ app.get('/api/event-log', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Помилка отримання журналу подій:', error);
+    console.error('[ERROR] GET /api/event-log - помилка:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1324,12 +1386,27 @@ app.get('/api/event-log', async (req, res) => {
 // Очистити старий журнал подій (старше 30 днів)
 app.delete('/api/event-log/cleanup', async (req, res) => {
   try {
+    console.log('[DEBUG] DELETE /api/event-log/cleanup - отримано запит');
+    
+    if (FALLBACK_MODE) {
+      console.log('[DEBUG] DELETE /api/event-log/cleanup - FALLBACK_MODE активний, повертаємо помилку');
+      return res.status(503).json({ 
+        success: false, 
+        message: 'База даних недоступна',
+        deletedCount: 0
+      });
+    }
+    
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
-    const result = await EventLog.deleteMany({
-      timestamp: { $lt: thirtyDaysAgo }
-    });
+    const result = await executeWithRetry(() => 
+      EventLog.deleteMany({
+        timestamp: { $lt: thirtyDaysAgo }
+      })
+    );
+    
+    console.log(`[DEBUG] DELETE /api/event-log/cleanup - видалено ${result.deletedCount} старих записів`);
     
     res.json({ 
       success: true, 
@@ -1337,7 +1414,7 @@ app.delete('/api/event-log/cleanup', async (req, res) => {
       deletedCount: result.deletedCount
     });
   } catch (error) {
-    console.error('Помилка очищення журналу:', error);
+    console.error('[ERROR] DELETE /api/event-log/cleanup - помилка:', error);
     res.status(500).json({ error: error.message });
   }
 });
