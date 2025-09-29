@@ -3032,10 +3032,22 @@ app.post('/api/notification-settings/global', async (req, res) => {
   }
 });
 
+// Тестовий endpoint для перевірки
+app.get('/api/test-telegram', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/test-telegram - тестовий endpoint');
+    res.json({ message: 'Test endpoint працює', timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('[ERROR] GET /api/test-telegram - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // API для отримання користувачів з Telegram Chat ID для сповіщень
 app.get('/api/users/with-telegram', async (req, res) => {
   try {
     console.log('[DEBUG] GET /api/users/with-telegram - отримано запит');
+    console.log('[DEBUG] FALLBACK_MODE:', FALLBACK_MODE);
     
     if (FALLBACK_MODE) {
       console.log('[DEBUG] GET /api/users/with-telegram - FALLBACK_MODE активний, повертаємо порожній масив');
@@ -3053,6 +3065,7 @@ app.get('/api/users/with-telegram', async (req, res) => {
     );
     
     console.log(`[DEBUG] GET /api/users/with-telegram - знайдено ${users.length} користувачів з Telegram Chat ID`);
+    console.log('[DEBUG] Користувачі:', users.map(u => ({ login: u.login, telegramChatId: u.telegramChatId })));
     
     res.json(users);
   } catch (error) {
