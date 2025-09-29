@@ -368,6 +368,12 @@ app.use((req, res, next) => {
   console.log(`[CORS] ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
   next();
 });
+
+// Глобальна обробка помилок
+app.use((err, req, res, next) => {
+  console.error('[ERROR] Global error handler:', err);
+  res.status(500).json({ error: 'Internal server error', message: err.message });
+});
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
