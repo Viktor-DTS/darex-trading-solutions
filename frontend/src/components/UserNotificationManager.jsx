@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // API URL налаштування
 const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions-f.onrender.com/api');
+  (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
 const UserNotificationManager = ({ user }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,12 +26,12 @@ const UserNotificationManager = ({ user }) => {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/users`);
+      const response = await fetch(`${API_BASE_URL}/users/with-telegram`);
       if (response.ok) {
         const usersData = await response.json();
-        // Фільтруємо тільки користувачів з налаштованим Telegram Chat ID
-        const usersWithTelegram = usersData.filter(u => u.telegramChatId && u.telegramChatId.trim());
-        setUsers(usersWithTelegram);
+        setUsers(usersData);
+      } else {
+        console.error('Помилка завантаження користувачів:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Помилка завантаження користувачів:', error);
