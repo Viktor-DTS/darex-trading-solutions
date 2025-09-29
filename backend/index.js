@@ -443,15 +443,7 @@ app.get('/api/system-status', async (req, res) => {
 });
 
 // --- USERS через MongoDB ---
-app.get('/api/users', async (req, res) => {
-  try {
-    const users = await executeWithRetry(() => User.find());
-    res.json(users);
-  } catch (error) {
-    console.error('Помилка отримання користувачів:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+// Цей endpoint видалено, використовується endpoint нижче
 
 app.get('/api/users/:login', async (req, res) => {
   try {
@@ -3040,10 +3032,39 @@ app.post('/api/notification-settings/global', async (req, res) => {
   }
 });
 
+// API для отримання користувачів з Telegram Chat ID для сповіщень
+app.get('/api/users/with-telegram', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/users/with-telegram - отримано запит');
+    
+    if (FALLBACK_MODE) {
+      console.log('[DEBUG] GET /api/users/with-telegram - FALLBACK_MODE активний, повертаємо порожній масив');
+      return res.json([]);
+    }
+    
+    const users = await executeWithRetry(() => 
+      User.find(
+        { 
+          telegramChatId: { $exists: true, $ne: null, $ne: '' },
+          telegramChatId: { $ne: 'Chat ID' }
+        },
+        'login name role region telegramChatId'
+      )
+    );
+    
+    console.log(`[DEBUG] GET /api/users/with-telegram - знайдено ${users.length} користувачів з Telegram Chat ID`);
+    
+    res.json(users);
+  } catch (error) {
+    console.error('[ERROR] GET /api/users/with-telegram - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // API для отримання списку користувачів
 app.get('/api/users', async (req, res) => {
   try {
-    const users = await User.find({}, 'login name role region telegramChatId');
+    const users = await executeWithRetry(() => User.find({}, 'login name role region telegramChatId'));
     res.json(users);
   } catch (error) {
     console.error('[ERROR] GET /api/users - помилка:', error);
