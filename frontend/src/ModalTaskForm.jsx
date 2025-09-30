@@ -1417,6 +1417,13 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       </form>
       
       {/* Блок запиту на рахунок */}
+      {console.log('DEBUG ModalTaskForm - передаємо в InvoiceRequestBlock:', {
+        taskStatus: form.status,
+        userRole: user?.role,
+        invoiceRequested: form.invoiceRequested,
+        task: form,
+        user: user
+      })}
       <InvoiceRequestBlock 
         task={form} 
         user={user} 

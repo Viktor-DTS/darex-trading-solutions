@@ -5,7 +5,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
 
   // Перевіряємо, чи можна показувати блок
   const canShowBlock = () => {
-    return (
+    const canShow = (
       task.status === 'Виконано' && 
       (user?.role === 'Керівник сервісної служби' || 
        user?.role === 'Оператор' || 
@@ -15,6 +15,15 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
        user?.role === 'admin') && 
       !task.invoiceRequested
     );
+    
+    console.log('DEBUG InvoiceRequestBlock:', {
+      taskStatus: task.status,
+      userRole: user?.role,
+      invoiceRequested: task.invoiceRequested,
+      canShow: canShow
+    });
+    
+    return canShow;
   };
 
   const handleRequest = async (invoiceData) => {
