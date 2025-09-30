@@ -70,6 +70,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
         </p>
         
         <button 
+          type="button"
           onClick={() => setShowModal(true)}
           style={{
             padding: '12px 24px',
