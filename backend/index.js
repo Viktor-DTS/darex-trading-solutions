@@ -14,10 +14,43 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
+const multer = require('multer');
+const cloudinary = require('./config/cloudinary');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 
 // Додаємо імпорт роуту файлів
 const filesRouter = require('./routes/files');
+
+// Налаштування multer для Cloudinary
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'darex-trading-solutions/invoices',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'pdf'],
+    transformation: [{ width: 1000, height: 1000, crop: 'limit' }]
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB ліміт
+  },
+  fileFilter: (req, file, cb) => {
+    // Дозволяємо тільки PDF та зображення для рахунків
+    const allowedTypes = [
+      'image/jpeg', 'image/png', 'image/jpg',
+      'application/pdf'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Непідтримуваний тип файлу. Дозволені тільки PDF, JPEG, PNG'), false);
+    }
+  }
+});
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -3181,20 +3214,9 @@ app.put('/api/invoice-requests/:id', async (req, res) => {
 });
 
 // Завантаження файлу рахунку
-app.post('/api/invoice-requests/:id/upload', async (req, res) => {
+app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async (req, res) => {
   try {
-    // Тут буде логіка завантаження файлу через Cloudinary
-    // Поки що просто оновлюємо статус
-    const request = await InvoiceRequest.findByIdAndUpdate(
-      req.params.id,
-      { 
-        status: 'completed',
-        completedAt: new Date(),
-        invoiceFile: 'placeholder', // TODO: замінити на реальний URL файлу
-        invoiceFileName: 'invoice.pdf' // TODO: замінити на реальну назву файлу
-      },
-      { new: true }
-    );
+    const request = await InvoiceRequest.findById(req.params.id);
     
     if (!request) {
       return res.status(404).json({ 
@@ -3203,10 +3225,33 @@ app.post('/api/invoice-requests/:id/upload', async (req, res) => {
       });
     }
     
+    // Перевіряємо чи є файл в запиті
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Файл не був завантажений' 
+      });
+    }
+    
+    // Оновлюємо запит з інформацією про файл
+    const updatedRequest = await InvoiceRequest.findByIdAndUpdate(
+      req.params.id,
+      { 
+        status: 'completed',
+        completedAt: new Date(),
+        invoiceFile: req.file.path, // Cloudinary URL
+        invoiceFileName: req.file.originalname
+      },
+      { new: true }
+    );
+    
     res.json({ 
       success: true, 
       message: 'Файл рахунку завантажено успішно',
-      data: request 
+      data: {
+        invoiceFile: updatedRequest.invoiceFile,
+        invoiceFileName: updatedRequest.invoiceFileName
+      }
     });
     
   } catch (error) {
@@ -3217,6 +3262,30 @@ app.post('/api/invoice-requests/:id/upload', async (req, res) => {
       error: error.message 
     });
   }
+}, (error, req, res, next) => {
+  // Обробка помилок multer
+  if (error instanceof multer.MulterError) {
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        message: 'Файл занадто великий. Максимальний розмір: 10MB'
+      });
+    }
+  }
+  
+  if (error.message.includes('Непідтримуваний тип файлу')) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+  
+  console.error('Помилка multer:', error);
+  res.status(500).json({
+    success: false,
+    message: 'Помилка завантаження файлу',
+    error: error.message
+  });
 });
 
 // Завантаження файлу рахунку

@@ -77,6 +77,7 @@ export default function AccountantArea({ user }) {
   const [tab, setTab] = useState('pending');
   const [invoiceRequests, setInvoiceRequests] = useState([]);
   const [invoiceRequestsLoading, setInvoiceRequestsLoading] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(new Set());
   const region = user?.region || '';
   
   // Функція для завантаження запитів на рахунки
@@ -135,11 +136,14 @@ export default function AccountantArea({ user }) {
   // Функція для завантаження файлу рахунку
   const uploadInvoiceFile = async (requestId, file) => {
     try {
+      // Додаємо requestId до списку завантажуваних файлів
+      setUploadingFiles(prev => new Set([...prev, requestId]));
+      
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
         (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('invoiceFile', file); // Змінюємо назву поля на 'invoiceFile'
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload`, {
         method: 'POST',
@@ -164,6 +168,13 @@ export default function AccountantArea({ user }) {
     } catch (error) {
       console.error('Помилка завантаження файлу рахунку:', error);
       alert(`Помилка: ${error.message}`);
+    } finally {
+      // Видаляємо requestId зі списку завантажуваних файлів
+      setUploadingFiles(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(requestId);
+        return newSet;
+      });
     }
   };
   
@@ -1038,26 +1049,55 @@ export default function AccountantArea({ user }) {
                           <input
                             type="file"
                             accept=".pdf,.jpg,.jpeg,.png"
+                            disabled={uploadingFiles.has(request._id)}
                             onChange={(e) => {
-                              if (e.target.files[0]) {
-                                uploadInvoiceFile(request._id, e.target.files[0]);
+                              const file = e.target.files[0];
+                              if (file) {
+                                // Валідація розміру файлу (10MB)
+                                if (file.size > 10 * 1024 * 1024) {
+                                  alert('Файл занадто великий. Максимальний розмір: 10MB');
+                                  return;
+                                }
+                                
+                                // Валідація типу файлу
+                                const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+                                if (!allowedTypes.includes(file.type)) {
+                                  alert('Непідтримуваний тип файлу. Дозволені тільки PDF, JPEG, PNG');
+                                  return;
+                                }
+                                
+                                uploadInvoiceFile(request._id, file);
                               }
                             }}
-                            style={{ fontSize: '14px' }}
+                            style={{ 
+                              fontSize: '14px',
+                              opacity: uploadingFiles.has(request._id) ? 0.6 : 1
+                            }}
                           />
+                          {uploadingFiles.has(request._id) && (
+                            <span style={{ 
+                              fontSize: '12px', 
+                              color: '#17a2b8',
+                              fontWeight: '600'
+                            }}>
+                              📤 Завантаження...
+                            </span>
+                          )}
                           <button
                             onClick={() => {
                               const comments = prompt('Додайте коментарі (необов\'язково):');
                               updateInvoiceRequestStatus(request._id, 'completed', comments || '');
                             }}
+                            disabled={uploadingFiles.has(request._id)}
                             style={{
                               padding: '8px 16px',
-                              backgroundColor: '#28a745',
+                              backgroundColor: uploadingFiles.has(request._id) ? '#6c757d' : '#28a745',
                               color: 'white',
                               border: 'none',
                               borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '14px'
+                              cursor: uploadingFiles.has(request._id) ? 'not-allowed' : 'pointer',
+                              fontSize: '14px',
+                              opacity: uploadingFiles.has(request._id) ? 0.6 : 1
                             }}
                           >
                             Завершити без файлу
