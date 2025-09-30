@@ -10,6 +10,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
       (user?.role === 'Керівник сервісної служби' || 
        user?.role === 'Оператор' || 
        user?.role === 'Адміністратор' ||
+       user?.role === 'administrator' ||
        user?.role === 'service' ||
        user?.role === 'operator' ||
        user?.role === 'admin') && 
