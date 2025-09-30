@@ -562,7 +562,27 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       form.approvedByRegionalManager === 'Підтверджено'
     ) {
       const d = new Date();
-      bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+      const currentDay = d.getDate();
+      const currentMonth = d.getMonth() + 1;
+      const currentYear = d.getFullYear();
+      
+      // Перевіряємо дату виконання робіт
+      const workDate = new Date(form.date);
+      const workMonth = workDate.getMonth() + 1;
+      const workYear = workDate.getFullYear();
+      
+      // Нова логіка: якщо день >= 16 і місяць затвердження != місяць виконання
+      if (currentDay >= 16 && (workMonth !== currentMonth || workYear !== currentYear)) {
+        // Встановлюємо поточний місяць + 1
+        if (currentMonth === 12) {
+          bonusApprovalDate = `01-${currentYear + 1}`;
+        } else {
+          bonusApprovalDate = `${String(currentMonth + 1).padStart(2, '0')}-${currentYear}`;
+        }
+      } else {
+        // Стара логіка: поточний місяць
+        bonusApprovalDate = `${String(currentMonth).padStart(2, '0')}-${currentYear}`;
+      }
     }
     // Розрахунок кожної суми на льоту
     const oilTotal = parseNumber(form.oilUsed) * parseNumber(form.oilPrice);
