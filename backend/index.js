@@ -439,6 +439,67 @@ app.post('/api/fix-bonus-approval-dates', async (req, res) => {
   }
 });
 
+// API endpoint для синхронізації bonusApprovalDate у всіх заявках
+app.post('/api/sync-bonus-approval-dates', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/sync-bonus-approval-dates - отримано запит');
+
+    if (FALLBACK_MODE) {
+      console.log('[DEBUG] POST /api/sync-bonus-approval-dates - FALLBACK_MODE активний');
+      return res.status(503).json({ error: 'Сервер в режимі fallback, операція недоступна' });
+    }
+
+    // Знаходимо всі заявки, які підтверджені всіма ролями, але не мають bonusApprovalDate
+    const tasksToSync = await executeWithRetry(() =>
+      Task.find({
+        approvedByWarehouse: 'Підтверджено',
+        approvedByAccountant: 'Підтверджено', 
+        approvedByRegionalManager: 'Підтверджено',
+        workPrice: { $exists: true, $ne: null, $ne: '' },
+        $or: [
+          { bonusApprovalDate: { $exists: false } },
+          { bonusApprovalDate: null },
+          { bonusApprovalDate: '' }
+        ]
+      })
+    );
+
+    console.log(`[DEBUG] Знайдено ${tasksToSync.length} заявок для синхронізації bonusApprovalDate`);
+
+    let updatedCount = 0;
+
+    for (const task of tasksToSync) {
+      // Встановлюємо bonusApprovalDate на поточний місяць
+      const now = new Date();
+      const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+      const currentYear = now.getFullYear();
+      const bonusApprovalDate = `${currentMonth}-${currentYear}`;
+
+      await executeWithRetry(() =>
+        Task.updateOne(
+          { _id: task._id },
+          { $set: { bonusApprovalDate: bonusApprovalDate } }
+        )
+      );
+
+      console.log(`[DEBUG] Синхронізовано заявку ${task._id}: bonusApprovalDate = ${bonusApprovalDate}`);
+      updatedCount++;
+    }
+
+    console.log(`[DEBUG] Синхронізація завершена: оновлено ${updatedCount} заявок`);
+
+    res.json({
+      message: 'Синхронізація bonusApprovalDate завершена',
+      totalFound: tasksToSync.length,
+      updated: updatedCount
+    });
+
+  } catch (error) {
+    console.error('[ERROR] POST /api/sync-bonus-approval-dates - помилка:', error);
+    res.status(500).json({ error: 'Помилка синхронізації bonusApprovalDate' });
+  }
+});
+
 // Глобальна обробка помилок
 app.use((err, req, res, next) => {
   console.error('[ERROR] Global error handler:', err);
@@ -830,6 +891,22 @@ app.put('/api/tasks/:id', async (req, res) => {
     // Видаляємо поля id та _id з оновлення, якщо вони є
     const { id, _id, ...updateData } = req.body;
     console.log('[DEBUG] PUT /api/tasks/:id - дані для оновлення (без id та _id):', JSON.stringify(updateData, null, 2));
+    
+    // Автоматично встановлюємо bonusApprovalDate, якщо заявка підтверджена всіма ролями
+    const isWarehouseApproved = updateData.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === 'Підтверджено';
+    const isAccountantApproved = updateData.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === 'Підтверджено';
+    const isRegionalManagerApproved = updateData.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === 'Підтверджено';
+    
+    if (isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved && (updateData.workPrice || task.workPrice)) {
+      // Встановлюємо bonusApprovalDate на поточний місяць, якщо його ще немає
+      if (!updateData.bonusApprovalDate && !task.bonusApprovalDate) {
+        const now = new Date();
+        const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+        const currentYear = now.getFullYear();
+        updateData.bonusApprovalDate = `${currentMonth}-${currentYear}`;
+        console.log(`[DEBUG] PUT /api/tasks/:id - автоматично встановлено bonusApprovalDate: ${updateData.bonusApprovalDate}`);
+      }
+    }
     
     // Оновлюємо поля через set
     task.set(updateData);
