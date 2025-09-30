@@ -1697,7 +1697,20 @@ function RegionalManagerArea({ tab: propTab, user }) {
       return { ...prev, [userId]: newUserData };
     });
   }
-  // --- Оголошення data/setData тільки ОДНЕ! ---
+  
+  // --- Функція для зміни значень у таблиці часу сервісної служби ---
+  function handleServiceChange(userId, day, value) {
+    console.log(`[DEBUG] handleServiceChange: userId=${userId}, day=${day}, value=${value}`);
+    setServiceData(prev => {
+      const userData = prev[userId] || {};
+      const newUserData = { ...userData, [day]: value };
+      const total = days.reduce((sum, d) => sum + (isNaN(Number(newUserData[d])) ? 0 : Number(newUserData[d])), 0);
+      newUserData.total = total;
+      console.log(`[DEBUG] handleServiceChange: newUserData for ${userId}:`, newUserData);
+      return { ...prev, [userId]: newUserData };
+    });
+  }
+  // --- Оголошення data/setData для регіонального керівника ---
   const [data, setData] = useState(() => {
     const saved = localStorage.getItem(storageKey);
     if (saved) return JSON.parse(saved);
@@ -3364,8 +3377,8 @@ function PersonnelTimesheet({ user }) {
   }
   const daysInMonth = getDaysInMonth(year, month);
   const days = Array.from({length: daysInMonth}, (_, i) => i + 1);
-  // --- Автоматичне заповнення: робочі дні = 8, вихідні = 0 ---
-  function getDefaultTimesheet() {
+  // --- Автоматичне заповнення для сервісної служби: робочі дні = 8, вихідні = 0 ---
+  function getDefaultServiceTimesheet() {
     const result = {};
     serviceUsers.forEach(u => {
       const userData = {};
@@ -3379,18 +3392,20 @@ function PersonnelTimesheet({ user }) {
     });
     return result;
   }
-  const [data, setData] = useState(() => {
-    const saved = localStorage.getItem(storageKey);
+  
+  // --- Окремий стан для сервісної служби ---
+  const [serviceData, setServiceData] = useState(() => {
+    const saved = localStorage.getItem(`serviceTimesheetData_${year}_${month}`);
     if (saved) return JSON.parse(saved);
-    return getDefaultTimesheet();
+    return getDefaultServiceTimesheet();
   });
   useEffect(() => {
-    const saved = localStorage.getItem(storageKey);
-    setData(saved ? JSON.parse(saved) : getDefaultTimesheet());
-  }, [storageKey, serviceUsers.length]);
+    const saved = localStorage.getItem(`serviceTimesheetData_${year}_${month}`);
+    setServiceData(saved ? JSON.parse(saved) : getDefaultServiceTimesheet());
+  }, [`serviceTimesheetData_${year}_${month}`, serviceUsers.length]);
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(data));
-  }, [data, storageKey]);
+    localStorage.setItem(`serviceTimesheetData_${year}_${month}`, JSON.stringify(serviceData));
+  }, [serviceData, `serviceTimesheetData_${year}_${month}`]);
   // --- Підсумковий блок ---
   // Зберігаємо налаштування підсумку по періоду
   const summaryKey = `timesheetSummary_${year}_${month}`;
@@ -3543,7 +3558,7 @@ function PersonnelTimesheet({ user }) {
                           value={data[u.id]?.[d] || ''} 
                           onChange={e => {
                             console.log(`[DEBUG] Service input change: userId=${u.id}, day=${d}, value=${e.target.value}`);
-                            handleChange(u.id, d, e.target.value);
+                            handleServiceChange(u.id, d, e.target.value);
                           }} 
                           style={{width:'100%'}} 
                         />
