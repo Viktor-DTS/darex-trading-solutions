@@ -2147,7 +2147,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
         });
         
         const payout = basePay + overtimePay + bonus + engineerBonus;
-        return payout > 0; // Включаємо тільки користувачів з сумою > 0
+        return payout > 0 || engineerBonus > 0; // Включаємо користувачів з сумою > 0 або з премією
       });
       // Формування таблиці нарахувань для регіону
       const accrualTable = `
