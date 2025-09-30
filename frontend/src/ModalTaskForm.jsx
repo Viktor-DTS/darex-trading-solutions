@@ -141,8 +141,8 @@ const mainHeaderRow = ['status', 'requestDate', 'company', 'serviceRegion'];
 // Новий порядок полів
 const orderedFields = [
   'requestDesc',
-  ...regionClientGroup,
   'address',
+  ...regionClientGroup,
   ...paymentEquipmentGroup,
   ...workEngineersGroup,
   ...oilGroup,
@@ -827,6 +827,22 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
               </div>
             );
           }
+          if (idx === orderedFields.indexOf('address')) {
+            return (
+              <div className="group" key="addressGroup">
+                <div className="field label-above textarea" style={{flex:1}}>
+                  <label>Адреса</label>
+                  <textarea 
+                    name="address" 
+                    value={form.address || ''} 
+                    onChange={handleChange} 
+                    readOnly={isReadOnly('address')} 
+                    style={{minHeight:60}}
+                  />
+                </div>
+              </div>
+            );
+          }
           if (idx === orderedFields.indexOf('edrpou')) {
             return (
               <div className="group" key="regionClientGroup">
@@ -841,22 +857,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                     </div>
                   );
                 })}
-              </div>
-            );
-          }
-          if (idx === orderedFields.indexOf('address')) {
-            return (
-              <div className="group" key="addressGroup">
-                <div className="field label-above textarea" style={{flex:1}}>
-                  <label>Адреса</label>
-                  <textarea 
-                    name="address" 
-                    value={form.address || ''} 
-                    onChange={handleChange} 
-                    readOnly={isReadOnly('address')} 
-                    style={{minHeight:60}}
-                  />
-                </div>
               </div>
             );
           }
