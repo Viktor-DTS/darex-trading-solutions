@@ -2155,7 +2155,8 @@ function RegionalManagerArea({ tab: propTab, user }) {
         });
         
         const payout = basePay + overtimePay + bonus + engineerBonus;
-        return payout > 0; // Включаємо користувачів з будь-якою сумою оплати
+        // Включаємо користувачів з будь-якою сумою оплати АБО з премією за сервісні роботи
+        return payout > 0 || engineerBonus > 0;
       });
       // Формування таблиці нарахувань для регіону
       const accrualTable = `
@@ -2233,16 +2234,21 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   engineerBonus += bonusVal;
                 }
               });
-              const payout = basePay + overtimePay + bonus + engineerBonus;
+              // Якщо є премія за сервісні роботи, встановлюємо мінімальні години для відображення
+              const displayTotal = engineerBonus > 0 && total === 0 ? 1 : total;
+              // Перераховуємо basePay з урахуванням мінімальних годин для користувачів з премією
+              const effectiveTotal = engineerBonus > 0 && total === 0 ? 1 : total;
+              const adjustedBasePay = Math.round(salary * Math.min(effectiveTotal, summary.workHours) / summary.workHours);
+              const payout = adjustedBasePay + overtimePay + bonus + engineerBonus;
               return `
                 <tr>
                   <td>${u.name}</td>
                   <td>${salary}</td>
-                  <td>${total}</td>
+                  <td>${displayTotal}</td>
                   <td>${overtime}</td>
                   <td>${overtimeRate.toFixed(2)}</td>
                   <td>${overtimePay.toFixed(2)}</td>
-                  <td>${basePay}</td>
+                  <td>${adjustedBasePay}</td>
                   <td>${engineerBonus.toFixed(2)}</td>
                   <td>${payout}</td>
                 </tr>
