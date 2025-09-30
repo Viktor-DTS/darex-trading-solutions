@@ -7,6 +7,7 @@ import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from './utils/eventLogAPI'
 import { getEquipmentTypes } from './utils/equipmentAPI';
 import MaterialsSelectionModal from './components/MaterialsSelectionModal';
 import InvoiceRequestModal from './components/InvoiceRequestModal';
+import InvoiceRequestBlock from './components/InvoiceRequestBlock';
 // Функція для отримання коду регіону
 const getRegionCode = (region) => {
   const regionMap = {
@@ -1414,6 +1415,13 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         </div>
         <div style={{marginTop:48}}></div>
       </form>
+      
+      {/* Блок запиту на рахунок */}
+      <InvoiceRequestBlock 
+        task={form} 
+        user={user} 
+        onRequest={handleInvoiceRequest}
+      />
       {/* --- Модальне вікно для опису відмови --- */}
       {rejectModal.open && (
         <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:2000,display:'flex',alignItems:'center',justifyContent:'center'}}>
