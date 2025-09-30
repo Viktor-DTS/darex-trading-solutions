@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Виправлення bonusApprovalDate</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Виправлення bonusApprovalDate</h1>
+        <p>Цей скрипт виправить відсутні поля <code>bonusApprovalDate</code> у заявках, що дозволить системі нараховувати премії.</p>
+        
+        <button id="fixButton" onclick="fixBonusDates()">Виправити bonusApprovalDate</button>
+        
+        <div id="result" class="result" style="display: none;">
+            <h3>Результат:</h3>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <script>
+        async function fixBonusDates() {
+            const button = document.getElementById('fixButton');
+            const result = document.getElementById('result');
+            const resultContent = document.getElementById('resultContent');
+            
+            button.disabled = true;
+            button.textContent = 'Виправлення...';
+            result.style.display = 'block';
+            result.className = 'result';
+            resultContent.innerHTML = 'Виконується виправлення...';
+            
+            try {
+                // Спробуємо новий endpoint
+                let response;
+                try {
+                    response = await fetch('https://darex-trading-solutions.onrender.com/api/fix-bonus-approval-dates', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                } catch (error) {
+                    // Якщо новий endpoint не працює, використаємо альтернативний підхід
+                    console.log('Новий endpoint не працює, використовуємо альтернативний підхід');
+                    await fixBonusDatesAlternative();
+                    return;
+                }
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    result.className = 'result success';
+                    resultContent.innerHTML = `
+                        <p><strong>✅ Виправлення завершено успішно!</strong></p>
+                        <p>Знайдено заявок: ${data.totalFound}</p>
+                        <p>Оновлено: ${data.updated}</p>
+                        <p>Пропущено: ${data.skipped}</p>
+                        <p><em>Тепер система може нараховувати премії!</em></p>
+                    `;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                result.className = 'result error';
+                resultContent.innerHTML = `
+                    <p><strong>❌ Помилка:</strong></p>
+                    <p>${error.message}</p>
+                    <p><em>Спробуйте пізніше або зверніться до адміністратора.</em></p>
+                `;
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Виправити bonusApprovalDate';
+            }
+        }
+        
+        async function fixBonusDatesAlternative() {
+            const result = document.getElementById('result');
+            const resultContent = document.getElementById('resultContent');
+            
+            try {
+                // Отримуємо всі заявки
+                const tasksResponse = await fetch('https://darex-trading-solutions.onrender.com/api/tasks');
+                const tasks = await tasksResponse.json();
+                
+                let updatedCount = 0;
+                let skippedCount = 0;
+                
+                // Фільтруємо заявки без bonusApprovalDate
+                const tasksWithoutBonusDate = tasks.filter(task => 
+                    !task.bonusApprovalDate || 
+                    task.bonusApprovalDate === '' || 
+                    task.bonusApprovalDate === null
+                );
+                
+                console.log(`Знайдено ${tasksWithoutBonusDate.length} заявок без bonusApprovalDate`);
+                
+                // Оновлюємо кожну заявку
+                for (const task of tasksWithoutBonusDate) {
+                    const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
+                    const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
+                    const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
+                    
+                    if (isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved && task.workPrice) {
+                        const now = new Date();
+                        const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+                        const currentYear = now.getFullYear();
+                        const bonusApprovalDate = `${currentMonth}-${currentYear}`;
+                        
+                        // Оновлюємо заявку
+                        const updateResponse = await fetch(`https://darex-trading-solutions.onrender.com/api/tasks/${task._id}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                ...task,
+                                bonusApprovalDate: bonusApprovalDate
+                            })
+                        });
+                        
+                        if (updateResponse.ok) {
+                            updatedCount++;
+                            console.log(`Оновлено заявку ${task._id}: bonusApprovalDate = ${bonusApprovalDate}`);
+                        } else {
+                            skippedCount++;
+                        }
+                    } else {
+                        skippedCount++;
+                    }
+                }
+                
+                result.className = 'result success';
+                resultContent.innerHTML = `
+                    <p><strong>✅ Виправлення завершено успішно!</strong></p>
+                    <p>Знайдено заявок: ${tasksWithoutBonusDate.length}</p>
+                    <p>Оновлено: ${updatedCount}</p>
+                    <p>Пропущено: ${skippedCount}</p>
+                    <p><em>Тепер система може нараховувати премії!</em></p>
+                `;
+                
+            } catch (error) {
+                result.className = 'result error';
+                resultContent.innerHTML = `
+                    <p><strong>❌ Помилка:</strong></p>
+                    <p>${error.message}</p>
+                    <p><em>Спробуйте пізніше або зверніться до адміністратора.</em></p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
