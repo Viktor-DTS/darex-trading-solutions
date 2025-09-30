@@ -13,7 +13,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
        user?.role === 'service' ||
        user?.role === 'operator' ||
        user?.role === 'admin') && 
-      !task.invoiceRequested
+      task.invoiceRequested !== true
     );
     
     console.log('DEBUG InvoiceRequestBlock:', {
