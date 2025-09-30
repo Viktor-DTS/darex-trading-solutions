@@ -119,6 +119,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
             
             <form onSubmit={(e) => {
               e.preventDefault();
+              e.stopPropagation();
               const formData = new FormData(e.target);
               const invoiceData = {
                 taskId: task.id,
@@ -136,6 +137,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                 }
               };
               handleRequest(invoiceData);
+              return false;
             }}>
               <div style={{ marginBottom: '15px' }}>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#000' }}>
@@ -146,7 +148,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                   name="companyName" 
                   defaultValue={task.client || ''}
                   required 
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000' }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000', backgroundColor: '#fff' }}
                 />
               </div>
 
@@ -159,7 +161,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                   name="edrpou" 
                   defaultValue={task.edrpou || ''}
                   required 
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000' }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000', backgroundColor: '#fff' }}
                 />
               </div>
 
@@ -171,7 +173,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                   type="text" 
                   name="address" 
                   required 
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000' }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000', backgroundColor: '#fff' }}
                 />
               </div>
 
@@ -183,7 +185,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                   name="bankDetails" 
                   required 
                   rows="3"
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000' }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000', backgroundColor: '#fff' }}
                 />
               </div>
 
@@ -195,7 +197,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                   type="text" 
                   name="contactPerson" 
                   required 
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000' }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000', backgroundColor: '#fff' }}
                 />
               </div>
 
@@ -207,7 +209,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                   type="tel" 
                   name="phone" 
                   required 
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000' }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000', backgroundColor: '#fff' }}
                 />
               </div>
 
@@ -218,7 +220,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                 <input 
                   type="email" 
                   name="email" 
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000' }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000', backgroundColor: '#fff' }}
                 />
               </div>
 
@@ -229,7 +231,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                 <textarea 
                   name="comments" 
                   rows="3"
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000' }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000', backgroundColor: '#fff' }}
                 />
               </div>
 
@@ -249,7 +251,29 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                   Скасувати
                 </button>
                 <button 
-                  type="submit"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const form = e.target.closest('form');
+                    const formData = new FormData(form);
+                    const invoiceData = {
+                      taskId: task.id,
+                      requesterId: user.login,
+                      requesterName: user.name,
+                      companyDetails: {
+                        companyName: formData.get('companyName'),
+                        edrpou: formData.get('edrpou'),
+                        address: formData.get('address'),
+                        bankDetails: formData.get('bankDetails'),
+                        contactPerson: formData.get('contactPerson'),
+                        phone: formData.get('phone'),
+                        email: formData.get('email'),
+                        comments: formData.get('comments')
+                      }
+                    };
+                    handleRequest(invoiceData);
+                  }}
                   style={{
                     padding: '10px 20px',
                     backgroundColor: '#28a745',
