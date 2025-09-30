@@ -75,7 +75,98 @@ export default function AccountantArea({ user }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
   const [tab, setTab] = useState('pending');
+  const [invoiceRequests, setInvoiceRequests] = useState([]);
+  const [invoiceRequestsLoading, setInvoiceRequestsLoading] = useState(false);
   const region = user?.region || '';
+  
+  // Функція для завантаження запитів на рахунки
+  const loadInvoiceRequests = async () => {
+    try {
+      setInvoiceRequestsLoading(true);
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      
+      const response = await fetch(`${API_BASE_URL}/invoice-requests`);
+      if (response.ok) {
+        const result = await response.json();
+        setInvoiceRequests(result.data || []);
+      } else {
+        console.error('Помилка завантаження запитів на рахунки');
+      }
+    } catch (error) {
+      console.error('Помилка завантаження запитів на рахунки:', error);
+    } finally {
+      setInvoiceRequestsLoading(false);
+    }
+  };
+  
+  // Функція для оновлення статусу запиту на рахунок
+  const updateInvoiceRequestStatus = async (requestId, status, comments = '', rejectionReason = '') => {
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      
+      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, comments, rejectionReason })
+      });
+      
+      if (response.ok) {
+        // Оновлюємо локальний стан
+        setInvoiceRequests(prev => 
+          prev.map(req => 
+            req._id === requestId 
+              ? { ...req, status, comments, rejectionReason }
+              : req
+          )
+        );
+        alert('Статус запиту оновлено успішно');
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Помилка оновлення статусу');
+      }
+    } catch (error) {
+      console.error('Помилка оновлення статусу запиту:', error);
+      alert(`Помилка: ${error.message}`);
+    }
+  };
+  
+  // Функція для завантаження файлу рахунку
+  const uploadInvoiceFile = async (requestId, file) => {
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        // Оновлюємо локальний стан
+        setInvoiceRequests(prev => 
+          prev.map(req => 
+            req._id === requestId 
+              ? { ...req, status: 'completed', invoiceFile: result.data.invoiceFile, invoiceFileName: result.data.invoiceFileName }
+              : req
+          )
+        );
+        alert('Файл рахунку завантажено успішно');
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Помилка завантаження файлу');
+      }
+    } catch (error) {
+      console.error('Помилка завантаження файлу рахунку:', error);
+      alert(`Помилка: ${error.message}`);
+    }
+  };
+  
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
   // але зберігаємо вже введені користувачем значення
   useEffect(() => {
@@ -105,6 +196,13 @@ export default function AccountantArea({ user }) {
     setLoading(true);
     tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
   }, []);
+  
+  // Завантаження запитів на рахунки
+  useEffect(() => {
+    if (tab === 'invoices') {
+      loadInvoiceRequests();
+    }
+  }, [tab]);
   // Автоматичне оновлення даних при фокусі на вкладку браузера
   useEffect(() => {
     const handleFocus = () => {
@@ -756,6 +854,7 @@ export default function AccountantArea({ user }) {
       <div style={{display:'flex',gap:8,marginBottom:16}}>
         <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
         <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
+        <button onClick={()=>setTab('invoices')} style={{width:220,padding:'10px 0',background:tab==='invoices'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='invoices'?700:400,cursor:'pointer'}}>📄 Запити на рахунки</button>
         <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
       </div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
@@ -784,7 +883,196 @@ export default function AccountantArea({ user }) {
         <button onClick={handleFormReport} style={{background:'#00bfff',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Сформувати звіт</button>
       </div>
       <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="accountant" user={user} readOnly={editTask?._readOnly || false} />
-      <TaskTable
+      
+      {/* Вкладка запитів на рахунки */}
+      {tab === 'invoices' ? (
+        <div>
+          <h3 style={{ marginBottom: '20px', color: '#333' }}>Запити на рахунки</h3>
+          {invoiceRequestsLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px' }}>Завантаження запитів...</div>
+          ) : (
+            <div style={{ display: 'grid', gap: '16px' }}>
+              {invoiceRequests.length === 0 ? (
+                <div style={{ 
+                  textAlign: 'center', 
+                  padding: '40px', 
+                  backgroundColor: '#f8f9fa', 
+                  borderRadius: '8px',
+                  color: '#666'
+                }}>
+                  Немає запитів на рахунки
+                </div>
+              ) : (
+                invoiceRequests.map(request => (
+                  <div key={request._id} style={{
+                    border: '1px solid #ddd',
+                    borderRadius: '8px',
+                    padding: '20px',
+                    backgroundColor: '#fff',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                      <div>
+                        <h4 style={{ margin: '0 0 8px 0', color: '#333' }}>
+                          Запит від {request.requesterName}
+                        </h4>
+                        <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
+                          Заявка ID: {request.taskId} | Створено: {new Date(request.createdAt).toLocaleDateString('uk-UA')}
+                        </p>
+                      </div>
+                      <div style={{
+                        padding: '4px 12px',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        backgroundColor: 
+                          request.status === 'pending' ? '#fff3cd' :
+                          request.status === 'processing' ? '#d1ecf1' :
+                          request.status === 'completed' ? '#d4edda' :
+                          '#f8d7da',
+                        color: 
+                          request.status === 'pending' ? '#856404' :
+                          request.status === 'processing' ? '#0c5460' :
+                          request.status === 'completed' ? '#155724' :
+                          '#721c24'
+                      }}>
+                        {request.status === 'pending' ? 'Очікує' :
+                         request.status === 'processing' ? 'В обробці' :
+                         request.status === 'completed' ? 'Виконано' :
+                         'Відхилено'}
+                      </div>
+                    </div>
+                    
+                    <div style={{ marginBottom: '16px' }}>
+                      <h5 style={{ margin: '0 0 8px 0', color: '#333' }}>Реквізити компанії:</h5>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '14px' }}>
+                        <div><strong>Компанія:</strong> {request.companyDetails.companyName}</div>
+                        <div><strong>ЄДРПОУ:</strong> {request.companyDetails.edrpou}</div>
+                        <div><strong>Контактна особа:</strong> {request.companyDetails.contactPerson}</div>
+                        <div><strong>Телефон:</strong> {request.companyDetails.phone}</div>
+                        <div style={{ gridColumn: '1 / -1' }}><strong>Адреса:</strong> {request.companyDetails.address}</div>
+                        <div style={{ gridColumn: '1 / -1' }}><strong>Банківські реквізити:</strong> {request.companyDetails.bankDetails}</div>
+                        {request.companyDetails.email && (
+                          <div style={{ gridColumn: '1 / -1' }}><strong>Email:</strong> {request.companyDetails.email}</div>
+                        )}
+                        {request.companyDetails.comments && (
+                          <div style={{ gridColumn: '1 / -1' }}><strong>Коментарі:</strong> {request.companyDetails.comments}</div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {request.status === 'completed' && request.invoiceFile && (
+                      <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#e8f5e8', borderRadius: '4px' }}>
+                        <strong>📄 Файл рахунку:</strong> {request.invoiceFileName}
+                        <button 
+                          onClick={() => window.open(request.invoiceFile, '_blank')}
+                          style={{
+                            marginLeft: '8px',
+                            padding: '4px 8px',
+                            backgroundColor: '#28a745',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '12px'
+                          }}
+                        >
+                          Завантажити
+                        </button>
+                      </div>
+                    )}
+                    
+                    {request.comments && (
+                      <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                        <strong>Коментарі бухгалтера:</strong> {request.comments}
+                      </div>
+                    )}
+                    
+                    {request.rejectionReason && (
+                      <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>
+                        <strong>Причина відмови:</strong> {request.rejectionReason}
+                      </div>
+                    )}
+                    
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {request.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={() => updateInvoiceRequestStatus(request._id, 'processing')}
+                            style={{
+                              padding: '8px 16px',
+                              backgroundColor: '#17a2b8',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '14px'
+                            }}
+                          >
+                            Взяти в обробку
+                          </button>
+                          <button
+                            onClick={() => {
+                              const reason = prompt('Введіть причину відмови:');
+                              if (reason) {
+                                updateInvoiceRequestStatus(request._id, 'rejected', '', reason);
+                              }
+                            }}
+                            style={{
+                              padding: '8px 16px',
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '14px'
+                            }}
+                          >
+                            Відхилити
+                          </button>
+                        </>
+                      )}
+                      
+                      {request.status === 'processing' && (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={(e) => {
+                              if (e.target.files[0]) {
+                                uploadInvoiceFile(request._id, e.target.files[0]);
+                              }
+                            }}
+                            style={{ fontSize: '14px' }}
+                          />
+                          <button
+                            onClick={() => {
+                              const comments = prompt('Додайте коментарі (необов\'язково):');
+                              updateInvoiceRequestStatus(request._id, 'completed', comments || '');
+                            }}
+                            style={{
+                              padding: '8px 16px',
+                              backgroundColor: '#28a745',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '14px'
+                            }}
+                          >
+                            Завершити без файлу
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <TaskTable
         tasks={tableData}
         allTasks={tasks}
         onApprove={handleApprove}
@@ -800,6 +1088,7 @@ export default function AccountantArea({ user }) {
         isArchive={tab === 'archive'}
         onHistoryClick={openClientReport}
       />
+      )}
     </div>
   );
 } 
