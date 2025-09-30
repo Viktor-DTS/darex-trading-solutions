@@ -16,6 +16,8 @@ const UserNotificationManager = ({ user }) => {
     { key: 'task_approval', label: 'Потребують підтвердження', description: 'Коли заявка потребує підтвердження' },
     { key: 'task_approved', label: 'Підтверджені заявки', description: 'Коли заявка підтверджена' },
     { key: 'task_rejected', label: 'Відхилені заявки', description: 'Коли заявка відхилена' },
+    { key: 'invoice_requested', label: 'Запити на рахунки', description: 'Коли користувач подає запит на отримання рахунку' },
+    { key: 'invoice_completed', label: 'Виконані рахунки', description: 'Коли бухгалтер завантажив рахунок' },
     { key: 'system_notifications', label: 'Системні сповіщення', description: 'Отримувати системні повідомлення від адміністратора' }
   ];
   // Завантаження користувачів
