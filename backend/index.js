@@ -369,6 +369,76 @@ app.use((req, res, next) => {
   next();
 });
 
+// API endpoint для виправлення bonusApprovalDate
+app.post('/api/fix-bonus-approval-dates', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/fix-bonus-approval-dates - отримано запит');
+
+    if (FALLBACK_MODE) {
+      console.log('[DEBUG] POST /api/fix-bonus-approval-dates - FALLBACK_MODE активний');
+      return res.status(503).json({ error: 'Сервер в режимі fallback, операція недоступна' });
+    }
+
+    // Знаходимо всі заявки без bonusApprovalDate
+    const tasksWithoutBonusDate = await executeWithRetry(() =>
+      Task.find({
+        $or: [
+          { bonusApprovalDate: { $exists: false } },
+          { bonusApprovalDate: null },
+          { bonusApprovalDate: '' }
+        ]
+      })
+    );
+
+    console.log(`[DEBUG] Знайдено ${tasksWithoutBonusDate.length} заявок без bonusApprovalDate`);
+
+    let updatedCount = 0;
+    let skippedCount = 0;
+
+    for (const task of tasksWithoutBonusDate) {
+      // Перевіряємо чи заявка підтверджена всіма ролями
+      const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
+      const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
+      const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
+
+      // Якщо заявка підтверджена всіма ролями, встановлюємо bonusApprovalDate
+      if (isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved && task.workPrice) {
+        // Встановлюємо bonusApprovalDate на поточний місяць
+        const now = new Date();
+        const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+        const currentYear = now.getFullYear();
+        const bonusApprovalDate = `${currentMonth}-${currentYear}`;
+
+        await executeWithRetry(() =>
+          Task.updateOne(
+            { _id: task._id },
+            { $set: { bonusApprovalDate: bonusApprovalDate } }
+          )
+        );
+
+        console.log(`[DEBUG] Оновлено заявку ${task._id}: bonusApprovalDate = ${bonusApprovalDate}`);
+        updatedCount++;
+      } else {
+        console.log(`[DEBUG] Пропущено заявку ${task._id}: не підтверджена всіма ролями або немає workPrice`);
+        skippedCount++;
+      }
+    }
+
+    console.log(`[DEBUG] Результати: оновлено ${updatedCount}, пропущено ${skippedCount}`);
+
+    res.json({
+      message: 'Виправлення bonusApprovalDate завершено',
+      totalFound: tasksWithoutBonusDate.length,
+      updated: updatedCount,
+      skipped: skippedCount
+    });
+
+  } catch (error) {
+    console.error('[ERROR] POST /api/fix-bonus-approval-dates - помилка:', error);
+    res.status(500).json({ error: 'Помилка виправлення bonusApprovalDate' });
+  }
+});
+
 // Глобальна обробка помилок
 app.use((err, req, res, next) => {
   console.error('[ERROR] Global error handler:', err);
