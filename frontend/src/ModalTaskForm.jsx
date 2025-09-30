@@ -891,65 +891,24 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                     </div>
                   );
                 })}
+                
+                {/* Блок запиту на рахунок - всередині групи після paymentDate */}
+                {console.log('DEBUG ModalTaskForm - передаємо в InvoiceRequestBlock:', {
+                  taskStatus: form.status,
+                  userRole: user?.role,
+                  invoiceRequested: form.invoiceRequested,
+                  task: form,
+                  user: user
+                })}
+                <InvoiceRequestBlock 
+                  task={form} 
+                  user={user} 
+                  onRequest={handleInvoiceRequest}
+                />
               </div>
             );
           }
           
-          // Блок запиту рахунку - показується після блоку з ЄДРПОУ
-          if (idx === orderedFields.indexOf('edrpou') + 0.5 && 
-              form.status === 'Виконано' && 
-              (user?.role === 'Керівник сервісної служби' || 
-               user?.role === 'Оператор' || 
-               user?.role === 'Адміністратор') && 
-              !form.invoiceRequested) {
-            return (
-              <div key="invoiceRequestBlock" style={{
-                marginTop: '20px',
-                padding: '20px',
-                backgroundColor: '#f8f9fa',
-                borderRadius: '8px',
-                border: '2px solid #e9ecef'
-              }}>
-                <h4 style={{
-                  margin: '0 0 15px 0',
-                  color: '#495057',
-                  fontSize: '16px',
-                  fontWeight: '600'
-                }}>
-                  📄 Запит на рахунок
-                </h4>
-                
-                <p style={{
-                  margin: '0 0 20px 0',
-                  fontSize: '14px',
-                  color: '#6c757d',
-                  lineHeight: '1.5'
-                }}>
-                  Заявка виконана. Ви можете подати запит на отримання рахунку від бухгалтера 
-                  для клієнта <strong>{form.client || 'не вказано'}</strong> (ЄДРПОУ: {form.edrpou || 'не вказано'}).
-                </p>
-                
-                <button 
-                  onClick={() => setShowInvoiceRequestModal(true)}
-                  style={{
-                    padding: '12px 24px',
-                    backgroundColor: '#28a745',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontWeight: '600',
-                    fontSize: '14px',
-                    transition: 'background-color 0.2s'
-                  }}
-                  onMouseOver={(e) => e.target.style.backgroundColor = '#218838'}
-                  onMouseOut={(e) => e.target.style.backgroundColor = '#28a745'}
-                >
-                  Запросити рахунок
-                </button>
-              </div>
-            );
-          }
           
           if (idx === orderedFields.indexOf('paymentType')) {
             return (
@@ -1416,19 +1375,6 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         <div style={{marginTop:48}}></div>
       </form>
       
-      {/* Блок запиту на рахунок */}
-      {console.log('DEBUG ModalTaskForm - передаємо в InvoiceRequestBlock:', {
-        taskStatus: form.status,
-        userRole: user?.role,
-        invoiceRequested: form.invoiceRequested,
-        task: form,
-        user: user
-      })}
-      <InvoiceRequestBlock 
-        task={form} 
-        user={user} 
-        onRequest={handleInvoiceRequest}
-      />
       {/* --- Модальне вікно для опису відмови --- */}
       {rejectModal.open && (
         <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:2000,display:'flex',alignItems:'center',justifyContent:'center'}}>
