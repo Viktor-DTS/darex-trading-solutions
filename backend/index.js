@@ -500,6 +500,64 @@ app.post('/api/sync-bonus-approval-dates', async (req, res) => {
   }
 });
 
+// API endpoint для виправлення неправильного формату bonusApprovalDate
+app.post('/api/fix-bonus-date-format', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/fix-bonus-date-format - отримано запит');
+
+    if (FALLBACK_MODE) {
+      console.log('[DEBUG] POST /api/fix-bonus-date-format - FALLBACK_MODE активний');
+      return res.status(503).json({ error: 'Сервер в режимі fallback, операція недоступна' });
+    }
+
+    // Знаходимо всі заявки з неправильним форматом дати (YYYY-MM-DD)
+    const tasksWithInvalidFormat = await executeWithRetry(() =>
+      Task.find({
+        bonusApprovalDate: { $regex: /^\d{4}-\d{2}-\d{2}$/ }
+      })
+    );
+
+    console.log(`[DEBUG] Знайдено ${tasksWithInvalidFormat.length} заявок з неправильним форматом bonusApprovalDate`);
+
+    let updatedCount = 0;
+    let skippedCount = 0;
+
+    for (const task of tasksWithInvalidFormat) {
+      try {
+        // Конвертуємо з YYYY-MM-DD в MM-YYYY
+        const [year, month] = task.bonusApprovalDate.split('-');
+        const correctFormat = `${month}-${year}`;
+
+        await executeWithRetry(() =>
+          Task.updateOne(
+            { _id: task._id },
+            { $set: { bonusApprovalDate: correctFormat } }
+          )
+        );
+
+        console.log(`[DEBUG] Виправлено формат заявки ${task._id}: ${task.bonusApprovalDate} -> ${correctFormat}`);
+        updatedCount++;
+      } catch (error) {
+        console.error(`[ERROR] Помилка виправлення формату заявки ${task._id}:`, error);
+        skippedCount++;
+      }
+    }
+
+    console.log(`[DEBUG] Виправлення формату завершено: оновлено ${updatedCount}, пропущено ${skippedCount}`);
+
+    res.json({
+      message: 'Виправлення формату bonusApprovalDate завершено',
+      totalFound: tasksWithInvalidFormat.length,
+      updated: updatedCount,
+      skipped: skippedCount
+    });
+
+  } catch (error) {
+    console.error('[ERROR] POST /api/fix-bonus-date-format - помилка:', error);
+    res.status(500).json({ error: 'Помилка виправлення формату bonusApprovalDate' });
+  }
+});
+
 // Глобальна обробка помилок
 app.use((err, req, res, next) => {
   console.error('[ERROR] Global error handler:', err);
