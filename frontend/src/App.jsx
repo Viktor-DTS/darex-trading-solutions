@@ -2147,7 +2147,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
         });
         
         const payout = basePay + overtimePay + bonus + engineerBonus;
-        return payout > 0; // Включаємо тільки користувачів з сумою > 0
+        return total > 0; // Включаємо тільки користувачів з відпрацьованими годинами > 0
       });
       // Формування таблиці нарахувань для регіону
       const accrualTable = `
@@ -2830,7 +2830,10 @@ function RegionalManagerArea({ tab: propTab, user }) {
                         </tr>
                       </thead>
                       <tbody>
-                          {filteredUsers.filter(u => (u.region || 'Без регіону') === region).map((u, idx) => (
+                          {filteredUsers.filter(u => (u.region || 'Без регіону') === region).filter(u => {
+                            const total = data[u.id || u._id]?.total || 0;
+                            return total > 0; // Показуємо тільки користувачів з відпрацьованими годинами > 0
+                          }).map((u, idx) => (
                           <tr key={u.id}>
                             <td style={{background:'#ffe600', color:'#222', fontWeight:600}}>{idx+1}</td>
                             <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
@@ -2883,7 +2886,10 @@ function RegionalManagerArea({ tab: propTab, user }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredUsers.filter(u => (u.region || 'Без регіону') === region).map(u => {
+                        {filteredUsers.filter(u => (u.region || 'Без регіону') === region).filter(u => {
+                          const total = data[u.id || u._id]?.total || 0;
+                          return total > 0; // Показуємо тільки користувачів з відпрацьованими годинами > 0
+                        }).map(u => {
                           const total = data[u.id || u._id]?.total || 0;
                           const salary = Number(payData[u.id || u._id]?.salary) || 25000;
                           const bonus = Number(payData[u.id || u._id]?.bonus) || 0;
