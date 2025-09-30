@@ -1467,7 +1467,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
   const [users, setUsers] = useState([]);
   const [region, setRegion] = useState('');
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
-  const [reportWithDetails, setReportWithDetails] = useState(false);
+  const [reportWithDetails, setReportWithDetails] = useState(true);
   const [reportTable, setReportTable] = useState(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [periodStart, setPeriodStart] = useState('');
@@ -1687,11 +1687,13 @@ function RegionalManagerArea({ tab: propTab, user }) {
   const days = Array.from({length: daysInMonth}, (_, i) => i + 1);
   // --- Функція для зміни значень у таблиці часу ---
   function handleChange(userId, day, value) {
+    console.log(`[DEBUG] handleChange: userId=${userId}, day=${day}, value=${value}`);
     setData(prev => {
       const userData = prev[userId] || {};
       const newUserData = { ...userData, [day]: value };
       const total = days.reduce((sum, d) => sum + (isNaN(Number(newUserData[d])) ? 0 : Number(newUserData[d])), 0);
       newUserData.total = total;
+      console.log(`[DEBUG] handleChange: newUserData for ${userId}:`, newUserData);
       return { ...prev, [userId]: newUserData };
     });
   }
@@ -1908,8 +1910,9 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   }
                   if (addBonus > 0) {
                     engineerBonus += addBonus;
+                    console.log(`[DEBUG] Adding bonus for ${userName}: ${addBonus}, reportWithDetails: ${reportWithDetails}`);
                     if (reportWithDetails) {
-                      details.push({
+                      const detailItem = {
                         date: bonusApprovalDate, // Показуємо дату затвердження премії
                         client: t.client,
                         address: t.address,
@@ -1919,7 +1922,9 @@ function RegionalManagerArea({ tab: propTab, user }) {
                         equipment: t.equipment,
                         equipmentSerial: t.equipmentSerial,
                         bonus: addBonus,
-                      });
+                      };
+                      details.push(detailItem);
+                      console.log(`[DEBUG] Added detail item:`, detailItem);
                     }
                   }
                 } else {
@@ -1960,7 +1965,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
               </table>
               {reportWithDetails && details.length > 0 && (
                 <div style={{background:'#f1f8e9',borderRadius:8,padding:'8px 8px 8px 8px',marginTop:0}}>
-                  <div style={{fontWeight:600,marginBottom:4,color:'#222'}}>Виконані роботи з премією:</div>
+                  <div style={{fontWeight:600,marginBottom:4,color:'#222'}}>Виконані роботи з премією ({details.length} заявок):</div>
                   <table style={{width:'100%',fontSize:'0.98em',background:'#f1f8e9', color:'#222'}}>
                     <thead>
                       <tr style={{background:'#e0e0e0', color:'#222'}}>
@@ -2822,7 +2827,15 @@ function RegionalManagerArea({ tab: propTab, user }) {
                               const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                               return (
                                 <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
-                                  <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
+                                  <input 
+                                    type="number" 
+                                    value={data[u.id]?.[d] || ''} 
+                                    onChange={e => {
+                                      console.log(`[DEBUG] Input change: userId=${u.id}, day=${d}, value=${e.target.value}`);
+                                      handleChange(u.id, d, e.target.value);
+                                    }} 
+                                    style={{width:'100%'}} 
+                                  />
                                 </td>
                               );
                             })}
@@ -3525,7 +3538,15 @@ function PersonnelTimesheet({ user }) {
                     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                     return (
                       <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
-                        <input type="number" value={data[u.id]?.[d] || ''} onChange={e => handleChange(u.id, d, e.target.value)} style={{width:'100%'}} />
+                        <input 
+                          type="number" 
+                          value={data[u.id]?.[d] || ''} 
+                          onChange={e => {
+                            console.log(`[DEBUG] Service input change: userId=${u.id}, day=${d}, value=${e.target.value}`);
+                            handleChange(u.id, d, e.target.value);
+                          }} 
+                          style={{width:'100%'}} 
+                        />
                       </td>
                     );
                   })}
