@@ -3956,7 +3956,49 @@ app.get('/api/telegram/test-send', async (req, res) => {
   } catch (error) {
     res.status(500).json({ 
       success: false, 
-      message: 'Помилка при відправці тестового повідомлення',
+      message: 'Помилка при відправці тестового повідомлення', 
+      error: error.message 
+    });
+  }
+});
+
+// DELETE /api/invoice-requests/:id/file - видалити файл рахунку
+app.delete('/api/invoice-requests/:id/file', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const request = await InvoiceRequest.findById(id);
+    if (!request) {
+      return res.status(404).json({ success: false, message: 'Запит не знайдено' });
+    }
+    
+    if (!request.invoiceFile) {
+      return res.status(400).json({ success: false, message: 'Файл не знайдено' });
+    }
+    
+    // Видаляємо файл з Cloudinary
+    if (request.invoiceFile) {
+      try {
+        const publicId = request.invoiceFile.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(`darex-trading-solutions/invoices/${publicId}`);
+      } catch (cloudinaryError) {
+        console.error('Помилка видалення файлу з Cloudinary:', cloudinaryError);
+        // Продовжуємо навіть якщо не вдалося видалити з Cloudinary
+      }
+    }
+    
+    // Оновлюємо запит - видаляємо посилання на файл
+    await InvoiceRequest.findByIdAndUpdate(id, {
+      $unset: { invoiceFile: 1, invoiceFileName: 1 }
+    });
+    
+    res.json({ success: true, message: 'Файл успішно видалено' });
+    
+  } catch (error) {
+    console.error('Помилка видалення файлу рахунку:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка при видаленні файлу', 
       error: error.message 
     });
   }

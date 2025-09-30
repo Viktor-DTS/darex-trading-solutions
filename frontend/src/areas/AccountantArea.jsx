@@ -177,6 +177,40 @@ export default function AccountantArea({ user }) {
       });
     }
   };
+
+  // Функція для видалення файлу рахунку
+  const deleteInvoiceFile = async (requestId) => {
+    if (!confirm('Ви впевнені, що хочете видалити цей файл рахунку?')) {
+      return;
+    }
+    
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      
+      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/file`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        // Оновлюємо локальний стан
+        setInvoiceRequests(prev => prev.map(req => 
+          req._id === requestId 
+            ? { ...req, invoiceFile: '', invoiceFileName: '' }
+            : req
+        ));
+        
+        alert('Файл успішно видалено!');
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Помилка видалення файлу');
+      }
+      
+    } catch (error) {
+      console.error('Помилка видалення файлу:', error);
+      alert('Помилка видалення файлу: ' + error.message);
+    }
+  };
   
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
   // але зберігаємо вже введені користувачем значення
@@ -956,7 +990,7 @@ export default function AccountantArea({ user }) {
                     
                     <div style={{ marginBottom: '16px' }}>
                       <h5 style={{ margin: '0 0 8px 0', color: '#333' }}>Реквізити компанії:</h5>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '14px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '14px', color: '#000' }}>
                         <div><strong>Компанія:</strong> {request.companyDetails.companyName}</div>
                         <div><strong>ЄДРПОУ:</strong> {request.companyDetails.edrpou}</div>
                         <div><strong>Контактна особа:</strong> {request.companyDetails.contactPerson}</div>
@@ -974,34 +1008,50 @@ export default function AccountantArea({ user }) {
                     
                     {request.status === 'completed' && request.invoiceFile && (
                       <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#e8f5e8', borderRadius: '4px' }}>
-                        <strong>📄 Файл рахунку:</strong> {request.invoiceFileName}
-                        <button 
-                          onClick={() => window.open(request.invoiceFile, '_blank')}
-                          style={{
-                            marginLeft: '8px',
-                            padding: '4px 8px',
-                            backgroundColor: '#28a745',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '12px'
-                          }}
-                        >
-                          Завантажити
-                        </button>
+                        <strong style={{ color: '#000' }}>📄 Файл рахунку:</strong> <span style={{ color: '#000' }}>{request.invoiceFileName}</span>
+                        <div style={{ marginTop: '8px' }}>
+                          <button 
+                            onClick={() => window.open(request.invoiceFile, '_blank')}
+                            style={{
+                              marginRight: '8px',
+                              padding: '4px 8px',
+                              backgroundColor: '#28a745',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '12px'
+                            }}
+                          >
+                            Завантажити
+                          </button>
+                          <button 
+                            onClick={() => deleteInvoiceFile(request._id)}
+                            style={{
+                              padding: '4px 8px',
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '12px'
+                            }}
+                          >
+                            🗑️ Видалити файл
+                          </button>
+                        </div>
                       </div>
                     )}
                     
                     {request.comments && (
                       <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                        <strong>Коментарі бухгалтера:</strong> {request.comments}
+                        <strong style={{ color: '#000' }}>Коментарі бухгалтера:</strong> <span style={{ color: '#000' }}>{request.comments}</span>
                       </div>
                     )}
                     
                     {request.rejectionReason && (
                       <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>
-                        <strong>Причина відмови:</strong> {request.rejectionReason}
+                        <strong style={{ color: '#000' }}>Причина відмови:</strong> <span style={{ color: '#000' }}>{request.rejectionReason}</span>
                       </div>
                     )}
                     
