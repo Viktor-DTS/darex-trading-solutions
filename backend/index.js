@@ -154,6 +154,37 @@ const globalNotificationSettingsSchema = new mongoose.Schema({
 
 const GlobalNotificationSettings = mongoose.model('GlobalNotificationSettings', globalNotificationSettingsSchema);
 
+// Модель для запитів на рахунки
+const invoiceRequestSchema = new mongoose.Schema({
+  taskId: { type: String, required: true },
+  requesterId: { type: String, required: true },
+  requesterName: { type: String, required: true },
+  companyDetails: {
+    companyName: { type: String, required: true },
+    edrpou: { type: String, required: true },
+    address: { type: String, required: true },
+    bankDetails: { type: String, required: true },
+    contactPerson: { type: String, required: true },
+    phone: { type: String, required: true },
+    email: { type: String, default: '' },
+    comments: { type: String, default: '' }
+  },
+  status: { 
+    type: String, 
+    enum: ['pending', 'processing', 'completed', 'rejected'], 
+    default: 'pending' 
+  },
+  createdAt: { type: Date, default: Date.now },
+  processedAt: { type: Date },
+  completedAt: { type: Date },
+  invoiceFile: { type: String, default: '' },
+  invoiceFileName: { type: String, default: '' },
+  comments: { type: String, default: '' },
+  rejectionReason: { type: String, default: '' }
+});
+
+const InvoiceRequest = mongoose.model('InvoiceRequest', invoiceRequestSchema);
+
 // Змінна для режиму fallback
 let FALLBACK_MODE = false;
 
@@ -2965,6 +2996,263 @@ ${message}
     res.status(500).json({ 
       success: false, 
       message: 'Помилка при відправці системного повідомлення',
+      error: error.message 
+    });
+  }
+});
+
+// ===== API ENDPOINTS ДЛЯ ЗАПИТІВ НА РАХУНКИ =====
+
+// Створення запиту на рахунок
+app.post('/api/invoice-requests', async (req, res) => {
+  try {
+    const { taskId, requesterId, requesterName, companyDetails } = req.body;
+    
+    if (!taskId || !requesterId || !requesterName || !companyDetails) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Відсутні обов\'язкові поля' 
+      });
+    }
+    
+    // Перевіряємо чи не існує вже запит для цієї заявки
+    const existingRequest = await InvoiceRequest.findOne({ taskId });
+    if (existingRequest) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Запит на рахунок для цієї заявки вже існує' 
+      });
+    }
+    
+    const invoiceRequest = new InvoiceRequest({
+      taskId,
+      requesterId,
+      requesterName,
+      companyDetails,
+      status: 'pending'
+    });
+    
+    await invoiceRequest.save();
+    
+    // Відправляємо сповіщення бухгалтерам
+    try {
+      const telegramService = new TelegramNotificationService();
+      await telegramService.sendNotification('invoice_requested', {
+        taskId,
+        requesterName,
+        companyName: companyDetails.companyName,
+        edrpou: companyDetails.edrpou
+      });
+    } catch (notificationError) {
+      console.error('Помилка відправки сповіщення:', notificationError);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Запит на рахунок створено успішно',
+      data: invoiceRequest 
+    });
+    
+  } catch (error) {
+    console.error('Помилка створення запиту на рахунок:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка створення запиту на рахунок',
+      error: error.message 
+    });
+  }
+});
+
+// Отримання списку запитів на рахунки
+app.get('/api/invoice-requests', async (req, res) => {
+  try {
+    const { status, requesterId } = req.query;
+    
+    let filter = {};
+    if (status) filter.status = status;
+    if (requesterId) filter.requesterId = requesterId;
+    
+    const requests = await InvoiceRequest.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(100);
+    
+    res.json({ 
+      success: true, 
+      data: requests 
+    });
+    
+  } catch (error) {
+    console.error('Помилка отримання запитів на рахунки:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка отримання запитів на рахунки',
+      error: error.message 
+    });
+  }
+});
+
+// Отримання конкретного запиту на рахунок
+app.get('/api/invoice-requests/:id', async (req, res) => {
+  try {
+    const request = await InvoiceRequest.findById(req.params.id);
+    
+    if (!request) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Запит на рахунок не знайдено' 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      data: request 
+    });
+    
+  } catch (error) {
+    console.error('Помилка отримання запиту на рахунок:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка отримання запиту на рахунок',
+      error: error.message 
+    });
+  }
+});
+
+// Оновлення статусу запиту на рахунок
+app.put('/api/invoice-requests/:id', async (req, res) => {
+  try {
+    const { status, comments, rejectionReason } = req.body;
+    
+    const updateData = { status };
+    
+    if (status === 'processing') {
+      updateData.processedAt = new Date();
+    } else if (status === 'completed') {
+      updateData.completedAt = new Date();
+    } else if (status === 'rejected') {
+      updateData.rejectionReason = rejectionReason;
+    }
+    
+    if (comments) {
+      updateData.comments = comments;
+    }
+    
+    const request = await InvoiceRequest.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    );
+    
+    if (!request) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Запит на рахунок не знайдено' 
+      });
+    }
+    
+    // Відправляємо сповіщення користувачу про зміну статусу
+    if (status === 'completed') {
+      try {
+        const telegramService = new TelegramNotificationService();
+        await telegramService.sendNotification('invoice_completed', {
+          taskId: request.taskId,
+          requesterId: request.requesterId,
+          companyName: request.companyDetails.companyName
+        });
+      } catch (notificationError) {
+        console.error('Помилка відправки сповіщення:', notificationError);
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Статус запиту на рахунок оновлено',
+      data: request 
+    });
+    
+  } catch (error) {
+    console.error('Помилка оновлення запиту на рахунок:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка оновлення запиту на рахунок',
+      error: error.message 
+    });
+  }
+});
+
+// Завантаження файлу рахунку
+app.post('/api/invoice-requests/:id/upload', async (req, res) => {
+  try {
+    // Тут буде логіка завантаження файлу через Cloudinary
+    // Поки що просто оновлюємо статус
+    const request = await InvoiceRequest.findByIdAndUpdate(
+      req.params.id,
+      { 
+        status: 'completed',
+        completedAt: new Date(),
+        invoiceFile: 'placeholder', // TODO: замінити на реальний URL файлу
+        invoiceFileName: 'invoice.pdf' // TODO: замінити на реальну назву файлу
+      },
+      { new: true }
+    );
+    
+    if (!request) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Запит на рахунок не знайдено' 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Файл рахунку завантажено успішно',
+      data: request 
+    });
+    
+  } catch (error) {
+    console.error('Помилка завантаження файлу рахунку:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка завантаження файлу рахунку',
+      error: error.message 
+    });
+  }
+});
+
+// Завантаження файлу рахунку
+app.get('/api/invoice-requests/:id/download', async (req, res) => {
+  try {
+    const request = await InvoiceRequest.findById(req.params.id);
+    
+    if (!request) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Запит на рахунок не знайдено' 
+      });
+    }
+    
+    if (!request.invoiceFile) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Файл рахунку не знайдено' 
+      });
+    }
+    
+    // Тут буде логіка завантаження файлу з Cloudinary
+    // Поки що просто повертаємо URL
+    res.json({ 
+      success: true, 
+      data: {
+        fileUrl: request.invoiceFile,
+        fileName: request.invoiceFileName
+      }
+    });
+    
+  } catch (error) {
+    console.error('Помилка завантаження файлу рахунку:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка завантаження файлу рахунку',
       error: error.message 
     });
   }

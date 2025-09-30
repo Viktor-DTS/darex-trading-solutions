@@ -650,21 +650,29 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   // Функція для обробки запиту рахунку
   const handleInvoiceRequest = async (invoiceData) => {
     try {
-      // Тут буде API виклик для створення запиту на рахунок
-      console.log('Створення запиту на рахунок:', invoiceData);
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
-      // Поки що просто показуємо повідомлення
-      alert('Запит на рахунок успішно створено! Бухгалтер отримає сповіщення.');
+      const response = await fetch(`${API_BASE_URL}/invoice-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(invoiceData)
+      });
       
-      // TODO: Додати API виклик коли буде готовий backend
-      // const response = await fetch('/api/invoice-requests', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(invoiceData)
-      // });
+      if (response.ok) {
+        const result = await response.json();
+        alert('Запит на рахунок успішно створено! Бухгалтер отримає сповіщення.');
+        
+        // Оновлюємо заявку щоб показати що запит вже подано
+        setForm(prev => ({ ...prev, invoiceRequested: true }));
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Помилка створення запиту на рахунок');
+      }
       
     } catch (error) {
       console.error('Помилка створення запиту на рахунок:', error);
+      alert(`Помилка: ${error.message}`);
       throw error;
     }
   };
