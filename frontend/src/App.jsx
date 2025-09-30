@@ -1793,11 +1793,11 @@ function RegionalManagerArea({ tab: propTab, user }) {
     filteredUsers.forEach(u => {
       const row = [];
       row.push(u.name);
-      days.forEach(d => row.push(data[u.id]?.[d] || ''));
-      row.push(data[u.id]?.total || 0);
-      const salary = Number(payData[u.id]?.salary) || 0;
-      const bonus = Number(payData[u.id]?.bonus) || 0;
-      const payout = summary.workHours > 0 ? Math.round((salary * (data[u.id]?.total || 0) / summary.workHours) + bonus) : 0;
+      days.forEach(d => row.push(data[u.id || u._id]?.[d] || ''));
+      row.push(data[u.id || u._id]?.total || 0);
+      const salary = Number(payData[u.id || u._id]?.salary) || 0;
+      const bonus = Number(payData[u.id || u._id]?.bonus) || 0;
+      const payout = summary.workHours > 0 ? Math.round((salary * (data[u.id || u._id]?.total || 0) / summary.workHours) + bonus) : 0;
       row.push(salary);
       row.push(bonus);
       row.push(payout);
@@ -1856,9 +1856,9 @@ function RegionalManagerArea({ tab: propTab, user }) {
     let table = (
       <div>
         {filteredUsers.map(u => {
-          const total = data[u.id]?.total || 0;
-          const salary = Number(payData[u.id]?.salary) || 25000;
-          const bonus = Number(payData[u.id]?.bonus) || 0;
+          const total = data[u.id || u._id]?.total || 0;
+          const salary = Number(payData[u.id || u._id]?.salary) || 25000;
+          const bonus = Number(payData[u.id || u._id]?.bonus) || 0;
           const overtime = Math.max(0, total - (summary.workHours || 168));
           const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
           const overtimePay = overtime * overtimeRate;
@@ -2091,9 +2091,9 @@ function RegionalManagerArea({ tab: propTab, user }) {
       
       // Фільтруємо користувачів з нульовою загальною сумою по оплаті
       const usersWithPayment = regionUsers.filter(u => {
-        const total = data[u.id]?.total || 0;
-        const salary = Number(payData[u.id]?.salary) || 25000;
-        const bonus = Number(payData[u.id]?.bonus) || 0;
+        const total = data[u.id || u._id]?.total || 0;
+        const salary = Number(payData[u.id || u._id]?.salary) || 25000;
+        const bonus = Number(payData[u.id || u._id]?.bonus) || 0;
         const overtime = Math.max(0, total - summary.workHours);
         const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
         const overtimePay = overtime * overtimeRate;
@@ -2168,9 +2168,9 @@ function RegionalManagerArea({ tab: propTab, user }) {
           </thead>
           <tbody>
             ${usersWithPayment.map(u => {
-              const total = data[u.id]?.total || 0;
-              const salary = Number(payData[u.id]?.salary) || 25000;
-              const bonus = Number(payData[u.id]?.bonus) || 0;
+              const total = data[u.id || u._id]?.total || 0;
+              const salary = Number(payData[u.id || u._id]?.salary) || 25000;
+              const bonus = Number(payData[u.id || u._id]?.bonus) || 0;
               const overtime = Math.max(0, total - summary.workHours);
               const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
               const overtimePay = overtime * overtimeRate;
@@ -2267,9 +2267,9 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   const date = new Date(year, month - 1, d);
                   const dayOfWeek = date.getDay();
                   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                  return `<td${isWeekend ? ' class=\"weekend\"' : ''}>${data[u.id]?.[d] || 0}</td>`;
+                  return `<td${isWeekend ? ' class=\"weekend\"' : ''}>${data[u.id || u._id]?.[d] || 0}</td>`;
                 }).join('')}
-                <td>${data[u.id]?.total || 0}</td>
+                <td>${data[u.id || u._id]?.total || 0}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -2842,17 +2842,18 @@ function RegionalManagerArea({ tab: propTab, user }) {
                                 <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
                                   <input 
                                     type="number" 
-                                    value={data[u.id]?.[d] || ''} 
+                                    value={data[u.id || u._id]?.[d] || ''} 
                                     onChange={e => {
-                                      console.log(`[DEBUG] Input change: userId=${u.id}, day=${d}, value=${e.target.value}`);
-                                      handleChange(u.id, d, e.target.value);
+                                      const userId = u.id || u._id;
+                                      console.log(`[DEBUG] Input change: userId=${userId}, day=${d}, value=${e.target.value}`);
+                                      handleChange(userId, d, e.target.value);
                                     }} 
                                     style={{width:'100%'}} 
                                   />
                                 </td>
                               );
                             })}
-                            <td style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222', fontWeight:600}}>{data[u.id]?.total || 0}</td>
+                            <td style={{width:80, minWidth:60, background:'#b6ffb6', color:'#222', fontWeight:600}}>{data[u.id || u._id]?.total || 0}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2883,9 +2884,9 @@ function RegionalManagerArea({ tab: propTab, user }) {
                       </thead>
                       <tbody>
                         {filteredUsers.filter(u => (u.region || 'Без регіону') === region).map(u => {
-                          const total = data[u.id]?.total || 0;
-                          const salary = Number(payData[u.id]?.salary) || 25000;
-                          const bonus = Number(payData[u.id]?.bonus) || 0;
+                          const total = data[u.id || u._id]?.total || 0;
+                          const salary = Number(payData[u.id || u._id]?.salary) || 25000;
+                          const bonus = Number(payData[u.id || u._id]?.bonus) || 0;
                           const overtime = Math.max(0, total - summary.workHours);
                           const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
                           const overtimePay = overtime * overtimeRate;
@@ -2950,7 +2951,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                           return (
                             <tr key={u.id}>
                               <td>{u.name}</td>
-                              <td><input type="number" value={payData[u.id]?.salary || 25000} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
+                              <td><input type="number" value={payData[u.id || u._id]?.salary || 25000} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
                               <td>{total}</td>
                               <td>{overtime}</td>
                               <td>{overtimeRate.toFixed(2)}</td>
@@ -3461,11 +3462,11 @@ function PersonnelTimesheet({ user }) {
     filteredUsers.forEach(u => {
       const row = [];
       row.push(u.name);
-      days.forEach(d => row.push(data[u.id]?.[d] || ''));
-      row.push(data[u.id]?.total || 0);
-      const salary = Number(payData[u.id]?.salary) || 0;
-      const bonus = Number(payData[u.id]?.bonus) || 0;
-      const payout = summary.workHours > 0 ? Math.round((salary * (data[u.id]?.total || 0) / summary.workHours) + bonus) : 0;
+      days.forEach(d => row.push(data[u.id || u._id]?.[d] || ''));
+      row.push(data[u.id || u._id]?.total || 0);
+      const salary = Number(payData[u.id || u._id]?.salary) || 0;
+      const bonus = Number(payData[u.id || u._id]?.bonus) || 0;
+      const payout = summary.workHours > 0 ? Math.round((salary * (data[u.id || u._id]?.total || 0) / summary.workHours) + bonus) : 0;
       row.push(salary);
       row.push(bonus);
       row.push(payout);
@@ -3555,17 +3556,18 @@ function PersonnelTimesheet({ user }) {
                       <td key={d} style={{width:28, minWidth:24, background: isWeekend ? '#ff4d4d' : undefined}}>
                         <input 
                           type="number" 
-                          value={data[u.id]?.[d] || ''} 
+                          value={serviceData[u.id || u._id]?.[d] || ''} 
                           onChange={e => {
-                            console.log(`[DEBUG] Service input change: userId=${u.id}, day=${d}, value=${e.target.value}`);
-                            handleServiceChange(u.id, d, e.target.value);
+                            const userId = u.id || u._id;
+                            console.log(`[DEBUG] Service input change: userId=${userId}, day=${d}, value=${e.target.value}`);
+                            handleServiceChange(userId, d, e.target.value);
                           }} 
                           style={{width:'100%'}} 
                         />
                       </td>
                     );
                   })}
-                  <td style={{width:80, minWidth:60}}>{data[u.id]?.total || 0}</td>
+                  <td style={{width:80, minWidth:60}}>{serviceData[u.id || u._id]?.total || 0}</td>
                 </tr>
               ))}
             </tbody>
@@ -3590,17 +3592,17 @@ function PersonnelTimesheet({ user }) {
             </thead>
             <tbody>
               {serviceUsers.map(u => {
-                const total = data[u.id]?.total || 0;
-                const salary = Number(payData[u.id]?.salary) || 0;
-                const bonus = Number(payData[u.id]?.bonus) || 0;
+                const total = data[u.id || u._id]?.total || 0;
+                const salary = Number(payData[u.id || u._id]?.salary) || 0;
+                const bonus = Number(payData[u.id || u._id]?.bonus) || 0;
                 // Пропорційна виплата
                 const payout = summary.workHours > 0 ? Math.round((salary * total / summary.workHours) + bonus) : 0;
                 return (
                   <tr key={u.id}>
                     <td>{u.name}</td>
                     <td>{total}</td>
-                    <td><input type="number" value={payData[u.id]?.salary || ''} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
-                    <td><input type="number" value={payData[u.id]?.bonus || ''} onChange={e => handlePayChange(u.id, 'bonus', e.target.value)} style={{width:90}} /></td>
+                    <td><input type="number" value={payData[u.id || u._id]?.salary || ''} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
+                    <td><input type="number" value={payData[u.id || u._id]?.bonus || ''} onChange={e => handlePayChange(u.id, 'bonus', e.target.value)} style={{width:90}} /></td>
                     <td style={{fontWeight:600}}>{payout}</td>
                   </tr>
                 );
