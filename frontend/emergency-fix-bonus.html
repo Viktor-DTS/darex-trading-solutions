@@ -3,309 +3,302 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚨 Екстрене виправлення bonusApprovalDate</title>
+    <title>🚨 Екстрене виправлення премій</title>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
-            min-height: 100vh;
-        }
-        
-        .container {
-            max-width: 600px;
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
             margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-        
-        .header {
-            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-        
-        .content {
-            padding: 30px;
-        }
-        
-        button {
-            width: 100%;
             padding: 20px;
-            border: none;
-            border-radius: 10px;
-            font-size: 18px;
-            font-weight: 600;
-            cursor: pointer;
-            background: linear-gradient(135deg, #48dbfb, #0abde3);
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #d32f2f;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .button {
+            background: #1976d2;
             color: white;
-            margin: 10px 0;
-            transition: all 0.3s ease;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: background 0.3s;
         }
-        
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        .button:hover {
+            background: #1565c0;
         }
-        
-        button:disabled {
-            opacity: 0.6;
+        .button:disabled {
+            background: #ccc;
             cursor: not-allowed;
         }
-        
-        .result {
-            margin-top: 20px;
-            padding: 20px;
+        .emergency-button {
+            background: #d32f2f;
+            font-size: 18px;
+            padding: 15px 30px;
+        }
+        .emergency-button:hover {
+            background: #b71c1c;
+        }
+        .progress-container {
+            margin: 20px 0;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
             border-radius: 10px;
-            display: none;
+            overflow: hidden;
         }
-        
-        .result.success {
-            background: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4caf50, #8bc34a);
+            width: 0%;
+            transition: width 0.3s;
         }
-        
-        .result.error {
-            background: #f8d7da;
-            border: 1px solid #f5c6cb;
-            color: #721c24;
-        }
-        
         .log {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 5px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
             padding: 15px;
-            margin: 10px 0;
+            height: 400px;
+            overflow-y: auto;
             font-family: monospace;
             font-size: 12px;
-            max-height: 300px;
-            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .log p {
+            margin: 2px 0;
+            padding: 2px 0;
+        }
+        .info { color: #1976d2; }
+        .success { color: #4caf50; font-weight: bold; }
+        .error { color: #d32f2f; font-weight: bold; }
+        .warning { color: #ff9800; font-weight: bold; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            border-left: 4px solid #1976d2;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1976d2;
+        }
+        .stat-label {
+            color: #666;
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🚨 Екстрене виправлення</h1>
-            <p>Прямий доступ до бази даних</p>
-        </div>
+        <h1>🚨 Екстрене виправлення премій</h1>
         
-        <div class="content">
-            <p><strong>Проблема:</strong> 220+ заявок без bonusApprovalDate</p>
-            <p><strong>Рішення:</strong> Пряме оновлення через API</p>
-            
-            <button onclick="emergencyFix()">
-                🚨 ВИПРАВИТИ ВСЕ ЗАРАЗ
-            </button>
-            
-            <button onclick="checkStatus()">
-                📊 Перевірити статус
-            </button>
-            
-            <div class="log" id="log"></div>
-            
-            <div class="result" id="result">
-                <div id="resultContent"></div>
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="totalTasks">-</div>
+                <div class="stat-label">Всього заявок</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="tasksToFix">-</div>
+                <div class="stat-label">Потребують виправлення</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="updatedTasks">0</div>
+                <div class="stat-label">Виправлено</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="skippedTasks">0</div>
+                <div class="stat-label">Пропущено</div>
             </div>
         </div>
+
+        <div style="text-align: center; margin: 20px 0;">
+            <button id="fixButton" class="button emergency-button" onclick="fixAllBonusDates()">
+                🚨 ВИПРАВИТИ ВСЕ ЗАРАЗ
+            </button>
+        </div>
+
+        <div class="progress-container">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span>Прогрес виправлення:</span>
+                <span id="progressText">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressBar"></div>
+            </div>
+        </div>
+
+        <div id="log" class="log"></div>
     </div>
 
     <script>
-        const API_BASE = 'https://darex-trading-solutions.onrender.com/api';
-        
-        function log(message) {
-            const logDiv = document.getElementById('log');
-            const timestamp = new Date().toLocaleTimeString();
-            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+        const API_BASE_URL = 'https://darex-trading-solutions.onrender.com/api';
+        const logDiv = document.getElementById('log');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const fixButton = document.getElementById('fixButton');
+        const totalTasksEl = document.getElementById('totalTasks');
+        const tasksToFixEl = document.getElementById('tasksToFix');
+        const updatedTasksEl = document.getElementById('updatedTasks');
+        const skippedTasksEl = document.getElementById('skippedTasks');
+
+        function appendLog(message, type = 'info') {
+            const p = document.createElement('p');
+            p.className = type;
+            p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(p);
             logDiv.scrollTop = logDiv.scrollHeight;
         }
-        
-        function showResult(type, content) {
-            const result = document.getElementById('result');
-            const resultContent = document.getElementById('resultContent');
-            
-            result.className = `result ${type}`;
-            result.style.display = 'block';
-            resultContent.innerHTML = content;
+
+        function updateStats(total, toFix, updated, skipped) {
+            totalTasksEl.textContent = total;
+            tasksToFixEl.textContent = toFix;
+            updatedTasksEl.textContent = updated;
+            skippedTasksEl.textContent = skipped;
         }
-        
-        async function emergencyFix() {
-            log('🚨 Початок екстреного виправлення...');
-            
+
+        async function fetchAllTasks() {
+            appendLog('Завантаження всіх заявок...');
             try {
-                // Крок 1: Отримуємо всі заявки
-                log('📥 Отримуємо всі заявки...');
-                const tasksResponse = await fetch(`${API_BASE}/tasks`);
-                
-                if (!tasksResponse.ok) {
-                    throw new Error(`HTTP ${tasksResponse.status}: ${tasksResponse.statusText}`);
-                }
-                
-                const tasks = await tasksResponse.json();
-                log(`📊 Знайдено ${tasks.length} заявок`);
-                
-                // Крок 2: Фільтруємо заявки, які потребують виправлення
-                const tasksToFix = tasks.filter(task => {
-                    const isApproved = task.approvedByWarehouse === 'Підтверджено' && 
-                                     task.approvedByAccountant === 'Підтверджено' && 
-                                     task.approvedByRegionalManager === 'Підтверджено';
-                    const hasWorkPrice = task.workPrice && task.workPrice > 0;
-                    const needsBonusDate = !task.bonusApprovalDate || 
-                                         task.bonusApprovalDate === '' || 
-                                         task.bonusApprovalDate === null ||
-                                         /^\d{4}-\d{2}-\d{2}$/.test(task.bonusApprovalDate);
-                    
-                    return isApproved && hasWorkPrice && needsBonusDate;
+                const response = await fetch(`${API_BASE_URL}/tasks`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                appendLog(`Знайдено ${data.tasks.length} заявок.`);
+                return data.tasks;
+            } catch (error) {
+                appendLog(`Помилка завантаження заявок: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        async function updateTask(task) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks/${task._id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(task)
                 });
-                
-                log(`🎯 Знайдено ${tasksToFix.length} заявок для виправлення`);
-                
-                if (tasksToFix.length === 0) {
-                    showResult('success', '<h3>✅ Всі заявки вже виправлені!</h3>');
-                    return;
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || JSON.stringify(errorData)}`);
                 }
-                
-                // Крок 3: Виправляємо кожну заявку
-                let fixedCount = 0;
-                let errorCount = 0;
-                
+                return await response.json();
+            } catch (error) {
+                appendLog(`Помилка оновлення заявки ${task._id}: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        function isApproved(status) {
+            return status === 'Підтверджено' || status === true;
+        }
+
+        function getBonusApprovalDate(task) {
+            if (task.bonusApprovalDate) {
+                // Check for YYYY-MM-DD format and convert to MM-YYYY
+                if (/^\d{4}-\d{2}-\d{2}$/.test(task.bonusApprovalDate)) {
+                    const [year, month] = task.bonusApprovalDate.split('-');
+                    return `${month}-${year}`;
+                }
+                // Assume MM-YYYY or other valid format
+                return task.bonusApprovalDate;
+            }
+            return null;
+        }
+
+        async function fixAllBonusDates() {
+            fixButton.disabled = true;
+            fixButton.textContent = 'Виправлення...';
+            logDiv.innerHTML = '';
+            progressBar.style.width = '0%';
+            progressText.textContent = '0%';
+
+            try {
+                const allTasks = await fetchAllTasks();
+                let tasksToFix = [];
+
+                appendLog('Аналіз заявок для виправлення...');
+                for (const task of allTasks) {
+                    const currentBonusDate = getBonusApprovalDate(task);
+                    const isWarehouseApproved = isApproved(task.approvedByWarehouse);
+                    const isAccountantApproved = isApproved(task.approvedByAccountant);
+                    const isRegionalManagerApproved = isApproved(task.approvedByRegionalManager);
+                    const hasWorkPrice = (parseFloat(task.workPrice) || 0) > 0;
+
+                    if (isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved && hasWorkPrice) {
+                        if (!currentBonusDate || !/^\d{2}-\d{4}$/.test(currentBonusDate)) {
+                            tasksToFix.push(task);
+                        }
+                    }
+                }
+                appendLog(`Знайдено ${tasksToFix.length} заявок, що потребують виправлення.`);
+                updateStats(allTasks.length, tasksToFix.length, 0, 0);
+
+                let updatedCount = 0;
+                let skippedCount = 0;
+
                 for (let i = 0; i < tasksToFix.length; i++) {
                     const task = tasksToFix[i];
-                    const progress = Math.round((i / tasksToFix.length) * 100);
-                    
+                    const progress = Math.round(((i + 1) / tasksToFix.length) * 100);
+                    progressBar.style.width = `${progress}%`;
+                    progressText.textContent = `${progress}%`;
+
                     try {
-                        // Визначаємо правильний формат дати
-                        let bonusApprovalDate;
-                        
-                        if (task.bonusApprovalDate && /^\d{4}-\d{2}-\d{2}$/.test(task.bonusApprovalDate)) {
-                            // Виправляємо неправильний формат
-                            const [year, month] = task.bonusApprovalDate.split('-');
-                            bonusApprovalDate = `${month}-${year}`;
-                        } else {
-                            // Встановлюємо нову дату
-                            const now = new Date();
-                            const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-                            const currentYear = now.getFullYear();
-                            bonusApprovalDate = `${currentMonth}-${currentYear}`;
-                        }
-                        
-                        // Оновлюємо заявку
-                        const updateResponse = await fetch(`${API_BASE}/tasks/${task._id}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ bonusApprovalDate: bonusApprovalDate })
-                        });
-                        
-                        if (updateResponse.ok) {
-                            fixedCount++;
-                            log(`✅ Виправлено заявку ${task._id}: ${bonusApprovalDate} (${progress}%)`);
-                        } else {
-                            errorCount++;
-                            log(`❌ Помилка заявки ${task._id}: ${updateResponse.status}`);
-                        }
-                        
+                        const now = new Date();
+                        const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+                        const currentYear = now.getFullYear();
+                        const newBonusApprovalDate = `${currentMonth}-${currentYear}`;
+
+                        const updatedTaskData = { ...task, bonusApprovalDate: newBonusApprovalDate };
+                        await updateTask(updatedTaskData);
+                        appendLog(`✅ Виправлено заявку ${task._id}: bonusApprovalDate встановлено на ${newBonusApprovalDate}`, 'success');
+                        updatedCount++;
                     } catch (error) {
-                        errorCount++;
-                        log(`❌ Помилка заявки ${task._id}: ${error.message}`);
+                        appendLog(`❌ Пропущено заявку ${task._id} через помилку: ${error.message}`, 'error');
+                        skippedCount++;
                     }
-                    
-                    // Невелика затримка, щоб не перевантажити сервер
-                    await new Promise(resolve => setTimeout(resolve, 100));
+
+                    updateStats(allTasks.length, tasksToFix.length, updatedCount, skippedCount);
                 }
-                
-                log(`🎉 Виправлення завершено! Виправлено: ${fixedCount}, Помилок: ${errorCount}`);
-                
-                showResult('success', `
-                    <h3>🎉 Екстрене виправлення завершено!</h3>
-                    <p><strong>Результати:</strong></p>
-                    <p>Знайдено заявок: <strong>${tasksToFix.length}</strong></p>
-                    <p>Виправлено: <strong>${fixedCount}</strong></p>
-                    <p>Помилок: <strong>${errorCount}</strong></p>
-                    <p><em>Тепер премії повинні нараховуватися правильно!</em></p>
-                `);
-                
+
+                appendLog('--- Виправлення завершено ---', 'info');
+                appendLog(`Всього знайдено для виправлення: ${tasksToFix.length}`, 'info');
+                appendLog(`Успішно оновлено: ${updatedCount}`, 'success');
+                appendLog(`Пропущено через помилки: ${skippedCount}`, 'error');
+
             } catch (error) {
-                log(`❌ Критична помилка: ${error.message}`);
-                showResult('error', `
-                    <h3>❌ Помилка виправлення</h3>
-                    <p><strong>Помилка:</strong> ${error.message}</p>
-                    <p><em>Спробуйте пізніше або зверніться до адміністратора.</em></p>
-                `);
+                appendLog(`Загальна помилка: ${error.message}`, 'error');
+            } finally {
+                fixButton.disabled = false;
+                fixButton.textContent = '🚨 ВИПРАВИТИ ВСЕ ЗАРАЗ';
             }
         }
-        
-        async function checkStatus() {
-            log('📊 Перевіряємо статус заявок...');
-            
-            try {
-                const tasksResponse = await fetch(`${API_BASE}/tasks`);
-                
-                if (!tasksResponse.ok) {
-                    throw new Error(`HTTP ${tasksResponse.status}: ${tasksResponse.statusText}`);
-                }
-                
-                const tasks = await tasksResponse.json();
-                
-                const approvedTasks = tasks.filter(task => 
-                    task.approvedByWarehouse === 'Підтверджено' && 
-                    task.approvedByAccountant === 'Підтверджено' && 
-                    task.approvedByRegionalManager === 'Підтверджено' &&
-                    task.workPrice && task.workPrice > 0
-                );
-                
-                const tasksWithBonusDate = approvedTasks.filter(task => 
-                    task.bonusApprovalDate && 
-                    task.bonusApprovalDate !== '' && 
-                    task.bonusApprovalDate !== null &&
-                    !/^\d{4}-\d{2}-\d{2}$/.test(task.bonusApprovalDate)
-                );
-                
-                const tasksWithoutBonusDate = approvedTasks.filter(task => 
-                    !task.bonusApprovalDate || 
-                    task.bonusApprovalDate === '' || 
-                    task.bonusApprovalDate === null
-                );
-                
-                const tasksWithInvalidFormat = approvedTasks.filter(task => 
-                    task.bonusApprovalDate && /^\d{4}-\d{2}-\d{2}$/.test(task.bonusApprovalDate)
-                );
-                
-                log(`📊 Статистика заявок:`);
-                log(`   Всього заявок: ${tasks.length}`);
-                log(`   Підтверджених заявок: ${approvedTasks.length}`);
-                log(`   З правильним bonusApprovalDate: ${tasksWithBonusDate.length}`);
-                log(`   Без bonusApprovalDate: ${tasksWithoutBonusDate.length}`);
-                log(`   З неправильним форматом: ${tasksWithInvalidFormat.length}`);
-                
-                showResult('success', `
-                    <h3>📊 Статус заявок</h3>
-                    <p><strong>Всього заявок:</strong> ${tasks.length}</p>
-                    <p><strong>Підтверджених заявок:</strong> ${approvedTasks.length}</p>
-                    <p><strong>З правильним bonusApprovalDate:</strong> ${tasksWithBonusDate.length}</p>
-                    <p><strong>Без bonusApprovalDate:</strong> ${tasksWithoutBonusDate.length}</p>
-                    <p><strong>З неправильним форматом:</strong> ${tasksWithInvalidFormat.length}</p>
-                `);
-                
-            } catch (error) {
-                log(`❌ Помилка перевірки статусу: ${error.message}`);
-                showResult('error', `
-                    <h3>❌ Помилка перевірки</h3>
-                    <p><strong>Помилка:</strong> ${error.message}</p>
-                `);
-            }
-        }
-        
-        // Автоматично перевіряємо статус при завантаженні
-        window.onload = function() {
-            log('🚀 Екстрений інструмент завантажено');
-            checkStatus();
-        };
+
+        // Initialize
+        appendLog('Скрипт екстренного виправлення премій готовий до роботи', 'info');
+        appendLog('Натисніть кнопку "ВИПРАВИТИ ВСЕ ЗАРАЗ" для початку', 'info');
     </script>
 </body>
 </html>

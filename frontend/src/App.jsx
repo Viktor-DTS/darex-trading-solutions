@@ -1688,6 +1688,10 @@ function RegionalManagerArea({ tab: propTab, user }) {
   // --- Функція для зміни значень у таблиці часу ---
   function handleChange(userId, day, value) {
     console.log(`[DEBUG] handleChange: userId=${userId}, day=${day}, value=${value}`);
+    if (!userId) {
+      console.log(`[ERROR] handleChange: userId is undefined, skipping update`);
+      return;
+    }
     setData(prev => {
       const userData = prev[userId] || {};
       const newUserData = { ...userData, [day]: value };
@@ -1701,6 +1705,10 @@ function RegionalManagerArea({ tab: propTab, user }) {
   // --- Функція для зміни значень у таблиці часу сервісної служби ---
   function handleServiceChange(userId, day, value) {
     console.log(`[DEBUG] handleServiceChange: userId=${userId}, day=${day}, value=${value}`);
+    if (!userId) {
+      console.log(`[ERROR] handleServiceChange: userId is undefined, skipping update`);
+      return;
+    }
     setServiceData(prev => {
       const userData = prev[userId] || {};
       const newUserData = { ...userData, [day]: value };
