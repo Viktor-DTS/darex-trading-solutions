@@ -3946,6 +3946,37 @@ app.post('/api/notification-settings/test-send', async (req, res) => {
   }
 });
 
+// Endpoint для перевірки налаштувань конкретного користувача
+app.get('/api/notification-settings/user/:login', async (req, res) => {
+  try {
+    const { login } = req.params;
+    console.log(`[DEBUG] GET /api/notification-settings/user/${login} - перевірка налаштувань користувача`);
+    
+    const user = await User.findOne({ login }, 'login role telegramChatId notificationSettings');
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Користувача не знайдено' });
+    }
+    
+    const userInfo = {
+      login: user.login,
+      role: user.role,
+      hasTelegram: !!(user.telegramChatId && user.telegramChatId.trim()),
+      telegramChatId: user.telegramChatId,
+      notificationSettings: user.notificationSettings,
+      invoiceRequestsEnabled: user.notificationSettings?.invoiceRequests || false,
+      completedInvoicesEnabled: user.notificationSettings?.completedInvoices || false
+    };
+    
+    console.log(`[DEBUG] Налаштування користувача ${login}:`, JSON.stringify(userInfo, null, 2));
+    res.json(userInfo);
+    
+  } catch (error) {
+    console.error(`[ERROR] GET /api/notification-settings/user/${req.params.login} - помилка:`, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // API для отримання користувачів з Telegram Chat ID для сповіщень
 app.get('/api/users/with-telegram', async (req, res) => {
   try {
