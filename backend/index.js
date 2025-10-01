@@ -3252,13 +3252,30 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
     }
     
     // Оновлюємо запит з інформацією про файл
+    // Виправляємо кодування назви файлу
+    let fileName = req.file.originalname;
+    try {
+      // Спробуємо декодувати як UTF-8 з latin1
+      const decoded = Buffer.from(fileName, 'latin1').toString('utf8');
+      // Перевіряємо чи декодування дало зміст
+      if (decoded && decoded !== fileName && !decoded.includes('')) {
+        fileName = decoded;
+      } else {
+        // Спробуємо інший метод
+        fileName = decodeURIComponent(escape(fileName));
+      }
+    } catch (error) {
+      // Якщо не вдалося, залишаємо оригінальну назву
+      console.log('Не вдалося декодувати назву файлу:', error);
+    }
+    
     const updatedRequest = await InvoiceRequest.findByIdAndUpdate(
       req.params.id,
       { 
         status: 'completed',
         completedAt: new Date(),
         invoiceFile: req.file.path, // Cloudinary URL
-        invoiceFileName: req.file.originalname
+        invoiceFileName: fileName
       },
       { new: true }
     );
