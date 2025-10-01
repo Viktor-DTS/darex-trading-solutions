@@ -34,11 +34,22 @@ const AccountantReportsModal = ({ isOpen, onClose, user }) => {
         if (data.success && data.data) {
           // Отримуємо унікальні регіони
           const uniqueRegions = [...new Set(data.data.map(task => task.serviceRegion).filter(Boolean))];
+          console.log('DEBUG: Завантажено регіонів:', uniqueRegions);
           setRegions(uniqueRegions);
+        } else {
+          console.log('DEBUG: Немає даних в відповіді:', data);
+          // Якщо немає даних, встановлюємо стандартні регіони
+          setRegions(['Київський', 'Дніпровський', 'Львівський', 'Харківський', 'Одеський']);
         }
+      } else {
+        console.error('Помилка HTTP при завантаженні регіонів:', response.status);
+        // Якщо помилка, встановлюємо стандартні регіони
+        setRegions(['Київський', 'Дніпровський', 'Львівський', 'Харківський', 'Одеський']);
       }
     } catch (error) {
       console.error('Помилка завантаження регіонів:', error);
+      // Якщо помилка, встановлюємо стандартні регіони
+      setRegions(['Київський', 'Дніпровський', 'Львівський', 'Харківський', 'Одеський']);
     }
   };
 

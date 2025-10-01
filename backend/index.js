@@ -4178,7 +4178,7 @@ app.get('/api/reports/financial', async (req, res) => {
     if (format === 'excel') {
       try {
         // Генеруємо Excel файл
-        const XLSX = require('xlsx-js-style');
+        const XLSX = require('xlsx');
         
         const workbook = XLSX.utils.book_new();
       
@@ -4345,68 +4345,82 @@ app.get('/api/reports/financial', async (req, res) => {
           ${detailed === 'true' && tasksWithoutInvoice.length > 0 ? `
             <div class="section">
               <h3>Список заявок за які не виставили рахунки</h3>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Номер заявки</th>
-                    <th>Дата проведення робіт</th>
-                    <th>Замовник</th>
-                    <th>Вид оплати</th>
-                    <th>Номер рахунку</th>
-                    <th>Вартість робіт, грн</th>
-                    <th>Загальна сума послуги</th>
-                    <th>Дата оплати</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${tasksWithoutInvoice.map(task => `
-                    <tr>
-                      <td>${task.requestNumber || 'Н/Д'}</td>
-                      <td>${task.date || ''}</td>
-                      <td>${task.client || ''}</td>
-                      <td>${task.paymentType || ''}</td>
-                      <td>${task.invoice || ''}</td>
-                      <td>${task.workPrice || 0}</td>
-                      <td>${task.serviceTotal || 0}</td>
-                      <td>${task.paymentDate || ''}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
+              ${Object.keys(regionGroups).map(region => {
+                const regionTasksWithoutInvoice = regionGroups[region].filter(task => !task.invoice || !task.invoice.trim());
+                if (regionTasksWithoutInvoice.length === 0) return '';
+                return `
+                  <h4 style="color: #dc3545; margin-top: 20px; margin-bottom: 10px;">Регіон: ${region}</h4>
+                  <table style="margin-bottom: 20px;">
+                    <thead>
+                      <tr>
+                        <th>Номер заявки</th>
+                        <th>Дата проведення робіт</th>
+                        <th>Замовник</th>
+                        <th>Вид оплати</th>
+                        <th>Номер рахунку</th>
+                        <th>Вартість робіт, грн</th>
+                        <th>Загальна сума послуги</th>
+                        <th>Дата оплати</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${regionTasksWithoutInvoice.map(task => `
+                        <tr>
+                          <td>${task.requestNumber || 'Н/Д'}</td>
+                          <td>${task.date || ''}</td>
+                          <td>${task.client || ''}</td>
+                          <td>${task.paymentType || ''}</td>
+                          <td>${task.invoice || ''}</td>
+                          <td>${task.workPrice || 0}</td>
+                          <td>${task.serviceTotal || 0}</td>
+                          <td>${task.paymentDate || ''}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                `;
+              }).join('')}
             </div>
           ` : ''}
           
           ${detailed === 'true' && tasksWithoutPayment.length > 0 ? `
             <div class="section">
               <h3>Список заявок за які не оплачені</h3>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Номер заявки</th>
-                    <th>Дата проведення робіт</th>
-                    <th>Замовник</th>
-                    <th>Вид оплати</th>
-                    <th>Номер рахунку</th>
-                    <th>Вартість робіт, грн</th>
-                    <th>Загальна сума послуги</th>
-                    <th>Дата оплати</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${tasksWithoutPayment.map(task => `
-                    <tr>
-                      <td>${task.requestNumber || 'Н/Д'}</td>
-                      <td>${task.date || ''}</td>
-                      <td>${task.client || ''}</td>
-                      <td>${task.paymentType || ''}</td>
-                      <td>${task.invoice || ''}</td>
-                      <td>${task.workPrice || 0}</td>
-                      <td>${task.serviceTotal || 0}</td>
-                      <td>${task.paymentDate || ''}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
+              ${Object.keys(regionGroups).map(region => {
+                const regionTasksWithoutPayment = regionGroups[region].filter(task => !task.paymentDate || !task.paymentDate.trim());
+                if (regionTasksWithoutPayment.length === 0) return '';
+                return `
+                  <h4 style="color: #ffc107; margin-top: 20px; margin-bottom: 10px;">Регіон: ${region}</h4>
+                  <table style="margin-bottom: 20px;">
+                    <thead>
+                      <tr>
+                        <th>Номер заявки</th>
+                        <th>Дата проведення робіт</th>
+                        <th>Замовник</th>
+                        <th>Вид оплати</th>
+                        <th>Номер рахунку</th>
+                        <th>Вартість робіт, грн</th>
+                        <th>Загальна сума послуги</th>
+                        <th>Дата оплати</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${regionTasksWithoutPayment.map(task => `
+                        <tr>
+                          <td>${task.requestNumber || 'Н/Д'}</td>
+                          <td>${task.date || ''}</td>
+                          <td>${task.client || ''}</td>
+                          <td>${task.paymentType || ''}</td>
+                          <td>${task.invoice || ''}</td>
+                          <td>${task.workPrice || 0}</td>
+                          <td>${task.serviceTotal || 0}</td>
+                          <td>${task.paymentDate || ''}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                `;
+              }).join('')}
             </div>
           ` : ''}
         </body>
