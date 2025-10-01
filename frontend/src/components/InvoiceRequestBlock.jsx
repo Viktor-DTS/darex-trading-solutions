@@ -7,7 +7,12 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
 
   // Функція для завантаження інформації про запит на рахунок
   const loadInvoiceRequest = async () => {
-    if (!task.id) return;
+    if (!task.id) {
+      console.log('DEBUG InvoiceRequestBlock: task.id відсутній', task);
+      return;
+    }
+    
+    console.log('DEBUG InvoiceRequestBlock: завантажуємо запит для task.id =', task.id);
     
     setLoading(true);
     try {
@@ -17,9 +22,14 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
       const response = await fetch(`${API_BASE_URL}/invoice-requests?taskId=${task.id}`);
       if (response.ok) {
         const data = await response.json();
+        console.log('DEBUG InvoiceRequestBlock: отримано відповідь', data);
         if (data.success && data.data && data.data.length > 0) {
           setInvoiceRequest(data.data[0]);
+        } else {
+          setInvoiceRequest(null);
         }
+      } else {
+        console.error('Помилка HTTP:', response.status);
       }
     } catch (error) {
       console.error('Помилка завантаження запиту на рахунок:', error);

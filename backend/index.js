@@ -3110,15 +3110,22 @@ app.post('/api/invoice-requests', async (req, res) => {
 // Отримання списку запитів на рахунки
 app.get('/api/invoice-requests', async (req, res) => {
   try {
-    const { status, requesterId } = req.query;
+    const { status, requesterId, taskId } = req.query;
+    
+    console.log('DEBUG GET /api/invoice-requests:', { status, requesterId, taskId });
     
     let filter = {};
     if (status) filter.status = status;
     if (requesterId) filter.requesterId = requesterId;
+    if (taskId) filter.taskId = taskId;
+    
+    console.log('DEBUG filter:', filter);
     
     const requests = await InvoiceRequest.find(filter)
       .sort({ createdAt: -1 })
       .limit(100);
+    
+    console.log('DEBUG знайдено запитів:', requests.length);
     
     res.json({ 
       success: true, 
