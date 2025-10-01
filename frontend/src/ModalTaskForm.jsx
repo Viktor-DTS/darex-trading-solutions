@@ -49,6 +49,7 @@ export const fields = [
   { name: 'requestDate', label: 'Дата заявки', type: 'date' },
   { name: 'date', label: 'Дата проведення робіт', type: 'date' },
   { name: 'paymentDate', label: 'Дата оплати', type: 'date' },
+  { name: 'invoiceRecipientDetails', label: 'Реквізити отримувача рахунку в паперовому вигляді', type: 'textarea' },
   { name: 'company', label: 'Компанія виконавець', type: 'select', options: ['', 'ДТС', 'Дарекс Енерго', 'інша'] },
   { name: 'edrpou', label: 'ЄДРПОУ', type: 'text' },
   { name: 'requestDesc', label: 'Опис заявки', type: 'textarea' },
@@ -127,7 +128,7 @@ const antifreezeGroup = ['antifreezeType', 'antifreezeL', 'antifreezePrice', 'an
 const transportGroup = ['carNumber', 'transportKm', 'transportSum'];
 const expensesGroup = ['perDiem', 'living', 'otherExp', 'bonusApprovalDate'];
 const statusGroup = ['status', 'requestDate', 'company'];
-const regionClientGroup = ['edrpou', 'client', 'invoice', 'paymentDate'];
+const regionClientGroup = ['edrpou', 'client', 'invoice', 'paymentDate', 'invoiceRecipientDetails'];
 const paymentEquipmentGroup = ['paymentType', 'equipment', 'equipmentSerial', 'serviceTotal'];
 const workEngineersGroup = ['date', 'work', 'engineer1', 'engineer2'];
 const otherMaterialsGroup = ['otherSum', 'otherMaterials'];
@@ -164,7 +165,7 @@ const orderedFields = [
 // const bonusApprovalDateField = { ... } // (залишити, якщо потрібно)
 // Для полів, які мають бути з label над input
 const labelAboveFields = [
-  'status', 'requestDate', 'requestDesc', 'address', 'paymentDate', 'paymentType', 'otherMaterials',
+  'status', 'requestDate', 'requestDesc', 'address', 'paymentDate', 'invoiceRecipientDetails', 'paymentType', 'otherMaterials',
   'approvedByWarehouse', 'warehouseComment',
   'approvedByAccountant', 'accountantComment', 'accountantComments',
   'approvedByRegionalManager', 'regionalManagerComment', 'comments'
@@ -880,14 +881,25 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           if (idx === orderedFields.indexOf('edrpou')) {
             return (
               <div className="group" key="regionClientGroup">
-                {['edrpou', 'client', 'invoice', 'paymentDate'].map(n => {
+                {['edrpou', 'client', 'invoice', 'paymentDate', 'invoiceRecipientDetails'].map(n => {
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
                     return (
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
-                      <input type={f.type} name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} />
+                      {f.type === 'textarea' ? (
+                        <textarea 
+                          name={f.name} 
+                          value={value} 
+                          onChange={handleChange} 
+                          readOnly={isReadOnly(f.name)}
+                          rows={4}
+                          style={{ width: '100%', minHeight: '80px', resize: 'vertical' }}
+                        />
+                      ) : (
+                        <input type={f.type} name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} />
+                      )}
                     </div>
                   );
                 })}
