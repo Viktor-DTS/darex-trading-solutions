@@ -43,7 +43,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
     if (task.id) {
       loadInvoiceRequest();
     }
-  }, [task.id]);
+  }, [task.id]); // Додаємо залежність тільки від task.id
 
   // Перевіряємо, чи можна показувати блок
   const canShowBlock = () => {
@@ -72,8 +72,10 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
     try {
       await onRequest(invoiceData);
       setShowModal(false);
-      // Перезавантажуємо інформацію про запит
-      await loadInvoiceRequest();
+      // Перезавантажуємо інформацію про запит тільки після створення
+      setTimeout(() => {
+        loadInvoiceRequest();
+      }, 1000); // Затримка 1 секунда
     } catch (error) {
       console.error('Помилка створення запиту на рахунок:', error);
     }
@@ -87,26 +89,20 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
   };
 
   // Функція для завантаження файлу рахунку
-  const downloadInvoiceFile = async () => {
+  const downloadInvoiceFile = () => {
     if (!invoiceRequest?.invoiceFile) return;
     
     try {
-      const response = await fetch(invoiceRequest.invoiceFile);
-      const blob = await response.blob();
-      
-      // Створюємо URL для blob
-      const url = window.URL.createObjectURL(blob);
-      
       // Створюємо тимчасовий елемент <a> для завантаження
       const link = document.createElement('a');
-      link.href = url;
+      link.href = invoiceRequest.invoiceFile;
       link.download = invoiceRequest.invoiceFileName || 'invoice.pdf';
+      link.target = '_blank';
       document.body.appendChild(link);
       link.click();
       
       // Очищаємо
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Помилка завантаження файлу:', error);
       alert('Помилка завантаження файлу');
