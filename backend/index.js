@@ -4138,7 +4138,7 @@ app.get('/api/reports/financial', async (req, res) => {
       }, 0);
       
       const totalWorkCost = regionTasks.reduce((sum, task) => {
-        return sum + (parseFloat(task.workCost) || 0);
+        return sum + (parseFloat(task.workPrice) || 0);
       }, 0);
       
       const invoicedSum = regionTasks
@@ -4176,10 +4176,11 @@ app.get('/api/reports/financial', async (req, res) => {
     const tasksWithoutPayment = tasks.filter(task => !task.paymentDate || !task.paymentDate.trim());
     
     if (format === 'excel') {
-      // Генеруємо Excel файл
-      const XLSX = require('xlsx-js-style');
-      
-      const workbook = XLSX.utils.book_new();
+      try {
+        // Генеруємо Excel файл
+        const XLSX = require('xlsx-js-style');
+        
+        const workbook = XLSX.utils.book_new();
       
       // Основний звіт
       const mainData = [
@@ -4211,7 +4212,7 @@ app.get('/api/reports/financial', async (req, res) => {
             task.client || '',
             task.paymentType || '',
             task.invoice || '',
-            task.workCost || 0,
+            task.workPrice || 0,
             task.serviceTotal || 0,
             task.paymentDate || ''
           ]);
@@ -4223,9 +4224,18 @@ app.get('/api/reports/financial', async (req, res) => {
       
       const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
       
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="financial_report_${dateFrom}_${dateTo}.xlsx"`);
-      res.send(buffer);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="financial_report_${dateFrom}_${dateTo}.xlsx"`);
+        res.send(buffer);
+      } catch (excelError) {
+        console.error('Помилка генерації Excel файлу:', excelError);
+        res.status(500).json({ 
+          success: false, 
+          message: 'Помилка генерації Excel файлу',
+          error: excelError.message 
+        });
+        return;
+      }
       
     } else {
       // HTML звіт
@@ -4291,36 +4301,37 @@ app.get('/api/reports/financial', async (req, res) => {
           ${detailed === 'true' ? `
             <div class="section">
               <h3>Деталізація по заявках</h3>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Регіон</th>
-                    <th>Номер заявки</th>
-                    <th>Дата проведення робіт</th>
-                    <th>Замовник</th>
-                    <th>Вид оплати</th>
-                    <th>Номер рахунку</th>
-                    <th>Вартість робіт, грн</th>
-                    <th>Загальна сума послуги</th>
-                    <th>Дата оплати</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${tasks.map(task => `
+              ${Object.keys(regionGroups).map(region => `
+                <h4 style="color: #007bff; margin-top: 20px; margin-bottom: 10px;">Регіон: ${region}</h4>
+                <table style="margin-bottom: 20px;">
+                  <thead>
                     <tr>
-                      <td>${task.serviceRegion || 'Невідомо'}</td>
-                      <td>${task.requestNumber || 'Н/Д'}</td>
-                      <td>${task.date || ''}</td>
-                      <td>${task.client || ''}</td>
-                      <td>${task.paymentType || ''}</td>
-                      <td>${task.invoice || ''}</td>
-                      <td>${task.workCost || 0}</td>
-                      <td>${task.serviceTotal || 0}</td>
-                      <td>${task.paymentDate || ''}</td>
+                      <th>Номер заявки</th>
+                      <th>Дата проведення робіт</th>
+                      <th>Замовник</th>
+                      <th>Вид оплати</th>
+                      <th>Номер рахунку</th>
+                      <th>Вартість робіт, грн</th>
+                      <th>Загальна сума послуги</th>
+                      <th>Дата оплати</th>
                     </tr>
-                  `).join('')}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    ${regionGroups[region].map(task => `
+                      <tr>
+                        <td>${task.requestNumber || 'Н/Д'}</td>
+                        <td>${task.date || ''}</td>
+                        <td>${task.client || ''}</td>
+                        <td>${task.paymentType || ''}</td>
+                        <td>${task.invoice || ''}</td>
+                        <td>${task.workPrice || 0}</td>
+                        <td>${task.serviceTotal || 0}</td>
+                        <td>${task.paymentDate || ''}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              `).join('')}
             </div>
           ` : ''}
           
@@ -4331,7 +4342,7 @@ app.get('/api/reports/financial', async (req, res) => {
             <p><strong>Кількість оплат:</strong> ${tasks.filter(t => t.paymentDate && t.paymentDate.trim()).length} шт. на загальну суму ${totalPaidSum.toFixed(2)} грн.</p>
           </div>
           
-          ${tasksWithoutInvoice.length > 0 ? `
+          ${detailed === 'true' && tasksWithoutInvoice.length > 0 ? `
             <div class="section">
               <h3>Список заявок за які не виставили рахунки</h3>
               <table>
@@ -4355,7 +4366,7 @@ app.get('/api/reports/financial', async (req, res) => {
                       <td>${task.client || ''}</td>
                       <td>${task.paymentType || ''}</td>
                       <td>${task.invoice || ''}</td>
-                      <td>${task.workCost || 0}</td>
+                      <td>${task.workPrice || 0}</td>
                       <td>${task.serviceTotal || 0}</td>
                       <td>${task.paymentDate || ''}</td>
                     </tr>
@@ -4365,7 +4376,7 @@ app.get('/api/reports/financial', async (req, res) => {
             </div>
           ` : ''}
           
-          ${tasksWithoutPayment.length > 0 ? `
+          ${detailed === 'true' && tasksWithoutPayment.length > 0 ? `
             <div class="section">
               <h3>Список заявок за які не оплачені</h3>
               <table>
@@ -4389,7 +4400,7 @@ app.get('/api/reports/financial', async (req, res) => {
                       <td>${task.client || ''}</td>
                       <td>${task.paymentType || ''}</td>
                       <td>${task.invoice || ''}</td>
-                      <td>${task.workCost || 0}</td>
+                      <td>${task.workPrice || 0}</td>
                       <td>${task.serviceTotal || 0}</td>
                       <td>${task.paymentDate || ''}</td>
                     </tr>
