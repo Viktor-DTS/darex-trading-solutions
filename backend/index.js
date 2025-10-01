@@ -3170,7 +3170,7 @@ app.post('/api/invoice-requests', async (req, res) => {
         requestNumber: requestNumber
       };
       
-      await sendNotification('invoice_requested', notificationData);
+      await telegramService.sendNotification('invoice_requested', notificationData);
       console.log('[DEBUG] POST /api/invoice-requests - сповіщення відправлено через систему налаштувань');
       
     } catch (notificationError) {
