@@ -196,11 +196,8 @@ const invoiceRequestSchema = new mongoose.Schema({
   companyDetails: {
     companyName: { type: String, required: true },
     edrpou: { type: String, required: true },
-    address: { type: String, required: true },
-    bankDetails: { type: String, required: true },
-    contactPerson: { type: String, required: true },
-    phone: { type: String, required: true },
-    email: { type: String, default: '' },
+    address: { type: String, default: '' },
+    bankDetails: { type: String, default: '' },
     comments: { type: String, default: '' }
   },
   status: { 
