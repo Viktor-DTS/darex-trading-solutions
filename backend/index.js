@@ -348,7 +348,17 @@ const userSchema = new mongoose.Schema({
   columnsSettings: Object,
   id: Number,
   telegramChatId: String,
-  lastActivity: { type: Date, default: Date.now }
+  lastActivity: { type: Date, default: Date.now },
+  notificationSettings: {
+    newRequests: { type: Boolean, default: false },
+    completedRequests: { type: Boolean, default: false },
+    pendingApproval: { type: Boolean, default: false },
+    approvedRequests: { type: Boolean, default: false },
+    rejectedRequests: { type: Boolean, default: false },
+    invoiceRequests: { type: Boolean, default: false },
+    completedInvoices: { type: Boolean, default: false },
+    systemNotifications: { type: Boolean, default: false }
+  }
 });
 const User = mongoose.model('User', userSchema);
 
@@ -3650,20 +3660,35 @@ class TelegramNotificationService {
           return false;
       }
       
-      // Отримуємо chat IDs для бухгалтерів
-      const globalSettings = await GlobalNotificationSettings.findOne();
+      // Отримуємо користувачів, які підписані на цей тип сповіщень
       const chatIds = [];
       
-      if (globalSettings?.settings?.[type]) {
-        const userIds = globalSettings.settings[type];
-        if (userIds && userIds.length > 0) {
-          const users = await User.find({ login: { $in: userIds } });
-          const userChatIds = users
-            .filter(user => user.telegramChatId && user.telegramChatId.trim())
-            .map(user => user.telegramChatId);
-          chatIds.push(...userChatIds);
-        }
+      // Визначаємо поле налаштувань для кожного типу сповіщення
+      let settingField = '';
+      switch (type) {
+        case 'invoice_requested':
+          settingField = 'notificationSettings.invoiceRequests';
+          break;
+        case 'invoice_completed':
+          settingField = 'notificationSettings.completedInvoices';
+          break;
+        default:
+          console.log(`[DEBUG] Unknown notification type: ${type}`);
+          return false;
       }
+      
+      // Знаходимо користувачів, які підписані на цей тип сповіщень
+      const users = await User.find({ 
+        [settingField]: true,
+        telegramChatId: { $exists: true, $ne: '' }
+      });
+      
+      console.log(`[DEBUG] sendNotification - знайдено ${users.length} користувачів для типу ${type}`);
+      
+      const userChatIds = users
+        .filter(user => user.telegramChatId && user.telegramChatId.trim())
+        .map(user => user.telegramChatId);
+      chatIds.push(...userChatIds);
       
       // Відправляємо повідомлення
       for (const chatId of chatIds) {
