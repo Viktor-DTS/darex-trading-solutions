@@ -431,6 +431,7 @@ app.use((req, res, next) => {
 // Логування CORS запитів
 app.use((req, res, next) => {
   console.log(`[CORS] ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+  console.log(`[CORS] Headers:`, req.headers);
   next();
 });
 
@@ -3057,6 +3058,15 @@ app.post('/api/invoice-requests/simple', (req, res) => {
 // Створення запиту на рахунок
 app.post('/api/invoice-requests', async (req, res) => {
   console.log('[DEBUG] POST /api/invoice-requests - endpoint викликано');
+  console.log('[DEBUG] POST /api/invoice-requests - Origin:', req.headers.origin);
+  console.log('[DEBUG] POST /api/invoice-requests - Headers:', req.headers);
+  
+  // Додаємо CORS заголовки
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
   try {
     console.log('[DEBUG] POST /api/invoice-requests - отримано запит:', JSON.stringify(req.body, null, 2));
     
