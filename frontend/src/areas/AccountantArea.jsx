@@ -80,6 +80,8 @@ export default function AccountantArea({ user }) {
   const [invoiceRequestsLoading, setInvoiceRequestsLoading] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(new Set());
   const [reportsModalOpen, setReportsModalOpen] = useState(false);
+  const [taskInfoModalOpen, setTaskInfoModalOpen] = useState(false);
+  const [selectedTaskInfo, setSelectedTaskInfo] = useState(null);
   const region = user?.region || '';
   
   // Функція для завантаження запитів на рахунки
@@ -211,6 +213,18 @@ export default function AccountantArea({ user }) {
     } catch (error) {
       console.error('Помилка видалення файлу:', error);
       alert('Помилка видалення файлу: ' + error.message);
+    }
+  };
+
+  // Функція для завантаження інформації про заявку
+  const loadTaskInfo = async (taskId) => {
+    try {
+      const task = await tasksAPI.getById(taskId);
+      setSelectedTaskInfo(task);
+      setTaskInfoModalOpen(true);
+    } catch (error) {
+      console.error('Помилка завантаження інформації про заявку:', error);
+      alert('Помилка завантаження інформації про заявку');
     }
   };
   
@@ -967,6 +981,22 @@ export default function AccountantArea({ user }) {
                         <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
                           Номер заявки: {request.requestNumber || 'Н/Д'} | Створено: {new Date(request.createdAt).toLocaleDateString('uk-UA')}
                         </p>
+                        <button 
+                          onClick={() => loadTaskInfo(request.taskId)}
+                          style={{
+                            marginTop: '8px',
+                            padding: '6px 12px',
+                            backgroundColor: '#17a2b8',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            fontWeight: '600'
+                          }}
+                        >
+                          ℹ️ Інформація по заявці
+                        </button>
                       </div>
                       <div style={{
                         padding: '4px 12px',
@@ -1239,6 +1269,22 @@ export default function AccountantArea({ user }) {
         onClose={() => setReportsModalOpen(false)}
         user={user}
       />
+      
+      {/* Модальне вікно інформації про заявку */}
+      {taskInfoModalOpen && selectedTaskInfo && (
+        <ModalTaskForm 
+          open={taskInfoModalOpen}
+          onClose={() => {
+            setTaskInfoModalOpen(false);
+            setSelectedTaskInfo(null);
+          }}
+          onSave={() => {}} // Тільки для перегляду
+          initialData={selectedTaskInfo}
+          mode="accountant"
+          user={user}
+          readOnly={true}
+        />
+      )}
     </div>
   );
 } 
