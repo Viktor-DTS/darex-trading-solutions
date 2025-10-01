@@ -3583,7 +3583,7 @@ class TelegramNotificationService {
     try {
       const chatIds = [];
       
-      // Визначаємо поле налаштувань для кожного типу сповіщення
+      // Спочатку пробуємо нову систему налаштувань
       let settingField = '';
       switch (type) {
         case 'task_created':
@@ -3614,34 +3614,61 @@ class TelegramNotificationService {
       
       console.log(`[DEBUG] getChatIdsForNotification - type: ${type}, settingField: ${settingField}`);
       
-      // Знаходимо користувачів, які підписані на цей тип сповіщень
-      const users = await User.find({ 
+      // Знаходимо користувачів з новими налаштуваннями
+      const usersWithNewSettings = await User.find({ 
         [settingField]: true,
         telegramChatId: { $exists: true, $ne: '' }
       });
       
-      console.log(`[DEBUG] getChatIdsForNotification - знайдено ${users.length} користувачів для типу ${type}`);
+      console.log(`[DEBUG] getChatIdsForNotification - знайдено ${usersWithNewSettings.length} користувачів з новими налаштуваннями`);
       
-      // Фільтруємо користувачів по регіону заявки (якщо це заявка)
-      const filteredUsers = users.filter(user => {
-        // Якщо це не заявка (наприклад, сповіщення про рахунки), не фільтруємо по регіону
-        if (!task || !task.serviceRegion) return true;
+      // Якщо є користувачі з новими налаштуваннями, використовуємо їх
+      if (usersWithNewSettings.length > 0) {
+        const filteredUsers = usersWithNewSettings.filter(user => {
+          // Якщо це не заявка (наприклад, сповіщення про рахунки), не фільтруємо по регіону
+          if (!task || !task.serviceRegion) return true;
+          
+          // Якщо користувач має регіон "Україна", показуємо всі заявки
+          if (user.region === 'Україна') return true;
+          
+          // Інакше показуємо тільки заявки свого регіону
+          return task.serviceRegion === user.region;
+        });
         
-        // Якщо користувач має регіон "Україна", показуємо всі заявки
-        if (user.region === 'Україна') return true;
+        console.log(`[DEBUG] getChatIdsForNotification - після фільтрації по регіону: ${filteredUsers.length} користувачів`);
         
-        // Інакше показуємо тільки заявки свого регіону
-        return task.serviceRegion === user.region;
-      });
-      
-      console.log(`[DEBUG] getChatIdsForNotification - після фільтрації по регіону: ${filteredUsers.length} користувачів`);
-      
-      const userChatIds = filteredUsers
-        .filter(user => user.telegramChatId && user.telegramChatId.trim())
-        .map(user => user.telegramChatId);
-      chatIds.push(...userChatIds);
-      
-      console.log(`[DEBUG] getChatIdsForNotification - chatIds для відправки:`, chatIds);
+        const userChatIds = filteredUsers
+          .filter(user => user.telegramChatId && user.telegramChatId.trim())
+          .map(user => user.telegramChatId);
+        chatIds.push(...userChatIds);
+        
+        console.log(`[DEBUG] getChatIdsForNotification - chatIds з нових налаштувань:`, chatIds);
+      } else {
+        // Якщо немає користувачів з новими налаштуваннями, використовуємо стару систему
+        console.log(`[DEBUG] getChatIdsForNotification - використовуємо стару систему для типу ${type}`);
+        
+        const globalSettings = await GlobalNotificationSettings.findOne();
+        
+        if (globalSettings?.settings?.[type]) {
+          const userIds = globalSettings.settings[type];
+          
+          if (userIds && userIds.length > 0) {
+            const users = await User.find({ login: { $in: userIds } });
+            
+            const filteredUsers = users.filter(user => {
+              if (user.region === 'Україна') return true;
+              return task.serviceRegion === user.region;
+            });
+            
+            const userChatIds = filteredUsers
+              .filter(user => user.telegramChatId && user.telegramChatId.trim())
+              .map(user => user.telegramChatId);
+            chatIds.push(...userChatIds);
+            
+            console.log(`[DEBUG] getChatIdsForNotification - chatIds з старих налаштувань:`, chatIds);
+          }
+        }
+      }
       
       // Додаємо загальні канали залежно від ролі (для зворотної сумісності)
       if (process.env.TELEGRAM_ADMIN_CHAT_ID) {
