@@ -3984,6 +3984,58 @@ app.post('/api/notification-settings/setup-global', async (req, res) => {
   }
 });
 
+// Простий ендпоінт для встановлення налаштувань рахунків
+app.post('/api/notification-settings/enable-invoices', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/notification-settings/enable-invoices - увімкнення сповіщень про рахунки');
+    
+    // Знаходимо бухгалтерів
+    const accountants = await User.find({ role: 'buhgalteria' });
+    console.log(`[DEBUG] Знайдено бухгалтерів: ${accountants.map(a => a.login).join(', ')}`);
+    
+    // Оновлюємо налаштування для бухгалтерів
+    for (const accountant of accountants) {
+      if (accountant.notificationSettings) {
+        accountant.notificationSettings.invoiceRequests = true;
+        accountant.notificationSettings.completedInvoices = true;
+        await accountant.save();
+        console.log(`[DEBUG] Увімкнено сповіщення про рахунки для ${accountant.login}`);
+      }
+    }
+    
+    // Створюємо або оновлюємо GlobalNotificationSettings
+    let globalSettings = await GlobalNotificationSettings.findOne();
+    const accountantLogins = accountants.map(acc => acc.login);
+    
+    if (!globalSettings) {
+      globalSettings = new GlobalNotificationSettings({
+        settings: {
+          invoice_requested: accountantLogins,
+          invoice_completed: accountantLogins
+        }
+      });
+    } else {
+      if (!globalSettings.settings) {
+        globalSettings.settings = {};
+      }
+      globalSettings.settings.invoice_requested = accountantLogins;
+      globalSettings.settings.invoice_completed = accountantLogins;
+    }
+    
+    await globalSettings.save();
+    
+    res.json({
+      success: true,
+      message: `Увімкнено сповіщення про рахунки для бухгалтерів`,
+      accountants: accountantLogins,
+      globalSettings: globalSettings.settings
+    });
+  } catch (error) {
+    console.error('[ERROR] POST /api/notification-settings/enable-invoices - помилка:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Тестовий endpoint для перевірки налаштувань сповіщень
 app.get('/api/notification-settings/debug', async (req, res) => {
   try {
