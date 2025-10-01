@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
+import AccountantReportsModal from '../components/AccountantReportsModal';
 import { tasksAPI } from '../utils/tasksAPI';
 import * as XLSX from 'xlsx-js-style';
 const initialTask = {
@@ -78,6 +79,7 @@ export default function AccountantArea({ user }) {
   const [invoiceRequests, setInvoiceRequests] = useState([]);
   const [invoiceRequestsLoading, setInvoiceRequestsLoading] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(new Set());
+  const [reportsModalOpen, setReportsModalOpen] = useState(false);
   const region = user?.region || '';
   
   // Функція для завантаження запитів на рахунки
@@ -900,6 +902,7 @@ export default function AccountantArea({ user }) {
         <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
         <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
         <button onClick={()=>setTab('invoices')} style={{width:220,padding:'10px 0',background:tab==='invoices'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='invoices'?700:400,cursor:'pointer'}}>📄 Запити на рахунки</button>
+        <button onClick={()=>setReportsModalOpen(true)} style={{width:220,padding:'10px 0',background:'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:400,cursor:'pointer'}}>📊 Бухгалтерські звіти</button>
         <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
       </div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
@@ -1229,6 +1232,13 @@ export default function AccountantArea({ user }) {
         onHistoryClick={openClientReport}
       />
       )}
+      
+      {/* Модальне вікно бухгалтерських звітів */}
+      <AccountantReportsModal 
+        isOpen={reportsModalOpen}
+        onClose={() => setReportsModalOpen(false)}
+        user={user}
+      />
     </div>
   );
 } 

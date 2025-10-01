@@ -4094,3 +4094,324 @@ app.delete('/api/invoice-requests/:id/file', async (req, res) => {
     });
   }
 });
+
+// API endpoint для бухгалтерських звітів
+app.get('/api/reports/financial', async (req, res) => {
+  try {
+    const { dateFrom, dateTo, region, detailed, format } = req.query;
+    
+    if (!dateFrom || !dateTo) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Відсутні обов\'язкові параметри: dateFrom, dateTo' 
+      });
+    }
+    
+    // Фільтруємо заявки
+    let filter = {
+      status: 'Виконано',
+      date: { $gte: dateFrom, $lte: dateTo }
+    };
+    
+    if (region && region !== 'all') {
+      filter.serviceRegion = region;
+    }
+    
+    const tasks = await Task.find(filter);
+    
+    // Групуємо по регіонах
+    const regionGroups = {};
+    tasks.forEach(task => {
+      const region = task.serviceRegion || 'Невідомо';
+      if (!regionGroups[region]) {
+        regionGroups[region] = [];
+      }
+      regionGroups[region].push(task);
+    });
+    
+    // Обчислюємо суми для кожного регіону
+    const reportData = Object.keys(regionGroups).map(region => {
+      const regionTasks = regionGroups[region];
+      
+      const totalServiceSum = regionTasks.reduce((sum, task) => {
+        return sum + (parseFloat(task.serviceTotal) || 0);
+      }, 0);
+      
+      const totalWorkCost = regionTasks.reduce((sum, task) => {
+        return sum + (parseFloat(task.workCost) || 0);
+      }, 0);
+      
+      const invoicedSum = regionTasks
+        .filter(task => task.invoice && task.invoice.trim())
+        .reduce((sum, task) => {
+          return sum + (parseFloat(task.serviceTotal) || 0);
+        }, 0);
+      
+      const paidSum = regionTasks
+        .filter(task => task.paymentDate && task.paymentDate.trim())
+        .reduce((sum, task) => {
+          return sum + (parseFloat(task.serviceTotal) || 0);
+        }, 0);
+      
+      return {
+        region,
+        totalServiceSum,
+        totalWorkCost,
+        invoicedSum,
+        paidSum,
+        tasks: detailed ? regionTasks : []
+      };
+    });
+    
+    // Загальні підсумки
+    const totalServiceSum = reportData.reduce((sum, item) => sum + item.totalServiceSum, 0);
+    const totalWorkCost = reportData.reduce((sum, item) => sum + item.totalWorkCost, 0);
+    const totalInvoicedSum = reportData.reduce((sum, item) => sum + item.invoicedSum, 0);
+    const totalPaidSum = reportData.reduce((sum, item) => sum + item.paidSum, 0);
+    
+    // Заявки без рахунків
+    const tasksWithoutInvoice = tasks.filter(task => !task.invoice || !task.invoice.trim());
+    
+    // Заявки без оплати
+    const tasksWithoutPayment = tasks.filter(task => !task.paymentDate || !task.paymentDate.trim());
+    
+    if (format === 'excel') {
+      // Генеруємо Excel файл
+      const XLSX = require('xlsx-js-style');
+      
+      const workbook = XLSX.utils.book_new();
+      
+      // Основний звіт
+      const mainData = [
+        ['Регіон', 'Загальна сума послуги', 'Вартість робіт, грн', 'Сума виставлених рахунків', 'Сума оплат'],
+        ...reportData.map(item => [
+          item.region,
+          item.totalServiceSum,
+          item.totalWorkCost,
+          item.invoicedSum,
+          item.paidSum
+        ]),
+        ['ПІДСУМОК', totalServiceSum, totalWorkCost, totalInvoicedSum, totalPaidSum]
+      ];
+      
+      const mainSheet = XLSX.utils.aoa_to_sheet(mainData);
+      XLSX.utils.book_append_sheet(workbook, mainSheet, 'Звіт по фінансах');
+      
+      // Деталізація якщо потрібна
+      if (detailed === 'true') {
+        const detailData = [
+          ['Регіон', 'Номер заявки', 'Дата проведення робіт', 'Замовник', 'Вид оплати', 'Номер рахунку', 'Вартість робіт, грн', 'Загальна сума послуги', 'Дата оплати']
+        ];
+        
+        tasks.forEach(task => {
+          detailData.push([
+            task.serviceRegion || 'Невідомо',
+            task.requestNumber || 'Н/Д',
+            task.date || '',
+            task.client || '',
+            task.paymentType || '',
+            task.invoice || '',
+            task.workCost || 0,
+            task.serviceTotal || 0,
+            task.paymentDate || ''
+          ]);
+        });
+        
+        const detailSheet = XLSX.utils.aoa_to_sheet(detailData);
+        XLSX.utils.book_append_sheet(workbook, detailSheet, 'Деталізація');
+      }
+      
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="financial_report_${dateFrom}_${dateTo}.xlsx"`);
+      res.send(buffer);
+      
+    } else {
+      // HTML звіт
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Звіт по руху фінансів</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .header { text-align: center; margin-bottom: 30px; }
+            .filters { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; font-weight: bold; }
+            .summary { background-color: #e9ecef; font-weight: bold; }
+            .section { margin-bottom: 30px; }
+            .section h3 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 5px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Звіт по руху фінансів</h1>
+            <p>Період: ${dateFrom} - ${dateTo}</p>
+            <p>Дата створення: ${new Date().toLocaleDateString('uk-UA')}</p>
+            <p>Регіони: ${region === 'all' ? 'Всі регіони' : region}</p>
+          </div>
+          
+          <div class="section">
+            <h3>Основні показники по регіонах</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Регіон</th>
+                  <th>Загальна сума послуги</th>
+                  <th>Вартість робіт, грн</th>
+                  <th>Сума виставлених рахунків</th>
+                  <th>Сума оплат</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${reportData.map(item => `
+                  <tr>
+                    <td>${item.region}</td>
+                    <td>${item.totalServiceSum.toFixed(2)}</td>
+                    <td>${item.totalWorkCost.toFixed(2)}</td>
+                    <td>${item.invoicedSum.toFixed(2)}</td>
+                    <td>${item.paidSum.toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+                <tr class="summary">
+                  <td><strong>ПІДСУМОК</strong></td>
+                  <td><strong>${totalServiceSum.toFixed(2)}</strong></td>
+                  <td><strong>${totalWorkCost.toFixed(2)}</strong></td>
+                  <td><strong>${totalInvoicedSum.toFixed(2)}</strong></td>
+                  <td><strong>${totalPaidSum.toFixed(2)}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          ${detailed === 'true' ? `
+            <div class="section">
+              <h3>Деталізація по заявках</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Регіон</th>
+                    <th>Номер заявки</th>
+                    <th>Дата проведення робіт</th>
+                    <th>Замовник</th>
+                    <th>Вид оплати</th>
+                    <th>Номер рахунку</th>
+                    <th>Вартість робіт, грн</th>
+                    <th>Загальна сума послуги</th>
+                    <th>Дата оплати</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${tasks.map(task => `
+                    <tr>
+                      <td>${task.serviceRegion || 'Невідомо'}</td>
+                      <td>${task.requestNumber || 'Н/Д'}</td>
+                      <td>${task.date || ''}</td>
+                      <td>${task.client || ''}</td>
+                      <td>${task.paymentType || ''}</td>
+                      <td>${task.invoice || ''}</td>
+                      <td>${task.workCost || 0}</td>
+                      <td>${task.serviceTotal || 0}</td>
+                      <td>${task.paymentDate || ''}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          ` : ''}
+          
+          <div class="section">
+            <h3>Підсумкова інформація</h3>
+            <p><strong>Кількість заявок які були виконані за період:</strong> ${tasks.length} шт. на загальну суму ${totalServiceSum.toFixed(2)} грн.</p>
+            <p><strong>Кількість виставлених рахунків:</strong> ${tasks.filter(t => t.invoice && t.invoice.trim()).length} шт. на загальну суму ${totalInvoicedSum.toFixed(2)} грн.</p>
+            <p><strong>Кількість оплат:</strong> ${tasks.filter(t => t.paymentDate && t.paymentDate.trim()).length} шт. на загальну суму ${totalPaidSum.toFixed(2)} грн.</p>
+          </div>
+          
+          ${tasksWithoutInvoice.length > 0 ? `
+            <div class="section">
+              <h3>Список заявок за які не виставили рахунки</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Номер заявки</th>
+                    <th>Дата проведення робіт</th>
+                    <th>Замовник</th>
+                    <th>Вид оплати</th>
+                    <th>Номер рахунку</th>
+                    <th>Вартість робіт, грн</th>
+                    <th>Загальна сума послуги</th>
+                    <th>Дата оплати</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${tasksWithoutInvoice.map(task => `
+                    <tr>
+                      <td>${task.requestNumber || 'Н/Д'}</td>
+                      <td>${task.date || ''}</td>
+                      <td>${task.client || ''}</td>
+                      <td>${task.paymentType || ''}</td>
+                      <td>${task.invoice || ''}</td>
+                      <td>${task.workCost || 0}</td>
+                      <td>${task.serviceTotal || 0}</td>
+                      <td>${task.paymentDate || ''}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          ` : ''}
+          
+          ${tasksWithoutPayment.length > 0 ? `
+            <div class="section">
+              <h3>Список заявок за які не оплачені</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Номер заявки</th>
+                    <th>Дата проведення робіт</th>
+                    <th>Замовник</th>
+                    <th>Вид оплати</th>
+                    <th>Номер рахунку</th>
+                    <th>Вартість робіт, грн</th>
+                    <th>Загальна сума послуги</th>
+                    <th>Дата оплати</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${tasksWithoutPayment.map(task => `
+                    <tr>
+                      <td>${task.requestNumber || 'Н/Д'}</td>
+                      <td>${task.date || ''}</td>
+                      <td>${task.client || ''}</td>
+                      <td>${task.paymentType || ''}</td>
+                      <td>${task.invoice || ''}</td>
+                      <td>${task.workCost || 0}</td>
+                      <td>${task.serviceTotal || 0}</td>
+                      <td>${task.paymentDate || ''}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          ` : ''}
+        </body>
+        </html>
+      `;
+      
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(html);
+    }
+    
+  } catch (error) {
+    console.error('Помилка генерації звіту:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка генерації звіту',
+      error: error.message 
+    });
+  }
+});

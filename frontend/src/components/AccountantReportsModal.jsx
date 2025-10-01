@@ -1,0 +1,313 @@
+import React, { useState, useEffect } from 'react';
+
+const AccountantReportsModal = ({ isOpen, onClose, user }) => {
+  const [reportFilters, setReportFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    region: 'all',
+    detailed: false
+  });
+  const [regions, setRegions] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadRegions();
+      // Встановлюємо поточну дату як за замовчуванням
+      const today = new Date().toISOString().split('T')[0];
+      setReportFilters(prev => ({
+        ...prev,
+        dateFrom: today,
+        dateTo: today
+      }));
+    }
+  }, [isOpen]);
+
+  const loadRegions = async () => {
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      
+      const response = await fetch(`${API_BASE_URL}/tasks`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          // Отримуємо унікальні регіони
+          const uniqueRegions = [...new Set(data.data.map(task => task.serviceRegion).filter(Boolean))];
+          setRegions(uniqueRegions);
+        }
+      }
+    } catch (error) {
+      console.error('Помилка завантаження регіонів:', error);
+    }
+  };
+
+  const handleFilterChange = (field, value) => {
+    setReportFilters(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const generateReport = async (format) => {
+    if (!reportFilters.dateFrom || !reportFilters.dateTo) {
+      alert('Будь ласка, вкажіть період для звіту');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      
+      const params = new URLSearchParams({
+        dateFrom: reportFilters.dateFrom,
+        dateTo: reportFilters.dateTo,
+        region: reportFilters.region,
+        detailed: reportFilters.detailed.toString(),
+        format: format
+      });
+
+      if (format === 'html') {
+        // Відкриваємо HTML звіт в новій вкладці
+        window.open(`${API_BASE_URL}/reports/financial?${params}`, '_blank');
+      } else if (format === 'excel') {
+        // Завантажуємо Excel файл
+        const response = await fetch(`${API_BASE_URL}/reports/financial?${params}`);
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `financial_report_${reportFilters.dateFrom}_${reportFilters.dateTo}.xlsx`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        } else {
+          alert('Помилка генерації звіту');
+        }
+      }
+    } catch (error) {
+      console.error('Помилка генерації звіту:', error);
+      alert('Помилка генерації звіту');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    }}>
+      <div style={{
+        backgroundColor: '#fff',
+        borderRadius: '12px',
+        padding: '24px',
+        width: '90%',
+        maxWidth: '800px',
+        maxHeight: '90vh',
+        overflow: 'auto',
+        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)'
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '24px',
+          borderBottom: '2px solid #f0f0f0',
+          paddingBottom: '16px'
+        }}>
+          <h2 style={{ margin: 0, color: '#333', fontSize: '24px', fontWeight: '600' }}>
+            📊 Бухгалтерські звіти
+          </h2>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              cursor: 'pointer',
+              color: '#666',
+              padding: '4px',
+              borderRadius: '4px'
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Загальний звіт по руху фінансів */}
+        <div style={{
+          backgroundColor: '#f8f9fa',
+          borderRadius: '8px',
+          padding: '20px',
+          marginBottom: '20px',
+          border: '1px solid #e9ecef'
+        }}>
+          <h3 style={{ 
+            margin: '0 0 16px 0', 
+            color: '#333', 
+            fontSize: '18px',
+            fontWeight: '600',
+            borderBottom: '2px solid #007bff',
+            paddingBottom: '8px'
+          }}>
+            Загальний звіт по руху фінансів
+          </h3>
+
+          {/* Фільтри */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#333' }}>
+                Дата виконаних робіт з:
+              </label>
+              <input
+                type="date"
+                value={reportFilters.dateFrom}
+                onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  fontSize: '14px'
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#333' }}>
+                Дата виконаних робіт по:
+              </label>
+              <input
+                type="date"
+                value={reportFilters.dateTo}
+                onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  fontSize: '14px'
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#333' }}>
+              Регіон:
+            </label>
+            <select
+              value={reportFilters.region}
+              onChange={(e) => handleFilterChange('region', e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                border: '1px solid #ddd',
+                borderRadius: '6px',
+                fontSize: '14px',
+                backgroundColor: '#fff'
+              }}
+            >
+              <option value="all">Всі регіони</option>
+              {regions.map(region => (
+                <option key={region} value={region}>{region}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={reportFilters.detailed}
+                onChange={(e) => handleFilterChange('detailed', e.target.checked)}
+                style={{ transform: 'scale(1.2)' }}
+              />
+              <span style={{ fontWeight: '500', color: '#333' }}>
+                Деталізація по звіту
+              </span>
+            </label>
+          </div>
+
+          {/* Кнопки формування звіту */}
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={() => generateReport('html')}
+              disabled={loading}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: '#007bff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                fontSize: '14px',
+                fontWeight: '600',
+                opacity: loading ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              {loading ? '⏳' : '📄'} Формування звіту в HTML
+            </button>
+            <button
+              onClick={() => generateReport('excel')}
+              disabled={loading}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                fontSize: '14px',
+                fontWeight: '600',
+                opacity: loading ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              {loading ? '⏳' : '📊'} Експорт Excel
+            </button>
+          </div>
+        </div>
+
+        {/* Кнопка закриття */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+          >
+            Закрити
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AccountantReportsModal;
