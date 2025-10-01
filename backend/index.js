@@ -3936,6 +3936,54 @@ app.post('/api/notification-settings/init', async (req, res) => {
   }
 });
 
+// Ендпоінт для налаштування GlobalNotificationSettings для рахунків
+app.post('/api/notification-settings/setup-global', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/notification-settings/setup-global - налаштування GlobalNotificationSettings для рахунків');
+    
+    // Знаходимо користувачів з роллю бухгалтера
+    const accountants = await User.find({ role: 'buhgalteria' });
+    const accountantLogins = accountants.map(acc => acc.login);
+    
+    console.log(`[DEBUG] Знайдено бухгалтерів: ${accountantLogins.join(', ')}`);
+    
+    // Оновлюємо або створюємо GlobalNotificationSettings
+    let globalSettings = await GlobalNotificationSettings.findOne();
+    
+    if (!globalSettings) {
+      globalSettings = new GlobalNotificationSettings({
+        settings: {
+          task_created: [],
+          task_completed: [],
+          task_approved: [],
+          task_rejected: [],
+          invoice_requested: accountantLogins,
+          invoice_completed: accountantLogins
+        }
+      });
+    } else {
+      // Оновлюємо існуючі налаштування
+      if (!globalSettings.settings) {
+        globalSettings.settings = {};
+      }
+      globalSettings.settings.invoice_requested = accountantLogins;
+      globalSettings.settings.invoice_completed = accountantLogins;
+    }
+    
+    await globalSettings.save();
+    
+    res.json({
+      success: true,
+      message: `Налаштовано GlobalNotificationSettings для рахунків`,
+      accountants: accountantLogins,
+      settings: globalSettings.settings
+    });
+  } catch (error) {
+    console.error('[ERROR] POST /api/notification-settings/setup-global - помилка:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Тестовий endpoint для перевірки налаштувань сповіщень
 app.get('/api/notification-settings/debug', async (req, res) => {
   try {
