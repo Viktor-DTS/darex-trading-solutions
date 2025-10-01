@@ -190,6 +190,7 @@ const GlobalNotificationSettings = mongoose.model('GlobalNotificationSettings', 
 // Модель для запитів на рахунки
 const invoiceRequestSchema = new mongoose.Schema({
   taskId: { type: String, required: true },
+  requestNumber: { type: String, required: true },
   requesterId: { type: String, required: true },
   requesterName: { type: String, required: true },
   companyDetails: {
@@ -3048,6 +3049,15 @@ app.post('/api/invoice-requests', async (req, res) => {
       });
     }
     
+    // Отримуємо заявку для отримання requestNumber
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Заявка не знайдена' 
+      });
+    }
+    
     // Перевіряємо чи не існує вже запит для цієї заявки
     const existingRequest = await InvoiceRequest.findOne({ taskId });
     if (existingRequest) {
@@ -3059,6 +3069,7 @@ app.post('/api/invoice-requests', async (req, res) => {
     
     const invoiceRequest = new InvoiceRequest({
       taskId,
+      requestNumber: task.requestNumber || 'Н/Д',
       requesterId,
       requesterName,
       companyDetails,

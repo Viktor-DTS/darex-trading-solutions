@@ -962,7 +962,7 @@ export default function AccountantArea({ user }) {
                           Запит від {request.requesterName}
                         </h4>
                         <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
-                          Заявка ID: {request.taskId} | Створено: {new Date(request.createdAt).toLocaleDateString('uk-UA')}
+                          Номер заявки: {request.requestNumber || 'Н/Д'} | Створено: {new Date(request.createdAt).toLocaleDateString('uk-UA')}
                         </p>
                       </div>
                       <div style={{
