@@ -3040,9 +3040,11 @@ ${message}
 // Створення запиту на рахунок
 app.post('/api/invoice-requests', async (req, res) => {
   try {
+    console.log('[DEBUG] POST /api/invoice-requests - отримано запит:', JSON.stringify(req.body, null, 2));
     const { taskId, requesterId, requesterName, companyDetails } = req.body;
     
     if (!taskId || !requesterId || !requesterName || !companyDetails) {
+      console.log('[DEBUG] POST /api/invoice-requests - відсутні обов\'язкові поля:', { taskId, requesterId, requesterName, companyDetails });
       return res.status(400).json({ 
         success: false, 
         message: 'Відсутні обов\'язкові поля' 
@@ -3077,9 +3079,11 @@ app.post('/api/invoice-requests', async (req, res) => {
     });
     
     await invoiceRequest.save();
+    console.log('[DEBUG] POST /api/invoice-requests - запит збережено:', invoiceRequest._id);
     
     // Відправляємо сповіщення бухгалтерам
     try {
+      console.log('[DEBUG] POST /api/invoice-requests - відправляємо сповіщення');
       const telegramService = new TelegramNotificationService();
       await telegramService.sendNotification('invoice_requested', {
         taskId,
@@ -3087,10 +3091,12 @@ app.post('/api/invoice-requests', async (req, res) => {
         companyName: companyDetails.companyName,
         edrpou: companyDetails.edrpou
       });
+      console.log('[DEBUG] POST /api/invoice-requests - сповіщення відправлено');
     } catch (notificationError) {
       console.error('Помилка відправки сповіщення:', notificationError);
     }
     
+    console.log('[DEBUG] POST /api/invoice-requests - відправляємо відповідь');
     res.json({ 
       success: true, 
       message: 'Запит на рахунок створено успішно',
