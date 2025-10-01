@@ -3684,15 +3684,25 @@ class TelegramNotificationService {
       });
       
       console.log(`[DEBUG] sendNotification - знайдено ${users.length} користувачів для типу ${type}`);
+      console.log(`[DEBUG] sendNotification - settingField: ${settingField}`);
+      console.log(`[DEBUG] sendNotification - користувачі:`, users.map(u => ({ login: u.login, role: u.role, telegramChatId: u.telegramChatId })));
       
       const userChatIds = users
         .filter(user => user.telegramChatId && user.telegramChatId.trim())
         .map(user => user.telegramChatId);
       chatIds.push(...userChatIds);
       
+      console.log(`[DEBUG] sendNotification - chatIds для відправки:`, chatIds);
+      
       // Відправляємо повідомлення
       for (const chatId of chatIds) {
-        await this.sendMessage(chatId, message);
+        console.log(`[DEBUG] sendNotification - відправляємо повідомлення до chatId: ${chatId}`);
+        try {
+          await this.sendMessage(chatId, message);
+          console.log(`[DEBUG] sendNotification - повідомлення успішно відправлено до ${chatId}`);
+        } catch (error) {
+          console.error(`[ERROR] sendNotification - помилка відправки до ${chatId}:`, error);
+        }
       }
       
       return true;
@@ -3864,6 +3874,37 @@ app.post('/api/notification-settings/init', async (req, res) => {
     
   } catch (error) {
     console.error('[ERROR] POST /api/notification-settings/init - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Тестовий endpoint для перевірки налаштувань сповіщень
+app.get('/api/notification-settings/debug', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/notification-settings/debug - перевірка налаштувань');
+    
+    // Отримуємо всіх користувачів з налаштуваннями
+    const users = await User.find({}, 'login role telegramChatId notificationSettings');
+    
+    const debugInfo = {
+      totalUsers: users.length,
+      usersWithTelegram: users.filter(u => u.telegramChatId && u.telegramChatId.trim()).length,
+      usersWithInvoiceRequests: users.filter(u => u.notificationSettings?.invoiceRequests).length,
+      usersWithCompletedInvoices: users.filter(u => u.notificationSettings?.completedInvoices).length,
+      users: users.map(u => ({
+        login: u.login,
+        role: u.role,
+        hasTelegram: !!(u.telegramChatId && u.telegramChatId.trim()),
+        telegramChatId: u.telegramChatId,
+        notificationSettings: u.notificationSettings
+      }))
+    };
+    
+    console.log('[DEBUG] Debug info:', JSON.stringify(debugInfo, null, 2));
+    res.json(debugInfo);
+    
+  } catch (error) {
+    console.error('[ERROR] GET /api/notification-settings/debug - помилка:', error);
     res.status(500).json({ error: error.message });
   }
 });
