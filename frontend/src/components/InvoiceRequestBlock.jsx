@@ -48,14 +48,16 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
   // Перевіряємо, чи можна показувати блок
   const canShowBlock = () => {
     const canShow = (
-      task.status === 'Виконано' && 
+      (task.status === 'Виконано' || task.status === 'Заявка' || task.status === 'В роботі') && 
       (user?.role === 'Керівник сервісної служби' || 
        user?.role === 'Оператор' || 
        user?.role === 'Адміністратор' ||
+       user?.role === 'Регіональний керівник' ||
        user?.role === 'administrator' ||
        user?.role === 'service' ||
        user?.role === 'operator' ||
-       user?.role === 'admin')
+       user?.role === 'admin' ||
+       user?.role === 'regional_manager')
     );
     
     console.log('DEBUG InvoiceRequestBlock:', {
