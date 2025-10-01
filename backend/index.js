@@ -3147,28 +3147,22 @@ app.post('/api/invoice-requests', async (req, res) => {
     
     console.log('[DEBUG] POST /api/invoice-requests - заявка оновлена');
     
-    // Відправляємо сповіщення бухгалтерам
+    // Відправляємо сповіщення через систему налаштувань
     try {
-      const accountants = await executeWithRetry(() => 
-        User.find({ role: 'accountant' })
-      );
+      console.log('[DEBUG] POST /api/invoice-requests - відправляємо сповіщення через систему налаштувань');
       
-      console.log('[DEBUG] POST /api/invoice-requests - знайдено бухгалтерів:', accountants.length);
+      // Використовуємо систему сповіщень для запитів на рахунки
+      const notificationData = {
+        companyName: companyDetails.companyName,
+        edrpou: companyDetails.edrpou,
+        requesterName: requesterName,
+        taskId: taskId,
+        requestNumber: requestNumber
+      };
       
-      for (const accountant of accountants) {
-        if (accountant.telegramChatId) {
-          const message = `📄 Новий запит на рахунок!\n\n` +
-            `Заявка: ${task.requestDesc}\n` +
-            `Номер запиту: ${requestNumber}\n` +
-            `Компанія: ${companyDetails.companyName}\n` +
-            `ЄДРПОУ: ${companyDetails.edrpou}\n` +
-            `Заявник: ${requesterName}\n\n` +
-            `Перейдіть в панель бухгалтера для обробки.`;
-          
-          await sendTelegramNotification(accountant.telegramChatId, message);
-          console.log('[DEBUG] POST /api/invoice-requests - сповіщення відправлено бухгалтеру:', accountant.name);
-        }
-      }
+      await sendNotification('invoice_requested', notificationData);
+      console.log('[DEBUG] POST /api/invoice-requests - сповіщення відправлено через систему налаштувань');
+      
     } catch (notificationError) {
       console.error('[ERROR] POST /api/invoice-requests - помилка відправки сповіщень:', notificationError);
       // Не блокуємо створення запиту через помилку сповіщень
