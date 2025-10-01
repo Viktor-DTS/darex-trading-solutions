@@ -339,9 +339,6 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                   edrpou: formData.get('edrpou'),
                   address: formData.get('address'),
                   bankDetails: formData.get('bankDetails'),
-                  contactPerson: formData.get('contactPerson'),
-                  phone: formData.get('phone'),
-                  email: formData.get('email'),
                   comments: formData.get('comments')
                 }
               };
@@ -376,60 +373,26 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
 
               <div style={{ marginBottom: '15px' }}>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#000' }}>
-                  Адреса *
+                  Юридична адреса компанії
                 </label>
-                <input 
-                  type="text" 
+                <textarea 
                   name="address" 
-                  required 
+                  rows="3"
                   style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000', backgroundColor: '#fff' }}
+                  placeholder="Введіть повну юридичну адресу компанії"
                 />
               </div>
 
               <div style={{ marginBottom: '15px' }}>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#000' }}>
-                  Банківські реквізити *
+                  Реквізити отримувача рахунку в паперовому вигляді
                 </label>
                 <textarea 
                   name="bankDetails" 
-                  required 
                   rows="3"
+                  defaultValue={task.invoiceRecipientDetails || ''}
                   style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000', backgroundColor: '#fff' }}
-                />
-              </div>
-
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#000' }}>
-                  Контактна особа *
-                </label>
-                <input 
-                  type="text" 
-                  name="contactPerson" 
-                  required 
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000', backgroundColor: '#fff' }}
-                />
-              </div>
-
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#000' }}>
-                  Телефон *
-                </label>
-                <input 
-                  type="tel" 
-                  name="phone" 
-                  required 
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000', backgroundColor: '#fff' }}
-                />
-              </div>
-
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#000' }}>
-                  Email
-                </label>
-                <input 
-                  type="email" 
-                  name="email" 
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000', backgroundColor: '#fff' }}
+                  placeholder="ПІБ, контактний телефон, місто, номер відділення Нової Пошти тощо"
                 />
               </div>
 
@@ -475,9 +438,6 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                         edrpou: formData.get('edrpou'),
                         address: formData.get('address'),
                         bankDetails: formData.get('bankDetails'),
-                        contactPerson: formData.get('contactPerson'),
-                        phone: formData.get('phone'),
-                        email: formData.get('email'),
                         comments: formData.get('comments')
                       }
                     };
