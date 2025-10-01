@@ -1,7 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const InvoiceRequestBlock = ({ task, user, onRequest }) => {
   const [showModal, setShowModal] = useState(false);
+  const [invoiceRequest, setInvoiceRequest] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Функція для завантаження інформації про запит на рахунок
+  const loadInvoiceRequest = async () => {
+    if (!task.id) return;
+    
+    setLoading(true);
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      
+      const response = await fetch(`${API_BASE_URL}/invoice-requests?taskId=${task.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data && data.data.length > 0) {
+          setInvoiceRequest(data.data[0]);
+        }
+      }
+    } catch (error) {
+      console.error('Помилка завантаження запиту на рахунок:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Завантажуємо інформацію про запит при зміні task.id
+  useEffect(() => {
+    if (task.id) {
+      loadInvoiceRequest();
+    }
+  }, [task.id]);
 
   // Перевіряємо, чи можна показувати блок
   const canShowBlock = () => {
@@ -13,8 +45,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
        user?.role === 'administrator' ||
        user?.role === 'service' ||
        user?.role === 'operator' ||
-       user?.role === 'admin') && 
-      task.invoiceRequested !== true
+       user?.role === 'admin')
     );
     
     console.log('DEBUG InvoiceRequestBlock:', {
@@ -31,8 +62,17 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
     try {
       await onRequest(invoiceData);
       setShowModal(false);
+      // Перезавантажуємо інформацію про запит
+      await loadInvoiceRequest();
     } catch (error) {
       console.error('Помилка створення запиту на рахунок:', error);
+    }
+  };
+
+  // Функція для завантаження файлу рахунку
+  const downloadInvoiceFile = () => {
+    if (invoiceRequest?.invoiceFile) {
+      window.open(invoiceRequest.invoiceFile, '_blank');
     }
   };
 
@@ -59,35 +99,140 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
           📄 Запит на рахунок
         </h4>
         
-        <p style={{
-          margin: '0 0 20px 0', 
-          fontSize: '14px', 
-          color: '#6c757d',
-          lineHeight: '1.5'
-        }}>
-          Заявка виконана. Ви можете подати запит на отримання рахунку від бухгалтера 
-          для клієнта <strong>{task.client || 'не вказано'}</strong> (ЄДРПОУ: {task.edrpou || 'не вказано'}).
-        </p>
-        
-        <button 
-          type="button"
-          onClick={() => setShowModal(true)}
-          style={{
-            padding: '12px 24px',
-            backgroundColor: '#28a745',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            fontSize: '14px',
-            transition: 'background-color 0.2s'
-          }}
-          onMouseOver={(e) => e.target.style.backgroundColor = '#218838'}
-          onMouseOut={(e) => e.target.style.backgroundColor = '#28a745'}
-        >
-          Запросити рахунок
-        </button>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '20px' }}>
+            <span style={{ color: '#6c757d' }}>Завантаження інформації...</span>
+          </div>
+        ) : invoiceRequest ? (
+          <div>
+            {/* Індикатор стану запиту */}
+            <div style={{ marginBottom: '15px' }}>
+              <div style={{
+                display: 'inline-block',
+                padding: '6px 12px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                fontWeight: '600',
+                backgroundColor: 
+                  invoiceRequest.status === 'pending' ? '#fff3cd' :
+                  invoiceRequest.status === 'processing' ? '#d1ecf1' :
+                  invoiceRequest.status === 'completed' ? '#d4edda' :
+                  '#f8d7da',
+                color: 
+                  invoiceRequest.status === 'pending' ? '#856404' :
+                  invoiceRequest.status === 'processing' ? '#0c5460' :
+                  invoiceRequest.status === 'completed' ? '#155724' :
+                  '#721c24'
+              }}>
+                {invoiceRequest.status === 'pending' ? '⏳ Очікує обробки' :
+                 invoiceRequest.status === 'processing' ? '🔄 В обробці' :
+                 invoiceRequest.status === 'completed' ? '✅ Виконано' :
+                 '❌ Відхилено'}
+              </div>
+            </div>
+
+            {/* Інформація про запит */}
+            <div style={{ marginBottom: '15px', fontSize: '14px', color: '#495057' }}>
+              <div><strong>Створено:</strong> {new Date(invoiceRequest.createdAt).toLocaleDateString('uk-UA')}</div>
+              {invoiceRequest.comments && (
+                <div style={{ marginTop: '8px' }}>
+                  <strong>Коментарі бухгалтера:</strong> {invoiceRequest.comments}
+                </div>
+              )}
+              {invoiceRequest.rejectionReason && (
+                <div style={{ marginTop: '8px', color: '#dc3545' }}>
+                  <strong>Причина відмови:</strong> {invoiceRequest.rejectionReason}
+                </div>
+              )}
+            </div>
+
+            {/* Файл рахунку */}
+            {invoiceRequest.status === 'completed' && invoiceRequest.invoiceFile && (
+              <div style={{
+                marginBottom: '15px',
+                padding: '12px',
+                backgroundColor: '#e8f5e8',
+                borderRadius: '4px',
+                border: '1px solid #c3e6cb'
+              }}>
+                <div style={{ marginBottom: '8px' }}>
+                  <strong style={{ color: '#000' }}>📄 Файл рахунку:</strong> 
+                  <span style={{ color: '#000', marginLeft: '8px' }}>{invoiceRequest.invoiceFileName}</span>
+                </div>
+                <button 
+                  onClick={downloadInvoiceFile}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600'
+                  }}
+                >
+                  📥 Завантажити файл
+                </button>
+              </div>
+            )}
+
+            {/* Кнопка для повторного запиту (якщо відхилено) */}
+            {invoiceRequest.status === 'rejected' && (
+              <button 
+                type="button"
+                onClick={() => setShowModal(true)}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: '#17a2b8',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#138496'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#17a2b8'}
+              >
+                🔄 Подати запит знову
+              </button>
+            )}
+          </div>
+        ) : (
+          <div>
+            <p style={{
+              margin: '0 0 20px 0', 
+              fontSize: '14px', 
+              color: '#6c757d',
+              lineHeight: '1.5'
+            }}>
+              Заявка виконана. Ви можете подати запит на отримання рахунку від бухгалтера 
+              для клієнта <strong>{task.client || 'не вказано'}</strong> (ЄДРПОУ: {task.edrpou || 'не вказано'}).
+            </p>
+            
+            <button 
+              type="button"
+              onClick={() => setShowModal(true)}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '14px',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseOver={(e) => e.target.style.backgroundColor = '#218838'}
+              onMouseOut={(e) => e.target.style.backgroundColor = '#28a745'}
+            >
+              Запросити рахунок
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Модальне вікно для запиту рахунку */}
