@@ -82,14 +82,18 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
   };
 
   // Функція для перегляду файлу рахунку
-  const viewInvoiceFile = () => {
+  const viewInvoiceFile = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (invoiceRequest?.invoiceFile) {
       window.open(invoiceRequest.invoiceFile, '_blank');
     }
   };
 
   // Функція для завантаження файлу рахунку
-  const downloadInvoiceFile = () => {
+  const downloadInvoiceFile = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!invoiceRequest?.invoiceFile) return;
     
     try {
@@ -194,6 +198,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button 
+                    type="button"
                     onClick={viewInvoiceFile}
                     style={{
                       padding: '8px 16px',
@@ -209,6 +214,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                     👁️ Переглянути файл
                   </button>
                   <button 
+                    type="button"
                     onClick={downloadInvoiceFile}
                     style={{
                       padding: '8px 16px',
