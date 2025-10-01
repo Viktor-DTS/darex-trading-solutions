@@ -3059,7 +3059,6 @@ app.post('/api/invoice-requests/simple', (req, res) => {
 app.post('/api/invoice-requests', async (req, res) => {
   console.log('[DEBUG] POST /api/invoice-requests - endpoint викликано');
   console.log('[DEBUG] POST /api/invoice-requests - Origin:', req.headers.origin);
-  console.log('[DEBUG] POST /api/invoice-requests - Headers:', req.headers);
   
   // Додаємо CORS заголовки
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
@@ -3070,11 +3069,124 @@ app.post('/api/invoice-requests', async (req, res) => {
   try {
     console.log('[DEBUG] POST /api/invoice-requests - отримано запит:', JSON.stringify(req.body, null, 2));
     
-    // Простий тест - повертаємо успішну відповідь
+    const { taskId, requesterId, requesterName, companyDetails, status } = req.body;
+    
+    // Валідація обов'язкових полів
+    if (!taskId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID заявки обов\'язковий' 
+      });
+    }
+    
+    if (!requesterId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID заявника обов\'язковий' 
+      });
+    }
+    
+    if (!companyDetails?.companyName || !companyDetails?.edrpou) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Назва компанії та ЄДРПОУ обов\'язкові' 
+      });
+    }
+    
+    console.log('[DEBUG] POST /api/invoice-requests - валідація пройшла успішно');
+    
+    // Перевіряємо, чи існує заявка
+    const task = await executeWithRetry(() => Task.findById(taskId));
+    if (!task) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Заявка не знайдена' 
+      });
+    }
+    
+    console.log('[DEBUG] POST /api/invoice-requests - заявка знайдена:', task.requestDesc);
+    
+    // Перевіряємо, чи вже є запит на рахунок для цієї заявки
+    const existingRequest = await executeWithRetry(() => 
+      InvoiceRequest.findOne({ taskId, status: { $in: ['pending', 'completed'] } })
+    );
+    
+    if (existingRequest) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Запит на рахунок для цієї заявки вже існує' 
+      });
+    }
+    
+    console.log('[DEBUG] POST /api/invoice-requests - перевірка на існуючий запит пройшла');
+    
+    // Генеруємо номер запиту
+    const requestNumber = `IR-${Date.now()}`;
+    
+    console.log('[DEBUG] POST /api/invoice-requests - створюємо новий запит з номером:', requestNumber);
+    
+    // Створюємо новий запит на рахунок
+    const invoiceRequest = new InvoiceRequest({
+      taskId,
+      requesterId,
+      requesterName,
+      companyDetails,
+      status: status || 'pending',
+      requestNumber,
+      createdAt: new Date()
+    });
+    
+    console.log('[DEBUG] POST /api/invoice-requests - зберігаємо запит в базу...');
+    const savedRequest = await executeWithRetry(() => invoiceRequest.save());
+    console.log('[DEBUG] POST /api/invoice-requests - запит збережено з ID:', savedRequest._id);
+    
+    // Оновлюємо заявку - додаємо інформацію про запит на рахунок
+    await executeWithRetry(() => 
+      Task.findByIdAndUpdate(taskId, { 
+        invoiceRequested: true,
+        invoiceRequestId: savedRequest._id 
+      })
+    );
+    
+    console.log('[DEBUG] POST /api/invoice-requests - заявка оновлена');
+    
+    // Відправляємо сповіщення бухгалтерам
+    try {
+      const accountants = await executeWithRetry(() => 
+        User.find({ role: 'accountant' })
+      );
+      
+      console.log('[DEBUG] POST /api/invoice-requests - знайдено бухгалтерів:', accountants.length);
+      
+      for (const accountant of accountants) {
+        if (accountant.telegramChatId) {
+          const message = `📄 Новий запит на рахунок!\n\n` +
+            `Заявка: ${task.requestDesc}\n` +
+            `Номер запиту: ${requestNumber}\n` +
+            `Компанія: ${companyDetails.companyName}\n` +
+            `ЄДРПОУ: ${companyDetails.edrpou}\n` +
+            `Заявник: ${requesterName}\n\n` +
+            `Перейдіть в панель бухгалтера для обробки.`;
+          
+          await sendTelegramNotification(accountant.telegramChatId, message);
+          console.log('[DEBUG] POST /api/invoice-requests - сповіщення відправлено бухгалтеру:', accountant.name);
+        }
+      }
+    } catch (notificationError) {
+      console.error('[ERROR] POST /api/invoice-requests - помилка відправки сповіщень:', notificationError);
+      // Не блокуємо створення запиту через помилку сповіщень
+    }
+    
+    console.log('[DEBUG] POST /api/invoice-requests - запит створено успішно');
+    
     res.json({ 
       success: true, 
-      message: 'Тестовий запит працює',
-      data: req.body 
+      message: 'Запит на рахунок створено успішно',
+      data: {
+        id: savedRequest._id,
+        requestNumber: savedRequest.requestNumber,
+        status: savedRequest.status
+      }
     });
     
   } catch (error) {
