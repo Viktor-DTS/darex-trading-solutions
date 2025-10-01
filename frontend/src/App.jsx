@@ -650,6 +650,31 @@ function AdminSystemParamsArea({ user }) {
       alert('Помилка збереження Telegram Chat ID: ' + error.message);
     }
   };
+
+  const handlePasswordChange = (userId, password) => {
+    setUsers(users.map(u => 
+      u.id === userId 
+        ? { ...u, password } 
+        : u
+    ));
+  };
+
+  const handlePasswordSave = async (userId, password) => {
+    try {
+      const user = users.find(u => u.id === userId);
+      if (!user) return;
+      const updatedUser = { ...user, password };
+      const success = await columnsSettingsAPI.saveUser(updatedUser);
+      if (success) {
+        console.log('Пароль успішно збережено');
+      } else {
+        alert('Помилка збереження пароля');
+      }
+    } catch (error) {
+      console.error('Помилка збереження пароля:', error);
+      alert('Помилка збереження пароля');
+    }
+  };
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (!form.login || !form.password || !form.role || !form.name || !form.region) return;
@@ -742,6 +767,7 @@ function AdminSystemParamsArea({ user }) {
         <thead>
           <tr>
             <th>Логін</th>
+            <th>Пароль</th>
             <th>Роль</th>
             <th>ПІБ</th>
             <th>Регіон</th>
@@ -764,6 +790,26 @@ function AdminSystemParamsArea({ user }) {
                 color: isUserOnline(u.login) ? '#4CAF50' : '#fff',
                 textShadow: isUserOnline(u.login) ? '0 0 5px rgba(76, 175, 80, 0.5)' : 'none'
               }}>{u.login}</td>
+              <td style={{
+                color: isUserOnline(u.login) ? '#4CAF50' : '#fff',
+                fontWeight: isUserOnline(u.login) ? 'bold' : 'normal'
+              }}>
+                <input 
+                  type="password" 
+                  value={u.password || ''}
+                  onChange={(e) => handlePasswordChange(u.id, e.target.value)}
+                  onBlur={(e) => handlePasswordSave(u.id, e.target.value)}
+                  style={{
+                    width: '100px',
+                    padding: '4px 8px',
+                    border: '1px solid #555',
+                    borderRadius: '4px',
+                    background: '#2a3a4a',
+                    color: '#fff',
+                    fontSize: '12px'
+                  }}
+                />
+              </td>
               <td style={{
                 color: isUserOnline(u.login) ? '#4CAF50' : '#fff',
                 fontWeight: isUserOnline(u.login) ? 'bold' : 'normal'
