@@ -3720,21 +3720,36 @@ class TelegramNotificationService {
       }
       
       // Використовуємо стару систему GlobalNotificationSettings (як для заявок)
+      console.log(`[DEBUG] sendNotification - починаємо пошук налаштувань для типу: ${type}`);
+      
       const globalSettings = await GlobalNotificationSettings.findOne();
+      console.log(`[DEBUG] sendNotification - globalSettings знайдено:`, !!globalSettings);
+      
       const chatIds = [];
       
       if (globalSettings?.settings?.[type]) {
         const userIds = globalSettings.settings[type];
+        console.log(`[DEBUG] sendNotification - userIds для ${type}:`, userIds);
+        
         if (userIds && userIds.length > 0) {
           const users = await User.find({ login: { $in: userIds } });
+          console.log(`[DEBUG] sendNotification - знайдено користувачів:`, users.map(u => ({ login: u.login, telegramChatId: u.telegramChatId })));
+          
           const userChatIds = users
             .filter(user => user.telegramChatId && user.telegramChatId.trim())
             .map(user => user.telegramChatId);
           chatIds.push(...userChatIds);
+          
+          console.log(`[DEBUG] sendNotification - відфільтровані chatIds:`, userChatIds);
+        } else {
+          console.log(`[DEBUG] sendNotification - userIds порожні або відсутні`);
         }
+      } else {
+        console.log(`[DEBUG] sendNotification - налаштування для ${type} не знайдено в globalSettings`);
+        console.log(`[DEBUG] sendNotification - доступні типи:`, Object.keys(globalSettings?.settings || {}));
       }
       
-      console.log(`[DEBUG] sendNotification - знайдено ${chatIds.length} chatIds для типу ${type}`);
+      console.log(`[DEBUG] sendNotification - підсумок: знайдено ${chatIds.length} chatIds для типу ${type}`);
       console.log(`[DEBUG] sendNotification - chatIds:`, chatIds);
       
       // Відправляємо повідомлення
