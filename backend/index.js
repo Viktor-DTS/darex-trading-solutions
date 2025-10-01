@@ -3817,6 +3817,57 @@ app.get('/api/test-telegram', async (req, res) => {
   }
 });
 
+// Endpoint для ініціалізації налаштувань сповіщень для всіх користувачів
+app.post('/api/notification-settings/init', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/notification-settings/init - ініціалізація налаштувань сповіщень');
+    
+    // Отримуємо всіх користувачів
+    const users = await User.find({});
+    console.log(`[DEBUG] Знайдено ${users.length} користувачів для ініціалізації`);
+    
+    let updatedCount = 0;
+    
+    for (const user of users) {
+      // Перевіряємо, чи є вже налаштування
+      if (!user.notificationSettings) {
+        // Встановлюємо налаштування за замовчуванням
+        user.notificationSettings = {
+          newRequests: false,
+          completedRequests: false,
+          pendingApproval: false,
+          approvedRequests: false,
+          rejectedRequests: false,
+          invoiceRequests: false,
+          completedInvoices: false,
+          systemNotifications: false
+        };
+        
+        // Для бухгалтерів встановлюємо сповіщення про рахунки за замовчуванням
+        if (user.role === 'buhgalteria' || user.role === 'accountant') {
+          user.notificationSettings.invoiceRequests = true;
+          user.notificationSettings.completedInvoices = true;
+        }
+        
+        await user.save();
+        updatedCount++;
+        console.log(`[DEBUG] Оновлено налаштування для користувача: ${user.login}`);
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Ініціалізовано налаштування для ${updatedCount} користувачів`,
+      updatedCount,
+      totalUsers: users.length
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] POST /api/notification-settings/init - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // API для отримання користувачів з Telegram Chat ID для сповіщень
 app.get('/api/users/with-telegram', async (req, res) => {
   try {
@@ -3851,7 +3902,33 @@ app.get('/api/users/with-telegram', async (req, res) => {
 // API для отримання списку користувачів
 app.get('/api/users', async (req, res) => {
   try {
-    const users = await executeWithRetry(() => User.find({}, 'login password name role region telegramChatId'));
+    const users = await executeWithRetry(() => User.find({}, 'login password name role region telegramChatId notificationSettings'));
+    
+    // Перевіряємо та ініціалізуємо налаштування сповіщень для користувачів, які їх не мають
+    for (const user of users) {
+      if (!user.notificationSettings) {
+        user.notificationSettings = {
+          newRequests: false,
+          completedRequests: false,
+          pendingApproval: false,
+          approvedRequests: false,
+          rejectedRequests: false,
+          invoiceRequests: false,
+          completedInvoices: false,
+          systemNotifications: false
+        };
+        
+        // Для бухгалтерів встановлюємо сповіщення про рахунки за замовчуванням
+        if (user.role === 'buhgalteria' || user.role === 'accountant') {
+          user.notificationSettings.invoiceRequests = true;
+          user.notificationSettings.completedInvoices = true;
+        }
+        
+        await user.save();
+        console.log(`[DEBUG] Ініціалізовано налаштування для користувача: ${user.login}`);
+      }
+    }
+    
     res.json(users);
   } catch (error) {
     console.error('[ERROR] GET /api/users - помилка:', error);
