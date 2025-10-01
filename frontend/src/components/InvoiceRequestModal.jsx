@@ -11,10 +11,7 @@ const InvoiceRequestModal = ({
     companyName: task?.client || '',
     edrpou: task?.edrpou || '',
     address: task?.address || '',
-    bankDetails: '',
-    contactPerson: '',
-    phone: '',
-    email: '',
+    bankDetails: task?.invoiceRecipientDetails || '',
     comments: ''
   });
   const [loading, setLoading] = useState(false);
@@ -47,28 +44,6 @@ const InvoiceRequestModal = ({
       newErrors.edrpou = 'ЄДРПОУ обов\'язковий';
     } else if (!/^\d{8}$/.test(formData.edrpou.trim())) {
       newErrors.edrpou = 'ЄДРПОУ повинен містити 8 цифр';
-    }
-    
-    if (!formData.address.trim()) {
-      newErrors.address = 'Адреса обов\'язкова';
-    }
-    
-    if (!formData.bankDetails.trim()) {
-      newErrors.bankDetails = 'Банківські реквізити обов\'язкові';
-    }
-    
-    if (!formData.contactPerson.trim()) {
-      newErrors.contactPerson = 'Контактна особа обов\'язкова';
-    }
-    
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Телефон обов\'язковий';
-    } else if (!/^[\+]?[0-9\s\-\(\)]{10,}$/.test(formData.phone.trim())) {
-      newErrors.phone = 'Невірний формат телефону';
-    }
-    
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Невірний формат email';
     }
     
     setErrors(newErrors);
@@ -215,10 +190,10 @@ const InvoiceRequestModal = ({
               )}
             </div>
 
-            {/* Адреса */}
+            {/* Юридична адреса */}
             <div>
               <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#333' }}>
-                Адреса *
+                Юридична адреса компанії
               </label>
               <textarea
                 name="address"
@@ -227,25 +202,20 @@ const InvoiceRequestModal = ({
                 style={{
                   width: '100%',
                   padding: '10px',
-                  border: `1px solid ${errors.address ? '#dc3545' : '#ddd'}`,
+                  border: '1px solid #ddd',
                   borderRadius: '4px',
                   fontSize: '14px',
                   minHeight: '60px',
                   resize: 'vertical'
                 }}
-                placeholder="Введіть повну адресу компанії"
+                placeholder="Введіть повну юридичну адресу компанії"
               />
-              {errors.address && (
-                <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '4px' }}>
-                  {errors.address}
-                </div>
-              )}
             </div>
 
-            {/* Банківські реквізити */}
+            {/* Реквізити отримувача рахунку в паперовому вигляді */}
             <div>
               <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#333' }}>
-                Банківські реквізити *
+                Реквізити отримувача рахунку в паперовому вигляді
               </label>
               <textarea
                 name="bankDetails"
@@ -254,97 +224,14 @@ const InvoiceRequestModal = ({
                 style={{
                   width: '100%',
                   padding: '10px',
-                  border: `1px solid ${errors.bankDetails ? '#dc3545' : '#ddd'}`,
+                  border: '1px solid #ddd',
                   borderRadius: '4px',
                   fontSize: '14px',
                   minHeight: '80px',
                   resize: 'vertical'
                 }}
-                placeholder="Назва банку, IBAN, МФО тощо"
+                placeholder="ПІБ, контактний телефон, місто, номер відділення Нової Пошти тощо"
               />
-              {errors.bankDetails && (
-                <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '4px' }}>
-                  {errors.bankDetails}
-                </div>
-              )}
-            </div>
-
-            {/* Контактна особа */}
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#333' }}>
-                Контактна особа *
-              </label>
-              <input
-                type="text"
-                name="contactPerson"
-                value={formData.contactPerson}
-                onChange={handleChange}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  border: `1px solid ${errors.contactPerson ? '#dc3545' : '#ddd'}`,
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
-                placeholder="ПІБ контактної особи"
-              />
-              {errors.contactPerson && (
-                <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '4px' }}>
-                  {errors.contactPerson}
-                </div>
-              )}
-            </div>
-
-            {/* Телефон */}
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#333' }}>
-                Телефон *
-              </label>
-              <input
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  border: `1px solid ${errors.phone ? '#dc3545' : '#ddd'}`,
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
-                placeholder="+380501234567"
-              />
-              {errors.phone && (
-                <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '4px' }}>
-                  {errors.phone}
-                </div>
-              )}
-            </div>
-
-            {/* Email */}
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#333' }}>
-                Email
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  border: `1px solid ${errors.email ? '#dc3545' : '#ddd'}`,
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
-                placeholder="example@company.com"
-              />
-              {errors.email && (
-                <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '4px' }}>
-                  {errors.email}
-                </div>
-              )}
             </div>
 
             {/* Коментарі */}
