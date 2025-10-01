@@ -3909,6 +3909,43 @@ app.get('/api/notification-settings/debug', async (req, res) => {
   }
 });
 
+// Тестовий endpoint для відправки тестового сповіщення
+app.post('/api/notification-settings/test-send', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/notification-settings/test-send - тестова відправка сповіщення');
+    
+    const { type = 'invoice_requested' } = req.body;
+    
+    // Створюємо тестові дані
+    const testData = {
+      companyName: 'Тестова компанія',
+      edrpou: '12345678',
+      requesterName: 'Тестовий користувач',
+      taskId: 'test-task-123',
+      requestNumber: 'TEST-001'
+    };
+    
+    console.log(`[DEBUG] Відправляємо тестове сповіщення типу: ${type}`);
+    
+    // Використовуємо існуючий сервіс
+    const telegramService = new TelegramNotificationService();
+    const result = await telegramService.sendNotification(type, testData);
+    
+    console.log(`[DEBUG] Результат відправки: ${result}`);
+    
+    res.json({ 
+      success: result, 
+      message: `Тестове сповіщення ${result ? 'відправлено' : 'не відправлено'}`,
+      type,
+      testData
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] POST /api/notification-settings/test-send - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // API для отримання користувачів з Telegram Chat ID для сповіщень
 app.get('/api/users/with-telegram', async (req, res) => {
   try {
