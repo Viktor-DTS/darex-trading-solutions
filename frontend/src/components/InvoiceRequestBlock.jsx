@@ -91,22 +91,30 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
   };
 
   // Функція для завантаження файлу рахунку
-  const downloadInvoiceFile = (e) => {
+  const downloadInvoiceFile = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (!invoiceRequest?.invoiceFile) return;
     
     try {
+      // Завантажуємо файл через fetch для правильного завантаження
+      const response = await fetch(invoiceRequest.invoiceFile);
+      const blob = await response.blob();
+      
+      // Створюємо URL для blob
+      const url = window.URL.createObjectURL(blob);
+      
       // Створюємо тимчасовий елемент <a> для завантаження
       const link = document.createElement('a');
-      link.href = invoiceRequest.invoiceFile;
+      link.href = url;
       link.download = invoiceRequest.invoiceFileName || 'invoice.pdf';
-      link.target = '_blank';
+      // НЕ додаємо target='_blank' для завантаження
       document.body.appendChild(link);
       link.click();
       
       // Очищаємо
       document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Помилка завантаження файлу:', error);
       alert('Помилка завантаження файлу');
