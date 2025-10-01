@@ -3519,6 +3519,62 @@ class TelegramNotificationService {
       return [];
     }
   }
+
+  // Метод для відправки сповіщень про запити на рахунки
+  async sendNotification(type, data) {
+    try {
+      let message = '';
+      
+      switch (type) {
+        case 'invoice_requested':
+          message = `📄 <b>Новий запит на рахунок</b>\n\n` +
+                   `🏢 <b>Компанія:</b> ${data.companyName}\n` +
+                   `🏛️ <b>ЄДРПОУ:</b> ${data.edrpou}\n` +
+                   `👤 <b>Запитувач:</b> ${data.requesterName}\n` +
+                   `📋 <b>ID заявки:</b> ${data.taskId}\n\n` +
+                   `⏳ <b>Очікує обробки бухгалтером</b>`;
+          break;
+          
+        case 'invoice_completed':
+          message = `✅ <b>Рахунок готовий</b>\n\n` +
+                   `🏢 <b>Компанія:</b> ${data.companyName}\n` +
+                   `📋 <b>ID заявки:</b> ${data.taskId}\n` +
+                   `👤 <b>Для користувача:</b> ${data.requesterId}\n\n` +
+                   `📥 <b>Файл рахунку завантажено</b>\n` +
+                   `💡 <b>Можете завантажити файл в системі</b>`;
+          break;
+          
+        default:
+          console.log(`[DEBUG] Unknown notification type: ${type}`);
+          return false;
+      }
+      
+      // Отримуємо chat IDs для бухгалтерів
+      const globalSettings = await GlobalNotificationSettings.findOne();
+      const chatIds = [];
+      
+      if (globalSettings?.settings?.[type]) {
+        const userIds = globalSettings.settings[type];
+        if (userIds && userIds.length > 0) {
+          const users = await User.find({ login: { $in: userIds } });
+          const userChatIds = users
+            .filter(user => user.telegramChatId && user.telegramChatId.trim())
+            .map(user => user.telegramChatId);
+          chatIds.push(...userChatIds);
+        }
+      }
+      
+      // Відправляємо повідомлення
+      for (const chatId of chatIds) {
+        await this.sendMessage(chatId, message);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Помилка відправки сповіщення:', error);
+      return false;
+    }
+  }
 }
 
 // Створюємо екземпляр сервісу
