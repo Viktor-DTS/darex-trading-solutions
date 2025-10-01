@@ -79,5 +79,24 @@ export const tasksAPI = {
       console.error('[ERROR] tasksAPI.remove - виняток:', error);
       throw error;
     }
+  },
+  async getById(id) {
+    if (!id || id === undefined || id === null) {
+      console.error('[ERROR] tasksAPI.getById - ID заявки не може бути порожнім:', { id });
+      throw new Error('ID заявки не може бути порожнім');
+    }
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${id}`);
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('[ERROR] tasksAPI.getById - помилка сервера:', errorText);
+        throw new Error(`Помилка завантаження заявки: ${res.status} ${res.statusText}`);
+      }
+      const result = await res.json();
+      return result;
+    } catch (error) {
+      console.error('[ERROR] tasksAPI.getById - виняток:', error);
+      throw error;
+    }
   }
 }; 
