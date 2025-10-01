@@ -3037,8 +3037,15 @@ ${message}
 
 // ===== API ENDPOINTS ДЛЯ ЗАПИТІВ НА РАХУНКИ =====
 
+// Тестовий endpoint
+app.post('/api/invoice-requests/test', (req, res) => {
+  console.log('[DEBUG] POST /api/invoice-requests/test - тестовий endpoint викликано');
+  res.json({ success: true, message: 'Тестовий endpoint працює' });
+});
+
 // Створення запиту на рахунок
 app.post('/api/invoice-requests', async (req, res) => {
+  console.log('[DEBUG] POST /api/invoice-requests - endpoint викликано');
   try {
     console.log('[DEBUG] POST /api/invoice-requests - отримано запит:', JSON.stringify(req.body, null, 2));
     const { taskId, requesterId, requesterName, companyDetails } = req.body;
@@ -3119,7 +3126,8 @@ app.post('/api/invoice-requests', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Помилка створення запиту на рахунок:', error);
+    console.error('[ERROR] POST /api/invoice-requests - помилка:', error);
+    console.error('[ERROR] POST /api/invoice-requests - stack trace:', error.stack);
     res.status(500).json({ 
       success: false, 
       message: 'Помилка створення запиту на рахунок',
