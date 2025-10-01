@@ -79,10 +79,37 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
     }
   };
 
-  // Функція для завантаження файлу рахунку
-  const downloadInvoiceFile = () => {
+  // Функція для перегляду файлу рахунку
+  const viewInvoiceFile = () => {
     if (invoiceRequest?.invoiceFile) {
       window.open(invoiceRequest.invoiceFile, '_blank');
+    }
+  };
+
+  // Функція для завантаження файлу рахунку
+  const downloadInvoiceFile = async () => {
+    if (!invoiceRequest?.invoiceFile) return;
+    
+    try {
+      const response = await fetch(invoiceRequest.invoiceFile);
+      const blob = await response.blob();
+      
+      // Створюємо URL для blob
+      const url = window.URL.createObjectURL(blob);
+      
+      // Створюємо тимчасовий елемент <a> для завантаження
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = invoiceRequest.invoiceFileName || 'invoice.pdf';
+      document.body.appendChild(link);
+      link.click();
+      
+      // Очищаємо
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Помилка завантаження файлу:', error);
+      alert('Помилка завантаження файлу');
     }
   };
 
@@ -169,21 +196,38 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                   <strong style={{ color: '#000' }}>📄 Файл рахунку:</strong> 
                   <span style={{ color: '#000', marginLeft: '8px' }}>{invoiceRequest.invoiceFileName}</span>
                 </div>
-                <button 
-                  onClick={downloadInvoiceFile}
-                  style={{
-                    padding: '8px 16px',
-                    backgroundColor: '#28a745',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '600'
-                  }}
-                >
-                  📥 Завантажити файл
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    onClick={viewInvoiceFile}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#17a2b8',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600'
+                    }}
+                  >
+                    👁️ Переглянути файл
+                  </button>
+                  <button 
+                    onClick={downloadInvoiceFile}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#28a745',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600'
+                    }}
+                  >
+                    📥 Завантажити файл
+                  </button>
+                </div>
               </div>
             )}
 
