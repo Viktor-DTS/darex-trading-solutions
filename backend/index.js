@@ -3742,7 +3742,7 @@ app.get('/api/users/with-telegram', async (req, res) => {
 // API для отримання списку користувачів
 app.get('/api/users', async (req, res) => {
   try {
-    const users = await executeWithRetry(() => User.find({}, 'login name role region telegramChatId'));
+    const users = await executeWithRetry(() => User.find({}, 'login password name role region telegramChatId'));
     res.json(users);
   } catch (error) {
     console.error('[ERROR] GET /api/users - помилка:', error);

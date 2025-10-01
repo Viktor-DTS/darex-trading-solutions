@@ -662,17 +662,28 @@ function AdminSystemParamsArea({ user }) {
   const handlePasswordSave = async (userId, password) => {
     try {
       const user = users.find(u => u.id === userId);
-      if (!user) return;
+      if (!user) {
+        console.error('Користувача не знайдено для ID:', userId);
+        return;
+      }
+      console.log('Зберігаємо пароль для користувача:', user.login, 'новий пароль:', password);
       const updatedUser = { ...user, password };
       const success = await columnsSettingsAPI.saveUser(updatedUser);
       if (success) {
-        console.log('Пароль успішно збережено');
+        console.log('Пароль успішно збережено для:', user.login);
+        // Оновлюємо локальний стан
+        setUsers(users.map(u => 
+          u.id === userId 
+            ? { ...u, password } 
+            : u
+        ));
       } else {
+        console.error('Помилка збереження пароля для:', user.login);
         alert('Помилка збереження пароля');
       }
     } catch (error) {
       console.error('Помилка збереження пароля:', error);
-      alert('Помилка збереження пароля');
+      alert('Помилка збереження пароля: ' + error.message);
     }
   };
   const handleSaveEdit = async (e) => {
