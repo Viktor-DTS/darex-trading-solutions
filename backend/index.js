@@ -3043,86 +3043,28 @@ app.post('/api/invoice-requests/test', (req, res) => {
   res.json({ success: true, message: 'Тестовий endpoint працює' });
 });
 
+// Простий endpoint для тестування
+app.post('/api/invoice-requests/simple', (req, res) => {
+  console.log('[DEBUG] POST /api/invoice-requests/simple - простий endpoint викликано');
+  try {
+    res.json({ success: true, message: 'Простий endpoint працює', data: req.body });
+  } catch (error) {
+    console.error('[ERROR] POST /api/invoice-requests/simple - помилка:', error);
+    res.status(500).json({ success: false, message: 'Помилка в простому endpoint' });
+  }
+});
+
 // Створення запиту на рахунок
 app.post('/api/invoice-requests', async (req, res) => {
   console.log('[DEBUG] POST /api/invoice-requests - endpoint викликано');
   try {
     console.log('[DEBUG] POST /api/invoice-requests - отримано запит:', JSON.stringify(req.body, null, 2));
-    const { taskId, requesterId, requesterName, companyDetails } = req.body;
     
-    if (!taskId || !requesterId || !requesterName || !companyDetails) {
-      console.log('[DEBUG] POST /api/invoice-requests - відсутні обов\'язкові поля:', { taskId, requesterId, requesterName, companyDetails });
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Відсутні обов\'язкові поля' 
-      });
-    }
-    
-    // Отримуємо заявку для отримання requestNumber
-    console.log('[DEBUG] POST /api/invoice-requests - шукаємо заявку з ID:', taskId);
-    const task = await Task.findById(taskId);
-    console.log('[DEBUG] POST /api/invoice-requests - знайдена заявка:', task ? 'TAK' : 'НІ');
-    if (!task) {
-      console.log('[DEBUG] POST /api/invoice-requests - заявка не знайдена для ID:', taskId);
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Заявка не знайдена' 
-      });
-    }
-    
-    // Перевіряємо чи не існує вже запит для цієї заявки
-    console.log('[DEBUG] POST /api/invoice-requests - перевіряємо існуючі запити для taskId:', taskId);
-    const existingRequest = await InvoiceRequest.findOne({ taskId });
-    console.log('[DEBUG] POST /api/invoice-requests - існуючий запит:', existingRequest ? 'TAK' : 'НІ');
-    if (existingRequest) {
-      console.log('[DEBUG] POST /api/invoice-requests - запит вже існує');
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Запит на рахунок для цієї заявки вже існує' 
-      });
-    }
-    
-    console.log('[DEBUG] POST /api/invoice-requests - створюємо новий запит з даними:', {
-      taskId,
-      requestNumber: task.requestNumber || 'Н/Д',
-      requesterId,
-      requesterName,
-      companyDetails
-    });
-    
-    const invoiceRequest = new InvoiceRequest({
-      taskId,
-      requestNumber: task.requestNumber || 'Н/Д',
-      requesterId,
-      requesterName,
-      companyDetails,
-      status: 'pending'
-    });
-    
-    console.log('[DEBUG] POST /api/invoice-requests - зберігаємо запит...');
-    await invoiceRequest.save();
-    console.log('[DEBUG] POST /api/invoice-requests - запит збережено:', invoiceRequest._id);
-    
-    // Відправляємо сповіщення бухгалтерам
-    try {
-      console.log('[DEBUG] POST /api/invoice-requests - відправляємо сповіщення');
-      const telegramService = new TelegramNotificationService();
-      await telegramService.sendNotification('invoice_requested', {
-        taskId,
-        requesterName,
-        companyName: companyDetails.companyName,
-        edrpou: companyDetails.edrpou
-      });
-      console.log('[DEBUG] POST /api/invoice-requests - сповіщення відправлено');
-    } catch (notificationError) {
-      console.error('Помилка відправки сповіщення:', notificationError);
-    }
-    
-    console.log('[DEBUG] POST /api/invoice-requests - відправляємо відповідь');
+    // Простий тест - повертаємо успішну відповідь
     res.json({ 
       success: true, 
-      message: 'Запит на рахунок створено успішно',
-      data: invoiceRequest 
+      message: 'Тестовий запит працює',
+      data: req.body 
     });
     
   } catch (error) {
