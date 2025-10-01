@@ -3719,39 +3719,23 @@ class TelegramNotificationService {
           return false;
       }
       
-      // Отримуємо користувачів, які підписані на цей тип сповіщень
+      // Використовуємо стару систему GlobalNotificationSettings (як для заявок)
+      const globalSettings = await GlobalNotificationSettings.findOne();
       const chatIds = [];
       
-      // Визначаємо поле налаштувань для кожного типу сповіщення
-      let settingField = '';
-      switch (type) {
-        case 'invoice_requested':
-          settingField = 'notificationSettings.invoiceRequests';
-          break;
-        case 'invoice_completed':
-          settingField = 'notificationSettings.completedInvoices';
-          break;
-        default:
-          console.log(`[DEBUG] Unknown notification type: ${type}`);
-          return false;
+      if (globalSettings?.settings?.[type]) {
+        const userIds = globalSettings.settings[type];
+        if (userIds && userIds.length > 0) {
+          const users = await User.find({ login: { $in: userIds } });
+          const userChatIds = users
+            .filter(user => user.telegramChatId && user.telegramChatId.trim())
+            .map(user => user.telegramChatId);
+          chatIds.push(...userChatIds);
+        }
       }
       
-      // Знаходимо користувачів, які підписані на цей тип сповіщень
-      const users = await User.find({ 
-        [settingField]: true,
-        telegramChatId: { $exists: true, $ne: '' }
-      });
-      
-      console.log(`[DEBUG] sendNotification - знайдено ${users.length} користувачів для типу ${type}`);
-      console.log(`[DEBUG] sendNotification - settingField: ${settingField}`);
-      console.log(`[DEBUG] sendNotification - користувачі:`, users.map(u => ({ login: u.login, role: u.role, telegramChatId: u.telegramChatId })));
-      
-      const userChatIds = users
-        .filter(user => user.telegramChatId && user.telegramChatId.trim())
-        .map(user => user.telegramChatId);
-      chatIds.push(...userChatIds);
-      
-      console.log(`[DEBUG] sendNotification - chatIds для відправки:`, chatIds);
+      console.log(`[DEBUG] sendNotification - знайдено ${chatIds.length} chatIds для типу ${type}`);
+      console.log(`[DEBUG] sendNotification - chatIds:`, chatIds);
       
       // Відправляємо повідомлення
       for (const chatId of chatIds) {
