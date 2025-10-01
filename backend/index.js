@@ -3583,33 +3583,65 @@ class TelegramNotificationService {
     try {
       const chatIds = [];
       
-      // Отримуємо глобальні налаштування сповіщень
-      const globalSettings = await GlobalNotificationSettings.findOne();
-      
-      if (globalSettings?.settings?.[type]) {
-        // Отримуємо користувачів, які підписані на цей тип сповіщень
-        const userIds = globalSettings.settings[type];
-        
-        if (userIds && userIds.length > 0) {
-          const users = await User.find({ login: { $in: userIds } });
-          
-          // Фільтруємо користувачів по регіону заявки
-          const filteredUsers = users.filter(user => {
-            // Якщо користувач має регіон "Україна", показуємо всі заявки
-            if (user.region === 'Україна') return true;
-            
-            // Інакше показуємо тільки заявки свого регіону
-            return task.serviceRegion === user.region;
-          });
-          
-          console.log(`[DEBUG] Telegram notification filtering - Task region: ${task.serviceRegion}, Users before filter: ${users.length}, After filter: ${filteredUsers.length}`);
-          
-          const userChatIds = filteredUsers
-            .filter(user => user.telegramChatId && user.telegramChatId.trim())
-            .map(user => user.telegramChatId);
-          chatIds.push(...userChatIds);
-        }
+      // Визначаємо поле налаштувань для кожного типу сповіщення
+      let settingField = '';
+      switch (type) {
+        case 'task_created':
+          settingField = 'notificationSettings.newRequests';
+          break;
+        case 'task_completed':
+          settingField = 'notificationSettings.completedRequests';
+          break;
+        case 'task_approval':
+          settingField = 'notificationSettings.pendingApproval';
+          break;
+        case 'task_approved':
+          settingField = 'notificationSettings.approvedRequests';
+          break;
+        case 'task_rejected':
+          settingField = 'notificationSettings.rejectedRequests';
+          break;
+        case 'invoice_requested':
+          settingField = 'notificationSettings.invoiceRequests';
+          break;
+        case 'invoice_completed':
+          settingField = 'notificationSettings.completedInvoices';
+          break;
+        default:
+          console.log(`[DEBUG] Unknown notification type: ${type}`);
+          return [];
       }
+      
+      console.log(`[DEBUG] getChatIdsForNotification - type: ${type}, settingField: ${settingField}`);
+      
+      // Знаходимо користувачів, які підписані на цей тип сповіщень
+      const users = await User.find({ 
+        [settingField]: true,
+        telegramChatId: { $exists: true, $ne: '' }
+      });
+      
+      console.log(`[DEBUG] getChatIdsForNotification - знайдено ${users.length} користувачів для типу ${type}`);
+      
+      // Фільтруємо користувачів по регіону заявки (якщо це заявка)
+      const filteredUsers = users.filter(user => {
+        // Якщо це не заявка (наприклад, сповіщення про рахунки), не фільтруємо по регіону
+        if (!task || !task.serviceRegion) return true;
+        
+        // Якщо користувач має регіон "Україна", показуємо всі заявки
+        if (user.region === 'Україна') return true;
+        
+        // Інакше показуємо тільки заявки свого регіону
+        return task.serviceRegion === user.region;
+      });
+      
+      console.log(`[DEBUG] getChatIdsForNotification - після фільтрації по регіону: ${filteredUsers.length} користувачів`);
+      
+      const userChatIds = filteredUsers
+        .filter(user => user.telegramChatId && user.telegramChatId.trim())
+        .map(user => user.telegramChatId);
+      chatIds.push(...userChatIds);
+      
+      console.log(`[DEBUG] getChatIdsForNotification - chatIds для відправки:`, chatIds);
       
       // Додаємо загальні канали залежно від ролі (для зворотної сумісності)
       if (process.env.TELEGRAM_ADMIN_CHAT_ID) {
