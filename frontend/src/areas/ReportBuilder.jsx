@@ -326,7 +326,7 @@ export default function ReportBuilder({ user }) {
       // Фільтр по статусу затвердження
       if (approvalFilter === 'approved') {
         // Для затверджених - всі повинні бути затверджені
-        if (!isApproved(t.approvedByWarehouse) || !isApproved(t.approvedByAccountant) || !isApproved(t.approvedByRegionalManager)) {
+        if (!isApproved(t.approvedByWarehouse) || !isApproved(t.approvedByAccountant)) {
           return false;
         }
       } else if (approvalFilter === 'not_approved') {
@@ -334,7 +334,7 @@ export default function ReportBuilder({ user }) {
         if (t.status === 'Заблоковані' || t.status === 'Заблоковано') {
           return false;
         }
-        if (isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant) && isApproved(t.approvedByRegionalManager)) {
+        if (isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant)) {
           return false;
         }
       }

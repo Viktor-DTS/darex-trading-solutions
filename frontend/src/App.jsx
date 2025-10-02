@@ -2287,8 +2287,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   !t.date ||
                   !t.bonusApprovalDate ||
                   !isApproved(t.approvedByWarehouse) ||
-                  !isApproved(t.approvedByAccountant) ||
-                  !isApproved(t.approvedByRegionalManager)
+                  !isApproved(t.approvedByAccountant)
                 ) return false;
                 // Фільтрація по регіону - показуємо тільки завдання цього конкретного регіону
                 if (t.serviceRegion !== region) return false;
@@ -2547,12 +2546,12 @@ function RegionalManagerArea({ tab: propTab, user }) {
       // Фільтр по статусу затвердження
       if (exportFilters.approvalFilter === 'approved') {
         // Для затверджених - всі повинні бути затверджені
-        if (!isApproved(t.approvedByWarehouse) || !isApproved(t.approvedByAccountant) || !isApproved(t.approvedByRegionalManager)) {
+        if (!isApproved(t.approvedByWarehouse) || !isApproved(t.approvedByAccountant)) {
           return false;
         }
       } else if (exportFilters.approvalFilter === 'not_approved') {
         // Для незатверджених - хоча б один не затвердив
-        if (isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant) && isApproved(t.approvedByRegionalManager)) {
+        if (isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant)) {
           return false;
         }
       }
@@ -2568,7 +2567,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
       isWarehouseApproved: isApproved(t.approvedByWarehouse),
       isAccountantApproved: isApproved(t.approvedByAccountant),
       isRegionalManagerApproved: isApproved(t.approvedByRegionalManager),
-      isAllApproved: isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant) && isApproved(t.approvedByRegionalManager)
+      isAllApproved: isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant)
     }));
     // Маппінг колонок згідно з вимогами
     const columnMapping = [
