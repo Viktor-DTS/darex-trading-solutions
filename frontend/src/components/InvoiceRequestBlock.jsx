@@ -9,19 +9,26 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
 
   // Функція для завантаження інформації про запит на рахунок
   const loadInvoiceRequest = async () => {
-    if (!task.id) {
-      console.log('DEBUG InvoiceRequestBlock: task.id відсутній', task);
+    console.log('DEBUG InvoiceRequestBlock: loadInvoiceRequest викликано');
+    console.log('DEBUG InvoiceRequestBlock: task =', task);
+    console.log('DEBUG InvoiceRequestBlock: task.id =', task.id);
+    console.log('DEBUG InvoiceRequestBlock: task._id =', task._id);
+    console.log('DEBUG InvoiceRequestBlock: task.requestNumber =', task.requestNumber);
+    
+    if (!task.id && !task._id && !task.requestNumber) {
+      console.log('DEBUG InvoiceRequestBlock: немає ідентифікатора завдання');
       return;
     }
     
-    console.log('DEBUG InvoiceRequestBlock: завантажуємо запит для task.id =', task.id);
+    const taskIdentifier = task.id || task._id || task.requestNumber;
+    console.log('DEBUG InvoiceRequestBlock: використовуємо ідентифікатор =', taskIdentifier);
     
     setLoading(true);
     try {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
         (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests?taskId=${task.id}`);
+      const response = await fetch(`${API_BASE_URL}/invoice-requests?taskId=${taskIdentifier}`);
       if (response.ok) {
         const data = await response.json();
         console.log('DEBUG InvoiceRequestBlock: отримано відповідь', data);
@@ -47,12 +54,14 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
     }
   };
 
-  // Завантажуємо інформацію про запит при зміні task.id
+  // Завантажуємо інформацію про запит при зміні task
   useEffect(() => {
-    if (task.id) {
+    const taskIdentifier = task.id || task._id || task.requestNumber;
+    if (taskIdentifier) {
+      console.log('DEBUG InvoiceRequestBlock: useEffect викликано з taskIdentifier =', taskIdentifier);
       loadInvoiceRequest();
     }
-  }, [task.id]); // Додаємо залежність тільки від task.id
+  }, [task.id, task._id, task.requestNumber]); // Додаємо залежності від всіх можливих ідентифікаторів
 
   // Перевіряємо, чи можна показувати блок
   const canShowBlock = () => {
