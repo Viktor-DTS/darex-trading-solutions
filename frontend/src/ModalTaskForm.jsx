@@ -98,6 +98,8 @@ export const fields = [
   { name: 'approvedByRegionalManager', label: 'Підтвердження регіонального керівника', type: 'select', options: ['На розгляді', 'Підтверджено', 'Відмова'], role: 'regionalManager' },
   { name: 'regionalManagerComment', label: 'Опис відмови (регіональний керівник)', type: 'textarea', role: 'regionalManager' },
   { name: 'comments', label: 'Коментарі', type: 'textarea' },
+  { name: 'needInvoice', label: 'Потрібен рахунок', type: 'checkbox' },
+  { name: 'needAct', label: 'Потрібен акт виконаних робіт', type: 'checkbox' },
   { name: 'airFilterName', label: 'Фільтр повітряний назва', type: 'text' },
   { name: 'airFilterCount', label: 'Фільтр повітряний штук', type: 'text' },
   { name: 'airFilterPrice', label: 'Ціна одного повітряного фільтра', type: 'text' },
@@ -215,6 +217,9 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     if ('approvedByRegionalManager' in f) f.approvedByRegionalManager = toSelectString(f.approvedByRegionalManager);
     // Значення за замовчуванням для компанії
     if (!('company' in f)) f.company = '';
+    // Значення за замовчуванням для чекбоксів
+    if (!('needInvoice' in f)) f.needInvoice = true; // За замовчуванням активний
+    if (!('needAct' in f)) f.needAct = false; // За замовчуванням неактивний
     // Автозаповнення дати
     if (f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
@@ -459,7 +464,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   });
   // --- Додаємо обробник для select з відмовою ---
   const handleChange = e => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     // Спеціальна обробка для поля обладнання
     if (name === 'equipment') {
       setForm({ ...form, [name]: value });
@@ -498,7 +503,12 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       setForm({ ...form, [name]: value, regionalManagerComment: '' });
       return;
     }
-    setForm({ ...form, [name]: value });
+    // Обробка чекбоксів
+    if (type === 'checkbox') {
+      setForm({ ...form, [name]: checked });
+    } else {
+      setForm({ ...form, [name]: value });
+    }
   };
   // --- Обробник вибору обладнання з автодоповнення ---
   const handleEquipmentSelect = (equipmentType) => {
@@ -897,6 +907,18 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                           rows={4}
                           style={{ width: '100%', minHeight: '80px', resize: 'vertical' }}
                         />
+                      ) : f.type === 'checkbox' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input 
+                            type="checkbox" 
+                            name={f.name} 
+                            checked={form[f.name] || false} 
+                            onChange={handleChange} 
+                            readOnly={isReadOnly(f.name)}
+                            style={{ margin: 0 }}
+                          />
+                          <span style={{ fontSize: '14px', color: '#333' }}>{f.label}</span>
+                        </div>
                       ) : (
                         <input type={f.type} name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} />
                       )}

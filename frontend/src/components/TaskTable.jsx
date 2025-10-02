@@ -1788,7 +1788,37 @@ function TaskTableComponent({
                       col.key === 'approvedByRegionalManager' ? (t.approvedByRegionalManager === 'Підтверджено' ? 'Підтверджено' : t.approvedByRegionalManager === 'Відмова' ? 'Відхилено' : 'На розгляді') :
                       t[col.key]
                     }</td>)}
-                    <td style={getRowColor(t) ? {color:'#111'} : {}}>{t.status}</td>
+                    <td style={getRowColor(t) ? {color:'#111'} : {}}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span>{t.status}</span>
+                        {t.needInvoice && (
+                          <span style={{ 
+                            fontSize: '10px', 
+                            color: '#28a745', 
+                            fontWeight: 'bold',
+                            background: '#d4edda',
+                            padding: '2px 4px',
+                            borderRadius: '3px',
+                            display: 'inline-block'
+                          }}>
+                            📄 Потрібен рахунок
+                          </span>
+                        )}
+                        {t.needAct && (
+                          <span style={{ 
+                            fontSize: '10px', 
+                            color: '#17a2b8', 
+                            fontWeight: 'bold',
+                            background: '#d1ecf1',
+                            padding: '2px 4px',
+                            borderRadius: '3px',
+                            display: 'inline-block'
+                          }}>
+                            📋 Потрібен акт
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     {(role === 'admin' || user?.role === 'administrator') && <td style={getRowColor(t) ? {color:'#111'} : {}}>
                       {(t.bonusApprovalDate || '')}
                       <button style={{marginLeft:8}} onClick={() => {
