@@ -252,12 +252,14 @@ export default function AccountantArea({ user }) {
   // Функція для завантаження інформації про заявку
   const loadTaskInfo = async (taskId) => {
     try {
+      console.log('[DEBUG] loadTaskInfo - taskId:', taskId);
       const task = await tasksAPI.getById(taskId);
+      console.log('[DEBUG] loadTaskInfo - отримана заявка:', task);
       setSelectedTaskInfo(task);
       setTaskInfoModalOpen(true);
     } catch (error) {
       console.error('Помилка завантаження інформації про заявку:', error);
-      alert('Помилка завантаження інформації про заявку');
+      alert('Помилка завантаження інформації про заявку: ' + error.message);
     }
   };
   

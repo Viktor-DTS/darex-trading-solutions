@@ -341,6 +341,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
               e.preventDefault();
               e.stopPropagation();
               const formData = new FormData(e.target);
+              console.log('[DEBUG] InvoiceRequestBlock - task.id:', task.id);
               const invoiceData = {
                 taskId: task.id,
                 requesterId: user.login,
@@ -471,6 +472,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                     e.stopPropagation();
                     const form = e.target.closest('form');
                     const formData = new FormData(form);
+                    console.log('[DEBUG] InvoiceRequestBlock (2) - task.id:', task.id);
                     const invoiceData = {
                       taskId: task.id,
                       requesterId: user.login,
