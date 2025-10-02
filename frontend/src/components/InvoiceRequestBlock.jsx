@@ -4,6 +4,8 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
   const [showModal, setShowModal] = useState(false);
   const [invoiceRequest, setInvoiceRequest] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [needInvoice, setNeedInvoice] = useState(true); // За замовчуванням активний
+  const [needAct, setNeedAct] = useState(false); // За замовчуванням неактивний
 
   // Функція для завантаження інформації про запит на рахунок
   const loadInvoiceRequest = async () => {
@@ -73,7 +75,13 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
 
   const handleRequest = async (invoiceData) => {
     try {
-      await onRequest(invoiceData);
+      // Додаємо дані чекбоксів до запиту
+      const requestData = {
+        ...invoiceData,
+        needInvoice: needInvoice,
+        needAct: needAct
+      };
+      await onRequest(requestData);
       setShowModal(false);
       // Перезавантажуємо інформацію про запит тільки після створення
       setTimeout(() => {
@@ -397,6 +405,37 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                   style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#000', backgroundColor: '#fff' }}
                   placeholder="ПІБ, контактний телефон, місто, номер відділення Нової Пошти тощо"
                 />
+              </div>
+
+              {/* Чекбокси для вибору типу документів */}
+              <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#f0f0f0', borderRadius: '8px', border: '2px solid #ccc' }}>
+                <h4 style={{ margin: '0 0 16px 0', color: '#000', fontSize: '18px', fontWeight: 'bold' }}>Тип документів:</h4>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #ddd' }}>
+                    <input
+                      type="checkbox"
+                      checked={needInvoice}
+                      onChange={(e) => setNeedInvoice(e.target.checked)}
+                      style={{ margin: 0, width: '20px', height: '20px' }}
+                    />
+                    <span style={{ fontSize: '16px', color: '#000', fontWeight: 'bold' }}>
+                      📄 Потрібен рахунок
+                    </span>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #ddd' }}>
+                    <input
+                      type="checkbox"
+                      checked={needAct}
+                      onChange={(e) => setNeedAct(e.target.checked)}
+                      style={{ margin: 0, width: '20px', height: '20px' }}
+                    />
+                    <span style={{ fontSize: '16px', color: '#000', fontWeight: 'bold' }}>
+                      📋 Потрібен акт виконаних робіт
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <div style={{ marginBottom: '20px' }}>
