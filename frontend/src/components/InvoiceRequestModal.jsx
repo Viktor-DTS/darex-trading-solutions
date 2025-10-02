@@ -14,6 +14,8 @@ const InvoiceRequestModal = ({
     bankDetails: task?.invoiceRecipientDetails || '',
     comments: ''
   });
+  const [needInvoice, setNeedInvoice] = useState(true); // За замовчуванням активний
+  const [needAct, setNeedAct] = useState(false); // За замовчуванням неактивний
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -64,7 +66,9 @@ const InvoiceRequestModal = ({
         requesterId: user.login,
         requesterName: user.name,
         companyDetails: formData,
-        status: 'pending'
+        status: 'pending',
+        needInvoice: needInvoice,
+        needAct: needAct
       });
       onClose();
     } catch (error) {
@@ -108,8 +112,8 @@ const InvoiceRequestModal = ({
           paddingBottom: '16px',
           borderBottom: '1px solid #e0e0e0'
         }}>
-          <h2 style={{ margin: 0, color: '#333' }}>
-            📄 Запит на рахунок
+          <h2 style={{ margin: 0, color: '#000' }}>
+            📄 Запит на рахунок для заявки №{task?.requestNumber || 'Н/Д'}
           </h2>
           <button
             onClick={onClose}
@@ -254,6 +258,37 @@ const InvoiceRequestModal = ({
                 }}
                 placeholder="Додаткова інформація для бухгалтера"
               />
+            </div>
+
+            {/* Чекбокси для вибору типу документів */}
+            <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
+              <h4 style={{ margin: '0 0 12px 0', color: '#333', fontSize: '16px' }}>Тип документів:</h4>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={needInvoice}
+                    onChange={(e) => setNeedInvoice(e.target.checked)}
+                    style={{ margin: 0, transform: 'scale(1.2)' }}
+                  />
+                  <span style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>
+                    📄 Потрібен рахунок
+                  </span>
+                </label>
+                
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={needAct}
+                    onChange={(e) => setNeedAct(e.target.checked)}
+                    style={{ margin: 0, transform: 'scale(1.2)' }}
+                  />
+                  <span style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>
+                    📋 Потрібен акт виконаних робіт
+                  </span>
+                </label>
+              </div>
             </div>
           </div>
 

@@ -200,6 +200,8 @@ const invoiceRequestSchema = new mongoose.Schema({
     bankDetails: { type: String, default: '' },
     comments: { type: String, default: '' }
   },
+  needInvoice: { type: Boolean, default: true },
+  needAct: { type: Boolean, default: false },
   status: { 
     type: String, 
     enum: ['pending', 'processing', 'completed', 'rejected'], 
@@ -3076,7 +3078,7 @@ app.post('/api/invoice-requests', async (req, res) => {
   try {
     console.log('[DEBUG] POST /api/invoice-requests - отримано запит:', JSON.stringify(req.body, null, 2));
     
-    const { taskId, requesterId, requesterName, companyDetails, status } = req.body;
+    const { taskId, requesterId, requesterName, companyDetails, status, needInvoice, needAct } = req.body;
     
     // Валідація обов'язкових полів
     if (!taskId) {
@@ -3140,6 +3142,8 @@ app.post('/api/invoice-requests', async (req, res) => {
       companyDetails,
       status: status || 'pending',
       requestNumber,
+      needInvoice: needInvoice !== undefined ? needInvoice : true,
+      needAct: needAct !== undefined ? needAct : false,
       createdAt: new Date()
     });
     

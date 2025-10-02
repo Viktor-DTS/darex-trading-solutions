@@ -1079,6 +1079,58 @@ export default function AccountantArea({ user }) {
                         {request.companyDetails.email && (
                           <div style={{ gridColumn: '1 / -1' }}><strong>Email:</strong> {request.companyDetails.email}</div>
                         )}
+                      </div>
+                    </div>
+                    
+                    {/* Відображення типу документів */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <h5 style={{ margin: '0 0 8px 0', color: '#333' }}>Тип документів:</h5>
+                      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                        {request.needInvoice && (
+                          <span style={{ 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '4px',
+                            padding: '4px 8px',
+                            backgroundColor: '#d4edda',
+                            color: '#28a745',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            fontWeight: 'bold'
+                          }}>
+                            📄 Потрібен рахунок
+                          </span>
+                        )}
+                        {request.needAct && (
+                          <span style={{ 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '4px',
+                            padding: '4px 8px',
+                            backgroundColor: '#d1ecf1',
+                            color: '#17a2b8',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            fontWeight: 'bold'
+                          }}>
+                            📋 Потрібен акт виконаних робіт
+                          </span>
+                        )}
+                        {!request.needInvoice && !request.needAct && (
+                          <span style={{ 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '4px',
+                            padding: '4px 8px',
+                            backgroundColor: '#f8d7da',
+                            color: '#721c24',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            fontWeight: 'bold'
+                          }}>
+                            ⚠️ Тип документів не вказано
+                          </span>
+                        )}
                         {request.companyDetails.comments && (
                           <div style={{ gridColumn: '1 / -1' }}><strong>Коментарі:</strong> {request.companyDetails.comments}</div>
                         )}
