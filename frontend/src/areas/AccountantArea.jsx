@@ -253,8 +253,25 @@ export default function AccountantArea({ user }) {
   const loadTaskInfo = async (taskId) => {
     try {
       console.log('[DEBUG] loadTaskInfo - taskId:', taskId);
-      const task = await tasksAPI.getById(taskId);
-      console.log('[DEBUG] loadTaskInfo - отримана заявка:', task);
+      
+      // Спочатку спробуємо знайти заявку за ID
+      let task;
+      try {
+        task = await tasksAPI.getById(taskId);
+        console.log('[DEBUG] loadTaskInfo - знайдено за ID:', task);
+      } catch (idError) {
+        console.log('[DEBUG] loadTaskInfo - не знайдено за ID, шукаємо в локальних заявках');
+        
+        // Якщо не знайдено за ID, шукаємо в локальних заявках
+        const localTask = tasks.find(t => t.id === taskId || t._id === taskId || t.requestNumber === taskId);
+        if (localTask) {
+          task = localTask;
+          console.log('[DEBUG] loadTaskInfo - знайдено в локальних заявках:', task);
+        } else {
+          throw new Error('Заявка не знайдена');
+        }
+      }
+      
       setSelectedTaskInfo(task);
       setTaskInfoModalOpen(true);
     } catch (error) {
