@@ -3204,14 +3204,19 @@ app.post('/api/invoice-requests', async (req, res) => {
 // Отримання списку запитів на рахунки
 app.get('/api/invoice-requests', async (req, res) => {
   try {
-    const { status, requesterId, taskId } = req.query;
+    const { status, requesterId, taskId, showAll } = req.query;
     
-    console.log('DEBUG GET /api/invoice-requests:', { status, requesterId, taskId });
+    console.log('DEBUG GET /api/invoice-requests:', { status, requesterId, taskId, showAll });
     
     let filter = {};
     if (status) filter.status = status;
     if (requesterId) filter.requesterId = requesterId;
     if (taskId) filter.taskId = taskId;
+    
+    // Якщо showAll не true, показуємо тільки актуальні (не виконані) заявки
+    if (showAll !== 'true' && !status) {
+      filter.status = { $ne: 'completed' };
+    }
     
     console.log('DEBUG filter:', filter);
     
@@ -3232,6 +3237,56 @@ app.get('/api/invoice-requests', async (req, res) => {
       success: false, 
       message: 'Помилка отримання запитів на рахунки',
       error: error.message 
+    });
+  }
+});
+
+// Видалення запиту на рахунок
+app.delete('/api/invoice-requests/:id', async (req, res) => {
+  try {
+    const requestId = req.params.id;
+    
+    // Знаходимо запит
+    const request = await InvoiceRequest.findById(requestId);
+    if (!request) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Запит на рахунок не знайдено' 
+      });
+    }
+    
+    // Перевіряємо, чи можна видалити (тільки виконані без файлів)
+    if (request.status !== 'completed') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Можна видаляти тільки виконані заявки' 
+      });
+    }
+    
+    if (request.invoiceFile) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Не можна видалити заявку з завантаженим файлом' 
+      });
+    }
+    
+    // Видаляємо запит
+    await InvoiceRequest.findByIdAndDelete(requestId);
+    
+    // Оновлюємо заявку (знімаємо позначку про запит на рахунок)
+    await Task.findByIdAndUpdate(request.taskId, {
+      $unset: { invoiceRequested: 1 }
+    });
+    
+    res.json({
+      success: true,
+      message: 'Запит на рахунок успішно видалено'
+    });
+  } catch (error) {
+    console.error('Помилка видалення запиту на рахунок:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка видалення запиту на рахунок' 
     });
   }
 });

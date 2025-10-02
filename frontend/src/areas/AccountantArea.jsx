@@ -82,6 +82,7 @@ export default function AccountantArea({ user }) {
   const [reportsModalOpen, setReportsModalOpen] = useState(false);
   const [taskInfoModalOpen, setTaskInfoModalOpen] = useState(false);
   const [selectedTaskInfo, setSelectedTaskInfo] = useState(null);
+  const [showAllInvoices, setShowAllInvoices] = useState(false);
   const region = user?.region || '';
   
   // Функція для завантаження запитів на рахунки
@@ -91,7 +92,11 @@ export default function AccountantArea({ user }) {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
         (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests`);
+      const url = showAllInvoices 
+        ? `${API_BASE_URL}/invoice-requests?showAll=true`
+        : `${API_BASE_URL}/invoice-requests`;
+        
+      const response = await fetch(url);
       if (response.ok) {
         const result = await response.json();
         setInvoiceRequests(result.data || []);
@@ -102,6 +107,34 @@ export default function AccountantArea({ user }) {
       console.error('Помилка завантаження запитів на рахунки:', error);
     } finally {
       setInvoiceRequestsLoading(false);
+    }
+  };
+  
+  // Функція для видалення запиту на рахунок
+  const deleteInvoiceRequest = async (requestId) => {
+    if (!window.confirm('Ви впевнені, що хочете видалити цей запит на рахунок?')) {
+      return;
+    }
+    
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      
+      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        // Видаляємо з локального стану
+        setInvoiceRequests(prev => prev.filter(req => req._id !== requestId));
+        alert('Запит на рахунок успішно видалено');
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Помилка видалення запиту');
+      }
+    } catch (error) {
+      console.error('Помилка видалення запиту на рахунок:', error);
+      alert(`Помилка: ${error.message}`);
     }
   };
   
@@ -263,7 +296,7 @@ export default function AccountantArea({ user }) {
     if (tab === 'invoices') {
       loadInvoiceRequests();
     }
-  }, [tab]);
+  }, [tab, showAllInvoices]);
   // Автоматичне оновлення даних при фокусі на вкладку браузера
   useEffect(() => {
     const handleFocus = () => {
@@ -949,7 +982,20 @@ export default function AccountantArea({ user }) {
       {/* Вкладка запитів на рахунки */}
       {tab === 'invoices' ? (
         <div>
-          <h3 style={{ marginBottom: '20px', color: '#333' }}>Запити на рахунки</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ margin: 0, color: '#333' }}>Запити на рахунки</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={showAllInvoices}
+                  onChange={(e) => setShowAllInvoices(e.target.checked)}
+                  style={{ margin: 0 }}
+                />
+                <span style={{ color: '#333', fontSize: '14px' }}>Показати всі заявки (включно з виконаними)</span>
+              </label>
+            </div>
+          </div>
           {invoiceRequestsLoading ? (
             <div style={{ textAlign: 'center', padding: '40px' }}>Завантаження запитів...</div>
           ) : (
@@ -1235,6 +1281,21 @@ export default function AccountantArea({ user }) {
                           }}>
                             Файл було видалено. Можна завантажити новий.
                           </span>
+                          <button
+                            onClick={() => deleteInvoiceRequest(request._id)}
+                            style={{
+                              padding: '6px 12px',
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              marginLeft: '8px'
+                            }}
+                          >
+                            🗑️ Видалити заявку
+                          </button>
                         </div>
                       )}
                     </div>
