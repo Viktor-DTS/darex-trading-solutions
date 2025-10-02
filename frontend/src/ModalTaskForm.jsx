@@ -324,7 +324,15 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   }, [initialData, open]);
   useEffect(() => {
     if (open) {
-      columnsSettingsAPI.getAllUsers().then(setUsers).catch(() => setUsers([]));
+      // Примусово завантажуємо користувачів при відкритті модального вікна
+      columnsSettingsAPI.getAllUsers().then(users => {
+        console.log('[DEBUG] ModalTaskForm - завантажено користувачів:', users.length);
+        setUsers(users);
+      }).catch(error => {
+        console.error('[ERROR] ModalTaskForm - помилка завантаження користувачів:', error);
+        setUsers([]);
+      });
+      
       regionsAPI.getAll().then(setRegions).catch(() => setRegions([]));
     }
   }, [open]);
@@ -373,10 +381,17 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   }, [form.serviceRegion, users]);
   // --- Завантаження користувачів з бази ---
   useEffect(() => {
-    if (open) {
-      columnsSettingsAPI.getAllUsers().then(setUsers).catch(() => setUsers([]));
+    if (open && users.length === 0) {
+      console.log('[DEBUG] ModalTaskForm - користувачі не завантажені, завантажуємо...');
+      columnsSettingsAPI.getAllUsers().then(users => {
+        console.log('[DEBUG] ModalTaskForm - завантажено користувачів (fallback):', users.length);
+        setUsers(users);
+      }).catch(error => {
+        console.error('[ERROR] ModalTaskForm - помилка завантаження користувачів (fallback):', error);
+        setUsers([]);
+      });
     }
-  }, [open]);
+  }, [open, users.length]);
   // --- Завантаження типів обладнання ---
   useEffect(() => {
     if (open) {
@@ -1265,12 +1280,19 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   if (!f) return null;
                   let value = form[f.name] || '';
                   if (n === 'engineer1' || n === 'engineer2') {
+                    // Отримуємо доступних інженерів для поточного регіону
+                    const currentEngineers = users.filter(u => u.role === 'service');
+                    const availableEngineers = currentEngineers.filter(u => {
+                      if (form.serviceRegion === 'Україна') return true;
+                      return u.region === form.serviceRegion;
+                    });
+                    
                     return (
                       <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                         <label>{f.label}</label>
                         <select name={f.name} value={value} onChange={handleChange} disabled={isReadOnly(f.name)}>
-                          <option value="">Виберіть інженера</option>
-                          {serviceEngineers.map(u => (
+                          <option value="">{users.length === 0 ? 'Завантаження інженерів...' : 'Виберіть інженера'}</option>
+                          {availableEngineers.map(u => (
                             <option key={u.id} value={u.name}>{u.name}</option>
                           ))}
                         </select>
