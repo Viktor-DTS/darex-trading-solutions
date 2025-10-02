@@ -1176,8 +1176,7 @@ function ServiceArea({ user }) {
   )), [filtered]);
   const done = useMemo(() => filtered.filter(t => t.status === 'Виконано' && 
     isApproved(t.approvedByWarehouse) && 
-    isApproved(t.approvedByAccountant) && 
-    isApproved(t.approvedByRegionalManager)
+    isApproved(t.approvedByAccountant)
   ), [filtered]);
   const blocked = useMemo(() => filtered.filter(t => t.status === 'Заблоковано'), [filtered]);
   let tableData = notDone;
@@ -1694,7 +1693,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
       next.status === 'Виконано' &&
       (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
       (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true) &&
-      (next.approvedByRegionalManager === 'Підтверджено' || next.approvedByRegionalManager === true)
     ) {
       const d = new Date();
       const currentDay = d.getDate();
@@ -1742,7 +1740,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
       next.status === 'Виконано' &&
       (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
       (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true) &&
-      (next.approvedByRegionalManager === 'Підтверджено' || next.approvedByRegionalManager === true)
     ) {
       const d = new Date();
       const currentDay = d.getDate();
@@ -2210,8 +2207,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
           if (
             t.status === 'Виконано' &&
             isApproved(t.approvedByWarehouse) &&
-            isApproved(t.approvedByAccountant) &&
-            isApproved(t.approvedByRegionalManager)
+            isApproved(t.approvedByAccountant)
           ) {
             let bonusApprovalDate = t.bonusApprovalDate;
             if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
@@ -2392,8 +2388,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
           !t.date ||
           !t.bonusApprovalDate ||
           !isApproved(t.approvedByWarehouse) ||
-          !isApproved(t.approvedByAccountant) ||
-          !isApproved(t.approvedByRegionalManager)
+          !isApproved(t.approvedByAccountant)
         ) return false;
         // Фільтрація по регіону - показуємо тільки завдання цього конкретного регіону
         if (t.serviceRegion !== region) return false;
@@ -3820,7 +3815,7 @@ function AdminEditTasksArea({ user }) {
       approved === 'Підтверджено' &&
       t.status === 'Виконано' &&
       (t.approvedByWarehouse === 'Підтверджено' || t.approvedByWarehouse === true) &&
-      (t.approvedByRegionalManager === 'Підтверджено' || t.approvedByRegionalManager === true)
+      (t.approvedByAccountant === 'Підтверджено' || t.approvedByAccountant === true)
     ) {
       const d = new Date();
       const currentDay = d.getDate();
