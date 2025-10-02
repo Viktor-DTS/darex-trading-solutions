@@ -471,13 +471,12 @@ app.post('/api/fix-bonus-approval-dates', async (req, res) => {
     let skippedCount = 0;
 
     for (const task of tasksWithoutBonusDate) {
-      // Перевіряємо чи заявка підтверджена всіма ролями
+      // Перевіряємо чи заявка підтверджена складом та бухгалтером
       const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
       const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
-      const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
 
-      // Якщо заявка підтверджена всіма ролями, встановлюємо bonusApprovalDate
-      if (isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved && task.workPrice) {
+      // Якщо заявка підтверджена складом та бухгалтером, встановлюємо bonusApprovalDate
+      if (isWarehouseApproved && isAccountantApproved && task.workPrice) {
         // Встановлюємо bonusApprovalDate на поточний місяць
         const now = new Date();
         const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
@@ -494,7 +493,7 @@ app.post('/api/fix-bonus-approval-dates', async (req, res) => {
         console.log(`[DEBUG] Оновлено заявку ${task._id}: bonusApprovalDate = ${bonusApprovalDate}`);
         updatedCount++;
       } else {
-        console.log(`[DEBUG] Пропущено заявку ${task._id}: не підтверджена всіма ролями або немає workPrice`);
+        console.log(`[DEBUG] Пропущено заявку ${task._id}: не підтверджена складом та бухгалтером або немає workPrice`);
         skippedCount++;
       }
     }
@@ -524,12 +523,11 @@ app.post('/api/sync-bonus-approval-dates', async (req, res) => {
       return res.status(503).json({ error: 'Сервер в режимі fallback, операція недоступна' });
     }
 
-    // Знаходимо всі заявки, які підтверджені всіма ролями, але не мають bonusApprovalDate
+    // Знаходимо всі заявки, які підтверджені складом та бухгалтером, але не мають bonusApprovalDate
     const tasksToSync = await executeWithRetry(() =>
       Task.find({
         approvedByWarehouse: 'Підтверджено',
         approvedByAccountant: 'Підтверджено', 
-        approvedByRegionalManager: 'Підтверджено',
         workPrice: { $exists: true, $ne: null, $ne: '' },
         $or: [
           { bonusApprovalDate: { $exists: false } },
@@ -1025,12 +1023,11 @@ app.put('/api/tasks/:id', async (req, res) => {
     const { id, _id, ...updateData } = req.body;
     console.log('[DEBUG] PUT /api/tasks/:id - дані для оновлення (без id та _id):', JSON.stringify(updateData, null, 2));
     
-    // Автоматично встановлюємо bonusApprovalDate, якщо заявка підтверджена всіма ролями
+    // Автоматично встановлюємо bonusApprovalDate, якщо заявка підтверджена складом та бухгалтером
     const isWarehouseApproved = updateData.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === 'Підтверджено';
     const isAccountantApproved = updateData.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === 'Підтверджено';
-    const isRegionalManagerApproved = updateData.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === 'Підтверджено';
     
-    if (isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved && (updateData.workPrice || task.workPrice)) {
+    if (isWarehouseApproved && isAccountantApproved && (updateData.workPrice || task.workPrice)) {
       // Встановлюємо bonusApprovalDate на поточний місяць, якщо його ще немає
       if (!updateData.bonusApprovalDate && !task.bonusApprovalDate) {
         const now = new Date();

@@ -224,8 +224,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     // Автозаповнення дати
     if (f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
-        f.approvedByAccountant === 'Підтверджено' && 
-        f.approvedByRegionalManager === 'Підтверджено') {
+        f.approvedByAccountant === 'Підтверджено') {
       const workDate = f.date;
       if (workDate && isSameMonthAndYear(workDate, getCurrentDate())) {
         f.date = getCurrentDate();
@@ -236,8 +235,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     // Автозаповнення reportMonthYear
     if (f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
-        f.approvedByAccountant === 'Підтверджено' && 
-        f.approvedByRegionalManager === 'Підтверджено') {
+        f.approvedByAccountant === 'Підтверджено') {
       const workDate = f.date;
       const now = new Date();
       if (workDate) {
@@ -288,8 +286,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     // Автозаповнення дати при зміні статусу або підтверджень
     if (f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
-        f.approvedByAccountant === 'Підтверджено' && 
-        f.approvedByRegionalManager === 'Підтверджено') {
+        f.approvedByAccountant === 'Підтверджено') {
       const workDate = f.date;
       if (workDate && isSameMonthAndYear(workDate, getCurrentDate())) {
         f.date = getCurrentDate();
@@ -300,8 +297,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     // Автозаповнення reportMonthYear
     if (f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
-        f.approvedByAccountant === 'Підтверджено' && 
-        f.approvedByRegionalManager === 'Підтверджено') {
+        f.approvedByAccountant === 'Підтверджено') {
       const workDate = f.date;
       const now = new Date();
       if (workDate) {
@@ -426,8 +422,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     if (name === 'date' && 
         form.status === 'Виконано' && 
         form.approvedByWarehouse === 'Підтверджено' && 
-        form.approvedByAccountant === 'Підтверджено' && 
-        form.approvedByRegionalManager === 'Підтверджено') {
+        form.approvedByAccountant === 'Підтверджено') {
       return true;
     }
     // Для оператора поле 'client' (Замовник) завжди доступне для редагування
@@ -573,8 +568,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     if (
       form.status === 'Виконано' &&
       form.approvedByWarehouse === 'Підтверджено' &&
-      form.approvedByAccountant === 'Підтверджено' &&
-      form.approvedByRegionalManager === 'Підтверджено'
+      form.approvedByAccountant === 'Підтверджено'
     ) {
       const d = new Date();
       const currentDay = d.getDate();
@@ -1119,8 +1113,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                     if (
                       form.status === 'Виконано' &&
                       form.approvedByWarehouse === 'Підтверджено' &&
-                      form.approvedByAccountant === 'Підтверджено' &&
-                      form.approvedByRegionalManager === 'Підтверджено'
+                      form.approvedByAccountant === 'Підтверджено'
                     ) {
                       const d = new Date();
                       value = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
@@ -1156,8 +1149,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             if (
               form.status === 'Виконано' &&
               form.approvedByWarehouse === 'Підтверджено' &&
-              form.approvedByAccountant === 'Підтверджено' &&
-              form.approvedByRegionalManager === 'Підтверджено'
+              form.approvedByAccountant === 'Підтверджено'
             ) {
               const d = new Date();
               autoValue = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`; // MM-YYYY

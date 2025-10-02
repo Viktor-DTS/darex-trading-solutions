@@ -323,8 +323,7 @@ export default function AccountantArea({ user }) {
     if (
       next.status === 'Виконано' &&
       (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
-      (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true) &&
-      (next.approvedByRegionalManager === 'Підтверджено' || next.approvedByRegionalManager === true)
+      (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true)
     ) {
       const d = new Date();
       bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
