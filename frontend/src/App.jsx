@@ -1971,8 +1971,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
             if (
               t.status === 'Виконано' &&
               isApproved(t.approvedByWarehouse) &&
-              isApproved(t.approvedByAccountant) &&
-              isApproved(t.approvedByRegionalManager)
+              isApproved(t.approvedByAccountant)
             ) {
               let bonusApprovalDate = t.bonusApprovalDate;
               // Автоконвертація з YYYY-MM-DD у MM-YYYY
