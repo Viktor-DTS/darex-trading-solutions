@@ -239,33 +239,33 @@ const InvoiceRequestModal = ({
             </div>
 
             {/* Чекбокси для вибору типу документів */}
-            <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
-              <h4 style={{ margin: '0 0 12px 0', color: '#333', fontSize: '16px' }}>Тип документів:</h4>
+            <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f0f0f0', borderRadius: '8px', border: '2px solid #ccc' }}>
+              <h4 style={{ margin: '0 0 16px 0', color: '#000', fontSize: '18px', fontWeight: 'bold' }}>Тип документів:</h4>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #ddd' }}>
                   <input
                     type="checkbox"
                     checked={needInvoice}
                     onChange={(e) => setNeedInvoice(e.target.checked)}
-                    style={{ margin: 0, transform: 'scale(1.2)' }}
+                    style={{ margin: 0, width: '20px', height: '20px' }}
                   />
-                  <span style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>
+                  <span style={{ fontSize: '16px', color: '#000', fontWeight: 'bold' }}>
                     📄 Потрібен рахунок
                   </span>
-                </label>
+                </div>
                 
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #ddd' }}>
                   <input
                     type="checkbox"
                     checked={needAct}
                     onChange={(e) => setNeedAct(e.target.checked)}
-                    style={{ margin: 0, transform: 'scale(1.2)' }}
+                    style={{ margin: 0, width: '20px', height: '20px' }}
                   />
-                  <span style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>
+                  <span style={{ fontSize: '16px', color: '#000', fontWeight: 'bold' }}>
                     📋 Потрібен акт виконаних робіт
                   </span>
-                </label>
+                </div>
               </div>
             </div>
 
