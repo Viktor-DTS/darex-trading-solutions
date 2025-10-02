@@ -1083,20 +1083,21 @@ export default function AccountantArea({ user }) {
                     </div>
                     
                     {/* Відображення типу документів */}
-                    <div style={{ marginBottom: '16px' }}>
-                      <h5 style={{ margin: '0 0 8px 0', color: '#333' }}>Тип документів:</h5>
+                    <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #ddd' }}>
+                      <h5 style={{ margin: '0 0 8px 0', color: '#000', fontWeight: 'bold' }}>Тип документів:</h5>
                       <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                         {request.needInvoice && (
                           <span style={{ 
                             display: 'inline-flex', 
                             alignItems: 'center', 
                             gap: '4px',
-                            padding: '4px 8px',
-                            backgroundColor: '#d4edda',
-                            color: '#28a745',
+                            padding: '6px 12px',
+                            backgroundColor: '#e8f5e8',
+                            color: '#000',
                             borderRadius: '4px',
-                            fontSize: '12px',
-                            fontWeight: 'bold'
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            border: '1px solid #28a745'
                           }}>
                             📄 Потрібен рахунок
                           </span>
@@ -1106,12 +1107,13 @@ export default function AccountantArea({ user }) {
                             display: 'inline-flex', 
                             alignItems: 'center', 
                             gap: '4px',
-                            padding: '4px 8px',
-                            backgroundColor: '#d1ecf1',
-                            color: '#17a2b8',
+                            padding: '6px 12px',
+                            backgroundColor: '#e6f3ff',
+                            color: '#000',
                             borderRadius: '4px',
-                            fontSize: '12px',
-                            fontWeight: 'bold'
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            border: '1px solid #17a2b8'
                           }}>
                             📋 Потрібен акт виконаних робіт
                           </span>
@@ -1121,18 +1123,19 @@ export default function AccountantArea({ user }) {
                             display: 'inline-flex', 
                             alignItems: 'center', 
                             gap: '4px',
-                            padding: '4px 8px',
-                            backgroundColor: '#f8d7da',
-                            color: '#721c24',
+                            padding: '6px 12px',
+                            backgroundColor: '#ffe6e6',
+                            color: '#000',
                             borderRadius: '4px',
-                            fontSize: '12px',
-                            fontWeight: 'bold'
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            border: '1px solid #dc3545'
                           }}>
                             ⚠️ Тип документів не вказано
                           </span>
                         )}
                         {request.companyDetails.comments && (
-                          <div style={{ gridColumn: '1 / -1' }}><strong>Коментарі:</strong> {request.companyDetails.comments}</div>
+                          <div style={{ gridColumn: '1 / -1', color: '#000' }}><strong>Коментарі:</strong> {request.companyDetails.comments}</div>
                         )}
                       </div>
                     </div>
