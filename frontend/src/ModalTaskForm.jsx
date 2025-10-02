@@ -52,6 +52,8 @@ export const fields = [
   { name: 'invoiceRecipientDetails', label: 'Реквізити отримувача рахунку в паперовому вигляді', type: 'textarea' },
   { name: 'company', label: 'Компанія виконавець', type: 'select', options: ['', 'ДТС', 'Дарекс Енерго', 'інша'] },
   { name: 'edrpou', label: 'ЄДРПОУ', type: 'text' },
+  { name: 'debtStatus', label: 'Заборгованість по Акти виконаних робіт (орігінали)', type: 'select', options: ['Заборгованість', 'Документи в наявності'], role: 'accountant' },
+  { name: 'debtStatusCheckbox', label: 'Документи в наявності', type: 'checkbox', role: 'accountant' },
   { name: 'requestDesc', label: 'Опис заявки', type: 'textarea' },
   { name: 'serviceRegion', label: 'Регіон сервісного відділу', type: 'select' },
   { name: 'client', label: 'Замовник', type: 'text' },
@@ -221,6 +223,9 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     // Значення за замовчуванням для чекбоксів
     if (!('needInvoice' in f)) f.needInvoice = true; // За замовчуванням активний
     if (!('needAct' in f)) f.needAct = false; // За замовчуванням неактивний
+    // Значення за замовчуванням для заборгованості
+    if (!('debtStatus' in f)) f.debtStatus = 'Заборгованість'; // За замовчуванням заборгованість
+    if (!('debtStatusCheckbox' in f)) f.debtStatusCheckbox = false; // За замовчуванням неактивний
     // Автозаповнення дати
     if (f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
@@ -412,7 +417,21 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       return !(name === 'approvedByWarehouse' || name === 'warehouseComment');
     }
     if (mode === 'accountant') {
-      return !(name === 'approvedByAccountant' || name === 'accountantComment' || name === 'accountantComments');
+      // Бухгалтер має доступ до всіх полів окрім полів складу
+      const warehouseFields = ['approvedByWarehouse', 'warehouseComment'];
+      if (warehouseFields.includes(name)) {
+        return true; // Заблоковано для бухгалтера
+      }
+      
+      // Якщо це режим редагування тільки заборгованості, блокуємо всі поля окрім полів заборгованості
+      if (form._debtEditOnly) {
+        const debtFields = ['debtStatus', 'debtStatusCheckbox'];
+        if (!debtFields.includes(name)) {
+          return true; // Заблоковано всі поля окрім заборгованості
+        }
+      }
+      
+      return false; // Всі інші поля доступні для редагування
     }
     // Адміністратор має доступ до всіх полів
     if (mode === 'admin' || user?.role === 'administrator') {
@@ -502,8 +521,24 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     // Обробка чекбоксів
     if (type === 'checkbox') {
       setForm({ ...form, [name]: checked });
+      // Синхронізація між чекбоксом та селектом для заборгованості
+      if (name === 'debtStatusCheckbox') {
+        setForm({ 
+          ...form, 
+          [name]: checked,
+          debtStatus: checked ? 'Документи в наявності' : 'Заборгованість'
+        });
+      }
     } else {
       setForm({ ...form, [name]: value });
+      // Синхронізація між селектом та чекбоксом для заборгованості
+      if (name === 'debtStatus') {
+        setForm({ 
+          ...form, 
+          [name]: value,
+          debtStatusCheckbox: value === 'Документи в наявності'
+        });
+      }
     }
   };
   // --- Обробник вибору обладнання з автодоповнення ---

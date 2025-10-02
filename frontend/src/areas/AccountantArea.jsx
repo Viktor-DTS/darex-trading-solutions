@@ -343,6 +343,12 @@ export default function AccountantArea({ user }) {
     const isReadOnly = t._readOnly;
     const taskData = { ...t };
     delete taskData._readOnly; // Видаляємо прапорець з даних завдання
+    
+    // Якщо це вкладка заборгованості, обмежуємо редагування тільки полем заборгованості
+    if (tab === 'debt') {
+      taskData._debtEditOnly = true; // Прапорець для обмеження редагування
+    }
+    
     setEditTask(taskData);
     setModalOpen(true);
     // Передаємо readOnly в ModalTaskForm
@@ -947,6 +953,7 @@ export default function AccountantArea({ user }) {
       <div style={{display:'flex',gap:8,marginBottom:16}}>
         <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
         <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
+        <button onClick={()=>setTab('debt')} style={{width:220,padding:'10px 0',background:tab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='debt'?700:400,cursor:'pointer'}}>Заборгованість по документам</button>
         <button onClick={()=>setTab('invoices')} style={{width:220,padding:'10px 0',background:tab==='invoices'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='invoices'?700:400,cursor:'pointer'}}>📄 Запити на рахунки</button>
         <button onClick={()=>setReportsModalOpen(true)} style={{width:220,padding:'10px 0',background:'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:400,cursor:'pointer'}}>📊 Бухгалтерські звіти</button>
         <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
@@ -1359,6 +1366,27 @@ export default function AccountantArea({ user }) {
             </div>
           )}
         </div>
+      ) : tab === 'debt' ? (
+        <TaskTable
+        tasks={tableData.filter(task => 
+          task.debtStatus === 'Заборгованість' && 
+          task.paymentType && 
+          !['Готівка'].includes(task.paymentType)
+        )}
+        allTasks={tasks}
+        onApprove={handleApprove}
+        onEdit={handleEdit}
+        role="accountant"
+        filters={filters}
+        onFilterChange={handleFilter}
+        columns={columns}
+        allColumns={allTaskFields.map(f => ({ key: f.name, label: f.label }))}
+        approveField="approvedByAccountant"
+        commentField="accountantComment"
+        user={user}
+        isArchive={true}
+        onHistoryClick={openClientReport}
+      />
       ) : (
         <TaskTable
         tasks={tableData}
