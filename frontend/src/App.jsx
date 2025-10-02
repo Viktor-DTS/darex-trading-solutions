@@ -2883,17 +2883,19 @@ function RegionalManagerArea({ tab: propTab, user }) {
             {taskTab === 'debt' ? (
               <TaskTable
                 tasks={filtered.filter(task => {
-                  console.log('[DEBUG] Regional debt tab - task:', task.requestNumber, 'debtStatus:', task.debtStatus, 'paymentType:', task.paymentType);
-                  // Показуємо завдання, які потребують встановлення статусу заборгованості:
-                  // 1. Не мають встановленого debtStatus (undefined або порожнє)
-                  // 2. Мають paymentType (не порожнє)
-                  // 3. paymentType не є 'Готівка'
+                  console.log('[DEBUG] Regional debt tab - task:', task.requestNumber, 'debtStatus:', task.debtStatus, 'paymentType:', task.paymentType, 'approvedByAccountant:', task.approvedByAccountant);
+                  // Показуємо завдання з архіву бухгалтера, які потребують встановлення статусу заборгованості:
+                  // 1. Підтверджені бухгалтером (з архіву бухгалтера)
+                  // 2. Не мають встановленого debtStatus (undefined або порожнє)
+                  // 3. Мають paymentType (не порожнє)
+                  // 4. paymentType не є 'Готівка'
+                  const isApprovedByAccountant = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
                   const hasPaymentType = task.paymentType && task.paymentType.trim() !== '';
                   const isNotCash = !['Готівка'].includes(task.paymentType);
                   const needsDebtStatus = !task.debtStatus || task.debtStatus === undefined || task.debtStatus === '';
                   
-                  const shouldShow = needsDebtStatus && hasPaymentType && isNotCash;
-                  console.log('[DEBUG] Regional debt filter - shouldShow:', shouldShow, 'needsDebtStatus:', needsDebtStatus, 'hasPaymentType:', hasPaymentType, 'isNotCash:', isNotCash);
+                  const shouldShow = isApprovedByAccountant && needsDebtStatus && hasPaymentType && isNotCash;
+                  console.log('[DEBUG] Regional debt filter - shouldShow:', shouldShow, 'isApprovedByAccountant:', isApprovedByAccountant, 'needsDebtStatus:', needsDebtStatus, 'hasPaymentType:', hasPaymentType, 'isNotCash:', isNotCash);
                   
                   return shouldShow;
                 })}
