@@ -325,9 +325,12 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   useEffect(() => {
     if (open) {
       // Примусово завантажуємо користувачів при відкритті модального вікна
+      console.log('[DEBUG] ModalTaskForm - відкрито модальне вікно, завантажуємо користувачів...');
       columnsSettingsAPI.getAllUsers().then(users => {
         console.log('[DEBUG] ModalTaskForm - завантажено користувачів:', users.length);
         setUsers(users);
+        // Зберігаємо в localStorage для швидкого доступу
+        localStorage.setItem('users', JSON.stringify(users));
       }).catch(error => {
         console.error('[ERROR] ModalTaskForm - помилка завантаження користувачів:', error);
         setUsers([]);
@@ -386,12 +389,34 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       columnsSettingsAPI.getAllUsers().then(users => {
         console.log('[DEBUG] ModalTaskForm - завантажено користувачів (fallback):', users.length);
         setUsers(users);
+        localStorage.setItem('users', JSON.stringify(users));
       }).catch(error => {
         console.error('[ERROR] ModalTaskForm - помилка завантаження користувачів (fallback):', error);
         setUsers([]);
       });
     }
   }, [open, users.length]);
+
+  // --- Додатковий useEffect для примусового завантаження користувачів ---
+  useEffect(() => {
+    if (open) {
+      // Додаткова перевірка через 100мс після відкриття
+      const timer = setTimeout(() => {
+        if (users.length === 0) {
+          console.log('[DEBUG] ModalTaskForm - користувачі все ще не завантажені, примусово завантажуємо...');
+          columnsSettingsAPI.getAllUsers().then(users => {
+            console.log('[DEBUG] ModalTaskForm - примусово завантажено користувачів:', users.length);
+            setUsers(users);
+            localStorage.setItem('users', JSON.stringify(users));
+          }).catch(error => {
+            console.error('[ERROR] ModalTaskForm - помилка примусового завантаження користувачів:', error);
+          });
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
   // --- Завантаження типів обладнання ---
   useEffect(() => {
     if (open) {
@@ -1286,6 +1311,23 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                       if (form.serviceRegion === 'Україна') return true;
                       return u.region === form.serviceRegion;
                     });
+                    
+                    // Додаткова перевірка - якщо користувачі не завантажені, спробуємо завантажити
+                    if (users.length === 0) {
+                      console.log('[DEBUG] ModalTaskForm - користувачі не завантажені при рендерингу, спробуємо завантажити...');
+                      // Неблокуючий виклик для завантаження користувачів
+                      setTimeout(() => {
+                        columnsSettingsAPI.getAllUsers().then(users => {
+                          if (users.length > 0) {
+                            console.log('[DEBUG] ModalTaskForm - завантажено користувачів при рендерингу:', users.length);
+                            setUsers(users);
+                            localStorage.setItem('users', JSON.stringify(users));
+                          }
+                        }).catch(error => {
+                          console.error('[ERROR] ModalTaskForm - помилка завантаження користувачів при рендерингу:', error);
+                        });
+                      }, 0);
+                    }
                     
                     return (
                       <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
