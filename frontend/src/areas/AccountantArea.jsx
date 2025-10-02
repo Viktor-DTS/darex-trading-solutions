@@ -992,7 +992,7 @@ export default function AccountantArea({ user }) {
                   onChange={(e) => setShowAllInvoices(e.target.checked)}
                   style={{ margin: 0 }}
                 />
-                <span style={{ color: '#333', fontSize: '14px' }}>Показати всі заявки (включно з виконаними)</span>
+                <span style={{ color: '#fff', fontSize: '14px' }}>Показати всі заявки (включно з виконаними)</span>
               </label>
             </div>
           </div>
