@@ -212,6 +212,8 @@ const invoiceRequestSchema = new mongoose.Schema({
   completedAt: { type: Date },
   invoiceFile: { type: String, default: '' },
   invoiceFileName: { type: String, default: '' },
+  actFile: { type: String, default: '' },
+  actFileName: { type: String, default: '' },
   comments: { type: String, default: '' },
   rejectionReason: { type: String, default: '' }
 });
@@ -3561,6 +3563,155 @@ app.get('/api/invoice-requests/:id/download', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: 'Помилка завантаження файлу рахунку',
+      error: error.message 
+    });
+  }
+});
+
+// Завантаження файлу акту виконаних робіт
+app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async (req, res) => {
+  try {
+    const request = await InvoiceRequest.findById(req.params.id);
+    
+    if (!request) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Запит на рахунок не знайдено' 
+      });
+    }
+    
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Файл не було завантажено' 
+      });
+    }
+    
+    // Оновлюємо запит з новим файлом акту
+    await InvoiceRequest.findByIdAndUpdate(req.params.id, {
+      actFile: req.file.path,
+      actFileName: req.file.originalname
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Файл акту завантажено успішно',
+      data: {
+        fileUrl: req.file.path,
+        fileName: req.file.originalname
+      }
+    });
+    
+  } catch (error) {
+    console.error('Помилка завантаження файлу акту:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка завантаження файлу акту',
+      error: error.message 
+    });
+  }
+}, (error, req, res, next) => {
+  // Обробка помилок multer
+  if (error instanceof multer.MulterError) {
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        message: 'Файл занадто великий. Максимальний розмір: 10MB'
+      });
+    }
+  }
+  
+  if (error.message.includes('Непідтримуваний тип файлу')) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+  
+  console.error('Помилка multer:', error);
+  res.status(500).json({
+    success: false,
+    message: 'Помилка завантаження файлу акту',
+    error: error.message
+  });
+});
+
+// Скачування файлу акту виконаних робіт
+app.get('/api/invoice-requests/:id/download-act', async (req, res) => {
+  try {
+    const request = await InvoiceRequest.findById(req.params.id);
+    
+    if (!request) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Запит на рахунок не знайдено' 
+      });
+    }
+    
+    if (!request.actFile) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Файл акту не знайдено' 
+      });
+    }
+    
+    // Тут буде логіка завантаження файлу з Cloudinary
+    // Поки що просто повертаємо URL
+    res.json({ 
+      success: true, 
+      data: {
+        fileUrl: request.actFile,
+        fileName: request.actFileName
+      }
+    });
+    
+  } catch (error) {
+    console.error('Помилка завантаження файлу акту:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка завантаження файлу акту',
+      error: error.message 
+    });
+  }
+});
+
+// Видалення файлу акту виконаних робіт
+app.delete('/api/invoice-requests/:id/act-file', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const request = await InvoiceRequest.findById(id);
+    if (!request) {
+      return res.status(404).json({ success: false, message: 'Запит не знайдено' });
+    }
+    
+    if (!request.actFile) {
+      return res.status(400).json({ success: false, message: 'Файл акту не знайдено' });
+    }
+    
+    // Видаляємо файл з Cloudinary
+    if (request.actFile) {
+      try {
+        const publicId = request.actFile.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(`darex-trading-solutions/invoices/${publicId}`);
+      } catch (cloudinaryError) {
+        console.error('Помилка видалення файлу акту з Cloudinary:', cloudinaryError);
+        // Продовжуємо навіть якщо не вдалося видалити з Cloudinary
+      }
+    }
+    
+    // Оновлюємо запит - видаляємо посилання на файл акту
+    await InvoiceRequest.findByIdAndUpdate(id, {
+      $unset: { actFile: 1, actFileName: 1 }
+    });
+    
+    res.json({ success: true, message: 'Файл акту видалено успішно' });
+    
+  } catch (error) {
+    console.error('Помилка видалення файлу акту:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка видалення файлу акту',
       error: error.message 
     });
   }

@@ -249,6 +249,94 @@ export default function AccountantArea({ user }) {
     }
   };
 
+  // Функція для завантаження файлу акту виконаних робіт
+  const uploadActFile = async (requestId, file) => {
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      
+      const formData = new FormData();
+      formData.append('actFile', file);
+      
+      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload-act`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        // Оновлюємо локальний стан
+        setInvoiceRequests(prev => prev.map(req => 
+          req._id === requestId 
+            ? { ...req, actFile: result.data.fileUrl, actFileName: result.data.fileName }
+            : req
+        ));
+        alert('Файл акту завантажено успішно');
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Помилка завантаження файлу акту');
+      }
+    } catch (error) {
+      console.error('Помилка завантаження файлу акту:', error);
+      alert(`Помилка: ${error.message}`);
+    }
+  };
+
+  // Функція для скачування файлу акту виконаних робіт
+  const downloadActFile = async (requestId) => {
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      
+      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/download-act`);
+      
+      if (response.ok) {
+        const result = await response.json();
+        // Відкриваємо файл в новій вкладці
+        window.open(result.data.fileUrl, '_blank');
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Помилка завантаження файлу акту');
+      }
+    } catch (error) {
+      console.error('Помилка завантаження файлу акту:', error);
+      alert(`Помилка: ${error.message}`);
+    }
+  };
+
+  // Функція для видалення файлу акту виконаних робіт
+  const deleteActFile = async (requestId) => {
+    if (!confirm('Ви впевнені, що хочете видалити цей файл акту?')) {
+      return;
+    }
+    
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      
+      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/act-file`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        // Оновлюємо локальний стан
+        setInvoiceRequests(prev => prev.map(req => 
+          req._id === requestId 
+            ? { ...req, actFile: '', actFileName: '' }
+            : req
+        ));
+        alert('Файл акту успішно видалено!');
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Помилка видалення файлу акту');
+      }
+      
+    } catch (error) {
+      console.error('Помилка видалення файлу акту:', error);
+      alert('Помилка видалення файлу акту: ' + error.message);
+    }
+  };
+
   // Функція для завантаження інформації про заявку
   const loadTaskInfo = async (taskId) => {
     try {
@@ -1244,6 +1332,77 @@ export default function AccountantArea({ user }) {
                             🗑️ Видалити файл
                           </button>
                         </div>
+                      </div>
+                    )}
+                    
+                    {request.status === 'completed' && request.needAct && (
+                      <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#e6f3ff', borderRadius: '4px' }}>
+                        <strong style={{ color: '#000' }}>📋 Файл акту виконаних робіт:</strong>
+                        {request.actFile ? (
+                          <>
+                            <span style={{ color: '#000' }}> {request.actFileName}</span>
+                            <div style={{ marginTop: '8px' }}>
+                              <button 
+                                onClick={() => downloadActFile(request._id)}
+                                style={{
+                                  marginRight: '8px',
+                                  padding: '4px 8px',
+                                  backgroundColor: '#17a2b8',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                Переглянути файл
+                              </button>
+                              <button 
+                                onClick={() => downloadActFile(request._id)}
+                                style={{
+                                  marginRight: '8px',
+                                  padding: '4px 8px',
+                                  backgroundColor: '#28a745',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                Завантажити файл
+                              </button>
+                              <button 
+                                onClick={() => deleteActFile(request._id)}
+                                style={{
+                                  padding: '4px 8px',
+                                  backgroundColor: '#dc3545',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                🗑️ Видалити файл
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ marginTop: '8px' }}>
+                            <input
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              onChange={(e) => {
+                                if (e.target.files[0]) {
+                                  uploadActFile(request._id, e.target.files[0]);
+                                }
+                              }}
+                              style={{ marginRight: '8px' }}
+                            />
+                            <span style={{ color: '#666', fontSize: '12px' }}>Завантажте файл акту виконаних робіт</span>
+                          </div>
+                        )}
                       </div>
                     )}
                     
