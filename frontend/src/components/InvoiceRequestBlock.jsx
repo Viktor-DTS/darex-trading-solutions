@@ -252,6 +252,91 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
               </div>
             )}
 
+            {/* Файл акту виконаних робіт */}
+            {invoiceRequest.status === 'completed' && invoiceRequest.needAct && (
+              <div style={{
+                marginBottom: '15px',
+                padding: '12px',
+                backgroundColor: '#e6f3ff',
+                borderRadius: '4px',
+                border: '1px solid #b8daff'
+              }}>
+                <div style={{ marginBottom: '8px' }}>
+                  <strong style={{ color: '#000' }}>📋 Файл акту виконаних робіт:</strong>
+                  {invoiceRequest.actFile ? (
+                    <>
+                      <span style={{ color: '#000', marginLeft: '8px' }}>{invoiceRequest.actFileName}</span>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                        <button 
+                          type="button"
+                          onClick={() => window.open(invoiceRequest.actFile, '_blank')}
+                          style={{
+                            padding: '8px 16px',
+                            backgroundColor: '#17a2b8',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '600'
+                          }}
+                        >
+                          👁️ Переглянути файл
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (!invoiceRequest?.actFile) return;
+                            
+                            try {
+                              // Завантажуємо файл через fetch для правильного завантаження
+                              const response = await fetch(invoiceRequest.actFile);
+                              const blob = await response.blob();
+                              
+                              // Створюємо URL для blob
+                              const url = window.URL.createObjectURL(blob);
+                              
+                              // Створюємо тимчасовий елемент <a> для завантаження
+                              const link = document.createElement('a');
+                              link.href = url;
+                              link.download = invoiceRequest.actFileName || 'act.pdf';
+                              document.body.appendChild(link);
+                              link.click();
+                              
+                              // Очищаємо
+                              document.body.removeChild(link);
+                              window.URL.revokeObjectURL(url);
+                            } catch (error) {
+                              console.error('Помилка завантаження файлу акту:', error);
+                              alert('Помилка завантаження файлу акту');
+                            }
+                          }}
+                          style={{
+                            padding: '8px 16px',
+                            backgroundColor: '#28a745',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '600'
+                          }}
+                        >
+                          📥 Завантажити файл
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ marginTop: '8px', color: '#6c757d', fontSize: '14px' }}>
+                      Файл акту ще не завантажено бухгалтером
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Кнопка для повторного запиту (якщо відхилено) */}
             {invoiceRequest.status === 'rejected' && (
               <button 
