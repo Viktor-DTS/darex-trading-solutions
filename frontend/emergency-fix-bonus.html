@@ -247,7 +247,7 @@
                     const isRegionalManagerApproved = isApproved(task.approvedByRegionalManager);
                     const hasWorkPrice = (parseFloat(task.workPrice) || 0) > 0;
 
-                    if (isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved && hasWorkPrice) {
+                    if (isWarehouseApproved && isAccountantApproved && hasWorkPrice) {
                         if (!currentBonusDate || !/^\d{2}-\d{4}$/.test(currentBonusDate)) {
                             tasksToFix.push(task);
                         }

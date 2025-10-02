@@ -30,8 +30,8 @@ async function fixBonusApprovalDates() {
             const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
             const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
             
-            // Якщо заявка підтверджена всіма ролями, встановлюємо bonusApprovalDate
-            if (isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved && task.workPrice) {
+            // Якщо заявка підтверджена складом та бухгалтером, встановлюємо bonusApprovalDate
+            if (isWarehouseApproved && isAccountantApproved && task.workPrice) {
                 // Встановлюємо bonusApprovalDate на поточний місяць
                 const now = new Date();
                 const currentMonth = String(now.getMonth() + 1).padStart(2, '0');

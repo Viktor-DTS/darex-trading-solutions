@@ -1875,12 +1875,12 @@ app.get('/api/analytics/revenue', async (req, res) => {
     tasks.forEach(task => {
       console.log(`[DEBUG] Заявка ${task._id}: bonusApprovalDate=${task.bonusApprovalDate}, workPrice=${task.workPrice}, approvedByWarehouse=${task.approvedByWarehouse}, approvedByAccountant=${task.approvedByAccountant}, approvedByRegionalManager=${task.approvedByRegionalManager}`);
       
-      // Перевіряємо чи заявка підтверджена всіма
+      // Перевіряємо чи заявка підтверджена складом та бухгалтером
       const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
       const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
       const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
       
-      if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
+      if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved) {
         let approvalYear, approvalMonth;
         
         // Парсимо bonusApprovalDate з двох можливих форматів
@@ -2023,7 +2023,7 @@ app.get('/api/analytics/full', async (req, res) => {
     const plannedMaterialsRevenueByMonth = {};
     
     tasks.forEach(task => {
-      // Перевіряємо чи заявка підтверджена всіма
+      // Перевіряємо чи заявка підтверджена складом та бухгалтером
       const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
       const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
       const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
@@ -2057,7 +2057,7 @@ app.get('/api/analytics/full', async (req, res) => {
       const workRevenue = actualBonus * 3; // Дохід по роботах = фактична премія × 3
       const materialsRevenue = totalMaterials / 4; // Дохід по матеріалам = сума матеріалів ÷ 4
       
-      if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
+      if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved) {
         // Підтверджена заявка - додаємо до підтверджених доходів
         let approvalYear, approvalMonth;
         
@@ -2273,7 +2273,7 @@ app.get('/api/analytics/full', async (req, res) => {
         const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
         const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
 
-        if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
+        if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved) {
           // Розраховуємо місяць для нарахування премії
           let bonusApprovalDate = task.bonusApprovalDate;
           if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
@@ -2421,7 +2421,7 @@ app.get('/api/analytics/details', async (req, res) => {
       const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
       const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
 
-      if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
+      if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved) {
         // Розраховуємо місяць для нарахування премії
         let bonusApprovalDate = task.bonusApprovalDate;
         if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
@@ -2659,7 +2659,7 @@ app.get('/api/analytics/planned-revenue', async (req, res) => {
       const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
       
       // Якщо хоча б один не підтвердив - це запланований дохід
-      if (task.workPrice && (!isWarehouseApproved || !isAccountantApproved || !isRegionalManagerApproved)) {
+      if (task.workPrice && (!isWarehouseApproved || !isAccountantApproved)) {
         let taskYear, taskMonth;
         
         // Парсимо дату заявки

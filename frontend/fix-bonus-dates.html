@@ -192,7 +192,7 @@
                     const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
                     const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
                     
-                    if (isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved && task.workPrice) {
+                    if (isWarehouseApproved && isAccountantApproved && task.workPrice) {
                         const now = new Date();
                         const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
                         const currentYear = now.getFullYear();
