@@ -3202,6 +3202,60 @@ app.post('/api/invoice-requests', async (req, res) => {
   }
 });
 
+// Тимчасовий endpoint для перевірки заявки
+app.get('/api/debug-task/:taskNumber', async (req, res) => {
+  try {
+    const { taskNumber } = req.params;
+    console.log(`[DEBUG] Перевірка заявки: ${taskNumber}`);
+    
+    const task = await executeWithRetry(() => 
+      Task.findOne({ 
+        $or: [
+          { requestNumber: taskNumber },
+          { taskNumber: taskNumber },
+          { id: taskNumber }
+        ]
+      })
+    );
+    
+    if (!task) {
+      return res.status(404).json({ error: 'Заявка не знайдена' });
+    }
+    
+    const debugInfo = {
+      _id: task._id,
+      requestNumber: task.requestNumber,
+      taskNumber: task.taskNumber,
+      status: task.status,
+      approvedByWarehouse: task.approvedByWarehouse,
+      approvedByAccountant: task.approvedByAccountant,
+      approvedByRegionalManager: task.approvedByRegionalManager,
+      bonusApprovalDate: task.bonusApprovalDate,
+      workPrice: task.workPrice,
+      // Перевірка умов для автоматичного встановлення bonusApprovalDate
+      conditions: {
+        statusIsCompleted: task.status === 'Виконано',
+        warehouseApproved: task.approvedByWarehouse === 'Підтверджено',
+        accountantApproved: task.approvedByAccountant === 'Підтверджено',
+        hasWorkPrice: !!task.workPrice,
+        shouldSetBonusDate: (
+          task.status === 'Виконано' &&
+          task.approvedByWarehouse === 'Підтверджено' &&
+          task.approvedByAccountant === 'Підтверджено' &&
+          !!task.workPrice
+        )
+      }
+    };
+    
+    console.log(`[DEBUG] Заявка ${taskNumber}:`, debugInfo);
+    res.json(debugInfo);
+    
+  } catch (error) {
+    console.error('[ERROR] Помилка перевірки заявки:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Отримання списку запитів на рахунки
 app.get('/api/invoice-requests', async (req, res) => {
   try {
