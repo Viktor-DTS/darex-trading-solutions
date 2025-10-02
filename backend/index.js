@@ -3271,7 +3271,8 @@ app.get('/api/invoice-requests', async (req, res) => {
     if (taskId) filter.taskId = taskId;
     
     // Якщо showAll не true, показуємо тільки актуальні (не виконані) заявки
-    if (showAll !== 'true' && !status) {
+    // Але якщо запитуємо по taskId, показуємо всі запити для цього завдання
+    if (showAll !== 'true' && !status && !taskId) {
       filter.status = { $ne: 'completed' };
     }
     
@@ -3282,6 +3283,17 @@ app.get('/api/invoice-requests', async (req, res) => {
       .limit(100);
     
     console.log('DEBUG знайдено запитів:', requests.length);
+    if (requests.length > 0) {
+      console.log('DEBUG перший запит:', {
+        _id: requests[0]._id,
+        taskId: requests[0].taskId,
+        status: requests[0].status,
+        invoiceFile: requests[0].invoiceFile,
+        actFile: requests[0].actFile,
+        needInvoice: requests[0].needInvoice,
+        needAct: requests[0].needAct
+      });
+    }
     
     res.json({ 
       success: true, 
