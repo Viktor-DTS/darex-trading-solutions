@@ -133,7 +133,8 @@ const antifreezeGroup = ['antifreezeType', 'antifreezeL', 'antifreezePrice', 'an
 const transportGroup = ['carNumber', 'transportKm', 'transportSum'];
 const expensesGroup = ['perDiem', 'living', 'otherExp', 'bonusApprovalDate'];
 const statusGroup = ['status', 'requestDate', 'company'];
-const regionClientGroup = ['edrpou', 'debtStatus', 'debtStatusCheckbox', 'client', 'invoice', 'paymentDate', 'invoiceRecipientDetails'];
+const regionClientGroup = ['edrpou', 'client', 'invoice', 'paymentDate', 'invoiceRecipientDetails'];
+const debtGroup = ['debtStatus', 'debtStatusCheckbox'];
 const paymentEquipmentGroup = ['paymentType', 'equipment', 'equipmentSerial', 'serviceTotal'];
 const workEngineersGroup = ['date', 'work', 'engineer1', 'engineer2'];
 const otherMaterialsGroup = ['otherSum', 'otherMaterials'];
@@ -151,6 +152,7 @@ const orderedFields = [
   'requestDesc',
   'address',
   ...regionClientGroup,
+  ...debtGroup,
   ...paymentEquipmentGroup,
   ...workEngineersGroup,
   ...oilGroup,
@@ -937,6 +939,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             'requestNumber', // Пропускаємо, оскільки воно відображається окремо
             ...statusGroup.slice(1).filter(n => n !== 'serviceRegion'),
             ...regionClientGroup.slice(1),
+            ...debtGroup.slice(1),
             ...paymentEquipmentGroup.slice(1),
             ...workEngineersGroup.slice(1),
             ...oilGroup.slice(1),
@@ -994,7 +997,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           if (idx === orderedFields.indexOf('edrpou')) {
             return (
               <div className="group" key="regionClientGroup">
-                {['edrpou', 'debtStatus', 'debtStatusCheckbox', 'client', 'invoice', 'paymentDate', 'invoiceRecipientDetails'].map(n => {
+                {['edrpou', 'client', 'invoice', 'paymentDate', 'invoiceRecipientDetails'].map(n => {
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
@@ -1046,6 +1049,40 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             );
           }
           
+          if (idx === orderedFields.indexOf('debtStatus')) {
+            return (
+              <div className="group" key="debtGroup">
+                {['debtStatus', 'debtStatusCheckbox'].map(n => {
+                  const f = fields.find(f=>f.name===n);
+                  if (!f) return null;
+                  let value = form[f.name] || '';
+                  return (
+                    <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
+                      <label>{f.label}</label>
+                      {f.type === 'checkbox' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input 
+                            type="checkbox"
+                            name={f.name}
+                            checked={value}
+                            onChange={handleChange}
+                            disabled={isReadOnly(f.name)}
+                          />
+                          <span>{f.label}</span>
+                        </div>
+                      ) : (
+                        <select name={f.name} value={value} onChange={handleChange} disabled={isReadOnly(f.name)}>
+                          {f.options?.map(option => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }
           
           if (idx === orderedFields.indexOf('paymentType')) {
             return (
