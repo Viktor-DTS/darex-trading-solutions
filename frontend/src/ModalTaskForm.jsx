@@ -98,8 +98,6 @@ export const fields = [
   { name: 'approvedByRegionalManager', label: 'Підтвердження регіонального керівника', type: 'select', options: ['На розгляді', 'Підтверджено', 'Відмова'], role: 'regionalManager' },
   { name: 'regionalManagerComment', label: 'Опис відмови (регіональний керівник)', type: 'textarea', role: 'regionalManager' },
   { name: 'comments', label: 'Коментарі', type: 'textarea' },
-  { name: 'needInvoice', label: 'Потрібен рахунок', type: 'checkbox' },
-  { name: 'needAct', label: 'Потрібен акт виконаних робіт', type: 'checkbox' },
   { name: 'airFilterName', label: 'Фільтр повітряний назва', type: 'text' },
   { name: 'airFilterCount', label: 'Фільтр повітряний штук', type: 'text' },
   { name: 'airFilterPrice', label: 'Ціна одного повітряного фільтра', type: 'text' },
@@ -107,6 +105,8 @@ export const fields = [
   { name: 'approvalDate', label: 'Дата затвердження', type: 'date' },
   { name: 'bonusApprovalDate', label: 'Дата затвердження премії', type: 'date' },
   { name: 'serviceBonus', label: 'Премія за виконання сервісних робіт, грн', type: 'text' },
+  { name: 'needInvoice', label: 'Потрібен рахунок', type: 'checkbox' },
+  { name: 'needAct', label: 'Потрібен акт виконаних робіт', type: 'checkbox' },
 ];
 // Додаю поле для детального опису блокування заявки
 const blockDescField = { name: 'blockDetail', label: 'Детальний опис блокування заявки', type: 'textarea' };
@@ -121,6 +121,7 @@ const group5 = ['spareParts', 'sparePartsPrice', 'sparePartsTotal'];
 const group6 = ['totalAmount'];
 // Для textarea
 const textareaFields = ['requestDesc','address','warehouseComment','accountantComment','accountantComments','regionalManagerComment','comments','blockDetail','otherMaterials'];
+const checkboxFields = ['needInvoice', 'needAct'];
 // Групи для компактного відображення
 const oilGroup = ['oilType', 'oilUsed', 'oilPrice', 'oilTotal'];
 const filterGroup = ['filterName', 'filterCount', 'filterPrice', 'filterSum'];
