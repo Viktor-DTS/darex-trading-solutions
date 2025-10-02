@@ -1431,12 +1431,17 @@ export default function AccountantArea({ user }) {
           )}
         </div>
       ) : tab === 'debt' ? (
-        <TaskTable
-        tasks={tableData.filter(task => 
-          task.debtStatus === 'Заборгованість' && 
-          task.paymentType && 
-          !['Готівка'].includes(task.paymentType)
-        )}
+        <div>
+          {console.log('[DEBUG] Debt tab - all tasks:', tableData.length)}
+          {console.log('[DEBUG] Debt tab - tasks with debtStatus:', tableData.filter(t => t.debtStatus).length)}
+          {console.log('[DEBUG] Debt tab - tasks with paymentType:', tableData.filter(t => t.paymentType).length)}
+          <TaskTable
+          tasks={tableData.filter(task => {
+            console.log('[DEBUG] Debt tab - task:', task.requestNumber, 'debtStatus:', task.debtStatus, 'paymentType:', task.paymentType);
+            return task.debtStatus === 'Заборгованість' && 
+                   task.paymentType && 
+                   !['Готівка'].includes(task.paymentType);
+          })}
         allTasks={tasks}
         onApprove={handleApprove}
         onEdit={handleEdit}
@@ -1451,6 +1456,7 @@ export default function AccountantArea({ user }) {
         isArchive={true}
         onHistoryClick={openClientReport}
       />
+        </div>
       ) : (
         <TaskTable
         tasks={tableData}
