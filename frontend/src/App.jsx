@@ -1692,7 +1692,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
     if (
       next.status === 'Виконано' &&
       (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
-      (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true) &&
+      (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true)
     ) {
       const d = new Date();
       const currentDay = d.getDate();
@@ -1739,7 +1739,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
     if (
       next.status === 'Виконано' &&
       (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
-      (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true) &&
+      (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true)
     ) {
       const d = new Date();
       const currentDay = d.getDate();
