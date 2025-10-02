@@ -1710,7 +1710,7 @@ function TaskTableComponent({
                               )}
                             </>
                           )}
-                          {(role === 'warehouse' || role === 'accountant' || role === 'regionalManager' || role === 'regional') && (
+                          {(role === 'warehouse' || role === 'accountant' || role === 'buhgalteria' || role === 'regionalManager' || role === 'regional') && (
                             <button onClick={()=>{
                               // Логуємо редагування заявки
                               logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
@@ -1740,7 +1740,7 @@ function TaskTableComponent({
                         }} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
                       )}
                       {/* Кнопки підтвердження для відповідних ролей - в архіві тільки для адміністратора */}
-                      {((role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'regionalManager' || role === 'admin' || role === 'administrator' || user?.role === 'admin' || user?.role === 'administrator') && (!isArchive || user?.role === 'admin' || user?.role === 'administrator')) && (
+                      {((role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'buhgalteria' || role === 'regionalManager' || role === 'admin' || role === 'administrator' || user?.role === 'admin' || user?.role === 'administrator') && (!isArchive || user?.role === 'admin' || user?.role === 'administrator')) && (
                         <>
                           {/* Кнопки підтвердження в другому рядку */}
                           <div style={{marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center'}}>
