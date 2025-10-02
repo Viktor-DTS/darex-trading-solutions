@@ -133,7 +133,7 @@ const antifreezeGroup = ['antifreezeType', 'antifreezeL', 'antifreezePrice', 'an
 const transportGroup = ['carNumber', 'transportKm', 'transportSum'];
 const expensesGroup = ['perDiem', 'living', 'otherExp', 'bonusApprovalDate'];
 const statusGroup = ['status', 'requestDate', 'company'];
-const regionClientGroup = ['edrpou', 'client', 'invoice', 'paymentDate', 'invoiceRecipientDetails'];
+const regionClientGroup = ['edrpou', 'debtStatus', 'debtStatusCheckbox', 'client', 'invoice', 'paymentDate', 'invoiceRecipientDetails'];
 const paymentEquipmentGroup = ['paymentType', 'equipment', 'equipmentSerial', 'serviceTotal'];
 const workEngineersGroup = ['date', 'work', 'engineer1', 'engineer2'];
 const otherMaterialsGroup = ['otherSum', 'otherMaterials'];
@@ -171,6 +171,7 @@ const orderedFields = [
 // Для полів, які мають бути з label над input
 const labelAboveFields = [
   'status', 'requestDate', 'requestDesc', 'address', 'paymentDate', 'invoiceRecipientDetails', 'paymentType', 'otherMaterials',
+  'debtStatus', 'debtStatusCheckbox',
   'approvedByWarehouse', 'warehouseComment',
   'approvedByAccountant', 'accountantComment', 'accountantComments',
   'approvedByRegionalManager', 'regionalManagerComment', 'comments'
@@ -446,6 +447,10 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     }
     // Для оператора поле 'client' (Замовник) завжди доступне для редагування
     if (mode === 'operator' && name === 'client') return false;
+    // Спеціальна обробка для полів заборгованості - вони відображаються для всіх, але редагування тільки для бухгалтера
+    if (name === 'debtStatus' || name === 'debtStatusCheckbox') {
+      return mode !== 'accountant';
+    }
     if (fields.find(f => f.name === name && f.role) && (!mode || fields.find(f => f.name === name).role !== mode)) return true;
     if (mode === 'operator') {
       // Оператор НЕ може редагувати поля підтвердження від інших ролей:
@@ -921,7 +926,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           if (idx === orderedFields.indexOf('edrpou')) {
             return (
               <div className="group" key="regionClientGroup">
-                {['edrpou', 'client', 'invoice', 'paymentDate', 'invoiceRecipientDetails'].map(n => {
+                {['edrpou', 'debtStatus', 'debtStatusCheckbox', 'client', 'invoice', 'paymentDate', 'invoiceRecipientDetails'].map(n => {
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
