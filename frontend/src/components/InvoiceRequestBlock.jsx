@@ -26,8 +26,15 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
         const data = await response.json();
         console.log('DEBUG InvoiceRequestBlock: отримано відповідь', data);
         if (data.success && data.data && data.data.length > 0) {
-          setInvoiceRequest(data.data[0]);
+          const request = data.data[0];
+          console.log('DEBUG InvoiceRequestBlock: знайдено запит', request);
+          console.log('DEBUG InvoiceRequestBlock: invoiceFile =', request.invoiceFile);
+          console.log('DEBUG InvoiceRequestBlock: actFile =', request.actFile);
+          console.log('DEBUG InvoiceRequestBlock: needInvoice =', request.needInvoice);
+          console.log('DEBUG InvoiceRequestBlock: needAct =', request.needAct);
+          setInvoiceRequest(request);
         } else {
+          console.log('DEBUG InvoiceRequestBlock: запит не знайдено');
           setInvoiceRequest(null);
         }
       } else {
@@ -97,7 +104,15 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
     e.preventDefault();
     e.stopPropagation();
     if (invoiceRequest?.invoiceFile) {
-      window.open(invoiceRequest.invoiceFile, '_blank');
+      // Для Cloudinary URL додаємо параметри для кращого відображення
+      let fileUrl = invoiceRequest.invoiceFile;
+      if (fileUrl.includes('cloudinary.com')) {
+        // Додаємо параметри для кращого відображення PDF
+        if (fileUrl.includes('.pdf')) {
+          fileUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
+        }
+      }
+      window.open(fileUrl, '_blank');
     }
   };
 
@@ -203,7 +218,13 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
             </div>
 
             {/* Файл рахунку */}
-            {invoiceRequest.status === 'completed' && invoiceRequest.invoiceFile && (
+            {(() => {
+              console.log('DEBUG InvoiceRequestBlock: перевірка умов для файлу рахунку');
+              console.log('DEBUG InvoiceRequestBlock: status =', invoiceRequest.status);
+              console.log('DEBUG InvoiceRequestBlock: invoiceFile =', invoiceRequest.invoiceFile);
+              console.log('DEBUG InvoiceRequestBlock: needInvoice =', invoiceRequest.needInvoice);
+              return invoiceRequest.status === 'completed' && invoiceRequest.invoiceFile && invoiceRequest.needInvoice;
+            })() && (
               <div style={{
                 marginBottom: '15px',
                 padding: '12px',
@@ -253,7 +274,13 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
             )}
 
             {/* Файл акту виконаних робіт */}
-            {invoiceRequest.status === 'completed' && invoiceRequest.needAct && (
+            {(() => {
+              console.log('DEBUG InvoiceRequestBlock: перевірка умов для файлу акту');
+              console.log('DEBUG InvoiceRequestBlock: status =', invoiceRequest.status);
+              console.log('DEBUG InvoiceRequestBlock: actFile =', invoiceRequest.actFile);
+              console.log('DEBUG InvoiceRequestBlock: needAct =', invoiceRequest.needAct);
+              return invoiceRequest.status === 'completed' && invoiceRequest.needAct;
+            })() && (
               <div style={{
                 marginBottom: '15px',
                 padding: '12px',
@@ -269,7 +296,21 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                       <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                         <button 
                           type="button"
-                          onClick={() => window.open(invoiceRequest.actFile, '_blank')}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (invoiceRequest?.actFile) {
+                              // Для Cloudinary URL додаємо параметри для кращого відображення
+                              let fileUrl = invoiceRequest.actFile;
+                              if (fileUrl.includes('cloudinary.com')) {
+                                // Додаємо параметри для кращого відображення PDF
+                                if (fileUrl.includes('.pdf')) {
+                                  fileUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
+                                }
+                              }
+                              window.open(fileUrl, '_blank');
+                            }
+                          }}
                           style={{
                             padding: '8px 16px',
                             backgroundColor: '#17a2b8',
