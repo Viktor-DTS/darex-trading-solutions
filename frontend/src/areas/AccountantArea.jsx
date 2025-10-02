@@ -1403,6 +1403,27 @@ export default function AccountantArea({ user }) {
                             <span style={{ color: '#666', fontSize: '12px' }}>Завантажте файл акту виконаних робіт</span>
                           </div>
                         )}
+                        {request.actFile && (
+                          <div style={{ marginTop: '8px' }}>
+                            <button
+                              onClick={() => {
+                                const comments = prompt('Додайте коментарі (необов\'язково):');
+                                updateInvoiceRequestStatus(request._id, 'completed', comments || '');
+                              }}
+                              style={{
+                                padding: '8px 16px',
+                                backgroundColor: '#28a745',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '14px'
+                              }}
+                            >
+                              Завершити заявку
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                     
@@ -1515,6 +1536,27 @@ export default function AccountantArea({ user }) {
                           >
                             Завершити без файлу
                           </button>
+                          {request.invoiceFile && (
+                            <button
+                              onClick={() => {
+                                const comments = prompt('Додайте коментарі (необов\'язково):');
+                                updateInvoiceRequestStatus(request._id, 'completed', comments || '');
+                              }}
+                              disabled={uploadingFiles.has(request._id)}
+                              style={{
+                                padding: '8px 16px',
+                                backgroundColor: uploadingFiles.has(request._id) ? '#6c757d' : '#28a745',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: uploadingFiles.has(request._id) ? 'not-allowed' : 'pointer',
+                                fontSize: '14px',
+                                opacity: uploadingFiles.has(request._id) ? 0.6 : 1
+                              }}
+                            >
+                              Завершити заявку
+                            </button>
+                          )}
                         </div>
                       )}
                       
