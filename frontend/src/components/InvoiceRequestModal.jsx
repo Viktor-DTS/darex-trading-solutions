@@ -238,28 +238,6 @@ const InvoiceRequestModal = ({
               />
             </div>
 
-            {/* Коментарі */}
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#333' }}>
-                Додаткові коментарі
-              </label>
-              <textarea
-                name="comments"
-                value={formData.comments}
-                onChange={handleChange}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  minHeight: '60px',
-                  resize: 'vertical'
-                }}
-                placeholder="Додаткова інформація для бухгалтера"
-              />
-            </div>
-
             {/* Чекбокси для вибору типу документів */}
             <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
               <h4 style={{ margin: '0 0 12px 0', color: '#333', fontSize: '16px' }}>Тип документів:</h4>
@@ -289,6 +267,28 @@ const InvoiceRequestModal = ({
                   </span>
                 </label>
               </div>
+            </div>
+
+            {/* Коментарі */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#333' }}>
+                Додаткові коментарі
+              </label>
+              <textarea
+                name="comments"
+                value={formData.comments}
+                onChange={handleChange}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  minHeight: '60px',
+                  resize: 'vertical'
+                }}
+                placeholder="Додаткова інформація для бухгалтера"
+              />
             </div>
           </div>
 
