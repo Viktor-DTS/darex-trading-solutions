@@ -1710,7 +1710,7 @@ function TaskTableComponent({
                               )}
                             </>
                           )}
-                          {(role === 'warehouse' || role === 'accountant' || role === 'buhgalteria' || role === 'regionalManager' || role === 'regional') && (
+                          {(role === 'warehouse' || role === 'accountant' || role === 'buhgalteria' || role === 'regionalManager' || role === 'regional') && !(role === 'regional' && t._debtTab) && (
                             <button onClick={()=>{
                               // Логуємо редагування заявки
                               logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
@@ -1739,8 +1739,22 @@ function TaskTableComponent({
                           onEdit && onEdit({...t, _readOnly: true});
                         }} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
                       )}
+                      {/* Спеціальна логіка для вкладки "debt" регіонального керівника - тільки Історія та Інформація */}
+                      {role === 'regional' && t._debtTab && (
+                        <button onClick={()=>{
+                          // Логуємо перегляд інформації заявки
+                          logUserAction(user, EVENT_ACTIONS.VIEW, ENTITY_TYPES.TASK, t.id, 
+                            `Перегляд інформації заявки: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                              requestNumber: t.requestNumber,
+                              client: t.client,
+                              work: t.work,
+                              status: t.status
+                            });
+                          onEdit && onEdit({...t, _readOnly: true});
+                        }} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
+                      )}
                       {/* Кнопки підтвердження для відповідних ролей - в архіві тільки для адміністратора */}
-                      {((role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'buhgalteria' || role === 'regionalManager' || role === 'admin' || role === 'administrator' || user?.role === 'admin' || user?.role === 'administrator') && (!isArchive || user?.role === 'admin' || user?.role === 'administrator')) && (
+                      {((role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'buhgalteria' || role === 'regionalManager' || role === 'admin' || role === 'administrator' || user?.role === 'admin' || user?.role === 'administrator') && (!isArchive || user?.role === 'admin' || user?.role === 'administrator')) && !(role === 'regional' && t._debtTab) && (
                         <>
                           {/* Кнопки підтвердження в другому рядку */}
                           <div style={{marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center'}}>

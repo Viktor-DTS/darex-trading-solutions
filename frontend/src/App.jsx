@@ -2897,6 +2897,11 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   const shouldShow = isApprovedByAccountant && needsDebtStatus && hasPaymentType && isNotCash;
                   console.log('[DEBUG] Regional debt filter - shouldShow:', shouldShow, 'isApprovedByAccountant:', isApprovedByAccountant, 'needsDebtStatus:', needsDebtStatus, 'hasPaymentType:', hasPaymentType, 'isNotCash:', isNotCash);
                   
+                  if (shouldShow) {
+                    // Додаємо прапор для вкладки "debt"
+                    task._debtTab = true;
+                  }
+                  
                   return shouldShow;
                 })}
                 allTasks={tasks}
