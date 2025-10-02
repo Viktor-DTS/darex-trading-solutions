@@ -2844,6 +2844,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
             <div style={{display:'flex',gap:8,marginBottom:16}}>
               <button onClick={()=>setTaskTab('pending')} style={{width:220,padding:'10px 0',background:taskTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
               <button onClick={()=>setTaskTab('archive')} style={{width:220,padding:'10px 0',background:taskTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
+              <button onClick={()=>setTaskTab('debt')} style={{width:220,padding:'10px 0',background:taskTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='debt'?700:400,cursor:'pointer'}}>Заборгованість по документам</button>
               <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
             </div>
             <div style={{display:'flex',gap:8,marginBottom:16}}>
@@ -2879,12 +2880,43 @@ function RegionalManagerArea({ tab: propTab, user }) {
               user={user}
               readOnly={editTask?._readOnly || false}
             />
-            <TaskTable
-              tasks={taskTab === 'pending' ? filtered.filter(t => t.status === 'Виконано' && isPending(t.approvedByRegionalManager)) : filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByRegionalManager))}
+            {taskTab === 'debt' ? (
+              <TaskTable
+                tasks={filtered.filter(task => {
+                  console.log('[DEBUG] Regional debt tab - task:', task.requestNumber, 'debtStatus:', task.debtStatus, 'paymentType:', task.paymentType);
+                  // Показуємо завдання, які потребують встановлення статусу заборгованості:
+                  // 1. Не мають встановленого debtStatus (undefined або порожнє)
+                  // 2. Мають paymentType (не порожнє)
+                  // 3. paymentType не є 'Готівка'
+                  const hasPaymentType = task.paymentType && task.paymentType.trim() !== '';
+                  const isNotCash = !['Готівка'].includes(task.paymentType);
+                  const needsDebtStatus = !task.debtStatus || task.debtStatus === undefined || task.debtStatus === '';
+                  
+                  const shouldShow = needsDebtStatus && hasPaymentType && isNotCash;
+                  console.log('[DEBUG] Regional debt filter - shouldShow:', shouldShow, 'needsDebtStatus:', needsDebtStatus, 'hasPaymentType:', hasPaymentType, 'isNotCash:', isNotCash);
+                  
+                  return shouldShow;
+                })}
                 allTasks={tasks}
                 onApprove={handleApprove}
                 onEdit={handleEdit}
-              role="regional"
+                role="regional"
+                filters={filters}
+                onFilterChange={handleFilter}
+                columns={columnsWithApprove}
+                allColumns={columnsWithApprove}
+                approveField="approvedByRegionalManager"
+                commentField="regionalManagerComment"
+                user={user}
+                isArchive={false}
+              />
+            ) : (
+              <TaskTable
+                tasks={taskTab === 'pending' ? filtered.filter(t => t.status === 'Виконано' && isPending(t.approvedByRegionalManager)) : filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByRegionalManager))}
+                allTasks={tasks}
+                onApprove={handleApprove}
+                onEdit={handleEdit}
+                role="regional"
                 filters={filters}
                 onFilterChange={handleFilter}
                 columns={columnsWithApprove}
@@ -2894,6 +2926,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                 user={user}
                 isArchive={taskTab === 'archive'}
               />
+            )}
         </>
       )}
       {tab === 'report' && (
