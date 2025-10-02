@@ -254,11 +254,35 @@ export default function AccountantArea({ user }) {
     try {
       console.log('[DEBUG] loadTaskInfo - taskId:', taskId);
       
+      // Показуємо індикатор завантаження
+      setLoading(true);
+      
       // Спочатку спробуємо знайти заявку за ID
       let task;
       try {
         task = await tasksAPI.getById(taskId);
         console.log('[DEBUG] loadTaskInfo - знайдено за ID:', task);
+        
+        // Перевіряємо, чи заявка містить всі необхідні дані
+        if (!task || !task.id) {
+          throw new Error('Заявка не містить необхідних даних');
+        }
+        
+        // Перевіряємо наявність ключових полів
+        const requiredFields = ['requestNumber', 'client', 'serviceRegion'];
+        const missingFields = requiredFields.filter(field => !task[field]);
+        
+        if (missingFields.length > 0) {
+          console.log('[DEBUG] loadTaskInfo - відсутні поля:', missingFields);
+          // Спробуємо оновити дані з сервера
+          const freshTasks = await tasksAPI.getAll();
+          const freshTask = freshTasks.find(t => t.id === taskId || t._id === taskId || t.requestNumber === taskId);
+          if (freshTask) {
+            task = freshTask;
+            console.log('[DEBUG] loadTaskInfo - оновлено зі свіжих даних:', task);
+          }
+        }
+        
       } catch (idError) {
         console.log('[DEBUG] loadTaskInfo - не знайдено за ID, шукаємо в локальних заявках');
         
@@ -272,11 +296,30 @@ export default function AccountantArea({ user }) {
         }
       }
       
+      // Додаткова перевірка на повноту даних
+      if (!task.requestNumber) {
+        console.warn('[DEBUG] loadTaskInfo - відсутній номер заявки, намагаємося оновити дані');
+        // Спробуємо оновити дані з сервера
+        try {
+          const freshTasks = await tasksAPI.getAll();
+          const freshTask = freshTasks.find(t => t.id === taskId || t._id === taskId);
+          if (freshTask) {
+            task = freshTask;
+            console.log('[DEBUG] loadTaskInfo - оновлено зі свіжих даних (fallback):', task);
+          }
+        } catch (updateError) {
+          console.warn('[DEBUG] loadTaskInfo - не вдалося оновити дані:', updateError);
+        }
+      }
+      
       setSelectedTaskInfo(task);
       setTaskInfoModalOpen(true);
+      
     } catch (error) {
       console.error('Помилка завантаження інформації про заявку:', error);
       alert('Помилка завантаження інформації про заявку: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
   
@@ -1054,19 +1097,21 @@ export default function AccountantArea({ user }) {
                         </p>
                         <button 
                           onClick={() => loadTaskInfo(request.taskId)}
+                          disabled={loading}
                           style={{
                             marginTop: '8px',
                             padding: '6px 12px',
-                            backgroundColor: '#17a2b8',
+                            backgroundColor: loading ? '#6c757d' : '#17a2b8',
                             color: 'white',
                             border: 'none',
                             borderRadius: '4px',
-                            cursor: 'pointer',
+                            cursor: loading ? 'not-allowed' : 'pointer',
                             fontSize: '12px',
-                            fontWeight: '600'
+                            fontWeight: '600',
+                            opacity: loading ? 0.6 : 1
                           }}
                         >
-                          ℹ️ Інформація по заявці
+                          {loading ? '⏳ Завантаження...' : 'ℹ️ Інформація по заявці'}
                         </button>
                       </div>
                       <div style={{
@@ -1446,6 +1491,32 @@ export default function AccountantArea({ user }) {
           user={user}
           readOnly={true}
         />
+      )}
+      
+      {/* Індикатор завантаження для модального вікна */}
+      {loading && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            textAlign: 'center'
+          }}>
+            <div style={{ marginBottom: '10px' }}>⏳</div>
+            <div>Завантаження інформації про заявку...</div>
+          </div>
+        </div>
       )}
     </div>
   );
