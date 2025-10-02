@@ -1438,9 +1438,18 @@ export default function AccountantArea({ user }) {
           <TaskTable
           tasks={tableData.filter(task => {
             console.log('[DEBUG] Debt tab - task:', task.requestNumber, 'debtStatus:', task.debtStatus, 'paymentType:', task.paymentType);
-            return task.debtStatus === 'Заборгованість' && 
-                   task.paymentType && 
-                   !['Готівка'].includes(task.paymentType);
+            // Показуємо завдання, які потребують встановлення статусу заборгованості:
+            // 1. Не мають встановленого debtStatus (undefined або порожнє)
+            // 2. Мають paymentType (не порожнє)
+            // 3. paymentType не є 'Готівка'
+            const hasPaymentType = task.paymentType && task.paymentType.trim() !== '';
+            const isNotCash = !['Готівка'].includes(task.paymentType);
+            const needsDebtStatus = !task.debtStatus || task.debtStatus === undefined || task.debtStatus === '';
+            
+            const shouldShow = needsDebtStatus && hasPaymentType && isNotCash;
+            console.log('[DEBUG] Debt filter - shouldShow:', shouldShow, 'needsDebtStatus:', needsDebtStatus, 'hasPaymentType:', hasPaymentType, 'isNotCash:', isNotCash);
+            
+            return shouldShow;
           })}
         allTasks={tasks}
         onApprove={handleApprove}
