@@ -328,8 +328,21 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       console.log('[DEBUG] ModalTaskForm - відкрито модальне вікно, завантажуємо користувачів...');
       console.log('[DEBUG] ModalTaskForm - поточний користувач:', user?.login, 'роль:', user?.role);
       
+      // Спочатку перевіряємо localStorage
+      const cachedUsers = localStorage.getItem('users');
+      if (cachedUsers) {
+        try {
+          const parsedUsers = JSON.parse(cachedUsers);
+          console.log('[DEBUG] ModalTaskForm - користувачі з кешу:', parsedUsers.length);
+          setUsers(parsedUsers);
+        } catch (error) {
+          console.error('[ERROR] ModalTaskForm - помилка парсингу кешу:', error);
+        }
+      }
+      
+      // Завжди завантажуємо свіжі дані з API
       columnsSettingsAPI.getAllUsers().then(users => {
-        console.log('[DEBUG] ModalTaskForm - завантажено користувачів:', users.length);
+        console.log('[DEBUG] ModalTaskForm - завантажено користувачів з API:', users.length);
         console.log('[DEBUG] ModalTaskForm - користувачі з роллю service:', users.filter(u => u.role === 'service').length);
         console.log('[DEBUG] ModalTaskForm - всі користувачі:', users.map(u => ({ login: u.login, role: u.role, region: u.region })));
         setUsers(users);
@@ -337,12 +350,23 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         localStorage.setItem('users', JSON.stringify(users));
       }).catch(error => {
         console.error('[ERROR] ModalTaskForm - помилка завантаження користувачів:', error);
-        setUsers([]);
+        // Якщо API не працює, використовуємо кеш
+        if (cachedUsers) {
+          try {
+            const parsedUsers = JSON.parse(cachedUsers);
+            setUsers(parsedUsers);
+          } catch (parseError) {
+            console.error('[ERROR] ModalTaskForm - помилка парсингу кешу при fallback:', parseError);
+            setUsers([]);
+          }
+        } else {
+          setUsers([]);
+        }
       });
       
       regionsAPI.getAll().then(setRegions).catch(() => setRegions([]));
     }
-  }, [open, user?.login, user?.role]);
+  }, [open]);
   // useEffect для автоматичного заповнення номера заявки
   useEffect(() => {
     const autoFillRequestNumber = async () => {
