@@ -326,8 +326,12 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     if (open) {
       // Примусово завантажуємо користувачів при відкритті модального вікна
       console.log('[DEBUG] ModalTaskForm - відкрито модальне вікно, завантажуємо користувачів...');
+      console.log('[DEBUG] ModalTaskForm - поточний користувач:', user?.login, 'роль:', user?.role);
+      
       columnsSettingsAPI.getAllUsers().then(users => {
         console.log('[DEBUG] ModalTaskForm - завантажено користувачів:', users.length);
+        console.log('[DEBUG] ModalTaskForm - користувачі з роллю service:', users.filter(u => u.role === 'service').length);
+        console.log('[DEBUG] ModalTaskForm - всі користувачі:', users.map(u => ({ login: u.login, role: u.role, region: u.region })));
         setUsers(users);
         // Зберігаємо в localStorage для швидкого доступу
         localStorage.setItem('users', JSON.stringify(users));
@@ -338,7 +342,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       
       regionsAPI.getAll().then(setRegions).catch(() => setRegions([]));
     }
-  }, [open]);
+  }, [open, user?.login, user?.role]);
   // useEffect для автоматичного заповнення номера заявки
   useEffect(() => {
     const autoFillRequestNumber = async () => {
@@ -1305,12 +1309,20 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   if (!f) return null;
                   let value = form[f.name] || '';
                   if (n === 'engineer1' || n === 'engineer2') {
+                    console.log('[DEBUG] ModalTaskForm - рендеринг поля інженера:', n);
+                    console.log('[DEBUG] ModalTaskForm - загальна кількість користувачів:', users.length);
+                    console.log('[DEBUG] ModalTaskForm - поточний регіон заявки:', form.serviceRegion);
+                    
                     // Отримуємо доступних інженерів для поточного регіону
                     const currentEngineers = users.filter(u => u.role === 'service');
+                    console.log('[DEBUG] ModalTaskForm - інженери (service):', currentEngineers.length);
+                    
                     const availableEngineers = currentEngineers.filter(u => {
                       if (form.serviceRegion === 'Україна') return true;
                       return u.region === form.serviceRegion;
                     });
+                    console.log('[DEBUG] ModalTaskForm - доступні інженери для регіону:', availableEngineers.length);
+                    console.log('[DEBUG] ModalTaskForm - доступні інженери:', availableEngineers.map(u => ({ name: u.name, region: u.region })));
                     
                     // Додаткова перевірка - якщо користувачі не завантажені, спробуємо завантажити
                     if (users.length === 0) {
