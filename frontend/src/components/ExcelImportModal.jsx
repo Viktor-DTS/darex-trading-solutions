@@ -96,9 +96,9 @@ const ExcelImportModal = ({ open, onClose, onImport }) => {
     { name: 'accountantComment', label: 'Опис відмови (бухгалтер)' },
     { name: 'accountantComments', label: 'Коментарії бухгалтера' },
     
-    // Підтвердження регіонального керівника
-    { name: 'approvedByRegionalManager', label: 'Підтвердження регіонального керівника' },
-    { name: 'regionalManagerComment', label: 'Опис відмови (регіональний керівник)' },
+    // Підтвердження регіонального керівника (приховано)
+    // { name: 'approvedByRegionalManager', label: 'Підтвердження регіонального керівника' },
+    // { name: 'regionalManagerComment', label: 'Опис відмови (регіональний керівник)' },
     
     // Додаткові поля
     { name: 'comments', label: 'Коментарі' },

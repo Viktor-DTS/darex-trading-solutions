@@ -1585,7 +1585,7 @@ export default function MobileViewArea({ user }) {
                         <span style={{ fontWeight: '500', color: '#000' }}>{task.regionalComment}</span>
                       </div>
                     )}
-                    {isFieldFilled(task.approvedByRegionalManager) && (
+                    {/* {isFieldFilled(task.approvedByRegionalManager) && (
                       <div>
                         <span style={{ color: '#333' }}>Підтверджено рег. менеджером:</span><br />
                         <span style={{ fontWeight: '500', color: '#28a745' }}>{task.approvedByRegionalManager}</span>
@@ -1596,7 +1596,7 @@ export default function MobileViewArea({ user }) {
                         <span style={{ color: '#333' }}>Коментар рег. менеджера:</span><br />
                         <span style={{ fontWeight: '500', color: '#000' }}>{task.regionalManagerComment}</span>
                       </div>
-                    )}
+                    )} */}
                   </div>
                   {(isFieldFilled(task.requestDesc) || isFieldFilled(task.work)) && (
                     <div style={{ marginBottom: '12px' }}>

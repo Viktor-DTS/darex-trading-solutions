@@ -97,8 +97,8 @@ export const fields = [
   { name: 'approvedByAccountant', label: 'Підтвердження бухгалтера', type: 'select', options: ['На розгляді', 'Підтверджено', 'Відмова'], role: 'accountant' },
   { name: 'accountantComment', label: 'Опис відмови (бухгалтер)', type: 'textarea', role: 'accountant' },
   { name: 'accountantComments', label: 'Коментарії бухгалтера', type: 'textarea', role: 'accountant' },
-  { name: 'approvedByRegionalManager', label: 'Підтвердження регіонального керівника', type: 'select', options: ['На розгляді', 'Підтверджено', 'Відмова'], role: 'regionalManager' },
-  { name: 'regionalManagerComment', label: 'Опис відмови (регіональний керівник)', type: 'textarea', role: 'regionalManager' },
+  // { name: 'approvedByRegionalManager', label: 'Підтвердження регіонального керівника', type: 'select', options: ['На розгляді', 'Підтверджено', 'Відмова'], role: 'regionalManager' },
+  // { name: 'regionalManagerComment', label: 'Опис відмови (регіональний керівник)', type: 'textarea', role: 'regionalManager' },
   { name: 'comments', label: 'Коментарі', type: 'textarea' },
   { name: 'airFilterName', label: 'Фільтр повітряний назва', type: 'text' },
   { name: 'airFilterCount', label: 'Фільтр повітряний штук', type: 'text' },
@@ -116,13 +116,13 @@ const blockDescField = { name: 'blockDetail', label: 'Детальний опи�
 const reportMonthYearField = { name: 'reportMonthYear', label: 'Місяць/рік для звіту', type: 'text', readOnly: true };
 // Групи полів
 const group1 = ['requestDesc'];
-const group2 = ['warehouseComment', 'accountantComment', 'accountantComments', 'regionalManagerComment'];
+const group2 = ['warehouseComment', 'accountantComment', 'accountantComments'/*, 'regionalManagerComment'*/];
 const group3 = ['work', 'engineer1', 'engineer2'];
 const group4 = ['oilType', 'oilUsed', 'oilPrice', 'oilTotal'];
 const group5 = ['spareParts', 'sparePartsPrice', 'sparePartsTotal'];
 const group6 = ['totalAmount'];
 // Для textarea
-const textareaFields = ['requestDesc','address','warehouseComment','accountantComment','accountantComments','regionalManagerComment','comments','blockDetail','otherMaterials'];
+const textareaFields = ['requestDesc','address','warehouseComment','accountantComment','accountantComments'/*,'regionalManagerComment'*/,'comments','blockDetail','otherMaterials'];
 const checkboxFields = ['needInvoice', 'needAct'];
 // Групи для компактного відображення
 const oilGroup = ['oilType', 'oilUsed', 'oilPrice', 'oilTotal'];
@@ -141,7 +141,7 @@ const otherMaterialsGroup = ['otherSum', 'otherMaterials'];
 const transportWorkPriceGroup = ['carNumber', 'transportKm', 'transportSum', 'workPrice'];
 const warehouseGroup = ['approvedByWarehouse', 'warehouseComment'];
 const accountantGroup = ['approvedByAccountant', 'accountantComment', 'accountantComments'];
-const regionalManagerGroup = ['approvedByRegionalManager', 'regionalManagerComment'];
+// const regionalManagerGroup = ['approvedByRegionalManager', 'regionalManagerComment'];
 const commentsGroup = ['comments'];
 // Додаю групу для першого рядка
 const mainHeaderGroup = ['status', 'requestDate', 'company', 'serviceRegion'];
@@ -176,7 +176,8 @@ const labelAboveFields = [
   'debtStatus', 'debtStatusCheckbox',
   'approvedByWarehouse', 'warehouseComment',
   'approvedByAccountant', 'accountantComment', 'accountantComments',
-  'approvedByRegionalManager', 'regionalManagerComment', 'comments'
+  // 'approvedByRegionalManager', 'regionalManagerComment', 
+  'comments'
 ];
 export default function ModalTaskForm({ open, onClose, onSave, initialData = {}, mode = 'service', user, readOnly = false }) {
   const isRegionReadOnly = user && user.region && user.region !== 'Україна';
@@ -481,8 +482,8 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       return mode !== 'admin' && user?.role !== 'administrator';
     }
     if (mode === 'regionalManager' || mode === 'regional') {
-      // Доступні тільки ці два поля
-      return !(name === 'approvedByRegionalManager' || name === 'regionalManagerComment');
+      // Доступні тільки ці два поля (приховано)
+      return true; // !(name === 'approvedByRegionalManager' || name === 'regionalManagerComment');
     }
     if (mode === 'warehouse') {
       return !(name === 'approvedByWarehouse' || name === 'warehouseComment');
@@ -526,8 +527,8 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       // Оператор НЕ може редагувати поля підтвердження від інших ролей:
       const operatorReadOnlyFields = [
         'approvedByWarehouse', 'warehouseComment',
-        'approvedByAccountant', 'accountantComment', 'accountantComments',
-        'approvedByRegionalManager', 'regionalManagerComment'
+        'approvedByAccountant', 'accountantComment', 'accountantComments'
+        // 'approvedByRegionalManager', 'regionalManagerComment'
       ];
       return operatorReadOnlyFields.includes(name);
     }
@@ -589,10 +590,10 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       setForm({ ...form, [name]: value, accountantComment: '', accountantComments: '' });
       return;
     }
-    if (name === 'approvedByRegionalManager' && form.approvedByRegionalManager === 'Відмова' && value !== 'Відмова') {
-      setForm({ ...form, [name]: value, regionalManagerComment: '' });
-      return;
-    }
+    // if (name === 'approvedByRegionalManager' && form.approvedByRegionalManager === 'Відмова' && value !== 'Відмова') {
+    //   setForm({ ...form, [name]: value, regionalManagerComment: '' });
+    //   return;
+    // }
     // Обробка чекбоксів
     if (type === 'checkbox') {
       setForm({ ...form, [name]: checked });
@@ -640,10 +641,10 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       newForm.accountantComment = rejectModal.comment;
       newForm.accountantComments = rejectModal.comment;
     }
-    if (rejectModal.field === 'approvedByRegionalManager') {
-      newForm.approvedByRegionalManager = 'Відмова';
-      newForm.regionalManagerComment = rejectModal.comment;
-    }
+    // if (rejectModal.field === 'approvedByRegionalManager') {
+    //   newForm.approvedByRegionalManager = 'Відмова';
+    //   newForm.regionalManagerComment = rejectModal.comment;
+    // }
     setForm(newForm);
     setRejectModal({ open: false, field: '', comment: '' });
   };
@@ -734,9 +735,9 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       finalForm.accountantComment = `Погоджено, претензій не маю. ${user?.name || 'Користувач'}`;
       finalForm.accountantComments = `Погоджено, претензій не маю. ${user?.name || 'Користувач'}`;
     }
-    if (form.approvedByRegionalManager === 'Підтверджено' && !form.regionalManagerComment) {
-      finalForm.regionalManagerComment = `Погоджено, претензій не маю. ${user?.name || 'Користувач'}`;
-    }
+    // if (form.approvedByRegionalManager === 'Підтверджено' && !form.regionalManagerComment) {
+    //   finalForm.regionalManagerComment = `Погоджено, претензій не маю. ${user?.name || 'Користувач'}`;
+    // }
     onSave({
       ...finalForm,
       bonusApprovalDate,
@@ -1277,7 +1278,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             );
           }
           // textarea на весь рядок
-          if (['requestDesc','address','warehouseComment','accountantComment','accountantComments','regionalManagerComment','comments','blockDetail','otherMaterials'].includes(name)) {
+          if (['requestDesc','address','warehouseComment','accountantComment','accountantComments'/*,'regionalManagerComment'*/,'comments','blockDetail','otherMaterials'].includes(name)) {
             const f = fields.find(f=>f.name===name);
             if (!f) return null;
             return (
@@ -1505,33 +1506,33 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
               </div>
             );
           }
-          if (idx === orderedFields.indexOf('approvedByRegionalManager')) {
-            return (
-              <div className="group" key="regionalManagerGroup">
-                {['approvedByRegionalManager', 'regionalManagerComment'].map(n => {
-                  const f = fields.find(f=>f.name===n);
-                  if (!f) return null;
-                  let value = form[f.name] || '';
-                  if (n === 'regionalManagerComment') {
-                    return (
-                      <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field textarea'} style={{flex:2}}>
-                        <label>{f.label}</label>
-                        <textarea name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} style={{minHeight:40}} />
-                      </div>
-                    );
-                  }
-                  return (
-                    <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
-                      <label>{f.label}</label>
-                      <select name={f.name} value={value} onChange={handleChange} disabled={isReadOnly(f.name)}>
-                        {(f.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      </select>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          }
+          // if (idx === orderedFields.indexOf('approvedByRegionalManager')) {
+          //   return (
+          //     <div className="group" key="regionalManagerGroup">
+          //       {['approvedByRegionalManager', 'regionalManagerComment'].map(n => {
+          //         const f = fields.find(f=>f.name===n);
+          //         if (!f) return null;
+          //         let value = form[f.name] || '';
+          //         if (n === 'regionalManagerComment') {
+          //           return (
+          //             <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field textarea'} style={{flex:2}}>
+          //               <label>{f.label}</label>
+          //               <textarea name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} style={{minHeight:40}} />
+          //             </div>
+          //           );
+          //         }
+          //         return (
+          //           <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
+          //             <label>{f.label}</label>
+          //             <select name={f.name} value={value} onChange={handleChange} disabled={isReadOnly(f.name)}>
+          //               {(f.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          //             </select>
+          //           </div>
+          //         );
+          //       })}
+          //     </div>
+          //   );
+          // }
           if (idx === orderedFields.indexOf('comments')) {
             return (
               <div className="group" key="commentsGroup">

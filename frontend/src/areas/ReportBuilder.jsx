@@ -9,12 +9,12 @@ export default function ReportBuilder({ user }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
-    requestDate: '', requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: '', paymentDate: '', approvedByWarehouse: '', approvedByAccountant: '', approvedByRegionalManager: ''
+    requestDate: '', requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: '', paymentDate: '', approvedByWarehouse: '', approvedByAccountant: '' // , approvedByRegionalManager: ''
   });
   const [approvalFilter, setApprovalFilter] = useState('all'); // 'all', 'approved', 'not_approved'
   const [groupBy, setGroupBy] = useState('');
   const [reportData, setReportData] = useState([]);
-  const [selectedFields, setSelectedFields] = useState(['requestDate', 'date', 'paymentDate', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager']); // Початкові поля
+  const [selectedFields, setSelectedFields] = useState(['requestDate', 'date', 'paymentDate', 'approvedByWarehouse', 'approvedByAccountant'/*, 'approvedByRegionalManager'*/]); // Початкові поля
   const [availableFields, setAvailableFields] = useState([
     { name: 'requestDate', label: 'Дата заявки' },
     { name: 'requestDesc', label: 'Опис заявки' },
@@ -35,10 +35,10 @@ export default function ReportBuilder({ user }) {
     { name: 'warehouseComment', label: 'Коментар складу' },
     { name: 'accountantComment', label: 'Коментар бухгалтера' },
     { name: 'accountantComments', label: 'Коментарії бухгалтера' },
-    { name: 'regionalManagerComment', label: 'Коментар регіонального менеджера' },
+    // { name: 'regionalManagerComment', label: 'Коментар регіонального менеджера' },
     { name: 'approvedByWarehouse', label: 'Статус затвердження складу' },
     { name: 'approvedByAccountant', label: 'Статус затвердження бухгалтера' },
-    { name: 'approvedByRegionalManager', label: 'Статус затвердження регіонального менеджера' },
+    // { name: 'approvedByRegionalManager', label: 'Статус затвердження регіонального менеджера' },
     { name: 'comments', label: 'Коментарі' },
     { name: 'oilType', label: 'Тип оливи' },
     { name: 'oilUsed', label: 'Використано оливи' },
@@ -133,7 +133,7 @@ export default function ReportBuilder({ user }) {
         return paymentTypeOptions;
       case 'approvedByWarehouse':
       case 'approvedByAccountant':
-      case 'approvedByRegionalManager':
+      // case 'approvedByRegionalManager':
         return approvalOptions;
       case 'serviceRegion':
         // Якщо користувач має множинні регіони, показуємо тільки їх регіони (без "Загальний")
@@ -160,7 +160,7 @@ export default function ReportBuilder({ user }) {
   };
   const isFieldDropdown = (fieldName) => {
     return ['status', 'company', 'paymentType', 'serviceRegion', 'engineer1', 'engineer2', 
-            'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(fieldName);
+            'approvedByWarehouse', 'approvedByAccountant'/*, 'approvedByRegionalManager'*/].includes(fieldName);
   };
   const isFieldDisabled = (fieldName) => {
     // Блокуємо регіон обслуговування тільки для користувачів з одним регіоном (не з 'Україна' і не з множинними регіонами)
@@ -475,7 +475,7 @@ export default function ReportBuilder({ user }) {
                       <td>${index + 1}.${taskIndex + 1}</td>
                       ${selectedFields.map(field => {
                         const value = task[field];
-                        if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
+                        if (field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/) {
                           return `<td>${formatApprovalStatus(value)}</td>`;
                         }
                         return `<td>${value || ''}</td>`;
@@ -489,7 +489,7 @@ export default function ReportBuilder({ user }) {
                   <td>${index + 1}</td>
                   ${selectedFields.map(field => {
                     const value = item[field];
-                    if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
+                    if (field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/) {
                       return `<td>${formatApprovalStatus(value)}</td>`;
                     }
                     return `<td>${value || ''}</td>`;
@@ -578,7 +578,7 @@ export default function ReportBuilder({ user }) {
             `${index + 1}.${taskIndex + 1}`,
             ...selectedFields.map(field => {
               const value = task[field];
-              if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
+              if (field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/) {
                 return formatApprovalStatus(value);
               }
               return value || '';
@@ -608,7 +608,7 @@ export default function ReportBuilder({ user }) {
           `${index + 1}`,
           ...selectedFields.map(field => {
             const value = item[field];
-            if (field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager') {
+            if (field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/) {
               return formatApprovalStatus(value);
             }
             return value || '';
@@ -1303,9 +1303,9 @@ export default function ReportBuilder({ user }) {
                           <td>{index + 1}.{taskIndex + 1}</td>
                           {selectedFields.map(field => (
                             <td key={field} style={{padding: '12px'}}>
-                              {field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager' 
-                                ? formatApprovalStatus(task[field]) 
-                                : (task[field] || '')}
+                          {field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/ 
+                            ? formatApprovalStatus(task[field]) 
+                            : (task[field] || '')}
                             </td>
                           ))}
                         </tr>
@@ -1322,7 +1322,7 @@ export default function ReportBuilder({ user }) {
                       <td>{index + 1}</td>
                       {selectedFields.map(field => (
                         <td key={field} style={{padding: '12px'}}>
-                          {field === 'approvedByWarehouse' || field === 'approvedByAccountant' || field === 'approvedByRegionalManager' 
+                          {field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/ 
                             ? formatApprovalStatus(row[field]) 
                             : (row[field] || '')}
                         </td>
