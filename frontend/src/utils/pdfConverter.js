@@ -1,6 +1,34 @@
 /**
  * Утиліта для конвертації PDF файлів в JPG зображення на клієнті
+ * Використовує PDF.js для рендерингу PDF
  */
+
+// Динамічно завантажуємо PDF.js
+let pdfjsLib = null;
+
+async function loadPdfJs() {
+  if (pdfjsLib) return pdfjsLib;
+  
+  try {
+    // Завантажуємо PDF.js з CDN
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.async = true;
+    
+    return new Promise((resolve, reject) => {
+      script.onload = () => {
+        // Налаштовуємо PDF.js
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        pdfjsLib = window.pdfjsLib;
+        resolve(pdfjsLib);
+      };
+      script.onerror = () => reject(new Error('Не вдалося завантажити PDF.js'));
+      document.head.appendChild(script);
+    });
+  } catch (error) {
+    throw new Error('Помилка завантаження PDF.js: ' + error.message);
+  }
+}
 
 /**
  * Конвертує PDF файл в JPG зображення
@@ -8,73 +36,55 @@
  * @returns {Promise<File>} - JPG файл
  */
 export async function convertPdfToJpg(pdfFile) {
-  return new Promise((resolve, reject) => {
-    // Створюємо URL для PDF файлу
-  const pdfUrl = URL.createObjectURL(pdfFile);
-  
-  // Створюємо canvas для рендерингу
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  
-  // Створюємо iframe для завантаження PDF
-  const iframe = document.createElement('iframe');
-  iframe.style.display = 'none';
-  iframe.src = pdfUrl;
-  document.body.appendChild(iframe);
-  
-  iframe.onload = () => {
-    try {
-      // Отримуємо PDF документ
-      const pdfDoc = iframe.contentDocument || iframe.contentWindow.document;
-      
-      // Створюємо img елемент для рендерингу першої сторінки
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      
-      img.onload = () => {
-        // Встановлюємо розміри canvas
-        canvas.width = img.width;
-        canvas.height = img.height;
-        
-        // Малюємо зображення на canvas
-        ctx.drawImage(img, 0, 0);
-        
-        // Конвертуємо canvas в JPG
-        canvas.toBlob((blob) => {
-          if (blob) {
-            // Створюємо новий файл з JPG
-            const jpgFile = new File([blob], pdfFile.name.replace('.pdf', '.jpg'), {
-              type: 'image/jpeg',
-              lastModified: Date.now()
-            });
-            
-            // Очищуємо ресурси
-            URL.revokeObjectURL(pdfUrl);
-            document.body.removeChild(iframe);
-            
-            resolve(jpgFile);
-          } else {
-            reject(new Error('Не вдалося конвертувати PDF в JPG'));
-          }
-        }, 'image/jpeg', 0.9);
-      };
-      
-      img.onerror = () => {
-        reject(new Error('Не вдалося завантажити PDF для конвертації'));
-      };
-      
-      // Намагаємося отримати зображення з PDF
-      img.src = pdfUrl;
-      
-    } catch (error) {
-      reject(new Error('Помилка при конвертації PDF: ' + error.message));
-    }
-  };
-  
-  iframe.onerror = () => {
-    reject(new Error('Не вдалося завантажити PDF файл'));
-  };
-  });
+  try {
+    // Завантажуємо PDF.js
+    const pdfjs = await loadPdfJs();
+    
+    // Читаємо PDF файл як ArrayBuffer
+    const arrayBuffer = await pdfFile.arrayBuffer();
+    
+    // Завантажуємо PDF документ
+    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+    
+    // Отримуємо першу сторінку
+    const page = await pdf.getPage(1);
+    
+    // Налаштовуємо viewport для рендерингу
+    const scale = 2.0; // Збільшуємо роздільність
+    const viewport = page.getViewport({ scale });
+    
+    // Створюємо canvas
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    
+    // Рендеримо сторінку на canvas
+    const renderContext = {
+      canvasContext: context,
+      viewport: viewport
+    };
+    
+    await page.render(renderContext).promise;
+    
+    // Конвертуємо canvas в JPG
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const jpgFile = new File([blob], pdfFile.name.replace('.pdf', '.jpg'), {
+            type: 'image/jpeg',
+            lastModified: Date.now()
+          });
+          resolve(jpgFile);
+        } else {
+          reject(new Error('Не вдалося конвертувати canvas в JPG'));
+        }
+      }, 'image/jpeg', 0.9);
+    });
+    
+  } catch (error) {
+    throw new Error('Помилка конвертації PDF: ' + error.message);
+  }
 }
 
 /**
@@ -100,6 +110,7 @@ export async function processFileForUpload(file) {
       return jpgFile;
     } catch (error) {
       console.error('DEBUG PDF Converter: Помилка конвертації:', error);
+      console.log('DEBUG PDF Converter: Використовуємо оригінальний PDF файл');
       // Якщо конвертація не вдалася, повертаємо оригінальний файл
       return file;
     }
