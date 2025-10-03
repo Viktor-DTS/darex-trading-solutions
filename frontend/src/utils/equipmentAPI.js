@@ -1,7 +1,7 @@
 // API для роботи з обладнанням та матеріалами
 const API_BASE_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:3001' 
-  : 'https://darex-trading-solutions.onrender.com';
+  : 'https://darex-trading-solutions-f.onrender.com';
 // Отримання унікальних типів обладнання
 export const getEquipmentTypes = async () => {
   try {

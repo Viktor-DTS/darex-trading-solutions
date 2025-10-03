@@ -1,5 +1,5 @@
 const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+  (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions-f.onrender.com/api');
 
 export const importedTasksAPI = {
   // Отримати всі імпортовані заявки
