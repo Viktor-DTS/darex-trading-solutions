@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { processFileForUpload } from '../utils/pdfConverter';
 
 const InvoiceRequestBlock = ({ task, user, onRequest }) => {
   const [showModal, setShowModal] = useState(false);
