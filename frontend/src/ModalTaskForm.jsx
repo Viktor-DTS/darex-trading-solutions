@@ -165,7 +165,7 @@ const orderedFields = [
   ...otherMaterialsGroup,
   ...warehouseGroup,
   ...accountantGroup,
-  ...regionalManagerGroup,
+  // ...regionalManagerGroup,
   ...commentsGroup,
 ];
 // Додаємо поле bonusApprovalDate для адміністратора
@@ -953,7 +953,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             ...otherMaterialsGroup.slice(1),
             ...warehouseGroup.slice(1),
             ...accountantGroup.slice(1),
-            ...regionalManagerGroup.slice(1),
+            // ...regionalManagerGroup.slice(1),
             ...commentsGroup.slice(1)
           ].includes(name)) return null;
           if (idx === orderedFields.indexOf('status')) {
