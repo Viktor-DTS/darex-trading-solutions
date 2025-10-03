@@ -3469,15 +3469,9 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
       });
     }
 
-    // Перевіряємо, чи це PDF файл (не JPEG)
+    // Використовуємо оригінальний файл без конвертації
     let finalFileUrl = req.file.path;
     let finalFileName = req.file.originalname;
-    
-    // Тимчасово відключено PDF конвертацію
-    if (req.file.mimetype === 'application/pdf') {
-      console.log('DEBUG PDF Invoice: PDF конвертація тимчасово відключена');
-      // Використовуємо оригінальний PDF
-    }
     
     // Оновлюємо запит з інформацією про файл
     // Виправляємо кодування назви файлу
@@ -3602,15 +3596,9 @@ app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async
       });
     }
 
-    // Перевіряємо, чи це PDF файл (не JPEG)
+    // Використовуємо оригінальний файл без конвертації
     let finalFileUrl = req.file.path;
     let finalFileName = req.file.originalname;
-    
-    // Тимчасово відключено PDF конвертацію
-    if (req.file.mimetype === 'application/pdf') {
-      console.log('DEBUG PDF: PDF конвертація тимчасово відключена');
-      // Використовуємо оригінальний PDF
-    }
     
     if (!req.file) {
       return res.status(400).json({ 
