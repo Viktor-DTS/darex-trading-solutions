@@ -558,7 +558,8 @@ export default function AccountantArea({ user }) {
     }
     return true;
   });
-  const pending = filtered.filter(t => t.status === 'Виконано' && (
+  const pending = filtered.filter(t => t.status === 'Виконано' && 
+    isApproved(t.approvedByWarehouse) && (
     t.approvedByAccountant === null ||
     t.approvedByAccountant === undefined ||
     t.approvedByAccountant === 'На розгляді' ||
