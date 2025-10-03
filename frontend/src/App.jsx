@@ -2918,7 +2918,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   return t.status === 'Виконано' && (isWarehouseRejected || isAccountantRejected);
                 }) : filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByRegionalManager))}
                 allTasks={tasks}
-                onApprove={handleApprove}
+                onApprove={taskTab === 'pending' ? undefined : handleApprove}
                 onEdit={handleEdit}
                 role="regional"
                 filters={filters}
