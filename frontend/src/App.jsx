@@ -106,9 +106,7 @@ function isApproved(value) {
 }
 // Функція для перевірки статусу відмови
 function isRejected(value) {
-  const result = value === false || value === 'Відмова';
-  console.log(`[DEBUG] isRejected(${value}) = ${result}`);
-  return result;
+  return value === false || value === 'Відмова';
 }
 // Функція для перевірки статусу на розгляді
 function isPending(value) {
@@ -2917,21 +2915,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                 tasks={taskTab === 'pending' ? filtered.filter(t => {
                   const isWarehouseRejected = isRejected(t.approvedByWarehouse);
                   const isAccountantRejected = isRejected(t.approvedByAccountant);
-                  const shouldShow = t.status === 'Виконано' && (isWarehouseRejected || isAccountantRejected);
-                  
-                  // Логуємо всі заявки зі статусом "Виконано"
-                  if (t.status === 'Виконано') {
-                    console.log(`[DEBUG] Regional pending filter - Task ${t.requestNumber}:`, {
-                      approvedByWarehouse: t.approvedByWarehouse,
-                      approvedByAccountant: t.approvedByAccountant,
-                      isWarehouseRejected,
-                      isAccountantRejected,
-                      shouldShow,
-                      status: t.status
-                    });
-                  }
-                  
-                  return shouldShow;
+                  return t.status === 'Виконано' && (isWarehouseRejected || isAccountantRejected);
                 }) : filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByRegionalManager))}
                 allTasks={tasks}
                 onApprove={handleApprove}
