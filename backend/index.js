@@ -3270,10 +3270,10 @@ app.get('/api/invoice-requests', async (req, res) => {
     if (requesterId) filter.requesterId = requesterId;
     if (taskId) filter.taskId = taskId;
     
-    // Якщо showAll не true, показуємо тільки актуальні (не виконані) заявки
+    // Якщо showAll не true, показуємо тільки актуальні (не виконані та не відхилені) заявки
     // Але якщо запитуємо по taskId, показуємо всі запити для цього завдання
     if (showAll !== 'true' && !status && !taskId) {
-      filter.status = { $ne: 'completed' };
+      filter.status = { $nin: ['completed', 'rejected'] };
     }
     
     console.log('DEBUG filter:', filter);

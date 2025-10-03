@@ -159,6 +159,14 @@ export default function AccountantArea({ user }) {
               : req
           )
         );
+        
+        // Якщо запит відхилено і не показуємо всі заявки, ховаємо його
+        if (status === 'rejected' && !showAllInvoices) {
+          setInvoiceRequests(prev => 
+            prev.filter(req => req._id !== requestId)
+          );
+        }
+        
         alert('Статус запиту оновлено успішно');
       } else {
         const error = await response.json();
@@ -1149,7 +1157,7 @@ export default function AccountantArea({ user }) {
                   onChange={(e) => setShowAllInvoices(e.target.checked)}
                   style={{ margin: 0 }}
                 />
-                <span style={{ color: '#fff', fontSize: '14px' }}>Показати всі заявки (включно з виконаними)</span>
+                <span style={{ color: '#fff', fontSize: '14px' }}>Показати всі заявки (включно з виконаними та відхиленими)</span>
               </label>
             </div>
           </div>
