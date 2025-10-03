@@ -106,7 +106,9 @@ function isApproved(value) {
 }
 // Функція для перевірки статусу відмови
 function isRejected(value) {
-  return value === false || value === 'Відмова';
+  const result = value === false || value === 'Відмова';
+  console.log(`[DEBUG] isRejected(${value}) = ${result}`);
+  return result;
 }
 // Функція для перевірки статусу на розгляді
 function isPending(value) {
@@ -2917,13 +2919,15 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   const isAccountantRejected = isRejected(t.approvedByAccountant);
                   const shouldShow = t.status === 'Виконано' && (isWarehouseRejected || isAccountantRejected);
                   
+                  // Логуємо всі заявки зі статусом "Виконано"
                   if (t.status === 'Виконано') {
                     console.log(`[DEBUG] Regional pending filter - Task ${t.requestNumber}:`, {
                       approvedByWarehouse: t.approvedByWarehouse,
                       approvedByAccountant: t.approvedByAccountant,
                       isWarehouseRejected,
                       isAccountantRejected,
-                      shouldShow
+                      shouldShow,
+                      status: t.status
                     });
                   }
                   
