@@ -90,7 +90,7 @@ export default function AccountantArea({ user }) {
     try {
       setInvoiceRequestsLoading(true);
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions-f.onrender.com/api');
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
       const url = showAllInvoices 
         ? `${API_BASE_URL}/invoice-requests?showAll=true`
@@ -118,7 +118,7 @@ export default function AccountantArea({ user }) {
     
     try {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions-f.onrender.com/api');
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}`, {
         method: 'DELETE'
@@ -142,7 +142,7 @@ export default function AccountantArea({ user }) {
   const updateInvoiceRequestStatus = async (requestId, status, comments = '', rejectionReason = '') => {
     try {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions-f.onrender.com/api');
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}`, {
         method: 'PUT',
@@ -185,7 +185,7 @@ export default function AccountantArea({ user }) {
       setUploadingFiles(prev => new Set([...prev, requestId]));
       
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions-f.onrender.com/api');
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
       const formData = new FormData();
       formData.append('invoiceFile', file); // Змінюємо назву поля на 'invoiceFile'
@@ -231,7 +231,7 @@ export default function AccountantArea({ user }) {
     
     try {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions-f.onrender.com/api');
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/file`, {
         method: 'DELETE'
@@ -261,7 +261,7 @@ export default function AccountantArea({ user }) {
   const uploadActFile = async (requestId, file) => {
     try {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions-f.onrender.com/api');
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
       const formData = new FormData();
       formData.append('actFile', file);
@@ -294,7 +294,7 @@ export default function AccountantArea({ user }) {
   const downloadActFile = async (requestId) => {
     try {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions-f.onrender.com/api');
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/download-act`);
       
@@ -320,7 +320,7 @@ export default function AccountantArea({ user }) {
     
     try {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions-f.onrender.com/api');
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/act-file`, {
         method: 'DELETE'

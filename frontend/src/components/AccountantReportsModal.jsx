@@ -26,7 +26,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user }) => {
   const loadRegions = async () => {
     try {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions-f.onrender.com/api');
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
       const response = await fetch(`${API_BASE_URL}/tasks`);
       if (response.ok) {
@@ -69,7 +69,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user }) => {
     setLoading(true);
     try {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions-f.onrender.com/api');
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
       const params = new URLSearchParams({
         dateFrom: reportFilters.dateFrom,

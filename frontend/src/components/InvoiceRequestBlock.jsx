@@ -26,7 +26,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
     setLoading(true);
     try {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions-f.onrender.com/api');
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests?taskId=${taskIdentifier}`);
       if (response.ok) {
