@@ -2916,7 +2916,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   const isWarehouseRejected = isRejected(t.approvedByWarehouse);
                   const isAccountantRejected = isRejected(t.approvedByAccountant);
                   return t.status === 'Виконано' && (isWarehouseRejected || isAccountantRejected);
-                }) : filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByRegionalManager))}
+                }) : taskTab === 'archive' ? filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant)) : taskTab === 'debt' ? filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant)) : filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByRegionalManager))}
                 allTasks={tasks}
                 onApprove={taskTab === 'pending' ? undefined : handleApprove}
                 onEdit={handleEdit}
