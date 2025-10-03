@@ -2835,7 +2835,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
         <>
             <h2>Завдання для регіонального керівника</h2>
             <div style={{display:'flex',gap:8,marginBottom:16}}>
-              <button onClick={()=>setTaskTab('pending')} style={{width:220,padding:'10px 0',background:taskTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
+              <button onClick={()=>setTaskTab('pending')} style={{width:220,padding:'10px 0',background:taskTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='pending'?700:400,cursor:'pointer'}}>Заявки відхилені</button>
               <button onClick={()=>setTaskTab('archive')} style={{width:220,padding:'10px 0',background:taskTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
               <button onClick={()=>setTaskTab('debt')} style={{width:220,padding:'10px 0',background:taskTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='debt'?700:400,cursor:'pointer'}}>Заборгованість по документам</button>
               <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
@@ -2912,7 +2912,23 @@ function RegionalManagerArea({ tab: propTab, user }) {
               />
             ) : (
               <TaskTable
-                tasks={taskTab === 'pending' ? filtered.filter(t => t.status === 'Виконано' && (isRejected(t.approvedByWarehouse) || isRejected(t.approvedByAccountant))) : filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByRegionalManager))}
+                tasks={taskTab === 'pending' ? filtered.filter(t => {
+                  const isWarehouseRejected = isRejected(t.approvedByWarehouse);
+                  const isAccountantRejected = isRejected(t.approvedByAccountant);
+                  const shouldShow = t.status === 'Виконано' && (isWarehouseRejected || isAccountantRejected);
+                  
+                  if (t.status === 'Виконано') {
+                    console.log(`[DEBUG] Regional pending filter - Task ${t.requestNumber}:`, {
+                      approvedByWarehouse: t.approvedByWarehouse,
+                      approvedByAccountant: t.approvedByAccountant,
+                      isWarehouseRejected,
+                      isAccountantRejected,
+                      shouldShow
+                    });
+                  }
+                  
+                  return shouldShow;
+                }) : filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByRegionalManager))}
                 allTasks={tasks}
                 onApprove={handleApprove}
                 onEdit={handleEdit}
