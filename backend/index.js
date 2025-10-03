@@ -3468,6 +3468,76 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
         message: 'Файл не був завантажений' 
       });
     }
+
+    // Перевіряємо, чи це PDF файл (не JPEG)
+    let finalFileUrl = req.file.path;
+    let finalFileName = req.file.originalname;
+    
+    if (req.file.mimetype === 'application/pdf') {
+      console.log('DEBUG PDF Conversion Invoice: Конвертуємо PDF в зображення');
+      
+      try {
+        // Конвертуємо PDF в зображення
+        const pdfPoppler = require('pdf-poppler');
+        const sharp = require('sharp');
+        const fs = require('fs');
+        const path = require('path');
+        
+        // Створюємо тимчасову папку для конвертації
+        const tempDir = path.join(__dirname, 'temp_pdf_conversion_invoice');
+        if (!fs.existsSync(tempDir)) {
+          fs.mkdirSync(tempDir, { recursive: true });
+        }
+        
+        // Конвертуємо PDF в зображення
+        const options = {
+          format: 'jpeg',
+          out_dir: tempDir,
+          out_prefix: 'converted_invoice',
+          page: 1 // Тільки перша сторінка
+        };
+        
+        const result = await pdfPoppler.convert(req.file.path, options);
+        console.log('DEBUG PDF Conversion Invoice: Результат конвертації:', result);
+        
+        if (result && result.length > 0) {
+          const convertedImagePath = result[0];
+          console.log('DEBUG PDF Conversion Invoice: Конвертований файл:', convertedImagePath);
+          
+          // Оптимізуємо зображення
+          const optimizedImagePath = path.join(tempDir, 'optimized_invoice.jpg');
+          await sharp(convertedImagePath)
+            .jpeg({ quality: 85 })
+            .toFile(optimizedImagePath);
+          
+          // Завантажуємо оптимізоване зображення в Cloudinary
+          const cloudinary = require('cloudinary').v2;
+          const uploadResult = await cloudinary.uploader.upload(optimizedImagePath, {
+            folder: 'darex-trading-solutions/invoices',
+            resource_type: 'image',
+            format: 'jpg',
+            quality: 'auto'
+          });
+          
+          console.log('DEBUG PDF Conversion Invoice: Cloudinary upload result:', uploadResult);
+          
+          // Оновлюємо URL та ім'я файлу
+          finalFileUrl = uploadResult.secure_url;
+          finalFileName = req.file.originalname.replace('.pdf', '.jpg');
+          
+          // Видаляємо тимчасові файли
+          fs.unlinkSync(convertedImagePath);
+          fs.unlinkSync(optimizedImagePath);
+          fs.rmdirSync(tempDir);
+          
+          console.log('DEBUG PDF Conversion Invoice: PDF успішно конвертовано в JPEG');
+        }
+      } catch (conversionError) {
+        console.error('DEBUG PDF Conversion Invoice: Помилка конвертації:', conversionError);
+        // Якщо конвертація не вдалася, використовуємо оригінальний PDF
+        console.log('DEBUG PDF Conversion Invoice: Використовуємо оригінальний PDF');
+      }
+    }
     
     // Оновлюємо запит з інформацією про файл
     // Виправляємо кодування назви файлу
@@ -3492,8 +3562,8 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
       { 
         status: 'completed',
         completedAt: new Date(),
-        invoiceFile: req.file.path, // Cloudinary URL
-        invoiceFileName: fileName
+        invoiceFile: finalFileUrl, // Cloudinary URL (конвертований або оригінальний)
+        invoiceFileName: finalFileName
       },
       { new: true }
     );
@@ -3502,8 +3572,8 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
       success: true, 
       message: 'Файл рахунку завантажено успішно',
       data: {
-        invoiceFile: updatedRequest.invoiceFile,
-        invoiceFileName: updatedRequest.invoiceFileName
+        invoiceFile: finalFileUrl,
+        invoiceFileName: finalFileName
       }
     });
     
@@ -3591,6 +3661,76 @@ app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async
         message: 'Запит на рахунок не знайдено' 
       });
     }
+
+    // Перевіряємо, чи це PDF файл (не JPEG)
+    let finalFileUrl = req.file.path;
+    let finalFileName = req.file.originalname;
+    
+    if (req.file.mimetype === 'application/pdf') {
+      console.log('DEBUG PDF Conversion: Конвертуємо PDF в зображення');
+      
+      try {
+        // Конвертуємо PDF в зображення
+        const pdfPoppler = require('pdf-poppler');
+        const sharp = require('sharp');
+        const fs = require('fs');
+        const path = require('path');
+        
+        // Створюємо тимчасову папку для конвертації
+        const tempDir = path.join(__dirname, 'temp_pdf_conversion');
+        if (!fs.existsSync(tempDir)) {
+          fs.mkdirSync(tempDir, { recursive: true });
+        }
+        
+        // Конвертуємо PDF в зображення
+        const options = {
+          format: 'jpeg',
+          out_dir: tempDir,
+          out_prefix: 'converted',
+          page: 1 // Тільки перша сторінка
+        };
+        
+        const result = await pdfPoppler.convert(req.file.path, options);
+        console.log('DEBUG PDF Conversion: Результат конвертації:', result);
+        
+        if (result && result.length > 0) {
+          const convertedImagePath = result[0];
+          console.log('DEBUG PDF Conversion: Конвертований файл:', convertedImagePath);
+          
+          // Оптимізуємо зображення
+          const optimizedImagePath = path.join(tempDir, 'optimized.jpg');
+          await sharp(convertedImagePath)
+            .jpeg({ quality: 85 })
+            .toFile(optimizedImagePath);
+          
+          // Завантажуємо оптимізоване зображення в Cloudinary
+          const cloudinary = require('cloudinary').v2;
+          const uploadResult = await cloudinary.uploader.upload(optimizedImagePath, {
+            folder: 'darex-trading-solutions/acts',
+            resource_type: 'image',
+            format: 'jpg',
+            quality: 'auto'
+          });
+          
+          console.log('DEBUG PDF Conversion: Cloudinary upload result:', uploadResult);
+          
+          // Оновлюємо URL та ім'я файлу
+          finalFileUrl = uploadResult.secure_url;
+          finalFileName = req.file.originalname.replace('.pdf', '.jpg');
+          
+          // Видаляємо тимчасові файли
+          fs.unlinkSync(convertedImagePath);
+          fs.unlinkSync(optimizedImagePath);
+          fs.rmdirSync(tempDir);
+          
+          console.log('DEBUG PDF Conversion: PDF успішно конвертовано в JPEG');
+        }
+      } catch (conversionError) {
+        console.error('DEBUG PDF Conversion: Помилка конвертації:', conversionError);
+        // Якщо конвертація не вдалася, використовуємо оригінальний PDF
+        console.log('DEBUG PDF Conversion: Використовуємо оригінальний PDF');
+      }
+    }
     
     if (!req.file) {
       return res.status(400).json({ 
@@ -3599,18 +3739,18 @@ app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async
       });
     }
     
-    // Оновлюємо запит з новим файлом акту
+    // Оновлюємо запит з новим файлом акту (конвертованим або оригінальним)
     await InvoiceRequest.findByIdAndUpdate(req.params.id, {
-      actFile: req.file.path,
-      actFileName: req.file.originalname
+      actFile: finalFileUrl,
+      actFileName: finalFileName
     });
     
     res.json({ 
       success: true, 
       message: 'Файл акту завантажено успішно',
       data: {
-        fileUrl: req.file.path,
-        fileName: req.file.originalname
+        fileUrl: finalFileUrl,
+        fileName: finalFileName
       }
     });
     
