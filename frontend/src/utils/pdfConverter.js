@@ -91,7 +91,7 @@ async function loadPdfJs() {
 }
 
 /**
- * Конвертує PDF файл в JPG зображення
+ * Конвертує PDF файл в JPG зображення (тільки перша сторінка)
  * @param {File} pdfFile - PDF файл для конвертації
  * @returns {Promise<File>} - JPG файл
  */
@@ -107,49 +107,32 @@ export async function convertPdfToJpg(pdfFile) {
     const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
     
     console.log('DEBUG PDF Converter: PDF має сторінок:', pdf.numPages);
+    console.log('DEBUG PDF Converter: Конвертуємо тільки ПЕРШУ сторінку');
     
-    // Отримуємо всі сторінки
-    const numPages = pdf.numPages;
-    const pages = [];
+    // Отримуємо тільки першу сторінку
+    const firstPage = await pdf.getPage(1);
     
-    for (let i = 1; i <= numPages; i++) {
-      const page = await pdf.getPage(i);
-      pages.push(page);
-    }
-    
-    // Налаштовуємо viewport для рендерингу (використовуємо першу сторінку для розмірів)
+    // Налаштовуємо viewport для рендерингу
     const scale = 2.0; // Збільшуємо роздільність
-    const firstPageViewport = pages[0].getViewport({ scale });
+    const viewport = firstPage.getViewport({ scale });
     
-    // Створюємо canvas для всіх сторінок
+    // Створюємо canvas для першої сторінки
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     
-    // Розраховуємо загальну висоту для всіх сторінок
-    const pageHeight = firstPageViewport.height;
-    const totalHeight = pageHeight * numPages;
+    // Встановлюємо розміри canvas
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
     
-    canvas.height = totalHeight;
-    canvas.width = firstPageViewport.width;
+    // Рендеримо тільки першу сторінку
+    const renderContext = {
+      canvasContext: context,
+      viewport: viewport
+    };
     
-    // Рендеримо всі сторінки на canvas
-    for (let i = 0; i < pages.length; i++) {
-      const page = pages[i];
-      const viewport = page.getViewport({ scale });
-      
-      // Позиціонуємо сторінку
-      const yOffset = i * pageHeight;
-      context.save();
-      context.translate(0, yOffset);
-      
-      const renderContext = {
-        canvasContext: context,
-        viewport: viewport
-      };
-      
-      await page.render(renderContext).promise;
-      context.restore();
-    }
+    await firstPage.render(renderContext).promise;
+    
+    console.log('DEBUG PDF Converter: Перша сторінка відрендерена, розміри:', viewport.width, 'x', viewport.height);
     
     // Конвертуємо canvas в JPG
     return new Promise((resolve, reject) => {
@@ -167,7 +150,7 @@ export async function convertPdfToJpg(pdfFile) {
             lastModified: Date.now()
           });
           
-          console.log('DEBUG PDF Converter: Створено JPG файл:', jpgFileName, 'розмір:', jpgFile.size);
+          console.log('DEBUG PDF Converter: Створено JPG файл (тільки перша сторінка):', jpgFileName, 'розмір:', jpgFile.size);
           resolve(jpgFile);
         } else {
           reject(new Error('Не вдалося конвертувати canvas в JPG'));
@@ -196,7 +179,7 @@ export function needsPdfConversion(file) {
  */
 export async function processFileForUpload(file) {
   if (needsPdfConversion(file)) {
-    console.log('DEBUG PDF Converter: Конвертуємо PDF в JPG на клієнті');
+    console.log('DEBUG PDF Converter: Конвертуємо PDF в JPG на клієнті (тільки перша сторінка)');
     console.log('DEBUG PDF Converter: Оригінальна назва файлу:', file.name);
     console.log('DEBUG PDF Converter: Розмір оригінального файлу:', file.size);
     console.log('DEBUG PDF Converter: User Agent:', navigator.userAgent);
@@ -210,7 +193,7 @@ export async function processFileForUpload(file) {
       }
       
       const jpgFile = await convertPdfToJpg(file);
-      console.log('DEBUG PDF Converter: PDF успішно конвертовано в JPG');
+      console.log('DEBUG PDF Converter: PDF успішно конвертовано в JPG (перша сторінка)');
       console.log('DEBUG PDF Converter: Нова назва файлу:', jpgFile.name);
       console.log('DEBUG PDF Converter: Розмір JPG файлу:', jpgFile.size);
       return jpgFile;
