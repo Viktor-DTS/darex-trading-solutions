@@ -3628,8 +3628,23 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
     let finalFileUrl = req.file.path;
     let finalFileName = req.file.originalname;
     
-    console.log('[INVOICE] Перевіряємо тип файлу:', req.file.mimetype, 'для файлу:', req.file.originalname);
-    if (req.file.mimetype === 'application/pdf') {
+    console.log('[INVOICE] 🔍 ДІАГНОСТИКА ФАЙЛУ РАХУНКУ:');
+    console.log('[INVOICE] - Назва файлу:', req.file.originalname);
+    console.log('[INVOICE] - MIME тип:', req.file.mimetype);
+    console.log('[INVOICE] - Розмір файлу:', req.file.size);
+    console.log('[INVOICE] - Шлях до файлу:', req.file.path);
+    console.log('[INVOICE] - Перевірка на PDF:', req.file.mimetype === 'application/pdf');
+    
+    // Перевіряємо PDF за MIME типом або розширенням
+    const isPdfByMime = req.file.mimetype === 'application/pdf';
+    const isPdfByExtension = req.file.originalname.toLowerCase().endsWith('.pdf');
+    const isPdf = isPdfByMime || isPdfByExtension;
+    
+    console.log('[INVOICE] - PDF за MIME:', isPdfByMime);
+    console.log('[INVOICE] - PDF за розширенням:', isPdfByExtension);
+    console.log('[INVOICE] - Загальна перевірка PDF:', isPdf);
+    
+    if (isPdf) {
       try {
         console.log('[INVOICE] ✅ Виявлено PDF файл, конвертуємо на сервері:', req.file.originalname);
         
@@ -3799,8 +3814,23 @@ app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async
       });
     }
     
-    console.log('[ACT] Перевіряємо тип файлу:', req.file.mimetype, 'для файлу:', req.file.originalname);
-    if (req.file.mimetype === 'application/pdf') {
+    console.log('[ACT] 🔍 ДІАГНОСТИКА ФАЙЛУ АКТУ:');
+    console.log('[ACT] - Назва файлу:', req.file.originalname);
+    console.log('[ACT] - MIME тип:', req.file.mimetype);
+    console.log('[ACT] - Розмір файлу:', req.file.size);
+    console.log('[ACT] - Шлях до файлу:', req.file.path);
+    console.log('[ACT] - Перевірка на PDF:', req.file.mimetype === 'application/pdf');
+    
+    // Перевіряємо PDF за MIME типом або розширенням
+    const isPdfByMime = req.file.mimetype === 'application/pdf';
+    const isPdfByExtension = req.file.originalname.toLowerCase().endsWith('.pdf');
+    const isPdf = isPdfByMime || isPdfByExtension;
+    
+    console.log('[ACT] - PDF за MIME:', isPdfByMime);
+    console.log('[ACT] - PDF за розширенням:', isPdfByExtension);
+    console.log('[ACT] - Загальна перевірка PDF:', isPdf);
+    
+    if (isPdf) {
       try {
         console.log('[ACT] ✅ Виявлено PDF файл, конвертуємо на сервері:', req.file.originalname);
         

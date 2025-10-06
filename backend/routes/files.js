@@ -329,8 +329,23 @@ router.post('/upload/:taskId', upload.array('files', 10), async (req, res) => {
       let finalFileName = file.originalname;
       
       // Перевіряємо чи це PDF файл і конвертуємо його
-      console.log('[FILES] Перевіряємо тип файлу:', file.mimetype, 'для файлу:', file.originalname);
-      if (file.mimetype === 'application/pdf') {
+      console.log('[FILES] 🔍 ДІАГНОСТИКА ФАЙЛУ:');
+      console.log('[FILES] - Назва файлу:', file.originalname);
+      console.log('[FILES] - MIME тип:', file.mimetype);
+      console.log('[FILES] - Розмір файлу:', file.size);
+      console.log('[FILES] - Шлях до файлу:', file.path);
+      console.log('[FILES] - Перевірка на PDF:', file.mimetype === 'application/pdf');
+      
+      // Перевіряємо PDF за MIME типом або розширенням
+      const isPdfByMime = file.mimetype === 'application/pdf';
+      const isPdfByExtension = file.originalname.toLowerCase().endsWith('.pdf');
+      const isPdf = isPdfByMime || isPdfByExtension;
+      
+      console.log('[FILES] - PDF за MIME:', isPdfByMime);
+      console.log('[FILES] - PDF за розширенням:', isPdfByExtension);
+      console.log('[FILES] - Загальна перевірка PDF:', isPdf);
+      
+      if (isPdf) {
         try {
           console.log('[FILES] ✅ Виявлено PDF файл, конвертуємо на сервері:', file.originalname);
           
