@@ -112,8 +112,8 @@ export async function convertPdfToJpg(pdfFile) {
     // Отримуємо тільки першу сторінку
     const firstPage = await pdf.getPage(1);
     
-    // Налаштовуємо viewport для рендерингу
-    const scale = 2.0; // Збільшуємо роздільність
+    // Налаштовуємо viewport для рендерингу з високою роздільністю
+    const scale = 3.0; // Збільшуємо роздільність для кращої якості
     const viewport = firstPage.getViewport({ scale });
     
     // Створюємо canvas для першої сторінки
@@ -124,10 +124,17 @@ export async function convertPdfToJpg(pdfFile) {
     canvas.height = viewport.height;
     canvas.width = viewport.width;
     
-    // Рендеримо тільки першу сторінку
+    // Покращуємо якість рендерингу
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    
+    // Рендеримо тільки першу сторінку з покращеними налаштуваннями
     const renderContext = {
       canvasContext: context,
-      viewport: viewport
+      viewport: viewport,
+      // Додаткові налаштування для кращої якості
+      intent: 'display', // Оптимізуємо для відображення
+      renderInteractiveForms: false // Відключаємо інтерактивні форми для кращої якості
     };
     
     await firstPage.render(renderContext).promise;
@@ -155,7 +162,7 @@ export async function convertPdfToJpg(pdfFile) {
         } else {
           reject(new Error('Не вдалося конвертувати canvas в JPG'));
         }
-      }, 'image/jpeg', 0.9);
+      }, 'image/jpeg', 0.95); // Підвищуємо якість JPG до 95%
     });
     
   } catch (error) {
