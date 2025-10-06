@@ -2,13 +2,14 @@ const express = require('express');
 const multer = require('multer');
 const mongoose = require('mongoose');
 const sharp = require('sharp');
-const pdf2pic = require('pdf2pic');
+const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
 const router = express.Router();
 
-// Функція для серверної конвертації PDF в JPG
+// Функція для серверної конвертації PDF в JPG з використанням Puppeteer
 async function convertPdfToJpgServer(pdfBuffer, originalName) {
+  let browser = null;
   try {
     console.log('[PDF-SERVER] Початок серверної конвертації PDF:', originalName);
     
@@ -24,56 +25,73 @@ async function convertPdfToJpgServer(pdfBuffer, originalName) {
     // Записуємо PDF в тимчасовий файл
     fs.writeFileSync(tempPdfPath, pdfBuffer);
     
-    // Налаштовуємо pdf2pic
-    const convert = pdf2pic.fromPath(tempPdfPath, {
-      density: 200, // DPI
-      saveFilename: 'page',
-      savePath: tempDir,
-      format: 'png',
-      width: 2000,
-      height: 2000
+    // Запускаємо Puppeteer
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     
-    // Конвертуємо всі сторінки
-    const results = await convert.bulk(-1, { responseType: 'base64' });
-    console.log('[PDF-SERVER] Конвертовано сторінок:', results.length);
+    const page = await browser.newPage();
     
-    if (results.length === 0) {
-      throw new Error('Не вдалося конвертувати PDF');
-    }
+    // Відкриваємо PDF файл
+    const pdfUrl = `file://${tempPdfPath}`;
+    await page.goto(pdfUrl, { waitUntil: 'networkidle0' });
     
-    // Якщо тільки одна сторінка, повертаємо її
-    if (results.length === 1) {
-      const imageBuffer = Buffer.from(results[0].base64, 'base64');
-      const jpgBuffer = await sharp(imageBuffer)
+    // Отримуємо кількість сторінок
+    const pageCount = await page.evaluate(() => {
+      return document.querySelectorAll('embed, object').length || 1;
+    });
+    
+    console.log('[PDF-SERVER] Кількість сторінок PDF:', pageCount);
+    
+    if (pageCount === 1) {
+      // Якщо тільки одна сторінка
+      const screenshot = await page.screenshot({
+        type: 'png',
+        fullPage: true
+      });
+      
+      const jpgBuffer = await sharp(screenshot)
         .jpeg({ quality: 90 })
         .toBuffer();
       
       // Очищаємо тимчасові файли
       fs.unlinkSync(tempPdfPath);
-      results.forEach(result => {
-        if (fs.existsSync(result.path)) {
-          fs.unlinkSync(result.path);
-        }
-      });
+      await browser.close();
       
       return jpgBuffer;
     }
     
     // Якщо кілька сторінок, збираємо їх в один JPG
-    const pageSeparator = 20; // Розмір роздільника в пікселях
+    const pageSeparator = 20;
+    const pageImages = [];
     let maxWidth = 0;
     let totalHeight = 0;
-    const pageImages = [];
     
-    // Обробляємо кожну сторінку
-    for (let i = 0; i < results.length; i++) {
-      const imageBuffer = Buffer.from(results[i].base64, 'base64');
-      const image = sharp(imageBuffer);
+    // Конвертуємо кожну сторінку
+    for (let i = 0; i < pageCount; i++) {
+      console.log(`[PDF-SERVER] Конвертуємо сторінку ${i + 1}/${pageCount}`);
+      
+      // Переходимо на сторінку
+      await page.evaluate((pageIndex) => {
+        const embed = document.querySelector('embed');
+        if (embed) {
+          embed.src = embed.src.split('#')[0] + `#page=${pageIndex + 1}`;
+        }
+      }, i);
+      
+      await page.waitForTimeout(1000); // Чекаємо завантаження сторінки
+      
+      const screenshot = await page.screenshot({
+        type: 'png',
+        fullPage: true
+      });
+      
+      const image = sharp(screenshot);
       const metadata = await image.metadata();
       
       pageImages.push({
-        buffer: imageBuffer,
+        buffer: screenshot,
         width: metadata.width,
         height: metadata.height
       });
@@ -83,7 +101,7 @@ async function convertPdfToJpgServer(pdfBuffer, originalName) {
     }
     
     // Додаємо роздільники
-    totalHeight += pageSeparator * (results.length - 1);
+    totalHeight += pageSeparator * (pageCount - 1);
     
     console.log('[PDF-SERVER] Збираємо сторінки, розміри:', maxWidth, 'x', totalHeight);
     
@@ -93,7 +111,7 @@ async function convertPdfToJpgServer(pdfBuffer, originalName) {
         width: maxWidth,
         height: totalHeight,
         channels: 3,
-        background: { r: 255, g: 255, b: 255 } // Білий фон
+        background: { r: 255, g: 255, b: 255 }
       }
     });
     
@@ -121,17 +139,16 @@ async function convertPdfToJpgServer(pdfBuffer, originalName) {
     
     // Очищаємо тимчасові файли
     fs.unlinkSync(tempPdfPath);
-    results.forEach(result => {
-      if (fs.existsSync(result.path)) {
-        fs.unlinkSync(result.path);
-      }
-    });
+    await browser.close();
     
     console.log('[PDF-SERVER] Конвертація завершена, розмір JPG:', finalBuffer.length);
     return finalBuffer;
     
   } catch (error) {
     console.error('[PDF-SERVER] Помилка конвертації PDF:', error);
+    if (browser) {
+      await browser.close();
+    }
     throw error;
   }
 }
@@ -312,9 +329,10 @@ router.post('/upload/:taskId', upload.array('files', 10), async (req, res) => {
       let finalFileName = file.originalname;
       
       // Перевіряємо чи це PDF файл і конвертуємо його
+      console.log('[FILES] Перевіряємо тип файлу:', file.mimetype, 'для файлу:', file.originalname);
       if (file.mimetype === 'application/pdf') {
         try {
-          console.log('[FILES] Виявлено PDF файл, конвертуємо на сервері:', file.originalname);
+          console.log('[FILES] ✅ Виявлено PDF файл, конвертуємо на сервері:', file.originalname);
           
           // Читаємо PDF файл
           const pdfBuffer = fs.readFileSync(file.path);
