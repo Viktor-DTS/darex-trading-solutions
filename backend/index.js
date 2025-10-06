@@ -24,148 +24,21 @@ const puppeteer = require('puppeteer');
 // Додаємо імпорт роуту файлів
 const filesRouter = require('./routes/files');
 
-// Функція для серверної конвертації PDF в JPG з використанням Puppeteer
+// Спрощена функція для серверної конвертації PDF в JPG (без Puppeteer)
 async function convertPdfToJpgServer(pdfBuffer, originalName) {
-  let browser = null;
   try {
-    console.log('[PDF-SERVER] Початок серверної конвертації PDF:', originalName);
+    console.log('[PDF-SERVER] Початок спрощеної серверної конвертації PDF:', originalName);
     
-    // Створюємо тимчасовий файл для PDF
-    const tempPdfPath = path.join(__dirname, 'temp', `temp_${Date.now()}.pdf`);
-    const tempDir = path.dirname(tempPdfPath);
+    // Тимчасово повертаємо оригінальний PDF без конвертації
+    // Це дозволить файлу завантажитися, але без конвертації
+    console.log('[PDF-SERVER] ⚠️ ТИМЧАСОВО: PDF конвертація відключена, використовуємо оригінальний файл');
+    console.log('[PDF-SERVER] Розмір PDF файлу:', pdfBuffer.length, 'байт');
     
-    // Створюємо папку temp якщо не існує
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-    }
-    
-    // Записуємо PDF в тимчасовий файл
-    fs.writeFileSync(tempPdfPath, pdfBuffer);
-    
-    // Запускаємо Puppeteer
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-    
-    const page = await browser.newPage();
-    
-    // Відкриваємо PDF файл
-    const pdfUrl = `file://${tempPdfPath}`;
-    await page.goto(pdfUrl, { waitUntil: 'networkidle0' });
-    
-    // Отримуємо кількість сторінок
-    const pageCount = await page.evaluate(() => {
-      return document.querySelectorAll('embed, object').length || 1;
-    });
-    
-    console.log('[PDF-SERVER] Кількість сторінок PDF:', pageCount);
-    
-    if (pageCount === 1) {
-      // Якщо тільки одна сторінка
-      const screenshot = await page.screenshot({
-        type: 'png',
-        fullPage: true
-      });
-      
-      const jpgBuffer = await sharp(screenshot)
-        .jpeg({ quality: 90 })
-        .toBuffer();
-      
-      // Очищаємо тимчасові файли
-      fs.unlinkSync(tempPdfPath);
-      await browser.close();
-      
-      return jpgBuffer;
-    }
-    
-    // Якщо кілька сторінок, збираємо їх в один JPG
-    const pageSeparator = 20;
-    const pageImages = [];
-    let maxWidth = 0;
-    let totalHeight = 0;
-    
-    // Конвертуємо кожну сторінку
-    for (let i = 0; i < pageCount; i++) {
-      console.log(`[PDF-SERVER] Конвертуємо сторінку ${i + 1}/${pageCount}`);
-      
-      // Переходимо на сторінку
-      await page.evaluate((pageIndex) => {
-        const embed = document.querySelector('embed');
-        if (embed) {
-          embed.src = embed.src.split('#')[0] + `#page=${pageIndex + 1}`;
-        }
-      }, i);
-      
-      await page.waitForTimeout(1000); // Чекаємо завантаження сторінки
-      
-      const screenshot = await page.screenshot({
-        type: 'png',
-        fullPage: true
-      });
-      
-      const image = sharp(screenshot);
-      const metadata = await image.metadata();
-      
-      pageImages.push({
-        buffer: screenshot,
-        width: metadata.width,
-        height: metadata.height
-      });
-      
-      maxWidth = Math.max(maxWidth, metadata.width);
-      totalHeight += metadata.height;
-    }
-    
-    // Додаємо роздільники
-    totalHeight += pageSeparator * (pageCount - 1);
-    
-    console.log('[PDF-SERVER] Збираємо сторінки, розміри:', maxWidth, 'x', totalHeight);
-    
-    // Створюємо фінальне зображення
-    const finalImage = sharp({
-      create: {
-        width: maxWidth,
-        height: totalHeight,
-        channels: 3,
-        background: { r: 255, g: 255, b: 255 }
-      }
-    });
-    
-    // Додаємо кожну сторінку
-    let currentY = 0;
-    const composite = [];
-    
-    for (let i = 0; i < pageImages.length; i++) {
-      const pageImage = pageImages[i];
-      
-      composite.push({
-        input: pageImage.buffer,
-        top: currentY,
-        left: 0
-      });
-      
-      currentY += pageImage.height + pageSeparator;
-    }
-    
-    // Збираємо фінальне зображення
-    const finalBuffer = await finalImage
-      .composite(composite)
-      .jpeg({ quality: 90 })
-      .toBuffer();
-    
-    // Очищаємо тимчасові файли
-    fs.unlinkSync(tempPdfPath);
-    await browser.close();
-    
-    console.log('[PDF-SERVER] Конвертація завершена, розмір JPG:', finalBuffer.length);
-    return finalBuffer;
+    // Повертаємо оригінальний PDF buffer
+    return pdfBuffer;
     
   } catch (error) {
-    console.error('[PDF-SERVER] Помилка конвертації PDF:', error);
-    if (browser) {
-      await browser.close();
-    }
+    console.error('[PDF-SERVER] Помилка обробки PDF:', error);
     throw error;
   }
 }
