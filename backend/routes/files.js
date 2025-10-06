@@ -1,7 +1,140 @@
 const express = require('express');
 const multer = require('multer');
 const mongoose = require('mongoose');
+const sharp = require('sharp');
+const pdf2pic = require('pdf2pic');
+const path = require('path');
+const fs = require('fs');
 const router = express.Router();
+
+// Функція для серверної конвертації PDF в JPG
+async function convertPdfToJpgServer(pdfBuffer, originalName) {
+  try {
+    console.log('[PDF-SERVER] Початок серверної конвертації PDF:', originalName);
+    
+    // Створюємо тимчасовий файл для PDF
+    const tempPdfPath = path.join(__dirname, '..', 'temp', `temp_${Date.now()}.pdf`);
+    const tempDir = path.dirname(tempPdfPath);
+    
+    // Створюємо папку temp якщо не існує
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    // Записуємо PDF в тимчасовий файл
+    fs.writeFileSync(tempPdfPath, pdfBuffer);
+    
+    // Налаштовуємо pdf2pic
+    const convert = pdf2pic.fromPath(tempPdfPath, {
+      density: 200, // DPI
+      saveFilename: 'page',
+      savePath: tempDir,
+      format: 'png',
+      width: 2000,
+      height: 2000
+    });
+    
+    // Конвертуємо всі сторінки
+    const results = await convert.bulk(-1, { responseType: 'base64' });
+    console.log('[PDF-SERVER] Конвертовано сторінок:', results.length);
+    
+    if (results.length === 0) {
+      throw new Error('Не вдалося конвертувати PDF');
+    }
+    
+    // Якщо тільки одна сторінка, повертаємо її
+    if (results.length === 1) {
+      const imageBuffer = Buffer.from(results[0].base64, 'base64');
+      const jpgBuffer = await sharp(imageBuffer)
+        .jpeg({ quality: 90 })
+        .toBuffer();
+      
+      // Очищаємо тимчасові файли
+      fs.unlinkSync(tempPdfPath);
+      results.forEach(result => {
+        if (fs.existsSync(result.path)) {
+          fs.unlinkSync(result.path);
+        }
+      });
+      
+      return jpgBuffer;
+    }
+    
+    // Якщо кілька сторінок, збираємо їх в один JPG
+    const pageSeparator = 20; // Розмір роздільника в пікселях
+    let maxWidth = 0;
+    let totalHeight = 0;
+    const pageImages = [];
+    
+    // Обробляємо кожну сторінку
+    for (let i = 0; i < results.length; i++) {
+      const imageBuffer = Buffer.from(results[i].base64, 'base64');
+      const image = sharp(imageBuffer);
+      const metadata = await image.metadata();
+      
+      pageImages.push({
+        buffer: imageBuffer,
+        width: metadata.width,
+        height: metadata.height
+      });
+      
+      maxWidth = Math.max(maxWidth, metadata.width);
+      totalHeight += metadata.height;
+    }
+    
+    // Додаємо роздільники
+    totalHeight += pageSeparator * (results.length - 1);
+    
+    console.log('[PDF-SERVER] Збираємо сторінки, розміри:', maxWidth, 'x', totalHeight);
+    
+    // Створюємо фінальне зображення
+    const finalImage = sharp({
+      create: {
+        width: maxWidth,
+        height: totalHeight,
+        channels: 3,
+        background: { r: 255, g: 255, b: 255 } // Білий фон
+      }
+    });
+    
+    // Додаємо кожну сторінку
+    let currentY = 0;
+    const composite = [];
+    
+    for (let i = 0; i < pageImages.length; i++) {
+      const pageImage = pageImages[i];
+      
+      composite.push({
+        input: pageImage.buffer,
+        top: currentY,
+        left: 0
+      });
+      
+      currentY += pageImage.height + pageSeparator;
+    }
+    
+    // Збираємо фінальне зображення
+    const finalBuffer = await finalImage
+      .composite(composite)
+      .jpeg({ quality: 90 })
+      .toBuffer();
+    
+    // Очищаємо тимчасові файли
+    fs.unlinkSync(tempPdfPath);
+    results.forEach(result => {
+      if (fs.existsSync(result.path)) {
+        fs.unlinkSync(result.path);
+      }
+    });
+    
+    console.log('[PDF-SERVER] Конвертація завершена, розмір JPG:', finalBuffer.length);
+    return finalBuffer;
+    
+  } catch (error) {
+    console.error('[PDF-SERVER] Помилка конвертації PDF:', error);
+    throw error;
+  }
+}
 
 // CORS middleware для файлових роутів
 router.use((req, res, next) => {
@@ -175,22 +308,63 @@ router.post('/upload/:taskId', upload.array('files', 10), async (req, res) => {
       console.log('[FILES] Файл об\'єкт:', file);
       console.log('[FILES] Оригінальна назва (hex):', Buffer.from(file.originalname, 'utf8').toString('hex'));
       
+      let finalFile = file;
+      let finalFileName = file.originalname;
+      
+      // Перевіряємо чи це PDF файл і конвертуємо його
+      if (file.mimetype === 'application/pdf') {
+        try {
+          console.log('[FILES] Виявлено PDF файл, конвертуємо на сервері:', file.originalname);
+          
+          // Читаємо PDF файл
+          const pdfBuffer = fs.readFileSync(file.path);
+          
+          // Конвертуємо PDF в JPG на сервері
+          const jpgBuffer = await convertPdfToJpgServer(pdfBuffer, file.originalname);
+          
+          // Створюємо новий файл з JPG даними
+          const jpgFileName = file.originalname.replace(/\.pdf$/i, '.jpg');
+          const tempJpgPath = path.join(__dirname, '..', 'temp', `converted_${Date.now()}.jpg`);
+          
+          // Записуємо JPG в тимчасовий файл
+          fs.writeFileSync(tempJpgPath, jpgBuffer);
+          
+          // Створюємо новий об'єкт файлу для JPG
+          finalFile = {
+            ...file,
+            path: tempJpgPath,
+            mimetype: 'image/jpeg',
+            originalname: jpgFileName,
+            size: jpgBuffer.length
+          };
+          
+          finalFileName = jpgFileName;
+          
+          console.log('[FILES] PDF конвертовано в JPG:', jpgFileName, 'розмір:', jpgBuffer.length);
+          
+        } catch (error) {
+          console.error('[FILES] Помилка конвертації PDF:', error);
+          // Якщо конвертація не вдалася, використовуємо оригінальний файл
+          console.log('[FILES] Використовуємо оригінальний PDF файл');
+        }
+      }
+      
       // Визначаємо URL файлу
       let fileUrl = '';
       let cloudinaryId = '';
       
-      if (cloudinary && file.path) {
+      if (cloudinary && finalFile.path) {
         // Cloudinary
-        fileUrl = file.path;
-        cloudinaryId = file.public_id;
+        fileUrl = finalFile.path;
+        cloudinaryId = finalFile.public_id;
       } else {
         // Локальне збереження
-        fileUrl = `/tmp/${file.filename}`;
+        fileUrl = `/tmp/${finalFile.filename}`;
         cloudinaryId = '';
       }
       
       // Виправляємо кодування назви файлу (переносимо працюючу логіку з "Запит на рахунок")
-      let correctedName = file.originalname;
+      let correctedName = finalFileName;
       try {
         // Спробуємо декодувати як UTF-8 з latin1
         const decoded = Buffer.from(correctedName, 'latin1').toString('utf8');

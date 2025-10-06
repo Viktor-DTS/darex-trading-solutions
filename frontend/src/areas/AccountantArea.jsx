@@ -3,7 +3,7 @@ import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
 import AccountantReportsModal from '../components/AccountantReportsModal';
 import { tasksAPI } from '../utils/tasksAPI';
-import { processFileForUpload } from '../utils/pdfConverter';
+// PDF конвертація тепер виконується на сервері
 import * as XLSX from 'xlsx-js-style';
 const initialTask = {
   id: null,
@@ -188,12 +188,8 @@ export default function AccountantArea({ user }) {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
         (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
-      // Конвертуємо PDF в JPG якщо потрібно
-      const processedFile = await processFileForUpload(file);
-      console.log('DEBUG PDF Converter Invoice: Оброблений файл:', processedFile.name, processedFile.type);
-      
       const formData = new FormData();
-      formData.append('invoiceFile', processedFile); // Змінюємо назву поля на 'invoiceFile'
+      formData.append('invoiceFile', file);
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload`, {
         method: 'POST',
@@ -268,12 +264,8 @@ export default function AccountantArea({ user }) {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
         (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
-      // Конвертуємо PDF в JPG якщо потрібно
-      const processedFile = await processFileForUpload(file);
-      console.log('DEBUG PDF Converter: Оброблений файл:', processedFile.name, processedFile.type);
-      
       const formData = new FormData();
-      formData.append('actFile', processedFile);
+      formData.append('actFile', file);
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload-act`, {
         method: 'POST',

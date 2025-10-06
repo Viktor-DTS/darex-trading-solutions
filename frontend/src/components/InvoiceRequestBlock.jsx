@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { processFileForUpload } from '../utils/pdfConverter';
+// PDF конвертація тепер виконується на сервері
 
 const InvoiceRequestBlock = ({ task, user, onRequest }) => {
   const [showModal, setShowModal] = useState(false);
