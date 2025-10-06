@@ -1243,6 +1243,64 @@ app.get('/api/ping', (req, res) => {
   });
 });
 
+// --- SAVED REPORTS API ---
+// Зберегти звіт
+app.post('/api/saved-reports', async (req, res) => {
+  try {
+    console.log('[SAVED-REPORTS] POST /api/saved-reports - запит на збереження звіту');
+    const { userId, name, date, filters, approvalFilter, dateRangeFilter, paymentDateRangeFilter, requestDateRangeFilter, selectedFields, groupBy } = req.body;
+    
+    const savedReport = new SavedReport({
+      userId,
+      name,
+      date,
+      filters,
+      approvalFilter,
+      dateRangeFilter,
+      paymentDateRangeFilter,
+      requestDateRangeFilter,
+      selectedFields,
+      groupBy
+    });
+    
+    await savedReport.save();
+    console.log('[SAVED-REPORTS] Звіт збережено:', savedReport._id);
+    res.json({ success: true, message: 'Звіт збережено!', report: savedReport });
+  } catch (error) {
+    console.error('[SAVED-REPORTS] Помилка збереження звіту:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Отримати всі збережені звіти користувача
+app.get('/api/saved-reports/:userId', async (req, res) => {
+  try {
+    console.log('[SAVED-REPORTS] GET /api/saved-reports/:userId - запит на отримання звітів для користувача:', req.params.userId);
+    const reports = await SavedReport.find({ userId: req.params.userId }).sort({ createdAt: -1 });
+    console.log('[SAVED-REPORTS] Знайдено звітів:', reports.length);
+    res.json(reports);
+  } catch (error) {
+    console.error('[SAVED-REPORTS] Помилка отримання звітів:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Видалити збережений звіт
+app.delete('/api/saved-reports/:reportId', async (req, res) => {
+  try {
+    console.log('[SAVED-REPORTS] DELETE /api/saved-reports/:reportId - запит на видалення звіту:', req.params.reportId);
+    const report = await SavedReport.findByIdAndDelete(req.params.reportId);
+    if (!report) {
+      return res.status(404).json({ error: 'Звіт не знайдено' });
+    }
+    console.log('[SAVED-REPORTS] Звіт видалено:', req.params.reportId);
+    res.json({ success: true, message: 'Звіт видалено!' });
+  } catch (error) {
+    console.error('[SAVED-REPORTS] Помилка видалення звіту:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Тестовий ендпоінт для перевірки MongoDB
 app.get('/api/test-mongo', async (req, res) => {
   try {
@@ -1498,57 +1556,6 @@ app.post('/api/users/:login/columns-settings', async (req, res) => {
   }
 });
 
-// --- SAVED REPORTS API ---
-// Зберегти звіт
-app.post('/api/saved-reports', async (req, res) => {
-  try {
-    const { userId, name, date, filters, approvalFilter, dateRangeFilter, paymentDateRangeFilter, requestDateRangeFilter, selectedFields, groupBy } = req.body;
-    
-    const savedReport = new SavedReport({
-      userId,
-      name,
-      date,
-      filters,
-      approvalFilter,
-      dateRangeFilter,
-      paymentDateRangeFilter,
-      requestDateRangeFilter,
-      selectedFields,
-      groupBy
-    });
-    
-    await savedReport.save();
-    res.json({ success: true, message: 'Звіт збережено!', report: savedReport });
-  } catch (error) {
-    console.error('Помилка збереження звіту:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Отримати всі збережені звіти користувача
-app.get('/api/saved-reports/:userId', async (req, res) => {
-  try {
-    const reports = await SavedReport.find({ userId: req.params.userId }).sort({ createdAt: -1 });
-    res.json(reports);
-  } catch (error) {
-    console.error('Помилка отримання звітів:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Видалити збережений звіт
-app.delete('/api/saved-reports/:reportId', async (req, res) => {
-  try {
-    const report = await SavedReport.findByIdAndDelete(req.params.reportId);
-    if (!report) {
-      return res.status(404).json({ error: 'Звіт не знайдено' });
-    }
-    res.json({ success: true, message: 'Звіт видалено!' });
-  } catch (error) {
-    console.error('Помилка видалення звіту:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // --- EVENT LOG API ---
 // Додати запис до журналу подій
