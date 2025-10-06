@@ -46,31 +46,57 @@ export async function convertPdfToJpg(pdfFile) {
     // Завантажуємо PDF документ
     const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
     
-    // Отримуємо першу сторінку
-    const page = await pdf.getPage(1);
+    console.log('DEBUG PDF Converter: PDF має сторінок:', pdf.numPages);
     
-    // Налаштовуємо viewport для рендерингу
+    // Отримуємо всі сторінки
+    const numPages = pdf.numPages;
+    const pages = [];
+    
+    for (let i = 1; i <= numPages; i++) {
+      const page = await pdf.getPage(i);
+      pages.push(page);
+    }
+    
+    // Налаштовуємо viewport для рендерингу (використовуємо першу сторінку для розмірів)
     const scale = 2.0; // Збільшуємо роздільність
-    const viewport = page.getViewport({ scale });
+    const firstPageViewport = pages[0].getViewport({ scale });
     
-    // Створюємо canvas
+    // Створюємо canvas для всіх сторінок
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
-    canvas.height = viewport.height;
-    canvas.width = viewport.width;
     
-    // Рендеримо сторінку на canvas
-    const renderContext = {
-      canvasContext: context,
-      viewport: viewport
-    };
+    // Розраховуємо загальну висоту для всіх сторінок
+    const pageHeight = firstPageViewport.height;
+    const totalHeight = pageHeight * numPages;
     
-    await page.render(renderContext).promise;
+    canvas.height = totalHeight;
+    canvas.width = firstPageViewport.width;
+    
+    // Рендеримо всі сторінки на canvas
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i];
+      const viewport = page.getViewport({ scale });
+      
+      // Позиціонуємо сторінку
+      const yOffset = i * pageHeight;
+      context.save();
+      context.translate(0, yOffset);
+      
+      const renderContext = {
+        canvasContext: context,
+        viewport: viewport
+      };
+      
+      await page.render(renderContext).promise;
+      context.restore();
+    }
     
     // Конвертуємо canvas в JPG
     return new Promise((resolve, reject) => {
       canvas.toBlob((blob) => {
         if (blob) {
+          console.log('DEBUG PDF Converter: Canvas конвертовано в blob, розмір:', blob.size);
+          
           // Зберігаємо оригінальну назву файлу, замінюючи тільки розширення
           const originalName = pdfFile.name;
           const nameWithoutExt = originalName.replace(/\.pdf$/i, '');
@@ -80,6 +106,8 @@ export async function convertPdfToJpg(pdfFile) {
             type: 'image/jpeg',
             lastModified: Date.now()
           });
+          
+          console.log('DEBUG PDF Converter: Створено JPG файл:', jpgFileName, 'розмір:', jpgFile.size);
           resolve(jpgFile);
         } else {
           reject(new Error('Не вдалося конвертувати canvas в JPG'));
@@ -110,10 +138,12 @@ export async function processFileForUpload(file) {
   if (needsPdfConversion(file)) {
     console.log('DEBUG PDF Converter: Конвертуємо PDF в JPG на клієнті');
     console.log('DEBUG PDF Converter: Оригінальна назва файлу:', file.name);
+    console.log('DEBUG PDF Converter: Розмір оригінального файлу:', file.size);
     try {
       const jpgFile = await convertPdfToJpg(file);
       console.log('DEBUG PDF Converter: PDF успішно конвертовано в JPG');
       console.log('DEBUG PDF Converter: Нова назва файлу:', jpgFile.name);
+      console.log('DEBUG PDF Converter: Розмір JPG файлу:', jpgFile.size);
       return jpgFile;
     } catch (error) {
       console.error('DEBUG PDF Converter: Помилка конвертації:', error);
