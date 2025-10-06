@@ -1824,8 +1824,8 @@ app.get('/api/event-log', async (req, res) => {
     
     const events = await executeWithRetry(() => 
       EventLog.find(filter)
-        .sort({ timestamp: -1 })
-        .skip(skip)
+      .sort({ timestamp: -1 })
+      .skip(skip)
         .limit(parseInt(limit))
     );
     
@@ -1869,7 +1869,7 @@ app.delete('/api/event-log/cleanup', async (req, res) => {
     
     const result = await executeWithRetry(() => 
       EventLog.deleteMany({
-        timestamp: { $lt: thirtyDaysAgo }
+      timestamp: { $lt: thirtyDaysAgo }
       })
     );
     
@@ -4239,23 +4239,23 @@ class TelegramNotificationService {
         // Якщо немає користувачів з новими налаштуваннями, використовуємо стару систему
         console.log(`[DEBUG] getChatIdsForNotification - використовуємо стару систему для типу ${type}`);
         
-        const globalSettings = await GlobalNotificationSettings.findOne();
+      const globalSettings = await GlobalNotificationSettings.findOne();
+      
+      if (globalSettings?.settings?.[type]) {
+        const userIds = globalSettings.settings[type];
         
-        if (globalSettings?.settings?.[type]) {
-          const userIds = globalSettings.settings[type];
+        if (userIds && userIds.length > 0) {
+          const users = await User.find({ login: { $in: userIds } });
           
-          if (userIds && userIds.length > 0) {
-            const users = await User.find({ login: { $in: userIds } });
-            
-            const filteredUsers = users.filter(user => {
-              if (user.region === 'Україна') return true;
-              return task.serviceRegion === user.region;
-            });
-            
-            const userChatIds = filteredUsers
-              .filter(user => user.telegramChatId && user.telegramChatId.trim())
-              .map(user => user.telegramChatId);
-            chatIds.push(...userChatIds);
+          const filteredUsers = users.filter(user => {
+            if (user.region === 'Україна') return true;
+            return task.serviceRegion === user.region;
+          });
+          
+          const userChatIds = filteredUsers
+            .filter(user => user.telegramChatId && user.telegramChatId.trim())
+            .map(user => user.telegramChatId);
+          chatIds.push(...userChatIds);
             
             console.log(`[DEBUG] getChatIdsForNotification - chatIds з старих налаштувань:`, chatIds);
           }
@@ -5092,7 +5092,7 @@ app.get('/api/telegram/test-send', async (req, res) => {
   } catch (error) {
     res.status(500).json({ 
       success: false, 
-      message: 'Помилка при відправці тестового повідомлення', 
+      message: 'Помилка при відправці тестового повідомлення',
       error: error.message 
     });
   }

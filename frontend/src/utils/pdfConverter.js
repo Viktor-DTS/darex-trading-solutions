@@ -1,13 +1,57 @@
 /**
  * Утиліта для конвертації PDF файлів в JPG зображення на клієнті
- * Використовує PDF.js для рендерингу PDF
+ * Використовує PDF.js для рендерингу PDF з fallback логікою
  */
 
 // Динамічно завантажуємо PDF.js
 let pdfjsLib = null;
+let pdfJsSupported = null;
+
+/**
+ * Перевіряє підтримку PDF.js в браузері
+ */
+function checkBrowserSupport() {
+  if (pdfJsSupported !== null) return pdfJsSupported;
+  
+  try {
+    // Перевіряємо базові можливості браузера
+    const hasCanvas = !!document.createElement('canvas').getContext;
+    const hasFileAPI = !!(window.File && window.FileReader && window.FileList && window.Blob);
+    const hasArrayBuffer = !!window.ArrayBuffer;
+    const hasPromise = !!window.Promise;
+    
+    // Перевіряємо версію браузера (базові вимоги)
+    const userAgent = navigator.userAgent;
+    const isOldIE = /MSIE [1-9]\./.test(userAgent);
+    const isOldSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent) && /Version\/[1-9]\./.test(userAgent);
+    
+    pdfJsSupported = hasCanvas && hasFileAPI && hasArrayBuffer && hasPromise && !isOldIE && !isOldSafari;
+    
+    console.log('DEBUG PDF Converter: Підтримка браузера:', {
+      canvas: hasCanvas,
+      fileAPI: hasFileAPI,
+      arrayBuffer: hasArrayBuffer,
+      promise: hasPromise,
+      notOldIE: !isOldIE,
+      notOldSafari: !isOldSafari,
+      supported: pdfJsSupported
+    });
+    
+    return pdfJsSupported;
+  } catch (error) {
+    console.warn('DEBUG PDF Converter: Помилка перевірки підтримки браузера:', error);
+    pdfJsSupported = false;
+    return false;
+  }
+}
 
 async function loadPdfJs() {
   if (pdfjsLib) return pdfjsLib;
+  
+  // Перевіряємо підтримку браузера
+  if (!checkBrowserSupport()) {
+    throw new Error('Браузер не підтримує PDF конвертацію. Використовуйте сучасний браузер (Chrome, Firefox, Safari, Edge).');
+  }
   
   try {
     // Завантажуємо PDF.js з CDN
@@ -16,13 +60,29 @@ async function loadPdfJs() {
     script.async = true;
     
     return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Таймаут завантаження PDF.js'));
+      }, 10000); // 10 секунд таймаут
+      
       script.onload = () => {
-        // Налаштовуємо PDF.js
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        pdfjsLib = window.pdfjsLib;
-        resolve(pdfjsLib);
+        clearTimeout(timeout);
+        try {
+          // Налаштовуємо PDF.js
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          pdfjsLib = window.pdfjsLib;
+          console.log('DEBUG PDF Converter: PDF.js успішно завантажено');
+          resolve(pdfjsLib);
+        } catch (error) {
+          clearTimeout(timeout);
+          reject(new Error('Помилка ініціалізації PDF.js: ' + error.message));
+        }
       };
-      script.onerror = () => reject(new Error('Не вдалося завантажити PDF.js'));
+      
+      script.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error('Не вдалося завантажити PDF.js з CDN'));
+      };
+      
       document.head.appendChild(script);
     });
   } catch (error) {
@@ -139,7 +199,16 @@ export async function processFileForUpload(file) {
     console.log('DEBUG PDF Converter: Конвертуємо PDF в JPG на клієнті');
     console.log('DEBUG PDF Converter: Оригінальна назва файлу:', file.name);
     console.log('DEBUG PDF Converter: Розмір оригінального файлу:', file.size);
+    console.log('DEBUG PDF Converter: User Agent:', navigator.userAgent);
+    
     try {
+      // Перевіряємо підтримку браузера перед спробою конвертації
+      if (!checkBrowserSupport()) {
+        console.warn('DEBUG PDF Converter: Браузер не підтримує PDF конвертацію');
+        console.warn('DEBUG PDF Converter: Використовуємо оригінальний PDF файл');
+        return file;
+      }
+      
       const jpgFile = await convertPdfToJpg(file);
       console.log('DEBUG PDF Converter: PDF успішно конвертовано в JPG');
       console.log('DEBUG PDF Converter: Нова назва файлу:', jpgFile.name);
@@ -147,6 +216,18 @@ export async function processFileForUpload(file) {
       return jpgFile;
     } catch (error) {
       console.error('DEBUG PDF Converter: Помилка конвертації:', error);
+      console.log('DEBUG PDF Converter: Тип помилки:', error.constructor.name);
+      console.log('DEBUG PDF Converter: Повідомлення:', error.message);
+      
+      // Показуємо користувачу зрозуміле повідомлення
+      if (error.message.includes('Браузер не підтримує')) {
+        console.warn('DEBUG PDF Converter: Браузер не підтримує PDF конвертацію');
+      } else if (error.message.includes('Таймаут')) {
+        console.warn('DEBUG PDF Converter: Таймаут завантаження PDF.js');
+      } else if (error.message.includes('CDN')) {
+        console.warn('DEBUG PDF Converter: Проблема з завантаженням PDF.js з CDN');
+      }
+      
       console.log('DEBUG PDF Converter: Використовуємо оригінальний PDF файл');
       // Якщо конвертація не вдалася, повертаємо оригінальний файл
       return file;
