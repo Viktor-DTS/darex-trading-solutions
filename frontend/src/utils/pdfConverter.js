@@ -71,7 +71,12 @@ export async function convertPdfToJpg(pdfFile) {
     return new Promise((resolve, reject) => {
       canvas.toBlob((blob) => {
         if (blob) {
-          const jpgFile = new File([blob], pdfFile.name.replace('.pdf', '.jpg'), {
+          // Зберігаємо оригінальну назву файлу, замінюючи тільки розширення
+          const originalName = pdfFile.name;
+          const nameWithoutExt = originalName.replace(/\.pdf$/i, '');
+          const jpgFileName = `${nameWithoutExt}.jpg`;
+          
+          const jpgFile = new File([blob], jpgFileName, {
             type: 'image/jpeg',
             lastModified: Date.now()
           });
@@ -104,9 +109,11 @@ export function needsPdfConversion(file) {
 export async function processFileForUpload(file) {
   if (needsPdfConversion(file)) {
     console.log('DEBUG PDF Converter: Конвертуємо PDF в JPG на клієнті');
+    console.log('DEBUG PDF Converter: Оригінальна назва файлу:', file.name);
     try {
       const jpgFile = await convertPdfToJpg(file);
       console.log('DEBUG PDF Converter: PDF успішно конвертовано в JPG');
+      console.log('DEBUG PDF Converter: Нова назва файлу:', jpgFile.name);
       return jpgFile;
     } catch (error) {
       console.error('DEBUG PDF Converter: Помилка конвертації:', error);
