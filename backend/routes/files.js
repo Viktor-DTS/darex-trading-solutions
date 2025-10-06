@@ -191,7 +191,9 @@ router.post('/upload/:taskId', upload.array('files', 10), async (req, res) => {
       
       // Спробуємо виправити кодування назви файлу
       let correctedName = file.originalname;
+      console.log('[FILES] ===== ПОЧАТОК ОБРОБКИ ФАЙЛУ =====');
       console.log('[FILES] Оригінальна назва файлу:', file.originalname);
+      console.log('[FILES] Оригінальна назва (hex):', Buffer.from(file.originalname, 'utf8').toString('hex'));
       
       try {
         // Перевіряємо, чи назва файлу містить неправильно закодовані символи
@@ -254,6 +256,7 @@ router.post('/upload/:taskId', upload.array('files', 10), async (req, res) => {
       }
       
       console.log('[FILES] Фінальна назва файлу для збереження:', correctedName);
+      console.log('[FILES] ===== КІНЕЦЬ ОБРОБКИ ФАЙЛУ =====');
       
       // Створюємо запис в MongoDB
       const fileRecord = new File({
