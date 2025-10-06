@@ -173,6 +173,7 @@ router.post('/upload/:taskId', upload.array('files', 10), async (req, res) => {
     for (const file of req.files) {
       console.log('[FILES] Обробка файлу:', file.originalname);
       console.log('[FILES] Файл об\'єкт:', file);
+      console.log('[FILES] Оригінальна назва (hex):', Buffer.from(file.originalname, 'utf8').toString('hex'));
       
       // Визначаємо URL файлу
       let fileUrl = '';
@@ -188,10 +189,96 @@ router.post('/upload/:taskId', upload.array('files', 10), async (req, res) => {
         cloudinaryId = '';
       }
       
+      // Спробуємо виправити кодування назви файлу
+      let correctedName = file.originalname;
+      try {
+        // Перевіряємо, чи назва файлу містить неправильно закодовані символи
+        if (file.originalname.includes('Ð') || file.originalname.includes('Ð')) {
+          console.log('[FILES] Виявлено проблему з кодуванням, спробуємо виправити');
+          try {
+            // Спробуємо декодувати з windows-1251 в utf-8
+            const iconv = require('iconv-lite');
+            correctedName = iconv.decode(Buffer.from(file.originalname, 'binary'), 'windows-1251');
+            console.log('[FILES] Виправлена назва (iconv):', correctedName);
+          } catch (iconvError) {
+            console.log('[FILES] iconv не спрацював, спробуємо ручне виправлення');
+            // Ручне виправлення найпоширеніших проблем з кодуванням
+            correctedName = file.originalname
+              .replace(/Ð/g, 'А')
+              .replace(/Ð/g, 'Б')
+              .replace(/Ð/g, 'В')
+              .replace(/Ð/g, 'Г')
+              .replace(/Ð/g, 'Д')
+              .replace(/Ð/g, 'Е')
+              .replace(/Ð/g, 'Ж')
+              .replace(/Ð/g, 'З')
+              .replace(/Ð/g, 'И')
+              .replace(/Ð/g, 'Й')
+              .replace(/Ð/g, 'К')
+              .replace(/Ð/g, 'Л')
+              .replace(/Ð/g, 'М')
+              .replace(/Ð/g, 'Н')
+              .replace(/Ð/g, 'О')
+              .replace(/Ð/g, 'П')
+              .replace(/Ð/g, 'Р')
+              .replace(/Ð/g, 'С')
+              .replace(/Ð/g, 'Т')
+              .replace(/Ð/g, 'У')
+              .replace(/Ð/g, 'Ф')
+              .replace(/Ð/g, 'Х')
+              .replace(/Ð/g, 'Ц')
+              .replace(/Ð/g, 'Ч')
+              .replace(/Ð/g, 'Ш')
+              .replace(/Ð/g, 'Щ')
+              .replace(/Ð/g, 'Ъ')
+              .replace(/Ð/g, 'Ы')
+              .replace(/Ð/g, 'Ь')
+              .replace(/Ð/g, 'Э')
+              .replace(/Ð/g, 'Ю')
+              .replace(/Ð/g, 'Я')
+              .replace(/Ð/g, 'а')
+              .replace(/Ð/g, 'б')
+              .replace(/Ð/g, 'в')
+              .replace(/Ð/g, 'г')
+              .replace(/Ð/g, 'д')
+              .replace(/Ð/g, 'е')
+              .replace(/Ð/g, 'ж')
+              .replace(/Ð/g, 'з')
+              .replace(/Ð/g, 'и')
+              .replace(/Ð/g, 'й')
+              .replace(/Ð/g, 'к')
+              .replace(/Ð/g, 'л')
+              .replace(/Ð/g, 'м')
+              .replace(/Ð/g, 'н')
+              .replace(/Ð/g, 'о')
+              .replace(/Ð/g, 'п')
+              .replace(/Ð/g, 'р')
+              .replace(/Ð/g, 'с')
+              .replace(/Ð/g, 'т')
+              .replace(/Ð/g, 'у')
+              .replace(/Ð/g, 'ф')
+              .replace(/Ð/g, 'х')
+              .replace(/Ð/g, 'ц')
+              .replace(/Ð/g, 'ч')
+              .replace(/Ð/g, 'ш')
+              .replace(/Ð/g, 'щ')
+              .replace(/Ð/g, 'ъ')
+              .replace(/Ð/g, 'ы')
+              .replace(/Ð/g, 'ь')
+              .replace(/Ð/g, 'э')
+              .replace(/Ð/g, 'ю')
+              .replace(/Ð/g, 'я');
+            console.log('[FILES] Виправлена назва (ручне):', correctedName);
+          }
+        }
+      } catch (error) {
+        console.log('[FILES] Не вдалося виправити кодування:', error.message);
+      }
+      
       // Створюємо запис в MongoDB
       const fileRecord = new File({
         taskId: req.params.taskId,
-        originalName: file.originalname,
+        originalName: correctedName,
         filename: file.filename,
         cloudinaryId: cloudinaryId,
         cloudinaryUrl: fileUrl,

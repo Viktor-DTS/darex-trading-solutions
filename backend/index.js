@@ -3497,7 +3497,7 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
         status: 'completed',
         completedAt: new Date(),
         invoiceFile: finalFileUrl, // Cloudinary URL (конвертований або оригінальний)
-        invoiceFileName: finalFileName
+        invoiceFileName: fileName // Використовуємо виправлену назву файлу
       },
       { new: true }
     );
@@ -3507,7 +3507,7 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
       message: 'Файл рахунку завантажено успішно',
       data: {
         invoiceFile: finalFileUrl,
-        invoiceFileName: finalFileName
+        invoiceFileName: fileName // Використовуємо виправлену назву файлу
       }
     });
     
@@ -3607,10 +3607,27 @@ app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async
       });
     }
     
+    // Виправляємо кодування назви файлу
+    let fileName = req.file.originalname;
+    try {
+      // Спробуємо декодувати як UTF-8 з latin1
+      const decoded = Buffer.from(fileName, 'latin1').toString('utf8');
+      // Перевіряємо чи декодування дало зміст
+      if (decoded && decoded !== fileName && !decoded.includes('')) {
+        fileName = decoded;
+      } else {
+        // Спробуємо інший метод
+        fileName = decodeURIComponent(escape(fileName));
+      }
+    } catch (error) {
+      // Якщо не вдалося, залишаємо оригінальну назву
+      console.log('Не вдалося декодувати назву файлу акту:', error);
+    }
+    
     // Оновлюємо запит з новим файлом акту (конвертованим або оригінальним)
     await InvoiceRequest.findByIdAndUpdate(req.params.id, {
       actFile: finalFileUrl,
-      actFileName: finalFileName
+      actFileName: fileName // Використовуємо виправлену назву файлу
     });
     
     res.json({ 
@@ -3618,7 +3635,7 @@ app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async
       message: 'Файл акту завантажено успішно',
       data: {
         fileUrl: finalFileUrl,
-        fileName: finalFileName
+        fileName: fileName // Використовуємо виправлену назву файлу
       }
     });
     
