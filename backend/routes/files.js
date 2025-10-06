@@ -7,21 +7,61 @@ const path = require('path');
 const fs = require('fs');
 const router = express.Router();
 
-// Спрощена функція для серверної конвертації PDF в JPG (без Puppeteer)
+// Функція для конвертації PDF в JPG через Cloudinary Transformations
 async function convertPdfToJpgServer(pdfBuffer, originalName) {
   try {
-    console.log('[PDF-SERVER] Початок спрощеної серверної конвертації PDF:', originalName);
+    console.log('[PDF-SERVER] Початок конвертації PDF через Cloudinary:', originalName);
     
-    // Тимчасово повертаємо оригінальний PDF без конвертації
-    // Це дозволить файлу завантажитися, але без конвертації
-    console.log('[PDF-SERVER] ⚠️ ТИМЧАСОВО: PDF конвертація відключена, використовуємо оригінальний файл');
-    console.log('[PDF-SERVER] Розмір PDF файлу:', pdfBuffer.length, 'байт');
+    // Завантажуємо PDF в Cloudinary з трансформацією в JPG
+    const cloudinary = require('cloudinary').v2;
     
-    // Повертаємо оригінальний PDF buffer
-    return pdfBuffer;
+    // Створюємо тимчасовий файл для PDF
+    const tempPdfPath = path.join(__dirname, '..', 'temp', `temp_${Date.now()}.pdf`);
+    const tempDir = path.dirname(tempPdfPath);
+    
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    fs.writeFileSync(tempPdfPath, pdfBuffer);
+    
+    console.log('[PDF-SERVER] Завантажуємо PDF в Cloudinary з трансформацією...');
+    
+    // Завантажуємо PDF в Cloudinary з автоматичною конвертацією в JPG
+    const result = await cloudinary.uploader.upload(tempPdfPath, {
+      folder: 'darex-trading-solutions/temp-pdf-conversion',
+      resource_type: 'image', // Це змусить Cloudinary конвертувати PDF в зображення
+      format: 'jpg',
+      quality: 'auto:good',
+      transformation: [
+        { format: 'jpg' },
+        { quality: 'auto:good' },
+        { flags: 'attachment' } // Додаємо флаг для кращої обробки PDF
+      ]
+    });
+    
+    console.log('[PDF-SERVER] PDF конвертовано в Cloudinary:', result.secure_url);
+    
+    // Отримуємо конвертоване зображення
+    const response = await fetch(result.secure_url);
+    const jpgBuffer = await response.buffer();
+    
+    // Очищаємо тимчасовий файл
+    fs.unlinkSync(tempPdfPath);
+    
+    // Видаляємо тимчасовий файл з Cloudinary
+    try {
+      await cloudinary.uploader.destroy(result.public_id);
+      console.log('[PDF-SERVER] Тимчасовий файл видалено з Cloudinary');
+    } catch (deleteError) {
+      console.log('[PDF-SERVER] Не вдалося видалити тимчасовий файл з Cloudinary:', deleteError.message);
+    }
+    
+    console.log('[PDF-SERVER] Конвертація завершена, розмір JPG:', jpgBuffer.length);
+    return jpgBuffer;
     
   } catch (error) {
-    console.error('[PDF-SERVER] Помилка обробки PDF:', error);
+    console.error('[PDF-SERVER] Помилка конвертації PDF через Cloudinary:', error);
     throw error;
   }
 }
