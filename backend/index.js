@@ -1391,6 +1391,171 @@ app.get('/api/ping', (req, res) => {
   });
 });
 
+// --- PDF CONVERSION TEST API ---
+app.get('/api/test-pdf-conversion', async (req, res) => {
+  try {
+    console.log('[PDF-TEST] Тестуємо PDF конвертацію...');
+    
+    // Перевіряємо чи Puppeteer доступний
+    const puppeteer = require('puppeteer');
+    console.log('[PDF-TEST] Puppeteer завантажено:', !!puppeteer);
+    
+    // Створюємо простий PDF для тесту
+    const testPdfContent = `%PDF-1.4
+1 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+>>
+endobj
+
+2 0 obj
+<<
+/Type /Pages
+/Kids [3 0 R]
+/Count 1
+>>
+endobj
+
+3 0 obj
+<<
+/Type /Page
+/Parent 2 0 R
+/MediaBox [0 0 612 792]
+/Contents 4 0 R
+>>
+endobj
+
+4 0 obj
+<<
+/Length 44
+>>
+stream
+BT
+/F1 12 Tf
+72 720 Td
+(Test PDF) Tj
+ET
+endstream
+endobj
+
+xref
+0 5
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000204 00000 n 
+trailer
+<<
+/Size 5
+/Root 1 0 R
+>>
+startxref
+297
+%%EOF`;
+
+    const tempPdfPath = path.join(__dirname, 'temp', `test_${Date.now()}.pdf`);
+    const tempDir = path.dirname(tempPdfPath);
+    
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    fs.writeFileSync(tempPdfPath, testPdfContent);
+    console.log('[PDF-TEST] Тестовий PDF створено:', tempPdfPath);
+    
+    // Тестуємо Puppeteer
+    let browser = null;
+    try {
+      browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+      
+      console.log('[PDF-TEST] Puppeteer запущено успішно');
+      
+      const page = await browser.newPage();
+      console.log('[PDF-TEST] Нова сторінка створена');
+      
+      const pdfUrl = `file://${tempPdfPath}`;
+      await page.goto(pdfUrl, { waitUntil: 'networkidle0' });
+      console.log('[PDF-TEST] PDF відкрито в браузері');
+      
+      const screenshot = await page.screenshot({
+        type: 'png',
+        fullPage: true
+      });
+      console.log('[PDF-TEST] Скріншот створено, розмір:', screenshot.length);
+      
+      await browser.close();
+      
+      // Очищаємо тестовий файл
+      fs.unlinkSync(tempPdfPath);
+      
+      res.json({
+        success: true,
+        message: 'PDF конвертація працює!',
+        screenshotSize: screenshot.length,
+        puppeteerVersion: puppeteer.version || 'unknown'
+      });
+      
+    } catch (error) {
+      console.error('[PDF-TEST] Помилка тестування:', error);
+      if (browser) {
+        await browser.close();
+      }
+      
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        stack: error.stack
+      });
+    }
+    
+  } catch (error) {
+    console.error('[PDF-TEST] Критична помилка:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// --- LOGS DEBUG API ---
+app.get('/api/debug-logs', (req, res) => {
+  try {
+    console.log('[DEBUG-LOGS] Запит на отримання логів');
+    
+    // Перевіряємо системні змінні
+    const systemInfo = {
+      nodeVersion: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      puppeteerAvailable: !!require('puppeteer'),
+      sharpAvailable: !!require('sharp'),
+      tempDirExists: fs.existsSync(path.join(__dirname, 'temp')),
+      tempDirPath: path.join(__dirname, 'temp')
+    };
+    
+    console.log('[DEBUG-LOGS] Системна інформація:', systemInfo);
+    
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      systemInfo: systemInfo,
+      message: 'Логи доступні в консолі сервера'
+    });
+    
+  } catch (error) {
+    console.error('[DEBUG-LOGS] Помилка:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // --- SAVED REPORTS API ---
 // Зберегти звіт
 app.post('/api/saved-reports', async (req, res) => {
