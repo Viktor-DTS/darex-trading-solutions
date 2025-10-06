@@ -1578,6 +1578,71 @@ export default function AccountantArea({ user }) {
                         </div>
                       )}
                       
+                      {/* Кнопка для повернення відхилених заявок в роботу */}
+                      {request.status === 'rejected' && (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Ви впевнені, що хочете повернути цей запит в роботу?')) {
+                                updateInvoiceRequestStatus(request._id, 'pending', '', '');
+                              }
+                            }}
+                            style={{
+                              padding: '8px 16px',
+                              backgroundColor: '#17a2b8',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '14px'
+                            }}
+                          >
+                            🔄 Повернути в роботу
+                          </button>
+                          
+                          {/* Можливість завантаження файлів для відхилених заявок */}
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <input
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              disabled={uploadingFiles.has(request._id)}
+                              onChange={(e) => {
+                                const file = e.target.files[0];
+                                if (file) {
+                                  // Валідація розміру файлу (10MB)
+                                  if (file.size > 10 * 1024 * 1024) {
+                                    alert('Файл занадто великий. Максимальний розмір: 10MB');
+                                    return;
+                                  }
+                                  
+                                  // Валідація типу файлу
+                                  const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+                                  if (!allowedTypes.includes(file.type)) {
+                                    alert('Непідтримуваний тип файлу. Дозволені тільки PDF, JPEG, PNG');
+                                    return;
+                                  }
+                                  
+                                  uploadInvoiceFile(request._id, file);
+                                }
+                              }}
+                              style={{ 
+                                fontSize: '14px',
+                                opacity: uploadingFiles.has(request._id) ? 0.6 : 1
+                              }}
+                            />
+                            {uploadingFiles.has(request._id) && (
+                              <span style={{ 
+                                fontSize: '12px', 
+                                color: '#17a2b8',
+                                fontWeight: '600'
+                              }}>
+                                📤 Завантаження...
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* Додаємо можливість повторного завантаження для виконаних запитів без файлу */}
                       {request.status === 'completed' && !request.invoiceFile && (
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
