@@ -189,74 +189,22 @@ router.post('/upload/:taskId', upload.array('files', 10), async (req, res) => {
         cloudinaryId = '';
       }
       
-      // Спробуємо виправити кодування назви файлу
+      // Виправляємо кодування назви файлу (переносимо працюючу логіку з "Запит на рахунок")
       let correctedName = file.originalname;
-      console.log('[FILES] ===== ПОЧАТОК ОБРОБКИ ФАЙЛУ =====');
-      console.log('[FILES] Оригінальна назва файлу:', file.originalname);
-      console.log('[FILES] Оригінальна назва (hex):', Buffer.from(file.originalname, 'utf8').toString('hex'));
-      
       try {
-        // Перевіряємо, чи назва файлу містить неправильно закодовані символи
-        if (file.originalname.includes('Ð') || file.originalname.includes('Ð') || file.originalname.includes('Р') || file.originalname.includes('Р')) {
-          console.log('[FILES] Виявлено проблему з кодуванням, спробуємо виправити');
-          
-          // Спробуємо декодувати з windows-1251 в utf-8
-          try {
-            const iconv = require('iconv-lite');
-            correctedName = iconv.decode(Buffer.from(file.originalname, 'binary'), 'windows-1251');
-            console.log('[FILES] Виправлена назва (iconv):', correctedName);
-          } catch (iconvError) {
-            // Спробуємо альтернативний метод декодування
-            try {
-              correctedName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-              console.log('[FILES] Виправлена назва (latin1->utf8):', correctedName);
-            } catch (latinError) {
-              console.log('[FILES] latin1->utf8 не спрацював, спробуємо ручне виправлення');
-            
-            // Ручне виправлення найпоширеніших проблем з кодуванням
-            correctedName = file.originalname
-              // Великі літери
-              .replace(/Ð/g, 'А').replace(/Ð/g, 'Б').replace(/Ð/g, 'В').replace(/Ð/g, 'Г').replace(/Ð/g, 'Д')
-              .replace(/Ð/g, 'Е').replace(/Ð/g, 'Ж').replace(/Ð/g, 'З').replace(/Ð/g, 'И').replace(/Ð/g, 'Й')
-              .replace(/Ð/g, 'К').replace(/Ð/g, 'Л').replace(/Ð/g, 'М').replace(/Ð/g, 'Н').replace(/Ð/g, 'О')
-              .replace(/Ð/g, 'П').replace(/Ð/g, 'Р').replace(/Ð/g, 'С').replace(/Ð/g, 'Т').replace(/Ð/g, 'У')
-              .replace(/Ð/g, 'Ф').replace(/Ð/g, 'Х').replace(/Ð/g, 'Ц').replace(/Ð/g, 'Ч').replace(/Ð/g, 'Ш')
-              .replace(/Ð/g, 'Щ').replace(/Ð/g, 'Ъ').replace(/Ð/g, 'Ы').replace(/Ð/g, 'Ь').replace(/Ð/g, 'Э')
-              .replace(/Ð/g, 'Ю').replace(/Ð/g, 'Я')
-              // Малі літери
-              .replace(/Ð/g, 'а').replace(/Ð/g, 'б').replace(/Ð/g, 'в').replace(/Ð/g, 'г').replace(/Ð/g, 'д')
-              .replace(/Ð/g, 'е').replace(/Ð/g, 'ж').replace(/Ð/g, 'з').replace(/Ð/g, 'и').replace(/Ð/g, 'й')
-              .replace(/Ð/g, 'к').replace(/Ð/g, 'л').replace(/Ð/g, 'м').replace(/Ð/g, 'н').replace(/Ð/g, 'о')
-              .replace(/Ð/g, 'п').replace(/Ð/g, 'р').replace(/Ð/g, 'с').replace(/Ð/g, 'т').replace(/Ð/g, 'у')
-              .replace(/Ð/g, 'ф').replace(/Ð/g, 'х').replace(/Ð/g, 'ц').replace(/Ð/g, 'ч').replace(/Ð/g, 'ш')
-              .replace(/Ð/g, 'щ').replace(/Ð/g, 'ъ').replace(/Ð/g, 'ы').replace(/Ð/g, 'ь').replace(/Ð/g, 'э')
-              .replace(/Ð/g, 'ю').replace(/Ð/g, 'я')
-              // Додаткові варіанти кодування
-              .replace(/Р/g, 'А').replace(/Р/g, 'Б').replace(/Р/g, 'В').replace(/Р/g, 'Г').replace(/Р/g, 'Д')
-              .replace(/Р/g, 'Е').replace(/Р/g, 'Ж').replace(/Р/g, 'З').replace(/Р/g, 'И').replace(/Р/g, 'Й')
-              .replace(/Р/g, 'К').replace(/Р/g, 'Л').replace(/Р/g, 'М').replace(/Р/g, 'Н').replace(/Р/g, 'О')
-              .replace(/Р/g, 'П').replace(/Р/g, 'Р').replace(/Р/g, 'С').replace(/Р/g, 'Т').replace(/Р/g, 'У')
-              .replace(/Р/g, 'Ф').replace(/Р/g, 'Х').replace(/Р/g, 'Ц').replace(/Р/g, 'Ч').replace(/Р/g, 'Ш')
-              .replace(/Р/g, 'Щ').replace(/Р/g, 'Ъ').replace(/Р/g, 'Ы').replace(/Р/g, 'Ь').replace(/Р/g, 'Э')
-              .replace(/Р/g, 'Ю').replace(/Р/g, 'Я')
-              .replace(/Р/g, 'а').replace(/Р/g, 'б').replace(/Р/g, 'в').replace(/Р/g, 'г').replace(/Р/g, 'д')
-              .replace(/Р/g, 'е').replace(/Р/g, 'ж').replace(/Р/g, 'з').replace(/Р/g, 'и').replace(/Р/g, 'й')
-              .replace(/Р/g, 'к').replace(/Р/g, 'л').replace(/Р/g, 'м').replace(/Р/g, 'н').replace(/Р/g, 'о')
-              .replace(/Р/g, 'п').replace(/Р/g, 'р').replace(/Р/g, 'с').replace(/Р/g, 'т').replace(/Р/g, 'у')
-              .replace(/Р/g, 'ф').replace(/Р/g, 'х').replace(/Р/g, 'ц').replace(/Р/g, 'ч').replace(/Р/g, 'ш')
-              .replace(/Р/g, 'щ').replace(/Р/g, 'ъ').replace(/Р/g, 'ы').replace(/Р/g, 'ь').replace(/Р/g, 'э')
-              .replace(/Р/g, 'ю').replace(/Р/g, 'я');
-            
-            console.log('[FILES] Виправлена назва (ручне):', correctedName);
-            }
-          }
+        // Спробуємо декодувати як UTF-8 з latin1
+        const decoded = Buffer.from(correctedName, 'latin1').toString('utf8');
+        // Перевіряємо чи декодування дало зміст
+        if (decoded && decoded !== correctedName && !decoded.includes('')) {
+          correctedName = decoded;
+        } else {
+          // Спробуємо інший метод
+          correctedName = decodeURIComponent(escape(correctedName));
         }
       } catch (error) {
-        console.log('[FILES] Не вдалося виправити кодування:', error.message);
+        // Якщо не вдалося, залишаємо оригінальну назву
+        console.log('[FILES] Не вдалося декодувати назву файлу:', error);
       }
-      
-      console.log('[FILES] Фінальна назва файлу для збереження:', correctedName);
-      console.log('[FILES] ===== КІНЕЦЬ ОБРОБКИ ФАЙЛУ =====');
       
       // Створюємо запис в MongoDB
       const fileRecord = new File({

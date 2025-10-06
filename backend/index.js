@@ -3474,32 +3474,21 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
     let finalFileName = req.file.originalname;
     
     // Оновлюємо запит з інформацією про файл
-    // Виправляємо кодування назви файлу
+    // Виправляємо кодування назви файлу (оригінальна логіка, яка працювала)
     let fileName = req.file.originalname;
-    console.log('[INVOICE] Оригінальна назва файлу:', fileName);
-    
     try {
-      // Перевіряємо, чи назва файлу містить неправильно закодовані символи
-      if (fileName.includes('Ð') || fileName.includes('Ð') || fileName.includes('Р') || fileName.includes('Р')) {
-        console.log('[INVOICE] Виявлено проблему з кодуванням, спробуємо виправити');
-        
-        // Спробуємо декодувати з windows-1251 в utf-8
-        try {
-          const iconv = require('iconv-lite');
-          fileName = iconv.decode(Buffer.from(fileName, 'binary'), 'windows-1251');
-          console.log('[INVOICE] Виправлена назва (iconv):', fileName);
-        } catch (iconvError) {
-          // Спробуємо альтернативний метод декодування
-          try {
-            fileName = Buffer.from(fileName, 'latin1').toString('utf8');
-            console.log('[INVOICE] Виправлена назва (latin1->utf8):', fileName);
-          } catch (latinError) {
-            console.log('[INVOICE] Альтернативні методи не спрацювали, використовуємо оригінальну назву');
-          }
-        }
+      // Спробуємо декодувати як UTF-8 з latin1
+      const decoded = Buffer.from(fileName, 'latin1').toString('utf8');
+      // Перевіряємо чи декодування дало зміст
+      if (decoded && decoded !== fileName && !decoded.includes('')) {
+        fileName = decoded;
+      } else {
+        // Спробуємо інший метод
+        fileName = decodeURIComponent(escape(fileName));
       }
     } catch (error) {
-      console.log('[INVOICE] Не вдалося виправити кодування:', error.message);
+      // Якщо не вдалося, залишаємо оригінальну назву
+      console.log('Не вдалося декодувати назву файлу:', error);
     }
     
     const updatedRequest = await InvoiceRequest.findByIdAndUpdate(
@@ -3618,32 +3607,21 @@ app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async
       });
     }
     
-    // Виправляємо кодування назви файлу
+    // Виправляємо кодування назви файлу (оригінальна логіка, яка працювала)
     let fileName = req.file.originalname;
-    console.log('[ACT] Оригінальна назва файлу:', fileName);
-    
     try {
-      // Перевіряємо, чи назва файлу містить неправильно закодовані символи
-      if (fileName.includes('Ð') || fileName.includes('Ð') || fileName.includes('Р') || fileName.includes('Р')) {
-        console.log('[ACT] Виявлено проблему з кодуванням, спробуємо виправити');
-        
-        // Спробуємо декодувати з windows-1251 в utf-8
-        try {
-          const iconv = require('iconv-lite');
-          fileName = iconv.decode(Buffer.from(fileName, 'binary'), 'windows-1251');
-          console.log('[ACT] Виправлена назва (iconv):', fileName);
-        } catch (iconvError) {
-          // Спробуємо альтернативний метод декодування
-          try {
-            fileName = Buffer.from(fileName, 'latin1').toString('utf8');
-            console.log('[ACT] Виправлена назва (latin1->utf8):', fileName);
-          } catch (latinError) {
-            console.log('[ACT] Альтернативні методи не спрацювали, використовуємо оригінальну назву');
-          }
-        }
+      // Спробуємо декодувати як UTF-8 з latin1
+      const decoded = Buffer.from(fileName, 'latin1').toString('utf8');
+      // Перевіряємо чи декодування дало зміст
+      if (decoded && decoded !== fileName && !decoded.includes('')) {
+        fileName = decoded;
+      } else {
+        // Спробуємо інший метод
+        fileName = decodeURIComponent(escape(fileName));
       }
     } catch (error) {
-      console.log('[ACT] Не вдалося виправити кодування:', error.message);
+      // Якщо не вдалося, залишаємо оригінальну назву
+      console.log('Не вдалося декодувати назву файлу акту:', error);
     }
     
     // Оновлюємо запит з новим файлом акту (конвертованим або оригінальним)
