@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import API_BASE_URL from '../config.js';
 import { tasksAPI } from '../utils/tasksAPI';
-// PDF конвертація тепер виконується на сервері
+import { processFileForUpload } from '../utils/pdfConverter';
 import './MobileViewArea.css';
 export default function MobileViewArea({ user }) {
   const { t } = useTranslation();
@@ -137,13 +137,26 @@ export default function MobileViewArea({ user }) {
     if (!files || files.length === 0) return;
     setUploadingFiles(true);
     
+    // Конвертуємо PDF файли в JPG якщо потрібно
+    const processedFiles = [];
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const processedFile = await processFileForUpload(files[i]);
+        console.log('DEBUG MobileViewArea PDF Converter: Оброблений файл:', processedFile.name, processedFile.type);
+        processedFiles.push(processedFile);
+      } catch (error) {
+        console.error('DEBUG MobileViewArea PDF Converter: Помилка обробки файлу:', error);
+        processedFiles.push(files[i]); // Використовуємо оригінальний файл якщо обробка не вдалася
+      }
+    }
+    
     const formData = new FormData();
     formData.append('taskId', taskId);
     formData.append('description', description);
     
-    // Додаємо файли (PDF конвертація тепер на сервері)
-    for (let i = 0; i < files.length; i++) {
-      formData.append('files', files[i]);
+    // Додаємо оброблені файли
+    for (let i = 0; i < processedFiles.length; i++) {
+      formData.append('files', processedFiles[i]);
     }
     try {
       const response = await fetch(`${API_BASE_URL}/files/upload/${taskId}`, {
