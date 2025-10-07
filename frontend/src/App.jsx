@@ -2083,7 +2083,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                     <td>{overtimePay.toFixed(2)}</td>
                     <td>{basePay}</td>
                     <td style={{background:'#ffe066'}}>{engineerBonus.toFixed(2)}</td>
-                    <td style={{background:'#b6ffb6'}}>{payout}</td>
+                    <td style={{background:'#b6ffb6'}}>{payout.toFixed(2)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -2363,7 +2363,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   <td>${overtimePay.toFixed(2)}</td>
                   <td>${adjustedBasePay}</td>
                   <td>${engineerBonus.toFixed(2)}</td>
-                  <td>${payout}</td>
+                  <td>${payout.toFixed(2)}</td>
                 </tr>
               `;
             }).join('')}
@@ -3145,7 +3145,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                               <td>{overtimePay.toFixed(2)}</td>
                               <td>{basePay}</td>
                               <td style={{fontWeight:600, background:'#ffe066'}}>{engineerBonus.toFixed(2)}</td>
-                              <td style={{fontWeight:700, background:'#b6ffb6'}}>{payout}</td>
+                              <td style={{fontWeight:700, background:'#b6ffb6'}}>{payout.toFixed(2)}</td>
                             </tr>
                           );
                         })}
