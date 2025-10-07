@@ -3764,6 +3764,40 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
       { new: true }
     );
     
+    // Оновлюємо поле invoice в основному документі заявки
+    if (updatedRequest && updatedRequest.taskId) {
+      try {
+        // Витягуємо число з назви файлу
+        const fileName = req.file.originalname;
+        const numberMatch = fileName.match(/^(\d+)/);
+        const invoiceNumber = numberMatch ? numberMatch[1] : '';
+        
+        // Отримуємо поточну дату в форматі дд.мм.рррр
+        const now = new Date();
+        const day = String(now.getDate()).padStart(2, '0');
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const year = now.getFullYear();
+        const currentDate = `${day}.${month}.${year}`;
+        
+        // Формуємо рядок для поля invoice
+        const invoiceText = `Номер рахунку ${invoiceNumber}, дата рахунку ${currentDate}`;
+        
+        console.log('[INVOICE] 🔄 Оновлюємо поле invoice в основному документі:');
+        console.log('[INVOICE] - taskId:', updatedRequest.taskId);
+        console.log('[INVOICE] - invoiceNumber з файлу:', invoiceNumber);
+        console.log('[INVOICE] - поточна дата:', currentDate);
+        console.log('[INVOICE] - сформований текст:', invoiceText);
+        
+        // Оновлюємо основну заявку
+        await Task.findByIdAndUpdate(updatedRequest.taskId, { invoice: invoiceText });
+        console.log('[INVOICE] ✅ Поле invoice оновлено в основному документі');
+        
+      } catch (updateError) {
+        console.error('[INVOICE] ❌ Помилка оновлення основного документа:', updateError);
+        // Не зупиняємо виконання, просто логуємо помилку
+      }
+    }
+    
     res.json({ 
       success: true, 
       message: 'Файл рахунку завантажено успішно',
