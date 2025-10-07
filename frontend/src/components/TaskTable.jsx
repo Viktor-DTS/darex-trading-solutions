@@ -1495,13 +1495,16 @@ function TaskTableComponent({
               <thead>
                 <tr>
                   <th>Дія</th>
-                  {visibleColumns.map((col, idx) => (
+                  {visibleColumns.map((col, idx) => {
+                    // Знаходимо індекс цієї колонки в selected масиві
+                    const selectedIdx = selected.findIndex(key => key === col.key);
+                    return (
                     <th
                       key={col.key}
                       className="th-resizable th-auto-height"
                       draggable
-                      onDragStart={e => handleDragStart(e, idx)}
-                      onDrop={e => handleDrop(e, idx)}
+                      onDragStart={e => handleDragStart(e, selectedIdx)}
+                      onDrop={e => handleDrop(e, selectedIdx)}
                       onDragOver={handleDragOver}
                       onDoubleClick={() => handleSort(col.key)}
                       style={{
@@ -1604,7 +1607,8 @@ function TaskTableComponent({
                         }}
                       />
                       </th>
-                  ))}
+                    );
+                  })}
                   <th>Статус</th>
                   {role === 'admin' && <th>Дата підтвердження</th>}
                   {commentField && <th>Коментар</th>}
