@@ -351,9 +351,6 @@ function TaskTableComponent({
     .map(key => allColumns.find(c => c.key === key))
     .filter(Boolean);
     
-  // Додаємо логування для діагностики проблеми з drag and drop
-  console.log('[DEBUG] visibleColumns:', visibleColumns.map((col, idx) => ({ idx, key: col.key, label: col.label })));
-  console.log('[DEBUG] total columns in table:', visibleColumns.length + 1 + (role === 'admin' ? 1 : 0) + (commentField ? 1 : 0));
     
   // Рендеримо спінер, поки налаштування не завантажено
   if (loadingSettings || selected.length === 0) {
@@ -604,28 +601,15 @@ function TaskTableComponent({
   const handleDragStart = (e, idx) => {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('colIdx', idx);
-    console.log('[DEBUG] handleDragStart - idx:', idx, 'column:', visibleColumns[idx]?.key, 'label:', visibleColumns[idx]?.label);
   };
   
   const handleDrop = async (e, idx) => {
     const fromIdx = +e.dataTransfer.getData('colIdx');
-    console.log('[DEBUG] handleDrop - fromIdx:', fromIdx, 'toIdx:', idx);
-    console.log('[DEBUG] handleDrop - fromColumn:', visibleColumns[fromIdx]?.key, 'toColumn:', visibleColumns[idx]?.key);
-    
-    // Перевіряємо, чи не намагаємося перетягнути колонку на статичні колонки
-    const staticColumnsCount = 1 + (role === 'admin' ? 1 : 0) + (commentField ? 1 : 0); // Статус + Дата підтвердження + Коментар
-    const maxDraggableIndex = visibleColumns.length - 1;
-    
     if (fromIdx === idx) return;
-    if (idx > maxDraggableIndex) {
-      console.log('[DEBUG] Не можна перетягнути на статичні колонки');
-      return;
-    }
     
     const newOrder = [...selected];
     const [removed] = newOrder.splice(fromIdx, 1);
     newOrder.splice(idx, 0, removed);
-    console.log('[DEBUG] Перетягування колонки:', { fromIdx, toIdx: idx, oldOrder: selected, newOrder });
     setSelected(newOrder);
     
     // Зберігаємо новий порядок через API
@@ -1516,21 +1500,8 @@ function TaskTableComponent({
                       key={col.key}
                       className="th-resizable th-auto-height"
                       draggable
-                      onDragStart={e => {
-                        console.log('[DEBUG] onDragStart - idx:', idx, 'col.key:', col.key, 'col.label:', col.label);
-                        handleDragStart(e, idx);
-                      }}
-                      onDrop={e => {
-                        console.log('[DEBUG] onDrop - idx:', idx, 'col.key:', col.key, 'col.label:', col.label);
-                        handleDrop(e, idx);
-                      }}
-                      onDragEnter={e => {
-                        e.preventDefault();
-                        e.target.style.backgroundColor = '#e3f2fd';
-                      }}
-                      onDragLeave={e => {
-                        e.target.style.backgroundColor = '';
-                      }}
+                      onDragStart={e => handleDragStart(e, idx)}
+                      onDrop={e => handleDrop(e, idx)}
                       onDragOver={handleDragOver}
                       onDoubleClick={() => handleSort(col.key)}
                       style={{
