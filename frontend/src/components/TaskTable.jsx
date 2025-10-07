@@ -351,6 +351,9 @@ function TaskTableComponent({
     .map(key => allColumns.find(c => c.key === key))
     .filter(Boolean);
     
+  // Додаємо логування для діагностики проблеми з drag and drop
+  console.log('[DEBUG] visibleColumns:', visibleColumns.map((col, idx) => ({ idx, key: col.key, label: col.label })));
+    
   // Рендеримо спінер, поки налаштування не завантажено
   if (loadingSettings || selected.length === 0) {
     return (
@@ -600,10 +603,13 @@ function TaskTableComponent({
   const handleDragStart = (e, idx) => {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('colIdx', idx);
+    console.log('[DEBUG] handleDragStart - idx:', idx, 'column:', visibleColumns[idx]?.key, 'label:', visibleColumns[idx]?.label);
   };
   
   const handleDrop = async (e, idx) => {
     const fromIdx = +e.dataTransfer.getData('colIdx');
+    console.log('[DEBUG] handleDrop - fromIdx:', fromIdx, 'toIdx:', idx);
+    console.log('[DEBUG] handleDrop - fromColumn:', visibleColumns[fromIdx]?.key, 'toColumn:', visibleColumns[idx]?.key);
     if (fromIdx === idx) return;
     const newOrder = [...selected];
     const [removed] = newOrder.splice(fromIdx, 1);
@@ -1499,8 +1505,14 @@ function TaskTableComponent({
                       key={col.key}
                       className="th-resizable th-auto-height"
                       draggable
-                      onDragStart={e => handleDragStart(e, idx)}
-                      onDrop={e => handleDrop(e, idx)}
+                      onDragStart={e => {
+                        console.log('[DEBUG] onDragStart - idx:', idx, 'col.key:', col.key, 'col.label:', col.label);
+                        handleDragStart(e, idx);
+                      }}
+                      onDrop={e => {
+                        console.log('[DEBUG] onDrop - idx:', idx, 'col.key:', col.key, 'col.label:', col.label);
+                        handleDrop(e, idx);
+                      }}
                       onDragOver={handleDragOver}
                       onDoubleClick={() => handleSort(col.key)}
                       style={{
