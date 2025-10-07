@@ -156,8 +156,8 @@ const orderedFields = [
   'address',
   ...regionClientGroup,
   ...debtGroup,
-  ...equipmentGroup,
   ...paymentEquipmentGroup,
+  ...equipmentGroup,
   ...workEngineersGroup,
   ...oilGroup,
   ...filterGroup,
@@ -176,7 +176,7 @@ const orderedFields = [
 // const bonusApprovalDateField = { ... } // (залишити, якщо потрібно)
 // Для полів, які мають бути з label над input
 const labelAboveFields = [
-  'status', 'requestDate', 'requestDesc', 'address', 'paymentDate', 'invoiceRecipientDetails', 'paymentType', 'otherMaterials',
+  'status', 'requestDate', 'requestDesc', 'address', 'paymentDate', 'invoiceRecipientDetails', 'paymentType', 'serviceTotal', 'otherMaterials',
   'debtStatus', 'debtStatusCheckbox',
   'approvedByWarehouse', 'warehouseComment',
   'approvedByAccountant', 'accountantComment', 'accountantComments',
@@ -945,8 +945,8 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             ...statusGroup.slice(1).filter(n => n !== 'serviceRegion'),
             ...regionClientGroup.slice(1),
             ...debtGroup.slice(1),
-            ...equipmentGroup.slice(1),
             ...paymentEquipmentGroup.slice(1),
+            ...equipmentGroup.slice(1),
             ...workEngineersGroup.slice(1),
             ...oilGroup.slice(1),
             ...filterGroup.slice(1),
