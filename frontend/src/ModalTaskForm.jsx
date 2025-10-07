@@ -1370,7 +1370,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
-                  if (n === 'engineer1' || n === 'engineer2') {
+                  if (n === 'engineer1' || n === 'engineer2' || n === 'engineer3' || n === 'engineer4' || n === 'engineer5' || n === 'engineer6') {
                     console.log('[DEBUG] ModalTaskForm - рендеринг поля інженера:', n);
                     console.log('[DEBUG] ModalTaskForm - загальна кількість користувачів:', users.length);
                     console.log('[DEBUG] ModalTaskForm - поточний регіон заявки:', form.serviceRegion);
