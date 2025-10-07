@@ -3780,7 +3780,7 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
         const currentDate = `${day}.${month}.${year}`;
         
         // Формуємо рядок для поля invoice
-        const invoiceText = `Номер рахунку ${invoiceNumber}, дата рахунку ${currentDate}`;
+        const invoiceText = `Номер рахунку ${invoiceNumber}, № ${currentDate}`;
         
         console.log('[INVOICE] 🔄 Оновлюємо поле invoice в основному документі:');
         console.log('[INVOICE] - taskId:', updatedRequest.taskId);
