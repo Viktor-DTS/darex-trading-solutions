@@ -1356,40 +1356,75 @@ export default function AccountantArea({ user }) {
                       </div>
                     </div>
                     
-                    {request.status === 'completed' && request.invoiceFile && (
+                    {/* Файл рахунку */}
+                    {request.status === 'completed' && request.needInvoice && (
                       <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#e8f5e8', borderRadius: '4px' }}>
-                        <strong style={{ color: '#000' }}>📄 Файл рахунку:</strong> <span style={{ color: '#000' }}>{request.invoiceFileName}</span>
-                        <div style={{ marginTop: '8px' }}>
-                          <button 
-                            onClick={() => window.open(request.invoiceFile, '_blank')}
-                            style={{
-                              marginRight: '8px',
-                              padding: '4px 8px',
-                              backgroundColor: '#28a745',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '12px'
-                            }}
-                          >
-                            Завантажити
-                          </button>
-                          <button 
-                            onClick={() => deleteInvoiceFile(request._id)}
-                            style={{
-                              padding: '4px 8px',
-                              backgroundColor: '#dc3545',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '12px'
-                            }}
-                          >
-                            🗑️ Видалити файл
-                          </button>
-                        </div>
+                        <strong style={{ color: '#000' }}>📄 Файл рахунку:</strong>
+                        {request.invoiceFile ? (
+                          <>
+                            <span style={{ color: '#000' }}> {request.invoiceFileName}</span>
+                            <div style={{ marginTop: '8px' }}>
+                              <button 
+                                onClick={() => window.open(request.invoiceFile, '_blank')}
+                                style={{
+                                  marginRight: '8px',
+                                  padding: '4px 8px',
+                                  backgroundColor: '#17a2b8',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                Переглянути файл
+                              </button>
+                              <button 
+                                onClick={() => window.open(request.invoiceFile, '_blank')}
+                                style={{
+                                  marginRight: '8px',
+                                  padding: '4px 8px',
+                                  backgroundColor: '#28a745',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                Завантажити файл
+                              </button>
+                              <button 
+                                onClick={() => deleteInvoiceFile(request._id)}
+                                style={{
+                                  padding: '4px 8px',
+                                  backgroundColor: '#dc3545',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                🗑️ Видалити файл
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ marginTop: '8px' }}>
+                            <input
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              onChange={(e) => {
+                                if (e.target.files[0]) {
+                                  uploadInvoiceFile(request._id, e.target.files[0]);
+                                }
+                              }}
+                              style={{ marginRight: '8px' }}
+                            />
+                            <span style={{ color: '#666', fontSize: '12px' }}>Завантажте файл рахунку</span>
+                          </div>
+                        )}
                       </div>
                     )}
                     
@@ -1683,68 +1718,71 @@ export default function AccountantArea({ user }) {
                         </div>
                       )}
                       
-                      {/* Додаємо можливість повторного завантаження для виконаних запитів без файлу */}
-                      {request.status === 'completed' && !request.invoiceFile && (
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                          <input
-                            type="file"
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            disabled={uploadingFiles.has(request._id)}
-                            onChange={(e) => {
-                              const file = e.target.files[0];
-                              if (file) {
-                                // Валідація розміру файлу (10MB)
-                                if (file.size > 10 * 1024 * 1024) {
-                                  alert('Файл занадто великий. Максимальний розмір: 10MB');
-                                  return;
+                      {/* Файл рахунку - повторне завантаження для виконаних запитів без файлу */}
+                      {request.status === 'completed' && !request.invoiceFile && request.needInvoice && (
+                        <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#e8f5e8', borderRadius: '4px' }}>
+                          <strong style={{ color: '#000' }}>📄 Файл рахунку:</strong>
+                          <div style={{ marginTop: '8px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <input
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              disabled={uploadingFiles.has(request._id)}
+                              onChange={(e) => {
+                                const file = e.target.files[0];
+                                if (file) {
+                                  // Валідація розміру файлу (10MB)
+                                  if (file.size > 10 * 1024 * 1024) {
+                                    alert('Файл занадто великий. Максимальний розмір: 10MB');
+                                    return;
+                                  }
+                                  
+                                  // Валідація типу файлу
+                                  const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+                                  if (!allowedTypes.includes(file.type)) {
+                                    alert('Непідтримуваний тип файлу. Дозволені тільки PDF, JPEG, PNG');
+                                    return;
+                                  }
+                                  
+                                  uploadInvoiceFile(request._id, file);
                                 }
-                                
-                                // Валідація типу файлу
-                                const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
-                                if (!allowedTypes.includes(file.type)) {
-                                  alert('Непідтримуваний тип файлу. Дозволені тільки PDF, JPEG, PNG');
-                                  return;
-                                }
-                                
-                                uploadInvoiceFile(request._id, file);
-                              }
-                            }}
-                            style={{ 
-                              fontSize: '14px',
-                              opacity: uploadingFiles.has(request._id) ? 0.6 : 1
-                            }}
-                          />
-                          {uploadingFiles.has(request._id) && (
+                              }}
+                              style={{ 
+                                fontSize: '14px',
+                                opacity: uploadingFiles.has(request._id) ? 0.6 : 1
+                              }}
+                            />
+                            {uploadingFiles.has(request._id) && (
+                              <span style={{ 
+                                fontSize: '12px', 
+                                color: '#17a2b8',
+                                fontWeight: '600'
+                              }}>
+                                📤 Завантаження...
+                              </span>
+                            )}
                             <span style={{ 
                               fontSize: '12px', 
-                              color: '#17a2b8',
-                              fontWeight: '600'
+                              color: '#666',
+                              fontStyle: 'italic'
                             }}>
-                              📤 Завантаження...
+                              Файл було видалено. Можна завантажити новий.
                             </span>
-                          )}
-                          <span style={{ 
-                            fontSize: '12px', 
-                            color: '#666',
-                            fontStyle: 'italic'
-                          }}>
-                            Файл було видалено. Можна завантажити новий.
-                          </span>
-                          <button
-                            onClick={() => deleteInvoiceRequest(request._id)}
-                            style={{
-                              padding: '6px 12px',
-                              backgroundColor: '#dc3545',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '12px',
-                              marginLeft: '8px'
-                            }}
-                          >
-                            🗑️ Видалити заявку
-                          </button>
+                            <button
+                              onClick={() => deleteInvoiceRequest(request._id)}
+                              style={{
+                                padding: '6px 12px',
+                                backgroundColor: '#dc3545',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                                marginLeft: '8px'
+                              }}
+                            >
+                              🗑️ Видалити заявку
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
