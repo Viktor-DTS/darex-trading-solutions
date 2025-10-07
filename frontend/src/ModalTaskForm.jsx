@@ -65,6 +65,7 @@ export const fields = [
   { name: 'equipment', label: 'Тип обладнання', type: 'text' },
   { name: 'engineModel', label: 'Модель двигуна', type: 'text' },
   { name: 'engineSerial', label: 'Зав. № двигуна', type: 'text' },
+  { name: 'customerEquipmentNumber', label: 'інвент. № обладнання від замовника', type: 'text' },
   { name: 'work', label: 'Найменування робіт', type: 'text' },
   { name: 'engineer1', label: 'Сервісний інженер №1', type: 'text' },
   { name: 'engineer2', label: 'Сервісний інженер №2', type: 'text' },
@@ -137,7 +138,7 @@ const expensesGroup = ['perDiem', 'living', 'otherExp', 'bonusApprovalDate'];
 const statusGroup = ['status', 'requestDate', 'company'];
 const regionClientGroup = ['edrpou', 'client', 'invoice', 'paymentDate', 'invoiceRecipientDetails'];
 const debtGroup = ['debtStatus', 'debtStatusCheckbox'];
-const paymentEquipmentGroup = ['paymentType', 'serviceTotal'];
+const paymentEquipmentGroup = ['paymentType', 'serviceTotal', 'customerEquipmentNumber'];
 const equipmentGroup = ['equipment', 'equipmentSerial', 'engineModel', 'engineSerial'];
 const workEngineersGroup = ['date', 'work', 'engineer1', 'engineer2'];
 const otherMaterialsGroup = ['otherSum', 'otherMaterials'];
@@ -176,7 +177,7 @@ const orderedFields = [
 // const bonusApprovalDateField = { ... } // (залишити, якщо потрібно)
 // Для полів, які мають бути з label над input
 const labelAboveFields = [
-  'status', 'requestDate', 'requestDesc', 'address', 'paymentDate', 'invoiceRecipientDetails', 'paymentType', 'serviceTotal', 'otherMaterials',
+  'status', 'requestDate', 'requestDesc', 'address', 'paymentDate', 'invoiceRecipientDetails', 'paymentType', 'serviceTotal', 'customerEquipmentNumber', 'otherMaterials',
   'debtStatus', 'debtStatusCheckbox',
   'approvedByWarehouse', 'warehouseComment',
   'approvedByAccountant', 'accountantComment', 'accountantComments',
@@ -1112,7 +1113,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           if (idx === orderedFields.indexOf('paymentType')) {
             return (
               <div className="group" key="paymentEquipmentGroup">
-                {['paymentType', 'serviceTotal'].map(n => {
+                {['paymentType', 'serviceTotal', 'customerEquipmentNumber'].map(n => {
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
