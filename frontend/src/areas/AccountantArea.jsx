@@ -200,9 +200,11 @@ export default function AccountantArea({ user }) {
       if (ocrData && ocrData.success) {
         if (ocrData.invoiceNumber) {
           formData.append('invoiceNumber', ocrData.invoiceNumber);
+          alert(`🤖 Система визначила номер рахунку: ${ocrData.invoiceNumber}\n\nВін буде автоматично встановлений в поле "Номер рахунку".\nЯкщо дані не вірні, змініть вручну в даному полі.`);
         }
         if (ocrData.invoiceDate) {
           formData.append('invoiceDate', ocrData.invoiceDate);
+          alert(`📅 Система визначила дату рахунку: ${ocrData.invoiceDate}\n\nВона буде автоматично встановлена в поле "Дата рахунку".\nЯкщо дані не вірні, змініть вручну в даному полі.`);
         }
       }
       
@@ -291,9 +293,11 @@ export default function AccountantArea({ user }) {
       if (ocrData && ocrData.success) {
         if (ocrData.invoiceNumber) {
           formData.append('invoiceNumber', ocrData.invoiceNumber);
+          alert(`🤖 Система визначила номер рахунку: ${ocrData.invoiceNumber}\n\nВін буде автоматично встановлений в поле "Номер рахунку".\nЯкщо дані не вірні, змініть вручну в даному полі.`);
         }
         if (ocrData.invoiceDate) {
           formData.append('invoiceDate', ocrData.invoiceDate);
+          alert(`📅 Система визначила дату рахунку: ${ocrData.invoiceDate}\n\nВона буде автоматично встановлена в поле "Дата рахунку".\nЯкщо дані не вірні, змініть вручну в даному полі.`);
         }
       }
       

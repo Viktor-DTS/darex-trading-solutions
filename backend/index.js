@@ -230,6 +230,8 @@ const invoiceRequestSchema = new mongoose.Schema({
   completedAt: { type: Date },
   invoiceFile: { type: String, default: '' },
   invoiceFileName: { type: String, default: '' },
+  invoiceNumber: { type: String, default: '' },
+  invoiceDate: { type: String, default: '' },
   actFile: { type: String, default: '' },
   actFileName: { type: String, default: '' },
   comments: { type: String, default: '' },
@@ -3733,14 +3735,35 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
       console.log('Не вдалося декодувати назву файлу:', error);
     }
     
+    // Отримуємо OCR дані з запиту
+    const invoiceNumber = req.body.invoiceNumber;
+    const invoiceDate = req.body.invoiceDate;
+    
+    console.log('[INVOICE] OCR дані з запиту:');
+    console.log('[INVOICE] - Номер рахунку:', invoiceNumber);
+    console.log('[INVOICE] - Дата рахунку:', invoiceDate);
+    
+    // Підготовляємо дані для оновлення
+    const updateData = { 
+      status: 'completed',
+      completedAt: new Date(),
+      invoiceFile: finalFileUrl, // Cloudinary URL (конвертований або оригінальний)
+      invoiceFileName: fileName // Використовуємо виправлену назву файлу
+    };
+    
+    // Додаємо OCR дані якщо вони є
+    if (invoiceNumber) {
+      updateData.invoiceNumber = invoiceNumber;
+      console.log('[INVOICE] ✅ Додано номер рахунку з OCR:', invoiceNumber);
+    }
+    if (invoiceDate) {
+      updateData.invoiceDate = invoiceDate;
+      console.log('[INVOICE] ✅ Додано дату рахунку з OCR:', invoiceDate);
+    }
+    
     const updatedRequest = await InvoiceRequest.findByIdAndUpdate(
       req.params.id,
-      { 
-        status: 'completed',
-        completedAt: new Date(),
-        invoiceFile: finalFileUrl, // Cloudinary URL (конвертований або оригінальний)
-        invoiceFileName: fileName // Використовуємо виправлену назву файлу
-      },
+      updateData,
       { new: true }
     );
     
@@ -3918,11 +3941,32 @@ app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async
       console.log('Не вдалося декодувати назву файлу акту:', error);
     }
     
-    // Оновлюємо запит з новим файлом акту (конвертованим або оригінальним)
-    await InvoiceRequest.findByIdAndUpdate(req.params.id, {
+    // Отримуємо OCR дані з запиту
+    const invoiceNumber = req.body.invoiceNumber;
+    const invoiceDate = req.body.invoiceDate;
+    
+    console.log('[ACT] OCR дані з запиту:');
+    console.log('[ACT] - Номер рахунку:', invoiceNumber);
+    console.log('[ACT] - Дата рахунку:', invoiceDate);
+    
+    // Підготовляємо дані для оновлення
+    const updateData = {
       actFile: finalFileUrl,
       actFileName: fileName // Використовуємо виправлену назву файлу
-    });
+    };
+    
+    // Додаємо OCR дані якщо вони є
+    if (invoiceNumber) {
+      updateData.invoiceNumber = invoiceNumber;
+      console.log('[ACT] ✅ Додано номер рахунку з OCR:', invoiceNumber);
+    }
+    if (invoiceDate) {
+      updateData.invoiceDate = invoiceDate;
+      console.log('[ACT] ✅ Додано дату рахунку з OCR:', invoiceDate);
+    }
+    
+    // Оновлюємо запит з новим файлом акту (конвертованим або оригінальним)
+    await InvoiceRequest.findByIdAndUpdate(req.params.id, updateData);
     
     res.json({ 
       success: true, 
