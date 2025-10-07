@@ -1375,7 +1375,14 @@ function ServiceArea({ user }) {
               </div>
               <div class="info-row">
                 <span class="info-label">Сервісні інженери:</span>
-                <span class="info-value">${task.engineer1 || ''} ${task.engineer2 ? ', ' + task.engineer2 : ''}</span>
+                <span class="info-value">${[
+                  task.engineer1 || '',
+                  task.engineer2 || '',
+                  task.engineer3 || '',
+                  task.engineer4 || '',
+                  task.engineer5 || '',
+                  task.engineer6 || ''
+                ].filter(eng => eng && eng.trim().length > 0).join(', ')}</span>
               </div>
             </div>
             <div class="materials-grid">
@@ -2009,18 +2016,21 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   const workPrice = parseFloat(t.workPrice) || 0;
                   const bonusVal = workPrice * 0.25;
                   let addBonus = 0;
-                  // Діагностика імен
-                  const engineer1 = (t.engineer1 || '').trim();
-                  const engineer2 = (t.engineer2 || '').trim();
+                  // Діагностика імен - враховуємо всіх 6 інженерів
+                  const engineers = [
+                    (t.engineer1 || '').trim(),
+                    (t.engineer2 || '').trim(),
+                    (t.engineer3 || '').trim(),
+                    (t.engineer4 || '').trim(),
+                    (t.engineer5 || '').trim(),
+                    (t.engineer6 || '').trim()
+                  ].filter(eng => eng && eng.length > 0);
+                  
                   const userName = (u.name || '').trim();
-                  const hasEngineer2 = !!engineer2;
-                  if (engineer1 === userName && hasEngineer2) {
-                    addBonus = bonusVal / 2;
-                  } else if (engineer2 === userName && engineer1) {
-                    addBonus = bonusVal / 2;
-                  } else if (engineer1 === userName && !hasEngineer2) {
-                    addBonus = bonusVal;
-                  } else {
+                  const engineerCount = engineers.length;
+                  
+                  if (engineers.includes(userName) && engineerCount > 0) {
+                    addBonus = bonusVal / engineerCount;
                   }
                   if (addBonus > 0) {
                     engineerBonus += addBonus;
@@ -2235,12 +2245,18 @@ function RegionalManagerArea({ tab: propTab, user }) {
             if (bonusMonth === reportMonth && bonusYear === reportYear) {
               const workPrice = parseFloat(t.workPrice) || 0;
               const bonusVal = workPrice * 0.25;
-              if (t.engineer1 === u.name && t.engineer2) {
-                engineerBonus += bonusVal / 2;
-              } else if (t.engineer2 === u.name && t.engineer1) {
-                engineerBonus += bonusVal / 2;
-              } else if (t.engineer1 === u.name && !t.engineer2) {
-                engineerBonus += bonusVal;
+              // Враховуємо всіх 6 інженерів
+              const engineers = [
+                (t.engineer1 || '').trim(),
+                (t.engineer2 || '').trim(),
+                (t.engineer3 || '').trim(),
+                (t.engineer4 || '').trim(),
+                (t.engineer5 || '').trim(),
+                (t.engineer6 || '').trim()
+              ].filter(eng => eng && eng.length > 0);
+              
+              if (engineers.includes(u.name) && engineers.length > 0) {
+                engineerBonus += bonusVal / engineers.length;
               }
             }
           }
@@ -2317,12 +2333,18 @@ function RegionalManagerArea({ tab: propTab, user }) {
               tasksForMonth.forEach(t => {
                 const workPrice = parseFloat(t.workPrice) || 0;
                 const bonusVal = workPrice * 0.25;
-                if (t.engineer1 === u.name && t.engineer2) {
-                  engineerBonus += bonusVal / 2;
-                } else if (t.engineer2 === u.name && t.engineer1) {
-                  engineerBonus += bonusVal / 2;
-                } else if (t.engineer1 === u.name && !t.engineer2) {
-                  engineerBonus += bonusVal;
+                // Враховуємо всіх 6 інженерів
+                const engineers = [
+                  (t.engineer1 || '').trim(),
+                  (t.engineer2 || '').trim(),
+                  (t.engineer3 || '').trim(),
+                  (t.engineer4 || '').trim(),
+                  (t.engineer5 || '').trim(),
+                  (t.engineer6 || '').trim()
+                ].filter(eng => eng && eng.length > 0);
+                
+                if (engineers.includes(u.name) && engineers.length > 0) {
+                  engineerBonus += bonusVal / engineers.length;
                 }
               });
               // Якщо є премія за сервісні роботи, встановлюємо мінімальні години для відображення
@@ -2449,7 +2471,14 @@ function RegionalManagerArea({ tab: propTab, user }) {
               return `
                 <tr>
                   <td>${t.date || ''}</td>
-                  <td>${t.engineer1 || ''}${t.engineer2 ? ', ' + t.engineer2 : ''}</td>
+                  <td>${[
+                    t.engineer1 || '',
+                    t.engineer2 || '',
+                    t.engineer3 || '',
+                    t.engineer4 || '',
+                    t.engineer5 || '',
+                    t.engineer6 || ''
+                  ].filter(eng => eng && eng.trim().length > 0).join(', ')}</td>
                   <td>${t.client || ''}</td>
                   <td>${t.address || ''}</td>
                   <td>${t.equipment || ''}</td>
@@ -2610,11 +2639,16 @@ function RegionalManagerArea({ tab: propTab, user }) {
     const data = filteredTasks.map(task => {
       return columnMapping.map(col => {
         if (col.field === 'engineer1') {
-          // Об'єднуємо інженерів
-          const engineer1 = task.engineer1 || '';
-          const engineer2 = task.engineer2 || '';
-          const result = engineer2 ? `${engineer1}, ${engineer2}` : engineer1;
-          return result;
+          // Об'єднуємо всіх інженерів
+          const engineers = [
+            task.engineer1 || '',
+            task.engineer2 || '',
+            task.engineer3 || '',
+            task.engineer4 || '',
+            task.engineer5 || '',
+            task.engineer6 || ''
+          ].filter(eng => eng && eng.trim().length > 0);
+          return engineers.join(', ');
         } else if (col.field === '') {
           return ''; // Порожні поля
         } else {
@@ -3083,12 +3117,18 @@ function RegionalManagerArea({ tab: propTab, user }) {
                                 if (bonusMonth === month && bonusYear === year) {
                                   const workPrice = parseFloat(t.workPrice) || 0;
                                   const bonus = workPrice * 0.25;
-                                  if (t.engineer1 === engineerName && t.engineer2) {
-                                    engineerBonus += bonus / 2;
-                                  } else if (t.engineer2 === engineerName && t.engineer1) {
-                                    engineerBonus += bonus / 2;
-                                  } else if (t.engineer1 === engineerName && !t.engineer2) {
-                                    engineerBonus += bonus;
+                                  // Враховуємо всіх 6 інженерів
+                                  const engineers = [
+                                    (t.engineer1 || '').trim(),
+                                    (t.engineer2 || '').trim(),
+                                    (t.engineer3 || '').trim(),
+                                    (t.engineer4 || '').trim(),
+                                    (t.engineer5 || '').trim(),
+                                    (t.engineer6 || '').trim()
+                                  ].filter(eng => eng && eng.length > 0);
+                                  
+                                  if (engineers.includes(engineerName) && engineers.length > 0) {
+                                    engineerBonus += bonus / engineers.length;
                                   }
                                 }
                               }
