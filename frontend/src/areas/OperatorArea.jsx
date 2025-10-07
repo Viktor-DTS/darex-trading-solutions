@@ -160,6 +160,12 @@ export default function OperatorArea({ user }) {
     label: f.label,
     filter: true
   }));
+  
+  // Додаємо логування для порівняння з AccountantArea
+  console.log('[DEBUG] OperatorArea - user:', user);
+  console.log('[DEBUG] OperatorArea - user.login:', user?.login);
+  console.log('[DEBUG] OperatorArea - role: operator');
+  console.log('[DEBUG] OperatorArea - columns:', columns);
   const statusOrder = {
     'Заявка': 1,
     'В роботі': 2,

@@ -633,6 +633,12 @@ export default function AccountantArea({ user }) {
     label: f.label,
     filter: true
   }));
+  
+  // Додаємо логування для діагностики проблеми з колонками
+  console.log('[DEBUG] AccountantArea - user:', user);
+  console.log('[DEBUG] AccountantArea - user.login:', user?.login);
+  console.log('[DEBUG] AccountantArea - role: accountant');
+  console.log('[DEBUG] AccountantArea - columns:', columns);
   // --- Формування звіту ---
   const handleFormReport = () => {
     // Фільтруємо виконані заявки за діапазоном дат, регіоном та статусом затвердження
