@@ -3735,16 +3735,10 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
       console.log('Не вдалося декодувати назву файлу:', error);
     }
     
-    // Отримуємо OCR дані з запиту
-    const invoiceNumber = req.body.invoiceNumber;
-    const invoiceDate = req.body.invoiceDate;
-    
-    console.log('[INVOICE] 🔍 ДІАГНОСТИКА OCR ДАНИХ:');
-    console.log('[INVOICE] - req.body:', req.body);
-    console.log('[INVOICE] - Номер рахунку:', invoiceNumber);
-    console.log('[INVOICE] - Дата рахунку:', invoiceDate);
-    console.log('[INVOICE] - Тип номера рахунку:', typeof invoiceNumber);
-    console.log('[INVOICE] - Тип дати рахунку:', typeof invoiceDate);
+    // OCR функціональність тимчасово відключена
+    console.log('[INVOICE] OCR функціональність тимчасово відключена');
+    const invoiceNumber = null; // req.body.invoiceNumber;
+    const invoiceDate = null; // req.body.invoiceDate;
     
     // Підготовляємо дані для оновлення
     const updateData = { 
@@ -3944,13 +3938,10 @@ app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async
       console.log('Не вдалося декодувати назву файлу акту:', error);
     }
     
-    // Отримуємо OCR дані з запиту
-    const invoiceNumber = req.body.invoiceNumber;
-    const invoiceDate = req.body.invoiceDate;
-    
-    console.log('[ACT] OCR дані з запиту:');
-    console.log('[ACT] - Номер рахунку:', invoiceNumber);
-    console.log('[ACT] - Дата рахунку:', invoiceDate);
+    // OCR функціональність тимчасово відключена
+    console.log('[ACT] OCR функціональність тимчасово відключена');
+    const invoiceNumber = null; // req.body.invoiceNumber;
+    const invoiceDate = null; // req.body.invoiceDate;
     
     // Підготовляємо дані для оновлення
     const updateData = {

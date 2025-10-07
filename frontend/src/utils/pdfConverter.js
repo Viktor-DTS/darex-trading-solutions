@@ -249,10 +249,10 @@ export async function convertPdfToJpg(pdfFile) {
     
     console.log('DEBUG PDF Converter: Перша сторінка відрендерена, розміри:', viewport.width, 'x', viewport.height);
     
-    // Виконуємо OCR розпізнавання перед конвертацією
-    console.log('DEBUG PDF Converter: Починаємо OCR розпізнавання...');
-    const ocrData = await performOCR(canvas);
-    console.log('DEBUG PDF Converter: OCR результати:', ocrData);
+    // OCR розпізнавання тимчасово відключено
+    console.log('DEBUG PDF Converter: OCR розпізнавання тимчасово відключено');
+    const ocrData = { invoiceNumber: null, invoiceDate: null, success: false };
+    console.log('DEBUG PDF Converter: OCR результати (відключено):', ocrData);
     
     // Конвертуємо canvas в JPG
     return new Promise((resolve, reject) => {
