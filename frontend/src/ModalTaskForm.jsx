@@ -69,6 +69,10 @@ export const fields = [
   { name: 'work', label: 'Найменування робіт', type: 'text' },
   { name: 'engineer1', label: 'Сервісний інженер №1', type: 'text' },
   { name: 'engineer2', label: 'Сервісний інженер №2', type: 'text' },
+  { name: 'engineer3', label: 'Сервісний інженер №3', type: 'text' },
+  { name: 'engineer4', label: 'Сервісний інженер №4', type: 'text' },
+  { name: 'engineer5', label: 'Сервісний інженер №5', type: 'text' },
+  { name: 'engineer6', label: 'Сервісний інженер №6', type: 'text' },
   { name: 'serviceTotal', label: 'Загальна сума послуги', type: 'text' },
   { name: 'oilType', label: 'Тип оливи', type: 'text' },
   { name: 'oilUsed', label: 'Використано оливи, л', type: 'text' },
@@ -140,7 +144,7 @@ const regionClientGroup = ['edrpou', 'client', 'invoice', 'paymentDate', 'invoic
 const debtGroup = ['debtStatus', 'debtStatusCheckbox'];
 const paymentEquipmentGroup = ['paymentType', 'serviceTotal', 'customerEquipmentNumber'];
 const equipmentGroup = ['equipment', 'equipmentSerial', 'engineModel', 'engineSerial'];
-const workEngineersGroup = ['date', 'work', 'engineer1', 'engineer2'];
+const workEngineersGroup = ['date', 'work', 'engineer1', 'engineer2', 'engineer3', 'engineer4', 'engineer5', 'engineer6'];
 const otherMaterialsGroup = ['otherSum', 'otherMaterials'];
 const transportWorkPriceGroup = ['carNumber', 'transportKm', 'transportSum', 'workPrice'];
 const warehouseGroup = ['approvedByWarehouse', 'warehouseComment'];

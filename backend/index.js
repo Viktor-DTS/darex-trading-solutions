@@ -408,6 +408,10 @@ taskSchema.index({ serviceRegion: 1 }); // Для фільтрації по ре
 taskSchema.index({ client: 1 }); // Для пошуку по клієнту
 taskSchema.index({ engineer1: 1 }); // Для пошуку по інженеру
 taskSchema.index({ engineer2: 1 }); // Для пошуку по інженеру
+taskSchema.index({ engineer3: 1 }); // Для пошуку по інженеру
+taskSchema.index({ engineer4: 1 }); // Для пошуку по інженеру
+taskSchema.index({ engineer5: 1 }); // Для пошуку по інженеру
+taskSchema.index({ engineer6: 1 }); // Для пошуку по інженеру
 taskSchema.index({ approvedByWarehouse: 1 }); // Для фільтрації по підтвердженню складу
 taskSchema.index({ approvedByAccountant: 1 }); // Для фільтрації по підтвердженню бухгалтера
 taskSchema.index({ approvedByRegionalManager: 1 }); // Для фільтрації по підтвердженню регіонального керівника
@@ -2103,14 +2107,17 @@ app.get('/api/analytics/revenue', async (req, res) => {
           
           // Розраховуємо фактичну премію з урахуванням розподілу між інженерами
           let actualBonus = 0;
-          const engineer1 = (task.engineer1 || '').trim();
-          const engineer2 = (task.engineer2 || '').trim();
+          const engineers = [
+            (task.engineer1 || '').trim(),
+            (task.engineer2 || '').trim(),
+            (task.engineer3 || '').trim(),
+            (task.engineer4 || '').trim(),
+            (task.engineer5 || '').trim(),
+            (task.engineer6 || '').trim()
+          ].filter(eng => eng && eng.length > 0);
           
-          if (engineer1 && engineer2) {
-            // Два інженери - кожен отримує половину, загальна сума = повна премія
-            actualBonus = bonusVal;
-          } else if (engineer1 || engineer2) {
-            // Один інженер - отримує повну суму
+          if (engineers.length > 0) {
+            // Є інженери - загальна сума = повна премія
             actualBonus = bonusVal;
           }
           
@@ -2235,14 +2242,17 @@ app.get('/api/analytics/full', async (req, res) => {
       
       // Розраховуємо фактичну премію з урахуванням розподілу між інженерами
       let actualBonus = 0;
-      const engineer1 = (task.engineer1 || '').trim();
-      const engineer2 = (task.engineer2 || '').trim();
+      const engineers = [
+        (task.engineer1 || '').trim(),
+        (task.engineer2 || '').trim(),
+        (task.engineer3 || '').trim(),
+        (task.engineer4 || '').trim(),
+        (task.engineer5 || '').trim(),
+        (task.engineer6 || '').trim()
+      ].filter(eng => eng && eng.length > 0);
       
-      if (engineer1 && engineer2) {
-        // Два інженери - кожен отримує половину, загальна сума = повна премія
-        actualBonus = bonusVal;
-      } else if (engineer1 || engineer2) {
-        // Один інженер - отримує повну суму
+      if (engineers.length > 0) {
+        // Є інженери - загальна сума = повна премія
         actualBonus = bonusVal;
       }
       
@@ -2501,13 +2511,17 @@ app.get('/api/analytics/full', async (req, res) => {
             
             // Розраховуємо фактичну премію з урахуванням розподілу між інженерами
             let actualBonus = 0;
-            const engineer1 = (task.engineer1 || '').trim();
-            const engineer2 = (task.engineer2 || '').trim();
+            const engineers = [
+              (task.engineer1 || '').trim(),
+              (task.engineer2 || '').trim(),
+              (task.engineer3 || '').trim(),
+              (task.engineer4 || '').trim(),
+              (task.engineer5 || '').trim(),
+              (task.engineer6 || '').trim()
+            ].filter(eng => eng && eng.length > 0);
             
-            if (engineer1 && engineer2) {
-              actualBonus = baseBonus; // Два інженери - загальна сума = повна премія
-            } else if (engineer1 || engineer2) {
-              actualBonus = baseBonus; // Один інженер - повна сума
+            if (engineers.length > 0) {
+              actualBonus = baseBonus; // Є інженери - загальна сума = повна премія
             }
 
             const revenue = actualBonus * 3;
@@ -2649,13 +2663,17 @@ app.get('/api/analytics/details', async (req, res) => {
           
           // Розраховуємо фактичну премію з урахуванням розподілу між інженерами
           let actualBonus = 0;
-          const engineer1 = (task.engineer1 || '').trim();
-          const engineer2 = (task.engineer2 || '').trim();
+          const engineers = [
+            (task.engineer1 || '').trim(),
+            (task.engineer2 || '').trim(),
+            (task.engineer3 || '').trim(),
+            (task.engineer4 || '').trim(),
+            (task.engineer5 || '').trim(),
+            (task.engineer6 || '').trim()
+          ].filter(eng => eng && eng.length > 0);
           
-          if (engineer1 && engineer2) {
-            actualBonus = baseBonus; // Два інженери - загальна сума = повна премія
-          } else if (engineer1 || engineer2) {
-            actualBonus = baseBonus; // Один інженер - повна сума
+          if (engineers.length > 0) {
+            actualBonus = baseBonus; // Є інженери - загальна сума = повна премія
           }
 
           const revenue = actualBonus * 3;
