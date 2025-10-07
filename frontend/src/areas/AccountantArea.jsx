@@ -198,14 +198,19 @@ export default function AccountantArea({ user }) {
       
       // Додаємо OCR дані якщо вони є
       if (ocrData && ocrData.success) {
+        console.log('DEBUG AccountantArea Invoice: OCR дані для відправки:', ocrData);
         if (ocrData.invoiceNumber) {
           formData.append('invoiceNumber', ocrData.invoiceNumber);
+          console.log('DEBUG AccountantArea Invoice: Додано invoiceNumber до formData:', ocrData.invoiceNumber);
           alert(`🤖 Система визначила номер рахунку: ${ocrData.invoiceNumber}\n\nВін буде автоматично встановлений в поле "Номер рахунку".\nЯкщо дані не вірні, змініть вручну в даному полі.`);
         }
         if (ocrData.invoiceDate) {
           formData.append('invoiceDate', ocrData.invoiceDate);
+          console.log('DEBUG AccountantArea Invoice: Додано invoiceDate до formData:', ocrData.invoiceDate);
           alert(`📅 Система визначила дату рахунку: ${ocrData.invoiceDate}\n\nВона буде автоматично встановлена в поле "Дата рахунку".\nЯкщо дані не вірні, змініть вручну в даному полі.`);
         }
+      } else {
+        console.log('DEBUG AccountantArea Invoice: OCR дані відсутні або невдалі:', ocrData);
       }
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload`, {
@@ -291,14 +296,19 @@ export default function AccountantArea({ user }) {
       
       // Додаємо OCR дані якщо вони є
       if (ocrData && ocrData.success) {
+        console.log('DEBUG AccountantArea Act: OCR дані для відправки:', ocrData);
         if (ocrData.invoiceNumber) {
           formData.append('invoiceNumber', ocrData.invoiceNumber);
+          console.log('DEBUG AccountantArea Act: Додано invoiceNumber до formData:', ocrData.invoiceNumber);
           alert(`🤖 Система визначила номер рахунку: ${ocrData.invoiceNumber}\n\nВін буде автоматично встановлений в поле "Номер рахунку".\nЯкщо дані не вірні, змініть вручну в даному полі.`);
         }
         if (ocrData.invoiceDate) {
           formData.append('invoiceDate', ocrData.invoiceDate);
+          console.log('DEBUG AccountantArea Act: Додано invoiceDate до formData:', ocrData.invoiceDate);
           alert(`📅 Система визначила дату рахунку: ${ocrData.invoiceDate}\n\nВона буде автоматично встановлена в поле "Дата рахунку".\nЯкщо дані не вірні, змініть вручну в даному полі.`);
         }
+      } else {
+        console.log('DEBUG AccountantArea Act: OCR дані відсутні або невдалі:', ocrData);
       }
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload-act`, {

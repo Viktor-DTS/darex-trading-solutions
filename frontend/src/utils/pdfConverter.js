@@ -19,9 +19,12 @@ function parseInvoiceData(text) {
   // Патерни для пошуку номера рахунку
   const invoiceNumberPatterns = [
     /Рахунок на оплату №\s*(\d+)/i,
+    /Рахунок на оплату Ne\s*(\d+)/i,
     /№\s*(\d+)/i,
+    /Ne\s*(\d+)/i,
     /Invoice\s*#?\s*(\d+)/i,
-    /Invoice\s*No\.?\s*(\d+)/i
+    /Invoice\s*No\.?\s*(\d+)/i,
+    /(\d{3,})/ // Простий патерн для 3+ цифр
   ];
   
   // Патерни для пошуку дати
@@ -43,6 +46,16 @@ function parseInvoiceData(text) {
       invoiceNumber = match[1];
       console.log('[OCR] Знайдено номер рахунку:', invoiceNumber);
       break;
+    }
+  }
+  
+  // Якщо не знайшли номер рахунку, спробуємо знайти будь-які 3+ цифри після "Ne" або "№"
+  if (!invoiceNumber) {
+    const simplePattern = /(?:Ne|№|No\.?)\s*(\d{3,})/i;
+    const match = text.match(simplePattern);
+    if (match) {
+      invoiceNumber = match[1];
+      console.log('[OCR] Знайдено номер рахунку (простий патерн):', invoiceNumber);
     }
   }
   

@@ -3739,9 +3739,12 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
     const invoiceNumber = req.body.invoiceNumber;
     const invoiceDate = req.body.invoiceDate;
     
-    console.log('[INVOICE] OCR дані з запиту:');
+    console.log('[INVOICE] 🔍 ДІАГНОСТИКА OCR ДАНИХ:');
+    console.log('[INVOICE] - req.body:', req.body);
     console.log('[INVOICE] - Номер рахунку:', invoiceNumber);
     console.log('[INVOICE] - Дата рахунку:', invoiceDate);
+    console.log('[INVOICE] - Тип номера рахунку:', typeof invoiceNumber);
+    console.log('[INVOICE] - Тип дати рахунку:', typeof invoiceDate);
     
     // Підготовляємо дані для оновлення
     const updateData = { 
