@@ -63,6 +63,8 @@ export const fields = [
   { name: 'address', label: 'Адреса', type: 'textarea' },
   { name: 'equipmentSerial', label: 'Заводський номер обладнання', type: 'text' },
   { name: 'equipment', label: 'Тип обладнання', type: 'text' },
+  { name: 'engineModel', label: 'Модель двигуна', type: 'text' },
+  { name: 'engineSerial', label: 'Зав. № двигуна', type: 'text' },
   { name: 'work', label: 'Найменування робіт', type: 'text' },
   { name: 'engineer1', label: 'Сервісний інженер №1', type: 'text' },
   { name: 'engineer2', label: 'Сервісний інженер №2', type: 'text' },
@@ -135,7 +137,8 @@ const expensesGroup = ['perDiem', 'living', 'otherExp', 'bonusApprovalDate'];
 const statusGroup = ['status', 'requestDate', 'company'];
 const regionClientGroup = ['edrpou', 'client', 'invoice', 'paymentDate', 'invoiceRecipientDetails'];
 const debtGroup = ['debtStatus', 'debtStatusCheckbox'];
-const paymentEquipmentGroup = ['paymentType', 'equipment', 'equipmentSerial', 'serviceTotal'];
+const paymentEquipmentGroup = ['paymentType', 'serviceTotal'];
+const equipmentGroup = ['equipment', 'equipmentSerial', 'engineModel', 'engineSerial'];
 const workEngineersGroup = ['date', 'work', 'engineer1', 'engineer2'];
 const otherMaterialsGroup = ['otherSum', 'otherMaterials'];
 const transportWorkPriceGroup = ['carNumber', 'transportKm', 'transportSum', 'workPrice'];
@@ -153,6 +156,7 @@ const orderedFields = [
   'address',
   ...regionClientGroup,
   ...debtGroup,
+  ...equipmentGroup,
   ...paymentEquipmentGroup,
   ...workEngineersGroup,
   ...oilGroup,
@@ -941,6 +945,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             ...statusGroup.slice(1).filter(n => n !== 'serviceRegion'),
             ...regionClientGroup.slice(1),
             ...debtGroup.slice(1),
+            ...equipmentGroup.slice(1),
             ...paymentEquipmentGroup.slice(1),
             ...workEngineersGroup.slice(1),
             ...oilGroup.slice(1),
@@ -1085,42 +1090,32 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             );
           }
           
-          if (idx === orderedFields.indexOf('paymentType')) {
+          // Новий блок для обладнання та двигуна
+          if (idx === orderedFields.indexOf('equipment')) {
             return (
-              <div className="group" key="paymentEquipmentGroup">
-                {['paymentType', 'equipment', 'equipmentSerial', 'serviceTotal'].map(n => {
+              <div className="group" key="equipmentGroup">
+                {['equipment', 'equipmentSerial', 'engineModel', 'engineSerial'].map(n => {
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
-                  // Спеціальний рендеринг для поля обладнання з автодоповненням
-                  if (f.name === 'equipment') {
-                    return (
-                      <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'} style={{ position: 'relative' }}>
-                        <label>{f.label}</label>
-                        <input 
-                          type={f.type} 
-                          name={f.name} 
-                          value={value} 
-                          onChange={handleChange} 
-                          readOnly={isReadOnly(f.name)}
-                          onBlur={() => setTimeout(() => setShowEquipmentDropdown(false), 200)}
-                        />
-                        {showEquipmentDropdown && (
-                          <div className="equipment-dropdown">
-                            {filteredEquipmentTypes.map(type => (
-                              <div 
-                                key={type} 
-                                className="equipment-option"
-                                onClick={() => handleEquipmentSelect(type)}
-                              >
-                                {type}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
+                  return (
+                    <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
+                      <label>{f.label}</label>
+                      <input type={f.type} name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} />
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }
+          
+          if (idx === orderedFields.indexOf('paymentType')) {
+            return (
+              <div className="group" key="paymentEquipmentGroup">
+                {['paymentType', 'serviceTotal'].map(n => {
+                  const f = fields.find(f=>f.name===n);
+                  if (!f) return null;
+                  let value = form[f.name] || '';
                   return (
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
