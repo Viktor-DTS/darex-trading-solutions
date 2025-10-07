@@ -141,8 +141,9 @@ export default function MobileViewArea({ user }) {
     const processedFiles = [];
     for (let i = 0; i < files.length; i++) {
       try {
-        const processedFile = await processFileForUpload(files[i]);
+        const { file: processedFile, ocrData } = await processFileForUpload(files[i]);
         console.log('DEBUG MobileViewArea PDF Converter: Оброблений файл:', processedFile.name, processedFile.type);
+        console.log('DEBUG MobileViewArea PDF Converter: OCR дані:', ocrData);
         processedFiles.push(processedFile);
       } catch (error) {
         console.error('DEBUG MobileViewArea PDF Converter: Помилка обробки файлу:', error);

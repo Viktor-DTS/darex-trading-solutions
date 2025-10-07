@@ -50,8 +50,9 @@ export default function FileManager({ taskId, onFilesChange }) {
     try {
       for (const file of selectedFiles) {
         // Конвертуємо PDF в JPG якщо потрібно
-        const processedFile = await processFileForUpload(file);
+        const { file: processedFile, ocrData } = await processFileForUpload(file);
         console.log('DEBUG FileManager: Оброблений файл:', processedFile.name, processedFile.type);
+        console.log('DEBUG FileManager: OCR дані:', ocrData);
         await filesAPI.uploadFile(taskId, processedFile, description);
       }
       setSelectedFiles([]);

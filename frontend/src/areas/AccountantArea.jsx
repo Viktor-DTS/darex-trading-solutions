@@ -189,11 +189,22 @@ export default function AccountantArea({ user }) {
         (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
       // Конвертуємо PDF в JPG якщо потрібно
-      const processedFile = await processFileForUpload(file);
+      const { file: processedFile, ocrData } = await processFileForUpload(file);
       console.log('DEBUG PDF Converter Invoice: Оброблений файл:', processedFile.name, processedFile.type);
+      console.log('DEBUG PDF Converter Invoice: OCR дані:', ocrData);
       
       const formData = new FormData();
       formData.append('invoiceFile', processedFile);
+      
+      // Додаємо OCR дані якщо вони є
+      if (ocrData && ocrData.success) {
+        if (ocrData.invoiceNumber) {
+          formData.append('invoiceNumber', ocrData.invoiceNumber);
+        }
+        if (ocrData.invoiceDate) {
+          formData.append('invoiceDate', ocrData.invoiceDate);
+        }
+      }
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload`, {
         method: 'POST',
@@ -269,11 +280,22 @@ export default function AccountantArea({ user }) {
         (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
       // Конвертуємо PDF в JPG якщо потрібно
-      const processedFile = await processFileForUpload(file);
+      const { file: processedFile, ocrData } = await processFileForUpload(file);
       console.log('DEBUG PDF Converter Act: Оброблений файл:', processedFile.name, processedFile.type);
+      console.log('DEBUG PDF Converter Act: OCR дані:', ocrData);
       
       const formData = new FormData();
       formData.append('actFile', processedFile);
+      
+      // Додаємо OCR дані якщо вони є
+      if (ocrData && ocrData.success) {
+        if (ocrData.invoiceNumber) {
+          formData.append('invoiceNumber', ocrData.invoiceNumber);
+        }
+        if (ocrData.invoiceDate) {
+          formData.append('invoiceDate', ocrData.invoiceDate);
+        }
+      }
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload-act`, {
         method: 'POST',

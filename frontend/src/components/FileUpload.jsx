@@ -32,8 +32,9 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       const processedFiles = [];
       for (let i = 0; i < selectedFiles.length; i++) {
         try {
-          const processedFile = await processFileForUpload(selectedFiles[i]);
+          const { file: processedFile, ocrData } = await processFileForUpload(selectedFiles[i]);
           console.log('DEBUG FileUpload PDF Converter: Оброблений файл:', processedFile.name, processedFile.type);
+          console.log('DEBUG FileUpload PDF Converter: OCR дані:', ocrData);
           processedFiles.push(processedFile);
         } catch (error) {
           console.error('DEBUG FileUpload PDF Converter: Помилка обробки файлу:', error);

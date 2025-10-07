@@ -1,11 +1,106 @@
 /**
  * Утиліта для конвертації PDF файлів в JPG зображення на клієнті
  * Використовує PDF.js для рендерингу PDF з fallback логікою
+ * Включає OCR функціональність для розпізнавання тексту з зображень
  */
 
 // Динамічно завантажуємо PDF.js
 let pdfjsLib = null;
 let pdfJsSupported = null;
+
+/**
+ * Розпізнає номер рахунку та дату з тексту
+ * @param {string} text - розпізнаний текст
+ * @returns {Object} - об'єкт з номером рахунку та датою
+ */
+function parseInvoiceData(text) {
+  console.log('[OCR] Розпізнаний текст:', text);
+  
+  // Патерни для пошуку номера рахунку
+  const invoiceNumberPatterns = [
+    /Рахунок на оплату №\s*(\d+)/i,
+    /№\s*(\d+)/i,
+    /Invoice\s*#?\s*(\d+)/i,
+    /Invoice\s*No\.?\s*(\d+)/i
+  ];
+  
+  // Патерни для пошуку дати
+  const datePatterns = [
+    /від\s+(\d{1,2}\s+\w+\s+\d{4}\s+р\.)/i,
+    /від\s+(\d{1,2}\.\d{1,2}\.\d{4})/i,
+    /(\d{1,2}\s+\w+\s+\d{4}\s+р\.)/i,
+    /(\d{1,2}\.\d{1,2}\.\d{4})/i,
+    /Date:\s*(\d{1,2}\.\d{1,2}\.\d{4})/i
+  ];
+  
+  let invoiceNumber = null;
+  let invoiceDate = null;
+  
+  // Шукаємо номер рахунку
+  for (const pattern of invoiceNumberPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      invoiceNumber = match[1];
+      console.log('[OCR] Знайдено номер рахунку:', invoiceNumber);
+      break;
+    }
+  }
+  
+  // Шукаємо дату
+  for (const pattern of datePatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      invoiceDate = match[1];
+      console.log('[OCR] Знайдено дату рахунку:', invoiceDate);
+      break;
+    }
+  }
+  
+  return {
+    invoiceNumber,
+    invoiceDate,
+    success: !!(invoiceNumber || invoiceDate)
+  };
+}
+
+/**
+ * Виконує OCR розпізнавання тексту з зображення
+ * @param {HTMLCanvasElement} canvas - canvas з зображенням
+ * @returns {Promise<Object>} - об'єкт з розпізнаними даними
+ */
+async function performOCR(canvas) {
+  try {
+    console.log('[OCR] Починаємо OCR розпізнавання...');
+    
+    // Динамічно завантажуємо Tesseract.js
+    const { createWorker } = await import('tesseract.js');
+    
+    const worker = await createWorker('ukr+eng', 1, {
+      logger: m => console.log('[OCR]', m)
+    });
+    
+    // Розпізнаємо текст з canvas
+    const { data: { text } } = await worker.recognize(canvas);
+    
+    // Зупиняємо worker
+    await worker.terminate();
+    
+    console.log('[OCR] Розпізнавання завершено');
+    
+    // Парсимо дані з тексту
+    const parsedData = parseInvoiceData(text);
+    
+    return parsedData;
+  } catch (error) {
+    console.error('[OCR] Помилка розпізнавання:', error);
+    return {
+      invoiceNumber: null,
+      invoiceDate: null,
+      success: false,
+      error: error.message
+    };
+  }
+}
 
 /**
  * Перевіряє підтримку PDF.js в браузері
@@ -141,6 +236,11 @@ export async function convertPdfToJpg(pdfFile) {
     
     console.log('DEBUG PDF Converter: Перша сторінка відрендерена, розміри:', viewport.width, 'x', viewport.height);
     
+    // Виконуємо OCR розпізнавання перед конвертацією
+    console.log('DEBUG PDF Converter: Починаємо OCR розпізнавання...');
+    const ocrData = await performOCR(canvas);
+    console.log('DEBUG PDF Converter: OCR результати:', ocrData);
+    
     // Конвертуємо canvas в JPG
     return new Promise((resolve, reject) => {
       canvas.toBlob((blob) => {
@@ -158,6 +258,10 @@ export async function convertPdfToJpg(pdfFile) {
           });
           
           console.log('DEBUG PDF Converter: Створено JPG файл (тільки перша сторінка):', jpgFileName, 'розмір:', jpgFile.size);
+          
+          // Додаємо OCR дані до файлу як метадані
+          jpgFile.ocrData = ocrData;
+          
           resolve(jpgFile);
         } else {
           reject(new Error('Не вдалося конвертувати canvas в JPG'));
@@ -182,7 +286,7 @@ export function needsPdfConversion(file) {
 /**
  * Конвертує PDF в JPG якщо потрібно, інакше повертає оригінальний файл
  * @param {File} file - Файл для обробки
- * @returns {Promise<File>} - Оброблений файл
+ * @returns {Promise<{file: File, ocrData?: Object}>} - Оброблений файл та OCR дані
  */
 export async function processFileForUpload(file) {
   if (needsPdfConversion(file)) {
@@ -196,14 +300,15 @@ export async function processFileForUpload(file) {
       if (!checkBrowserSupport()) {
         console.warn('DEBUG PDF Converter: Браузер не підтримує PDF конвертацію');
         console.warn('DEBUG PDF Converter: Використовуємо оригінальний PDF файл');
-        return file;
+        return { file: file, ocrData: null };
       }
       
       const jpgFile = await convertPdfToJpg(file);
       console.log('DEBUG PDF Converter: PDF успішно конвертовано в JPG (перша сторінка)');
       console.log('DEBUG PDF Converter: Нова назва файлу:', jpgFile.name);
       console.log('DEBUG PDF Converter: Розмір JPG файлу:', jpgFile.size);
-      return jpgFile;
+      console.log('DEBUG PDF Converter: OCR дані:', jpgFile.ocrData);
+      return { file: jpgFile, ocrData: jpgFile.ocrData };
     } catch (error) {
       console.error('DEBUG PDF Converter: Помилка конвертації:', error);
       console.log('DEBUG PDF Converter: Тип помилки:', error.constructor.name);
@@ -220,9 +325,9 @@ export async function processFileForUpload(file) {
       
       console.log('DEBUG PDF Converter: Використовуємо оригінальний PDF файл');
       // Якщо конвертація не вдалася, повертаємо оригінальний файл
-      return file;
+      return { file: file, ocrData: null };
     }
   }
   
-  return file;
+  return { file: file, ocrData: null };
 }
