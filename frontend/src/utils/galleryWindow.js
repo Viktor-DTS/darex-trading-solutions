@@ -126,6 +126,70 @@ export const openGalleryInNewWindow = (files, initialIndex = 0) => {
           background: #ff6666;
         }
 
+        /* Контроли масштабування */
+        .gallery-controls {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .zoom-controls {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: rgba(0, 0, 0, 0.7);
+          padding: 8px 12px;
+          border-radius: 6px;
+          backdrop-filter: blur(10px);
+        }
+
+        .zoom-btn {
+          background: #007bff;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          width: 32px;
+          height: 32px;
+          font-size: 18px;
+          font-weight: bold;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.2s;
+        }
+
+        .zoom-btn:hover {
+          background: #0056b3;
+        }
+
+        .zoom-level {
+          color: #fff;
+          font-size: 14px;
+          font-weight: 500;
+          min-width: 45px;
+          text-align: center;
+        }
+
+        .zoom-reset-btn {
+          background: #6c757d;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          width: 32px;
+          height: 32px;
+          font-size: 16px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.2s;
+        }
+
+        .zoom-reset-btn:hover {
+          background: #545b62;
+        }
+
         /* Навігація */
         .gallery-nav-btn {
           position: absolute;
@@ -176,6 +240,10 @@ export const openGalleryInNewWindow = (files, initialIndex = 0) => {
           object-fit: contain;
           border-radius: 8px;
           box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+          user-select: none;
+          -webkit-user-select: none;
+          -moz-user-select: none;
+          -ms-user-select: none;
         }
 
         .gallery-loading {
@@ -281,6 +349,60 @@ export const openGalleryInNewWindow = (files, initialIndex = 0) => {
           padding: 8px 12px;
           border-radius: 6px;
           backdrop-filter: blur(10px);
+        }
+
+        /* Адаптивність */
+        @media (max-width: 768px) {
+          .gallery-header {
+            padding: 12px 16px;
+          }
+          
+          .gallery-controls {
+            gap: 8px;
+          }
+          
+          .zoom-controls {
+            padding: 6px 8px;
+            gap: 6px;
+          }
+          
+          .zoom-btn, .zoom-reset-btn {
+            width: 28px;
+            height: 28px;
+            font-size: 14px;
+          }
+          
+          .zoom-level {
+            font-size: 12px;
+            min-width: 35px;
+          }
+          
+          .gallery-nav-btn {
+            width: 50px;
+            height: 50px;
+            font-size: 20px;
+          }
+          
+          .gallery-prev-btn {
+            left: 10px;
+          }
+          
+          .gallery-next-btn {
+            right: 10px;
+          }
+          
+          .gallery-thumbnails {
+            padding: 12px 16px;
+          }
+          
+          .gallery-thumbnail {
+            width: 50px;
+            height: 50px;
+          }
+          
+          .gallery-hints {
+            display: none;
+          }
         }
       </style>
     </head>

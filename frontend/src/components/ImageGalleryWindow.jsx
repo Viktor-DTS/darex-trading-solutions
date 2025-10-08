@@ -4,6 +4,10 @@ import './ImageGallery.css';
 const ImageGalleryWindow = ({ files, initialIndex = 0, onClose }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isLoading, setIsLoading] = useState(false);
+  const [scale, setScale] = useState(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [position, setPosition] = useState({ x: 0, y: 0 });
 
   // Фільтруємо тільки зображення
   const imageFiles = files.filter(file => 
@@ -42,6 +46,7 @@ const ImageGalleryWindow = ({ files, initialIndex = 0, onClose }) => {
     setCurrentIndex((prevIndex) => 
       prevIndex === 0 ? imageFiles.length - 1 : prevIndex - 1
     );
+    resetZoom();
   };
 
   const goToNext = () => {
@@ -49,6 +54,7 @@ const ImageGalleryWindow = ({ files, initialIndex = 0, onClose }) => {
     setCurrentIndex((prevIndex) => 
       prevIndex === imageFiles.length - 1 ? 0 : prevIndex + 1
     );
+    resetZoom();
   };
 
   const handleImageLoad = () => {
@@ -57,6 +63,54 @@ const ImageGalleryWindow = ({ files, initialIndex = 0, onClose }) => {
 
   const handleImageError = () => {
     setIsLoading(false);
+  };
+
+  // Функції для масштабування
+  const zoomIn = () => {
+    setScale(prev => Math.min(prev * 1.2, 5));
+  };
+
+  const zoomOut = () => {
+    setScale(prev => Math.max(prev / 1.2, 0.1));
+  };
+
+  const resetZoom = () => {
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+  };
+
+  // Функції для переміщення зображення
+  const handleMouseDown = (e) => {
+    if (scale > 1) {
+      setIsDragging(true);
+      setDragStart({
+        x: e.clientX - position.x,
+        y: e.clientY - position.y
+      });
+    }
+  };
+
+  const handleMouseMove = (e) => {
+    if (isDragging && scale > 1) {
+      setPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // Обробка колеса миші для масштабування
+  const handleWheel = (e) => {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      zoomIn();
+    } else {
+      zoomOut();
+    }
   };
 
   if (imageFiles.length === 0) {
@@ -93,13 +147,42 @@ const ImageGalleryWindow = ({ files, initialIndex = 0, onClose }) => {
             </span>
             <span className="gallery-filename">{currentFile.originalName}</span>
           </div>
-          <button 
-            type="button"
-            className="gallery-close-btn" 
-            onClick={onClose}
-          >
-            ✕
-          </button>
+          <div className="gallery-controls">
+            <div className="zoom-controls">
+              <button 
+                type="button"
+                className="zoom-btn" 
+                onClick={zoomOut}
+                title="Зменшити (колесо миші вниз)"
+              >
+                −
+              </button>
+              <span className="zoom-level">{Math.round(scale * 100)}%</span>
+              <button 
+                type="button"
+                className="zoom-btn" 
+                onClick={zoomIn}
+                title="Збільшити (колесо миші вгору)"
+              >
+                +
+              </button>
+              <button 
+                type="button"
+                className="zoom-reset-btn" 
+                onClick={resetZoom}
+                title="Скинути масштаб"
+              >
+                🔍
+              </button>
+            </div>
+            <button 
+              type="button"
+              className="gallery-close-btn" 
+              onClick={onClose}
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Навігація */}
@@ -125,7 +208,14 @@ const ImageGalleryWindow = ({ files, initialIndex = 0, onClose }) => {
         )}
 
         {/* Зображення */}
-        <div className="gallery-image-container">
+        <div 
+          className="gallery-image-container"
+          onWheel={handleWheel}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          style={{ cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
+        >
           {isLoading && (
             <div className="gallery-loading">
               <div className="loading-spinner"></div>
@@ -138,7 +228,14 @@ const ImageGalleryWindow = ({ files, initialIndex = 0, onClose }) => {
             className="gallery-image"
             onLoad={handleImageLoad}
             onError={handleImageError}
-            style={{ display: isLoading ? 'none' : 'block' }}
+            onMouseDown={handleMouseDown}
+            style={{ 
+              display: isLoading ? 'none' : 'block',
+              transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+              transformOrigin: 'center center',
+              transition: isDragging ? 'none' : 'transform 0.2s ease'
+            }}
+            draggable={false}
           />
         </div>
 
@@ -154,6 +251,7 @@ const ImageGalleryWindow = ({ files, initialIndex = 0, onClose }) => {
                 onClick={() => {
                   setCurrentIndex(index);
                   setIsLoading(true);
+                  resetZoom();
                 }}
                 title={file.originalName}
               />
