@@ -92,6 +92,14 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
 
   const handleRequest = async (invoiceData) => {
     try {
+      // Додаткова перевірка поля "Реквізити отримувача рахунку в паперовому вигляді"
+      const recipientDetails = task.invoiceRecipientDetails;
+      
+      if (!recipientDetails || recipientDetails.trim() === '') {
+        alert('Не заповнене поле "Реквізити отримувача рахунку в паперовому вигляді".\n\nПрошу заповнити це поле реквізитами отримувача документів в паперовому вигляді.\nЯкщо не потрібно, прошу описати причину.');
+        return;
+      }
+      
       // Додаємо дані чекбоксів до запиту
       const requestData = {
         ...invoiceData,
@@ -425,7 +433,18 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
             
             <button 
               type="button"
-              onClick={() => setShowModal(true)}
+              onClick={() => {
+                // Перевіряємо поле "Реквізити отримувача рахунку в паперовому вигляді"
+                const recipientDetails = task.invoiceRecipientDetails;
+                
+                if (!recipientDetails || recipientDetails.trim() === '') {
+                  alert('Не заповнене поле "Реквізити отримувача рахунку в паперовому вигляді".\n\nПрошу заповнити це поле реквізитами отримувача документів в паперовому вигляді.\nЯкщо не потрібно, прошу описати причину.');
+                  return;
+                }
+                
+                // Якщо поле заповнене, відкриваємо модальне вікно
+                setShowModal(true);
+              }}
               style={{
                 padding: '12px 24px',
                 backgroundColor: '#28a745',
@@ -476,6 +495,15 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
             <form onSubmit={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              
+              // Перевіряємо поле "Реквізити отримувача рахунку в паперовому вигляді"
+              const recipientDetails = task.invoiceRecipientDetails;
+              
+              if (!recipientDetails || recipientDetails.trim() === '') {
+                alert('Не заповнене поле "Реквізити отримувача рахунку в паперовому вигляді".\n\nПрошу заповнити це поле реквізитами отримувача документів в паперовому вигляді.\nЯкщо не потрібно, прошу описати причину.');
+                return false;
+              }
+              
               const formData = new FormData(e.target);
               console.log('[DEBUG] InvoiceRequestBlock - task.id:', task.id);
               const invoiceData = {
@@ -606,6 +634,15 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    
+                    // Перевіряємо поле "Реквізити отримувача рахунку в паперовому вигляді"
+                    const recipientDetails = task.invoiceRecipientDetails;
+                    
+                    if (!recipientDetails || recipientDetails.trim() === '') {
+                      alert('Не заповнене поле "Реквізити отримувача рахунку в паперовому вигляді".\n\nПрошу заповнити це поле реквізитами отримувача документів в паперовому вигляді.\nЯкщо не потрібно, прошу описати причину.');
+                      return;
+                    }
+                    
                     const form = e.target.closest('form');
                     const formData = new FormData(form);
                     console.log('[DEBUG] InvoiceRequestBlock (2) - task.id:', task.id);
