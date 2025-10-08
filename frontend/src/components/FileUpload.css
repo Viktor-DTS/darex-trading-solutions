@@ -155,6 +155,38 @@
   border: 1px solid #dee2e6;
 }
 
+/* Заголовок секції файлів */
+.files-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.files-section-header h4 {
+  margin: 0;
+}
+
+/* Кнопка галереї */
+.gallery-button {
+  background: #6f42c1;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gallery-button:hover {
+  background: #5a32a3;
+}
+
 .loading, .no-files {
   text-align: center;
   color: #6c757d;
@@ -294,5 +326,16 @@
   .delete-button {
     font-size: 16px;
     padding: 4px;
+  }
+  
+  .files-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .gallery-button {
+    font-size: 12px;
+    padding: 6px 12px;
   }
 } 

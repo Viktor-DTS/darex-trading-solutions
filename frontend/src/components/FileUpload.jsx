@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { processFileForUpload } from '../utils/pdfConverter';
+import ImageGallery from './ImageGallery';
 import './FileUpload.css';
 const FileUpload = ({ taskId, onFilesUploaded }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -8,6 +9,8 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
   const API_URL = process.env.REACT_APP_API_URL || 'https://darex-trading-solutions.onrender.com';
   // Завантаження існуючих файлів
   useEffect(() => {
@@ -77,16 +80,29 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
     // Запобігаємо закриття форми
     event.preventDefault();
     event.stopPropagation();
-    // Відкриваємо файл в новій вкладці
-    const newWindow = window.open(file.cloudinaryUrl, '_blank');
-    // Фокусуємося назад на поточну вкладку
-    if (newWindow) {
-      newWindow.focus();
+    
+    // Перевіряємо чи це зображення
+    const isImage = file.mimetype && file.mimetype.startsWith('image/');
+    
+    if (isImage) {
+      // Знаходимо індекс зображення в масиві всіх зображень
+      const imageFiles = uploadedFiles.filter(f => f.mimetype && f.mimetype.startsWith('image/'));
+      const imageIndex = imageFiles.findIndex(f => f.id === file.id);
+      
+      if (imageIndex !== -1) {
+        setGalleryIndex(imageIndex);
+        setGalleryOpen(true);
+      }
+    } else {
+      // Для не-зображень відкриваємо в новій вкладці
+      const newWindow = window.open(file.cloudinaryUrl, '_blank');
+      if (newWindow) {
+        newWindow.focus();
+      }
+      setTimeout(() => {
+        window.focus();
+      }, 100);
     }
-    // Повертаємо фокус на поточну вкладку через невелику затримку
-    setTimeout(() => {
-      window.focus();
-    }, 100);
   };
   const handleDeleteFile = async (fileId) => {
     if (!window.confirm('Ви впевнені, що хочете видалити цей файл?')) {
@@ -198,7 +214,21 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       </div>
       {/* Завантажені файли */}
       <div className="uploaded-files-section">
-        <h4>Завантажені файли</h4>
+        <div className="files-section-header">
+          <h4>Завантажені файли</h4>
+          {uploadedFiles.filter(f => f.mimetype && f.mimetype.startsWith('image/')).length > 0 && (
+            <button
+              className="gallery-button"
+              onClick={() => {
+                setGalleryIndex(0);
+                setGalleryOpen(true);
+              }}
+              title="Відкрити галерею зображень"
+            >
+              🖼️ Галерея ({uploadedFiles.filter(f => f.mimetype && f.mimetype.startsWith('image/')).length})
+            </button>
+          )}
+        </div>
         {loading ? (
           <div className="loading">Завантаження файлів...</div>
         ) : uploadedFiles.length === 0 ? (
@@ -252,6 +282,14 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
           </div>
         )}
       </div>
+      
+      {/* Галерея зображень */}
+      <ImageGallery
+        files={uploadedFiles}
+        isOpen={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        initialIndex={galleryIndex}
+      />
     </div>
   );
 };
