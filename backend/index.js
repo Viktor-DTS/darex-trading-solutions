@@ -3216,18 +3216,20 @@ app.post('/api/notifications/send-system-message', async (req, res) => {
       });
     }
     
-    // Формуємо повідомлення
-    const systemMessage = `🔔 <b>Системне повідомлення</b>
+    // Формуємо повідомлення з рожевим виділенням
+    const systemMessage = `🌸💕 <b>СИСТЕМНЕ ПОВІДОМЛЕННЯ</b> 💕🌸
 
-📝 <b>Повідомлення від адміністратора:</b>
+🔔 <b>Повідомлення від адміністратора:</b>
 ${message}
 
-📅 <b>Час відправки:</b> ${new Date().toLocaleString('uk-UA')}`;
+📅 <b>Час відправки:</b> ${new Date().toLocaleString('uk-UA')}
+
+🌸💕 <b>ВАЖЛИВО!</b> 💕🌸`;
     
     // Відправляємо повідомлення всім підписаним користувачам
     const results = [];
     for (const chatId of chatIds) {
-      const success = await telegramService.sendMessage(chatId, systemMessage);
+      const success = await telegramService.sendSystemMessage(chatId, message);
       results.push({ chatId, success });
     }
     
@@ -4168,6 +4170,49 @@ class TelegramNotificationService {
           chat_id: chatId,
           text: message,
           parse_mode: parseMode
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.ok) {
+        return true;
+      } else {
+        return false;
+      }
+    } catch (error) {
+      return false;
+    }
+  }
+
+  // Спеціальний метод для системних повідомлень з рожевим виділенням
+  async sendSystemMessage(chatId, message) {
+    if (!this.botToken) {
+      return false;
+    }
+    
+    if (!this.baseUrl) {
+      return false;
+    }
+
+    // Форматуємо системне повідомлення з рожевими емодзі
+    const systemFormattedMessage = `🌸💕 <b>СИСТЕМНЕ ПОВІДОМЛЕННЯ</b> 💕🌸
+
+🔔 <b>Повідомлення від адміністратора:</b>
+${message}
+
+📅 <b>Час відправки:</b> ${new Date().toLocaleString('uk-UA')}
+
+🌸💕 <b>ВАЖЛИВО!</b> 💕🌸`;
+
+    try {
+      const response = await fetch(`${this.baseUrl}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: systemFormattedMessage,
+          parse_mode: 'HTML'
         })
       });
       
@@ -5167,7 +5212,7 @@ app.get('/api/telegram/test-send', async (req, res) => {
     
     const results = [];
     for (const chatId of chatIds) {
-      const success = await telegramService.sendMessage(chatId, testMessage);
+      const success = await telegramService.sendSystemMessage(chatId, 'Тестове повідомлення від системи\n\n✅ Бот працює коректно');
       results.push({ chatId, success });
     }
     
