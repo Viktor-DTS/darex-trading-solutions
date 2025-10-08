@@ -13,7 +13,8 @@ const UserNotificationManager = ({ user }) => {
   const notificationTypes = [
     { key: 'task_created', label: 'Нові заявки', description: 'Коли оператор створює нову заявку' },
     { key: 'task_completed', label: 'Виконані заявки', description: 'Коли заявка позначена як виконана' },
-    { key: 'task_approval', label: 'Потребують підтвердження', description: 'Коли заявка потребує підтвердження' },
+    { key: 'task_approval', label: 'Потребує підтвердження Завсклада', description: 'Коли заявка виконана потребує підтвердження Завсклада' },
+    { key: 'task_accountant_approval', label: 'Затвердження Бухгалтера', description: 'Коли заявка затверджена потребує затвердження Бухгалтера' },
     { key: 'task_approved', label: 'Підтверджені заявки', description: 'Коли заявка підтверджена' },
     { key: 'task_rejected', label: 'Відхилені заявки', description: 'Коли заявка відхилена' },
     { key: 'invoice_requested', label: 'Запити на рахунки', description: 'Коли користувач подає запит на отримання рахунку' },

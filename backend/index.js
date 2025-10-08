@@ -377,6 +377,7 @@ const userSchema = new mongoose.Schema({
     newRequests: { type: Boolean, default: false },
     completedRequests: { type: Boolean, default: false },
     pendingApproval: { type: Boolean, default: false },
+    accountantApproval: { type: Boolean, default: false },
     approvedRequests: { type: Boolean, default: false },
     rejectedRequests: { type: Boolean, default: false },
     invoiceRequests: { type: Boolean, default: false },
@@ -1111,8 +1112,8 @@ app.put('/api/tasks/:id', async (req, res) => {
       } 
       // Перевіряємо зміну підтвердження складом (тільки якщо реально змінилося)
       else if (updateData.approvedByWarehouse === 'Підтверджено' && oldApprovedByWarehouse !== 'Підтверджено') {
-        console.log('[DEBUG] PUT /api/tasks/:id - склад підтвердив, відправляємо task_approved сповіщення');
-        await telegramService.sendTaskNotification('task_approved', updatedTask, user);
+        console.log('[DEBUG] PUT /api/tasks/:id - склад підтвердив, відправляємо task_accountant_approval сповіщення');
+        await telegramService.sendTaskNotification('task_accountant_approval', updatedTask, user);
       }
       // Перевіряємо зміну підтвердження бухгалтером (тільки якщо реально змінилося)
       else if (updateData.approvedByAccountant === 'Підтверджено' && oldApprovedByAccountant !== 'Підтверджено') {
@@ -4349,7 +4350,9 @@ ${message}
       case 'task_completed':
         return baseMessage + '\n✅ <b>🏁 ЗАЯВКА ВИКОНАНА</b>\n⏳ <b>Очікує підтвердження від:</b>\n• Зав. склад\n• Бухгалтер\n• Регіональний керівник';
       case 'task_approval':
-        return baseMessage + '\n🔔 <b>⚠️ ПОТРЕБУЄ ПІДТВЕРДЖЕННЯ</b>\n\n📋 <b>Необхідно перевірити:</b>\n• Правильність виконаних робіт\n• Використані матеріали\n• Вартість послуг';
+        return baseMessage + '\n🔔 <b>⚠️ ЗАЯВКА ВИКОНАНА ПОТРЕБУЄ ПІДТВЕРДЖЕННЯ ЗАВСКЛАДА</b>\n\n📋 <b>Необхідно перевірити:</b>\n• Правильність виконаних робіт\n• Використані матеріали\n• Вартість послуг';
+      case 'task_accountant_approval':
+        return baseMessage + '\n🔔 <b>⚠️ ЗАЯВКА ЗАТВЕРДЖЕНА ПОТРЕБУЄ ЗАТВЕРДЖЕННЯ БУХГАЛТЕРА</b>\n\n📋 <b>Необхідно перевірити:</b>\n• Правильність виконаних робіт\n• Використані матеріали\n• Вартість послуг';
       case 'task_approved':
         return baseMessage + '\n✅ <b>✅ ПІДТВЕРДЖЕНО</b>\n\n🎉 <b>Заявка готова до оплати</b>';
       case 'task_rejected':
@@ -4374,6 +4377,9 @@ ${message}
           break;
         case 'task_approval':
           settingField = 'notificationSettings.pendingApproval';
+          break;
+        case 'task_accountant_approval':
+          settingField = 'notificationSettings.accountantApproval';
           break;
         case 'task_approved':
           settingField = 'notificationSettings.approvedRequests';
@@ -4730,6 +4736,7 @@ app.post('/api/notification-settings/init', async (req, res) => {
           newRequests: false,
           completedRequests: false,
           pendingApproval: false,
+          accountantApproval: false,
           approvedRequests: false,
           rejectedRequests: false,
           invoiceRequests: false,
@@ -5004,6 +5011,7 @@ app.get('/api/users', async (req, res) => {
           newRequests: false,
           completedRequests: false,
           pendingApproval: false,
+          accountantApproval: false,
           approvedRequests: false,
           rejectedRequests: false,
           invoiceRequests: false,
@@ -5306,7 +5314,9 @@ app.get('/api/notification-settings/debug', async (req, res) => {
     // Перевіряємо налаштування для кожного типу сповіщень
     const notificationTypes = [
       'task_created',
-      'task_completed', 
+      'task_completed',
+      'task_approval',
+      'task_accountant_approval',
       'task_approved',
       'task_rejected',
       'invoice_requested',
@@ -5321,6 +5331,12 @@ app.get('/api/notification-settings/debug', async (req, res) => {
           break;
         case 'task_completed':
           settingField = 'notificationSettings.completedRequests';
+          break;
+        case 'task_approval':
+          settingField = 'notificationSettings.pendingApproval';
+          break;
+        case 'task_accountant_approval':
+          settingField = 'notificationSettings.accountantApproval';
           break;
         case 'task_approved':
           settingField = 'notificationSettings.approvedRequests';
