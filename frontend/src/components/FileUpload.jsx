@@ -218,8 +218,11 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
           <h4>Завантажені файли</h4>
           {uploadedFiles.filter(f => f.mimetype && f.mimetype.startsWith('image/')).length > 0 && (
             <button
+              type="button"
               className="gallery-button"
-              onClick={() => {
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
                 setGalleryIndex(0);
                 setGalleryOpen(true);
               }}
@@ -263,6 +266,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                 </div>
                 <div className="file-actions">
                   <button
+                    type="button"
                     onClick={(event) => handleViewFile(file, event)}
                     className="view-button"
                     title="Переглянути файл"
@@ -270,7 +274,12 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                     👁️
                   </button>
                   <button
-                    onClick={() => handleDeleteFile(file.id)}
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      handleDeleteFile(file.id);
+                    }}
                     className="delete-button"
                     title="Видалити файл"
                   >

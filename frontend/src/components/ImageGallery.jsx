@@ -39,14 +39,22 @@ const ImageGallery = ({ files, isOpen, onClose, initialIndex = 0 }) => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, currentIndex]);
 
-  const goToPrevious = () => {
+  const goToPrevious = (event) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     if (imageFiles.length === 0) return;
     setCurrentIndex((prevIndex) => 
       prevIndex === 0 ? imageFiles.length - 1 : prevIndex - 1
     );
   };
 
-  const goToNext = () => {
+  const goToNext = (event) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     if (imageFiles.length === 0) return;
     setCurrentIndex((prevIndex) => 
       prevIndex === imageFiles.length - 1 ? 0 : prevIndex + 1
@@ -78,7 +86,15 @@ const ImageGallery = ({ files, isOpen, onClose, initialIndex = 0 }) => {
             </span>
             <span className="gallery-filename">{currentFile.originalName}</span>
           </div>
-          <button className="gallery-close-btn" onClick={onClose}>
+          <button 
+            type="button"
+            className="gallery-close-btn" 
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onClose();
+            }}
+          >
             ✕
           </button>
         </div>
@@ -87,15 +103,17 @@ const ImageGallery = ({ files, isOpen, onClose, initialIndex = 0 }) => {
         {imageFiles.length > 1 && (
           <>
             <button 
+              type="button"
               className="gallery-nav-btn gallery-prev-btn" 
-              onClick={goToPrevious}
+              onClick={(event) => goToPrevious(event)}
               title="Попереднє зображення (←)"
             >
               ‹
             </button>
             <button 
+              type="button"
               className="gallery-nav-btn gallery-next-btn" 
-              onClick={goToNext}
+              onClick={(event) => goToNext(event)}
               title="Наступне зображення (→)"
             >
               ›
@@ -130,7 +148,9 @@ const ImageGallery = ({ files, isOpen, onClose, initialIndex = 0 }) => {
                 src={file.cloudinaryUrl}
                 alt={file.originalName}
                 className={`gallery-thumbnail ${index === currentIndex ? 'active' : ''}`}
-                onClick={() => {
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
                   setCurrentIndex(index);
                   setIsLoading(true);
                 }}
