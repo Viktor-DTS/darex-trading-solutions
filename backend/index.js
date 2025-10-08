@@ -1003,7 +1003,11 @@ app.post('/api/tasks', async (req, res) => {
     // Відправляємо Telegram сповіщення про нову заявку
     try {
       const user = req.user || { login: 'system', name: 'Система', role: 'system' };
+      console.log('[DEBUG] POST /api/tasks - відправляємо сповіщення про нову заявку');
+      console.log('[DEBUG] POST /api/tasks - savedTask.serviceRegion:', savedTask.serviceRegion);
+      console.log('[DEBUG] POST /api/tasks - user:', user);
       await telegramService.sendTaskNotification('task_created', savedTask, user);
+      console.log('[DEBUG] POST /api/tasks - сповіщення про нову заявку відправлено успішно');
     } catch (notificationError) {
       console.error('[ERROR] POST /api/tasks - помилка відправки сповіщення:', notificationError);
     }
@@ -1080,29 +1084,62 @@ app.put('/api/tasks/:id', async (req, res) => {
       console.log('[DEBUG] PUT /api/tasks/:id - updatedTask.status:', updatedTask.status);
       console.log('[DEBUG] PUT /api/tasks/:id - user:', user);
       
-      // Перевіряємо різні варіанти статусу "Виконано" через проблеми з кодуванням
-      const isCompleted = updateData.status === 'Виконано' || 
-                         updatedTask.status === 'Виконано' ||
-                         updateData.status === '????????' ||
-                         updatedTask.status === '????????';
+      // Зберігаємо старі значення для порівняння
+      const oldStatus = task.status;
+      const oldApprovedByWarehouse = task.approvedByWarehouse;
+      const oldApprovedByAccountant = task.approvedByAccountant;
+      const oldApprovedByRegionalManager = task.approvedByRegionalManager;
       
-      if (isCompleted) {
-        console.log('[DEBUG] PUT /api/tasks/:id - відправляємо task_completed сповіщення');
-        console.log('[DEBUG] PUT /api/tasks/:id - updateData.status:', updateData.status);
-        console.log('[DEBUG] PUT /api/tasks/:id - updatedTask.status:', updatedTask.status);
+      console.log('[DEBUG] PUT /api/tasks/:id - старі значення:');
+      console.log('[DEBUG] PUT /api/tasks/:id - oldStatus:', oldStatus);
+      console.log('[DEBUG] PUT /api/tasks/:id - oldApprovedByWarehouse:', oldApprovedByWarehouse);
+      console.log('[DEBUG] PUT /api/tasks/:id - oldApprovedByAccountant:', oldApprovedByAccountant);
+      console.log('[DEBUG] PUT /api/tasks/:id - oldApprovedByRegionalManager:', oldApprovedByRegionalManager);
+      
+      // Перевіряємо зміну статусу на "Виконано" (тільки якщо статус реально змінився)
+      const newStatus = updateData.status || updatedTask.status;
+      const statusChangedToCompleted = (newStatus === 'Виконано' || newStatus === '????????') && 
+                                      oldStatus !== 'Виконано' && oldStatus !== '????????';
+      
+      console.log('[DEBUG] PUT /api/tasks/:id - перевірка зміни статусу на "Виконано":');
+      console.log('[DEBUG] PUT /api/tasks/:id - newStatus:', newStatus);
+      console.log('[DEBUG] PUT /api/tasks/:id - statusChangedToCompleted:', statusChangedToCompleted);
+      
+      if (statusChangedToCompleted) {
+        console.log('[DEBUG] PUT /api/tasks/:id - статус змінився на "Виконано", відправляємо task_completed сповіщення');
         await telegramService.sendTaskNotification('task_completed', updatedTask, user);
-      } else if (updateData.approvedByWarehouse === 'Підтверджено' || 
-                 updateData.approvedByAccountant === 'Підтверджено' || 
-                 updateData.approvedByRegionalManager === 'Підтверджено') {
-        console.log('[DEBUG] PUT /api/tasks/:id - відправляємо task_approved сповіщення');
+      } 
+      // Перевіряємо зміну підтвердження складом (тільки якщо реально змінилося)
+      else if (updateData.approvedByWarehouse === 'Підтверджено' && oldApprovedByWarehouse !== 'Підтверджено') {
+        console.log('[DEBUG] PUT /api/tasks/:id - склад підтвердив, відправляємо task_approved сповіщення');
         await telegramService.sendTaskNotification('task_approved', updatedTask, user);
-      } else if (updateData.approvedByWarehouse === 'Відхилено' || 
-                 updateData.approvedByAccountant === 'Відхилено' || 
-                 updateData.approvedByRegionalManager === 'Відхилено') {
-        console.log('[DEBUG] PUT /api/tasks/:id - відправляємо task_rejected сповіщення');
+      }
+      // Перевіряємо зміну підтвердження бухгалтером (тільки якщо реально змінилося)
+      else if (updateData.approvedByAccountant === 'Підтверджено' && oldApprovedByAccountant !== 'Підтверджено') {
+        console.log('[DEBUG] PUT /api/tasks/:id - бухгалтер підтвердив, відправляємо task_approved сповіщення');
+        await telegramService.sendTaskNotification('task_approved', updatedTask, user);
+      }
+      // Перевіряємо зміну підтвердження регіональним керівником (тільки якщо реально змінилося)
+      else if (updateData.approvedByRegionalManager === 'Підтверджено' && oldApprovedByRegionalManager !== 'Підтверджено') {
+        console.log('[DEBUG] PUT /api/tasks/:id - регіональний керівник підтвердив, відправляємо task_approved сповіщення');
+        await telegramService.sendTaskNotification('task_approved', updatedTask, user);
+      }
+      // Перевіряємо відхилення складом (тільки якщо реально змінилося)
+      else if (updateData.approvedByWarehouse === 'Відхилено' && oldApprovedByWarehouse !== 'Відхилено') {
+        console.log('[DEBUG] PUT /api/tasks/:id - склад відхилив, відправляємо task_rejected сповіщення');
+        await telegramService.sendTaskNotification('task_rejected', updatedTask, user);
+      }
+      // Перевіряємо відхилення бухгалтером (тільки якщо реально змінилося)
+      else if (updateData.approvedByAccountant === 'Відхилено' && oldApprovedByAccountant !== 'Відхилено') {
+        console.log('[DEBUG] PUT /api/tasks/:id - бухгалтер відхилив, відправляємо task_rejected сповіщення');
+        await telegramService.sendTaskNotification('task_rejected', updatedTask, user);
+      }
+      // Перевіряємо відхилення регіональним керівником (тільки якщо реально змінилося)
+      else if (updateData.approvedByRegionalManager === 'Відхилено' && oldApprovedByRegionalManager !== 'Відхилено') {
+        console.log('[DEBUG] PUT /api/tasks/:id - регіональний керівник відхилив, відправляємо task_rejected сповіщення');
         await telegramService.sendTaskNotification('task_rejected', updatedTask, user);
       } else {
-        console.log('[DEBUG] PUT /api/tasks/:id - статус не підходить для сповіщення');
+        console.log('[DEBUG] PUT /api/tasks/:id - немає змін, що потребують сповіщення');
       }
     } catch (notificationError) {
       console.error('[ERROR] PUT /api/tasks/:id - помилка відправки сповіщення:', notificationError);
@@ -4231,11 +4268,25 @@ ${message}
 
 
   async sendTaskNotification(type, task, user) {
+    console.log(`[DEBUG] sendTaskNotification - початок відправки сповіщення типу: ${type}`);
+    console.log(`[DEBUG] sendTaskNotification - task.serviceRegion:`, task?.serviceRegion);
+    console.log(`[DEBUG] sendTaskNotification - user:`, user);
+    
     const message = this.formatTaskMessage(type, task, user);
+    console.log(`[DEBUG] sendTaskNotification - сформоване повідомлення:`, message);
+    
     const chatIds = await this.getChatIdsForNotification(type, user.role, task);
+    console.log(`[DEBUG] sendTaskNotification - отримано chatIds:`, chatIds);
+    
+    if (chatIds.length === 0) {
+      console.log(`[DEBUG] sendTaskNotification - немає chatIds для відправки сповіщення типу: ${type}`);
+      return;
+    }
     
     for (const chatId of chatIds) {
+      console.log(`[DEBUG] sendTaskNotification - відправляємо сповіщення на chatId: ${chatId}`);
       const success = await this.sendMessage(chatId, message);
+      console.log(`[DEBUG] sendTaskNotification - результат відправки на ${chatId}: ${success}`);
       
       // Логуємо сповіщення
       await NotificationLog.create({
@@ -4247,6 +4298,8 @@ ${message}
         status: success ? 'sent' : 'failed'
       });
     }
+    
+    console.log(`[DEBUG] sendTaskNotification - завершено відправку сповіщення типу: ${type}`);
   }
 
   formatTaskMessage(type, task, user) {
@@ -4348,24 +4401,55 @@ ${message}
       });
       
       console.log(`[DEBUG] getChatIdsForNotification - знайдено ${usersWithNewSettings.length} користувачів з новими налаштуваннями`);
+      console.log(`[DEBUG] getChatIdsForNotification - запит: { ${settingField}: true, telegramChatId: { $exists: true, $ne: '' } }`);
+      
+      // Додаткове логування для діагностики
+      if (usersWithNewSettings.length === 0) {
+        console.log(`[DEBUG] getChatIdsForNotification - перевіряємо всіх користувачів з telegramChatId`);
+        const allUsersWithTelegram = await User.find({ 
+          telegramChatId: { $exists: true, $ne: '' }
+        });
+        console.log(`[DEBUG] getChatIdsForNotification - знайдено ${allUsersWithTelegram.length} користувачів з telegramChatId`);
+        
+        for (const user of allUsersWithTelegram) {
+          console.log(`[DEBUG] getChatIdsForNotification - користувач ${user.login}: ${settingField} = ${user[settingField.split('.')[0]]?.[settingField.split('.')[1]]}`);
+        }
+      }
       
       // Якщо є користувачі з новими налаштуваннями, використовуємо їх
       if (usersWithNewSettings.length > 0) {
+        console.log(`[DEBUG] getChatIdsForNotification - фільтрація по регіону для ${usersWithNewSettings.length} користувачів`);
+        console.log(`[DEBUG] getChatIdsForNotification - task.serviceRegion:`, task?.serviceRegion);
+        
         const filteredUsers = usersWithNewSettings.filter(user => {
+          console.log(`[DEBUG] getChatIdsForNotification - перевірка користувача: ${user.login}, регіон: ${user.region}`);
+          
           // Якщо це не заявка (наприклад, сповіщення про рахунки), не фільтруємо по регіону
-          if (!task || !task.serviceRegion) return true;
+          if (!task || !task.serviceRegion) {
+            console.log(`[DEBUG] getChatIdsForNotification - немає task або serviceRegion, пропускаємо фільтрацію`);
+            return true;
+          }
           
           // Якщо користувач має регіон "Україна", показуємо всі заявки
-          if (user.region === 'Україна') return true;
+          if (user.region === 'Україна') {
+            console.log(`[DEBUG] getChatIdsForNotification - користувач ${user.login} має регіон "Україна", показуємо всі заявки`);
+            return true;
+          }
           
           // Інакше показуємо тільки заявки свого регіону
-          return task.serviceRegion === user.region;
+          const matchesRegion = task.serviceRegion === user.region;
+          console.log(`[DEBUG] getChatIdsForNotification - користувач ${user.login}: ${task.serviceRegion} === ${user.region} = ${matchesRegion}`);
+          return matchesRegion;
         });
         
         console.log(`[DEBUG] getChatIdsForNotification - після фільтрації по регіону: ${filteredUsers.length} користувачів`);
         
         const userChatIds = filteredUsers
-          .filter(user => user.telegramChatId && user.telegramChatId.trim())
+          .filter(user => {
+            const hasChatId = user.telegramChatId && user.telegramChatId.trim();
+            console.log(`[DEBUG] getChatIdsForNotification - користувач ${user.login} має telegramChatId: ${hasChatId}`);
+            return hasChatId;
+          })
           .map(user => user.telegramChatId);
         chatIds.push(...userChatIds);
         
@@ -4381,19 +4465,34 @@ ${message}
         
         if (userIds && userIds.length > 0) {
           const users = await User.find({ login: { $in: userIds } });
+          console.log(`[DEBUG] getChatIdsForNotification - знайдено ${users.length} користувачів з старих налаштувань`);
           
           const filteredUsers = users.filter(user => {
-            if (user.region === 'Україна') return true;
-            return task.serviceRegion === user.region;
+            console.log(`[DEBUG] getChatIdsForNotification - перевірка користувача (стара система): ${user.login}, регіон: ${user.region}`);
+            
+            if (user.region === 'Україна') {
+              console.log(`[DEBUG] getChatIdsForNotification - користувач ${user.login} має регіон "Україна", показуємо всі заявки`);
+              return true;
+            }
+            
+            const matchesRegion = task.serviceRegion === user.region;
+            console.log(`[DEBUG] getChatIdsForNotification - користувач ${user.login}: ${task.serviceRegion} === ${user.region} = ${matchesRegion}`);
+            return matchesRegion;
           });
           
+          console.log(`[DEBUG] getChatIdsForNotification - після фільтрації по регіону (стара система): ${filteredUsers.length} користувачів`);
+          
           const userChatIds = filteredUsers
-            .filter(user => user.telegramChatId && user.telegramChatId.trim())
+            .filter(user => {
+              const hasChatId = user.telegramChatId && user.telegramChatId.trim();
+              console.log(`[DEBUG] getChatIdsForNotification - користувач ${user.login} має telegramChatId: ${hasChatId}`);
+              return hasChatId;
+            })
             .map(user => user.telegramChatId);
           chatIds.push(...userChatIds);
             
-            console.log(`[DEBUG] getChatIdsForNotification - chatIds з старих налаштувань:`, chatIds);
-          }
+          console.log(`[DEBUG] getChatIdsForNotification - chatIds з старих налаштувань:`, chatIds);
+        }
         }
       }
       
@@ -5180,6 +5279,82 @@ app.post('/api/telegram/webhook', async (req, res) => {
 });
 
 
+
+// Тестовий endpoint для перевірки налаштувань сповіщень
+app.get('/api/notification-settings/debug', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/notification-settings/debug - перевірка налаштувань сповіщень');
+    
+    // Отримуємо всіх користувачів з telegramChatId
+    const users = await User.find({ 
+      telegramChatId: { $exists: true, $ne: '' }
+    });
+    
+    console.log(`[DEBUG] Знайдено ${users.length} користувачів з telegramChatId`);
+    
+    const debugInfo = {
+      totalUsers: users.length,
+      users: users.map(user => ({
+        login: user.login,
+        role: user.role,
+        region: user.region,
+        telegramChatId: user.telegramChatId,
+        notificationSettings: user.notificationSettings
+      }))
+    };
+    
+    // Перевіряємо налаштування для кожного типу сповіщень
+    const notificationTypes = [
+      'task_created',
+      'task_completed', 
+      'task_approved',
+      'task_rejected',
+      'invoice_requested',
+      'invoice_completed'
+    ];
+    
+    for (const type of notificationTypes) {
+      let settingField = '';
+      switch (type) {
+        case 'task_created':
+          settingField = 'notificationSettings.newRequests';
+          break;
+        case 'task_completed':
+          settingField = 'notificationSettings.completedRequests';
+          break;
+        case 'task_approved':
+          settingField = 'notificationSettings.approvedRequests';
+          break;
+        case 'task_rejected':
+          settingField = 'notificationSettings.rejectedRequests';
+          break;
+        case 'invoice_requested':
+          settingField = 'notificationSettings.invoiceRequests';
+          break;
+        case 'invoice_completed':
+          settingField = 'notificationSettings.completedInvoices';
+          break;
+      }
+      
+      const usersWithSetting = await User.find({ 
+        [settingField]: true,
+        telegramChatId: { $exists: true, $ne: '' }
+      });
+      
+      debugInfo[type] = {
+        settingField,
+        enabledUsers: usersWithSetting.length,
+        users: usersWithSetting.map(u => u.login)
+      };
+    }
+    
+    res.json(debugInfo);
+    
+  } catch (error) {
+    console.error('[ERROR] GET /api/notification-settings/debug - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Тестовий endpoint для перевірки Telegram бота
 app.get('/api/telegram/test-send', async (req, res) => {
