@@ -853,7 +853,12 @@ function TaskTableComponent({
       travelCost: task.travelCost || '0',
       totalCost: task.totalCost || '0',
       paymentMethod: task.paymentType || 'безготівковий розрахунок',
-      recommendations: task.recommendations || ''
+      recommendations: task.recommendations || '',
+      // Додаткові поля для нових шаблонів
+      requestNumber: task.requestNumber || '',
+      workDate: task.date || '',
+      engineModel: task.engineModel || '',
+      engineSerial: task.engineSerial || ''
     };
 
     // Перевіряємо умову для номера наряду
@@ -862,8 +867,37 @@ function TaskTableComponent({
     const workOrderNumber = hasRequestNumber ? task.requestNumber : '____';
     const workOrderDate = hasWorkDate ? task.date : '____';
 
-    // Створюємо HTML наряд
-    const workOrderHTML = `
+    // Формуємо список інженерів
+    const engineers = [
+      workOrderData.engineer1,
+      workOrderData.engineer2,
+      workOrderData.engineer3,
+      workOrderData.engineer4,
+      workOrderData.engineer5,
+      workOrderData.engineer6
+    ].filter(eng => eng && eng.trim() !== '').join(', ');
+
+    // Визначаємо компанію та вибираємо відповідний шаблон
+    const company = task.company || '';
+    let workOrderHTML = '';
+
+    if (company === 'ДТС' || company === 'Дарекс Трейдінг Солюшнс') {
+      // Шаблон для компанії ДТС
+      workOrderHTML = generateDTSTemplate(workOrderData, workOrderNumber, workOrderDate, engineers);
+    } else {
+      // Шаблон для компанії Дарекс Енерго (за замовчуванням)
+      workOrderHTML = generateDarexEnergyTemplate(workOrderData, workOrderNumber, workOrderDate, engineers);
+    }
+
+    // Відкриваємо нове вікно з нарядом
+    const newWindow = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes,resizable=yes');
+    newWindow.document.write(workOrderHTML);
+    newWindow.document.close();
+  };
+
+  // Функція для генерації шаблону ДТС
+  const generateDTSTemplate = (workOrderData, workOrderNumber, workOrderDate, engineers) => {
+    return `
       <!DOCTYPE html>
       <html lang="uk">
       <head>
@@ -1274,11 +1308,387 @@ function TaskTableComponent({
       </body>
       </html>
     `;
+  };
 
-    // Відкриваємо нове вікно з нарядом
-    const newWindow = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes,resizable=yes');
-    newWindow.document.write(workOrderHTML);
-    newWindow.document.close();
+  // Функція для генерації шаблону Дарекс Енерго
+  const generateDarexEnergyTemplate = (workOrderData, workOrderNumber, workOrderDate, engineers) => {
+    return `
+      <!DOCTYPE html>
+      <html lang="uk">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Наряд Дарекс Енерго</title>
+        <style>
+          body {
+            font-family: 'Times New Roman', serif;
+            margin: 0;
+            padding: 20px;
+            background: white;
+            color: black;
+            line-height: 1.4;
+            font-size: 12px;
+          }
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 15px;
+          }
+          .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+          .logo-text {
+            font-weight: bold;
+            font-size: 14px;
+            color: #0066cc;
+          }
+          .company-info {
+            text-align: right;
+            font-size: 10px;
+          }
+          .work-order-title {
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 20px 0;
+            border-bottom: 1px solid #000;
+            padding-bottom: 10px;
+          }
+          .form-row {
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+          }
+          .form-label {
+            font-weight: bold;
+            min-width: 150px;
+            flex-shrink: 0;
+          }
+          .form-value {
+            flex: 1;
+            border-bottom: 1px solid #000;
+            min-height: 18px;
+            padding: 2px 0;
+            margin-left: 10px;
+          }
+          .two-column {
+            display: flex;
+            gap: 30px;
+            margin: 20px 0;
+          }
+          .column {
+            flex: 1;
+          }
+          .materials-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+          }
+          .materials-table th, .materials-table td {
+            border: 1px solid #000;
+            padding: 5px;
+            text-align: center;
+            font-size: 10px;
+          }
+          .materials-table th {
+            background: #f0f0f0;
+            font-weight: bold;
+          }
+          .signature-section {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+          }
+          .signature-box {
+            width: 200px;
+            text-align: center;
+          }
+          .signature-line {
+            border-bottom: 1px solid #000;
+            height: 40px;
+            margin-bottom: 5px;
+          }
+          .no-print {
+            display: none;
+          }
+          @media print {
+            .no-print {
+              display: none !important;
+            }
+            body {
+              margin: 0;
+              padding: 10px;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo">
+            <div class="logo-text">DAREX ENERGY<br>ТОВ «ДАРЕКС-ЕНЕРГО»<br>НЕЗАЛЕЖНЕ ЕЛЕКТРОПОСТАЧАННЯ</div>
+          </div>
+          <div class="company-info">
+            Київ, вул. Сирецька, 9, офіс 234<br>
+            +38 (067) 561-75-44<br>
+            0 800 33-05-05<br>
+            office@darex.com.ua<br>
+            www.darex.com.ua<br>
+            ЄДРПОУ 39423347
+          </div>
+        </div>
+
+        <h1 class="work-order-title">Наряд на виконання робіт</h1>
+
+        <div class="form-row">
+          <span class="form-label">(№</span>
+          <span class="form-value">${workOrderNumber}</span>
+          <span class="form-label">від «</span>
+          <span class="form-value">${workOrderDate}</span>
+          <span class="form-label">» 202____ р.)</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">(до Договору №</span>
+          <span class="form-value">_______</span>
+          <span class="form-label">від «___» «___» 20____ р)</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">№ телефона,</span>
+          <span class="form-value">_______</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">Замовник:</span>
+          <span class="form-value">${workOrderData.client}</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">Адреса об'єкта:</span>
+          <span class="form-value">${workOrderData.address}</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">1. Найменування обладнання:</span>
+          <span class="form-value">${workOrderData.equipment}</span>
+          <span class="form-label">Зав. №</span>
+          <span class="form-value">${workOrderData.serialNumber}</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">2. Тип двигуна</span>
+          <span class="form-value">${workOrderData.engineModel}</span>
+          <span class="form-label">Зав. №</span>
+          <span class="form-value">${workOrderData.engineSerial}</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">3. Тип панелі керування:</span>
+          <span class="form-value">_______</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">4. Вид робіт (вибрати необхідне):</span>
+          <span class="form-value">гарантійний ремонт, ремонт, технічне обслуговування, інше, ПНР.</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">5. Технічний стан обладнання перед проведенням робіт:</span>
+          <span class="form-value">працездатне-непрацездатне.</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">6. Перелік виконаних робіт/послуг:</span>
+          <span class="form-value">${workOrderData.performedWork}</span>
+        </div>
+
+        <div class="two-column">
+          <div class="column">
+            <div class="form-row">
+              <span class="form-label">Відмітка про оплату:</span>
+              <span class="form-value">_______</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">НАСТУПНЕ ТЕХНІЧНЕ ОБСЛУГОВУВАННЯ ПРОВЕСТИ ПРИ НАПРАЦЮВАННІ</span>
+              <span class="form-value">_______</span>
+              <span class="form-label">мотогодин, АБО «___» «___» 20____ РОКУ.</span>
+            </div>
+          </div>
+          <div class="column">
+            <div class="form-row">
+              <span class="form-label">Дата та час початку робіт</span>
+              <span class="form-value">_______</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">Дата та час закінчення робіт</span>
+              <span class="form-value">_______</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">Авто №:</span>
+              <span class="form-value">_______</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">Переробка, год.:</span>
+              <span class="form-value">_______</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">Фото зроблені, не зроблені</span>
+              <span class="form-value">_______</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">7. Після проведення робіт та випробувань:</span>
+          <span class="form-value">ДГУ знаходиться в робочому / неробочому стані, в режимі ручне авто, напрацювання становить ${workOrderData.operatingHours} мотогодин</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">8. Навантаження:</span>
+          <span class="form-value">L1 _______ A. L2 _______ A. L3 _______ A. U1 _______ V. U2 _______ V. U3 _______ V.</span>
+        </div>
+
+        <h3>6.1. ПЕРЕЛІК МАТЕРІАЛІВ ТА ЗАПЧАСТИН, ВИКОРИСТАНИХ ПІД ЧАС РОБІТ</h3>
+        <table class="materials-table">
+          <thead>
+            <tr>
+              <th>№ п/п</th>
+              <th>Найменування</th>
+              <th>Один. виміру</th>
+              <th>Кількість</th>
+              <th>Вартість з ПДВ, грн</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td></td><td></td><td></td><td></td></tr>
+            <tr><td>2</td><td></td><td></td><td></td><td></td></tr>
+            <tr><td>3</td><td></td><td></td><td></td><td></td></tr>
+            <tr><td>4</td><td></td><td></td><td></td><td></td></tr>
+            <tr><td>5</td><td></td><td></td><td></td><td></td></tr>
+            <tr><td>6</td><td></td><td></td><td></td><td></td></tr>
+            <tr><td>7</td><td></td><td></td><td></td><td></td></tr>
+            <tr><td>8</td><td></td><td></td><td></td><td></td></tr>
+            <tr><td>9</td><td></td><td></td><td></td><td></td></tr>
+            <tr><td>10</td><td></td><td></td><td></td><td></td></tr>
+          </tbody>
+        </table>
+
+        <div class="form-row">
+          <span class="form-label">Загальна вартість матеріалів та запчастин:</span>
+          <span class="form-value">${workOrderData.materialsCost}</span>
+          <span class="form-label">грн.</span>
+        </div>
+
+        <h3>6.2 Вартість ремонту робіт, Коефіцієнт складності*:</h3>
+        <div class="form-row">
+          <span class="form-label">Діагностика:</span>
+          <span class="form-value">_______</span>
+          <span class="form-label">грн</span>
+        </div>
+        <div class="form-row">
+          <span class="form-label">Вартість технічного обслуговування:</span>
+          <span class="form-value">_______</span>
+          <span class="form-label">грн.</span>
+        </div>
+        <div class="form-row">
+          <span class="form-label">Вартість ремонту (людино-година 1200 грн.):</span>
+          <span class="form-value">${workOrderData.repairCost}</span>
+          <span class="form-label">грн.</span>
+        </div>
+        <div class="form-row">
+          <span class="form-label">Вартість пусконалагоджувальних робіт:</span>
+          <span class="form-value">_______</span>
+          <span class="form-label">грн.</span>
+        </div>
+        <div class="form-row">
+          <span class="form-label">Загальна вартість з урахуванням коефіцієнта складності:</span>
+          <span class="form-value">_______</span>
+          <span class="form-label">грн.</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">6.3 Виїзд на об'єкт Замовника: тариф: по місту 600.00 грн.</span>
+        </div>
+        <div class="form-row">
+          <span class="form-label">Виїзд за місто</span>
+          <span class="form-value">_______</span>
+          <span class="form-label">км * 15,00 грн/км;</span>
+          <span class="form-label">разом</span>
+          <span class="form-value">${workOrderData.travelCost}</span>
+          <span class="form-label">грн.</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">6.4 Добові у відрядженні: 600.00 грн.</span>
+          <span class="form-value">_______</span>
+          <span class="form-label">люд.</span>
+          <span class="form-label">разом</span>
+          <span class="form-value">_______</span>
+          <span class="form-label">грн.</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">6.5 Проживання:</span>
+          <span class="form-value">_______</span>
+          <span class="form-label">грн.</span>
+          <span class="form-value">_______</span>
+          <span class="form-label">діб</span>
+          <span class="form-label">разом</span>
+          <span class="form-value">_______</span>
+          <span class="form-label">грн.</span>
+        </div>
+
+        <div class="form-row">
+          <span class="form-label">ЗАГАЛЬНА ВАРТІСТЬ РОБІТ з ПДВ (усього по пп.6.1- 6.5)</span>
+          <span class="form-value">${workOrderData.totalCost}</span>
+          <span class="form-label">грн.</span>
+        </div>
+
+        <div class="signature-section">
+          <div class="signature-box">
+            <div class="signature-line"></div>
+            <div>Роботи виконав: ${engineers}</div>
+          </div>
+          <div class="signature-box">
+            <div class="signature-line"></div>
+            <div>РОБОТУ ПРИЙНЯВ: (ПІБ Виконавця або його представника) (дата, підпис)</div>
+          </div>
+          <div class="signature-box">
+            <div class="signature-line"></div>
+            <div>РОБОТУ ЗДАВ: (дата, підпис)</div>
+          </div>
+        </div>
+
+        <div class="no-print">
+          <button onclick="window.print()" style="
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+          ">🖨️ Друкувати</button>
+          <button onclick="window.close()" style="
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 10px;
+          ">✕ Закрити</button>
+        </div>
+      </body>
+      </html>
+    `;
   };
 
   return (
