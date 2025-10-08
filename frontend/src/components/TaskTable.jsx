@@ -1323,20 +1323,20 @@ function TaskTableComponent({
           body {
             font-family: 'Times New Roman', serif;
             margin: 0;
-            padding: 20px;
+            padding: 0;
             background: white;
             color: black;
-            line-height: 1.4;
-            font-size: 12px;
+            line-height: 1.15;
+            font-size: 12pt;
           }
           .page {
-            width: 100%;
-            max-width: 800px;
-            margin: 0 auto 30px auto;
-            border: 1px solid #000;
-            padding: 20px;
-            min-height: 1000px;
+            width: 21cm;
+            height: 29.7cm;
+            margin: 0 auto 2cm auto;
+            padding: 2.5cm 2cm 2cm 2cm;
             page-break-after: always;
+            box-sizing: border-box;
+            position: relative;
           }
           .page:last-child {
             page-break-after: avoid;
@@ -1344,54 +1344,97 @@ function TaskTableComponent({
           .header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #000;
-            padding-bottom: 15px;
+            align-items: flex-start;
+            margin-bottom: 1cm;
+            border-bottom: 1pt solid #000;
+            padding-bottom: 0.5cm;
           }
           .logo {
             display: flex;
-            align-items: center;
-            gap: 10px;
+            align-items: flex-start;
+            gap: 0.3cm;
           }
           .logo-text {
             font-weight: bold;
-            font-size: 14px;
+            font-size: 14pt;
             color: #0066cc;
+            line-height: 1.2;
+          }
+          .company-center {
+            text-align: center;
+            flex: 1;
+            margin: 0 1cm;
+          }
+          .company-name {
+            font-weight: bold;
+            font-size: 12pt;
+            margin-bottom: 0.1cm;
+          }
+          .company-subtitle {
+            font-size: 10pt;
+            margin-bottom: 0.2cm;
+          }
+          .company-website {
+            font-size: 10pt;
+            margin-bottom: 0.1cm;
+          }
+          .company-phone {
+            font-size: 10pt;
           }
           .company-info {
             text-align: right;
-            font-size: 10px;
+            font-size: 10pt;
+            line-height: 1.2;
+          }
+          .legal-address {
+            font-weight: bold;
+            margin-bottom: 0.1cm;
+          }
+          .address {
+            margin-bottom: 0.1cm;
+          }
+          .phone {
+            margin-bottom: 0.1cm;
+          }
+          .email {
+            margin-bottom: 0.1cm;
+          }
+          .edrpou {
+            font-weight: bold;
           }
           .work-order-title {
             text-align: center;
-            font-size: 16px;
+            font-size: 14pt;
             font-weight: bold;
-            margin: 20px 0;
-            border-bottom: 1px solid #000;
-            padding-bottom: 10px;
+            margin: 0.8cm 0;
+            text-transform: uppercase;
           }
           .form-row {
-            margin-bottom: 8px;
+            margin-bottom: 0.3cm;
             display: flex;
-            align-items: center;
+            align-items: baseline;
+            min-height: 0.5cm;
           }
           .form-label {
-            font-weight: bold;
-            min-width: 150px;
+            font-weight: normal;
+            min-width: 4cm;
             flex-shrink: 0;
+            font-size: 12pt;
           }
           .form-value {
             flex: 1;
-            border-bottom: 1px solid #000;
-            min-height: 18px;
-            padding: 2px 0;
-            margin-left: 10px;
+            border-bottom: 1pt solid #000;
+            min-height: 0.4cm;
+            padding: 0 0.2cm;
+            margin-left: 0.2cm;
+            font-size: 12pt;
+            display: flex;
+            align-items: center;
           }
           .two-column {
             display: flex;
-            gap: 30px;
-            margin: 20px 0;
+            gap: 2cm;
+            margin: 0.5cm 0;
           }
           .column {
             flex: 1;
@@ -1399,51 +1442,70 @@ function TaskTableComponent({
           .materials-table {
             width: 100%;
             border-collapse: collapse;
-            margin: 15px 0;
+            margin: 0.5cm 0;
+            font-size: 10pt;
           }
           .materials-table th, .materials-table td {
-            border: 1px solid #000;
-            padding: 5px;
+            border: 1pt solid #000;
+            padding: 0.2cm;
             text-align: center;
-            font-size: 10px;
+            vertical-align: middle;
           }
           .materials-table th {
             background: #f0f0f0;
             font-weight: bold;
           }
           .signature-section {
-            margin-top: 30px;
+            margin-top: 1cm;
             display: flex;
             justify-content: space-between;
+            gap: 1cm;
           }
           .signature-box {
-            width: 200px;
+            flex: 1;
             text-align: center;
           }
           .signature-line {
-            border-bottom: 1px solid #000;
-            height: 40px;
-            margin-bottom: 5px;
+            border-bottom: 1pt solid #000;
+            height: 0.8cm;
+            margin-bottom: 0.2cm;
           }
           .section-title {
             font-weight: bold;
-            margin: 15px 0 10px 0;
-            font-size: 13px;
+            margin: 0.5cm 0 0.3cm 0;
+            font-size: 12pt;
+            text-transform: uppercase;
           }
           .complexity-table {
             width: 100%;
             border-collapse: collapse;
-            margin: 10px 0;
-            font-size: 10px;
+            margin: 0.3cm 0;
+            font-size: 9pt;
           }
           .complexity-table th, .complexity-table td {
-            border: 1px solid #000;
-            padding: 3px;
+            border: 1pt solid #000;
+            padding: 0.15cm;
             text-align: left;
+            vertical-align: top;
           }
           .complexity-table th {
             background: #f0f0f0;
             font-weight: bold;
+          }
+          .text-area {
+            border: 1pt solid #000;
+            min-height: 2cm;
+            padding: 0.3cm;
+            margin: 0.3cm 0;
+            position: relative;
+          }
+          .text-line {
+            border-bottom: 1pt solid #ccc;
+            height: 0.4cm;
+            margin-bottom: 0.1cm;
+          }
+          .text-line:last-child {
+            margin-bottom: 0;
           }
           .no-print {
             display: none;
@@ -1454,8 +1516,16 @@ function TaskTableComponent({
             }
             body {
               margin: 0;
-              padding: 10px;
+              padding: 0;
             }
+            .page {
+              margin: 0;
+              box-shadow: none;
+            }
+          }
+          @page {
+            size: A4;
+            margin: 2.5cm 2cm 2cm 2cm;
           }
         </style>
       </head>
@@ -1464,15 +1534,20 @@ function TaskTableComponent({
         <div class="page">
           <div class="header">
             <div class="logo">
-              <div class="logo-text">DAREX ENERGY<br>ТОВ «ДАРЕКС-ЕНЕРГО»<br>НЕЗАЛЕЖНЕ ЕЛЕКТРОПОСТАЧАННЯ</div>
+              <div class="logo-text">DAREX ENERGY</div>
+            </div>
+            <div class="company-center">
+              <div class="company-name">ТОВ «ДАРЕКС-ЕНЕРГО»</div>
+              <div class="company-subtitle">НЕЗАЛЕЖНЕ ЕЛЕКТРОПОСТАЧАННЯ</div>
+              <div class="company-website">www.darex.com.ua</div>
+              <div class="company-phone">0 800 33-05-05</div>
             </div>
             <div class="company-info">
-              Київ, вул. Сирецька, 9, офіс 234<br>
-              +38 (067) 561-75-44<br>
-              0 800 33-05-05<br>
-              office@darex.com.ua<br>
-              www.darex.com.ua<br>
-              ЄДРПОУ 39423347
+              <div class="legal-address">ЮРИДИЧНА АДРЕСА</div>
+              <div class="address">Київ, вул. Сирецька, 9, офіс 234</div>
+              <div class="phone">+38 (067) 561-75-44</div>
+              <div class="email">office@darex.com.ua</div>
+              <div class="edrpou">ЄДРПОУ 39423347</div>
             </div>
           </div>
 
@@ -1539,12 +1614,12 @@ function TaskTableComponent({
           <div class="form-row">
             <span class="form-label">6. Перелік виконаних робіт/послуг:</span>
           </div>
-          <div style="border: 1px solid #000; min-height: 100px; padding: 10px; margin: 10px 0;">
-            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
-            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
-            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
-            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
-            <div style="border-bottom: 1px solid #ccc; height: 20px;"></div>
+          <div class="text-area">
+            <div class="text-line"></div>
+            <div class="text-line"></div>
+            <div class="text-line"></div>
+            <div class="text-line"></div>
+            <div class="text-line"></div>
           </div>
 
           <div class="two-column">
@@ -1695,83 +1770,120 @@ function TaskTableComponent({
 
         <!-- СТОРІНКА 2 -->
         <div class="page">
+          <div class="form-row">
+            <span class="form-label">Відмітка про оплату:</span>
+            <span class="form-value">_______</span>
+          </div>
+
+          <div class="section-title" style="text-align: center; margin: 0.5cm 0;">
+            НАСТУПНЕ ТЕХНІЧНЕ ОБСЛУГОВУВАННЯ ПРОВЕСТИ ПРИ НАПРАЦЮВАННІ
+          </div>
+          <div class="form-row" style="text-align: center; justify-content: center;">
+            <span class="form-value">_______</span>
+            <span class="form-label">МОТОГОДИН, АБО «___» ________ 20___ РОКУ.</span>
+          </div>
+
+          <div class="two-column">
+            <div class="column">
+              <div class="form-row">
+                <span class="form-label">Дата та час початку робіт:</span>
+                <span class="form-value">_______</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Авто №:</span>
+                <span class="form-value">_______</span>
+              </div>
+            </div>
+            <div class="column">
+              <div class="form-row">
+                <span class="form-label">Дата та час закінчення робіт:</span>
+                <span class="form-value">_______</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Переробка, год.:</span>
+                <span class="form-value">_______</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">Фото зроблені, не зроблені</span>
+            <span class="form-value">_______</span>
+          </div>
+
           <div class="section-title">Рекомендації виконувача робіт:</div>
-          <div style="border: 1px solid #000; min-height: 100px; padding: 10px; margin: 10px 0;">
-            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
-            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
-            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
-            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
-            <div style="border-bottom: 1px solid #ccc; height: 20px;"></div>
+          <div class="text-area">
+            <div class="text-line"></div>
+            <div class="text-line"></div>
+            <div class="text-line"></div>
+            <div class="text-line"></div>
+            <div class="text-line"></div>
+            <div class="text-line"></div>
+            <div class="text-line"></div>
+            <div class="text-line"></div>
+            <div class="text-line"></div>
+            <div class="text-line"></div>
+            <div class="text-line"></div>
+            <div class="text-line"></div>
           </div>
 
-          <div class="signature-section">
-            <div class="signature-box">
-              <div class="signature-line"></div>
-              <div>Роботи виконав: ${engineers}</div>
+          <div style="margin-top: 0.5cm; font-size: 9pt;">
+            <div style="font-weight: bold; font-style: italic; margin-bottom: 0.3cm;">
+              *Коефіцієнт складності робіт - це величина, що збільшує вартість робіт через специфічні, що не залежать від виконавця умов і не дозволяють якісно провести роботи без спеціальних навичок, обладнання через погодні умови, і т.д.*
             </div>
-            <div class="signature-box">
-              <div class="signature-line"></div>
-              <div>РОБОТУ ПРИЙНЯВ: (ПІБ Замовника або його представника) (дата, підпис)</div>
+            <div style="margin-bottom: 0.3cm;">
+              <div class="form-row">
+                <span class="form-label">Робота за комфортних умов, доброзичливість замовника</span>
+                <span class="form-value">1.0</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Робота на відкритому повітрі, при температурі нижче 0 град, (вище 27) сухо</span>
+                <span class="form-value">1.1</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Робота на відкритому повітрі, при температурі нижче 0 град, (вище 27) опади, безвітряно</span>
+                <span class="form-value">1.2</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Робота на відкритому повітрі, при температурі нижче 0 град, опади, вітер, понад 8 м/с (5 балів за шкалою Бофорта)</span>
+                <span class="form-value">1.3</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Робота у темний час доби за вимогою Замовника</span>
+                <span class="form-value">1.4</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Робота за обмеженої можливості доступу до об'єкта (1,5-1,7)</span>
+                <span class="form-value">1.5</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Роботи, що не входять до списку робіт з цього виїзду (1,8-2)</span>
+                <span class="form-value">1.8</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Терміновий виклик</span>
+                <span class="form-value">2.0</span>
+              </div>
             </div>
-            <div class="signature-box">
-              <div class="signature-line"></div>
-              <div>РОБОТУ ЗДАВ: (дата, підпис)</div>
+            <div style="font-weight: bold; font-style: italic;">
+              * коефіцієнт може бути сумований.*
             </div>
           </div>
 
-          <div style="margin-top: 30px; font-size: 10px;">
-            <div class="section-title">*Коефіцієнт складності робіт</div>
-            <table class="complexity-table">
-              <tr>
-                <th>Умови робіт</th>
-                <th>Коефіцієнт</th>
-              </tr>
-              <tr>
-                <td>Комфортних умов</td>
-                <td>1,0</td>
-              </tr>
-              <tr>
-                <td>Висока температура (понад +35°С)</td>
-                <td>1,2</td>
-              </tr>
-              <tr>
-                <td>Низька температура (нижче -10°С)</td>
-                <td>1,2</td>
-              </tr>
-              <tr>
-                <td>Висока вологість (понад 80%)</td>
-                <td>1,2</td>
-              </tr>
-              <tr>
-                <td>Пилові умови</td>
-                <td>1,3</td>
-              </tr>
-              <tr>
-                <td>Вібрація</td>
-                <td>1,3</td>
-              </tr>
-              <tr>
-                <td>Обмежений простір</td>
-                <td>1,4</td>
-              </tr>
-              <tr>
-                <td>Висота (понад 3м)</td>
-                <td>1,4</td>
-              </tr>
-              <tr>
-                <td>Нічний час (22:00-06:00)</td>
-                <td>1,5</td>
-              </tr>
-              <tr>
-                <td>Вихідні та святкові дні</td>
-                <td>1,5</td>
-              </tr>
-              <tr>
-                <td>Терміновий виклик</td>
-                <td>2,0</td>
-              </tr>
-            </table>
-            <p style="margin-top: 10px; font-style: italic;">* коефіцієнт може бути сумований.</p>
+          <div class="signature-section" style="margin-top: 1cm;">
+            <div class="signature-box">
+              <div style="text-align: center; font-weight: bold; margin-bottom: 0.2cm;">РОБОТУ ПРИЙНЯВ</div>
+              <div style="text-align: center; margin-bottom: 0.2cm;">претензій не маю</div>
+              <div style="text-align: center; font-size: 10pt; margin-bottom: 0.2cm;">(ПІБ Замовника або його представника)</div>
+              <div class="signature-line"></div>
+              <div style="text-align: center; font-size: 10pt; margin-top: 0.1cm;">(дата, підпис)</div>
+            </div>
+            <div class="signature-box">
+              <div style="text-align: center; font-weight: bold; margin-bottom: 0.2cm;">РОБОТУ ЗДАВ</div>
+              <div style="text-align: center; font-size: 10pt; margin-bottom: 0.2cm;">(ПІБ Виконавця або його представника)</div>
+              <div class="signature-line"></div>
+              <div style="text-align: center; font-size: 10pt; margin-top: 0.1cm;">(дата, підпис)</div>
+            </div>
           </div>
         </div>
 
