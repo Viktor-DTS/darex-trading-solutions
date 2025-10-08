@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import ImageGalleryWindow from '../components/ImageGalleryWindow';
 
-// Функція для відкриття галереї в новому вікні
+// Функція для відкриття галереї в новій вкладці
 export const openGalleryInNewWindow = (files, initialIndex = 0) => {
   // Фільтруємо тільки зображення
   const imageFiles = files.filter(file => 
@@ -14,26 +14,23 @@ export const openGalleryInNewWindow = (files, initialIndex = 0) => {
     return;
   }
 
-  // Створюємо нове вікно
-  const newWindow = window.open(
-    '',
-    'gallery-window',
-    'width=1200,height=800,scrollbars=yes,resizable=yes,menubar=no,toolbar=no,location=no,status=no'
-  );
+  // Створюємо нову вкладку
+  const newTab = window.open('', '_blank');
 
-  if (!newWindow) {
-    alert('Не вдалося відкрити нове вікно. Перевірте налаштування блокувальника спливаючих вікон.');
+  if (!newTab) {
+    alert('Не вдалося відкрити нову вкладку. Перевірте налаштування блокувальника спливаючих вікон.');
     return;
   }
 
-  // Налаштовуємо HTML структуру нового вікна
-  newWindow.document.write(`
+  // Налаштовуємо HTML структуру нової вкладки
+  newTab.document.write(`
     <!DOCTYPE html>
     <html lang="uk">
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Галерея зображень - Darex Trading Solutions</title>
+      <link rel="icon" type="image/x-icon" href="/favicon.ico">
       <style>
         * {
           margin: 0;
@@ -76,7 +73,6 @@ export const openGalleryInNewWindow = (files, initialIndex = 0) => {
           overflow: hidden;
           display: flex;
           flex-direction: column;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
         }
 
         /* Заголовок */
@@ -294,15 +290,15 @@ export const openGalleryInNewWindow = (files, initialIndex = 0) => {
     </html>
   `);
 
-  newWindow.document.close();
+  newTab.document.close();
 
   // Очікуємо завантаження DOM
-  newWindow.addEventListener('load', () => {
-    const rootElement = newWindow.document.getElementById('root');
+  newTab.addEventListener('load', () => {
+    const rootElement = newTab.document.getElementById('root');
     const root = createRoot(rootElement);
 
     const handleClose = () => {
-      newWindow.close();
+      newTab.close();
     };
 
     root.render(
@@ -314,8 +310,8 @@ export const openGalleryInNewWindow = (files, initialIndex = 0) => {
     );
   });
 
-  // Фокусуємося на новому вікні
-  newWindow.focus();
+  // Фокусуємося на новій вкладці
+  newTab.focus();
 
-  return newWindow;
+  return newTab;
 };
