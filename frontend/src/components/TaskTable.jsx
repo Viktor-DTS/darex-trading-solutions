@@ -1310,7 +1310,7 @@ function TaskTableComponent({
     `;
   };
 
-  // Функція для генерації шаблону Дарекс Енерго
+  // Функція для генерації шаблону Дарекс Енерго (2-сторінковий)
   const generateDarexEnergyTemplate = (workOrderData, workOrderNumber, workOrderDate, engineers) => {
     return `
       <!DOCTYPE html>
@@ -1328,6 +1328,18 @@ function TaskTableComponent({
             color: black;
             line-height: 1.4;
             font-size: 12px;
+          }
+          .page {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto 30px auto;
+            border: 1px solid #000;
+            padding: 20px;
+            min-height: 1000px;
+            page-break-after: always;
+          }
+          .page:last-child {
+            page-break-after: avoid;
           }
           .header {
             display: flex;
@@ -1413,6 +1425,26 @@ function TaskTableComponent({
             height: 40px;
             margin-bottom: 5px;
           }
+          .section-title {
+            font-weight: bold;
+            margin: 15px 0 10px 0;
+            font-size: 13px;
+          }
+          .complexity-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+            font-size: 10px;
+          }
+          .complexity-table th, .complexity-table td {
+            border: 1px solid #000;
+            padding: 3px;
+            text-align: left;
+          }
+          .complexity-table th {
+            background: #f0f0f0;
+            font-weight: bold;
+          }
           .no-print {
             display: none;
           }
@@ -1428,239 +1460,318 @@ function TaskTableComponent({
         </style>
       </head>
       <body>
-        <div class="header">
-          <div class="logo">
-            <div class="logo-text">DAREX ENERGY<br>ТОВ «ДАРЕКС-ЕНЕРГО»<br>НЕЗАЛЕЖНЕ ЕЛЕКТРОПОСТАЧАННЯ</div>
-          </div>
-          <div class="company-info">
-            Київ, вул. Сирецька, 9, офіс 234<br>
-            +38 (067) 561-75-44<br>
-            0 800 33-05-05<br>
-            office@darex.com.ua<br>
-            www.darex.com.ua<br>
-            ЄДРПОУ 39423347
-          </div>
-        </div>
-
-        <h1 class="work-order-title">Наряд на виконання робіт</h1>
-
-        <div class="form-row">
-          <span class="form-label">(№</span>
-          <span class="form-value">${workOrderNumber}</span>
-          <span class="form-label">від «</span>
-          <span class="form-value">${workOrderDate}</span>
-          <span class="form-label">» 202____ р.)</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">(до Договору №</span>
-          <span class="form-value">_______</span>
-          <span class="form-label">від «___» «___» 20____ р)</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">№ телефона,</span>
-          <span class="form-value">_______</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">Замовник:</span>
-          <span class="form-value">${workOrderData.client}</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">Адреса об'єкта:</span>
-          <span class="form-value">${workOrderData.address}</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">1. Найменування обладнання:</span>
-          <span class="form-value">${workOrderData.equipment}</span>
-          <span class="form-label">Зав. №</span>
-          <span class="form-value">${workOrderData.serialNumber}</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">2. Тип двигуна</span>
-          <span class="form-value">${workOrderData.engineModel}</span>
-          <span class="form-label">Зав. №</span>
-          <span class="form-value">${workOrderData.engineSerial}</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">3. Тип панелі керування:</span>
-          <span class="form-value">_______</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">4. Вид робіт (вибрати необхідне):</span>
-          <span class="form-value">гарантійний ремонт, ремонт, технічне обслуговування, інше, ПНР.</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">5. Технічний стан обладнання перед проведенням робіт:</span>
-          <span class="form-value">працездатне-непрацездатне.</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">6. Перелік виконаних робіт/послуг:</span>
-          <span class="form-value">${workOrderData.performedWork}</span>
-        </div>
-
-        <div class="two-column">
-          <div class="column">
-            <div class="form-row">
-              <span class="form-label">Відмітка про оплату:</span>
-              <span class="form-value">_______</span>
+        <!-- СТОРІНКА 1 -->
+        <div class="page">
+          <div class="header">
+            <div class="logo">
+              <div class="logo-text">DAREX ENERGY<br>ТОВ «ДАРЕКС-ЕНЕРГО»<br>НЕЗАЛЕЖНЕ ЕЛЕКТРОПОСТАЧАННЯ</div>
             </div>
-            <div class="form-row">
-              <span class="form-label">НАСТУПНЕ ТЕХНІЧНЕ ОБСЛУГОВУВАННЯ ПРОВЕСТИ ПРИ НАПРАЦЮВАННІ</span>
-              <span class="form-value">_______</span>
-              <span class="form-label">мотогодин, АБО «___» «___» 20____ РОКУ.</span>
+            <div class="company-info">
+              Київ, вул. Сирецька, 9, офіс 234<br>
+              +38 (067) 561-75-44<br>
+              0 800 33-05-05<br>
+              office@darex.com.ua<br>
+              www.darex.com.ua<br>
+              ЄДРПОУ 39423347
             </div>
           </div>
-          <div class="column">
-            <div class="form-row">
-              <span class="form-label">Дата та час початку робіт</span>
-              <span class="form-value">_______</span>
+
+          <h1 class="work-order-title">Наряд на виконання робіт</h1>
+
+          <div class="form-row">
+            <span class="form-label">(№</span>
+            <span class="form-value">${workOrderNumber}</span>
+            <span class="form-label">від «</span>
+            <span class="form-value">${workOrderDate}</span>
+            <span class="form-label">» 202____ р.)</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">(до Договору №</span>
+            <span class="form-value">_______</span>
+            <span class="form-label">від «___» «___» 20____ р)</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">№ телефона</span>
+            <span class="form-value">_______</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">Замовник:</span>
+            <span class="form-value">${workOrderData.client}</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">Адреса об'єкта:</span>
+            <span class="form-value">${workOrderData.address}</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">1. Найменування обладнання:</span>
+            <span class="form-value">${workOrderData.equipment}</span>
+            <span class="form-label">Зав. №</span>
+            <span class="form-value">${workOrderData.serialNumber}</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">2. Тип двигуна:</span>
+            <span class="form-value">${workOrderData.engineModel}</span>
+            <span class="form-label">Зав. №</span>
+            <span class="form-value">${workOrderData.engineSerial}</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">3. Тип панелі керування:</span>
+            <span class="form-value">_______</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">4. Вид робіт (вибрати необхідне):</span>
+            <span class="form-value">гарантійний ремонт, ремонт, технічне обслуговування, інше, ПНР.</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">5. Технічний стан обладнання перед проведенням робіт:</span>
+            <span class="form-value">працездатне-непрацездатне.</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">6. Перелік виконаних робіт/послуг:</span>
+          </div>
+          <div style="border: 1px solid #000; min-height: 100px; padding: 10px; margin: 10px 0;">
+            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
+            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
+            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
+            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
+            <div style="border-bottom: 1px solid #ccc; height: 20px;"></div>
+          </div>
+
+          <div class="two-column">
+            <div class="column">
+              <div class="form-row">
+                <span class="form-label">Відмітка про оплату:</span>
+                <span class="form-value">_______</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">НАСТУПНЕ ТЕХНІЧНЕ ОБСЛУГОВУВАННЯ ПРОВЕСТИ ПРИ НАПРАЦЮВАННІ</span>
+              </div>
+              <div class="form-row">
+                <span class="form-value">_______</span>
+                <span class="form-label">мотогодин, АБО «___» «___» 20____ РОКУ.</span>
+              </div>
             </div>
-            <div class="form-row">
-              <span class="form-label">Дата та час закінчення робіт</span>
-              <span class="form-value">_______</span>
+            <div class="column">
+              <div class="form-row">
+                <span class="form-label">Дата та час початку робіт:</span>
+                <span class="form-value">_______</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Дата та час закінчення робіт:</span>
+                <span class="form-value">_______</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Авто №:</span>
+                <span class="form-value">_______</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Переробка, год.:</span>
+                <span class="form-value">_______</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Фото зроблені, не зроблені</span>
+                <span class="form-value">_______</span>
+              </div>
             </div>
-            <div class="form-row">
-              <span class="form-label">Авто №:</span>
-              <span class="form-value">_______</span>
-            </div>
-            <div class="form-row">
-              <span class="form-label">Переробка, год.:</span>
-              <span class="form-value">_______</span>
-            </div>
-            <div class="form-row">
-              <span class="form-label">Фото зроблені, не зроблені</span>
-              <span class="form-value">_______</span>
-            </div>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">7. Після проведення робіт та випробувань, ДГУ знаходиться в робочому / неробочому стані, в режимі ручне / авто, напрацювання становить</span>
+            <span class="form-value">${workOrderData.operatingHours}</span>
+            <span class="form-label">мотогодин.</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">8. Навантаження:</span>
+            <span class="form-value">L1 _______ A. L2 _______ A. L3 _______ A. U1 _______ V. U2 _______ V. U3 _______ V.</span>
+          </div>
+
+          <div class="section-title">6.1. ПЕРЕЛІК МАТЕРІАЛІВ ТА ЗАПЧАСТИН, ВИКОРИСТАНИХ ПІД ЧАС РОБІТ:</div>
+          <table class="materials-table">
+            <thead>
+              <tr>
+                <th>№ п/п</th>
+                <th>Найменування</th>
+                <th>Один. виміру</th>
+                <th>Кількість</th>
+                <th>Вартість з ПДВ, грн</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>1</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>2</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>3</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>4</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>5</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>6</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>7</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>8</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>9</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>10</td><td></td><td></td><td></td><td></td></tr>
+            </tbody>
+          </table>
+
+          <div class="form-row">
+            <span class="form-label">Загальна вартість матеріалів та запчастин:</span>
+            <span class="form-value">${workOrderData.materialsCost}</span>
+            <span class="form-label">грн.</span>
+          </div>
+
+          <div class="section-title">6.2 Вартість ремонту робіт, Коефіцієнт складності*:</div>
+          <div class="form-row">
+            <span class="form-label">Діагностика:</span>
+            <span class="form-value">_______</span>
+            <span class="form-label">грн</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">Вартість технічного обслуговування:</span>
+            <span class="form-value">_______</span>
+            <span class="form-label">грн.</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">Вартість ремонту (людино-година 1200 грн.):</span>
+            <span class="form-value">${workOrderData.repairCost}</span>
+            <span class="form-label">грн.</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">Вартість пусконалагоджувальних робіт:</span>
+            <span class="form-value">_______</span>
+            <span class="form-label">грн.</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">Загальна вартість з урахуванням коефіцієнта складності:</span>
+            <span class="form-value">_______</span>
+            <span class="form-label">грн.</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">6.3 Виїзд на об'єкт Замовника: тариф: по місту 600.00 грн.</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">Виїзд за місто</span>
+            <span class="form-value">_______</span>
+            <span class="form-label">км * 15,00 грн/км;</span>
+            <span class="form-label">разом</span>
+            <span class="form-value">${workOrderData.travelCost}</span>
+            <span class="form-label">грн.</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">6.4 Добові у відрядженні: 600.00 грн.</span>
+            <span class="form-value">_______</span>
+            <span class="form-label">люд.</span>
+            <span class="form-label">разом</span>
+            <span class="form-value">_______</span>
+            <span class="form-label">грн.</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">6.5 Проживання:</span>
+            <span class="form-value">_______</span>
+            <span class="form-label">грн.</span>
+            <span class="form-value">_______</span>
+            <span class="form-label">діб</span>
+            <span class="form-label">разом</span>
+            <span class="form-value">_______</span>
+            <span class="form-label">грн.</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">ЗАГАЛЬНА ВАРТІСТЬ РОБІТ З ПДВ (усього по п.6.1-6.5)</span>
+            <span class="form-value">${workOrderData.totalCost}</span>
+            <span class="form-label">грн.</span>
           </div>
         </div>
 
-        <div class="form-row">
-          <span class="form-label">7. Після проведення робіт та випробувань:</span>
-          <span class="form-value">ДГУ знаходиться в робочому / неробочому стані, в режимі ручне авто, напрацювання становить ${workOrderData.operatingHours} мотогодин</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">8. Навантаження:</span>
-          <span class="form-value">L1 _______ A. L2 _______ A. L3 _______ A. U1 _______ V. U2 _______ V. U3 _______ V.</span>
-        </div>
-
-        <h3>6.1. ПЕРЕЛІК МАТЕРІАЛІВ ТА ЗАПЧАСТИН, ВИКОРИСТАНИХ ПІД ЧАС РОБІТ</h3>
-        <table class="materials-table">
-          <thead>
-            <tr>
-              <th>№ п/п</th>
-              <th>Найменування</th>
-              <th>Один. виміру</th>
-              <th>Кількість</th>
-              <th>Вартість з ПДВ, грн</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td>1</td><td></td><td></td><td></td><td></td></tr>
-            <tr><td>2</td><td></td><td></td><td></td><td></td></tr>
-            <tr><td>3</td><td></td><td></td><td></td><td></td></tr>
-            <tr><td>4</td><td></td><td></td><td></td><td></td></tr>
-            <tr><td>5</td><td></td><td></td><td></td><td></td></tr>
-            <tr><td>6</td><td></td><td></td><td></td><td></td></tr>
-            <tr><td>7</td><td></td><td></td><td></td><td></td></tr>
-            <tr><td>8</td><td></td><td></td><td></td><td></td></tr>
-            <tr><td>9</td><td></td><td></td><td></td><td></td></tr>
-            <tr><td>10</td><td></td><td></td><td></td><td></td></tr>
-          </tbody>
-        </table>
-
-        <div class="form-row">
-          <span class="form-label">Загальна вартість матеріалів та запчастин:</span>
-          <span class="form-value">${workOrderData.materialsCost}</span>
-          <span class="form-label">грн.</span>
-        </div>
-
-        <h3>6.2 Вартість ремонту робіт, Коефіцієнт складності*:</h3>
-        <div class="form-row">
-          <span class="form-label">Діагностика:</span>
-          <span class="form-value">_______</span>
-          <span class="form-label">грн</span>
-        </div>
-        <div class="form-row">
-          <span class="form-label">Вартість технічного обслуговування:</span>
-          <span class="form-value">_______</span>
-          <span class="form-label">грн.</span>
-        </div>
-        <div class="form-row">
-          <span class="form-label">Вартість ремонту (людино-година 1200 грн.):</span>
-          <span class="form-value">${workOrderData.repairCost}</span>
-          <span class="form-label">грн.</span>
-        </div>
-        <div class="form-row">
-          <span class="form-label">Вартість пусконалагоджувальних робіт:</span>
-          <span class="form-value">_______</span>
-          <span class="form-label">грн.</span>
-        </div>
-        <div class="form-row">
-          <span class="form-label">Загальна вартість з урахуванням коефіцієнта складності:</span>
-          <span class="form-value">_______</span>
-          <span class="form-label">грн.</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">6.3 Виїзд на об'єкт Замовника: тариф: по місту 600.00 грн.</span>
-        </div>
-        <div class="form-row">
-          <span class="form-label">Виїзд за місто</span>
-          <span class="form-value">_______</span>
-          <span class="form-label">км * 15,00 грн/км;</span>
-          <span class="form-label">разом</span>
-          <span class="form-value">${workOrderData.travelCost}</span>
-          <span class="form-label">грн.</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">6.4 Добові у відрядженні: 600.00 грн.</span>
-          <span class="form-value">_______</span>
-          <span class="form-label">люд.</span>
-          <span class="form-label">разом</span>
-          <span class="form-value">_______</span>
-          <span class="form-label">грн.</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">6.5 Проживання:</span>
-          <span class="form-value">_______</span>
-          <span class="form-label">грн.</span>
-          <span class="form-value">_______</span>
-          <span class="form-label">діб</span>
-          <span class="form-label">разом</span>
-          <span class="form-value">_______</span>
-          <span class="form-label">грн.</span>
-        </div>
-
-        <div class="form-row">
-          <span class="form-label">ЗАГАЛЬНА ВАРТІСТЬ РОБІТ з ПДВ (усього по пп.6.1- 6.5)</span>
-          <span class="form-value">${workOrderData.totalCost}</span>
-          <span class="form-label">грн.</span>
-        </div>
-
-        <div class="signature-section">
-          <div class="signature-box">
-            <div class="signature-line"></div>
-            <div>Роботи виконав: ${engineers}</div>
+        <!-- СТОРІНКА 2 -->
+        <div class="page">
+          <div class="section-title">Рекомендації виконувача робіт:</div>
+          <div style="border: 1px solid #000; min-height: 100px; padding: 10px; margin: 10px 0;">
+            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
+            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
+            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
+            <div style="border-bottom: 1px solid #ccc; height: 20px; margin-bottom: 5px;"></div>
+            <div style="border-bottom: 1px solid #ccc; height: 20px;"></div>
           </div>
-          <div class="signature-box">
-            <div class="signature-line"></div>
-            <div>РОБОТУ ПРИЙНЯВ: (ПІБ Виконавця або його представника) (дата, підпис)</div>
+
+          <div class="signature-section">
+            <div class="signature-box">
+              <div class="signature-line"></div>
+              <div>Роботи виконав: ${engineers}</div>
+            </div>
+            <div class="signature-box">
+              <div class="signature-line"></div>
+              <div>РОБОТУ ПРИЙНЯВ: (ПІБ Замовника або його представника) (дата, підпис)</div>
+            </div>
+            <div class="signature-box">
+              <div class="signature-line"></div>
+              <div>РОБОТУ ЗДАВ: (дата, підпис)</div>
+            </div>
           </div>
-          <div class="signature-box">
-            <div class="signature-line"></div>
-            <div>РОБОТУ ЗДАВ: (дата, підпис)</div>
+
+          <div style="margin-top: 30px; font-size: 10px;">
+            <div class="section-title">*Коефіцієнт складності робіт</div>
+            <table class="complexity-table">
+              <tr>
+                <th>Умови робіт</th>
+                <th>Коефіцієнт</th>
+              </tr>
+              <tr>
+                <td>Комфортних умов</td>
+                <td>1,0</td>
+              </tr>
+              <tr>
+                <td>Висока температура (понад +35°С)</td>
+                <td>1,2</td>
+              </tr>
+              <tr>
+                <td>Низька температура (нижче -10°С)</td>
+                <td>1,2</td>
+              </tr>
+              <tr>
+                <td>Висока вологість (понад 80%)</td>
+                <td>1,2</td>
+              </tr>
+              <tr>
+                <td>Пилові умови</td>
+                <td>1,3</td>
+              </tr>
+              <tr>
+                <td>Вібрація</td>
+                <td>1,3</td>
+              </tr>
+              <tr>
+                <td>Обмежений простір</td>
+                <td>1,4</td>
+              </tr>
+              <tr>
+                <td>Висота (понад 3м)</td>
+                <td>1,4</td>
+              </tr>
+              <tr>
+                <td>Нічний час (22:00-06:00)</td>
+                <td>1,5</td>
+              </tr>
+              <tr>
+                <td>Вихідні та святкові дні</td>
+                <td>1,5</td>
+              </tr>
+              <tr>
+                <td>Терміновий виклик</td>
+                <td>2,0</td>
+              </tr>
+            </table>
+            <p style="margin-top: 10px; font-style: italic;">* коефіцієнт може бути сумований.</p>
           </div>
         </div>
 
