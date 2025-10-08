@@ -4551,34 +4551,71 @@ ${message}
           return false;
       }
       
-      // Використовуємо стару систему GlobalNotificationSettings (як для заявок)
+      // Спочатку пробуємо нову систему налаштувань
       console.log(`[DEBUG] sendNotification - починаємо пошук налаштувань для типу: ${type}`);
       
-      const globalSettings = await GlobalNotificationSettings.findOne();
-      console.log(`[DEBUG] sendNotification - globalSettings знайдено:`, !!globalSettings);
+      let settingField = '';
+      switch (type) {
+        case 'invoice_requested':
+          settingField = 'notificationSettings.invoiceRequests';
+          break;
+        case 'invoice_completed':
+          settingField = 'notificationSettings.completedInvoices';
+          break;
+        default:
+          console.log(`[DEBUG] sendNotification - невідомий тип: ${type}`);
+          return false;
+      }
+      
+      console.log(`[DEBUG] sendNotification - settingField: ${settingField}`);
       
       const chatIds = [];
       
-      if (globalSettings?.settings?.[type]) {
-        const userIds = globalSettings.settings[type];
-        console.log(`[DEBUG] sendNotification - userIds для ${type}:`, userIds);
+      // Знаходимо користувачів з новими налаштуваннями
+      const usersWithNewSettings = await User.find({ 
+        [settingField]: true,
+        telegramChatId: { $exists: true, $ne: '' }
+      });
+      
+      console.log(`[DEBUG] sendNotification - знайдено ${usersWithNewSettings.length} користувачів з новими налаштуваннями`);
+      
+      if (usersWithNewSettings.length > 0) {
+        // Для сповіщень про рахунки не фільтруємо по регіону
+        const userChatIds = usersWithNewSettings
+          .filter(user => user.telegramChatId && user.telegramChatId.trim())
+          .map(user => user.telegramChatId);
+        chatIds.push(...userChatIds);
         
-        if (userIds && userIds.length > 0) {
-          const users = await User.find({ login: { $in: userIds } });
-          console.log(`[DEBUG] sendNotification - знайдено користувачів:`, users.map(u => ({ login: u.login, telegramChatId: u.telegramChatId })));
-          
-          const userChatIds = users
-            .filter(user => user.telegramChatId && user.telegramChatId.trim())
-            .map(user => user.telegramChatId);
-          chatIds.push(...userChatIds);
-          
-          console.log(`[DEBUG] sendNotification - відфільтровані chatIds:`, userChatIds);
-        } else {
-          console.log(`[DEBUG] sendNotification - userIds порожні або відсутні`);
-        }
+        console.log(`[DEBUG] sendNotification - chatIds з нових налаштувань:`, chatIds);
       } else {
-        console.log(`[DEBUG] sendNotification - налаштування для ${type} не знайдено в globalSettings`);
-        console.log(`[DEBUG] sendNotification - доступні типи:`, Object.keys(globalSettings?.settings || {}));
+        // Fallback до старої системи
+        console.log(`[DEBUG] sendNotification - використовуємо стару систему для типу ${type}`);
+        
+        const globalSettings = await GlobalNotificationSettings.findOne();
+        console.log(`[DEBUG] sendNotification - globalSettings знайдено:`, !!globalSettings);
+        
+        if (globalSettings?.settings?.[type]) {
+          const userIds = globalSettings.settings[type];
+          console.log(`[DEBUG] sendNotification - userIds для ${type}:`, userIds);
+          
+          if (userIds && userIds.length > 0) {
+            const users = await User.find({ login: { $in: userIds } });
+            console.log(`[DEBUG] sendNotification - знайдено користувачів:`, users.map(u => ({ login: u.login, telegramChatId: u.telegramChatId, region: u.region })));
+            
+            // Для сповіщень про рахунки не фільтруємо по регіону
+            const userChatIds = users
+              .filter(user => user.telegramChatId && user.telegramChatId.trim())
+              .map(user => user.telegramChatId);
+            chatIds.push(...userChatIds);
+            
+            console.log(`[DEBUG] sendNotification - відфільтровані chatIds:`, userChatIds);
+          } else {
+            console.log(`[DEBUG] sendNotification - userIds порожні або відсутні`);
+          }
+        } else {
+          console.log(`[DEBUG] sendNotification - налаштування для ${type} не знайдено в globalSettings`);
+          console.log(`[DEBUG] sendNotification - доступні типи:`, Object.keys(globalSettings?.settings || {}));
+        }
       }
       
       console.log(`[DEBUG] sendNotification - підсумок: знайдено ${chatIds.length} chatIds для типу ${type}`);
@@ -5286,7 +5323,48 @@ app.post('/api/telegram/webhook', async (req, res) => {
   }
 });
 
-
+// Endpoint для перевірки налаштувань конкретного користувача
+app.get('/api/notification-settings/user/:login', async (req, res) => {
+  try {
+    const { login } = req.params;
+    console.log(`[DEBUG] GET /api/notification-settings/user/${login} - перевірка налаштувань користувача`);
+    
+    const user = await User.findOne({ login });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: `Користувач ${login} не знайдено`
+      });
+    }
+    
+    const debugInfo = {
+      login: user.login,
+      role: user.role,
+      region: user.region,
+      telegramChatId: user.telegramChatId,
+      notificationSettings: user.notificationSettings,
+      hasTelegramChatId: !!(user.telegramChatId && user.telegramChatId.trim())
+    };
+    
+    // Перевіряємо налаштування для сповіщень про рахунки
+    const invoiceSettings = {
+      invoiceRequests: user.notificationSettings?.invoiceRequests || false,
+      completedInvoices: user.notificationSettings?.completedInvoices || false
+    };
+    
+    res.json({
+      success: true,
+      user: debugInfo,
+      invoiceSettings,
+      message: `Налаштування користувача ${login}`
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] GET /api/notification-settings/user/:login - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Тестовий endpoint для перевірки налаштувань сповіщень
 app.get('/api/notification-settings/debug', async (req, res) => {
