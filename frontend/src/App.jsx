@@ -1169,10 +1169,9 @@ function ServiceArea({ user }) {
   const pending = useMemo(() => filtered.filter(t => t.status === 'Виконано' && (
     isPending(t.approvedByWarehouse) ||
     isPending(t.approvedByAccountant) ||
-    isPending(t.approvedByRegionalManager) ||
     isRejected(t.approvedByWarehouse) ||
     isRejected(t.approvedByAccountant) ||
-    isRejected(t.approvedByRegionalManager)
+    (isApproved(t.approvedByWarehouse) && isPending(t.approvedByAccountant))
   )), [filtered]);
   const done = useMemo(() => filtered.filter(t => t.status === 'Виконано' && 
     isApproved(t.approvedByWarehouse) && 
