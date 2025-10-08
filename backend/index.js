@@ -4580,13 +4580,48 @@ ${message}
       console.log(`[DEBUG] sendNotification - знайдено ${usersWithNewSettings.length} користувачів з новими налаштуваннями`);
       
       if (usersWithNewSettings.length > 0) {
-        // Для сповіщень про рахунки не фільтруємо по регіону
-        const userChatIds = usersWithNewSettings
+        // Для сповіщень про рахунки потрібно знайти відповідну заявку для фільтрації по регіону
+        let filteredUsers = usersWithNewSettings;
+        
+        if (type === 'invoice_completed' || type === 'invoice_requested') {
+          // Знаходимо заявку для фільтрації по регіону
+          if (data.taskId) {
+            try {
+              const task = await Task.findOne({ _id: data.taskId });
+              if (task && task.serviceRegion) {
+                console.log(`[DEBUG] sendNotification - знайдено заявку з регіоном: ${task.serviceRegion}`);
+                
+                // Фільтруємо користувачів по регіону заявки
+                filteredUsers = usersWithNewSettings.filter(user => {
+                  // Користувачі з регіоном "Україна" отримують всі сповіщення
+                  if (user.region === 'Україна') {
+                    console.log(`[DEBUG] sendNotification - користувач ${user.login} (регіон: ${user.region}) - отримує сповіщення (Україна)`);
+                    return true;
+                  }
+                  
+                  // Користувачі отримують сповіщення тільки зі свого регіону
+                  const shouldReceive = user.region === task.serviceRegion;
+                  console.log(`[DEBUG] sendNotification - користувач ${user.login} (регіон: ${user.region}) - ${shouldReceive ? 'отримує' : 'НЕ отримує'} сповіщення (регіон заявки: ${task.serviceRegion})`);
+                  return shouldReceive;
+                });
+              } else {
+                console.log(`[DEBUG] sendNotification - заявка не знайдена або без регіону, відправляємо всім`);
+              }
+            } catch (error) {
+              console.error(`[ERROR] sendNotification - помилка пошуку заявки:`, error);
+              // У разі помилки відправляємо всім
+            }
+          } else {
+            console.log(`[DEBUG] sendNotification - taskId відсутній, відправляємо всім`);
+          }
+        }
+        
+        const userChatIds = filteredUsers
           .filter(user => user.telegramChatId && user.telegramChatId.trim())
           .map(user => user.telegramChatId);
         chatIds.push(...userChatIds);
         
-        console.log(`[DEBUG] sendNotification - chatIds з нових налаштувань:`, chatIds);
+        console.log(`[DEBUG] sendNotification - chatIds з нових налаштувань (після фільтрації):`, chatIds);
       } else {
         // Fallback до старої системи
         console.log(`[DEBUG] sendNotification - використовуємо стару систему для типу ${type}`);
@@ -4602,8 +4637,43 @@ ${message}
             const users = await User.find({ login: { $in: userIds } });
             console.log(`[DEBUG] sendNotification - знайдено користувачів:`, users.map(u => ({ login: u.login, telegramChatId: u.telegramChatId, region: u.region })));
             
-            // Для сповіщень про рахунки не фільтруємо по регіону
-            const userChatIds = users
+            // Для сповіщень про рахунки також фільтруємо по регіону
+            let filteredUsers = users;
+            
+            if (type === 'invoice_completed' || type === 'invoice_requested') {
+              // Знаходимо заявку для фільтрації по регіону
+              if (data.taskId) {
+                try {
+                  const task = await Task.findOne({ _id: data.taskId });
+                  if (task && task.serviceRegion) {
+                    console.log(`[DEBUG] sendNotification (стара система) - знайдено заявку з регіоном: ${task.serviceRegion}`);
+                    
+                    // Фільтруємо користувачів по регіону заявки
+                    filteredUsers = users.filter(user => {
+                      // Користувачі з регіоном "Україна" отримують всі сповіщення
+                      if (user.region === 'Україна') {
+                        console.log(`[DEBUG] sendNotification (стара система) - користувач ${user.login} (регіон: ${user.region}) - отримує сповіщення (Україна)`);
+                        return true;
+                      }
+                      
+                      // Користувачі отримують сповіщення тільки зі свого регіону
+                      const shouldReceive = user.region === task.serviceRegion;
+                      console.log(`[DEBUG] sendNotification (стара система) - користувач ${user.login} (регіон: ${user.region}) - ${shouldReceive ? 'отримує' : 'НЕ отримує'} сповіщення (регіон заявки: ${task.serviceRegion})`);
+                      return shouldReceive;
+                    });
+                  } else {
+                    console.log(`[DEBUG] sendNotification (стара система) - заявка не знайдена або без регіону, відправляємо всім`);
+                  }
+                } catch (error) {
+                  console.error(`[ERROR] sendNotification (стара система) - помилка пошуку заявки:`, error);
+                  // У разі помилки відправляємо всім
+                }
+              } else {
+                console.log(`[DEBUG] sendNotification (стара система) - taskId відсутній, відправляємо всім`);
+              }
+            }
+            
+            const userChatIds = filteredUsers
               .filter(user => user.telegramChatId && user.telegramChatId.trim())
               .map(user => user.telegramChatId);
             chatIds.push(...userChatIds);
