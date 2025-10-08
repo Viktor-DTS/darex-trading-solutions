@@ -565,6 +565,19 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   // --- Додаємо обробник для select з відмовою ---
   const handleChange = e => {
     const { name, value, type, checked } = e.target;
+    
+    // Автоматичне заповнення поля "Номер рахунку" при виборі "Готівка"
+    if (name === 'paymentType') {
+      if (value === 'Готівка') {
+        setForm({ ...form, [name]: value, invoice: 'Не потребує, інша форма оплати' });
+        return;
+      } else if (form.paymentType === 'Готівка' && value !== 'Готівка') {
+        // Очищаємо поле "Номер рахунку" якщо змінюємо з "Готівка" на інший вид оплати
+        setForm({ ...form, [name]: value, invoice: '' });
+        return;
+      }
+    }
+    
     // Спеціальна обробка для поля обладнання
     if (name === 'equipment') {
       setForm({ ...form, [name]: value });
