@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { processFileForUpload } from '../utils/pdfConverter';
-import ImageGallery from './ImageGallery';
+import { openGalleryInNewWindow } from '../utils/galleryWindow';
 import './FileUpload.css';
 const FileUpload = ({ taskId, onFilesUploaded }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -9,8 +9,6 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [galleryOpen, setGalleryOpen] = useState(false);
-  const [galleryIndex, setGalleryIndex] = useState(0);
   const API_URL = process.env.REACT_APP_API_URL || 'https://darex-trading-solutions.onrender.com';
   // Завантаження існуючих файлів
   useEffect(() => {
@@ -90,8 +88,8 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       const imageIndex = imageFiles.findIndex(f => f.id === file.id);
       
       if (imageIndex !== -1) {
-        setGalleryIndex(imageIndex);
-        setGalleryOpen(true);
+        // Відкриваємо галерею в новому вікні
+        openGalleryInNewWindow(uploadedFiles, imageIndex);
       }
     } else {
       // Для не-зображень відкриваємо в новій вкладці
@@ -223,10 +221,9 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                setGalleryIndex(0);
-                setGalleryOpen(true);
+                openGalleryInNewWindow(uploadedFiles, 0);
               }}
-              title="Відкрити галерею зображень"
+              title="Відкрити галерею зображень в новому вікні"
             >
               🖼️ Галерея ({uploadedFiles.filter(f => f.mimetype && f.mimetype.startsWith('image/')).length})
             </button>
@@ -291,14 +288,6 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
           </div>
         )}
       </div>
-      
-      {/* Галерея зображень */}
-      <ImageGallery
-        files={uploadedFiles}
-        isOpen={galleryOpen}
-        onClose={() => setGalleryOpen(false)}
-        initialIndex={galleryIndex}
-      />
     </div>
   );
 };
