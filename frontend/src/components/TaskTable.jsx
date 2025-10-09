@@ -1357,6 +1357,9 @@ function TaskTableComponent({
             max-width: 100%;
             height: auto;
             margin-bottom: 10px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
           }
           
           .title {
@@ -1574,21 +1577,7 @@ function TaskTableComponent({
         <!-- Перша сторінка -->
         <div class="page">
           <div class="header">
-            <div style="text-align: center; margin-bottom: 15px;">
-              <div style="font-size: 16pt; font-weight: bold; color: #0066cc; margin-bottom: 5px;">DAREX ENERGY</div>
-              <div style="font-size: 12pt; font-weight: bold; margin-bottom: 3px;">ТОВ «ДАРЕКС-ЕНЕРГО»</div>
-              <div style="font-size: 10pt; margin-bottom: 3px;">НЕЗАЛЕЖНЕ ЕЛЕКТРОПОСТАЧАННЯ</div>
-              <div style="font-size: 10pt; margin-bottom: 3px;">www.darex.com.ua</div>
-              <div style="font-size: 10pt; margin-bottom: 10px;">0 800 33-05-05</div>
-            </div>
-            <div style="text-align: right; font-size: 9pt; line-height: 1.2;">
-              <div style="font-weight: bold;">ЮРИДИЧНА АДРЕСА:</div>
-              <div>Київ, вул. Сирецька, 9, офіс 234</div>
-              <div>тел.: (044) 221-77-77</div>
-              <div>моб.: (067) 221-77-77</div>
-              <div>e-mail: office@darex.com</div>
-              <div style="font-weight: bold;">ЄДРПОУ 39423347</div>
-            </div>
+            <img src="/header.png" alt="Шапка Дарекс Енерго" class="header-image" style="width: 100%; max-width: 680px; height: auto;" />
           </div>
           
           <div class="title">НАРЯД НА ВИКОНАННЯ РОБІТ</div>
