@@ -4456,8 +4456,12 @@ app.get('/api/test/users-debug', async (req, res) => {
       }
     });
     
-    // Користувачі з system_notifications
-    const usersWithSystemNotifications = await User.find({
+    // Тестуємо конвертацію
+    const type = 'system_notifications';
+    const camelCaseType = type.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
+    
+    // Користувачі з system_notifications (snake_case)
+    const usersWithSystemNotificationsSnake = await User.find({
       telegramChatId: { 
         $exists: true, 
         $ne: null, 
@@ -4467,27 +4471,59 @@ app.get('/api/test/users-debug', async (req, res) => {
       'notificationSettings.system_notifications': true
     });
     
+    // Користувачі з systemNotifications (camelCase)
+    const usersWithSystemNotificationsCamel = await User.find({
+      telegramChatId: { 
+        $exists: true, 
+        $ne: null, 
+        $ne: '', 
+        $ne: 'Chat ID' 
+      },
+      [`notificationSettings.${camelCaseType}`]: true
+    });
+    
     res.json({
+      conversion: {
+        original: type,
+        camelCase: camelCaseType
+      },
       allUsersWithTelegram: allUsersWithTelegram.map(u => ({
         login: u.login,
         name: u.name,
         telegramChatId: u.telegramChatId,
         notificationSettings: u.notificationSettings
       })),
-      usersWithSystemNotifications: usersWithSystemNotifications.map(u => ({
+      usersWithSystemNotificationsSnake: usersWithSystemNotificationsSnake.map(u => ({
         login: u.login,
         name: u.name,
         telegramChatId: u.telegramChatId,
         notificationSettings: u.notificationSettings
       })),
-      query: {
-        telegramChatId: { 
-          $exists: true, 
-          $ne: null, 
-          $ne: '', 
-          $ne: 'Chat ID' 
+      usersWithSystemNotificationsCamel: usersWithSystemNotificationsCamel.map(u => ({
+        login: u.login,
+        name: u.name,
+        telegramChatId: u.telegramChatId,
+        notificationSettings: u.notificationSettings
+      })),
+      queries: {
+        snake_case: {
+          telegramChatId: { 
+            $exists: true, 
+            $ne: null, 
+            $ne: '', 
+            $ne: 'Chat ID' 
+          },
+          'notificationSettings.system_notifications': true
         },
-        'notificationSettings.system_notifications': true
+        camelCase: {
+          telegramChatId: { 
+            $exists: true, 
+            $ne: null, 
+            $ne: '', 
+            $ne: 'Chat ID' 
+          },
+          [`notificationSettings.${camelCaseType}`]: true
+        }
       }
     });
     
