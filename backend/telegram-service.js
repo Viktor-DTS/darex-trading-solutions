@@ -116,8 +116,12 @@ class TelegramNotificationService {
       // Отримуємо користувачів з увімкненими налаштуваннями
       const User = mongoose.model('User');
       const query = {
-        telegramChatId: { $exists: true, $ne: null, $ne: '' },
-        telegramChatId: { $ne: 'Chat ID' }
+        telegramChatId: { 
+          $exists: true, 
+          $ne: null, 
+          $ne: '', 
+          $ne: 'Chat ID' 
+        }
       };
       
       // Додаємо умову для конкретного типу сповіщень
