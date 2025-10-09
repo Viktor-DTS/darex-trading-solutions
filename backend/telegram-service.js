@@ -1,17 +1,7 @@
 const mongoose = require('mongoose');
 
-// Схема для логування сповіщень
-const notificationLogSchema = new mongoose.Schema({
-  type: String,
-  taskId: String,
-  userId: String,
-  message: String,
-  telegramChatId: String,
-  status: String,
-  timestamp: { type: Date, default: Date.now }
-});
-
-const NotificationLog = mongoose.model('NotificationLog', notificationLogSchema);
+// Імпортуємо модель NotificationLog з основного файлу
+const NotificationLog = mongoose.model('NotificationLog');
 
 class TelegramNotificationService {
   constructor() {
