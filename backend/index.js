@@ -3285,7 +3285,7 @@ app.post('/api/notifications/send-system-message', async (req, res) => {
     
   } catch (error) {
     console.error('[ERROR] POST /api/notifications/send-system-message - помилка:', error);
-    res.status(500).json({ 
+    res.json({ 
       success: false, 
       message: 'Помилка при відправці системного повідомлення',
       error: error.message 
@@ -4405,6 +4405,37 @@ app.post('/api/notifications/send-system-message-alt', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: 'Помилка при відправці системного повідомлення',
+      error: error.message 
+    });
+  }
+});
+
+// Простий тестовий endpoint для перевірки основного
+app.post('/api/test/main-endpoint', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/test/main-endpoint - тестуємо основний endpoint');
+    const { message, type } = req.body;
+    
+    if (!message || !type) {
+      return res.status(400).json({ error: 'message and type are required' });
+    }
+    
+    // Викликаємо той самий код що і в основному endpoint'і
+    const success = await telegramService.sendNotification('system_notifications', { 
+      message: message 
+    });
+    
+    res.json({ 
+      success: success, 
+      message: success ? 'Main endpoint logic works!' : 'Main endpoint logic failed - no users with notifications enabled',
+      receivedMessage: message
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] POST /api/test/main-endpoint - помилка:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Main endpoint logic error',
       error: error.message 
     });
   }
