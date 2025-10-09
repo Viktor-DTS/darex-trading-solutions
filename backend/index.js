@@ -4532,6 +4532,39 @@ app.get('/api/test/users-debug', async (req, res) => {
   }
 });
 
+// Тестовий endpoint для перевірки структури заявки
+app.get('/api/test/task-structure/:taskId', async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const Task = mongoose.model('Task');
+    
+    const task = await Task.findById(taskId);
+    
+    if (!task) {
+      return res.status(404).json({ error: 'Заявка не знайдена' });
+    }
+    
+    res.json({
+      taskId: taskId,
+      taskData: task,
+      taskFields: Object.keys(task.toObject()),
+      descriptionFields: {
+        description: task.description,
+        workType: task.workType,
+        workDescription: task.workDescription,
+        taskDescription: task.taskDescription,
+        requestDescription: task.requestDescription,
+        details: task.details,
+        comment: task.comment,
+        notes: task.notes
+      }
+    });
+    
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Test endpoint для перевірки notificationSettings
 app.get('/api/test/notification-settings/:login', async (req, res) => {
   try {
