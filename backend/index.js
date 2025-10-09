@@ -4441,6 +4441,61 @@ app.post('/api/test/main-endpoint', async (req, res) => {
   }
 });
 
+// Тестовий endpoint для перевірки користувачів
+app.get('/api/test/users-debug', async (req, res) => {
+  try {
+    const User = mongoose.model('User');
+    
+    // Всі користувачі з Telegram
+    const allUsersWithTelegram = await User.find({
+      telegramChatId: { 
+        $exists: true, 
+        $ne: null, 
+        $ne: '', 
+        $ne: 'Chat ID' 
+      }
+    });
+    
+    // Користувачі з system_notifications
+    const usersWithSystemNotifications = await User.find({
+      telegramChatId: { 
+        $exists: true, 
+        $ne: null, 
+        $ne: '', 
+        $ne: 'Chat ID' 
+      },
+      'notificationSettings.system_notifications': true
+    });
+    
+    res.json({
+      allUsersWithTelegram: allUsersWithTelegram.map(u => ({
+        login: u.login,
+        name: u.name,
+        telegramChatId: u.telegramChatId,
+        notificationSettings: u.notificationSettings
+      })),
+      usersWithSystemNotifications: usersWithSystemNotifications.map(u => ({
+        login: u.login,
+        name: u.name,
+        telegramChatId: u.telegramChatId,
+        notificationSettings: u.notificationSettings
+      })),
+      query: {
+        telegramChatId: { 
+          $exists: true, 
+          $ne: null, 
+          $ne: '', 
+          $ne: 'Chat ID' 
+        },
+        'notificationSettings.system_notifications': true
+      }
+    });
+    
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Test endpoint для перевірки notificationSettings
 app.get('/api/test/notification-settings/:login', async (req, res) => {
   try {
