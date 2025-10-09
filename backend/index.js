@@ -3419,12 +3419,14 @@ app.post('/api/invoice-requests', async (req, res) => {
       console.log('[DEBUG] POST /api/invoice-requests - відправляємо сповіщення через систему налаштувань');
       
       // Використовуємо систему сповіщень для запитів на рахунки
+      const user = req.user || { login: 'system', name: 'Система', role: 'system' };
       const notificationData = {
         companyName: companyDetails.companyName,
         edrpou: companyDetails.edrpou,
         requesterName: requesterName,
         taskId: taskId,
-        requestNumber: requestNumber
+        requestNumber: requestNumber,
+        authorLogin: user.login // Додаємо автора дії
       };
       
       await telegramService.sendNotification('invoice_requested', notificationData);
@@ -3676,11 +3678,13 @@ app.put('/api/invoice-requests/:id', async (req, res) => {
     // Відправляємо сповіщення користувачу про зміну статусу
     if (status === 'completed') {
       try {
+        const user = req.user || { login: 'system', name: 'Система', role: 'system' };
         const telegramService = new TelegramNotificationService();
         await telegramService.sendNotification('invoice_completed', {
           taskId: request.taskId,
           requesterId: request.requesterId,
-          companyName: request.companyDetails.companyName
+          companyName: request.companyDetails.companyName,
+          authorLogin: user.login // Додаємо автора дії
         });
       } catch (notificationError) {
         console.error('Помилка відправки сповіщення:', notificationError);
@@ -3858,6 +3862,21 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
         console.error('[INVOICE] ❌ Помилка оновлення основного документа:', updateError);
         // Не зупиняємо виконання, просто логуємо помилку
       }
+    }
+    
+    // Відправляємо сповіщення про завершення рахунку
+    try {
+      const user = req.user || { login: 'system', name: 'Система', role: 'system' };
+      const telegramService = new TelegramNotificationService();
+      await telegramService.sendNotification('invoice_completed', {
+        taskId: updatedRequest.taskId,
+        requesterId: updatedRequest.requesterId,
+        companyName: updatedRequest.companyDetails.companyName,
+        authorLogin: user.login // Додаємо автора дії
+      });
+      console.log('[INVOICE] ✅ Сповіщення про завершення рахунку відправлено');
+    } catch (notificationError) {
+      console.error('[INVOICE] ❌ Помилка відправки сповіщення:', notificationError);
     }
     
     res.json({ 
@@ -4610,8 +4629,14 @@ ${message}
               if (task && task.serviceRegion) {
                 console.log(`[DEBUG] sendNotification - знайдено заявку з регіоном: ${task.serviceRegion}`);
                 
-                // Фільтруємо користувачів по регіону заявки
+                // Фільтруємо користувачів по регіону заявки та виключаємо автора дії
                 filteredUsers = usersWithNewSettings.filter(user => {
+                  // Виключаємо автора дії (якщо він є)
+                  if (data.authorLogin && user.login === data.authorLogin) {
+                    console.log(`[DEBUG] sendNotification - користувач ${user.login} - НЕ отримує сповіщення (автор дії)`);
+                    return false;
+                  }
+                  
                   // Користувачі з регіоном "Україна" отримують всі сповіщення
                   if (user.region === 'Україна') {
                     console.log(`[DEBUG] sendNotification - користувач ${user.login} (регіон: ${user.region}) - отримує сповіщення (Україна)`);
@@ -4624,7 +4649,17 @@ ${message}
                   return shouldReceive;
                 });
               } else {
-                console.log(`[DEBUG] sendNotification - заявка не знайдена або без регіону, відправляємо всім`);
+                console.log(`[DEBUG] sendNotification - заявка не знайдена або без регіону, відправляємо всім (крім автора)`);
+                // Виключаємо автора дії навіть якщо немає регіональної фільтрації
+                if (data.authorLogin) {
+                  filteredUsers = usersWithNewSettings.filter(user => {
+                    if (user.login === data.authorLogin) {
+                      console.log(`[DEBUG] sendNotification - користувач ${user.login} - НЕ отримує сповіщення (автор дії)`);
+                      return false;
+                    }
+                    return true;
+                  });
+                }
               }
             } catch (error) {
               console.error(`[ERROR] sendNotification - помилка пошуку заявки:`, error);
@@ -4674,8 +4709,14 @@ ${message}
                   if (task && task.serviceRegion) {
                     console.log(`[DEBUG] sendNotification (стара система) - знайдено заявку з регіоном: ${task.serviceRegion}`);
                     
-                    // Фільтруємо користувачів по регіону заявки
+                    // Фільтруємо користувачів по регіону заявки та виключаємо автора дії
                     filteredUsers = users.filter(user => {
+                      // Виключаємо автора дії (якщо він є)
+                      if (data.authorLogin && user.login === data.authorLogin) {
+                        console.log(`[DEBUG] sendNotification (стара система) - користувач ${user.login} - НЕ отримує сповіщення (автор дії)`);
+                        return false;
+                      }
+                      
                       // Користувачі з регіоном "Україна" отримують всі сповіщення
                       if (user.region === 'Україна') {
                         console.log(`[DEBUG] sendNotification (стара система) - користувач ${user.login} (регіон: ${user.region}) - отримує сповіщення (Україна)`);
@@ -4688,7 +4729,17 @@ ${message}
                       return shouldReceive;
                     });
                   } else {
-                    console.log(`[DEBUG] sendNotification (стара система) - заявка не знайдена або без регіону, відправляємо всім`);
+                    console.log(`[DEBUG] sendNotification (стара система) - заявка не знайдена або без регіону, відправляємо всім (крім автора)`);
+                    // Виключаємо автора дії навіть якщо немає регіональної фільтрації
+                    if (data.authorLogin) {
+                      filteredUsers = users.filter(user => {
+                        if (user.login === data.authorLogin) {
+                          console.log(`[DEBUG] sendNotification (стара система) - користувач ${user.login} - НЕ отримує сповіщення (автор дії)`);
+                          return false;
+                        }
+                        return true;
+                      });
+                    }
                   }
                 } catch (error) {
                   console.error(`[ERROR] sendNotification (стара система) - помилка пошуку заявки:`, error);
