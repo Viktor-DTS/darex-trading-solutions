@@ -11,14 +11,14 @@ const UserNotificationManager = ({ user }) => {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [messageSent, setMessageSent] = useState(false);
   const notificationTypes = [
-    { key: 'new_requests', label: 'Нові заявки', description: 'Коли оператор створює нову заявку' },
-    { key: 'pending_approval', label: 'Потребує підтвердження Завсклада', description: 'Коли заявка виконана потребує підтвердження Завсклада' },
-    { key: 'accountant_approval', label: 'Затвердження Бухгалтера', description: 'Коли заявка затверджена потребує затвердження Бухгалтера' },
-    { key: 'approved_requests', label: 'Підтверджені заявки', description: 'Коли заявка підтверджена' },
-    { key: 'rejected_requests', label: 'Відхилені заявки', description: 'Коли заявка відхилена' },
-    { key: 'invoice_requested', label: 'Запити на рахунки', description: 'Коли користувач подає запит на отримання рахунку' },
-    { key: 'invoice_completed', label: 'Виконані рахунки', description: 'Коли бухгалтер завантажив рахунок' },
-    { key: 'system_notifications', label: 'Системні сповіщення', description: 'Отримувати системні повідомлення від адміністратора' }
+    { key: 'newRequests', label: 'Нові заявки', description: 'Коли оператор створює нову заявку' },
+    { key: 'pendingApproval', label: 'Потребує підтвердження Завсклада', description: 'Коли заявка виконана потребує підтвердження Завсклада' },
+    { key: 'accountantApproval', label: 'Затвердження Бухгалтера', description: 'Коли заявка затверджена потребує затвердження Бухгалтера' },
+    { key: 'approvedRequests', label: 'Підтверджені заявки', description: 'Коли заявка підтверджена' },
+    { key: 'rejectedRequests', label: 'Відхилені заявки', description: 'Коли заявка відхилена' },
+    { key: 'invoiceRequests', label: 'Запити на рахунки', description: 'Коли користувач подає запит на отримання рахунку' },
+    { key: 'completedInvoices', label: 'Виконані рахунки', description: 'Коли бухгалтер завантажив рахунок' },
+    { key: 'systemNotifications', label: 'Системні сповіщення', description: 'Отримувати системні повідомлення від адміністратора' }
   ];
   // Завантаження користувачів
   useEffect(() => {
