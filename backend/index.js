@@ -4273,6 +4273,37 @@ app.post('/api/test/system-message', async (req, res) => {
   }
 });
 
+// Тестовий endpoint що викликає той самий код що і основний
+app.post('/api/test/system-message-full', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/test/system-message-full - тестовий endpoint з повною логікою');
+    console.log('[DEBUG] POST /api/test/system-message-full - body:', req.body);
+    
+    const { message, type } = req.body;
+    
+    if (!message || !type) {
+      return res.status(400).json({ error: 'message and type are required' });
+    }
+    
+    console.log('[DEBUG] POST /api/test/system-message-full - викликаємо telegramService.sendNotification');
+    const success = await telegramService.sendNotification('system_notifications', { 
+      message: message 
+    });
+    
+    console.log('[DEBUG] POST /api/test/system-message-full - результат sendNotification:', success);
+    
+    res.json({ 
+      success: success, 
+      message: success ? 'Test endpoint with full logic works!' : 'Test endpoint failed',
+      receivedMessage: message
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] POST /api/test/system-message-full - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Test endpoint для перевірки notificationSettings
 app.get('/api/test/notification-settings/:login', async (req, res) => {
   try {
