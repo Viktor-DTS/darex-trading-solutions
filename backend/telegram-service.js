@@ -125,10 +125,13 @@ class TelegramNotificationService {
       };
       
       // Додаємо умову для конкретного типу сповіщень
-      query[`notificationSettings.${type}`] = true;
+      // Конвертуємо snake_case в camelCase
+      const camelCaseType = type.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
+      query[`notificationSettings.${camelCaseType}`] = true;
       
       console.log(`[TelegramService] getChatIdsForNotification - тип сповіщення: ${type}`);
-      console.log(`[TelegramService] getChatIdsForNotification - поле для пошуку: notificationSettings.${type}`);
+      console.log(`[TelegramService] getChatIdsForNotification - camelCase тип: ${camelCaseType}`);
+      console.log(`[TelegramService] getChatIdsForNotification - поле для пошуку: notificationSettings.${camelCaseType}`);
       console.log(`[TelegramService] getChatIdsForNotification - запит:`, JSON.stringify(query, null, 2));
       
       // Спочатку перевіримо всіх користувачів з telegramChatId
