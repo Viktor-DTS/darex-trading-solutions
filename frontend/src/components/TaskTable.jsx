@@ -1785,10 +1785,7 @@ function TaskTableComponent({
             <span class="field-label">Адреса об'єкта:</span>
             <span class="field-value">${workOrderData.address}</span>
           </div>
-        </div>
-        
-        <!-- Друга сторінка -->
-        <div class="page">
+          
           <div class="field">
             <span class="field-label">Відмітка про оплату:</span>
             <span class="field-value"></span>
