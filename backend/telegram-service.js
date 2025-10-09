@@ -127,9 +127,17 @@ class TelegramNotificationService {
       // Додаємо умову для конкретного типу сповіщень
       query[`notificationSettings.${type}`] = true;
       
+      console.log(`[TelegramService] getChatIdsForNotification - запит:`, JSON.stringify(query, null, 2));
+      
       const users = await User.find(query);
       
       console.log(`[TelegramService] getChatIdsForNotification - знайдено користувачів: ${users.length}`);
+      console.log(`[TelegramService] getChatIdsForNotification - користувачі:`, users.map(u => ({
+        login: u.login,
+        name: u.name,
+        telegramChatId: u.telegramChatId,
+        notificationSettings: u.notificationSettings
+      })));
       
       if (users.length === 0) {
         return [];
