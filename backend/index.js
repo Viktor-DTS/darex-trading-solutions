@@ -4233,8 +4233,44 @@ app.get('/api/test', (req, res) => {
     status: 'OK', 
     message: 'Backend server is working!',
     timestamp: new Date().toISOString(),
-    version: 'v5-test'
+    version: 'v6-debug'
   });
+});
+
+// Test endpoint для перевірки системних повідомлень
+app.get('/api/test/system-message', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'System message endpoint is accessible!',
+    timestamp: new Date().toISOString(),
+    telegramServiceExists: !!telegramService
+  });
+});
+
+// Простий тестовий endpoint для системних повідомлень
+app.post('/api/test/system-message', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/test/system-message - тестовий endpoint');
+    console.log('[DEBUG] POST /api/test/system-message - body:', req.body);
+    
+    const { message } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ error: 'message is required' });
+    }
+    
+    console.log('[DEBUG] POST /api/test/system-message - тестове повідомлення:', message);
+    
+    res.json({ 
+      success: true, 
+      message: 'Test endpoint works!',
+      receivedMessage: message
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] POST /api/test/system-message - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Test endpoint для перевірки notificationSettings
