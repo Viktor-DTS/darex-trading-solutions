@@ -4226,6 +4226,37 @@ app.post('/api/notification-settings/init', async (req, res) => {
   }
 });
 
+// Endpoint для оновлення налаштувань сповіщень конкретного користувача
+app.put('/api/notification-settings/user/:login', async (req, res) => {
+  try {
+    const { login } = req.params;
+    const { notificationSettings } = req.body;
+    
+    console.log(`[DEBUG] PUT /api/notification-settings/user/${login} - оновлення налаштувань`);
+    console.log(`[DEBUG] notificationSettings:`, notificationSettings);
+    
+    const user = await User.findOne({ login });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Користувач не знайдений' });
+    }
+    
+    user.notificationSettings = notificationSettings;
+    await user.save();
+    
+    console.log(`[DEBUG] Налаштування оновлено для користувача ${login}`);
+    
+    res.json({
+      success: true,
+      message: `Налаштування оновлено для користувача ${login}`
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] PUT /api/notification-settings/user/:login - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Telegram Notification Service - Нова спрощена система
 const TelegramNotificationService = require('./telegram-service.js');
 
