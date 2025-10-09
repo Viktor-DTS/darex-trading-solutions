@@ -1443,7 +1443,7 @@ function TaskTableComponent({
             width: 100%;
             border-collapse: collapse;
             margin: 0.5cm 0;
-            font-size: 10pt;
+            font-size: 9pt;
           }
           .materials-table th, .materials-table td {
             border: 1pt solid #000;
@@ -1694,18 +1694,28 @@ function TaskTableComponent({
                 <th>Один. виміру</th>
                 <th>Кількість</th>
                 <th>Ціна з ПДВ, грн</th>
+                <th>Вартість з ПДВ, грн</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td>1</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>2</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>3</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>4</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>5</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>6</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>7</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>1</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>2</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>3</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>4</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>5</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>6</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>7</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>8</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>9</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>10</td><td></td><td></td><td></td><td></td><td></td></tr>
             </tbody>
           </table>
+
+          <div class="form-row">
+            <span class="form-label">Загальна вартість матеріалів та запчастин:</span>
+            <span class="form-value">${workOrderData.materialsCost}</span>
+            <span class="form-label">грн.</span>
+          </div>
 
           <div class="section-title">6.2 Вартість ремонту/робіт, Коефіцієнт складності*:</div>
           <div class="form-row">
