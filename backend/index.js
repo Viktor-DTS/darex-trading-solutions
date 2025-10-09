@@ -4232,7 +4232,7 @@ app.put('/api/notification-settings/user/:login', async (req, res) => {
     const { login } = req.params;
     const { notificationSettings } = req.body;
     
-    console.log(`[DEBUG] PUT /api/notification-settings/user/${login} - оновлення налаштувань`);
+    console.log(`[DEBUG] PUT /api/notification-settings/user/${login} - оновлення налаштувань (v2)`);
     console.log(`[DEBUG] notificationSettings:`, notificationSettings);
     
     const user = await User.findOne({ login });
