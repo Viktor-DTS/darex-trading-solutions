@@ -1574,7 +1574,21 @@ function TaskTableComponent({
         <!-- Перша сторінка -->
         <div class="page">
           <div class="header">
-            <img src="file:///C:/dts-service/Шапка Дарекс Енерго.png" alt="Шапка Дарекс Енерго" class="header-image" />
+            <div style="text-align: center; margin-bottom: 15px;">
+              <div style="font-size: 16pt; font-weight: bold; color: #0066cc; margin-bottom: 5px;">DAREX ENERGY</div>
+              <div style="font-size: 12pt; font-weight: bold; margin-bottom: 3px;">ТОВ «ДАРЕКС-ЕНЕРГО»</div>
+              <div style="font-size: 10pt; margin-bottom: 3px;">НЕЗАЛЕЖНЕ ЕЛЕКТРОПОСТАЧАННЯ</div>
+              <div style="font-size: 10pt; margin-bottom: 3px;">www.darex.com.ua</div>
+              <div style="font-size: 10pt; margin-bottom: 10px;">0 800 33-05-05</div>
+            </div>
+            <div style="text-align: right; font-size: 9pt; line-height: 1.2;">
+              <div style="font-weight: bold;">ЮРИДИЧНА АДРЕСА:</div>
+              <div>Київ, вул. Сирецька, 9, офіс 234</div>
+              <div>тел.: (044) 221-77-77</div>
+              <div>моб.: (067) 221-77-77</div>
+              <div>e-mail: office@darex.com</div>
+              <div style="font-weight: bold;">ЄДРПОУ 39423347</div>
+            </div>
           </div>
           
           <div class="title">НАРЯД НА ВИКОНАННЯ РОБІТ</div>
@@ -1590,7 +1604,22 @@ function TaskTableComponent({
           </div>
           
           <div class="field">
-            <span class="field-label">1. Найменування обладнання:</span>
+            <span class="field-label">1. Роботи виконує:</span>
+            <span class="field-value">${engineers}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">2. Замовник:</span>
+            <span class="field-value">${workOrderData.client}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">3. Адреса об'єкта:</span>
+            <span class="field-value">${workOrderData.address}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">4. Найменування обладнання:</span>
             <span class="field-value">${workOrderData.equipment}</span>
           </div>
           
@@ -1600,7 +1629,7 @@ function TaskTableComponent({
           </div>
           
           <div class="field">
-            <span class="field-label">2. Тип двигуна:</span>
+            <span class="field-label">5. Тип двигуна:</span>
             <span class="field-value">${workOrderData.engineModel}</span>
           </div>
           
@@ -1610,12 +1639,12 @@ function TaskTableComponent({
           </div>
           
           <div class="field">
-            <span class="field-label">3. Тип панелі керування:</span>
+            <span class="field-label">6. Тип панелі керування:</span>
             <span class="field-value"></span>
           </div>
           
           <div class="field">
-            <span class="field-label">4. Вид робіт:</span>
+            <span class="field-label">7. Вид робіт:</span>
             <div class="checkbox-group">
               <div class="checkbox-item">
                 <div class="checkbox"></div>
@@ -1641,7 +1670,7 @@ function TaskTableComponent({
           </div>
           
           <div class="field">
-            <span class="field-label">5. Технічний стан обладнання перед проведенням робіт:</span>
+            <span class="field-label">8. Технічний стан обладнання перед проведенням робіт:</span>
             <div class="checkbox-group">
               <div class="checkbox-item">
                 <div class="checkbox"></div>
@@ -1655,16 +1684,16 @@ function TaskTableComponent({
           </div>
           
           <div class="field">
-            <span class="field-label">6. Перелік виконаних робіт/послуг:</span>
+            <span class="field-label">9. Перелік виконаних робіт/послуг:</span>
           </div>
           <div class="text-area"></div>
           
           <div class="field">
-            <span class="field-label">7. Після проведення робіт та випробувань, ДГУ знаходиться в робочому / неробочому стані, в режимі ручне авто, напрацювання становить ____ мотогодин.</span>
+            <span class="field-label">10. Після проведення робіт та випробувань, ДГУ знаходиться в робочому / неробочому стані, в режимі ручне авто, напрацювання становить ____ мотогодин.</span>
           </div>
           
           <div class="field">
-            <span class="field-label">8. Навантаження: L1 ____, L2 ____, L3 ____, U1 ____, U2 ____, U3 ____, V.</span>
+            <span class="field-label">11. Навантаження: L1 ____, L2 ____, L3 ____, U1 ____, U2 ____, U3 ____, V.</span>
           </div>
           
           <div class="section-title">6.1. ПЕРЕЛІК МАТЕРІАЛІВ ТА ЗАПЧАСТИН, ВИКОРИСТАНИХ ПІД ЧАС РОБІТ:</div>
@@ -1747,6 +1776,16 @@ function TaskTableComponent({
           <div class="field">
             <span class="field-label">Роботи виконав:</span>
             <span class="field-value">${engineers}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">Замовник:</span>
+            <span class="field-value">${workOrderData.client}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">Адреса об'єкта:</span>
+            <span class="field-value">${workOrderData.address}</span>
           </div>
         </div>
         
