@@ -1099,15 +1099,19 @@ app.put('/api/tasks/:id', async (req, res) => {
       
       // Перевіряємо зміну статусу на "Виконано" (тільки якщо статус реально змінився)
       const newStatus = updateData.status || updatedTask.status;
-      const statusChangedToCompleted = (newStatus === 'Виконано' || newStatus === '????????') && 
-                                      oldStatus !== 'Виконано' && oldStatus !== '????????';
+      const statusChangedToCompleted = (newStatus === 'Виконано') && 
+                                      (oldStatus !== 'Виконано');
       
       console.log('[DEBUG] PUT /api/tasks/:id - перевірка зміни статусу на "Виконано":');
       console.log('[DEBUG] PUT /api/tasks/:id - newStatus:', newStatus);
+      console.log('[DEBUG] PUT /api/tasks/:id - oldStatus:', oldStatus);
       console.log('[DEBUG] PUT /api/tasks/:id - statusChangedToCompleted:', statusChangedToCompleted);
+      console.log('[DEBUG] PUT /api/tasks/:id - updateData.status:', updateData.status);
+      console.log('[DEBUG] PUT /api/tasks/:id - updatedTask.status:', updatedTask.status);
       
       if (statusChangedToCompleted) {
-        console.log('[DEBUG] PUT /api/tasks/:id - статус змінився на "Виконано", відправляємо task_approval сповіщення');
+        console.log('[DEBUG] PUT /api/tasks/:id - статус змінився на "Виконано", відправляємо task_completed та task_approval сповіщення');
+        await telegramService.sendTaskNotification('task_completed', updatedTask, user);
         await telegramService.sendTaskNotification('task_approval', updatedTask, user);
       } 
       // Перевіряємо зміну підтвердження складом (тільки якщо реально змінилося)
@@ -4409,6 +4413,14 @@ ${message}
       console.log(`[DEBUG] getChatIdsForNotification - знайдено ${usersWithNewSettings.length} користувачів з новими налаштуваннями`);
       console.log(`[DEBUG] getChatIdsForNotification - запит: { ${settingField}: true, telegramChatId: { $exists: true, $ne: '' } }`);
       
+      // Детальне логування знайдених користувачів
+      if (usersWithNewSettings.length > 0) {
+        console.log(`[DEBUG] getChatIdsForNotification - деталі знайдених користувачів:`);
+        usersWithNewSettings.forEach(user => {
+          console.log(`[DEBUG] getChatIdsForNotification - ${user.login}: регіон=${user.region}, telegramChatId=${user.telegramChatId}, ${settingField}=${user[settingField.split('.')[0]]?.[settingField.split('.')[1]]}`);
+        });
+      }
+      
       // Додаткове логування для діагностики
       if (usersWithNewSettings.length === 0) {
         console.log(`[DEBUG] getChatIdsForNotification - перевіряємо всіх користувачів з telegramChatId`);
@@ -4587,7 +4599,14 @@ ${message}
           // Знаходимо заявку для фільтрації по регіону
           if (data.taskId) {
             try {
-              const task = await Task.findOne({ _id: data.taskId });
+              let task;
+              // Спробуємо знайти за ObjectId або за числовим id
+              if (/^[0-9a-fA-F]{24}$/.test(data.taskId)) {
+                task = await Task.findOne({ _id: data.taskId });
+              } else {
+                task = await Task.findOne({ id: Number(data.taskId) });
+              }
+              
               if (task && task.serviceRegion) {
                 console.log(`[DEBUG] sendNotification - знайдено заявку з регіоном: ${task.serviceRegion}`);
                 
@@ -4644,7 +4663,14 @@ ${message}
               // Знаходимо заявку для фільтрації по регіону
               if (data.taskId) {
                 try {
-                  const task = await Task.findOne({ _id: data.taskId });
+                  let task;
+                  // Спробуємо знайти за ObjectId або за числовим id
+                  if (/^[0-9a-fA-F]{24}$/.test(data.taskId)) {
+                    task = await Task.findOne({ _id: data.taskId });
+                  } else {
+                    task = await Task.findOne({ id: Number(data.taskId) });
+                  }
+                  
                   if (task && task.serviceRegion) {
                     console.log(`[DEBUG] sendNotification (стара система) - знайдено заявку з регіоном: ${task.serviceRegion}`);
                     
@@ -5957,5 +5983,110 @@ app.get('/api/reports/financial', async (req, res) => {
       message: 'Помилка генерації звіту',
       error: error.message 
     });
+  }
+});
+
+// Endpoint для діагностики налаштувань сповіщень
+app.get('/api/notification-settings/debug', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/notification-settings/debug - діагностика налаштувань сповіщень');
+    
+    // Отримуємо всіх користувачів з telegramChatId
+    const users = await User.find({ 
+      telegramChatId: { $exists: true, $ne: '' }
+    });
+    
+    const debugInfo = {
+      totalUsers: users.length,
+      users: users.map(user => ({
+        login: user.login,
+        role: user.role,
+        region: user.region,
+        telegramChatId: user.telegramChatId,
+        notificationSettings: user.notificationSettings
+      })),
+      notificationTypes: {
+        newRequests: users.filter(u => u.notificationSettings?.newRequests).length,
+        completedRequests: users.filter(u => u.notificationSettings?.completedRequests).length,
+        pendingApproval: users.filter(u => u.notificationSettings?.pendingApproval).length,
+        accountantApproval: users.filter(u => u.notificationSettings?.accountantApproval).length,
+        approvedRequests: users.filter(u => u.notificationSettings?.approvedRequests).length,
+        rejectedRequests: users.filter(u => u.notificationSettings?.rejectedRequests).length,
+        invoiceRequests: users.filter(u => u.notificationSettings?.invoiceRequests).length,
+        completedInvoices: users.filter(u => u.notificationSettings?.completedInvoices).length,
+        systemNotifications: users.filter(u => u.notificationSettings?.systemNotifications).length
+      }
+    };
+    
+    console.log('[DEBUG] Діагностична інформація:', JSON.stringify(debugInfo, null, 2));
+    
+    res.json({
+      success: true,
+      debugInfo
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] GET /api/notification-settings/debug - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint для ініціалізації налаштувань сповіщень для всіх користувачів
+app.post('/api/notification-settings/init-all', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/notification-settings/init-all - ініціалізація налаштувань сповіщень для всіх користувачів');
+    
+    // Отримуємо всіх користувачів
+    const users = await User.find({});
+    console.log(`[DEBUG] Знайдено ${users.length} користувачів для ініціалізації`);
+    
+    let updatedCount = 0;
+    
+    for (const user of users) {
+      // Перевіряємо, чи є вже налаштування
+      if (!user.notificationSettings) {
+        // Встановлюємо налаштування за замовчуванням
+        user.notificationSettings = {
+          newRequests: false,
+          completedRequests: false,
+          pendingApproval: false,
+          accountantApproval: false,
+          approvedRequests: false,
+          rejectedRequests: false,
+          invoiceRequests: false,
+          completedInvoices: false,
+          systemNotifications: false
+        };
+        
+        // Для бухгалтерів встановлюємо сповіщення про рахунки за замовчуванням
+        if (user.role === 'buhgalteria' || user.role === 'accountant') {
+          user.notificationSettings.invoiceRequests = true;
+          user.notificationSettings.completedInvoices = true;
+        }
+        
+        // Для сервісних інженерів встановлюємо основні сповіщення
+        if (user.role === 'service' || user.role === 'engineer') {
+          user.notificationSettings.newRequests = true;
+          user.notificationSettings.completedRequests = true;
+          user.notificationSettings.approvedRequests = true;
+          user.notificationSettings.rejectedRequests = true;
+        }
+        
+        await user.save();
+        updatedCount++;
+        console.log(`[DEBUG] Оновлено налаштування для користувача: ${user.login}`);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Ініціалізовано налаштування сповіщень для ${updatedCount} користувачів`,
+      updatedCount,
+      totalUsers: users.length
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] POST /api/notification-settings/init-all - помилка:', error);
+    res.status(500).json({ error: error.message });
   }
 });
