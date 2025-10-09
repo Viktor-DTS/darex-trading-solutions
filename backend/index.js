@@ -4187,7 +4187,7 @@ app.put('/api/notification-settings/user/:login', async (req, res) => {
     const { login } = req.params;
     const { notificationSettings } = req.body;
     
-    console.log(`[DEBUG] PUT /api/notification-settings/user/${login} - оновлення налаштувань (v3 - FORCE DEPLOY)`);
+    console.log(`[DEBUG] PUT /api/notification-settings/user/${login} - оновлення налаштувань (v4 - BACKEND DEPLOY)`);
     console.log(`[DEBUG] notificationSettings:`, notificationSettings);
     
     const user = await User.findOne({ login });
