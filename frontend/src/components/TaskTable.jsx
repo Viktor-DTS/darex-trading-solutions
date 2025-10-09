@@ -1349,34 +1349,14 @@ function TaskTableComponent({
           }
           
           .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
             margin-bottom: 15px;
-            padding-bottom: 8px;
+            text-align: center;
           }
           
-          .logo-section {
-            flex: 1;
-          }
-          
-          .logo {
-            font-size: 14pt;
-            font-weight: bold;
-            color: #0066cc;
-            margin-bottom: 3px;
-          }
-          
-          .company-info {
-            font-size: 9pt;
-            line-height: 1.1;
-          }
-          
-          .contact-info {
-            flex: 1;
-            text-align: right;
-            font-size: 9pt;
-            line-height: 1.1;
+          .header-image {
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 10px;
           }
           
           .title {
@@ -1540,7 +1520,39 @@ function TaskTableComponent({
           }
           
           .no-print {
-            display: none;
+            display: block;
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          }
+          
+          .print-button, .save-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 0 5px;
+            transition: background 0.3s;
+          }
+          
+          .print-button:hover, .save-button:hover {
+            background: #45a049;
+          }
+          
+          .save-button {
+            background: #2196F3;
+          }
+          
+          .save-button:hover {
+            background: #1976D2;
           }
           
           @media print {
@@ -1562,22 +1574,7 @@ function TaskTableComponent({
         <!-- Перша сторінка -->
         <div class="page">
           <div class="header">
-            <div class="logo-section">
-              <div class="logo">DAREX ENERGY</div>
-              <div class="company-info">
-                ТОВ «ДАРЕКС-ЕНЕРГО»<br>
-                НЕЗАЛЕЖНЕ ЕЛЕКТРОПОСТАЧАННЯ<br>
-                www.darex.com.ua
-              </div>
-            </div>
-            <div class="contact-info">
-              <strong>ЮРИДИЧНА АДРЕСА:</strong><br>
-              Київ, вул. Сирецька, 9, офіс 234<br>
-              тел.: (044) 221-77-77<br>
-              моб.: (067) 221-77-77<br>
-              e-mail: office@darex.com<br>
-              ЄДРПОУ 39423347
-            </div>
+            <img src="file:///C:/dts-service/Шапка Дарекс Енерго.png" alt="Шапка Дарекс Енерго" class="header-image" />
           </div>
           
           <div class="title">НАРЯД НА ВИКОНАННЯ РОБІТ</div>
@@ -1608,13 +1605,13 @@ function TaskTableComponent({
           </div>
           
           <div class="field">
-            <span class="field-label">3. Тип панелі керування:</span>
-            <span class="field-value"></span>
+            <span class="field-label">Зав. №:</span>
+            <span class="field-value">${workOrderData.engineSerial}</span>
           </div>
           
           <div class="field">
-            <span class="field-label">Зав. №:</span>
-            <span class="field-value">${workOrderData.engineSerial}</span>
+            <span class="field-label">3. Тип панелі керування:</span>
+            <span class="field-value"></span>
           </div>
           
           <div class="field">
@@ -1874,16 +1871,8 @@ function TaskTableComponent({
         </div>
         
         <div class="no-print">
-          <button onclick="window.print()" style="
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            margin-right: 10px;
-          ">🖨️ Друкувати</button>
+          <button class="print-button" onclick="printDocument()">🖨️ Друкувати</button>
+          <button class="save-button" onclick="saveDocument()">💾 Зберегти</button>
           <button onclick="window.close()" style="
             background: #f44336;
             color: white;
@@ -1892,9 +1881,40 @@ function TaskTableComponent({
             border-radius: 5px;
             cursor: pointer;
             font-size: 14px;
-            margin-left: 10px;
-          ">✕ Закрити</button>
+            margin-left: 5px;
+            transition: background 0.3s;
+          " onmouseover="this.style.background='#d32f2f'" onmouseout="this.style.background='#f44336'">✕ Закрити</button>
         </div>
+        
+        <script>
+          function printDocument() {
+            window.print();
+          }
+          
+          function saveDocument() {
+            // Створюємо HTML контент для збереження
+            const htmlContent = document.documentElement.outerHTML;
+            
+            // Створюємо Blob з HTML контентом
+            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+            
+            // Створюємо URL для blob
+            const url = URL.createObjectURL(blob);
+            
+            // Створюємо посилання для завантаження
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'Наряд_Дарекс_Енерго_' + new Date().toISOString().slice(0,10) + '.html';
+            
+            // Додаємо посилання до DOM, клікаємо і видаляємо
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Очищуємо URL
+            URL.revokeObjectURL(url);
+          }
+        </script>
       </body>
       </html>
     `;
