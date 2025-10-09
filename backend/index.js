@@ -4304,6 +4304,59 @@ app.post('/api/test/system-message-full', async (req, res) => {
   }
 });
 
+// Точна копія основного endpoint'а для тестування
+app.post('/api/test/system-message-exact', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/test/system-message-exact - отримано запит');
+    console.log('[DEBUG] POST /api/test/system-message-exact - body:', req.body);
+    
+    const { message, type } = req.body;
+    
+    if (!message || !type) {
+      return res.status(400).json({ error: 'message and type are required' });
+    }
+    
+    // Перевіряємо налаштування
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      return res.status(400).json({ 
+        error: 'Telegram bot token не налаштований. Додайте TELEGRAM_BOT_TOKEN в змінні середовища.' 
+      });
+    }
+    
+    console.log('[DEBUG] POST /api/test/system-message-exact - відправляємо системне повідомлення через нову систему');
+    
+    // Використовуємо нову систему сповіщень
+    console.log('[DEBUG] POST /api/test/system-message-exact - викликаємо telegramService.sendNotification');
+    const success = await telegramService.sendNotification('system_notifications', { 
+      message: message 
+    });
+    
+    console.log('[DEBUG] POST /api/test/system-message-exact - результат sendNotification:', success);
+    
+    if (success) {
+      console.log('[DEBUG] POST /api/test/system-message-exact - успішно відправлено');
+      res.json({ 
+        success: true, 
+        message: 'Системне повідомлення відправлено успішно'
+      });
+    } else {
+      console.log('[DEBUG] POST /api/test/system-message-exact - sendNotification повернув false (немає користувачів з увімкненими налаштуваннями)');
+      res.json({ 
+        success: false, 
+        message: 'Немає користувачів з увімкненими системними сповіщеннями'
+      });
+    }
+    
+  } catch (error) {
+    console.error('[ERROR] POST /api/test/system-message-exact - помилка:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка при відправці системного повідомлення',
+      error: error.message 
+    });
+  }
+});
+
 // Test endpoint для перевірки notificationSettings
 app.get('/api/test/notification-settings/:login', async (req, res) => {
   try {
