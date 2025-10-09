@@ -4187,6 +4187,45 @@ app.listen(PORT, () => {
   console.log(`[STARTUP] Server is ready to accept requests`);
 }); 
 
+// Endpoint для ініціалізації налаштувань сповіщень
+app.post('/api/notification-settings/init', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/notification-settings/init - ініціалізація налаштувань');
+    
+    const users = await User.find({});
+    let initializedCount = 0;
+    
+    for (const user of users) {
+      if (!user.notificationSettings) {
+        user.notificationSettings = {
+          newRequests: false,
+          pendingApproval: false,
+          accountantApproval: false,
+          approvedRequests: false,
+          rejectedRequests: false,
+          invoiceRequests: false,
+          completedInvoices: false,
+          systemNotifications: false
+        };
+        await user.save();
+        initializedCount++;
+      }
+    }
+    
+    console.log(`[DEBUG] Ініціалізовано налаштувань для ${initializedCount} користувачів`);
+    
+    res.json({
+      success: true,
+      message: `Ініціалізовано налаштувань для ${initializedCount} користувачів`,
+      initializedCount
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] POST /api/notification-settings/init - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Telegram Notification Service - Нова спрощена система
 const TelegramNotificationService = require('./telegram-service.js');
 

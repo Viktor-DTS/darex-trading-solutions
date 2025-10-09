@@ -31,28 +31,19 @@ const UserNotificationManager = ({ user }) => {
       console.log('[DEBUG] Завантаження користувачів з Telegram...');
       console.log('[DEBUG] API_BASE_URL:', API_BASE_URL);
       
-      // Спочатку спробуємо новий endpoint
-      let response = await fetch(`${API_BASE_URL}/users/with-telegram`);
+      // Отримуємо всіх користувачів
+      const response = await fetch(`${API_BASE_URL}/users`);
       
-      if (!response.ok) {
-        console.log('[DEBUG] Новий endpoint не працює, спробуємо старий...');
-        // Fallback до старого endpoint
-        response = await fetch(`${API_BASE_URL}/users`);
-        if (response.ok) {
-          const usersData = await response.json();
-          // Фільтруємо тільки користувачів з налаштованим Telegram Chat ID
-          const usersWithTelegram = usersData.filter(u => 
-            u.telegramChatId && 
-            u.telegramChatId.trim() && 
-            u.telegramChatId !== 'Chat ID'
-          );
-          setUsers(usersWithTelegram);
-          console.log('[DEBUG] Використано fallback, знайдено користувачів:', usersWithTelegram.length);
-        }
-      } else {
+      if (response.ok) {
         const usersData = await response.json();
-        setUsers(usersData);
-        console.log('[DEBUG] Використано новий endpoint, знайдено користувачів:', usersData.length);
+        // Фільтруємо тільки користувачів з налаштованим Telegram Chat ID
+        const usersWithTelegram = usersData.filter(u => 
+          u.telegramChatId && 
+          u.telegramChatId.trim() && 
+          u.telegramChatId !== 'Chat ID'
+        );
+        setUsers(usersWithTelegram);
+        console.log('[DEBUG] Знайдено користувачів з Telegram:', usersWithTelegram.length);
       }
     } catch (error) {
       console.error('Помилка завантаження користувачів:', error);
@@ -88,6 +79,33 @@ const UserNotificationManager = ({ user }) => {
       console.error('Помилка завантаження налаштувань сповіщень:', error);
     }
   };
+
+  const initializeNotificationSettings = async () => {
+    try {
+      console.log('[DEBUG] Ініціалізація налаштувань сповіщень...');
+      
+      const response = await fetch(`${API_BASE_URL}/notification-settings/init`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[DEBUG] Ініціалізація успішна:', result);
+        alert(`Ініціалізовано налаштувань для ${result.initializedCount} користувачів`);
+        
+        // Перезавантажуємо налаштування
+        await loadNotificationSettings();
+      } else {
+        console.error('Помилка ініціалізації:', response.status, response.statusText);
+        alert('Помилка ініціалізації налаштувань');
+      }
+    } catch (error) {
+      console.error('Помилка ініціалізації налаштувань:', error);
+      alert('Помилка ініціалізації налаштувань');
+    }
+  };
+
   const handleNotificationToggle = (notificationType, userId) => {
     setNotificationSettings(prev => {
       const newSettings = { ...prev };
@@ -218,6 +236,28 @@ const UserNotificationManager = ({ user }) => {
       <h2 style={{ marginBottom: '20px', color: '#fff' }}>
         Управління сповіщеннями користувачів
       </h2>
+      
+      <div style={{ marginBottom: '20px' }}>
+        <button
+          onClick={initializeNotificationSettings}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: '#4CAF50',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            marginRight: '10px'
+          }}
+        >
+          Ініціалізувати налаштування
+        </button>
+        <span style={{ fontSize: '12px', color: '#ccc' }}>
+          Натисніть, якщо чекбокси не відображаються
+        </span>
+      </div>
+      
       <div style={{ marginBottom: '20px', padding: '12px', background: '#2a3a4a', borderRadius: '8px' }}>
         <p style={{ margin: '0 0 10px 0', fontSize: '14px' }}>
           <strong>Інструкція:</strong> Виберіть користувачів, які будуть отримувати сповіщення для кожного типу подій.
