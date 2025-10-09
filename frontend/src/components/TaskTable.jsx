@@ -1340,7 +1340,6 @@ function TaskTableComponent({
             margin: 0 auto;
             padding: 1.5cm;
             box-sizing: border-box;
-            page-break-after: always;
             position: relative;
           }
           
@@ -1678,6 +1677,16 @@ function TaskTableComponent({
           </div>
           
           <div class="field">
+            <span class="field-label"></span>
+            <span class="field-value"></span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label"></span>
+            <span class="field-value"></span>
+          </div>
+          
+          <div class="field">
             <span class="field-label">10. Після проведення робіт та випробувань, ДГУ знаходиться в робочому / неробочому стані, в режимі ручне авто, напрацювання становить ____ мотогодин.</span>
           </div>
           
@@ -1830,6 +1839,16 @@ function TaskTableComponent({
           
           <div class="field">
             <span class="field-label">Рекомендації виконувача робіт:</span>
+            <span class="field-value"></span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label"></span>
+            <span class="field-value"></span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label"></span>
             <span class="field-value"></span>
           </div>
           
