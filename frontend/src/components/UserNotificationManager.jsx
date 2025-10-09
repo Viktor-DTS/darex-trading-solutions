@@ -168,11 +168,17 @@ const UserNotificationManager = ({ user }) => {
         
         console.log(`[DEBUG] Оновлення налаштувань для ${user.login}:`, userSettings);
         
-        // Відправляємо PUT запит для оновлення користувача
-        const response = await fetch(`${API_BASE_URL}/notification-settings/user/${user.login}`, {
-          method: 'PUT',
+        // Використовуємо той самий метод, що й в системних параметрах
+        const updatedUser = {
+          ...user,
+          notificationSettings: userSettings
+        };
+        
+        // Відправляємо POST запит для оновлення користувача (як в системних параметрах)
+        const response = await fetch(`${API_BASE_URL}/users`, {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ notificationSettings: userSettings })
+          body: JSON.stringify(updatedUser)
         });
         
         if (!response.ok) {
