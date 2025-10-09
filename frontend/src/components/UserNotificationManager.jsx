@@ -64,10 +64,18 @@ const UserNotificationManager = ({ user }) => {
         // Створюємо об'єкт налаштувань на основі користувачів
         const settings = {};
         
-        notificationTypes.forEach(type => {
-          settings[type.key] = usersData
-            .filter(user => user.notificationSettings && user.notificationSettings[type.key])
-            .map(user => user.login);
+        // Створюємо об'єкт де ключ - login користувача, значення - налаштування
+        usersData.forEach(user => {
+          settings[user.login] = user.notificationSettings || {
+            newRequests: false,
+            pendingApproval: false,
+            accountantApproval: false,
+            approvedRequests: false,
+            rejectedRequests: false,
+            invoiceRequests: false,
+            completedInvoices: false,
+            systemNotifications: false
+          };
         });
         
         console.log('[DEBUG] Налаштування завантажено:', settings);
@@ -109,17 +117,24 @@ const UserNotificationManager = ({ user }) => {
   const handleNotificationToggle = (notificationType, userId) => {
     setNotificationSettings(prev => {
       const newSettings = { ...prev };
-      if (!newSettings[notificationType]) {
-        newSettings[notificationType] = [];
+      
+      // Ініціалізуємо налаштування користувача, якщо їх немає
+      if (!newSettings[userId]) {
+        newSettings[userId] = {
+          newRequests: false,
+          pendingApproval: false,
+          accountantApproval: false,
+          approvedRequests: false,
+          rejectedRequests: false,
+          invoiceRequests: false,
+          completedInvoices: false,
+          systemNotifications: false
+        };
       }
-      const userIndex = newSettings[notificationType].indexOf(userId);
-      if (userIndex > -1) {
-        // Видаляємо користувача зі списку
-        newSettings[notificationType].splice(userIndex, 1);
-      } else {
-        // Додаємо користувача до списку
-        newSettings[notificationType].push(userId);
-      }
+      
+      // Перемикаємо налаштування для конкретного користувача
+      newSettings[userId][notificationType] = !newSettings[userId][notificationType];
+      
       return newSettings;
     });
   };
@@ -139,12 +154,17 @@ const UserNotificationManager = ({ user }) => {
       
       // Оновлюємо налаштування для кожного користувача
       const updatePromises = usersData.map(async (user) => {
-        const userSettings = {};
-        
-        // Встановлюємо налаштування на основі поточного стану
-        notificationTypes.forEach(type => {
-          userSettings[type.key] = notificationSettings[type.key]?.includes(user.login) || false;
-        });
+        // Отримуємо налаштування для конкретного користувача
+        const userSettings = notificationSettings[user.login] || {
+          newRequests: false,
+          pendingApproval: false,
+          accountantApproval: false,
+          approvedRequests: false,
+          rejectedRequests: false,
+          invoiceRequests: false,
+          completedInvoices: false,
+          systemNotifications: false
+        };
         
         console.log(`[DEBUG] Оновлення налаштувань для ${user.login}:`, userSettings);
         
@@ -181,10 +201,12 @@ const UserNotificationManager = ({ user }) => {
     }
   };
   const isUserSelected = (notificationType, userId) => {
-    return notificationSettings[notificationType]?.includes(userId) || false;
+    return notificationSettings[userId]?.[notificationType] || false;
   };
   const getSelectedUsersCount = (notificationType) => {
-    return notificationSettings[notificationType]?.length || 0;
+    return Object.values(notificationSettings).filter(userSettings => 
+      userSettings[notificationType]
+    ).length;
   };
 
   const sendSystemMessage = async () => {

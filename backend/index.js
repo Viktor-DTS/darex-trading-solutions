@@ -4232,6 +4232,29 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+// Test endpoint для перевірки notificationSettings
+app.get('/api/test/notification-settings/:login', async (req, res) => {
+  try {
+    const { login } = req.params;
+    console.log(`[DEBUG] GET /api/test/notification-settings/${login} - перевірка налаштувань`);
+    
+    const user = await User.findOne({ login });
+    if (!user) {
+      return res.status(404).json({ error: 'Користувач не знайдений' });
+    }
+    
+    res.json({
+      login: user.login,
+      notificationSettings: user.notificationSettings,
+      hasNotificationSettings: !!user.notificationSettings,
+      notificationSettingsType: typeof user.notificationSettings
+    });
+  } catch (error) {
+    console.error('[ERROR] GET /api/test/notification-settings/:login - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[STARTUP] Сервер запущено на порту ${PORT}`);
   console.log(`[STARTUP] MongoDB readyState: ${mongoose.connection.readyState}`);
