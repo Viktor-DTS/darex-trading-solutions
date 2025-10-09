@@ -56,6 +56,11 @@ class TelegramNotificationService {
   formatNotificationMessage(type, data) {
     const task = data.task || {};
     
+    // Логування для діагностики
+    console.log(`[TelegramService] formatNotificationMessage - тип: ${type}`);
+    console.log(`[TelegramService] formatNotificationMessage - дані:`, JSON.stringify(data, null, 2));
+    console.log(`[TelegramService] formatNotificationMessage - task:`, JSON.stringify(task, null, 2));
+    
     switch (type) {
       case 'new_requests':
         return `🔔 <b>Сповіщення про заявку</b>
