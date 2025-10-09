@@ -1674,8 +1674,8 @@ function TaskTableComponent({
           
           <div class="field">
             <span class="field-label">9. Перелік виконаних робіт/послуг:</span>
+            <span class="field-value"></span>
           </div>
-          <div class="text-area"></div>
           
           <div class="field">
             <span class="field-label">10. Після проведення робіт та випробувань, ДГУ знаходиться в робочому / неробочому стані, в режимі ручне авто, напрацювання становить ____ мотогодин.</span>
@@ -1830,10 +1830,8 @@ function TaskTableComponent({
           
           <div class="field">
             <span class="field-label">Рекомендації виконувача робіт:</span>
+            <span class="field-value"></span>
           </div>
-          <div class="text-area"></div>
-          <div class="text-area"></div>
-          <div class="text-area"></div>
           
           <div class="field">
             <span class="field-label">Коефіцієнт складності робіт:</span>
