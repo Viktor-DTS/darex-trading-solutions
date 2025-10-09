@@ -56,17 +56,26 @@ class TelegramNotificationService {
   formatNotificationMessage(type, data) {
     const task = data.task || {};
     
-    const baseMessage = `
-📋 <b>ЗАЯВКА №${task.requestNumber || task.id || 'Н/Д'}</b>
-📅 <b>Дата:</b> ${task.requestDate || 'Н/Д'}
-🏢 <b>Клієнт:</b> ${task.client || 'Н/Д'}
-📍 <b>Адреса:</b> ${task.address || 'Н/Д'}
-🔧 <b>Обладнання:</b> ${task.equipment || 'Н/Д'}
-    `;
-
     switch (type) {
       case 'new_requests':
-        return baseMessage + '\n✅ <b>🆕 НОВА ЗАЯВКА СТВОРЕНА</b>\n\n💡 <b>Дія:</b> Необхідно розглянути та призначити виконавця';
+        return `🔔 <b>Сповіщення про заявку</b>
+
+📋 <b>Номер заявки:</b> ${task.requestNumber || task.id || 'Н/Д'}
+👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || 'Система'}
+📊 <b>Статус заявки:</b> ${task.status || 'Заявка'}
+📅 <b>Дата заявки:</b> ${task.requestDate || new Date().toISOString().split('T')[0]}
+🏢 <b>Компанія виконавець:</b> ${task.executorCompany || 'ДТС'}
+📍 <b>Регіон сервісного відділу:</b> ${task.serviceRegion || 'Н/Д'}
+📝 <b>Опис заявки:</b> ${task.description || task.workType || 'Н/Д'}
+🏛️ <b>ЄДРПОУ:</b> ${task.edrpou || 'Н/Д'}
+👥 <b>Замовник:</b> ${task.client || task.clientName || 'Н/Д'}
+🧾 <b>Номер рахунку:</b> ${task.invoiceNumber || 'Н/Д'}
+🏠 <b>Адреса:</b> ${task.address || 'Н/Д'}
+⚙️ <b>Тип обладнання:</b> ${task.equipment || task.equipmentType || 'Н/Д'}
+
+✅ <b>🆕 НОВА ЗАЯВКА СТВОРЕНА</b>
+
+💡 <b>Дія:</b> Необхідно розглянути та призначити виконавця`;
       
       case 'pending_approval':
         return baseMessage + '\n🔔 <b>⚠️ ЗАЯВКА ВИКОНАНА ТА ПОТРЕБУЄ ЗАТВЕРДЖЕННЯ ЗАВ. СКЛАДА</b>\n\n💡 <b>Дія:</b> Необхідно розглянути та підтвердити заявку';
