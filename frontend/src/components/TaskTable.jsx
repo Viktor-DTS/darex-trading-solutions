@@ -1507,6 +1507,23 @@ function TaskTableComponent({
           .text-line:last-child {
             margin-bottom: 0;
           }
+          .checkbox-section {
+            margin: 0.3cm 0;
+          }
+          .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5cm;
+            flex-wrap: wrap;
+          }
+          .checkbox {
+            font-size: 14pt;
+            margin-right: 0.1cm;
+          }
+          .checkbox-label {
+            font-size: 12pt;
+            margin-right: 0.3cm;
+          }
           .no-print {
             display: none;
           }
@@ -1554,7 +1571,7 @@ function TaskTableComponent({
           <h1 class="work-order-title">Наряд на виконання робіт</h1>
 
           <div class="form-row">
-            <span class="form-label">(№</span>
+            <span class="form-label">№</span>
             <span class="form-value">${workOrderNumber}</span>
             <span class="form-label">від «</span>
             <span class="form-value">${workOrderDate}</span>
@@ -1562,64 +1579,61 @@ function TaskTableComponent({
           </div>
 
           <div class="form-row">
-            <span class="form-label">(до Договору №</span>
-            <span class="form-value">_______</span>
-            <span class="form-label">від «___» «___» 20____ р)</span>
+            <span class="form-label">1. Роботи виконав:</span>
+            <span class="form-value">${engineers}</span>
           </div>
 
           <div class="form-row">
-            <span class="form-label">№ телефона</span>
-            <span class="form-value">_______</span>
-          </div>
-
-          <div class="form-row">
-            <span class="form-label">Замовник:</span>
+            <span class="form-label">2. Замовник:</span>
             <span class="form-value">${workOrderData.client}</span>
           </div>
 
           <div class="form-row">
-            <span class="form-label">Адреса об'єкта:</span>
+            <span class="form-label">3. Адреса об'єкта:</span>
             <span class="form-value">${workOrderData.address}</span>
           </div>
 
           <div class="form-row">
-            <span class="form-label">1. Найменування обладнання:</span>
+            <span class="form-label">4. Найменування обладнання:</span>
             <span class="form-value">${workOrderData.equipment}</span>
+          </div>
+
+          <div class="form-row">
             <span class="form-label">Зав. №</span>
             <span class="form-value">${workOrderData.serialNumber}</span>
           </div>
 
           <div class="form-row">
-            <span class="form-label">2. Тип двигуна:</span>
+            <span class="form-label">5. Тип двигуна:</span>
             <span class="form-value">${workOrderData.engineModel}</span>
+          </div>
+
+          <div class="form-row">
             <span class="form-label">Зав. №</span>
             <span class="form-value">${workOrderData.engineSerial}</span>
           </div>
 
           <div class="form-row">
-            <span class="form-label">3. Тип панелі керування:</span>
+            <span class="form-label">6. Панель керування:</span>
             <span class="form-value">_______</span>
           </div>
 
           <div class="form-row">
-            <span class="form-label">4. Вид робіт (вибрати необхідне):</span>
-            <span class="form-value">гарантійний ремонт, ремонт, технічне обслуговування, інше, ПНР.</span>
+            <span class="form-label">7. Вид робіт:</span>
           </div>
-
-          <div class="form-row">
-            <span class="form-label">5. Технічний стан обладнання перед проведенням робіт:</span>
-            <span class="form-value">працездатне-непрацездатне.</span>
-          </div>
-
-          <div class="form-row">
-            <span class="form-label">6. Перелік виконаних робіт/послуг:</span>
-          </div>
-          <div class="text-area">
-            <div class="text-line"></div>
-            <div class="text-line"></div>
-            <div class="text-line"></div>
-            <div class="text-line"></div>
-            <div class="text-line"></div>
+          <div class="checkbox-section">
+            <div class="checkbox-row">
+              <span class="checkbox">☐</span>
+              <span class="checkbox-label">Гарантійний ремонт</span>
+              <span class="checkbox">☐</span>
+              <span class="checkbox-label">Ремонт</span>
+              <span class="checkbox">☐</span>
+              <span class="checkbox-label">ТО</span>
+              <span class="checkbox">☐</span>
+              <span class="checkbox-label">Інше</span>
+              <span class="checkbox">☐</span>
+              <span class="checkbox-label">ПНР</span>
+            </div>
           </div>
 
           <div class="two-column">
@@ -1680,218 +1694,87 @@ function TaskTableComponent({
                 <th>Один. виміру</th>
                 <th>Кількість</th>
                 <th>Ціна з ПДВ, грн</th>
-                <th>Вартість з ПДВ, грн</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td>1</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>2</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>3</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>4</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>5</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>6</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>7</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>8</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>9</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>10</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>1</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>2</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>3</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>4</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>5</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>6</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>7</td><td></td><td></td><td></td><td></td></tr>
             </tbody>
           </table>
 
-          <div class="form-row">
-            <span class="form-label">Загальна вартість матеріалів та запчастин:</span>
-            <span class="form-value">${workOrderData.materialsCost}</span>
-            <span class="form-label">грн.</span>
-          </div>
-
-          <div class="section-title">6.2 Вартість ремонту/робіт:</div>
-          <div class="form-row">
-            <span class="form-label">Коефіцієнт складності*</span>
-          </div>
+          <div class="section-title">6.2 Вартість ремонту/робіт, Коефіцієнт складності*:</div>
           <div class="form-row">
             <span class="form-label">Діагностика,</span>
             <span class="form-value">_______</span>
             <span class="form-label">грн</span>
           </div>
           <div class="form-row">
-            <span class="form-label">Вартість технічного обслуговування</span>
+            <span class="form-label">Вартість технічного обслуговування:</span>
             <span class="form-value">_______</span>
             <span class="form-label">грн.</span>
           </div>
           <div class="form-row">
-            <span class="form-label">Вартість ремонту (1людино-година*1200 грн.),</span>
+            <span class="form-label">Вартість ремонту (1людино-година*1200 грн.):</span>
             <span class="form-value">${workOrderData.repairCost}</span>
             <span class="form-label">грн.</span>
           </div>
           <div class="form-row">
-            <span class="form-label">Вартість пусконалагоджувальних робіт</span>
-            <span class="form-value">_______</span>
-            <span class="form-label">грн.</span>
-          </div>
-          <div class="form-row">
-            <span class="form-label">Загальна вартість з урахуванням коефіцієнта складності</span>
-            <span class="form-value">_______</span>
-            <span class="form-label">грн.</span>
-          </div>
-
-          <div class="form-row">
-            <span class="form-label">6.3 Виїзд на об'єкт Замовника: тариф: по місту 600.00 грн.</span>
-          </div>
-          <div class="form-row">
-            <span class="form-label">Виїзд за місто</span>
+            <span class="form-label">Виїзд за місто:</span>
             <span class="form-value">_______</span>
             <span class="form-label">км * 15,00 грн/км; разом</span>
             <span class="form-value">${workOrderData.travelCost}</span>
             <span class="form-label">грн.</span>
           </div>
-
           <div class="form-row">
-            <span class="form-label">6.4 Добові у відрядженні: 600.00 грн.</span>
+            <span class="form-label">Добові:</span>
             <span class="form-value">_______</span>
             <span class="form-label">люд. разом</span>
             <span class="form-value">_______</span>
             <span class="form-label">грн.</span>
           </div>
-
           <div class="form-row">
-            <span class="form-label">6.5 Проживання:</span>
-            <span class="form-value">_______</span>
-            <span class="form-label">грн.</span>
+            <span class="form-label">Проживання:</span>
             <span class="form-value">_______</span>
             <span class="form-label">діб разом</span>
             <span class="form-value">_______</span>
             <span class="form-label">грн.</span>
           </div>
-
           <div class="form-row">
-            <span class="form-label">ЗАГАЛЬНА ВАРТІСТЬ РОБІТ з ПДВ (усього по пп.6.1-6.5)</span>
+            <span class="form-label">Всього до сплати:</span>
             <span class="form-value">${workOrderData.totalCost}</span>
             <span class="form-label">грн.</span>
           </div>
 
-          <div class="form-row">
-            <span class="form-label">Роботи виконав:</span>
-            <span class="form-value">${engineers}</span>
-          </div>
-        </div>
-
-        <!-- СТОРІНКА 2 -->
-        <div class="page">
-          <div class="form-row">
-            <span class="form-label">Відмітка про оплату:</span>
-            <span class="form-value">_______</span>
-          </div>
-
-          <div class="section-title" style="text-align: center; margin: 0.5cm 0;">
-            НАСТУПНЕ ТЕХНІЧНЕ ОБСЛУГОВУВАННЯ ПРОВЕСТИ ПРИ НАПРАЦЮВАННІ
-          </div>
-          <div class="form-row" style="text-align: center; justify-content: center;">
-            <span class="form-value">_______</span>
-            <span class="form-label">МОТОГОДИН, АБО «___» ________ 20___ РОКУ.</span>
-          </div>
-
-          <div class="two-column">
-            <div class="column">
-              <div class="form-row">
-                <span class="form-label">Дата та час початку робіт:</span>
-                <span class="form-value">_______</span>
-              </div>
-              <div class="form-row">
-                <span class="form-label">Авто №:</span>
-                <span class="form-value">_______</span>
-              </div>
-            </div>
-            <div class="column">
-              <div class="form-row">
-                <span class="form-label">Дата та час закінчення робіт:</span>
-                <span class="form-value">_______</span>
-              </div>
-              <div class="form-row">
-                <span class="form-label">Переробка, год.:</span>
-                <span class="form-value">_______</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <span class="form-label">Фото зроблені, не зроблені</span>
-            <span class="form-value">_______</span>
-          </div>
-
-          <div class="section-title">Рекомендації виконувача робіт:</div>
-          <div class="text-area">
-            <div class="text-line"></div>
-            <div class="text-line"></div>
-            <div class="text-line"></div>
-            <div class="text-line"></div>
-            <div class="text-line"></div>
-            <div class="text-line"></div>
-            <div class="text-line"></div>
-            <div class="text-line"></div>
-            <div class="text-line"></div>
-            <div class="text-line"></div>
-            <div class="text-line"></div>
-            <div class="text-line"></div>
-          </div>
-
-          <div style="margin-top: 0.5cm; font-size: 9pt;">
-            <div style="font-weight: bold; font-style: italic; margin-bottom: 0.3cm;">
-              *Коефіцієнт складності робіт - це величина, що збільшує вартість робіт через специфічні, що не залежать від виконавця умов і не дозволяють якісно провести роботи без спеціальних навичок, обладнання через погодні умови, і т.д.*
-            </div>
-            <div style="margin-bottom: 0.3cm;">
-              <div class="form-row">
-                <span class="form-label">Робота за комфортних умов, доброзичливість замовника</span>
-                <span class="form-value">1.0</span>
-              </div>
-              <div class="form-row">
-                <span class="form-label">Робота на відкритому повітрі, при температурі нижче 0 град, (вище 27) сухо</span>
-                <span class="form-value">1.1</span>
-              </div>
-              <div class="form-row">
-                <span class="form-label">Робота на відкритому повітрі, при температурі нижче 0 град, (вище 27) опади, безвітряно</span>
-                <span class="form-value">1.2</span>
-              </div>
-              <div class="form-row">
-                <span class="form-label">Робота на відкритому повітрі, при температурі нижче 0 град, опади, вітер, понад 8 м/с (5 балів за шкалою Бофорта)</span>
-                <span class="form-value">1.3</span>
-              </div>
-              <div class="form-row">
-                <span class="form-label">Робота у темний час доби за вимогою Замовника</span>
-                <span class="form-value">1.4</span>
-              </div>
-              <div class="form-row">
-                <span class="form-label">Робота за обмеженої можливості доступу до об'єкта (1,5-1,7)</span>
-                <span class="form-value">1.5</span>
-              </div>
-              <div class="form-row">
-                <span class="form-label">Роботи, що не входять до списку робіт з цього виїзду (1,8-2)</span>
-                <span class="form-value">1.8</span>
-              </div>
-              <div class="form-row">
-                <span class="form-label">Терміновий виклик</span>
-                <span class="form-value">2.0</span>
-              </div>
-            </div>
-            <div style="font-weight: bold; font-style: italic;">
-              * коефіцієнт може бути сумований.*
-            </div>
+          <div style="margin-top: 0.5cm; font-size: 9pt; font-style: italic;">
+            *Коефіцієнт складності робіт - це величина, що збільшує вартість робіт через специфічні, що не залежать від виконавця умов і не дозволяють якісно провести роботи без спеціальних навичок, обладнання через погодні умови, і т.д.
           </div>
 
           <div class="signature-section" style="margin-top: 1cm;">
             <div class="signature-box">
-              <div style="text-align: center; font-weight: bold; margin-bottom: 0.2cm;">РОБОТУ ПРИЙНЯВ</div>
-              <div style="text-align: center; margin-bottom: 0.2cm;">претензій не маю</div>
-              <div style="text-align: center; font-size: 10pt; margin-bottom: 0.2cm;">(ПІБ Замовника або його представника)</div>
               <div class="signature-line"></div>
-              <div style="text-align: center; font-size: 10pt; margin-top: 0.1cm;">(дата, підпис)</div>
+              <div>Роботи виконав: ${engineers}</div>
             </div>
             <div class="signature-box">
-              <div style="text-align: center; font-weight: bold; margin-bottom: 0.2cm;">РОБОТУ ЗДАВ</div>
-              <div style="text-align: center; font-size: 10pt; margin-bottom: 0.2cm;">(ПІБ Виконавця або його представника)</div>
               <div class="signature-line"></div>
-              <div style="text-align: center; font-size: 10pt; margin-top: 0.1cm;">(дата, підпис)</div>
+              <div>РОБОТУ ПРИЙНЯВ: _______</div>
             </div>
           </div>
+
+          <div class="form-row" style="margin-top: 0.5cm;">
+            <span class="form-label">РОБОТУ ЗДАВ:</span>
+            <span class="form-value">_______</span>
+          </div>
+
+          <div style="text-align: center; margin-top: 1cm; font-size: 10pt;">
+            ПРОЕКТ 1.0М
+          </div>
         </div>
+
 
         <div class="no-print">
           <button onclick="window.print()" style="
