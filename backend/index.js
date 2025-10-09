@@ -3276,10 +3276,10 @@ app.post('/api/notifications/send-system-message', async (req, res) => {
         message: 'Системне повідомлення відправлено успішно'
       });
     } else {
-      console.log('[ERROR] POST /api/notifications/send-system-message - sendNotification повернув false');
-      res.status(500).json({ 
+      console.log('[DEBUG] POST /api/notifications/send-system-message - sendNotification повернув false (немає користувачів з увімкненими налаштуваннями)');
+      res.json({ 
         success: false, 
-        message: 'Помилка при відправці системного повідомлення'
+        message: 'Немає користувачів з увімкненими системними сповіщеннями'
       });
     }
     
