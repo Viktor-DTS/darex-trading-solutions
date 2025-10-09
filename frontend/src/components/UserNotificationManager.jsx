@@ -11,12 +11,11 @@ const UserNotificationManager = ({ user }) => {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [messageSent, setMessageSent] = useState(false);
   const notificationTypes = [
-    { key: 'task_created', label: 'Нові заявки', description: 'Коли оператор створює нову заявку' },
-    { key: 'task_completed', label: 'Виконані заявки', description: 'Коли заявка позначена як виконана' },
-    { key: 'task_approval', label: 'Потребує підтвердження Завсклада', description: 'Коли заявка виконана потребує підтвердження Завсклада' },
-    { key: 'task_accountant_approval', label: 'Затвердження Бухгалтера', description: 'Коли заявка затверджена потребує затвердження Бухгалтера' },
-    { key: 'task_approved', label: 'Підтверджені заявки', description: 'Коли заявка підтверджена' },
-    { key: 'task_rejected', label: 'Відхилені заявки', description: 'Коли заявка відхилена' },
+    { key: 'new_requests', label: 'Нові заявки', description: 'Коли оператор створює нову заявку' },
+    { key: 'pending_approval', label: 'Потребує підтвердження Завсклада', description: 'Коли заявка виконана потребує підтвердження Завсклада' },
+    { key: 'accountant_approval', label: 'Затвердження Бухгалтера', description: 'Коли заявка затверджена потребує затвердження Бухгалтера' },
+    { key: 'approved_requests', label: 'Підтверджені заявки', description: 'Коли заявка підтверджена' },
+    { key: 'rejected_requests', label: 'Відхилені заявки', description: 'Коли заявка відхилена' },
     { key: 'invoice_requested', label: 'Запити на рахунки', description: 'Коли користувач подає запит на отримання рахунку' },
     { key: 'invoice_completed', label: 'Виконані рахунки', description: 'Коли бухгалтер завантажив рахунок' },
     { key: 'system_notifications', label: 'Системні сповіщення', description: 'Отримувати системні повідомлення від адміністратора' }
@@ -63,10 +62,27 @@ const UserNotificationManager = ({ user }) => {
   };
   const loadNotificationSettings = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/notification-settings/global`);
+      console.log('[DEBUG] Завантаження налаштувань сповіщень...');
+      
+      // Завантажуємо користувачів з їх налаштуваннями
+      const response = await fetch(`${API_BASE_URL}/users`);
       if (response.ok) {
-        const settings = await response.json();
+        const usersData = await response.json();
+        console.log('[DEBUG] Отримано користувачів:', usersData.length);
+        
+        // Створюємо об'єкт налаштувань на основі користувачів
+        const settings = {};
+        
+        notificationTypes.forEach(type => {
+          settings[type.key] = usersData
+            .filter(user => user.notificationSettings && user.notificationSettings[type.key])
+            .map(user => user.login);
+        });
+        
+        console.log('[DEBUG] Налаштування завантажено:', settings);
         setNotificationSettings(settings);
+      } else {
+        console.error('Помилка завантаження користувачів:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Помилка завантаження налаштувань сповіщень:', error);
@@ -92,12 +108,48 @@ const UserNotificationManager = ({ user }) => {
   const saveNotificationSettings = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/notification-settings/global`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(notificationSettings)
+      console.log('[DEBUG] Збереження налаштувань сповіщень...');
+      
+      // Отримуємо поточних користувачів
+      const usersResponse = await fetch(`${API_BASE_URL}/users`);
+      if (!usersResponse.ok) {
+        throw new Error('Помилка завантаження користувачів');
+      }
+      
+      const usersData = await usersResponse.json();
+      console.log('[DEBUG] Отримано користувачів для оновлення:', usersData.length);
+      
+      // Оновлюємо налаштування для кожного користувача
+      const updatePromises = usersData.map(async (user) => {
+        const userSettings = {};
+        
+        // Встановлюємо налаштування на основі поточного стану
+        notificationTypes.forEach(type => {
+          userSettings[type.key] = notificationSettings[type.key]?.includes(user.login) || false;
+        });
+        
+        console.log(`[DEBUG] Оновлення налаштувань для ${user.login}:`, userSettings);
+        
+        // Відправляємо PUT запит для оновлення користувача
+        const response = await fetch(`${API_BASE_URL}/notification-settings/user/${user.login}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notificationSettings: userSettings })
+        });
+        
+        if (!response.ok) {
+          console.error(`[ERROR] Помилка оновлення налаштувань для ${user.login}:`, response.status, response.statusText);
+        }
+        
+        return response.ok;
       });
-      if (response.ok) {
+      
+      const results = await Promise.all(updatePromises);
+      const successCount = results.filter(Boolean).length;
+      
+      console.log(`[DEBUG] Оновлено налаштування для ${successCount} з ${usersData.length} користувачів`);
+      
+      if (successCount > 0) {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
       } else {
@@ -105,7 +157,7 @@ const UserNotificationManager = ({ user }) => {
       }
     } catch (error) {
       console.error('Помилка збереження:', error);
-      alert('Помилка збереження налаштувань сповіщень');
+      alert('Помилка збереження налаштувань сповіщень: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -125,25 +177,31 @@ const UserNotificationManager = ({ user }) => {
 
     try {
       setSendingMessage(true);
+      console.log('[DEBUG] Відправка системного повідомлення...');
+      
       const response = await fetch(`${API_BASE_URL}/notifications/send-system-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: systemMessage,
-          notificationType: 'system_notifications'
+          type: 'system_notifications'
         })
       });
 
       if (response.ok) {
+        const result = await response.json();
+        console.log('[DEBUG] Системне повідомлення відправлено:', result);
         setMessageSent(true);
         setSystemMessage('');
         setTimeout(() => setMessageSent(false), 3000);
       } else {
-        alert('Помилка відправки повідомлення');
+        const errorText = await response.text();
+        console.error('[ERROR] Помилка відправки повідомлення:', response.status, errorText);
+        alert('Помилка відправки повідомлення: ' + response.status);
       }
     } catch (error) {
       console.error('Помилка відправки системного повідомлення:', error);
-      alert('Помилка відправки повідомлення');
+      alert('Помилка відправки повідомлення: ' + error.message);
     } finally {
       setSendingMessage(false);
     }
