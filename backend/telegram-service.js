@@ -65,18 +65,18 @@ class TelegramNotificationService {
       case 'new_requests':
         return `🔔 <b>Сповіщення про заявку</b>
 
-📋 <b>Номер заявки:</b> ${task.requestNumber || task.id || 'Н/Д'}
-👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || 'Система'}
+📋 <b>Номер заявки:</b> ${task.requestNumber || task._id || task.id || 'Н/Д'}
+👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || task.engineer1 || 'Система'}
 📊 <b>Статус заявки:</b> ${task.status || 'Заявка'}
 📅 <b>Дата заявки:</b> ${task.requestDate || new Date().toISOString().split('T')[0]}
-🏢 <b>Компанія виконавець:</b> ${task.executorCompany || 'ДТС'}
+🏢 <b>Компанія виконавець:</b> ${task.company || task.executorCompany || 'ДТС'}
 📍 <b>Регіон сервісного відділу:</b> ${task.serviceRegion || 'Н/Д'}
-📝 <b>Опис заявки:</b> ${task.description || task.workType || 'Н/Д'}
+📝 <b>Опис заявки:</b> ${task.requestDesc || task.description || task.workType || 'Н/Д'}
 🏛️ <b>ЄДРПОУ:</b> ${task.edrpou || 'Н/Д'}
 👥 <b>Замовник:</b> ${task.client || task.clientName || 'Н/Д'}
-🧾 <b>Номер рахунку:</b> ${task.invoiceNumber || 'Н/Д'}
+🧾 <b>Номер рахунку:</b> ${task.invoice || task.invoiceNumber || 'Н/Д'}
 🏠 <b>Адреса:</b> ${task.address || 'Н/Д'}
-⚙️ <b>Тип обладнання:</b> ${task.equipment || task.equipmentType || 'Н/Д'}
+⚙️ <b>Тип обладнання:</b> ${task.equipment || task.equipmentType || task.equipmentSerial || 'Н/Д'}
 
 ✅ <b>🆕 НОВА ЗАЯВКА СТВОРЕНА</b>
 
@@ -85,18 +85,18 @@ class TelegramNotificationService {
       case 'pending_approval':
         return `🔔 <b>Сповіщення про заявку</b>
 
-📋 <b>Номер заявки:</b> ${task.requestNumber || task.id || 'Н/Д'}
-👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || 'Система'}
+📋 <b>Номер заявки:</b> ${task.requestNumber || task._id || task.id || 'Н/Д'}
+👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || task.engineer1 || 'Система'}
 📊 <b>Статус заявки:</b> ${task.status || 'Заявка'}
 📅 <b>Дата заявки:</b> ${task.requestDate || new Date().toISOString().split('T')[0]}
-🏢 <b>Компанія виконавець:</b> ${task.executorCompany || 'ДТС'}
+🏢 <b>Компанія виконавець:</b> ${task.company || task.executorCompany || 'ДТС'}
 📍 <b>Регіон сервісного відділу:</b> ${task.serviceRegion || 'Н/Д'}
-📝 <b>Опис заявки:</b> ${task.description || task.workType || 'Н/Д'}
+📝 <b>Опис заявки:</b> ${task.requestDesc || task.description || task.workType || 'Н/Д'}
 🏛️ <b>ЄДРПОУ:</b> ${task.edrpou || 'Н/Д'}
 👥 <b>Замовник:</b> ${task.client || task.clientName || 'Н/Д'}
-🧾 <b>Номер рахунку:</b> ${task.invoiceNumber || 'Н/Д'}
+🧾 <b>Номер рахунку:</b> ${task.invoice || task.invoiceNumber || 'Н/Д'}
 🏠 <b>Адреса:</b> ${task.address || 'Н/Д'}
-⚙️ <b>Тип обладнання:</b> ${task.equipment || task.equipmentType || 'Н/Д'}
+⚙️ <b>Тип обладнання:</b> ${task.equipment || task.equipmentType || task.equipmentSerial || 'Н/Д'}
 
 🔔 <b>⚠️ ЗАЯВКА ВИКОНАНА ТА ПОТРЕБУЄ ЗАТВЕРДЖЕННЯ ЗАВ. СКЛАДА</b>
 
@@ -105,18 +105,18 @@ class TelegramNotificationService {
       case 'accountant_approval':
         return `🔔 <b>Сповіщення про заявку</b>
 
-📋 <b>Номер заявки:</b> ${task.requestNumber || task.id || 'Н/Д'}
-👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || 'Система'}
+📋 <b>Номер заявки:</b> ${task.requestNumber || task._id || task.id || 'Н/Д'}
+👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || task.engineer1 || 'Система'}
 📊 <b>Статус заявки:</b> ${task.status || 'Заявка'}
 📅 <b>Дата заявки:</b> ${task.requestDate || new Date().toISOString().split('T')[0]}
-🏢 <b>Компанія виконавець:</b> ${task.executorCompany || 'ДТС'}
+🏢 <b>Компанія виконавець:</b> ${task.company || task.executorCompany || 'ДТС'}
 📍 <b>Регіон сервісного відділу:</b> ${task.serviceRegion || 'Н/Д'}
-📝 <b>Опис заявки:</b> ${task.description || task.workType || 'Н/Д'}
+📝 <b>Опис заявки:</b> ${task.requestDesc || task.description || task.workType || 'Н/Д'}
 🏛️ <b>ЄДРПОУ:</b> ${task.edrpou || 'Н/Д'}
 👥 <b>Замовник:</b> ${task.client || task.clientName || 'Н/Д'}
-🧾 <b>Номер рахунку:</b> ${task.invoiceNumber || 'Н/Д'}
+🧾 <b>Номер рахунку:</b> ${task.invoice || task.invoiceNumber || 'Н/Д'}
 🏠 <b>Адреса:</b> ${task.address || 'Н/Д'}
-⚙️ <b>Тип обладнання:</b> ${task.equipment || task.equipmentType || 'Н/Д'}
+⚙️ <b>Тип обладнання:</b> ${task.equipment || task.equipmentType || task.equipmentSerial || 'Н/Д'}
 
 🔔 <b>⚠️ ЗАЯВКА ВИКОНАНА ТА ПОТРЕБУЄ ЗАТВЕРДЖЕННЯ БУХГАЛТЕРА</b>
 
@@ -125,18 +125,18 @@ class TelegramNotificationService {
       case 'approved_requests':
         return `🔔 <b>Сповіщення про заявку</b>
 
-📋 <b>Номер заявки:</b> ${task.requestNumber || task.id || 'Н/Д'}
-👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || 'Система'}
+📋 <b>Номер заявки:</b> ${task.requestNumber || task._id || task.id || 'Н/Д'}
+👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || task.engineer1 || 'Система'}
 📊 <b>Статус заявки:</b> ${task.status || 'Заявка'}
 📅 <b>Дата заявки:</b> ${task.requestDate || new Date().toISOString().split('T')[0]}
-🏢 <b>Компанія виконавець:</b> ${task.executorCompany || 'ДТС'}
+🏢 <b>Компанія виконавець:</b> ${task.company || task.executorCompany || 'ДТС'}
 📍 <b>Регіон сервісного відділу:</b> ${task.serviceRegion || 'Н/Д'}
-📝 <b>Опис заявки:</b> ${task.description || task.workType || 'Н/Д'}
+📝 <b>Опис заявки:</b> ${task.requestDesc || task.description || task.workType || 'Н/Д'}
 🏛️ <b>ЄДРПОУ:</b> ${task.edrpou || 'Н/Д'}
 👥 <b>Замовник:</b> ${task.client || task.clientName || 'Н/Д'}
-🧾 <b>Номер рахунку:</b> ${task.invoiceNumber || 'Н/Д'}
+🧾 <b>Номер рахунку:</b> ${task.invoice || task.invoiceNumber || 'Н/Д'}
 🏠 <b>Адреса:</b> ${task.address || 'Н/Д'}
-⚙️ <b>Тип обладнання:</b> ${task.equipment || task.equipmentType || 'Н/Д'}
+⚙️ <b>Тип обладнання:</b> ${task.equipment || task.equipmentType || task.equipmentSerial || 'Н/Д'}
 
 ✅ <b>✅ ВАША ЗАЯВКА ЗАТВЕРДЖЕНА ТА НАЧИСЛЕНА ПРЕМІЯ ЗА ВИКОНАНУ ЗАЯВКУ</b>
 
@@ -145,18 +145,18 @@ class TelegramNotificationService {
       case 'rejected_requests':
         return `🔔 <b>Сповіщення про заявку</b>
 
-📋 <b>Номер заявки:</b> ${task.requestNumber || task.id || 'Н/Д'}
-👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || 'Система'}
+📋 <b>Номер заявки:</b> ${task.requestNumber || task._id || task.id || 'Н/Д'}
+👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || task.engineer1 || 'Система'}
 📊 <b>Статус заявки:</b> ${task.status || 'Заявка'}
 📅 <b>Дата заявки:</b> ${task.requestDate || new Date().toISOString().split('T')[0]}
-🏢 <b>Компанія виконавець:</b> ${task.executorCompany || 'ДТС'}
+🏢 <b>Компанія виконавець:</b> ${task.company || task.executorCompany || 'ДТС'}
 📍 <b>Регіон сервісного відділу:</b> ${task.serviceRegion || 'Н/Д'}
-📝 <b>Опис заявки:</b> ${task.description || task.workType || 'Н/Д'}
+📝 <b>Опис заявки:</b> ${task.requestDesc || task.description || task.workType || 'Н/Д'}
 🏛️ <b>ЄДРПОУ:</b> ${task.edrpou || 'Н/Д'}
 👥 <b>Замовник:</b> ${task.client || task.clientName || 'Н/Д'}
-🧾 <b>Номер рахунку:</b> ${task.invoiceNumber || 'Н/Д'}
+🧾 <b>Номер рахунку:</b> ${task.invoice || task.invoiceNumber || 'Н/Д'}
 🏠 <b>Адреса:</b> ${task.address || 'Н/Д'}
-⚙️ <b>Тип обладнання:</b> ${task.equipment || task.equipmentType || 'Н/Д'}
+⚙️ <b>Тип обладнання:</b> ${task.equipment || task.equipmentType || task.equipmentSerial || 'Н/Д'}
 
 ❌ <b>❌ ВІДХИЛЕНО</b>
 
