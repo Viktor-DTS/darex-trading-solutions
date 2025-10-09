@@ -1671,7 +1671,7 @@ function TaskTableComponent({
             <span class="form-value">L1 _______ A. L2 _______ A. L3 _______ A. U1 _______ V. U2 _______ V. U3 _______ V.</span>
           </div>
 
-          <div class="section-title">6.1. ПЕРЕЛІК МАТЕРІАЛІВ ТА ЗАПЧАСТИН, ВИКОРИСТАНИХ ПІД ЧАС РОБІТ:</div>
+          <div class="section-title">8.1. ПЕРЕЛІК МАТЕРІАЛІВ ТА ЗАПЧАСТИН, ВИКОРИСТАНИХ ПІД ЧАС РОБІТ:</div>
           <table class="materials-table">
             <thead>
               <tr>
@@ -1679,20 +1679,21 @@ function TaskTableComponent({
                 <th>Найменування</th>
                 <th>Один. виміру</th>
                 <th>Кількість</th>
+                <th>Ціна з ПДВ, грн</th>
                 <th>Вартість з ПДВ, грн</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td>1</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>2</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>3</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>4</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>5</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>6</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>7</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>8</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>9</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>10</td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>1</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>2</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>3</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>4</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>5</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>6</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>7</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>8</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>9</td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr><td>10</td><td></td><td></td><td></td><td></td><td></td></tr>
             </tbody>
           </table>
 
@@ -1702,29 +1703,32 @@ function TaskTableComponent({
             <span class="form-label">грн.</span>
           </div>
 
-          <div class="section-title">6.2 Вартість ремонту робіт, Коефіцієнт складності*:</div>
+          <div class="section-title">6.2 Вартість ремонту/робіт:</div>
           <div class="form-row">
-            <span class="form-label">Діагностика:</span>
+            <span class="form-label">Коефіцієнт складності*</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">Діагностика,</span>
             <span class="form-value">_______</span>
             <span class="form-label">грн</span>
           </div>
           <div class="form-row">
-            <span class="form-label">Вартість технічного обслуговування:</span>
+            <span class="form-label">Вартість технічного обслуговування</span>
             <span class="form-value">_______</span>
             <span class="form-label">грн.</span>
           </div>
           <div class="form-row">
-            <span class="form-label">Вартість ремонту (людино-година 1200 грн.):</span>
+            <span class="form-label">Вартість ремонту (1людино-година*1200 грн.),</span>
             <span class="form-value">${workOrderData.repairCost}</span>
             <span class="form-label">грн.</span>
           </div>
           <div class="form-row">
-            <span class="form-label">Вартість пусконалагоджувальних робіт:</span>
+            <span class="form-label">Вартість пусконалагоджувальних робіт</span>
             <span class="form-value">_______</span>
             <span class="form-label">грн.</span>
           </div>
           <div class="form-row">
-            <span class="form-label">Загальна вартість з урахуванням коефіцієнта складності:</span>
+            <span class="form-label">Загальна вартість з урахуванням коефіцієнта складності</span>
             <span class="form-value">_______</span>
             <span class="form-label">грн.</span>
           </div>
@@ -1735,8 +1739,7 @@ function TaskTableComponent({
           <div class="form-row">
             <span class="form-label">Виїзд за місто</span>
             <span class="form-value">_______</span>
-            <span class="form-label">км * 15,00 грн/км;</span>
-            <span class="form-label">разом</span>
+            <span class="form-label">км * 15,00 грн/км; разом</span>
             <span class="form-value">${workOrderData.travelCost}</span>
             <span class="form-label">грн.</span>
           </div>
@@ -1744,8 +1747,7 @@ function TaskTableComponent({
           <div class="form-row">
             <span class="form-label">6.4 Добові у відрядженні: 600.00 грн.</span>
             <span class="form-value">_______</span>
-            <span class="form-label">люд.</span>
-            <span class="form-label">разом</span>
+            <span class="form-label">люд. разом</span>
             <span class="form-value">_______</span>
             <span class="form-label">грн.</span>
           </div>
@@ -1755,16 +1757,20 @@ function TaskTableComponent({
             <span class="form-value">_______</span>
             <span class="form-label">грн.</span>
             <span class="form-value">_______</span>
-            <span class="form-label">діб</span>
-            <span class="form-label">разом</span>
+            <span class="form-label">діб разом</span>
             <span class="form-value">_______</span>
             <span class="form-label">грн.</span>
           </div>
 
           <div class="form-row">
-            <span class="form-label">ЗАГАЛЬНА ВАРТІСТЬ РОБІТ З ПДВ (усього по п.6.1-6.5)</span>
+            <span class="form-label">ЗАГАЛЬНА ВАРТІСТЬ РОБІТ з ПДВ (усього по пп.6.1-6.5)</span>
             <span class="form-value">${workOrderData.totalCost}</span>
             <span class="form-label">грн.</span>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">Роботи виконав:</span>
+            <span class="form-value">${engineers}</span>
           </div>
         </div>
 
