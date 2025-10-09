@@ -3262,16 +3262,21 @@ app.post('/api/notifications/send-system-message', async (req, res) => {
     console.log('[DEBUG] POST /api/notifications/send-system-message - відправляємо системне повідомлення через нову систему');
     
     // Використовуємо нову систему сповіщень
+    console.log('[DEBUG] POST /api/notifications/send-system-message - викликаємо telegramService.sendNotification');
     const success = await telegramService.sendNotification('system_notifications', { 
       message: message 
     });
     
+    console.log('[DEBUG] POST /api/notifications/send-system-message - результат sendNotification:', success);
+    
     if (success) {
+      console.log('[DEBUG] POST /api/notifications/send-system-message - успішно відправлено');
       res.json({ 
         success: true, 
         message: 'Системне повідомлення відправлено успішно'
       });
     } else {
+      console.log('[ERROR] POST /api/notifications/send-system-message - sendNotification повернув false');
       res.status(500).json({ 
         success: false, 
         message: 'Помилка при відправці системного повідомлення'

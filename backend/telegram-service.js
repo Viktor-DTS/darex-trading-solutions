@@ -14,8 +14,13 @@ class TelegramNotificationService {
     try {
       console.log(`[TelegramService] sendNotification - тип: ${type}, дані:`, data);
       
+      console.log(`[TelegramService] sendNotification - формуємо повідомлення для типу ${type}`);
       const message = this.formatNotificationMessage(type, data);
+      console.log(`[TelegramService] sendNotification - сформоване повідомлення:`, message);
+      
+      console.log(`[TelegramService] sendNotification - отримуємо chatIds для типу ${type}`);
       const chatIds = await this.getChatIdsForNotification(type, data);
+      console.log(`[TelegramService] sendNotification - отримано chatIds:`, chatIds);
       
       if (chatIds.length === 0) {
         console.log(`[TelegramService] sendNotification - немає chatIds для типу: ${type}`);
