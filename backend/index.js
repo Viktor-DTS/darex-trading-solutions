@@ -196,14 +196,6 @@ const notificationLogSchema = new mongoose.Schema({
 
 const NotificationLog = mongoose.model('NotificationLog', notificationLogSchema);
 
-// Модель для глобальних налаштувань сповіщень
-const globalNotificationSettingsSchema = new mongoose.Schema({
-  settings: { type: Object, default: {} },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
-
-const GlobalNotificationSettings = mongoose.model('GlobalNotificationSettings', globalNotificationSettingsSchema);
 
 // Модель для запитів на рахунки
 const invoiceRequestSchema = new mongoose.Schema({
