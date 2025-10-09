@@ -110,11 +110,15 @@ class TelegramNotificationService {
       
       // Отримуємо користувачів з увімкненими налаштуваннями
       const User = mongoose.model('User');
-      const users = await User.find({
+      const query = {
         telegramChatId: { $exists: true, $ne: null, $ne: '' },
-        telegramChatId: { $ne: 'Chat ID' },
-        [`notificationSettings.${type}`]: true
-      });
+        telegramChatId: { $ne: 'Chat ID' }
+      };
+      
+      // Додаємо умову для конкретного типу сповіщень
+      query[`notificationSettings.${type}`] = true;
+      
+      const users = await User.find(query);
       
       console.log(`[TelegramService] getChatIdsForNotification - знайдено користувачів: ${users.length}`);
       
