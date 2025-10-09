@@ -731,6 +731,16 @@ app.get('/api/system-status', async (req, res) => {
 // --- USERS через MongoDB ---
 // Цей endpoint видалено, використовується endpoint нижче
 
+// Endpoint для отримання всіх користувачів
+app.get('/api/users', async (req, res) => {
+  try {
+    const users = await User.find({});
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/users/:login', async (req, res) => {
   try {
     const user = await User.findOne({ login: req.params.login });
@@ -4212,10 +4222,21 @@ app.put('/api/notification-settings/user/:login', async (req, res) => {
   }
 });
 
+// Тестовий endpoint для перевірки роботи сервера
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Backend server is working!',
+    timestamp: new Date().toISOString(),
+    version: 'v5-test'
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`[STARTUP] Сервер запущено на порту ${PORT}`);
   console.log(`[STARTUP] MongoDB readyState: ${mongoose.connection.readyState}`);
   console.log(`[STARTUP] Server is ready to accept requests`);
+  console.log(`[STARTUP] Test endpoint: http://localhost:${PORT}/api/test`);
 }); 
 
 // Endpoint для ініціалізації налаштувань сповіщень
