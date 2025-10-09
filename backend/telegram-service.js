@@ -187,6 +187,31 @@ class TelegramNotificationService {
       return false;
     }
   }
+
+  // Метод для тестування повідомлень
+  async sendTestMessage(chatId, message) {
+    try {
+      console.log(`[TelegramService] sendTestMessage - відправка тестового повідомлення до ${chatId}`);
+      
+      const response = await fetch(`${this.baseUrl}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: `🧪 Тестове повідомлення:\n\n${message}\n\n✅ Сповіщення працюють правильно!`
+        })
+      });
+      
+      const result = await response.json();
+      console.log(`[TelegramService] sendTestMessage - результат:`, result);
+      
+      return result.ok;
+      
+    } catch (error) {
+      console.error(`[TelegramService] sendTestMessage - помилка:`, error);
+      return false;
+    }
+  }
 }
 
 module.exports = TelegramNotificationService;

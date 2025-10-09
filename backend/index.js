@@ -4255,6 +4255,66 @@ app.get('/api/test/notification-settings/:login', async (req, res) => {
   }
 });
 
+// Endpoints для старого компонента NotificationSettings
+app.get('/api/telegram/status', async (req, res) => {
+  try {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+    const serviceChatId = process.env.TELEGRAM_SERVICE_CHAT_ID;
+    const warehouseChatId = process.env.TELEGRAM_WAREHOUSE_CHAT_ID;
+    
+    res.json({
+      botTokenConfigured: !!botToken,
+      adminChatIdConfigured: !!adminChatId,
+      serviceChatIdConfigured: !!serviceChatId,
+      warehouseChatIdConfigured: !!warehouseChatId
+    });
+  } catch (error) {
+    console.error('[ERROR] GET /api/telegram/status - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/notification-settings', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    console.log(`[DEBUG] GET /api/notification-settings?userId=${userId} - завантаження налаштувань`);
+    
+    const user = await User.findOne({ login: userId });
+    if (!user) {
+      return res.status(404).json({ error: 'Користувач не знайдений' });
+    }
+    
+    res.json({
+      telegramChatId: user.telegramChatId || '',
+      enabledNotifications: user.notificationSettings ? Object.keys(user.notificationSettings).filter(key => user.notificationSettings[key]) : []
+    });
+  } catch (error) {
+    console.error('[ERROR] GET /api/notification-settings - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/telegram/test', async (req, res) => {
+  try {
+    const { chatId, message } = req.body;
+    console.log(`[DEBUG] POST /api/telegram/test - тестування повідомлення до ${chatId}`);
+    
+    if (!chatId || !message) {
+      return res.status(400).json({ error: 'Потрібно вказати chatId та message' });
+    }
+    
+    // Використовуємо новий TelegramNotificationService
+    const telegramService = new TelegramNotificationService();
+    const result = await telegramService.sendTestMessage(chatId, message);
+    
+    res.json({ success: result });
+  } catch (error) {
+    console.error('[ERROR] POST /api/telegram/test - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[STARTUP] Сервер запущено на порту ${PORT}`);
   console.log(`[STARTUP] MongoDB readyState: ${mongoose.connection.readyState}`);
