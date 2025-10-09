@@ -125,13 +125,41 @@ class TelegramNotificationService {
       };
       
       // Додаємо умову для конкретного типу сповіщень
-      // Конвертуємо snake_case в camelCase
-      const camelCaseType = type.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
-      query[`notificationSettings.${camelCaseType}`] = true;
+      // Використовуємо правильний ключ для кожного типу
+      let notificationKey;
+      switch (type) {
+        case 'system_notifications':
+          notificationKey = 'systemNotifications';
+          break;
+        case 'new_requests':
+          notificationKey = 'newRequests';
+          break;
+        case 'pending_approval':
+          notificationKey = 'pendingApproval';
+          break;
+        case 'accountant_approval':
+          notificationKey = 'accountantApproval';
+          break;
+        case 'approved_requests':
+          notificationKey = 'approvedRequests';
+          break;
+        case 'rejected_requests':
+          notificationKey = 'rejectedRequests';
+          break;
+        case 'invoice_requested':
+          notificationKey = 'invoiceRequests';
+          break;
+        case 'invoice_completed':
+          notificationKey = 'completedInvoices';
+          break;
+        default:
+          notificationKey = type;
+      }
+      query[`notificationSettings.${notificationKey}`] = true;
       
       console.log(`[TelegramService] getChatIdsForNotification - тип сповіщення: ${type}`);
-      console.log(`[TelegramService] getChatIdsForNotification - camelCase тип: ${camelCaseType}`);
-      console.log(`[TelegramService] getChatIdsForNotification - поле для пошуку: notificationSettings.${camelCaseType}`);
+      console.log(`[TelegramService] getChatIdsForNotification - ключ для пошуку: ${notificationKey}`);
+      console.log(`[TelegramService] getChatIdsForNotification - поле для пошуку: notificationSettings.${notificationKey}`);
       console.log(`[TelegramService] getChatIdsForNotification - запит:`, JSON.stringify(query, null, 2));
       
       // Спочатку перевіримо всіх користувачів з telegramChatId
