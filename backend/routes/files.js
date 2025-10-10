@@ -39,6 +39,14 @@ router.use((req, res, next) => {
   }
 });
 
+// Логування всіх запитів до файлового API
+router.use((req, res, next) => {
+  console.log('[FILES] Запит:', req.method, req.path, req.url);
+  console.log('[FILES] Headers:', req.headers);
+  console.log('[FILES] Body keys:', Object.keys(req.body || {}));
+  next();
+});
+
 // Тимчасово вимикаємо Cloudinary для тестування
 let cloudinary = null;
 let CloudinaryStorage = null;
@@ -406,7 +414,16 @@ router.get('/info/:fileId', async (req, res) => {
 
 // Роут для завантаження файлу договору
 router.post('/upload-contract', (req, res, next) => {
+  console.log('[FILES] upload-contract: Початок обробки запиту');
+  console.log('[FILES] upload-contract: Content-Type:', req.headers['content-type']);
+  console.log('[FILES] upload-contract: Content-Length:', req.headers['content-length']);
+  
   upload.single('file')(req, res, (err) => {
+    console.log('[FILES] upload-contract: Multer callback викликано');
+    console.log('[FILES] upload-contract: Error:', err);
+    console.log('[FILES] upload-contract: File:', req.file);
+    console.log('[FILES] upload-contract: Body:', req.body);
+    
     if (err) {
       console.error('[FILES] Multer error:', err);
       if (err instanceof multer.MulterError) {
@@ -471,7 +488,7 @@ router.post('/upload-contract', (req, res, next) => {
       cloudinaryAvailable: !!cloudinary
     });
     
-    res.json({ 
+    const response = { 
       success: true,
       message: 'Файл договору завантажено успішно',
       url: fileUrl,
@@ -481,7 +498,10 @@ router.post('/upload-contract', (req, res, next) => {
         configured: !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET),
         available: !!cloudinary
       }
-    });
+    };
+    
+    console.log('[FILES] Відправляємо відповідь:', response);
+    res.json(response);
 
   } catch (error) {
     console.error('[FILES] Помилка завантаження файлу договору:', error);
