@@ -722,6 +722,22 @@ function TaskTableComponent({
     });
   };
 
+  // Функція для визначення статусу рахунку
+  const getInvoiceStatus = (task) => {
+    // Перевіряємо, чи є заявка на рахунок
+    if (!task.needInvoice || task.needInvoice === false) {
+      return { status: 'not_requested', color: '#dc3545', label: 'Не подана' }; // Червоний
+    }
+    
+    // Перевіряємо, чи є файл рахунку
+    if (task.invoiceFile && task.invoiceFile.trim() !== '') {
+      return { status: 'completed', color: '#28a745', label: 'Виконана' }; // Зелений
+    }
+    
+    // Заявка подана, але не виконана
+    return { status: 'pending', color: '#ffc107', label: 'В обробці' }; // Жовтий
+  };
+
   // Функція для визначення типу поля
   const getFieldType = (field) => {
     // Поля дат
@@ -2303,6 +2319,22 @@ function TaskTableComponent({
                 {sortData(tasks, sortConfig.field, sortConfig.direction).map(t => (
                   <tr key={t.id} className={getRowClass(t)} style={getRowColor(t) ? {background:getRowColor(t)} : {}}>
                     <td className="action-buttons" style={getRowColor(t) ? {color:'#111'} : {}}>
+                      {/* Індикатор стану рахунку */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        marginBottom: '8px',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: getInvoiceStatus(t).color,
+                        color: '#fff',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        minWidth: '100px',
+                        justifyContent: 'center'
+                      }}>
+                        📄 {getInvoiceStatus(t).label}
+                      </div>
                       <button onClick={()=>{
                         if (onHistoryClick && role === 'materials') {
                           // Для вкладки аналізу матеріалів - відкриваємо звіт по обладнанню
