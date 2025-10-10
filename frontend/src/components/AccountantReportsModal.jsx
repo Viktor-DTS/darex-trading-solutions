@@ -159,11 +159,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         if (t.status !== 'Виконано') return false;
         if (!t.date) return false;
         const taskDate = new Date(t.date);
-        const isInRange = taskDate >= startDate && taskDate <= endDate;
-        if (isInRange) {
-          console.log(`[FILTER DEBUG] Task ${t.id} date ${t.date} is in range for month ${personnelFilters.month}/${personnelFilters.year}`);
-        }
-        return isInRange;
+        return taskDate >= startDate && taskDate <= endDate;
       });
       
       
@@ -215,8 +211,6 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           const taskDate = new Date(task.date);
           const day = taskDate.getDate();
           
-          console.log(`[TIMESHEET DEBUG] Task date: ${task.date}, parsed day: ${day}, month: ${taskDate.getMonth() + 1}, year: ${taskDate.getFullYear()}`);
-          
           const engineers = [
             task.engineer1,
             task.engineer2,
@@ -229,7 +223,6 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           engineers.forEach(engineer => {
             if (engineerHours[engineer]) {
               engineerHours[engineer][day] = 8;
-              console.log(`[TIMESHEET DEBUG] Added 8 hours for ${engineer} on day ${day}`);
             }
           });
         });
