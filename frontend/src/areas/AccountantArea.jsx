@@ -724,6 +724,13 @@ export default function AccountantArea({ user }) {
     }
     return true;
   });
+  
+  // Логування для діагностики filtered
+  console.log('[DEBUG] AccountantArea - filtered оновлено:', {
+    tasksLength: tasks.length,
+    filteredLength: filtered.length,
+    filters: Object.keys(filters).filter(key => filters[key]).length
+  });
   const pending = filtered.filter(t => {
     // Базовий фільтр: заявки на підтвердженні
     const isPendingApproval = t.status === 'Виконано' && 
@@ -743,11 +750,28 @@ export default function AccountantArea({ user }) {
     
     return isPendingApproval;
   });
+  
+  // Логування для діагностики pending
+  console.log('[DEBUG] AccountantArea - pending оновлено:', {
+    pendingLength: pending.length,
+    showAllTasks,
+    filteredLength: filtered.length
+  });
   function isApproved(v) {
     return v === true || v === 'Підтверджено';
   }
   const archive = filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByAccountant));
   const tableData = tab === 'pending' ? pending : archive;
+  
+  // Логування для діагностики tableData
+  console.log('[DEBUG] AccountantArea - tableData оновлено:', {
+    tab,
+    tableDataLength: tableData.length,
+    pendingLength: pending.length,
+    archiveLength: archive.length,
+    filteredLength: filtered.length,
+    tasksLength: tasks.length
+  });
   const columns = allTaskFields.map(f => ({
     key: f.name,
     label: f.label,
