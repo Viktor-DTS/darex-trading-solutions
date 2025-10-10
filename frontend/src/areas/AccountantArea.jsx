@@ -87,6 +87,22 @@ export default function AccountantArea({ user }) {
   const [showAllTasks, setShowAllTasks] = useState(false);
   const region = user?.region || '';
   
+  // Функція для ручного оновлення кешу
+  const refreshCache = async () => {
+    try {
+      console.log('[DEBUG] AccountantArea refreshCache - оновлюємо кеш...');
+      setLoading(true);
+      const freshTasks = await tasksAPI.getAll();
+      setTasks(freshTasks);
+      console.log('[DEBUG] AccountantArea refreshCache - кеш оновлено, завантажено заявок:', freshTasks.length);
+    } catch (error) {
+      console.error('[ERROR] AccountantArea refreshCache - помилка оновлення кешу:', error);
+      alert('Помилка оновлення даних: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   // Функція для завантаження запитів на рахунки
   const loadInvoiceRequests = async () => {
     try {
@@ -519,29 +535,53 @@ export default function AccountantArea({ user }) {
   }, []);
   const handleApprove = async (id, approved, comment) => {
     setLoading(true);
-    const t = tasks.find(t => t.id === id);
-    if (!t) return;
-    let next = {
-      ...t,
-      approvedByAccountant: approved,
-      accountantComment: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.accountantComment),
-      accountantComments: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.accountantComments)
-    };
-    let bonusApprovalDate = t.bonusApprovalDate;
-    if (
-      next.status === 'Виконано' &&
-      (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
-      (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true)
-    ) {
-      const d = new Date();
-      bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+    
+    try {
+      const t = tasks.find(t => t.id === id);
+      if (!t) {
+        console.error('[ERROR] AccountantArea handleApprove - заявка не знайдена:', id);
+        return;
+      }
+      
+      let next = {
+        ...t,
+        approvedByAccountant: approved,
+        accountantComment: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.accountantComment),
+        accountantComments: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.accountantComments)
+      };
+      
+      let bonusApprovalDate = t.bonusApprovalDate;
+      if (
+        next.status === 'Виконано' &&
+        (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
+        (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true)
+      ) {
+        const d = new Date();
+        bonusApprovalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+      }
+      
+      const updated = await tasksAPI.update(id, {
+        ...next,
+        bonusApprovalDate
+      });
+      
+      console.log('[DEBUG] AccountantArea handleApprove - заявка підтверджена:', updated);
+      
+      // Оновлюємо локальний стан
+      setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
+      
+      // Додатково оновлюємо кеш з бази для гарантії актуальності
+      console.log('[DEBUG] AccountantArea handleApprove - оновлюємо кеш після підтвердження...');
+      const freshTasks = await tasksAPI.getAll();
+      setTasks(freshTasks);
+      console.log('[DEBUG] AccountantArea handleApprove - кеш оновлено, завантажено заявок:', freshTasks.length);
+      
+    } catch (error) {
+      console.error('[ERROR] AccountantArea handleApprove - помилка підтвердження заявки:', error);
+      alert('Помилка підтвердження заявки: ' + error.message);
+    } finally {
+      setLoading(false);
     }
-    const updated = await tasksAPI.update(id, {
-      ...next,
-      bonusApprovalDate
-    });
-    setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
-    setLoading(false);
   };
   const handleFilter = e => {
     const newFilters = { ...filters, [e.target.name]: e.target.value };
@@ -568,21 +608,40 @@ export default function AccountantArea({ user }) {
   const handleSave = async (task) => {
     setLoading(true);
     let updatedTask = null;
-    if (editTask && editTask.id) {
-      updatedTask = await tasksAPI.update(editTask.id, task);
-    } else {
-      updatedTask = await tasksAPI.add(task);
-    }
-    // Оновлюємо дані з бази після збереження
+    
     try {
+      if (editTask && editTask.id) {
+        updatedTask = await tasksAPI.update(editTask.id, task);
+        console.log('[DEBUG] AccountantArea handleSave - заявка оновлена:', updatedTask);
+      } else {
+        updatedTask = await tasksAPI.add(task);
+        console.log('[DEBUG] AccountantArea handleSave - заявка створена:', updatedTask);
+      }
+      
+      // Оновлюємо дані з бази після збереження
+      console.log('[DEBUG] AccountantArea handleSave - оновлюємо кеш з бази даних...');
       const freshTasks = await tasksAPI.getAll();
       setTasks(freshTasks);
+      console.log('[DEBUG] AccountantArea handleSave - кеш оновлено, завантажено заявок:', freshTasks.length);
+      
+      // Додатково оновлюємо локальний стан для швидшого відображення
+      if (editTask && editTask.id) {
+        setTasks(prevTasks => 
+          prevTasks.map(t => t.id === editTask.id ? updatedTask : t)
+        );
+      } else {
+        setTasks(prevTasks => [...prevTasks, updatedTask]);
+      }
+      
     } catch (error) {
-      console.error('[ERROR] AccountantArea handleSave - помилка оновлення даних з бази:', error);
+      console.error('[ERROR] AccountantArea handleSave - помилка збереження або оновлення даних:', error);
+      alert('Помилка збереження заявки: ' + error.message);
+    } finally {
+      // Закриваємо модальне вікно
+      setModalOpen(false);
+      setEditTask(null);
+      setLoading(false);
     }
-    // Закриваємо модальне вікно
-    setEditTask(null);
-    setLoading(false);
   };
   const filtered = tasks.filter(t => {
     for (const key in filters) {
@@ -1183,6 +1242,18 @@ export default function AccountantArea({ user }) {
         <button onClick={()=>setTab('invoices')} style={{width:220,padding:'10px 0',background:tab==='invoices'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='invoices'?700:400,cursor:'pointer'}}>📄 Запити на рахунки</button>
         <button onClick={()=>setReportsModalOpen(true)} style={{width:220,padding:'10px 0',background:'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:400,cursor:'pointer'}}>📊 Бухгалтерські звіти</button>
         <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
+        <button onClick={refreshCache} disabled={loading} style={{
+          background: loading ? '#6c757d' : '#17a2b8',
+          color:'#fff',
+          border:'none',
+          borderRadius:6,
+          padding:'8px 20px',
+          fontWeight:600,
+          cursor: loading ? 'not-allowed' : 'pointer',
+          opacity: loading ? 0.6 : 1
+        }}>
+          {loading ? '⏳ Оновлення...' : '🔄 Оновити дані'}
+        </button>
       </div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
         <label style={{display:'flex',alignItems:'center',gap:4}}>
@@ -1209,7 +1280,20 @@ export default function AccountantArea({ user }) {
         </label>
         <button onClick={handleFormReport} style={{background:'#00bfff',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Сформувати звіт</button>
       </div>
-      <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="accountant" user={user} readOnly={editTask?._readOnly || false} />
+      <ModalTaskForm 
+        open={modalOpen} 
+        onClose={async ()=>{
+          setModalOpen(false);
+          setEditTask(null);
+          // Оновлюємо кеш при закритті модального вікна
+          await refreshCache();
+        }} 
+        onSave={handleSave} 
+        initialData={editTask || {}} 
+        mode="accountant" 
+        user={user} 
+        readOnly={editTask?._readOnly || false} 
+      />
       
       {/* Вкладка запитів на рахунки */}
       {tab === 'invoices' ? (
