@@ -240,11 +240,12 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           const total = engineerHours[engineer.name]?.total || 0;
           const salary = 25000;
           const bonus = 0;
-          const workHours = 168;
+          const workHours = 168; // Норма робочих годин на місяць
           const overtime = Math.max(0, total - workHours);
           const overtimeRate = workHours > 0 ? (salary / workHours) * 2 : 0;
           const overtimePay = overtime * overtimeRate;
-          const basePay = Math.round(salary * Math.min(total, workHours) / workHours);
+          // Виправляємо розрахунок базової оплати - тільки за фактично відпрацьовані години
+          const basePay = Math.round(salary * total / workHours);
           
           // Розрахунок премії за сервісні роботи
           let engineerBonus = 0;
@@ -281,10 +282,10 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           };
         });
         
-        // Фільтруємо інженерів з ненульовою оплатою
+        // Фільтруємо інженерів з ненульовими годинами роботи
         const usersWithPayment = regionEngineers.filter(engineer => {
-          const salary = engineerSalaries[engineer.name];
-          return salary && salary.totalPay > 0;
+          const total = engineerHours[engineer.name]?.total || 0;
+          return total > 0;
         });
         
         const days = Array.from({length: 31}, (_, i) => i + 1);
