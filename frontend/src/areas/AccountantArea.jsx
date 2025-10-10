@@ -78,6 +78,16 @@ export default function AccountantArea({ user }) {
       return acc;
     }, {});
   const [filters, setFilters] = useState(allFilterKeys);
+  
+  // Логування для діагностики створення фільтрів
+  console.log('[DEBUG] AccountantArea - створені фільтри:', {
+    allFilterKeys: Object.keys(allFilterKeys),
+    paymentDateFilters: {
+      paymentDate: allFilterKeys.paymentDate,
+      paymentDateFrom: allFilterKeys.paymentDateFrom,
+      paymentDateTo: allFilterKeys.paymentDateTo
+    }
+  });
   const [approvalFilter, setApprovalFilter] = useState('all'); // 'all', 'approved', 'not_approved'
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
@@ -736,7 +746,13 @@ export default function AccountantArea({ user }) {
   console.log('[DEBUG] AccountantArea - filtered оновлено:', {
     tasksLength: tasks.length,
     filteredLength: filtered.length,
-    filters: Object.keys(filters).filter(key => filters[key]).length
+    filters: Object.keys(filters).filter(key => filters[key]).length,
+    paymentDateFilters: {
+      paymentDateFrom: filters.paymentDateFrom,
+      paymentDateTo: filters.paymentDateTo,
+      hasPaymentDateFrom: !!filters.paymentDateFrom,
+      hasPaymentDateTo: !!filters.paymentDateTo
+    }
   });
   const pending = filtered.filter(t => {
     // Базовий фільтр: заявки на підтвердженні
