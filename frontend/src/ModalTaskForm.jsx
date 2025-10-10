@@ -460,12 +460,14 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   // --- Завантаження типів обладнання ---
   useEffect(() => {
     if (open) {
+      console.log('[DEBUG] ModalTaskForm - завантажуємо типи обладнання...');
       getEquipmentTypes()
         .then(types => {
+          console.log('[DEBUG] ModalTaskForm - отримано типів обладнання:', types.length, types);
           setEquipmentTypes(types);
         })
         .catch(error => {
-          console.error('Помилка завантаження типів обладнання:', error);
+          console.error('[ERROR] ModalTaskForm - помилка завантаження типів обладнання:', error);
           setEquipmentTypes([]);
         });
     }
@@ -580,12 +582,15 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     
     // Спеціальна обробка для поля обладнання
     if (name === 'equipment') {
+      console.log('[DEBUG] ModalTaskForm - зміна поля обладнання:', value);
+      console.log('[DEBUG] ModalTaskForm - доступні типи обладнання:', equipmentTypes.length);
       setForm({ ...form, [name]: value });
       // Фільтруємо типи обладнання для автодоповнення
       if (value.trim()) {
         const filtered = equipmentTypes.filter(type => 
           type.toLowerCase().includes(value.toLowerCase())
         );
+        console.log('[DEBUG] ModalTaskForm - відфільтровані типи:', filtered.length, filtered);
         setFilteredEquipmentTypes(filtered);
         setShowEquipmentDropdown(filtered.length > 0);
       } else {
