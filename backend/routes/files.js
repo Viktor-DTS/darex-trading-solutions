@@ -170,6 +170,49 @@ router.get('/test-cloudinary', async (req, res) => {
   }
 });
 
+// Тестовий роут для завантаження файлу договору
+router.post('/test-upload-contract', upload.single('file'), async (req, res) => {
+  try {
+    console.log('[FILES] Тестовий завантаження файлу договору');
+    console.log('[FILES] Request body:', req.body);
+    console.log('[FILES] Request file:', req.file);
+    
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Файл не був завантажений' 
+      });
+    }
+
+    console.log('[FILES] Файл отримано:', {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      path: req.file.path,
+      filename: req.file.filename
+    });
+
+    res.json({ 
+      success: true,
+      message: 'Тестовий файл отримано успішно',
+      file: {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        path: req.file.path,
+        filename: req.file.filename
+      }
+    });
+
+  } catch (error) {
+    console.error('[FILES] Помилка тестового завантаження:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Помилка тестового завантаження: ' + error.message 
+    });
+  }
+});
+
 // Роут для завантаження файлів
 router.post('/upload/:taskId', upload.array('files', 10), async (req, res) => {
   try {
