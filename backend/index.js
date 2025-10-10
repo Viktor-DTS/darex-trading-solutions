@@ -1694,11 +1694,11 @@ app.get('/api/reports/financial', async (req, res) => {
     };
     
     // Фільтр по регіону - тільки якщо вибрано конкретний регіон
-    if (region && region !== 'Всі регіони' && region !== 'Україна' && region !== '') {
+    if (region && region !== 'Всі регіони' && region !== 'all' && region !== 'Україна' && region !== '') {
       filter.serviceRegion = region;
       console.log('[REPORTS] Додано фільтр по регіону:', region);
     } else {
-      console.log('[REPORTS] Фільтр по регіону не застосовується, показуємо всі регіони');
+      console.log('[REPORTS] Фільтр по регіону не застосовується, показуємо всі регіони. region =', region);
     }
     
     console.log('[REPORTS] Фільтр для заявок:', filter);
@@ -1741,7 +1741,7 @@ app.get('/api/reports/financial', async (req, res) => {
         }
       };
       
-      if (region && region !== 'Всі регіони' && region !== 'Україна' && region !== '') {
+      if (region && region !== 'Всі регіони' && region !== 'all' && region !== 'Україна' && region !== '') {
         alternativeFilter.serviceRegion = region;
       }
       
@@ -1912,7 +1912,7 @@ app.get('/api/reports/financial', async (req, res) => {
           <div class="header">
             <h1>Фінансовий звіт</h1>
             <p>Період: ${dateFrom} - ${dateTo}</p>
-            <p>Регіон: ${region || 'Всі регіони'}</p>
+            <p>Регіон: ${region === 'all' ? 'Всі регіони' : (region || 'Всі регіони')}</p>
             <p>Деталізація: ${detailed === 'true' ? 'Увімкнена' : 'Вимкнена'}</p>
             <p>Кількість заявок: ${tasks.length}</p>
             <p>Загальна сума: ${totalAmount.toFixed(2)} грн</p>
