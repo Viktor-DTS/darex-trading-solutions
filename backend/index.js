@@ -4439,9 +4439,9 @@ app.get('/api/reports/personnel', async (req, res) => {
       });
     }
     
-    // Отримуємо всіх користувачів (персонал)
-    const users = await User.find({ 
-      role: { $in: ['engineer', 'service', 'zavsklad', 'accountant', 'regional_manager'] }
+    // Отримуємо всіх інженерів
+    const engineers = await User.find({ 
+      role: { $in: ['engineer', 'service'] }
     }).select('name login role');
     
     // Отримуємо заявки за вказаний місяць/рік
@@ -4453,21 +4453,14 @@ app.get('/api/reports/personnel', async (req, res) => {
       status: 'Виконано'
     });
     
-    // Групуємо заявки по інженерах
-    const engineerTasks = {};
+    // Групуємо заявки по регіонах
+    const regionGroups = {};
     tasks.forEach(task => {
-      if (task.engineer1) {
-        if (!engineerTasks[task.engineer1]) {
-          engineerTasks[task.engineer1] = [];
-        }
-        engineerTasks[task.engineer1].push(task);
+      const region = task.serviceRegion || 'Невідомо';
+      if (!regionGroups[region]) {
+        regionGroups[region] = [];
       }
-      if (task.engineer2) {
-        if (!engineerTasks[task.engineer2]) {
-          engineerTasks[task.engineer2] = [];
-        }
-        engineerTasks[task.engineer2].push(task);
-      }
+      regionGroups[region].push(task);
     });
     
     // Підготовка даних для звіту
@@ -4476,79 +4469,244 @@ app.get('/api/reports/personnel', async (req, res) => {
       'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'
     ];
     
-    const reportData = users.map(user => {
-      const userTasks = engineerTasks[user.name] || [];
-      const totalHours = userTasks.length * 8; // Припускаємо 8 годин на заявку
-      const totalServiceSum = userTasks.reduce((sum, task) => sum + (parseFloat(task.serviceTotal) || 0), 0);
-      const workPrice = userTasks.reduce((sum, task) => sum + (parseFloat(task.workPrice) || 0), 0);
+    // Функція для створення табелю часу
+    const createTimeSheet = (regionTasks) => {
+      const engineerHours = {};
       
-      return {
-        name: user.name,
-        login: user.login,
-        role: user.role,
-        tasksCount: userTasks.length,
-        totalHours: totalHours,
-        totalServiceSum: totalServiceSum,
-        workPrice: workPrice,
-        tasks: userTasks
-      };
-    });
+      // Ініціалізуємо години для всіх інженерів
+      engineers.forEach(engineer => {
+        engineerHours[engineer.name] = {};
+        for (let day = 1; day <= 31; day++) {
+          engineerHours[engineer.name][day] = 0;
+        }
+      });
+      
+      // Розподіляємо години по днях
+      regionTasks.forEach(task => {
+        const taskDate = new Date(task.date);
+        const day = taskDate.getDate();
+        
+        if (task.engineer1) {
+          engineerHours[task.engineer1][day] = 8;
+        }
+        if (task.engineer2) {
+          engineerHours[task.engineer2][day] = 8;
+        }
+      });
+      
+      return engineerHours;
+    };
+    
+    // Функція для розрахунку зарплат
+    const calculateSalaries = (regionTasks) => {
+      const engineerSalaries = {};
+      
+      engineers.forEach(engineer => {
+        const engineerTasks = regionTasks.filter(task => 
+          task.engineer1 === engineer.name || task.engineer2 === engineer.name
+        );
+        
+        const totalHours = engineerTasks.length * 8;
+        const baseRate = 25000; // Базова ставка
+        const hourlyRate = baseRate / 168; // Ставка за годину
+        const overtimeHours = Math.max(0, totalHours - 168);
+        const overtimeRate = hourlyRate * 1.5;
+        const overtimePay = overtimeHours * overtimeRate;
+        const workedRate = baseRate;
+        
+        // Розрахунок премії за сервісні роботи
+        const serviceBonus = engineerTasks.reduce((sum, task) => {
+          const workPrice = parseFloat(task.workPrice) || 0;
+          return sum + (workPrice * 0.25); // 25% від вартості робіт
+        }, 0);
+        
+        engineerSalaries[engineer.name] = {
+          baseRate: baseRate,
+          totalHours: totalHours,
+          overtimeHours: overtimeHours,
+          hourlyRate: hourlyRate,
+          overtimeRate: overtimeRate,
+          overtimePay: overtimePay,
+          workedRate: workedRate,
+          serviceBonus: serviceBonus,
+          totalPay: workedRate + overtimePay + serviceBonus,
+          tasks: engineerTasks
+        };
+      });
+      
+      return engineerSalaries;
+    };
     
     // Генерація HTML звіту
-    const html = `
+    let html = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="UTF-8">
-        <title>Табель персоналу</title>
+        <title>Звіт по табелю часу та виконаних робіт за ${monthNames[month - 1]} ${year}</title>
         <style>
           body { font-family: Arial, sans-serif; margin: 20px; }
           .header { text-align: center; margin-bottom: 30px; }
-          .filters { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+          th, td { border: 1px solid #ddd; padding: 6px; text-align: center; font-size: 12px; }
           th { background-color: #f2f2f2; font-weight: bold; }
-          .summary { background-color: #e9ecef; font-weight: bold; }
-          .section { margin-bottom: 30px; }
+          .section { margin-bottom: 40px; }
           .section h3 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 5px; }
+          .weekend { background-color: #ffebee; }
+          .total-hours { background-color: #e8f5e8; font-weight: bold; }
         </style>
       </head>
       <body>
         <div class="header">
-          <h1>Табель персоналу</h1>
-          <p>Період: ${monthNames[month - 1]} ${year}</p>
-          <p>Дата створення: ${new Date().toLocaleDateString('uk-UA')}</p>
+          <h1>Звіт по табелю часу та виконаних робіт за ${monthNames[month - 1]} ${year}</h1>
         </div>
-        
+    `;
+    
+    // Генеруємо звіт для кожного регіону
+    Object.keys(regionGroups).forEach(region => {
+      const regionTasks = regionGroups[region];
+      const timeSheet = createTimeSheet(regionTasks);
+      const salaries = calculateSalaries(regionTasks);
+      
+      // Табель часу
+      html += `
         <div class="section">
-          <h3>Звіт по персоналу</h3>
+          <h3>Табель часу - Регіон: ${region}</h3>
           <table>
             <thead>
               <tr>
                 <th>ПІБ</th>
-                <th>Логін</th>
-                <th>Роль</th>
-                <th>Кількість заявок</th>
-                <th>Відпрацьовано годин</th>
-                <th>Загальна сума послуг</th>
-                <th>Вартість робіт</th>
+                ${Array.from({length: 31}, (_, i) => `<th>${i + 1}</th>`).join('')}
+                <th class="total-hours">Всього годин</th>
               </tr>
             </thead>
             <tbody>
-              ${reportData.map(item => `
-                <tr>
-                  <td>${item.name}</td>
-                  <td>${item.login}</td>
-                  <td>${item.role}</td>
-                  <td>${item.tasksCount}</td>
-                  <td>${item.totalHours}</td>
-                  <td>${item.totalServiceSum.toFixed(2)} грн</td>
-                  <td>${item.workPrice.toFixed(2)} грн</td>
-                </tr>
-              `).join('')}
+      `;
+      
+      engineers.forEach(engineer => {
+        const engineerHours = timeSheet[engineer.name] || {};
+        const totalHours = Object.values(engineerHours).reduce((sum, hours) => sum + hours, 0);
+        
+        html += `
+          <tr>
+            <td>${engineer.name}</td>
+            ${Array.from({length: 31}, (_, i) => {
+              const day = i + 1;
+              const hours = engineerHours[day] || 0;
+              const isWeekend = new Date(year, month - 1, day).getDay() === 0 || new Date(year, month - 1, day).getDay() === 6;
+              return `<td class="${isWeekend ? 'weekend' : ''}">${hours || ''}</td>`;
+            }).join('')}
+            <td class="total-hours">${totalHours}</td>
+          </tr>
+        `;
+      });
+      
+      html += `
             </tbody>
           </table>
         </div>
+      `;
+      
+      // Таблиця нарахування по персоналу
+      html += `
+        <div class="section">
+          <h3>Таблиця нарахування по персоналу - Регіон: ${region}</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>ПІБ</th>
+                <th>Ставка</th>
+                <th>Фактично відпрацьовано годин</th>
+                <th>Понаднормові роботи, год</th>
+                <th>Ціна за год, понаднормові</th>
+                <th>Доплата за понаднормові</th>
+                <th>Відпрацьована ставка, грн</th>
+                <th>Премія за виконання сервісних робіт, грн</th>
+                <th>Загальна сума по оплаті за місяць</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+      
+      engineers.forEach(engineer => {
+        const salary = salaries[engineer.name];
+        if (salary) {
+          html += `
+            <tr>
+              <td>${engineer.name}</td>
+              <td>${salary.baseRate}</td>
+              <td>${salary.totalHours}</td>
+              <td>${salary.overtimeHours}</td>
+              <td>${salary.overtimeRate.toFixed(2)}</td>
+              <td>${salary.overtimePay.toFixed(2)}</td>
+              <td>${salary.workedRate}</td>
+              <td>${salary.serviceBonus.toFixed(2)}</td>
+              <td>${salary.totalPay.toFixed(2)}</td>
+            </tr>
+          `;
+        }
+      });
+      
+      html += `
+            </tbody>
+          </table>
+        </div>
+      `;
+      
+      // Деталізація виконаних робіт
+      html += `
+        <div class="section">
+          <h3>Деталізація виконаних робіт - Регіон: ${region}</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Інженер</th>
+                <th>Клієнт</th>
+                <th>Адреса</th>
+                <th>Обладнання</th>
+                <th>Найменування робіт</th>
+                <th>Компанія виконавець</th>
+                <th>Загальна сума з матеріалами</th>
+                <th>Вартість робіт</th>
+                <th>Загальна премія за послугу (Без розподілення)</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+      
+      regionTasks.forEach(task => {
+        const engineers = [];
+        if (task.engineer1) engineers.push(task.engineer1);
+        if (task.engineer2) engineers.push(task.engineer2);
+        
+        const workPrice = parseFloat(task.workPrice) || 0;
+        const serviceBonus = workPrice * 0.25;
+        
+        html += `
+          <tr>
+            <td>${task.date}</td>
+            <td>${engineers.join(', ')}</td>
+            <td>${task.client || ''}</td>
+            <td>${task.address || ''}</td>
+            <td>${task.equipment || ''}</td>
+            <td>${task.work || ''}</td>
+            <td>${task.company || ''}</td>
+            <td>${task.serviceTotal || ''}</td>
+            <td>${workPrice}</td>
+            <td>${serviceBonus.toFixed(2)}</td>
+          </tr>
+        `;
+      });
+      
+      html += `
+            </tbody>
+          </table>
+        </div>
+      `;
+    });
+    
+    html += `
       </body>
       </html>
     `;
