@@ -406,12 +406,35 @@ router.get('/info/:fileId', async (req, res) => {
 });
 
 // Роут для завантаження файлу договору
-router.post('/upload-contract', upload.single('file'), async (req, res) => {
+router.post('/upload-contract', (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      console.error('[FILES] Multer error:', err);
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            error: 'Файл занадто великий. Максимальний розмір: 10MB'
+          });
+        }
+      }
+      return res.status(400).json({
+        success: false,
+        error: err.message
+      });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     console.log('[FILES] Завантаження файлу договору');
+    console.log('[FILES] Request body:', req.body);
+    console.log('[FILES] Request file:', req.file);
+    console.log('[FILES] Request files:', req.files);
     console.log('[FILES] Файл:', req.file ? req.file.originalname : 'НЕ ЗНАЙДЕНО');
     
     if (!req.file) {
+      console.log('[FILES] Помилка: файл не знайдено в запиті');
       return res.status(400).json({ 
         success: false,
         error: 'Файл не був завантажений' 
@@ -453,6 +476,24 @@ router.post('/upload-contract', upload.single('file'), async (req, res) => {
 
   } catch (error) {
     console.error('[FILES] Помилка завантаження файлу договору:', error);
+    
+    // Обробка помилок multer
+    if (error instanceof multer.MulterError) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          success: false,
+          error: 'Файл занадто великий. Максимальний розмір: 10MB'
+        });
+      }
+    }
+    
+    if (error.message.includes('Непідтримуваний тип файлу')) {
+      return res.status(400).json({
+        success: false,
+        error: error.message
+      });
+    }
+    
     res.status(500).json({ 
       success: false,
       error: 'Помилка завантаження файлу договору: ' + error.message 
