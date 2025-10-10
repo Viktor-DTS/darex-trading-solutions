@@ -650,7 +650,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   };
   // --- Обробник вибору обладнання з автодоповнення ---
   const handleEquipmentSelect = (equipmentType) => {
-    console.log('[DEBUG] handleEquipmentSelect - вибрано обладнання:', equipmentType);
+    console.log('[DEBUG] handleEquipmentSelect - ФУНКЦІЯ ВИКЛИКАНА з обладнанням:', equipmentType);
     setForm({ ...form, equipment: equipmentType });
     setShowEquipmentDropdown(false);
     setFilteredEquipmentTypes([]);
@@ -1614,7 +1614,10 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                         }}
                         onMouseEnter={(e) => e.target.style.background = '#3a4a5a'}
                         onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                        onClick={() => handleEquipmentSelect(type)}
+                        onClick={() => {
+                          console.log('[DEBUG] ModalTaskForm - клік по dropdown варіанту:', type);
+                          handleEquipmentSelect(type);
+                        }}
                       >
                         {type}
                       </div>
