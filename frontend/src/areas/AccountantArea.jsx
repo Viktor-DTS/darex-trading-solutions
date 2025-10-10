@@ -86,7 +86,10 @@ export default function AccountantArea({ user }) {
       paymentDate: allFilterKeys.paymentDate,
       paymentDateFrom: allFilterKeys.paymentDateFrom,
       paymentDateTo: allFilterKeys.paymentDateTo
-    }
+    },
+    hasPaymentDateFrom: 'paymentDateFrom' in allFilterKeys,
+    hasPaymentDateTo: 'paymentDateTo' in allFilterKeys,
+    allFilterKeysValues: allFilterKeys
   });
   const [approvalFilter, setApprovalFilter] = useState('all'); // 'all', 'approved', 'not_approved'
   const [modalOpen, setModalOpen] = useState(false);
@@ -1363,9 +1366,9 @@ export default function AccountantArea({ user }) {
         </label>
         <label style={{display:'flex',alignItems:'center',gap:4}}>
           Дата оплати з:
-          <input type="date" name="paymentDateFrom" value={filters.paymentDateFrom} onChange={handleFilter} />
+          <input type="date" name="paymentDateFrom" value={filters.paymentDateFrom || ''} onChange={handleFilter} />
           по
-          <input type="date" name="paymentDateTo" value={filters.paymentDateTo} onChange={handleFilter} />
+          <input type="date" name="paymentDateTo" value={filters.paymentDateTo || ''} onChange={handleFilter} />
         </label>
         <label style={{display:'flex',alignItems:'center',gap:4}}>
           Регіон:
