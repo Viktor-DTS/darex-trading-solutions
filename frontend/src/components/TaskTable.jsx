@@ -2322,20 +2322,36 @@ function TaskTableComponent({
                       {/* Індикатор стану рахунку */}
                       <div style={{
                         display: 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
-                        marginBottom: '8px',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        backgroundColor: getInvoiceStatus(t).color,
-                        color: '#fff',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        minWidth: '100px',
-                        justifyContent: 'center'
+                        marginBottom: '8px'
                       }}>
-                        📄 {getInvoiceStatus(t).label}
+                        <div style={{
+                          fontSize: '10px',
+                          fontWeight: 'bold',
+                          color: '#666',
+                          marginBottom: '2px'
+                        }}>
+                          Статус рахунку
+                        </div>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          backgroundColor: getInvoiceStatus(t).color,
+                          color: '#fff',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          minWidth: '100px',
+                          justifyContent: 'center'
+                        }}>
+                          📄 {getInvoiceStatus(t).label}
+                        </div>
                       </div>
-                      <button onClick={()=>{
+                      {/* Перший ряд кнопок */}
+                      <div style={{ display: 'flex', gap: '4px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                        <button onClick={()=>{
                         if (onHistoryClick && role === 'materials') {
                           // Для вкладки аналізу матеріалів - відкриваємо звіт по обладнанню
                           onHistoryClick(t.equipment);
@@ -2348,6 +2364,9 @@ function TaskTableComponent({
                           setShowInfo(true);
                         }
                       }} style={{background:'#00bfff',color:'#fff'}}>Історія проведення робіт</button>
+                      </div>
+                      {/* Другий ряд кнопок */}
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                       {/* Кнопка редагування - в архіві тільки для адміністратора */}
                       {(!isArchive || role === 'admin' || user?.role === 'admin' || user?.role === 'administrator') && (
                         <>
@@ -2512,6 +2531,7 @@ function TaskTableComponent({
                           </div>
                         </>
                       )}
+                      </div>
                     </td>
                     {visibleColumns.map(col => <td key={col.key} className="td-auto-height" style={{
                       ...(getRowColor(t) ? {color:'#111'} : {}),
