@@ -71,7 +71,7 @@ export default function AccountantArea({ user }) {
     .map(f => f.name)
     .reduce((acc, key) => {
       acc[key] = '';
-      if (["date", "requestDate"].includes(key)) {
+      if (["date", "requestDate", "paymentDate"].includes(key)) {
         acc[key + 'From'] = '';
         acc[key + 'To'] = '';
       }
@@ -520,7 +520,7 @@ export default function AccountantArea({ user }) {
       .map(f => f.name)
       .reduce((acc, key) => {
         acc[key] = '';
-        if (["date", "requestDate"].includes(key)) {
+        if (["date", "requestDate", "paymentDate"].includes(key)) {
           acc[key + 'From'] = '';
           acc[key + 'To'] = '';
         }
@@ -1344,6 +1344,12 @@ export default function AccountantArea({ user }) {
           <input type="date" name="dateFrom" value={filters.dateFrom} onChange={handleFilter} />
           по
           <input type="date" name="dateTo" value={filters.dateTo} onChange={handleFilter} />
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:4}}>
+          Дата оплати з:
+          <input type="date" name="paymentDateFrom" value={filters.paymentDateFrom} onChange={handleFilter} />
+          по
+          <input type="date" name="paymentDateTo" value={filters.paymentDateTo} onChange={handleFilter} />
         </label>
         <label style={{display:'flex',alignItems:'center',gap:4}}>
           Регіон:
