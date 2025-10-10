@@ -724,13 +724,49 @@ function TaskTableComponent({
 
   // Функція для визначення статусу рахунку
   const getInvoiceStatus = (task) => {
-    // Перевіряємо, чи є заявка на рахунок
-    if (!task.needInvoice || task.needInvoice === false) {
+    // Логуємо тільки для перших 3 заявок для діагностики
+    if (task.id && (task.id.includes('0000173') || task.id.includes('0000174') || task.id.includes('0000175'))) {
+      console.log('[DEBUG] getInvoiceStatus - поля заявки:', {
+      id: task.id,
+      requestNumber: task.requestNumber,
+      needInvoice: task.needInvoice,
+      invoiceFile: task.invoiceFile,
+      invoiceRequest: task.invoiceRequest,
+      invoiceStatus: task.invoiceStatus,
+      allFields: Object.keys(task).filter(key => 
+        key.toLowerCase().includes('invoice') || 
+        key.toLowerCase().includes('рахунок') ||
+        key.toLowerCase().includes('need')
+      )
+    });
+    
+    // Перевіряємо різні можливі поля для заявки на рахунок
+    const hasInvoiceRequest = task.needInvoice === true || 
+                             task.invoiceRequest === true || 
+                             task.invoiceRequest === 'true' ||
+                             task.invoiceStatus === 'requested' ||
+                             task.invoiceStatus === 'pending';
+    
+    // Перевіряємо різні можливі поля для файлу рахунку
+    const hasInvoiceFile = (task.invoiceFile && task.invoiceFile.trim() !== '') ||
+                          (task.invoiceFilePath && task.invoiceFilePath.trim() !== '') ||
+                          (task.invoiceUrl && task.invoiceUrl.trim() !== '');
+    
+      console.log('[DEBUG] getInvoiceStatus - аналіз:', {
+        hasInvoiceRequest,
+        hasInvoiceFile,
+        needInvoice: task.needInvoice,
+        invoiceFile: task.invoiceFile
+      });
+    }
+    
+    // Якщо немає заявки на рахунок
+    if (!hasInvoiceRequest) {
       return { status: 'not_requested', color: '#dc3545', label: 'Не подана' }; // Червоний
     }
     
-    // Перевіряємо, чи є файл рахунку
-    if (task.invoiceFile && task.invoiceFile.trim() !== '') {
+    // Якщо є файл рахунку
+    if (hasInvoiceFile) {
       return { status: 'completed', color: '#28a745', label: 'Виконана' }; // Зелений
     }
     
