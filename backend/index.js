@@ -1633,6 +1633,179 @@ app.get('/api/reports', (req, res) => {
   res.json(reports);
 });
 
+// Endpoint для генерації фінансових звітів
+app.get('/api/reports/financial', async (req, res) => {
+  try {
+    console.log('[REPORTS] GET /api/reports/financial - запит на генерацію фінансового звіту');
+    
+    const { dateFrom, dateTo, region, detailed, format } = req.query;
+    
+    console.log('[REPORTS] Параметри звіту:', { dateFrom, dateTo, region, detailed, format });
+    
+    // Валідація параметрів
+    if (!dateFrom || !dateTo) {
+      return res.status(400).json({ error: 'Потрібно вказати dateFrom та dateTo' });
+    }
+    
+    // Фільтруємо заявки за датами та регіоном
+    let filter = {
+      status: 'Виконано',
+      date: {
+        $gte: new Date(dateFrom),
+        $lte: new Date(dateTo)
+      }
+    };
+    
+    if (region && region !== 'Всі регіони' && region !== 'Україна') {
+      filter.serviceRegion = region;
+    }
+    
+    console.log('[REPORTS] Фільтр для заявок:', filter);
+    
+    // Отримуємо заявки
+    const tasks = await executeWithRetry(() => 
+      Task.find(filter)
+        .sort({ date: -1 })
+        .lean()
+    );
+    
+    console.log('[REPORTS] Знайдено заявок:', tasks.length);
+    
+    if (tasks.length === 0) {
+      return res.status(404).json({ error: 'Не знайдено заявок за вказаний період' });
+    }
+    
+    // Підготовка даних для звіту
+    const reportData = tasks.map(task => ({
+      requestNumber: task.requestNumber || 'Без номера',
+      date: task.date,
+      client: task.client || 'Без клієнта',
+      serviceRegion: task.serviceRegion || 'Не вказано',
+      work: task.work || 'Не вказано',
+      serviceTotal: task.serviceTotal || 0,
+      approvedByAccountant: task.approvedByAccountant || 'Не затверджено',
+      engineer1: task.engineer1 || '',
+      engineer2: task.engineer2 || ''
+    }));
+    
+    // Розрахунок загальної суми
+    const totalAmount = reportData.reduce((sum, task) => sum + (parseFloat(task.serviceTotal) || 0), 0);
+    
+    if (format === 'excel') {
+      // Генерація Excel файлу
+      const ExcelJS = require('exceljs');
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Фінансовий звіт');
+      
+      // Заголовки
+      worksheet.columns = [
+        { header: 'Номер заявки', key: 'requestNumber', width: 15 },
+        { header: 'Дата', key: 'date', width: 12 },
+        { header: 'Клієнт', key: 'client', width: 30 },
+        { header: 'Регіон', key: 'serviceRegion', width: 15 },
+        { header: 'Робота', key: 'work', width: 20 },
+        { header: 'Сума', key: 'serviceTotal', width: 12 },
+        { header: 'Затверджено', key: 'approvedByAccountant', width: 15 },
+        { header: 'Інженер 1', key: 'engineer1', width: 15 },
+        { header: 'Інженер 2', key: 'engineer2', width: 15 }
+      ];
+      
+      // Додаємо дані
+      reportData.forEach(task => {
+        worksheet.addRow(task);
+      });
+      
+      // Додаємо підсумок
+      worksheet.addRow({});
+      worksheet.addRow({
+        requestNumber: 'ЗАГАЛЬНА СУМА:',
+        serviceTotal: totalAmount
+      });
+      
+      // Встановлюємо заголовки
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="financial_report_${dateFrom}_${dateTo}.xlsx"`);
+      
+      await workbook.xlsx.write(res);
+      res.end();
+      
+    } else {
+      // Генерація HTML звіту
+      const html = `
+        <!DOCTYPE html>
+        <html lang="uk">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Фінансовий звіт</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .total { font-weight: bold; background-color: #e6f3ff; }
+            .header { text-align: center; margin-bottom: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Фінансовий звіт</h1>
+            <p>Період: ${dateFrom} - ${dateTo}</p>
+            <p>Регіон: ${region || 'Всі регіони'}</p>
+            <p>Кількість заявок: ${tasks.length}</p>
+            <p>Загальна сума: ${totalAmount.toFixed(2)} грн</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Номер заявки</th>
+                <th>Дата</th>
+                <th>Клієнт</th>
+                <th>Регіон</th>
+                <th>Робота</th>
+                <th>Сума</th>
+                <th>Затверджено</th>
+                <th>Інженер 1</th>
+                <th>Інженер 2</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${reportData.map(task => `
+                <tr>
+                  <td>${task.requestNumber}</td>
+                  <td>${task.date}</td>
+                  <td>${task.client}</td>
+                  <td>${task.serviceRegion}</td>
+                  <td>${task.work}</td>
+                  <td>${task.serviceTotal}</td>
+                  <td>${task.approvedByAccountant}</td>
+                  <td>${task.engineer1}</td>
+                  <td>${task.engineer2}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+              <tr class="total">
+                <td colspan="5">ЗАГАЛЬНА СУМА:</td>
+                <td>${totalAmount.toFixed(2)} грн</td>
+                <td colspan="3"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </body>
+        </html>
+      `;
+      
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(html);
+    }
+    
+  } catch (error) {
+    console.error('[REPORTS] Помилка генерації фінансового звіту:', error);
+    res.status(500).json({ error: 'Помилка генерації звіту: ' + error.message });
+  }
+});
+
 // --- BACKUP API ---
 // Отримати всі бекапи користувача
 app.get('/api/backups', async (req, res) => {
