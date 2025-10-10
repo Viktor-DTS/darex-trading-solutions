@@ -74,7 +74,13 @@ const upload = multer({
 const localUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, 'uploads/');
+      // Створюємо папку uploads якщо вона не існує
+      const uploadDir = 'uploads/';
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+        console.log('[DEBUG] Створено папку uploads');
+      }
+      cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
       cb(null, Date.now() + '-' + file.originalname);

@@ -1185,12 +1185,18 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                                     type="button"
                                     onClick={() => {
                                       console.log('[DEBUG] ModalTaskForm - перегляд файлу договору');
-                                      if (form.contractFile && form.contractFile.url) {
-                                        window.open(form.contractFile.url, '_blank');
-                                      } else {
-                                        // Якщо це локальний файл, створюємо URL для перегляду
-                                        const url = URL.createObjectURL(form.contractFile);
-                                        window.open(url, '_blank');
+                                      if (form.contractFile) {
+                                        if (form.contractFile.url) {
+                                          // Якщо це URL (вже завантажений файл)
+                                          window.open(form.contractFile.url, '_blank');
+                                        } else if (form.contractFile instanceof File) {
+                                          // Якщо це локальний файл, створюємо URL для перегляду
+                                          const url = URL.createObjectURL(form.contractFile);
+                                          window.open(url, '_blank');
+                                        } else {
+                                          // Якщо це просто рядок URL
+                                          window.open(form.contractFile, '_blank');
+                                        }
                                       }
                                     }}
                                     style={{
@@ -1211,10 +1217,26 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                                     onClick={() => {
                                       console.log('[DEBUG] ModalTaskForm - завантаження файлу договору');
                                       if (form.contractFile) {
-                                        const url = form.contractFile.url || URL.createObjectURL(form.contractFile);
+                                        let url;
+                                        let fileName = 'contract.pdf';
+                                        
+                                        if (form.contractFile.url) {
+                                          // Якщо це URL (вже завантажений файл)
+                                          url = form.contractFile.url;
+                                          fileName = form.contractFile.name || 'contract.pdf';
+                                        } else if (form.contractFile instanceof File) {
+                                          // Якщо це локальний файл
+                                          url = URL.createObjectURL(form.contractFile);
+                                          fileName = form.contractFile.name || 'contract.pdf';
+                                        } else {
+                                          // Якщо це просто рядок URL
+                                          url = form.contractFile;
+                                          fileName = 'contract.pdf';
+                                        }
+                                        
                                         const link = document.createElement('a');
                                         link.href = url;
-                                        link.download = form.contractFile.name || 'contract.pdf';
+                                        link.download = fileName;
                                         document.body.appendChild(link);
                                         link.click();
                                         document.body.removeChild(link);
