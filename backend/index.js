@@ -3006,6 +3006,49 @@ app.get('/api/equipment-types', async (req, res) => {
   }
 });
 
+// API для завантаження файлу договору
+app.post('/api/files/upload-contract', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Файл не був завантажений' });
+    }
+
+    console.log('[DEBUG] POST /api/files/upload-contract - файл отримано:', req.file.originalname);
+    
+    // Завантажуємо файл на Cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: 'darex-trading-solutions/contracts',
+      resource_type: 'auto'
+    });
+
+    console.log('[DEBUG] POST /api/files/upload-contract - файл завантажено на Cloudinary:', result.secure_url);
+
+    // Видаляємо тимчасовий файл
+    fs.unlinkSync(req.file.path);
+
+    res.json({
+      success: true,
+      url: result.secure_url,
+      publicId: result.public_id,
+      originalName: req.file.originalname,
+      size: req.file.size
+    });
+  } catch (error) {
+    console.error('[ERROR] POST /api/files/upload-contract - помилка:', error);
+    
+    // Видаляємо тимчасовий файл у випадку помилки
+    if (req.file && req.file.path) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkError) {
+        console.error('[ERROR] Не вдалося видалити тимчасовий файл:', unlinkError);
+      }
+    }
+    
+    res.status(500).json({ error: 'Помилка завантаження файлу' });
+  }
+});
+
 // API для отримання матеріалів по типу обладнання
 app.get('/api/equipment-materials/:equipmentType', async (req, res) => {
   try {

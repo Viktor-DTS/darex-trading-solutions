@@ -773,8 +773,35 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     // if (form.approvedByRegionalManager === 'Підтверджено' && !form.regionalManagerComment) {
     //   finalForm.regionalManagerComment = `Погоджено, претензій не маю. ${user?.name || 'Користувач'}`;
     // }
+    // --- Завантаження файлу договору на сервер ---
+    let contractFileUrl = null;
+    if (form.contractFile && form.contractFile instanceof File) {
+      try {
+        console.log('[DEBUG] ModalTaskForm - завантажуємо файл договору на сервер:', form.contractFile.name);
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', form.contractFile);
+        uploadFormData.append('type', 'contract');
+        
+        const uploadResponse = await fetch('/api/files/upload-contract', {
+          method: 'POST',
+          body: uploadFormData
+        });
+        
+        if (uploadResponse.ok) {
+          const uploadResult = await uploadResponse.json();
+          contractFileUrl = uploadResult.url;
+          console.log('[DEBUG] ModalTaskForm - файл договору завантажено:', contractFileUrl);
+        } else {
+          console.error('[ERROR] ModalTaskForm - помилка завантаження файлу договору:', uploadResponse.statusText);
+        }
+      } catch (error) {
+        console.error('[ERROR] ModalTaskForm - помилка завантаження файлу договору:', error);
+      }
+    }
+
     onSave({
       ...finalForm,
+      contractFile: contractFileUrl || form.contractFile, // Зберігаємо URL або оригінальний файл
       bonusApprovalDate,
       oilTotal,
       filterSum,
