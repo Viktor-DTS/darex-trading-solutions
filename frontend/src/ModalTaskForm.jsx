@@ -641,11 +641,14 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   };
   // --- Обробник вибору обладнання з автодоповнення ---
   const handleEquipmentSelect = (equipmentType) => {
+    console.log('[DEBUG] handleEquipmentSelect - вибрано обладнання:', equipmentType);
     setForm({ ...form, equipment: equipmentType });
     setShowEquipmentDropdown(false);
     setFilteredEquipmentTypes([]);
     // Відкриваємо модальне вікно для вибору матеріалів
+    console.log('[DEBUG] handleEquipmentSelect - відкриваємо модальне вікно матеріалів');
     setMaterialsModal({ open: true, equipmentType });
+    console.log('[DEBUG] handleEquipmentSelect - materialsModal встановлено:', { open: true, equipmentType });
   };
   // --- Обробник застосування матеріалів ---
   const handleMaterialsApply = (formUpdates) => {
@@ -1674,6 +1677,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         </div>
       )}
       {/* --- Модальне вікно вибору матеріалів --- */}
+      {console.log('[DEBUG] ModalTaskForm - рендеринг MaterialsSelectionModal:', materialsModal)}
       <MaterialsSelectionModal
         open={materialsModal.open}
         onClose={() => setMaterialsModal({ open: false, equipmentType: '' })}
