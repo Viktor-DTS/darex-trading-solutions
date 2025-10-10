@@ -1802,8 +1802,14 @@ app.get('/api/reports/financial', async (req, res) => {
       };
       
       // Якщо деталізація увімкнена, додаємо додаткові поля
-      console.log('[REPORTS] Перевірка деталізації:', { detailed, isDetailed: detailed === 'true' });
-      if (detailed === 'true') {
+      console.log('[REPORTS] Перевірка деталізації:', { 
+        detailed, 
+        detailedType: typeof detailed,
+        isDetailed: detailed === 'true',
+        isDetailedBoolean: detailed === true,
+        isDetailedString: detailed === 'true'
+      });
+      if (detailed === 'true' || detailed === true) {
         return {
           ...baseData,
           address: task.address || 'Не вказано',
@@ -1839,6 +1845,14 @@ app.get('/api/reports/financial', async (req, res) => {
       detailed: detailed,
       format: format
     });
+    
+    // Логуємо перший елемент reportData для перевірки полів
+    if (reportData.length > 0) {
+      console.log('[REPORTS] Перший елемент reportData:', {
+        keys: Object.keys(reportData[0]),
+        sample: reportData[0]
+      });
+    }
     
     if (format === 'excel') {
       console.log('[REPORTS] Генерація Excel файлу з деталізацією:', detailed === 'true');
