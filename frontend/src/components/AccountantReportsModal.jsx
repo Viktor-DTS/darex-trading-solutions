@@ -140,25 +140,8 @@ const AccountantReportsModal = ({ isOpen, onClose, user }) => {
 
     setLoading(true);
     try {
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
-      
-      console.log('[PERSONNEL REPORTS] Frontend - параметри перед відправкою:', {
-        month: personnelFilters.month,
-        year: personnelFilters.year
-      });
-      
-      const params = new URLSearchParams({
-        month: personnelFilters.month,
-        year: personnelFilters.year
-      });
-      
-      console.log('[PERSONNEL REPORTS] Frontend - URL параметри:', params.toString());
-
-      // Відкриваємо HTML звіт в новій вкладці
-      const htmlUrl = `${API_BASE_URL}/reports/personnel?${params}`;
-      console.log('[PERSONNEL REPORTS] Frontend - відкриваємо HTML звіт:', htmlUrl);
-      window.open(htmlUrl, '_blank');
+      // Використовуємо frontend логіку замість backend endpoint
+      alert('Використовуйте кнопку "👥 Звіт по персоналу" в основній панелі бухгалтера для генерації звіту');
       
     } catch (error) {
       console.error('Помилка генерації звіту по персоналу:', error);
