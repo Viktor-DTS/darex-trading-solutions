@@ -405,4 +405,59 @@ router.get('/info/:fileId', async (req, res) => {
   }
 });
 
+// Роут для завантаження файлу договору
+router.post('/upload-contract', upload.single('file'), async (req, res) => {
+  try {
+    console.log('[FILES] Завантаження файлу договору');
+    console.log('[FILES] Файл:', req.file ? req.file.originalname : 'НЕ ЗНАЙДЕНО');
+    
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Файл не був завантажений' 
+      });
+    }
+
+    // Виправляємо кодування назви файлу
+    let fileName = req.file.originalname;
+    try {
+      const decoded = Buffer.from(fileName, 'latin1').toString('utf8');
+      if (decoded && decoded !== fileName && !decoded.includes('')) {
+        fileName = decoded;
+      } else {
+        fileName = decodeURIComponent(escape(fileName));
+      }
+    } catch (error) {
+      console.log('[FILES] Не вдалося декодувати назву файлу:', error);
+    }
+
+    // Визначаємо URL файлу
+    let fileUrl = '';
+    if (cloudinary && req.file.path) {
+      // Cloudinary
+      fileUrl = req.file.path;
+    } else {
+      // Локальне збереження
+      fileUrl = `/tmp/${req.file.filename}`;
+    }
+
+    console.log('[FILES] Файл договору завантажено:', fileUrl);
+    
+    res.json({ 
+      success: true,
+      message: 'Файл договору завантажено успішно',
+      url: fileUrl,
+      name: fileName,
+      size: req.file.size
+    });
+
+  } catch (error) {
+    console.error('[FILES] Помилка завантаження файлу договору:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Помилка завантаження файлу договору: ' + error.message 
+    });
+  }
+});
+
 module.exports = router; 

@@ -22,6 +22,9 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 // Додаємо імпорт роуту файлів
 const filesRouter = require('./routes/files');
 
+// Підключаємо роут файлів
+app.use('/api/files', filesRouter);
+
 // Налаштування multer для Cloudinary
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
