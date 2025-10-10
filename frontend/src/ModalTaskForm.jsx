@@ -792,8 +792,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         uploadFormData.append('file', form.contractFile);
         uploadFormData.append('type', 'contract');
         
+        const API_BASE_URL = process.env.REACT_APP_API_URL || 
+          (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+        
         console.log('[DEBUG] ModalTaskForm - відправляємо запит на /api/files/upload-contract');
-        const uploadResponse = await fetch('/api/files/upload-contract', {
+        const uploadResponse = await fetch(`${API_BASE_URL}/files/upload-contract`, {
           method: 'POST',
           body: uploadFormData
         });
