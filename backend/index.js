@@ -4696,6 +4696,40 @@ app.get('/api/test/task-structure/:taskId', async (req, res) => {
   }
 });
 
+// Тестовий endpoint для перевірки всіх полів дат в заявках
+app.get('/api/test/date-fields', async (req, res) => {
+  try {
+    const tasks = await Task.find({}).limit(5);
+    
+    const allDateFields = new Set();
+    const sampleTasks = tasks.map(task => {
+      const taskObj = task.toObject();
+      const dateFields = Object.keys(taskObj).filter(field => 
+        field.toLowerCase().includes('date') || 
+        field.toLowerCase().includes('payment')
+      );
+      
+      dateFields.forEach(field => allDateFields.add(field));
+      
+      return {
+        id: task._id,
+        dateFields: dateFields,
+        paymentDate: taskObj.paymentDate,
+        requestDate: taskObj.requestDate,
+        date: taskObj.date
+      };
+    });
+    
+    res.json({
+      allDateFields: Array.from(allDateFields),
+      sampleTasks: sampleTasks
+    });
+  } catch (error) {
+    console.error('[ERROR] GET /api/test/date-fields - помилка:', error);
+    res.status(500).json({ error: 'Помилка сервера' });
+  }
+});
+
 // Test endpoint для перевірки notificationSettings
 app.get('/api/test/notification-settings/:login', async (req, res) => {
   try {
