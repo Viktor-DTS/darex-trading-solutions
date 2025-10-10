@@ -4,7 +4,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user }) => {
   const [reportFilters, setReportFilters] = useState({
     dateFrom: '',
     dateTo: '',
-    region: 'all',
+    region: '',
     detailed: false
   });
   const [regions, setRegions] = useState([]);
@@ -252,7 +252,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user }) => {
                 backgroundColor: '#fff'
               }}
             >
-              <option value="all">Всі регіони</option>
+              <option value="">Всі регіони</option>
               {regions.map(region => (
                 <option key={region} value={region}>{region}</option>
               ))}
