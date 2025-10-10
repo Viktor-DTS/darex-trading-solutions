@@ -189,6 +189,7 @@ const labelAboveFields = [
   'comments'
 ];
 export default function ModalTaskForm({ open, onClose, onSave, initialData = {}, mode = 'service', user, readOnly = false }) {
+  console.log('[DEBUG] ModalTaskForm - компонент рендериться, open:', open);
   const isRegionReadOnly = user && user.region && user.region !== 'Україна' && user.role !== 'zavsklad';
   function toSelectString(val) {
     if (val === true) return 'Підтверджено';
@@ -459,6 +460,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   }, [open]);
   // --- Завантаження типів обладнання ---
   useEffect(() => {
+    console.log('[DEBUG] ModalTaskForm - useEffect для типів обладнання виконується, open:', open);
     if (open) {
       console.log('[DEBUG] ModalTaskForm - завантажуємо типи обладнання...');
       getEquipmentTypes()
@@ -470,6 +472,8 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           console.error('[ERROR] ModalTaskForm - помилка завантаження типів обладнання:', error);
           setEquipmentTypes([]);
         });
+    } else {
+      console.log('[DEBUG] ModalTaskForm - форма закрита, не завантажуємо типи обладнання');
     }
   }, [open]);
   // --- Список сервісних інженерів для вибору ---
