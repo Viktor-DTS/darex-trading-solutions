@@ -1862,7 +1862,14 @@ app.get('/api/reports/financial', async (req, res) => {
       const worksheet = workbook.addWorksheet('Фінансовий звіт');
       
       // Заголовки - базові або деталізовані
+      console.log('[REPORTS] Excel - перевірка деталізації:', { 
+        detailed, 
+        detailedType: typeof detailed, 
+        isDetailed: detailed === 'true',
+        condition: detailed === 'true'
+      });
       if (detailed === 'true') {
+        console.log('[REPORTS] Excel - використовуємо деталізовані колонки');
         worksheet.columns = [
           { header: 'Номер заявки', key: 'requestNumber', width: 15 },
           { header: 'Дата', key: 'date', width: 12 },
@@ -1893,6 +1900,7 @@ app.get('/api/reports/financial', async (req, res) => {
           { header: 'Інженер 2', key: 'engineer2', width: 15 }
         ];
       } else {
+        console.log('[REPORTS] Excel - використовуємо базові колонки');
         worksheet.columns = [
           { header: 'Номер заявки', key: 'requestNumber', width: 15 },
           { header: 'Дата', key: 'date', width: 12 },
