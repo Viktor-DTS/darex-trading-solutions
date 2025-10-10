@@ -1641,6 +1641,13 @@ app.get('/api/reports/financial', async (req, res) => {
     const { dateFrom, dateTo, region, detailed, format } = req.query;
     
     console.log('[REPORTS] Параметри звіту:', { dateFrom, dateTo, region, detailed, format });
+    console.log('[REPORTS] Типи параметрів:', {
+      dateFrom: typeof dateFrom,
+      dateTo: typeof dateTo,
+      region: typeof region,
+      detailed: typeof detailed,
+      format: typeof format
+    });
     
     // Валідація параметрів
     if (!dateFrom || !dateTo) {
@@ -1773,6 +1780,7 @@ app.get('/api/reports/financial', async (req, res) => {
       };
       
       // Якщо деталізація увімкнена, додаємо додаткові поля
+      console.log('[REPORTS] Перевірка деталізації:', { detailed, isDetailed: detailed === 'true' });
       if (detailed === 'true') {
         return {
           ...baseData,
@@ -1802,8 +1810,16 @@ app.get('/api/reports/financial', async (req, res) => {
     
     // Розрахунок загальної суми
     const totalAmount = reportData.reduce((sum, task) => sum + (parseFloat(task.serviceTotal) || 0), 0);
+    console.log('[REPORTS] Підготовка звіту:', {
+      tasksCount: tasks.length,
+      reportDataCount: reportData.length,
+      totalAmount: totalAmount,
+      detailed: detailed,
+      format: format
+    });
     
     if (format === 'excel') {
+      console.log('[REPORTS] Генерація Excel файлу з деталізацією:', detailed === 'true');
       // Генерація Excel файлу
       const ExcelJS = require('exceljs');
       const workbook = new ExcelJS.Workbook();
@@ -1874,6 +1890,7 @@ app.get('/api/reports/financial', async (req, res) => {
       res.end();
       
     } else {
+      console.log('[REPORTS] Генерація HTML звіту з деталізацією:', detailed === 'true');
       // Генерація HTML звіту
       const html = `
         <!DOCTYPE html>
