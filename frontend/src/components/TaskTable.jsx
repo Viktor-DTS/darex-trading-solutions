@@ -727,51 +727,46 @@ function TaskTableComponent({
     // Логуємо тільки для перших 3 заявок для діагностики
     if (task.id && (task.id.includes('0000173') || task.id.includes('0000174') || task.id.includes('0000175'))) {
       console.log('[DEBUG] getInvoiceStatus - поля заявки:', {
-      id: task.id,
-      requestNumber: task.requestNumber,
-      needInvoice: task.needInvoice,
-      invoiceFile: task.invoiceFile,
-      invoiceRequest: task.invoiceRequest,
-      invoiceStatus: task.invoiceStatus,
-      allFields: Object.keys(task).filter(key => 
-        key.toLowerCase().includes('invoice') || 
-        key.toLowerCase().includes('рахунок') ||
-        key.toLowerCase().includes('need')
-      )
-    });
-    
-    // Перевіряємо різні можливі поля для заявки на рахунок
-    const hasInvoiceRequest = task.needInvoice === true || 
-                             task.invoiceRequest === true || 
-                             task.invoiceRequest === 'true' ||
-                             task.invoiceStatus === 'requested' ||
-                             task.invoiceStatus === 'pending';
-    
-    // Перевіряємо різні можливі поля для файлу рахунку
-    const hasInvoiceFile = (task.invoiceFile && task.invoiceFile.trim() !== '') ||
-                          (task.invoiceFilePath && task.invoiceFilePath.trim() !== '') ||
-                          (task.invoiceUrl && task.invoiceUrl.trim() !== '');
-    
-      console.log('[DEBUG] getInvoiceStatus - аналіз:', {
-        hasInvoiceRequest,
-        hasInvoiceFile,
-        needInvoice: task.needInvoice,
-        invoiceFile: task.invoiceFile
+        id: task.id,
+        requestNumber: task.requestNumber,
+        invoiceRequested: task.invoiceRequested,
+        invoiceRequestId: task.invoiceRequestId,
+        invoiceStatus: task.invoiceStatus,
+        allFields: Object.keys(task).filter(key => 
+          key.toLowerCase().includes('invoice') || 
+          key.toLowerCase().includes('рахунок') ||
+          key.toLowerCase().includes('request')
+        )
       });
     }
     
-    // Якщо немає заявки на рахунок
+    // Перевіряємо, чи створений запит на рахунок
+    const hasInvoiceRequest = task.invoiceRequested === true || 
+                             task.invoiceRequestId || 
+                             task.invoiceStatus;
+    
+    // Якщо немає запиту на рахунок
     if (!hasInvoiceRequest) {
       return { status: 'not_requested', color: '#dc3545', label: 'Не подана' }; // Червоний
     }
     
-    // Якщо є файл рахунку
-    if (hasInvoiceFile) {
-      return { status: 'completed', color: '#28a745', label: 'Виконана' }; // Зелений
+    // Перевіряємо статус запиту на рахунок
+    if (task.invoiceStatus) {
+      switch (task.invoiceStatus) {
+        case 'completed':
+          return { status: 'completed', color: '#28a745', label: 'Виконана' }; // Зелений
+        case 'rejected':
+          return { status: 'rejected', color: '#dc3545', label: 'Відхилена' }; // Червоний
+        case 'processing':
+          return { status: 'processing', color: '#ffc107', label: 'В обробці' }; // Жовтий
+        case 'pending':
+        default:
+          return { status: 'pending', color: '#ffc107', label: 'Очікує' }; // Жовтий
+      }
     }
     
-    // Заявка подана, але не виконана
-    return { status: 'pending', color: '#ffc107', label: 'В обробці' }; // Жовтий
+    // Якщо є запит, але немає статусу - вважаємо очікуючим
+    return { status: 'pending', color: '#ffc107', label: 'Очікує' }; // Жовтий
   };
 
   // Функція для визначення типу поля

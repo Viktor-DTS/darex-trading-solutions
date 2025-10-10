@@ -947,10 +947,27 @@ app.get('/api/tasks', async (req, res) => {
     
     console.log('[DEBUG] GET /api/tasks - знайдено завдань:', tasks.length);
     
-    // Додаємо числовий id для сумісності з фронтендом
+    // Отримуємо всі запити на рахунки для цих заявок
+    const taskIds = tasks.map(task => task._id.toString());
+    const invoiceRequests = await executeWithRetry(() => 
+      InvoiceRequest.find({ taskId: { $in: taskIds } })
+        .select('taskId status')
+        .lean()
+    );
+    
+    // Створюємо мапу статусів запитів на рахунки
+    const invoiceStatusMap = {};
+    invoiceRequests.forEach(request => {
+      invoiceStatusMap[request.taskId] = request.status;
+    });
+    
+    console.log('[DEBUG] GET /api/tasks - знайдено запитів на рахунки:', invoiceRequests.length);
+    
+    // Додаємо числовий id та статус рахунку для сумісності з фронтендом
     const tasksWithId = tasks.map(task => ({
       ...task,
-      id: task._id.toString()
+      id: task._id.toString(),
+      invoiceStatus: invoiceStatusMap[task._id.toString()] || null
     }));
     
     console.log('[DEBUG] GET /api/tasks - повертаємо завдань:', tasksWithId.length);
@@ -991,10 +1008,18 @@ app.get('/api/tasks/:id', async (req, res) => {
     
     console.log('[DEBUG] GET /api/tasks/:id - знайдено завдання:', task._id);
     
-    // Додаємо числовий id для сумісності з фронтендом
+    // Отримуємо статус запиту на рахунок для цієї заявки
+    const invoiceRequest = await executeWithRetry(() => 
+      InvoiceRequest.findOne({ taskId: task._id.toString() })
+        .select('status')
+        .lean()
+    );
+    
+    // Додаємо числовий id та статус рахунку для сумісності з фронтендом
     const taskWithId = {
       ...task.toObject(),
-      id: task._id.toString()
+      id: task._id.toString(),
+      invoiceStatus: invoiceRequest ? invoiceRequest.status : null
     };
     
     res.json(taskWithId);
