@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const AccountantReportsModal = ({ isOpen, onClose, user }) => {
+const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
   const [reportFilters, setReportFilters] = useState({
     dateFrom: '',
     dateTo: '',
@@ -140,25 +140,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user }) => {
 
     setLoading(true);
     try {
-      // Завантажуємо дані з localStorage
-      const savedTasks = localStorage.getItem('tasks');
-      const savedUsers = localStorage.getItem('users');
-      
-      console.log('[PERSONNEL REPORT] localStorage tasks:', savedTasks ? 'exists' : 'missing');
-      console.log('[PERSONNEL REPORT] localStorage users:', savedUsers ? 'exists' : 'missing');
-      
-      if (!savedTasks || !savedUsers) {
-        alert('Дані не знайдено. Будь ласка, оновіть сторінку та спробуйте знову.');
-        return;
-      }
-      
-      const tasks = JSON.parse(savedTasks);
-      const users = JSON.parse(savedUsers);
-      
-      console.log('[PERSONNEL REPORT] Parsed tasks count:', tasks.length);
-      console.log('[PERSONNEL REPORT] Parsed users count:', users.length);
-      console.log('[PERSONNEL REPORT] Sample task:', tasks[0]);
-      console.log('[PERSONNEL REPORT] Sample user:', users[0]);
+      // Використовуємо дані з пропсів (як в робочій версії)
       
       const months = [
         'Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'
@@ -180,9 +162,6 @@ const AccountantReportsModal = ({ isOpen, onClose, user }) => {
         return taskDate >= startDate && taskDate <= endDate;
       });
       
-      console.log('[PERSONNEL REPORT] Date range:', { startDate, endDate });
-      console.log('[PERSONNEL REPORT] Month tasks found:', monthTasks.length);
-      console.log('[PERSONNEL REPORT] Sample month task:', monthTasks[0]);
       
       // Функція для перевірки затвердження
       const isApproved = (value) => value === true || value === 'Підтверджено';
@@ -193,8 +172,6 @@ const AccountantReportsModal = ({ isOpen, onClose, user }) => {
         isApproved(task.approvedByAccountant)
       );
       
-      console.log('[PERSONNEL REPORT] Approved tasks found:', approvedTasks.length);
-      console.log('[PERSONNEL REPORT] Sample approved task:', approvedTasks[0]);
       
       // Групуємо заявки по регіонах
       const regionGroups = {};
