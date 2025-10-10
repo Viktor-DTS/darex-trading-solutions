@@ -1110,7 +1110,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                       flexDirection: 'column'
                     }}>
                       <div className="field label-above" style={{ flex: 1 }}>
-                        <label>Файл договору</label>
+                        <label style={{ color: '#333', fontWeight: 'bold' }}>Файл договору</label>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                           {form.contractFile ? (
                             <div style={{ 
@@ -1122,34 +1122,91 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                               border: '1px solid #4caf50',
                               borderRadius: '4px'
                             }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ fontSize: '14px', color: '#2e7d32' }}>
-                                  📄 {form.contractFile.name || 'Файл договору'}
-                                </span>
-                                <span style={{ fontSize: '12px', color: '#666' }}>
-                                  ({(form.contractFile.size / 1024 / 1024).toFixed(2)} MB)
-                                </span>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontSize: '14px', color: '#2e7d32' }}>
+                                    📄 {form.contractFile.name || 'Файл договору'}
+                                  </span>
+                                  <span style={{ fontSize: '12px', color: '#666' }}>
+                                    ({(form.contractFile.size / 1024 / 1024).toFixed(2)} MB)
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      console.log('[DEBUG] ModalTaskForm - перегляд файлу договору');
+                                      if (form.contractFile && form.contractFile.url) {
+                                        window.open(form.contractFile.url, '_blank');
+                                      } else {
+                                        // Якщо це локальний файл, створюємо URL для перегляду
+                                        const url = URL.createObjectURL(form.contractFile);
+                                        window.open(url, '_blank');
+                                      }
+                                    }}
+                                    style={{
+                                      background: '#2196f3',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      padding: '6px 12px',
+                                      cursor: 'pointer',
+                                      fontSize: '12px',
+                                      flex: 1
+                                    }}
+                                  >
+                                    👁️ Переглянути
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      console.log('[DEBUG] ModalTaskForm - завантаження файлу договору');
+                                      if (form.contractFile) {
+                                        const url = form.contractFile.url || URL.createObjectURL(form.contractFile);
+                                        const link = document.createElement('a');
+                                        link.href = url;
+                                        link.download = form.contractFile.name || 'contract.pdf';
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                      }
+                                    }}
+                                    style={{
+                                      background: '#4caf50',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      padding: '6px 12px',
+                                      cursor: 'pointer',
+                                      fontSize: '12px',
+                                      flex: 1
+                                    }}
+                                  >
+                                    ⬇️ Завантажити
+                                  </button>
+                                  {!readOnly && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        console.log('[DEBUG] ModalTaskForm - видалено файл договору');
+                                        setForm({ ...form, contractFile: null });
+                                      }}
+                                      style={{
+                                        background: '#f44336',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        padding: '6px 12px',
+                                        cursor: 'pointer',
+                                        fontSize: '12px',
+                                        flex: 1
+                                      }}
+                                    >
+                                      ✕ Видалити
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                              {!readOnly && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    console.log('[DEBUG] ModalTaskForm - видалено файл договору');
-                                    setForm({ ...form, contractFile: null });
-                                  }}
-                                  style={{
-                                    background: '#f44336',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    padding: '4px 8px',
-                                    cursor: 'pointer',
-                                    fontSize: '12px'
-                                  }}
-                                >
-                                  ✕ Видалити
-                                </button>
-                              )}
                             </div>
                           ) : (
                             <div>
