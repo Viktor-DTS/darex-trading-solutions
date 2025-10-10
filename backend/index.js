@@ -1762,7 +1762,15 @@ app.get('/api/reports/financial', async (req, res) => {
     }
     
     if (tasks.length === 0) {
-      return res.status(404).json({ error: 'Не знайдено заявок за вказаний період' });
+      console.log('[REPORTS] Помилка: не знайдено заявок за вказаний період');
+      console.log('[REPORTS] Фільтр, який використовувався:', filter);
+      return res.status(404).json({ 
+        error: 'Не знайдено заявок за вказаний період',
+        filter: filter,
+        dateFrom: dateFrom,
+        dateTo: dateTo,
+        region: region
+      });
     }
     
     // Підготовка даних для звіту
@@ -2000,7 +2008,15 @@ app.get('/api/reports/financial', async (req, res) => {
       
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(html);
+      console.log('[REPORTS] HTML звіт успішно відправлено');
     }
+    
+    console.log('[REPORTS] Звіт успішно згенеровано:', {
+      format: format,
+      tasksCount: tasks.length,
+      totalAmount: totalAmount,
+      detailed: detailed
+    });
     
   } catch (error) {
     console.error('[REPORTS] Помилка генерації фінансового звіту:', error);
