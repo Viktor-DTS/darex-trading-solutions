@@ -775,6 +775,16 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     // }
     // --- Завантаження файлу договору на сервер ---
     let contractFileUrl = null;
+    console.log('[DEBUG] ModalTaskForm - перевірка файлу договору:', {
+      hasFile: !!form.contractFile,
+      isFile: form.contractFile instanceof File,
+      fileDetails: form.contractFile ? {
+        name: form.contractFile.name,
+        size: form.contractFile.size,
+        type: form.contractFile.type
+      } : null
+    });
+    
     if (form.contractFile && form.contractFile instanceof File) {
       try {
         console.log('[DEBUG] ModalTaskForm - завантажуємо файл договору на сервер:', form.contractFile.name);
@@ -782,21 +792,33 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         uploadFormData.append('file', form.contractFile);
         uploadFormData.append('type', 'contract');
         
+        console.log('[DEBUG] ModalTaskForm - відправляємо запит на /api/files/upload-contract');
         const uploadResponse = await fetch('/api/files/upload-contract', {
           method: 'POST',
           body: uploadFormData
         });
         
+        console.log('[DEBUG] ModalTaskForm - отримано відповідь:', uploadResponse.status, uploadResponse.statusText);
+        
         if (uploadResponse.ok) {
           const uploadResult = await uploadResponse.json();
           contractFileUrl = uploadResult.url;
           console.log('[DEBUG] ModalTaskForm - файл договору завантажено:', contractFileUrl);
+          console.log('[DEBUG] ModalTaskForm - повна відповідь:', uploadResult);
         } else {
-          console.error('[ERROR] ModalTaskForm - помилка завантаження файлу договору:', uploadResponse.statusText);
+          const errorText = await uploadResponse.text();
+          console.error('[ERROR] ModalTaskForm - помилка завантаження файлу договору:', {
+            status: uploadResponse.status,
+            statusText: uploadResponse.statusText,
+            errorText: errorText
+          });
         }
       } catch (error) {
         console.error('[ERROR] ModalTaskForm - помилка завантаження файлу договору:', error);
       }
+    } else if (form.contractFile) {
+      console.log('[DEBUG] ModalTaskForm - файл договору вже завантажений (URL):', form.contractFile);
+      contractFileUrl = form.contractFile.url || form.contractFile;
     }
 
     onSave({
