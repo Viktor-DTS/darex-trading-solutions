@@ -50,6 +50,7 @@ export const fields = [
   { name: 'date', label: 'Дата проведення робіт', type: 'date' },
   { name: 'paymentDate', label: 'Дата оплати', type: 'date' },
   { name: 'invoiceRecipientDetails', label: 'Реквізити отримувача рахунку в паперовому вигляді', type: 'textarea' },
+  { name: 'contractFile', label: 'Файл договору', type: 'file' },
   { name: 'company', label: 'Компанія виконавець', type: 'select', options: ['', 'ДТС', 'Дарекс Енерго', 'інша'] },
   { name: 'edrpou', label: 'ЄДРПОУ', type: 'text' },
   { name: 'debtStatus', label: 'Заборгованість по Акти виконаних робіт (орігінали)', type: 'select', options: ['Заборгованість', 'Документи в наявності'], role: 'accountant' },
@@ -1068,7 +1069,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   );
                 })}
                 
-                {/* Блок запиту на рахунок - всередині групи після paymentDate */}
+                {/* Блок запиту на рахунок та завантаження договору - в один рядок */}
                 {console.log('DEBUG ModalTaskForm - передаємо в InvoiceRequestBlock:', {
                   taskStatus: form.status,
                   userRole: user?.role,
@@ -1076,11 +1077,34 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   task: form,
                   user: user
                 })}
-                <InvoiceRequestBlock 
-                  task={form} 
-                  user={user} 
-                  onRequest={handleInvoiceRequest}
-                />
+                <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+                  {/* Запит на рахунок */}
+                  <div style={{ flex: 1 }}>
+                    <InvoiceRequestBlock 
+                      task={form} 
+                      user={user} 
+                      onRequest={handleInvoiceRequest}
+                    />
+                  </div>
+                  
+                  {/* Завантаження файлу договору */}
+                  <div style={{ flex: 1 }}>
+                    <div className="field label-above">
+                      <label>Файл договору</label>
+                      <FileUpload
+                        onFileUpload={(file) => {
+                          console.log('[DEBUG] ModalTaskForm - завантажено файл договору:', file);
+                          setForm({ ...form, contractFile: file });
+                        }}
+                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                        maxSize={10 * 1024 * 1024} // 10MB
+                        placeholder="Завантажити файл договору"
+                        currentFile={form.contractFile}
+                        disabled={readOnly}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             );
           }
