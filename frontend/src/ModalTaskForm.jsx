@@ -1589,8 +1589,10 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   placeholder="Введіть тип обладнання..."
                 />
                 {/* Dropdown з автодоповненням */}
+                {console.log('[DEBUG] ModalTaskForm - перевірка dropdown:', { showEquipmentDropdown, filteredLength: filteredEquipmentTypes.length })}
                 {showEquipmentDropdown && filteredEquipmentTypes.length > 0 && (
-                  <div style={{
+                  <div 
+                    style={{
                     position: 'absolute',
                     top: '100%',
                     left: 0,
@@ -1602,7 +1604,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                     overflowY: 'auto',
                     zIndex: 1000,
                     boxShadow: '0 4px 8px rgba(0,0,0,0.3)'
-                  }}>
+                  }}
+                    onClick={(e) => {
+                      console.log('[DEBUG] ModalTaskForm - клік по dropdown контейнеру');
+                      e.stopPropagation();
+                    }}>
                     {filteredEquipmentTypes.map((type, index) => (
                       <div
                         key={index}
