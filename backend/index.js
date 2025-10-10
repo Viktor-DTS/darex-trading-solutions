@@ -3027,6 +3027,18 @@ app.get('/api/equipment-types', async (req, res) => {
   }
 });
 
+// Тестовий endpoint для перевірки
+app.get('/api/files/upload-contract-test', (req, res) => {
+  console.log('[DEBUG] GET /api/files/upload-contract-test - тестовий endpoint викликаний');
+  res.json({ success: true, message: 'Endpoint працює' });
+});
+
+// Простий тестовий endpoint без middleware
+app.post('/api/files/upload-contract-simple', (req, res) => {
+  console.log('[DEBUG] POST /api/files/upload-contract-simple - простий endpoint викликаний');
+  res.json({ success: true, message: 'Простий endpoint працює' });
+});
+
 // API для завантаження файлу договору
 app.post('/api/files/upload-contract', localUpload.single('file'), async (req, res) => {
   try {
