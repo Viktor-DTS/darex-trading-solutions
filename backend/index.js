@@ -4472,6 +4472,14 @@ app.get('/api/reports/personnel', async (req, res) => {
       regionGroups[region].push(task);
     });
     
+    // Логування для діагностики
+    console.log(`[PERSONNEL REPORT] Month: ${month}, Year: ${year}`);
+    console.log(`[PERSONNEL REPORT] Total tasks found: ${tasks.length}`);
+    console.log(`[PERSONNEL REPORT] Approved tasks: ${approvedTasks.length}`);
+    console.log(`[PERSONNEL REPORT] Engineers found: ${engineers.length}`);
+    console.log(`[PERSONNEL REPORT] Regions: ${Object.keys(regionGroups).join(', ')}`);
+    console.log(`[PERSONNEL REPORT] Region groups:`, regionGroups);
+    
     // Підготовка даних для звіту
     const monthNames = [
       'Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
@@ -4602,8 +4610,23 @@ app.get('/api/reports/personnel', async (req, res) => {
         <h2>${reportTitle}</h2>
     `;
     
-    // Генеруємо звіт для кожного регіону
-    Object.keys(regionGroups).forEach(region => {
+    // Перевіряємо чи є дані
+    if (Object.keys(regionGroups).length === 0) {
+      html += `
+        <div style="text-align: center; padding: 40px; color: #666;">
+          <h3>Дані не знайдено</h3>
+          <p>Для місяця ${monthNames[month - 1]} ${year} не знайдено затверджених заявок.</p>
+          <p>Перевірте:</p>
+          <ul style="text-align: left; display: inline-block;">
+            <li>Чи є заявки зі статусом "Виконано"</li>
+            <li>Чи затверджені заявки складом та бухгалтером</li>
+            <li>Чи є інженери з роллю "service"</li>
+          </ul>
+        </div>
+      `;
+    } else {
+      // Генеруємо звіт для кожного регіону
+      Object.keys(regionGroups).forEach(region => {
       const regionTasks = regionGroups[region];
       
       // Фільтруємо інженерів для цього регіону
@@ -4760,7 +4783,8 @@ app.get('/api/reports/personnel', async (req, res) => {
           </table>
         </div>
       `;
-    });
+      });
+    }
     
     html += `
       </body>
