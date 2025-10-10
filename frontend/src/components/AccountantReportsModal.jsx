@@ -71,20 +71,40 @@ const AccountantReportsModal = ({ isOpen, onClose, user }) => {
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
         (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
+      console.log('[REPORTS] Frontend - параметри перед відправкою:', {
+        dateFrom: reportFilters.dateFrom,
+        dateTo: reportFilters.dateTo,
+        region: reportFilters.region,
+        detailed: reportFilters.detailed,
+        detailedType: typeof reportFilters.detailed,
+        format: format
+      });
+      
       const params = new URLSearchParams({
         dateFrom: reportFilters.dateFrom,
         dateTo: reportFilters.dateTo,
         region: reportFilters.region,
-        detailed: reportFilters.detailed.toString(),
+        detailed: reportFilters.detailed ? reportFilters.detailed.toString() : 'false',
         format: format
       });
+      
+      console.log('[REPORTS] Frontend - URL параметри:', params.toString());
 
       if (format === 'html') {
         // Відкриваємо HTML звіт в новій вкладці
-        window.open(`${API_BASE_URL}/reports/financial?${params}`, '_blank');
+        const htmlUrl = `${API_BASE_URL}/reports/financial?${params}`;
+        console.log('[REPORTS] Frontend - відкриваємо HTML звіт:', htmlUrl);
+        window.open(htmlUrl, '_blank');
       } else if (format === 'excel') {
         // Завантажуємо Excel файл
+        console.log('[REPORTS] Frontend - відправляємо запит на Excel:', `${API_BASE_URL}/reports/financial?${params}`);
         const response = await fetch(`${API_BASE_URL}/reports/financial?${params}`);
+        console.log('[REPORTS] Frontend - отримано відповідь:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          headers: Object.fromEntries(response.headers.entries())
+        });
         if (response.ok) {
           const blob = await response.blob();
           const url = window.URL.createObjectURL(blob);
