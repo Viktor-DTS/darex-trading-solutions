@@ -60,6 +60,11 @@ const initialTask = {
 };
 export default function AccountantArea({ user }) {
   const [tasks, setTasks] = useState([]);
+  
+  // Додаткове логування для відстеження змін стану
+  useEffect(() => {
+    console.log('[DEBUG] AccountantArea - стан tasks змінився, кількість заявок:', tasks.length);
+  }, [tasks]);
   const [loading, setLoading] = useState(true);
   // Ініціалізую filters з усіма можливими ключами для фільтрації
   const allFilterKeys = allTaskFields
@@ -101,9 +106,12 @@ export default function AccountantArea({ user }) {
       console.log('[DEBUG] AccountantArea refreshCache - перші 3 заявки:', freshTasks.slice(0, 3));
       
       console.log('[DEBUG] AccountantArea refreshCache - встановлюємо новий стан...');
-      setTasks(freshTasks);
+      
+      // Примусове оновлення стану - створюємо новий масив
+      setTasks([...freshTasks]);
       
       console.log('[DEBUG] AccountantArea refreshCache - кеш оновлено успішно!');
+      console.log('[DEBUG] AccountantArea refreshCache - новий масив створено, довжина:', freshTasks.length);
       
       // Додаткова перевірка через setTimeout
       setTimeout(() => {
@@ -533,7 +541,7 @@ export default function AccountantArea({ user }) {
     tasksAPI.getAll()
       .then(tasks => {
         console.log('[DEBUG] AccountantArea useEffect - завантажено заявок:', tasks.length);
-        setTasks(tasks);
+        setTasks([...tasks]);
       })
       .catch(error => {
         console.error('[ERROR] AccountantArea useEffect - помилка завантаження:', error);
@@ -556,7 +564,7 @@ export default function AccountantArea({ user }) {
       console.log('[DEBUG] AccountantArea handleFocus - оновлення при фокусі вікна...');
       tasksAPI.getAll().then(freshTasks => {
         console.log('[DEBUG] AccountantArea handleFocus - оновлено заявок:', freshTasks.length);
-        setTasks(freshTasks);
+        setTasks([...freshTasks]);
       }).catch(error => {
         console.error('[ERROR] AccountantArea - помилка оновлення при фокусі:', error);
       });
@@ -608,7 +616,8 @@ export default function AccountantArea({ user }) {
       const freshTasks = await tasksAPI.getAll();
       console.log('[DEBUG] AccountantArea handleApprove - отримано з API:', freshTasks.length, 'заявок');
       
-      setTasks(freshTasks);
+      // Примусове оновлення стану - створюємо новий масив
+      setTasks([...freshTasks]);
       console.log('[DEBUG] AccountantArea handleApprove - кеш оновлено, завантажено заявок:', freshTasks.length);
       
     } catch (error) {
@@ -660,7 +669,8 @@ export default function AccountantArea({ user }) {
       const freshTasks = await tasksAPI.getAll();
       console.log('[DEBUG] AccountantArea handleSave - отримано з API:', freshTasks.length, 'заявок');
       
-      setTasks(freshTasks);
+      // Примусове оновлення стану - створюємо новий масив
+      setTasks([...freshTasks]);
       console.log('[DEBUG] AccountantArea handleSave - кеш оновлено, завантажено заявок:', freshTasks.length);
       
       // Додатково оновлюємо локальний стан для швидшого відображення
