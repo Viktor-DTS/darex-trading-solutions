@@ -1809,7 +1809,7 @@ app.get('/api/reports/financial', async (req, res) => {
         isDetailedBoolean: detailed === true,
         isDetailedString: detailed === 'true'
       });
-      if (detailed === 'true' || detailed === true) {
+      if (detailed === 'true' || detailed === true || detailed === '1') {
         return {
           ...baseData,
           address: task.address || 'Не вказано',
@@ -1868,7 +1868,7 @@ app.get('/api/reports/financial', async (req, res) => {
         isDetailed: detailed === 'true',
         condition: detailed === 'true'
       });
-      if (detailed === 'true') {
+      if (detailed === 'true' || detailed === true || detailed === '1') {
         console.log('[REPORTS] Excel - використовуємо деталізовані колонки');
         worksheet.columns = [
           { header: 'Номер заявки', key: 'requestNumber', width: 15 },
