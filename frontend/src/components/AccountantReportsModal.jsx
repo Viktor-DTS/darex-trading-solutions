@@ -7,8 +7,13 @@ const AccountantReportsModal = ({ isOpen, onClose, user }) => {
     region: '',
     detailed: false
   });
+  const [personnelFilters, setPersonnelFilters] = useState({
+    month: new Date().getMonth() + 1, // Поточний місяць
+    year: new Date().getFullYear() // Поточний рік
+  });
   const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [activeReport, setActiveReport] = useState('financial'); // 'financial' або 'personnel'
 
   useEffect(() => {
     if (isOpen) {
@@ -127,6 +132,42 @@ const AccountantReportsModal = ({ isOpen, onClose, user }) => {
     }
   };
 
+  const generatePersonnelReport = async () => {
+    if (!personnelFilters.month || !personnelFilters.year) {
+      alert('Будь ласка, вкажіть місяць та рік для звіту');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      
+      console.log('[PERSONNEL REPORTS] Frontend - параметри перед відправкою:', {
+        month: personnelFilters.month,
+        year: personnelFilters.year
+      });
+      
+      const params = new URLSearchParams({
+        month: personnelFilters.month,
+        year: personnelFilters.year
+      });
+      
+      console.log('[PERSONNEL REPORTS] Frontend - URL параметри:', params.toString());
+
+      // Відкриваємо HTML звіт в новій вкладці
+      const htmlUrl = `${API_BASE_URL}/reports/personnel?${params}`;
+      console.log('[PERSONNEL REPORTS] Frontend - відкриваємо HTML звіт:', htmlUrl);
+      window.open(htmlUrl, '_blank');
+      
+    } catch (error) {
+      console.error('Помилка генерації звіту по персоналу:', error);
+      alert('Помилка генерації звіту по персоналу');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -179,7 +220,50 @@ const AccountantReportsModal = ({ isOpen, onClose, user }) => {
           </button>
         </div>
 
-        {/* Загальний звіт по руху фінансів */}
+        {/* Перемикач звітів */}
+        <div style={{
+          display: 'flex',
+          gap: '12px',
+          marginBottom: '24px',
+          borderBottom: '1px solid #e0e0e0',
+          paddingBottom: '16px'
+        }}>
+          <button
+            onClick={() => setActiveReport('financial')}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: activeReport === 'financial' ? '#007bff' : '#f8f9fa',
+              color: activeReport === 'financial' ? 'white' : '#333',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+              transition: 'all 0.2s'
+            }}
+          >
+            💰 Фінансовий звіт
+          </button>
+          <button
+            onClick={() => setActiveReport('personnel')}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: activeReport === 'personnel' ? '#007bff' : '#f8f9fa',
+              color: activeReport === 'personnel' ? 'white' : '#333',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+              transition: 'all 0.2s'
+            }}
+          >
+            👥 Табель персоналу
+          </button>
+        </div>
+
+        {/* Фінансовий звіт */}
+        {activeReport === 'financial' && (
         <div style={{
           backgroundColor: '#f8f9fa',
           borderRadius: '8px',
@@ -317,6 +401,109 @@ const AccountantReportsModal = ({ isOpen, onClose, user }) => {
             </button>
           </div>
         </div>
+        )}
+
+        {/* Звіт по персоналу */}
+        {activeReport === 'personnel' && (
+        <div style={{
+          backgroundColor: '#f8f9fa',
+          borderRadius: '8px',
+          padding: '20px',
+          marginBottom: '20px',
+          border: '1px solid #e9ecef'
+        }}>
+          <h3 style={{ 
+            margin: '0 0 16px 0', 
+            color: '#333', 
+            fontSize: '18px',
+            fontWeight: '600',
+            borderBottom: '2px solid #007bff',
+            paddingBottom: '8px'
+          }}>
+            Табель персоналу
+          </h3>
+
+          {/* Фільтри для персоналу */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#333' }}>
+                Місяць:
+              </label>
+              <select
+                value={personnelFilters.month}
+                onChange={(e) => setPersonnelFilters(prev => ({ ...prev, month: parseInt(e.target.value) }))}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  backgroundColor: '#fff'
+                }}
+              >
+                <option value={1}>Січень</option>
+                <option value={2}>Лютий</option>
+                <option value={3}>Березень</option>
+                <option value={4}>Квітень</option>
+                <option value={5}>Травень</option>
+                <option value={6}>Червень</option>
+                <option value={7}>Липень</option>
+                <option value={8}>Серпень</option>
+                <option value={9}>Вересень</option>
+                <option value={10}>Жовтень</option>
+                <option value={11}>Листопад</option>
+                <option value={12}>Грудень</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#333' }}>
+                Рік:
+              </label>
+              <select
+                value={personnelFilters.year}
+                onChange={(e) => setPersonnelFilters(prev => ({ ...prev, year: parseInt(e.target.value) }))}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  backgroundColor: '#fff'
+                }}
+              >
+                <option value={2023}>2023</option>
+                <option value={2024}>2024</option>
+                <option value={2025}>2025</option>
+                <option value={2026}>2026</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Кнопка формування звіту */}
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={generatePersonnelReport}
+              disabled={loading}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: '#007bff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                fontSize: '14px',
+                fontWeight: '600',
+                opacity: loading ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              {loading ? '⏳' : '📄'} Сформувати звіт
+            </button>
+          </div>
+        </div>
+        )}
 
         {/* Кнопка закриття */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>

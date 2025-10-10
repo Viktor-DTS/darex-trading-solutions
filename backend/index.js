@@ -4426,3 +4426,142 @@ app.get('/api/reports/financial', async (req, res) => {
     });
   }
 });
+
+// API endpoint для звіту по персоналу
+app.get('/api/reports/personnel', async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    
+    if (!month || !year) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Відсутні обов\'язкові параметри: month, year' 
+      });
+    }
+    
+    // Отримуємо всіх користувачів (персонал)
+    const users = await User.find({ 
+      role: { $in: ['engineer', 'service', 'zavsklad', 'accountant', 'regional_manager'] }
+    }).select('name login role');
+    
+    // Отримуємо заявки за вказаний місяць/рік
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
+    
+    const tasks = await Task.find({
+      date: { $gte: startDate, $lte: endDate },
+      status: 'Виконано'
+    });
+    
+    // Групуємо заявки по інженерах
+    const engineerTasks = {};
+    tasks.forEach(task => {
+      if (task.engineer1) {
+        if (!engineerTasks[task.engineer1]) {
+          engineerTasks[task.engineer1] = [];
+        }
+        engineerTasks[task.engineer1].push(task);
+      }
+      if (task.engineer2) {
+        if (!engineerTasks[task.engineer2]) {
+          engineerTasks[task.engineer2] = [];
+        }
+        engineerTasks[task.engineer2].push(task);
+      }
+    });
+    
+    // Підготовка даних для звіту
+    const monthNames = [
+      'Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
+      'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'
+    ];
+    
+    const reportData = users.map(user => {
+      const userTasks = engineerTasks[user.name] || [];
+      const totalHours = userTasks.length * 8; // Припускаємо 8 годин на заявку
+      const totalServiceSum = userTasks.reduce((sum, task) => sum + (parseFloat(task.serviceTotal) || 0), 0);
+      const workPrice = userTasks.reduce((sum, task) => sum + (parseFloat(task.workPrice) || 0), 0);
+      
+      return {
+        name: user.name,
+        login: user.login,
+        role: user.role,
+        tasksCount: userTasks.length,
+        totalHours: totalHours,
+        totalServiceSum: totalServiceSum,
+        workPrice: workPrice,
+        tasks: userTasks
+      };
+    });
+    
+    // Генерація HTML звіту
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Табель персоналу</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .filters { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f2f2f2; font-weight: bold; }
+          .summary { background-color: #e9ecef; font-weight: bold; }
+          .section { margin-bottom: 30px; }
+          .section h3 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 5px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Табель персоналу</h1>
+          <p>Період: ${monthNames[month - 1]} ${year}</p>
+          <p>Дата створення: ${new Date().toLocaleDateString('uk-UA')}</p>
+        </div>
+        
+        <div class="section">
+          <h3>Звіт по персоналу</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>ПІБ</th>
+                <th>Логін</th>
+                <th>Роль</th>
+                <th>Кількість заявок</th>
+                <th>Відпрацьовано годин</th>
+                <th>Загальна сума послуг</th>
+                <th>Вартість робіт</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${reportData.map(item => `
+                <tr>
+                  <td>${item.name}</td>
+                  <td>${item.login}</td>
+                  <td>${item.role}</td>
+                  <td>${item.tasksCount}</td>
+                  <td>${item.totalHours}</td>
+                  <td>${item.totalServiceSum.toFixed(2)} грн</td>
+                  <td>${item.workPrice.toFixed(2)} грн</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+    
+  } catch (error) {
+    console.error('Помилка генерації звіту по персоналу:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка генерації звіту по персоналу',
+      error: error.message 
+    });
+  }
+});
