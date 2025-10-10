@@ -2209,7 +2209,7 @@ function TaskTableComponent({
                         )}
                       </div>
                       {col.filter && (
-                          col.key === 'date' || col.key === 'requestDate' ? (
+                          col.key === 'date' || col.key === 'requestDate' || col.key === 'paymentDate' ? (
                             <div style={{display:'flex',flexDirection:'column',minWidth:120, background:'#fff'}}>
                               <input type="date" name={col.key+"From"} value={filters[col.key+"From"] || ''} onChange={onFilterChange} style={{marginBottom:2, background:'#fff'}} />
                               <input type="date" name={col.key+"To"} value={filters[col.key+"To"] || ''} onChange={onFilterChange} style={{background:'#fff'}} />
