@@ -1120,11 +1120,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             );
           }
           
-          // Новий блок для обладнання та двигуна
+          // Новий блок для обладнання та двигуна (без equipment - воно рендериться окремо з dropdown)
           if (idx === orderedFields.indexOf('equipment')) {
             return (
               <div className="group" key="equipmentGroup">
-                {['equipment', 'equipmentSerial', 'engineModel', 'engineSerial'].map(n => {
+                {['equipmentSerial', 'engineModel', 'engineSerial'].map(n => {
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
