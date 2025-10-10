@@ -508,13 +508,23 @@ router.post('/upload-contract', (req, res, next) => {
     }
 
     console.log('[FILES] Файл договору завантажено:', fileUrl);
+    console.log('[FILES] Cloudinary налаштування:', {
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME ? 'НАЛАШТОВАНО' : 'НЕ НАЛАШТОВАНО',
+      apiKey: process.env.CLOUDINARY_API_KEY ? 'НАЛАШТОВАНО' : 'НЕ НАЛАШТОВАНО',
+      apiSecret: process.env.CLOUDINARY_API_SECRET ? 'НАЛАШТОВАНО' : 'НЕ НАЛАШТОВАНО',
+      cloudinaryAvailable: !!cloudinary
+    });
     
     res.json({ 
       success: true,
       message: 'Файл договору завантажено успішно',
       url: fileUrl,
       name: fileName,
-      size: req.file.size
+      size: req.file.size,
+      cloudinary: {
+        configured: !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET),
+        available: !!cloudinary
+      }
     });
 
   } catch (error) {
