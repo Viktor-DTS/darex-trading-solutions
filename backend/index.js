@@ -3009,11 +3009,36 @@ app.get('/api/equipment-types', async (req, res) => {
 // API для завантаження файлу договору
 app.post('/api/files/upload-contract', upload.single('file'), async (req, res) => {
   try {
+    console.log('[DEBUG] POST /api/files/upload-contract - запит отримано');
+    console.log('[DEBUG] POST /api/files/upload-contract - req.file:', req.file);
+    console.log('[DEBUG] POST /api/files/upload-contract - req.body:', req.body);
+    
     if (!req.file) {
+      console.log('[ERROR] POST /api/files/upload-contract - файл не знайдено в запиті');
       return res.status(400).json({ error: 'Файл не був завантажений' });
     }
 
-    console.log('[DEBUG] POST /api/files/upload-contract - файл отримано:', req.file.originalname);
+    console.log('[DEBUG] POST /api/files/upload-contract - файл отримано:', {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      path: req.file.path
+    });
+    
+    // Перевіряємо чи існує файл
+    if (!fs.existsSync(req.file.path)) {
+      console.log('[ERROR] POST /api/files/upload-contract - файл не існує за шляхом:', req.file.path);
+      return res.status(400).json({ error: 'Файл не знайдено на сервері' });
+    }
+    
+    console.log('[DEBUG] POST /api/files/upload-contract - починаємо завантаження на Cloudinary');
+    
+    // Перевіряємо конфігурацію Cloudinary
+    console.log('[DEBUG] POST /api/files/upload-contract - Cloudinary config:', {
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET',
+      api_key: process.env.CLOUDINARY_API_KEY ? 'SET' : 'NOT SET',
+      api_secret: process.env.CLOUDINARY_API_SECRET ? 'SET' : 'NOT SET'
+    });
     
     // Завантажуємо файл на Cloudinary
     const result = await cloudinary.uploader.upload(req.file.path, {
@@ -3021,31 +3046,47 @@ app.post('/api/files/upload-contract', upload.single('file'), async (req, res) =
       resource_type: 'auto'
     });
 
-    console.log('[DEBUG] POST /api/files/upload-contract - файл завантажено на Cloudinary:', result.secure_url);
+    console.log('[DEBUG] POST /api/files/upload-contract - файл завантажено на Cloudinary:', {
+      secure_url: result.secure_url,
+      public_id: result.public_id,
+      format: result.format,
+      bytes: result.bytes
+    });
 
     // Видаляємо тимчасовий файл
     fs.unlinkSync(req.file.path);
+    console.log('[DEBUG] POST /api/files/upload-contract - тимчасовий файл видалено');
 
-    res.json({
+    const response = {
       success: true,
       url: result.secure_url,
       publicId: result.public_id,
       originalName: req.file.originalname,
       size: req.file.size
-    });
+    };
+    
+    console.log('[DEBUG] POST /api/files/upload-contract - відправляємо відповідь:', response);
+    res.json(response);
   } catch (error) {
     console.error('[ERROR] POST /api/files/upload-contract - помилка:', error);
+    console.error('[ERROR] POST /api/files/upload-contract - stack trace:', error.stack);
     
     // Видаляємо тимчасовий файл у випадку помилки
     if (req.file && req.file.path) {
       try {
-        fs.unlinkSync(req.file.path);
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+          console.log('[DEBUG] POST /api/files/upload-contract - тимчасовий файл видалено після помилки');
+        }
       } catch (unlinkError) {
         console.error('[ERROR] Не вдалося видалити тимчасовий файл:', unlinkError);
       }
     }
     
-    res.status(500).json({ error: 'Помилка завантаження файлу' });
+    res.status(500).json({ 
+      error: 'Помилка завантаження файлу',
+      details: error.message 
+    });
   }
 });
 
