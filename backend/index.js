@@ -19,11 +19,7 @@ const cloudinary = require('./config/cloudinary');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 
-// Додаємо імпорт роуту файлів
-const filesRouter = require('./routes/files');
-
-// Підключаємо роут файлів
-app.use('/api/files', filesRouter);
+const app = express();
 
 // Налаштування multer для Cloudinary
 const storage = new CloudinaryStorage({
@@ -55,7 +51,11 @@ const upload = multer({
   }
 });
 
-const app = express();
+// Додаємо імпорт роуту файлів
+const filesRouter = require('./routes/files')(upload);
+
+// Підключаємо роут файлів
+app.use('/api/files', filesRouter);
 const PORT = process.env.PORT || 3001;
 
 const MONGODB_URI = process.env.MONGODB_URI;

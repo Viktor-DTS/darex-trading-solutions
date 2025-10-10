@@ -5,7 +5,9 @@ const sharp = require('sharp');
 const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
-const router = express.Router();
+
+module.exports = (upload) => {
+  const router = express.Router();
 
 // Спрощена функція - повертаємо оригінальний PDF без конвертації
 async function convertPdfToJpgServer(pdfBuffer, originalName) {
@@ -62,53 +64,7 @@ router.use((req, res, next) => {
   next();
 });
 
-// Налаштування Storage для multer
-let storage;
-if (CloudinaryStorage && cloudinary) {
-  // Cloudinary Storage
-  storage = new CloudinaryStorage({
-    cloudinary: cloudinary,
-    params: {
-      folder: 'darex-trading-solutions',
-      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'],
-      transformation: [{ width: 1000, height: 1000, crop: 'limit' }]
-    }
-  });
-} else {
-  // Локальне збереження (тимчасово)
-  storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-      cb(null, '/tmp/') // Тимчасова папка
-    },
-    filename: function (req, file, cb) {
-      cb(null, Date.now() + '-' + file.originalname)
-    }
-  });
-}
-
-const upload = multer({ 
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB ліміт
-  },
-  fileFilter: (req, file, cb) => {
-    // Дозволяємо тільки певні типи файлів
-    const allowedTypes = [
-      'image/jpeg', 'image/png', 'image/gif',
-      'application/pdf', 'application/msword', 
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'text/plain'
-    ];
-    
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Непідтримуваний тип файлу'), false);
-    }
-  }
-});
+// Використовуємо multer, переданий з index.js
 
 // Схема для файлів
 const fileSchema = new mongoose.Schema({
@@ -554,4 +510,5 @@ router.post('/upload-contract', (req, res, next) => {
   }
 });
 
-module.exports = router; 
+  return router;
+}; 
