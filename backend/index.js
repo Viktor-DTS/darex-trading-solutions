@@ -1686,8 +1686,12 @@ app.get('/api/reports/financial', async (req, res) => {
       }
     };
     
-    if (region && region !== 'Всі регіони' && region !== 'Україна') {
+    // Фільтр по регіону - тільки якщо вибрано конкретний регіон
+    if (region && region !== 'Всі регіони' && region !== 'Україна' && region !== '') {
       filter.serviceRegion = region;
+      console.log('[REPORTS] Додано фільтр по регіону:', region);
+    } else {
+      console.log('[REPORTS] Фільтр по регіону не застосовується, показуємо всі регіони');
     }
     
     console.log('[REPORTS] Фільтр для заявок:', filter);
@@ -1697,7 +1701,7 @@ app.get('/api/reports/financial', async (req, res) => {
     });
     
     // Отримуємо заявки
-    let tasks = await executeWithRetry(() => 
+    const tasks = await executeWithRetry(() => 
       Task.find(filter)
         .sort({ date: -1 })
         .lean()
@@ -1730,7 +1734,7 @@ app.get('/api/reports/financial', async (req, res) => {
         }
       };
       
-      if (region && region !== 'Всі регіони' && region !== 'Україна') {
+      if (region && region !== 'Всі регіони' && region !== 'Україна' && region !== '') {
         alternativeFilter.serviceRegion = region;
       }
       
@@ -1755,17 +1759,46 @@ app.get('/api/reports/financial', async (req, res) => {
     }
     
     // Підготовка даних для звіту
-    const reportData = tasks.map(task => ({
-      requestNumber: task.requestNumber || 'Без номера',
-      date: task.date,
-      client: task.client || 'Без клієнта',
-      serviceRegion: task.serviceRegion || 'Не вказано',
-      work: task.work || 'Не вказано',
-      serviceTotal: task.serviceTotal || 0,
-      approvedByAccountant: task.approvedByAccountant || 'Не затверджено',
-      engineer1: task.engineer1 || '',
-      engineer2: task.engineer2 || ''
-    }));
+    const reportData = tasks.map(task => {
+      const baseData = {
+        requestNumber: task.requestNumber || 'Без номера',
+        date: task.date,
+        client: task.client || 'Без клієнта',
+        serviceRegion: task.serviceRegion || 'Не вказано',
+        work: task.work || 'Не вказано',
+        serviceTotal: task.serviceTotal || 0,
+        approvedByAccountant: task.approvedByAccountant || 'Не затверджено',
+        engineer1: task.engineer1 || '',
+        engineer2: task.engineer2 || ''
+      };
+      
+      // Якщо деталізація увімкнена, додаємо додаткові поля
+      if (detailed === 'true') {
+        return {
+          ...baseData,
+          address: task.address || 'Не вказано',
+          equipment: task.equipment || 'Не вказано',
+          equipmentSerial: task.equipmentSerial || 'Не вказано',
+          oilType: task.oilType || '',
+          oilUsed: task.oilUsed || '',
+          oilPrice: task.oilPrice || 0,
+          oilTotal: task.oilTotal || 0,
+          filterName: task.filterName || '',
+          filterCount: task.filterCount || '',
+          filterPrice: task.filterPrice || 0,
+          filterSum: task.filterSum || 0,
+          otherMaterials: task.otherMaterials || '',
+          otherSum: task.otherSum || 0,
+          workPrice: task.workPrice || 0,
+          transportKm: task.transportKm || 0,
+          transportSum: task.transportSum || 0,
+          paymentType: task.paymentType || 'Не вказано',
+          invoice: task.invoice || 'Не вказано'
+        };
+      }
+      
+      return baseData;
+    });
     
     // Розрахунок загальної суми
     const totalAmount = reportData.reduce((sum, task) => sum + (parseFloat(task.serviceTotal) || 0), 0);
@@ -1776,18 +1809,50 @@ app.get('/api/reports/financial', async (req, res) => {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Фінансовий звіт');
       
-      // Заголовки
-      worksheet.columns = [
-        { header: 'Номер заявки', key: 'requestNumber', width: 15 },
-        { header: 'Дата', key: 'date', width: 12 },
-        { header: 'Клієнт', key: 'client', width: 30 },
-        { header: 'Регіон', key: 'serviceRegion', width: 15 },
-        { header: 'Робота', key: 'work', width: 20 },
-        { header: 'Сума', key: 'serviceTotal', width: 12 },
-        { header: 'Затверджено', key: 'approvedByAccountant', width: 15 },
-        { header: 'Інженер 1', key: 'engineer1', width: 15 },
-        { header: 'Інженер 2', key: 'engineer2', width: 15 }
-      ];
+      // Заголовки - базові або деталізовані
+      if (detailed === 'true') {
+        worksheet.columns = [
+          { header: 'Номер заявки', key: 'requestNumber', width: 15 },
+          { header: 'Дата', key: 'date', width: 12 },
+          { header: 'Клієнт', key: 'client', width: 30 },
+          { header: 'Регіон', key: 'serviceRegion', width: 15 },
+          { header: 'Робота', key: 'work', width: 20 },
+          { header: 'Адреса', key: 'address', width: 30 },
+          { header: 'Обладнання', key: 'equipment', width: 20 },
+          { header: 'Серійний номер', key: 'equipmentSerial', width: 20 },
+          { header: 'Тип масла', key: 'oilType', width: 15 },
+          { header: 'Кількість масла', key: 'oilUsed', width: 15 },
+          { header: 'Ціна масла', key: 'oilPrice', width: 12 },
+          { header: 'Сума масла', key: 'oilTotal', width: 12 },
+          { header: 'Фільтр', key: 'filterName', width: 20 },
+          { header: 'Кількість фільтрів', key: 'filterCount', width: 15 },
+          { header: 'Ціна фільтра', key: 'filterPrice', width: 12 },
+          { header: 'Сума фільтрів', key: 'filterSum', width: 12 },
+          { header: 'Інші матеріали', key: 'otherMaterials', width: 30 },
+          { header: 'Сума інших', key: 'otherSum', width: 12 },
+          { header: 'Ціна роботи', key: 'workPrice', width: 12 },
+          { header: 'Км транспорту', key: 'transportKm', width: 12 },
+          { header: 'Сума транспорту', key: 'transportSum', width: 12 },
+          { header: 'Загальна сума', key: 'serviceTotal', width: 12 },
+          { header: 'Тип оплати', key: 'paymentType', width: 15 },
+          { header: 'Рахунок', key: 'invoice', width: 20 },
+          { header: 'Затверджено', key: 'approvedByAccountant', width: 15 },
+          { header: 'Інженер 1', key: 'engineer1', width: 15 },
+          { header: 'Інженер 2', key: 'engineer2', width: 15 }
+        ];
+      } else {
+        worksheet.columns = [
+          { header: 'Номер заявки', key: 'requestNumber', width: 15 },
+          { header: 'Дата', key: 'date', width: 12 },
+          { header: 'Клієнт', key: 'client', width: 30 },
+          { header: 'Регіон', key: 'serviceRegion', width: 15 },
+          { header: 'Робота', key: 'work', width: 20 },
+          { header: 'Сума', key: 'serviceTotal', width: 12 },
+          { header: 'Затверджено', key: 'approvedByAccountant', width: 15 },
+          { header: 'Інженер 1', key: 'engineer1', width: 15 },
+          { header: 'Інженер 2', key: 'engineer2', width: 15 }
+        ];
+      }
       
       // Додаємо дані
       reportData.forEach(task => {
@@ -1831,6 +1896,7 @@ app.get('/api/reports/financial', async (req, res) => {
             <h1>Фінансовий звіт</h1>
             <p>Період: ${dateFrom} - ${dateTo}</p>
             <p>Регіон: ${region || 'Всі регіони'}</p>
+            <p>Деталізація: ${detailed === 'true' ? 'Увімкнена' : 'Вимкнена'}</p>
             <p>Кількість заявок: ${tasks.length}</p>
             <p>Загальна сума: ${totalAmount.toFixed(2)} грн</p>
           </div>
@@ -1842,7 +1908,27 @@ app.get('/api/reports/financial', async (req, res) => {
                 <th>Клієнт</th>
                 <th>Регіон</th>
                 <th>Робота</th>
-                <th>Сума</th>
+                ${detailed === 'true' ? `
+                  <th>Адреса</th>
+                  <th>Обладнання</th>
+                  <th>Серійний номер</th>
+                  <th>Тип масла</th>
+                  <th>Кількість масла</th>
+                  <th>Ціна масла</th>
+                  <th>Сума масла</th>
+                  <th>Фільтр</th>
+                  <th>Кількість фільтрів</th>
+                  <th>Ціна фільтра</th>
+                  <th>Сума фільтрів</th>
+                  <th>Інші матеріали</th>
+                  <th>Сума інших</th>
+                  <th>Ціна роботи</th>
+                  <th>Км транспорту</th>
+                  <th>Сума транспорту</th>
+                  <th>Тип оплати</th>
+                  <th>Рахунок</th>
+                ` : ''}
+                <th>Загальна сума</th>
                 <th>Затверджено</th>
                 <th>Інженер 1</th>
                 <th>Інженер 2</th>
@@ -1856,6 +1942,26 @@ app.get('/api/reports/financial', async (req, res) => {
                   <td>${task.client}</td>
                   <td>${task.serviceRegion}</td>
                   <td>${task.work}</td>
+                  ${detailed === 'true' ? `
+                    <td>${task.address}</td>
+                    <td>${task.equipment}</td>
+                    <td>${task.equipmentSerial}</td>
+                    <td>${task.oilType}</td>
+                    <td>${task.oilUsed}</td>
+                    <td>${task.oilPrice}</td>
+                    <td>${task.oilTotal}</td>
+                    <td>${task.filterName}</td>
+                    <td>${task.filterCount}</td>
+                    <td>${task.filterPrice}</td>
+                    <td>${task.filterSum}</td>
+                    <td>${task.otherMaterials}</td>
+                    <td>${task.otherSum}</td>
+                    <td>${task.workPrice}</td>
+                    <td>${task.transportKm}</td>
+                    <td>${task.transportSum}</td>
+                    <td>${task.paymentType}</td>
+                    <td>${task.invoice}</td>
+                  ` : ''}
                   <td>${task.serviceTotal}</td>
                   <td>${task.approvedByAccountant}</td>
                   <td>${task.engineer1}</td>
@@ -1865,7 +1971,7 @@ app.get('/api/reports/financial', async (req, res) => {
             </tbody>
             <tfoot>
               <tr class="total">
-                <td colspan="5">ЗАГАЛЬНА СУМА:</td>
+                <td colspan="${detailed === 'true' ? '22' : '5'}">ЗАГАЛЬНА СУМА:</td>
                 <td>${totalAmount.toFixed(2)} грн</td>
                 <td colspan="3"></td>
               </tr>
