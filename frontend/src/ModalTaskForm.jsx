@@ -1077,31 +1077,112 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   task: form,
                   user: user
                 })}
-                <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', minHeight: '200px' }}>
                   {/* Запит на рахунок */}
-                  <div style={{ flex: 1 }}>
-                    <InvoiceRequestBlock 
-                      task={form} 
-                      user={user} 
-                      onRequest={handleInvoiceRequest}
-                    />
+                  <div style={{ flex: 1, minWidth: '300px', maxWidth: '400px' }}>
+                    <div style={{ 
+                      border: '1px solid #ddd', 
+                      borderRadius: '8px', 
+                      padding: '16px', 
+                      backgroundColor: '#f9f9f9',
+                      minHeight: '180px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}>
+                      <InvoiceRequestBlock 
+                        task={form} 
+                        user={user} 
+                        onRequest={handleInvoiceRequest}
+                      />
+                    </div>
                   </div>
                   
                   {/* Завантаження файлу договору */}
-                  <div style={{ flex: 1 }}>
-                    <div className="field label-above">
-                      <label>Файл договору</label>
-                      <FileUpload
-                        onFileUpload={(file) => {
-                          console.log('[DEBUG] ModalTaskForm - завантажено файл договору:', file);
-                          setForm({ ...form, contractFile: file });
-                        }}
-                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                        maxSize={10 * 1024 * 1024} // 10MB
-                        placeholder="Завантажити файл договору"
-                        currentFile={form.contractFile}
-                        disabled={readOnly}
-                      />
+                  <div style={{ flex: 1, minWidth: '300px', maxWidth: '400px' }}>
+                    <div style={{ 
+                      border: '1px solid #ddd', 
+                      borderRadius: '8px', 
+                      padding: '16px', 
+                      backgroundColor: '#f9f9f9',
+                      minHeight: '180px',
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}>
+                      <div className="field label-above" style={{ flex: 1 }}>
+                        <label>Файл договору</label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {form.contractFile ? (
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'space-between',
+                              padding: '8px 12px',
+                              backgroundColor: '#e8f5e8',
+                              border: '1px solid #4caf50',
+                              borderRadius: '4px'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '14px', color: '#2e7d32' }}>
+                                  📄 {form.contractFile.name || 'Файл договору'}
+                                </span>
+                                <span style={{ fontSize: '12px', color: '#666' }}>
+                                  ({(form.contractFile.size / 1024 / 1024).toFixed(2)} MB)
+                                </span>
+                              </div>
+                              {!readOnly && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    console.log('[DEBUG] ModalTaskForm - видалено файл договору');
+                                    setForm({ ...form, contractFile: null });
+                                  }}
+                                  style={{
+                                    background: '#f44336',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    padding: '4px 8px',
+                                    cursor: 'pointer',
+                                    fontSize: '12px'
+                                  }}
+                                >
+                                  ✕ Видалити
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              <input
+                                type="file"
+                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                onChange={(e) => {
+                                  const file = e.target.files[0];
+                                  if (file) {
+                                    if (file.size > 10 * 1024 * 1024) {
+                                      alert('Файл занадто великий. Максимальний розмір: 10MB');
+                                      return;
+                                    }
+                                    console.log('[DEBUG] ModalTaskForm - завантажено файл договору:', file);
+                                    setForm({ ...form, contractFile: file });
+                                  }
+                                }}
+                                disabled={readOnly}
+                                style={{ 
+                                  width: '100%', 
+                                  padding: '8px',
+                                  border: '1px solid #ddd',
+                                  borderRadius: '4px',
+                                  backgroundColor: readOnly ? '#f5f5f5' : 'white'
+                                }}
+                              />
+                              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                                Підтримувані формати: PDF, DOC, DOCX, JPG, PNG (макс. 10MB)
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
