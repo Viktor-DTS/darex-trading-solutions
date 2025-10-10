@@ -1647,6 +1647,36 @@ app.get('/api/reports/financial', async (req, res) => {
       return res.status(400).json({ error: 'Потрібно вказати dateFrom та dateTo' });
     }
     
+    // Спочатку перевіримо, які заявки є в базі
+    const allTasks = await executeWithRetry(() => 
+      Task.find({})
+        .select('status date requestDate serviceRegion requestNumber')
+        .limit(10)
+        .lean()
+    );
+    
+    console.log('[REPORTS] Приклади заявок в базі:', allTasks.map(t => ({
+      requestNumber: t.requestNumber,
+      status: t.status,
+      date: t.date,
+      requestDate: t.requestDate,
+      serviceRegion: t.serviceRegion
+    })));
+    
+    // Перевіримо, які статуси є в базі
+    const statuses = await executeWithRetry(() => 
+      Task.distinct('status')
+    );
+    console.log('[REPORTS] Всі статуси в базі:', statuses);
+    
+    // Перевіримо, які дати є в базі
+    const dateFields = await executeWithRetry(() => 
+      Task.find({}, { date: 1, requestDate: 1 })
+        .limit(5)
+        .lean()
+    );
+    console.log('[REPORTS] Приклади дат в базі:', dateFields);
+    
     // Фільтруємо заявки за датами та регіоном
     let filter = {
       status: 'Виконано',
@@ -1661,15 +1691,64 @@ app.get('/api/reports/financial', async (req, res) => {
     }
     
     console.log('[REPORTS] Фільтр для заявок:', filter);
+    console.log('[REPORTS] Перетворені дати:', {
+      dateFrom: new Date(dateFrom),
+      dateTo: new Date(dateTo)
+    });
     
     // Отримуємо заявки
-    const tasks = await executeWithRetry(() => 
+    let tasks = await executeWithRetry(() => 
       Task.find(filter)
         .sort({ date: -1 })
         .lean()
     );
     
-    console.log('[REPORTS] Знайдено заявок:', tasks.length);
+    console.log('[REPORTS] Знайдено заявок з фільтром:', tasks.length);
+    
+    // Якщо не знайдено заявок з фільтром, спробуємо без фільтру дат
+    if (tasks.length === 0) {
+      console.log('[REPORTS] Не знайдено заявок з фільтром дат, перевіряємо всі заявки...');
+      const allTasksInPeriod = await executeWithRetry(() => 
+        Task.find({ status: 'Виконано' })
+          .limit(20)
+          .lean()
+      );
+      console.log('[REPORTS] Всі заявки зі статусом "Виконано":', allTasksInPeriod.map(t => ({
+        requestNumber: t.requestNumber,
+        status: t.status,
+        date: t.date,
+        requestDate: t.requestDate
+      })));
+      
+      // Спробуємо фільтр по requestDate замість date
+      console.log('[REPORTS] Спробуємо фільтр по requestDate...');
+      let alternativeFilter = {
+        status: 'Виконано',
+        requestDate: {
+          $gte: dateFrom,
+          $lte: dateTo
+        }
+      };
+      
+      if (region && region !== 'Всі регіони' && region !== 'Україна') {
+        alternativeFilter.serviceRegion = region;
+      }
+      
+      console.log('[REPORTS] Альтернативний фільтр:', alternativeFilter);
+      
+      const alternativeTasks = await executeWithRetry(() => 
+        Task.find(alternativeFilter)
+          .sort({ requestDate: -1 })
+          .lean()
+      );
+      
+      console.log('[REPORTS] Знайдено заявок з альтернативним фільтром:', alternativeTasks.length);
+      
+      if (alternativeTasks.length > 0) {
+        // Використовуємо альтернативні заявки
+        tasks = alternativeTasks;
+      }
+    }
     
     if (tasks.length === 0) {
       return res.status(404).json({ error: 'Не знайдено заявок за вказаний період' });
