@@ -84,6 +84,7 @@ export default function AccountantArea({ user }) {
   const [taskInfoModalOpen, setTaskInfoModalOpen] = useState(false);
   const [selectedTaskInfo, setSelectedTaskInfo] = useState(null);
   const [showAllInvoices, setShowAllInvoices] = useState(false);
+  const [showAllTasks, setShowAllTasks] = useState(false);
   const region = user?.region || '';
   
   // Функція для завантаження запитів на рахунки
@@ -615,14 +616,25 @@ export default function AccountantArea({ user }) {
     }
     return true;
   });
-  const pending = filtered.filter(t => t.status === 'Виконано' && 
-    isApproved(t.approvedByWarehouse) && (
-    t.approvedByAccountant === null ||
-    t.approvedByAccountant === undefined ||
-    t.approvedByAccountant === 'На розгляді' ||
-    t.approvedByAccountant === false ||
-    t.approvedByAccountant === 'Відмова'
-  ));
+  const pending = filtered.filter(t => {
+    // Базовий фільтр: заявки на підтвердженні
+    const isPendingApproval = t.status === 'Виконано' && 
+      isApproved(t.approvedByWarehouse) && (
+      t.approvedByAccountant === null ||
+      t.approvedByAccountant === undefined ||
+      t.approvedByAccountant === 'На розгляді' ||
+      t.approvedByAccountant === false ||
+      t.approvedByAccountant === 'Відмова'
+    );
+    
+    // Якщо чекбокс "Відобразити всі заявки" активний, додаємо заявки зі статусом "Заявка" та "В роботі"
+    if (showAllTasks) {
+      const isNewOrInProgress = t.status === 'Заявка' || t.status === 'В роботі';
+      return isPendingApproval || isNewOrInProgress;
+    }
+    
+    return isPendingApproval;
+  });
   function isApproved(v) {
     return v === true || v === 'Підтверджено';
   }
@@ -1835,22 +1847,60 @@ export default function AccountantArea({ user }) {
       />
         </div>
       ) : (
-        <TaskTable
-        tasks={tableData}
-        allTasks={tasks}
-        onApprove={handleApprove}
-        onEdit={handleEdit}
-        role="accountant"
-        filters={filters}
-        onFilterChange={handleFilter}
-        columns={columns}
-        allColumns={allTaskFields.map(f => ({ key: f.name, label: f.label }))}
-        approveField="approvedByAccountant"
-        commentField="accountantComment"
-        user={user}
-        isArchive={tab === 'archive'}
-        onHistoryClick={openClientReport}
-      />
+        <div>
+          {/* Чекбокс "Відобразити всі заявки" тільки для вкладки "Заявка на підтвердженні" */}
+          {tab === 'pending' && (
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'flex-start', 
+              alignItems: 'center', 
+              marginBottom: '16px',
+              padding: '12px',
+              backgroundColor: '#f8f9fa',
+              borderRadius: '6px',
+              border: '1px solid #dee2e6'
+            }}>
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px', 
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#495057'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={showAllTasks}
+                  onChange={(e) => setShowAllTasks(e.target.checked)}
+                  style={{ 
+                    margin: 0,
+                    transform: 'scale(1.2)',
+                    cursor: 'pointer'
+                  }}
+                />
+                <span>Відобразити всі заявки (включно зі статусом "Заявка" та "В роботі")</span>
+              </label>
+            </div>
+          )}
+          
+          <TaskTable
+            tasks={tableData}
+            allTasks={tasks}
+            onApprove={handleApprove}
+            onEdit={handleEdit}
+            role="accountant"
+            filters={filters}
+            onFilterChange={handleFilter}
+            columns={columns}
+            allColumns={allTaskFields.map(f => ({ key: f.name, label: f.label }))}
+            approveField="approvedByAccountant"
+            commentField="accountantComment"
+            user={user}
+            isArchive={tab === 'archive'}
+            onHistoryClick={openClientReport}
+          />
+        </div>
       )}
       
       {/* Модальне вікно бухгалтерських звітів */}
