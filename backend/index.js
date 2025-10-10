@@ -4831,3 +4831,14 @@ const TelegramNotificationService = require('./telegram-service.js');
 
 // Створюємо екземпляр сервісу
 const telegramService = new TelegramNotificationService();
+
+// Тестовий endpoint в кінці файлу
+app.get('/api/test-endpoint', (req, res) => {
+  console.log('[DEBUG] GET /api/test-endpoint - тестовий endpoint викликаний');
+  res.json({ success: true, message: 'Тестовий endpoint працює' });
+});
+
+app.post('/api/test-endpoint-post', (req, res) => {
+  console.log('[DEBUG] POST /api/test-endpoint-post - тестовий POST endpoint викликаний');
+  res.json({ success: true, message: 'Тестовий POST endpoint працює' });
+});
