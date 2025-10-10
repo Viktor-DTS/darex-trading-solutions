@@ -189,7 +189,7 @@ const labelAboveFields = [
   'comments'
 ];
 export default function ModalTaskForm({ open, onClose, onSave, initialData = {}, mode = 'service', user, readOnly = false }) {
-  const isRegionReadOnly = user && user.region && user.region !== 'Україна';
+  const isRegionReadOnly = user && user.region && user.region !== 'Україна' && user.role !== 'zavsklad';
   function toSelectString(val) {
     if (val === true) return 'Підтверджено';
     if (val === false) return 'Відмова';
