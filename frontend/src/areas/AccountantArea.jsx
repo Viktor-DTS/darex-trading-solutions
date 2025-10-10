@@ -90,6 +90,7 @@ export default function AccountantArea({ user }) {
   const [selectedTaskInfo, setSelectedTaskInfo] = useState(null);
   const [showAllInvoices, setShowAllInvoices] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
+  const [tableKey, setTableKey] = useState(0);
   const region = user?.region || '';
   
   // Функція для ручного оновлення кешу
@@ -109,9 +110,11 @@ export default function AccountantArea({ user }) {
       
       // Примусове оновлення стану - створюємо новий масив
       setTasks([...freshTasks]);
+      setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
       
       console.log('[DEBUG] AccountantArea refreshCache - кеш оновлено успішно!');
       console.log('[DEBUG] AccountantArea refreshCache - новий масив створено, довжина:', freshTasks.length);
+      console.log('[DEBUG] AccountantArea refreshCache - tableKey збільшено для примусового перерендеру');
       
       // Додаткова перевірка через setTimeout
       setTimeout(() => {
@@ -542,6 +545,7 @@ export default function AccountantArea({ user }) {
       .then(tasks => {
         console.log('[DEBUG] AccountantArea useEffect - завантажено заявок:', tasks.length);
         setTasks([...tasks]);
+        setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
       })
       .catch(error => {
         console.error('[ERROR] AccountantArea useEffect - помилка завантаження:', error);
@@ -565,6 +569,7 @@ export default function AccountantArea({ user }) {
       tasksAPI.getAll().then(freshTasks => {
         console.log('[DEBUG] AccountantArea handleFocus - оновлено заявок:', freshTasks.length);
         setTasks([...freshTasks]);
+        setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
       }).catch(error => {
         console.error('[ERROR] AccountantArea - помилка оновлення при фокусі:', error);
       });
@@ -618,6 +623,7 @@ export default function AccountantArea({ user }) {
       
       // Примусове оновлення стану - створюємо новий масив
       setTasks([...freshTasks]);
+      setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
       console.log('[DEBUG] AccountantArea handleApprove - кеш оновлено, завантажено заявок:', freshTasks.length);
       
     } catch (error) {
@@ -671,6 +677,7 @@ export default function AccountantArea({ user }) {
       
       // Примусове оновлення стану - створюємо новий масив
       setTasks([...freshTasks]);
+      setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
       console.log('[DEBUG] AccountantArea handleSave - кеш оновлено, завантажено заявок:', freshTasks.length);
       
       // Додатково оновлюємо локальний стан для швидшого відображення
@@ -1978,6 +1985,7 @@ export default function AccountantArea({ user }) {
           {console.log('[DEBUG] Debt tab - tasks with debtStatus:', tableData.filter(t => t.debtStatus).length)}
           {console.log('[DEBUG] Debt tab - tasks with paymentType:', tableData.filter(t => t.paymentType).length)}
           <TaskTable
+          key={tableKey}
           tasks={tableData.filter(task => {
             console.log('[DEBUG] Debt tab - task:', task.requestNumber, 'debtStatus:', task.debtStatus, 'paymentType:', task.paymentType);
             // Показуємо завдання, які потребують встановлення статусу заборгованості:
@@ -2047,6 +2055,7 @@ export default function AccountantArea({ user }) {
           )}
           
           <TaskTable
+            key={tableKey}
             tasks={tableData}
             allTasks={tasks}
             onApprove={handleApprove}
