@@ -1134,6 +1134,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                     onChange={handleChange} 
                     readOnly={isReadOnly('equipment')}
                     placeholder="Введіть тип обладнання..."
+                    autoComplete="off"
                   />
                   {/* Dropdown з автодоповненням */}
                   {console.log('[DEBUG] ModalTaskForm - перевірка dropdown:', { showEquipmentDropdown, filteredLength: filteredEquipmentTypes.length })}
