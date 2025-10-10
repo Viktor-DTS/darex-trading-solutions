@@ -24,6 +24,7 @@
     "multer-storage-cloudinary": "^4.0.0",
     "puppeteer": "^24.17.0",
     "sharp": "^0.34.4",
-    "tesseract.js": "^6.0.1"
+    "tesseract.js": "^6.0.1",
+    "xlsx-js-style": "^1.0.0"
   }
 }
