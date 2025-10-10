@@ -3033,6 +3033,7 @@ app.post('/api/files/upload-contract', localUpload.single('file'), async (req, r
     console.log('[DEBUG] POST /api/files/upload-contract - запит отримано');
     console.log('[DEBUG] POST /api/files/upload-contract - req.file:', req.file);
     console.log('[DEBUG] POST /api/files/upload-contract - req.body:', req.body);
+    console.log('[DEBUG] POST /api/files/upload-contract - req.headers:', req.headers);
     
     if (!req.file) {
       console.log('[ERROR] POST /api/files/upload-contract - файл не знайдено в запиті');

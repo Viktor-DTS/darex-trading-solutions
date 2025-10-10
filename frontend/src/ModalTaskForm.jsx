@@ -800,17 +800,25 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         
         console.log('[DEBUG] ModalTaskForm - отримано відповідь:', uploadResponse.status, uploadResponse.statusText);
         
+        // Спочатку отримуємо текст відповіді
+        const responseText = await uploadResponse.text();
+        console.log('[DEBUG] ModalTaskForm - текст відповіді:', responseText);
+        
         if (uploadResponse.ok) {
-          const uploadResult = await uploadResponse.json();
-          contractFileUrl = uploadResult.url;
-          console.log('[DEBUG] ModalTaskForm - файл договору завантажено:', contractFileUrl);
-          console.log('[DEBUG] ModalTaskForm - повна відповідь:', uploadResult);
+          try {
+            const uploadResult = JSON.parse(responseText);
+            contractFileUrl = uploadResult.url;
+            console.log('[DEBUG] ModalTaskForm - файл договору завантажено:', contractFileUrl);
+            console.log('[DEBUG] ModalTaskForm - повна відповідь:', uploadResult);
+          } catch (parseError) {
+            console.error('[ERROR] ModalTaskForm - помилка парсингу JSON:', parseError);
+            console.error('[ERROR] ModalTaskForm - текст відповіді:', responseText);
+          }
         } else {
-          const errorText = await uploadResponse.text();
           console.error('[ERROR] ModalTaskForm - помилка завантаження файлу договору:', {
             status: uploadResponse.status,
             statusText: uploadResponse.statusText,
-            errorText: errorText
+            responseText: responseText
           });
         }
       } catch (error) {
