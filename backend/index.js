@@ -1706,6 +1706,13 @@ app.get('/api/reports/financial', async (req, res) => {
       dateFrom: new Date(dateFrom),
       dateTo: new Date(dateTo)
     });
+    console.log('[REPORTS] Детальний аналіз фільтру:', {
+      hasStatusFilter: !!filter.status,
+      hasDateFilter: !!filter.date,
+      hasRegionFilter: !!filter.serviceRegion,
+      regionValue: filter.serviceRegion,
+      originalRegion: region
+    });
     
     // Отримуємо заявки
     const tasks = await executeWithRetry(() => 
@@ -1754,10 +1761,17 @@ app.get('/api/reports/financial', async (req, res) => {
       );
       
       console.log('[REPORTS] Знайдено заявок з альтернативним фільтром:', alternativeTasks.length);
+      console.log('[REPORTS] Альтернативний фільтр детально:', {
+        hasStatusFilter: !!alternativeFilter.status,
+        hasDateFilter: !!alternativeFilter.requestDate,
+        hasRegionFilter: !!alternativeFilter.serviceRegion,
+        regionValue: alternativeFilter.serviceRegion
+      });
       
       if (alternativeTasks.length > 0) {
         // Використовуємо альтернативні заявки
         tasks = alternativeTasks;
+        console.log('[REPORTS] Використовуємо альтернативні заявки');
       }
     }
     
