@@ -70,6 +70,21 @@ const upload = multer({
   }
 });
 
+// Локальне збереження для файлів договору
+const localUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, 'uploads/');
+    },
+    filename: (req, file, cb) => {
+      cb(null, Date.now() + '-' + file.originalname);
+    }
+  }),
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB ліміт
+  }
+});
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -3007,7 +3022,7 @@ app.get('/api/equipment-types', async (req, res) => {
 });
 
 // API для завантаження файлу договору
-app.post('/api/files/upload-contract', upload.single('file'), async (req, res) => {
+app.post('/api/files/upload-contract', localUpload.single('file'), async (req, res) => {
   try {
     console.log('[DEBUG] POST /api/files/upload-contract - запит отримано');
     console.log('[DEBUG] POST /api/files/upload-contract - req.file:', req.file);
