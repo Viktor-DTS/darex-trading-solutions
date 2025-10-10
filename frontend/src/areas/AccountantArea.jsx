@@ -60,11 +60,20 @@ const initialTask = {
 };
 export default function AccountantArea({ user }) {
   const [tasks, setTasks] = useState([]);
+  const [users, setUsers] = useState([]);
   
   // Додаткове логування для відстеження змін стану
   useEffect(() => {
     console.log('[DEBUG] AccountantArea - стан tasks змінився, кількість заявок:', tasks.length);
   }, [tasks]);
+
+  // Завантажуємо users з localStorage
+  useEffect(() => {
+    const savedUsers = localStorage.getItem('users');
+    if (savedUsers) {
+      setUsers(JSON.parse(savedUsers));
+    }
+  }, []);
   const [loading, setLoading] = useState(true);
   // Ініціалізую filters з усіма можливими ключами для фільтрації
   const allFilterKeys = allTaskFields
