@@ -3039,6 +3039,19 @@ app.post('/api/files/upload-contract-simple', (req, res) => {
   res.json({ success: true, message: 'Простий endpoint працює' });
 });
 
+// Альтернативний endpoint для завантаження файлу договору без middleware
+app.post('/api/files/upload-contract-alt', express.json(), (req, res) => {
+  console.log('[DEBUG] POST /api/files/upload-contract-alt - альтернативний endpoint викликаний');
+  console.log('[DEBUG] POST /api/files/upload-contract-alt - req.body:', req.body);
+  console.log('[DEBUG] POST /api/files/upload-contract-alt - req.headers:', req.headers);
+  
+  res.json({ 
+    success: true, 
+    message: 'Альтернативний endpoint працює',
+    receivedData: req.body 
+  });
+});
+
 // API для завантаження файлу договору
 app.post('/api/files/upload-contract', localUpload.single('file'), async (req, res) => {
   try {
