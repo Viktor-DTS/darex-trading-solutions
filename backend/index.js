@@ -1715,7 +1715,7 @@ app.get('/api/reports/financial', async (req, res) => {
     });
     
     // Отримуємо заявки
-    const tasks = await executeWithRetry(() => 
+    let tasks = await executeWithRetry(() => 
       Task.find(filter)
         .sort({ date: -1 })
         .lean()
