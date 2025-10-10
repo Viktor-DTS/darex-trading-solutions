@@ -90,16 +90,33 @@ export default function AccountantArea({ user }) {
   // Функція для ручного оновлення кешу
   const refreshCache = async () => {
     try {
-      console.log('[DEBUG] AccountantArea refreshCache - оновлюємо кеш...');
+      console.log('[DEBUG] AccountantArea refreshCache - початок оновлення кешу...');
+      console.log('[DEBUG] AccountantArea refreshCache - поточний стан tasks:', tasks.length);
+      
       setLoading(true);
+      console.log('[DEBUG] AccountantArea refreshCache - викликаємо tasksAPI.getAll()...');
+      
       const freshTasks = await tasksAPI.getAll();
+      console.log('[DEBUG] AccountantArea refreshCache - отримано з API:', freshTasks.length, 'заявок');
+      console.log('[DEBUG] AccountantArea refreshCache - перші 3 заявки:', freshTasks.slice(0, 3));
+      
+      console.log('[DEBUG] AccountantArea refreshCache - встановлюємо новий стан...');
       setTasks(freshTasks);
-      console.log('[DEBUG] AccountantArea refreshCache - кеш оновлено, завантажено заявок:', freshTasks.length);
+      
+      console.log('[DEBUG] AccountantArea refreshCache - кеш оновлено успішно!');
+      
+      // Додаткова перевірка через setTimeout
+      setTimeout(() => {
+        console.log('[DEBUG] AccountantArea refreshCache - перевірка стану через 1 сек:', tasks.length);
+      }, 1000);
+      
     } catch (error) {
       console.error('[ERROR] AccountantArea refreshCache - помилка оновлення кешу:', error);
+      console.error('[ERROR] AccountantArea refreshCache - деталі помилки:', error.message, error.stack);
       alert('Помилка оновлення даних: ' + error.message);
     } finally {
       setLoading(false);
+      console.log('[DEBUG] AccountantArea refreshCache - завершено, loading = false');
     }
   };
   
@@ -511,8 +528,20 @@ export default function AccountantArea({ user }) {
     });
   }, [allTaskFields]); // Залежність від allTaskFields
   useEffect(() => {
+    console.log('[DEBUG] AccountantArea useEffect - початкове завантаження даних...');
     setLoading(true);
-    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
+    tasksAPI.getAll()
+      .then(tasks => {
+        console.log('[DEBUG] AccountantArea useEffect - завантажено заявок:', tasks.length);
+        setTasks(tasks);
+      })
+      .catch(error => {
+        console.error('[ERROR] AccountantArea useEffect - помилка завантаження:', error);
+      })
+      .finally(() => {
+        setLoading(false);
+        console.log('[DEBUG] AccountantArea useEffect - завантаження завершено');
+      });
   }, []);
   
   // Завантаження запитів на рахунки
@@ -524,7 +553,9 @@ export default function AccountantArea({ user }) {
   // Автоматичне оновлення даних при фокусі на вкладку браузера
   useEffect(() => {
     const handleFocus = () => {
+      console.log('[DEBUG] AccountantArea handleFocus - оновлення при фокусі вікна...');
       tasksAPI.getAll().then(freshTasks => {
+        console.log('[DEBUG] AccountantArea handleFocus - оновлено заявок:', freshTasks.length);
         setTasks(freshTasks);
       }).catch(error => {
         console.error('[ERROR] AccountantArea - помилка оновлення при фокусі:', error);
@@ -572,7 +603,11 @@ export default function AccountantArea({ user }) {
       
       // Додатково оновлюємо кеш з бази для гарантії актуальності
       console.log('[DEBUG] AccountantArea handleApprove - оновлюємо кеш після підтвердження...');
+      console.log('[DEBUG] AccountantArea handleApprove - поточний стан tasks перед оновленням:', tasks.length);
+      
       const freshTasks = await tasksAPI.getAll();
+      console.log('[DEBUG] AccountantArea handleApprove - отримано з API:', freshTasks.length, 'заявок');
+      
       setTasks(freshTasks);
       console.log('[DEBUG] AccountantArea handleApprove - кеш оновлено, завантажено заявок:', freshTasks.length);
       
@@ -620,7 +655,11 @@ export default function AccountantArea({ user }) {
       
       // Оновлюємо дані з бази після збереження
       console.log('[DEBUG] AccountantArea handleSave - оновлюємо кеш з бази даних...');
+      console.log('[DEBUG] AccountantArea handleSave - поточний стан tasks перед оновленням:', tasks.length);
+      
       const freshTasks = await tasksAPI.getAll();
+      console.log('[DEBUG] AccountantArea handleSave - отримано з API:', freshTasks.length, 'заявок');
+      
       setTasks(freshTasks);
       console.log('[DEBUG] AccountantArea handleSave - кеш оновлено, завантажено заявок:', freshTasks.length);
       
@@ -1242,7 +1281,10 @@ export default function AccountantArea({ user }) {
         <button onClick={()=>setTab('invoices')} style={{width:220,padding:'10px 0',background:tab==='invoices'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='invoices'?700:400,cursor:'pointer'}}>📄 Запити на рахунки</button>
         <button onClick={()=>setReportsModalOpen(true)} style={{width:220,padding:'10px 0',background:'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:400,cursor:'pointer'}}>📊 Бухгалтерські звіти</button>
         <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
-        <button onClick={refreshCache} disabled={loading} style={{
+        <button onClick={() => {
+          console.log('[DEBUG] AccountantArea - кнопка "Оновити дані" натиснута');
+          refreshCache();
+        }} disabled={loading} style={{
           background: loading ? '#6c757d' : '#17a2b8',
           color:'#fff',
           border:'none',
@@ -1283,9 +1325,11 @@ export default function AccountantArea({ user }) {
       <ModalTaskForm 
         open={modalOpen} 
         onClose={async ()=>{
+          console.log('[DEBUG] AccountantArea - модальне вікно закривається...');
           setModalOpen(false);
           setEditTask(null);
           // Оновлюємо кеш при закритті модального вікна
+          console.log('[DEBUG] AccountantArea - оновлюємо кеш при закритті модального вікна...');
           await refreshCache();
         }} 
         onSave={handleSave} 
