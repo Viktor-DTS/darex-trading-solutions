@@ -687,7 +687,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   const handleRejectCancel = () => {
     setRejectModal({ open: false, field: '', comment: '' });
   };
-  const handleSubmit = e => {
+  const handleSubmit = async e => {
     e.preventDefault();
     const required = [
       { name: 'company', label: 'Компанія виконавець' },
