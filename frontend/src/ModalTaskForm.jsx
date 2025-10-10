@@ -1563,6 +1563,56 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
               </div>
             );
           }
+          // Спеціальна обробка для поля обладнання з автодоповненням
+          if (f.name === 'equipment') {
+            return (
+              <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'} style={{position: 'relative'}}>
+                <label>{f.label}</label>
+                <input 
+                  type="text" 
+                  name={f.name} 
+                  value={form[f.name] || ''} 
+                  onChange={handleChange} 
+                  readOnly={isReadOnly(f.name)}
+                  placeholder="Введіть тип обладнання..."
+                />
+                {/* Dropdown з автодоповненням */}
+                {showEquipmentDropdown && filteredEquipmentTypes.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    background: '#2a3a4a',
+                    border: '1px solid #444',
+                    borderRadius: '4px',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    zIndex: 1000,
+                    boxShadow: '0 4px 8px rgba(0,0,0,0.3)'
+                  }}>
+                    {filteredEquipmentTypes.map((type, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          padding: '8px 12px',
+                          cursor: 'pointer',
+                          color: '#fff',
+                          borderBottom: index < filteredEquipmentTypes.length - 1 ? '1px solid #444' : 'none'
+                        }}
+                        onMouseEnter={(e) => e.target.style.background = '#3a4a5a'}
+                        onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                        onClick={() => handleEquipmentSelect(type)}
+                      >
+                        {type}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }
+          
           return (
             <div className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
               <label>{f.label}</label>
