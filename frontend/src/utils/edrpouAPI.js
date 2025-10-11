@@ -34,11 +34,15 @@ export const getClientData = async (edrpou) => {
 // Отримання списку файлів договорів
 export const getContractFiles = async () => {
   try {
+    console.log('[DEBUG] getContractFiles - запит до API:', `${API_BASE_URL}/api/contract-files`);
     const response = await fetch(`${API_BASE_URL}/api/contract-files`);
+    console.log('[DEBUG] getContractFiles - статус відповіді:', response.status);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    return await response.json();
+    const data = await response.json();
+    console.log('[DEBUG] getContractFiles - отримані дані:', data);
+    return data;
   } catch (error) {
     console.error('Помилка отримання списку файлів договорів:', error);
     throw error;

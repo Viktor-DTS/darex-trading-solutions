@@ -21,7 +21,10 @@ const ContractFileSelector = ({
   const loadContractFiles = async () => {
     setLoading(true);
     try {
+      console.log('[DEBUG] ContractFileSelector - завантаження файлів договорів...');
       const files = await getContractFiles();
+      console.log('[DEBUG] ContractFileSelector - отримано файлів:', files.length);
+      console.log('[DEBUG] ContractFileSelector - файли:', files);
       setContractFiles(files);
     } catch (error) {
       console.error('Помилка завантаження файлів договорів:', error);

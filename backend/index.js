@@ -962,6 +962,7 @@ app.post('/api/tasks', async (req, res) => {
     // Видаляємо поле id, якщо воно є, оскільки MongoDB автоматично генерує _id
     const { id, ...taskData } = req.body;
     console.log('[DEBUG] POST /api/tasks - дані для збереження (без id):', JSON.stringify(taskData, null, 2));
+    console.log('[DEBUG] POST /api/tasks - contractFile:', taskData.contractFile);
     
     const newTask = new Task(taskData);
     console.log('[DEBUG] POST /api/tasks - створено новий Task об\'єкт');
@@ -2929,6 +2930,7 @@ app.get('/api/contract-files', async (req, res) => {
     }));
     
     console.log('[DEBUG] GET /api/contract-files - знайдено файлів договорів:', contractFiles.length);
+    console.log('[DEBUG] GET /api/contract-files - деталі файлів:', contractFiles);
     res.json(contractFiles);
   } catch (error) {
     console.error('[ERROR] GET /api/contract-files - помилка:', error);
