@@ -2917,23 +2917,36 @@ app.get('/api/contract-files', async (req, res) => {
     console.log('[DEBUG] GET /api/contract-files - запит отримано');
     
     // Знаходимо всі заявки з файлами договорів
+    console.log('[DEBUG] GET /api/contract-files - виконуємо MongoDB запит...');
     const tasks = await Task.find({ 
       contractFile: { $exists: true, $ne: null, $ne: '' } 
     }).select('contractFile client edrpou createdAt').sort({ createdAt: -1 });
     
-    const contractFiles = tasks.map(task => ({
-      url: task.contractFile,
-      client: task.client || 'Невідомий клієнт',
-      edrpou: task.edrpou || '',
-      createdAt: task.createdAt,
-      fileName: task.contractFile.split('/').pop() || 'contract.pdf'
-    }));
+    console.log('[DEBUG] GET /api/contract-files - знайдено заявок з файлами:', tasks.length);
+    console.log('[DEBUG] GET /api/contract-files - приклад заявки:', tasks[0]);
+    
+    const contractFiles = tasks.map(task => {
+      try {
+        return {
+          url: task.contractFile,
+          client: task.client || 'Невідомий клієнт',
+          edrpou: task.edrpou || '',
+          createdAt: task.createdAt,
+          fileName: task.contractFile ? task.contractFile.split('/').pop() : 'contract.pdf'
+        };
+      } catch (mapError) {
+        console.error('[ERROR] GET /api/contract-files - помилка при обробці заявки:', mapError);
+        console.error('[ERROR] GET /api/contract-files - проблемна заявка:', task);
+        return null;
+      }
+    }).filter(file => file !== null);
     
     console.log('[DEBUG] GET /api/contract-files - знайдено файлів договорів:', contractFiles.length);
     console.log('[DEBUG] GET /api/contract-files - деталі файлів:', contractFiles);
     res.json(contractFiles);
   } catch (error) {
     console.error('[ERROR] GET /api/contract-files - помилка:', error);
+    console.error('[ERROR] GET /api/contract-files - стек помилки:', error.stack);
     res.status(500).json({ error: error.message });
   }
 });
