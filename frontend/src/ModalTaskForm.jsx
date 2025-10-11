@@ -5,9 +5,11 @@ import { tasksAPI } from './utils/tasksAPI';
 import { regionsAPI } from './utils/regionsAPI';
 import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from './utils/eventLogAPI';
 import { getEquipmentTypes } from './utils/equipmentAPI';
+import { getEdrpouList, getClientData } from './utils/edrpouAPI';
 import MaterialsSelectionModal from './components/MaterialsSelectionModal';
 import InvoiceRequestModal from './components/InvoiceRequestModal';
 import InvoiceRequestBlock from './components/InvoiceRequestBlock';
+import ContractFileSelector from './components/ContractFileSelector';
 // Функція для отримання коду регіону
 const getRegionCode = (region) => {
   const regionMap = {
@@ -298,6 +300,12 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   const [filteredEquipmentTypes, setFilteredEquipmentTypes] = useState([]);
   const [materialsModal, setMaterialsModal] = useState({ open: false, equipmentType: '' });
   const [showInvoiceRequestModal, setShowInvoiceRequestModal] = useState(false);
+  
+  // --- Додаємо стан для автодоповнення ЄДРПОУ ---
+  const [edrpouList, setEdrpouList] = useState([]);
+  const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false);
+  const [filteredEdrpouList, setFilteredEdrpouList] = useState([]);
+  const [showContractFileSelector, setShowContractFileSelector] = useState(false);
   useEffect(() => {
     const f = { ...initialData };
     if ('approvedByWarehouse' in f) f.approvedByWarehouse = toSelectString(f.approvedByWarehouse);
@@ -477,6 +485,25 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       console.log('[DEBUG] ModalTaskForm - форма закрита, не завантажуємо типи обладнання');
     }
   }, [open]);
+
+  // --- Завантаження списку ЄДРПОУ ---
+  useEffect(() => {
+    console.log('[DEBUG] ModalTaskForm - useEffect для ЄДРПОУ виконується, open:', open);
+    if (open) {
+      console.log('[DEBUG] ModalTaskForm - завантажуємо список ЄДРПОУ...');
+      getEdrpouList()
+        .then(edrpou => {
+          console.log('[DEBUG] ModalTaskForm - отримано ЄДРПОУ:', edrpou.length, edrpou);
+          setEdrpouList(edrpou);
+        })
+        .catch(error => {
+          console.error('[ERROR] ModalTaskForm - помилка завантаження ЄДРПОУ:', error);
+          setEdrpouList([]);
+        });
+    } else {
+      console.log('[DEBUG] ModalTaskForm - форма закрита, не завантажуємо ЄДРПОУ');
+    }
+  }, [open]);
   // --- Список сервісних інженерів для вибору ---
   const serviceEngineers = users.filter(u => {
     if (u.role !== 'service') return false;
@@ -604,6 +631,26 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       }
       return;
     }
+
+    // Спеціальна обробка для поля ЄДРПОУ
+    if (name === 'edrpou') {
+      console.log('[DEBUG] ModalTaskForm - зміна поля ЄДРПОУ:', value);
+      console.log('[DEBUG] ModalTaskForm - доступні ЄДРПОУ:', edrpouList.length);
+      setForm({ ...form, [name]: value });
+      // Фільтруємо ЄДРПОУ для автодоповнення
+      if (value.trim()) {
+        const filtered = edrpouList.filter(edrpou => 
+          edrpou.toLowerCase().includes(value.toLowerCase())
+        );
+        console.log('[DEBUG] ModalTaskForm - відфільтровані ЄДРПОУ:', filtered.length, filtered);
+        setFilteredEdrpouList(filtered);
+        setShowEdrpouDropdown(filtered.length > 0);
+      } else {
+        setShowEdrpouDropdown(false);
+        setFilteredEdrpouList([]);
+      }
+      return;
+    }
     // Якщо це поле підтвердження і вибрано "Відмова" — показати модалку
     if (
       (name === 'approvedByWarehouse' || name === 'approvedByAccountant' || name === 'approvedByRegionalManager') &&
@@ -660,9 +707,43 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     setMaterialsModal({ open: true, equipmentType });
     console.log('[DEBUG] handleEquipmentSelect - materialsModal встановлено:', { open: true, equipmentType });
   };
+
+  // --- Обробник вибору ЄДРПОУ з автодоповнення ---
+  const handleEdrpouSelect = async (edrpou) => {
+    console.log('[DEBUG] handleEdrpouSelect - ФУНКЦІЯ ВИКЛИКАНА з ЄДРПОУ:', edrpou);
+    setForm({ ...form, edrpou: edrpou });
+    setShowEdrpouDropdown(false);
+    setFilteredEdrpouList([]);
+    
+    // Завантажуємо дані клієнта по ЄДРПОУ
+    try {
+      console.log('[DEBUG] handleEdrpouSelect - завантажуємо дані клієнта для ЄДРПОУ:', edrpou);
+      const clientData = await getClientData(edrpou);
+      console.log('[DEBUG] handleEdrpouSelect - отримано дані клієнта:', clientData);
+      
+      // Автоматично заповнюємо поля
+      setForm(prev => ({
+        ...prev,
+        edrpou: edrpou,
+        client: clientData.client || prev.client,
+        address: clientData.address || prev.address,
+        invoiceRecipientDetails: clientData.invoiceRecipientDetails || prev.invoiceRecipientDetails,
+        contractFile: clientData.contractFile || prev.contractFile
+      }));
+    } catch (error) {
+      console.error('[ERROR] handleEdrpouSelect - помилка завантаження даних клієнта:', error);
+    }
+  };
   // --- Обробник застосування матеріалів ---
   const handleMaterialsApply = (formUpdates) => {
     setForm(prev => ({ ...prev, ...formUpdates }));
+  };
+
+  // --- Обробник вибору файлу договору ---
+  const handleContractFileSelect = (contractFile) => {
+    console.log('[DEBUG] handleContractFileSelect - ФУНКЦІЯ ВИКЛИКАНА з файлом:', contractFile);
+    setForm(prev => ({ ...prev, contractFile: contractFile.url }));
+    setShowContractFileSelector(false);
   };
   // --- Підтвердження відмови ---
   const handleRejectConfirm = () => {
@@ -1098,7 +1179,67 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   const f = fields.find(f=>f.name===n);
                   if (!f) return null;
                   let value = form[f.name] || '';
+                  
+                  // Спеціальна обробка для поля ЄДРПОУ з автозаповненням
+                  if (n === 'edrpou') {
                     return (
+                      <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'} style={{position: 'relative'}}>
+                        <label>{f.label}</label>
+                        <input 
+                          type="text" 
+                          name={f.name} 
+                          value={value} 
+                          onChange={handleChange} 
+                          readOnly={isReadOnly(f.name)}
+                          placeholder="Введіть ЄДРПОУ..."
+                          autoComplete="off"
+                        />
+                        {/* Dropdown з автодоповненням для ЄДРПОУ */}
+                        {showEdrpouDropdown && filteredEdrpouList.length > 0 && (
+                          <div 
+                            style={{
+                              position: 'absolute',
+                              top: '100%',
+                              left: 0,
+                              right: 0,
+                              background: '#2a3a4a',
+                              border: '1px solid #444',
+                              borderRadius: '4px',
+                              maxHeight: '200px',
+                              overflowY: 'auto',
+                              zIndex: 1000,
+                              boxShadow: '0 4px 8px rgba(0,0,0,0.3)'
+                            }}
+                            onClick={(e) => {
+                              console.log('[DEBUG] ModalTaskForm - клік по dropdown контейнеру ЄДРПОУ');
+                              e.stopPropagation();
+                            }}>
+                            {filteredEdrpouList.map((edrpou, index) => (
+                              <div
+                                key={index}
+                                style={{
+                                  padding: '8px 12px',
+                                  cursor: 'pointer',
+                                  color: '#fff',
+                                  borderBottom: index < filteredEdrpouList.length - 1 ? '1px solid #444' : 'none'
+                                }}
+                                onMouseEnter={(e) => e.target.style.background = '#3a4a5a'}
+                                onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                                onClick={() => {
+                                  console.log('[DEBUG] ModalTaskForm - клік по dropdown варіанту ЄДРПОУ:', edrpou);
+                                  handleEdrpouSelect(edrpou);
+                                }}
+                              >
+                                {edrpou}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  
+                  return (
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
                       {f.type === 'textarea' ? (
@@ -1292,6 +1433,25 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                             </div>
                           ) : (
                             <div>
+                              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowContractFileSelector(true)}
+                                  disabled={readOnly}
+                                  style={{
+                                    background: '#2196f3',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    padding: '8px 12px',
+                                    cursor: readOnly ? 'not-allowed' : 'pointer',
+                                    fontSize: '12px',
+                                    flex: 1
+                                  }}
+                                >
+                                  📁 Вибрати з існуючих
+                                </button>
+                              </div>
                               <input
                                 type="file"
                                 accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
@@ -1954,6 +2114,14 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         task={form}
         user={user}
         onSubmit={handleInvoiceRequest}
+      />
+      
+      {/* Модальне вікно вибору файлу договору */}
+      <ContractFileSelector
+        open={showContractFileSelector}
+        onClose={() => setShowContractFileSelector(false)}
+        onSelect={handleContractFileSelect}
+        currentContractFile={form.contractFile}
       />
     </div>
   );

@@ -2776,6 +2776,91 @@ app.get('/api/equipment-materials/:equipmentType', async (req, res) => {
   }
 });
 
+// API для отримання унікальних ЄДРПОУ
+app.get('/api/edrpou-list', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/edrpou-list - запит отримано');
+    
+    const edrpouList = await Task.distinct('edrpou');
+    const filteredEdrpou = edrpouList
+      .filter(edrpou => edrpou && edrpou.trim() !== '')
+      .sort();
+    
+    console.log('[DEBUG] GET /api/edrpou-list - знайдено ЄДРПОУ:', filteredEdrpou.length);
+    res.json(filteredEdrpou);
+  } catch (error) {
+    console.error('[ERROR] GET /api/edrpou-list - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для отримання даних клієнта по ЄДРПОУ
+app.get('/api/client-data/:edrpou', async (req, res) => {
+  try {
+    const { edrpou } = req.params;
+    console.log('[DEBUG] GET /api/client-data/:edrpou - запит для ЄДРПОУ:', edrpou);
+    
+    // Знаходимо останню заявку з цим ЄДРПОУ
+    const task = await Task.findOne({ 
+      edrpou: { $regex: new RegExp(edrpou, 'i') } 
+    }).sort({ createdAt: -1 });
+    
+    if (!task) {
+      return res.json({
+        client: '',
+        address: '',
+        contractFile: null,
+        invoiceRecipientDetails: ''
+      });
+    }
+    
+    const clientData = {
+      client: task.client || '',
+      address: task.address || '',
+      contractFile: task.contractFile || null,
+      invoiceRecipientDetails: task.invoiceRecipientDetails || ''
+    };
+    
+    console.log('[DEBUG] GET /api/client-data/:edrpou - знайдено дані клієнта:', {
+      client: clientData.client,
+      hasAddress: !!clientData.address,
+      hasContractFile: !!clientData.contractFile,
+      hasInvoiceDetails: !!clientData.invoiceRecipientDetails
+    });
+    
+    res.json(clientData);
+  } catch (error) {
+    console.error('[ERROR] GET /api/client-data/:edrpou - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для отримання списку файлів договорів
+app.get('/api/contract-files', async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/contract-files - запит отримано');
+    
+    // Знаходимо всі заявки з файлами договорів
+    const tasks = await Task.find({ 
+      contractFile: { $exists: true, $ne: null, $ne: '' } 
+    }).select('contractFile client edrpou createdAt').sort({ createdAt: -1 });
+    
+    const contractFiles = tasks.map(task => ({
+      url: task.contractFile,
+      client: task.client || 'Невідомий клієнт',
+      edrpou: task.edrpou || '',
+      createdAt: task.createdAt,
+      fileName: task.contractFile.split('/').pop() || 'contract.pdf'
+    }));
+    
+    console.log('[DEBUG] GET /api/contract-files - знайдено файлів договорів:', contractFiles.length);
+    res.json(contractFiles);
+  } catch (error) {
+    console.error('[ERROR] GET /api/contract-files - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // API для управління категоріями витрат
 app.get('/api/expense-categories', async (req, res) => {
   try {
