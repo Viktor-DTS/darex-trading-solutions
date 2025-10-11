@@ -194,43 +194,53 @@ const ClientDataSelectionModal = ({
       const selectedMaterials = {};
       const selectedTypes = selectedData.materials.selectedMaterials;
       
+      console.log('[DEBUG] ClientDataSelectionModal - selectedTypes:', selectedTypes);
+      
       if (selectedTypes.oil.enabled && selectedTypes.oil.selectedType && selectedTypes.oil.selectedQuantity) {
         selectedMaterials.oil = {
           type: selectedTypes.oil.selectedType,
           quantity: selectedTypes.oil.selectedQuantity
         };
+        console.log('[DEBUG] ClientDataSelectionModal - додано оливу:', selectedMaterials.oil);
       }
       if (selectedTypes.oilFilter.enabled && selectedTypes.oilFilter.selectedName && selectedTypes.oilFilter.selectedQuantity) {
         selectedMaterials.oilFilter = {
           name: selectedTypes.oilFilter.selectedName,
           quantity: selectedTypes.oilFilter.selectedQuantity
         };
+        console.log('[DEBUG] ClientDataSelectionModal - додано масляний фільтр:', selectedMaterials.oilFilter);
       }
       if (selectedTypes.fuelFilter.enabled && selectedTypes.fuelFilter.selectedName && selectedTypes.fuelFilter.selectedQuantity) {
         selectedMaterials.fuelFilter = {
           name: selectedTypes.fuelFilter.selectedName,
           quantity: selectedTypes.fuelFilter.selectedQuantity
         };
+        console.log('[DEBUG] ClientDataSelectionModal - додано паливний фільтр:', selectedMaterials.fuelFilter);
       }
       if (selectedTypes.airFilter.enabled && selectedTypes.airFilter.selectedName && selectedTypes.airFilter.selectedQuantity) {
         selectedMaterials.airFilter = {
           name: selectedTypes.airFilter.selectedName,
           quantity: selectedTypes.airFilter.selectedQuantity
         };
+        console.log('[DEBUG] ClientDataSelectionModal - додано повітряний фільтр:', selectedMaterials.airFilter);
       }
       if (selectedTypes.antifreeze.enabled && selectedTypes.antifreeze.selectedType && selectedTypes.antifreeze.selectedQuantity) {
         selectedMaterials.antifreeze = {
           type: selectedTypes.antifreeze.selectedType,
           quantity: selectedTypes.antifreeze.selectedQuantity
         };
+        console.log('[DEBUG] ClientDataSelectionModal - додано антифриз:', selectedMaterials.antifreeze);
       }
       if (selectedTypes.otherMaterials.enabled && selectedTypes.otherMaterials.selectedMaterial) {
         selectedMaterials.otherMaterials = selectedTypes.otherMaterials.selectedMaterial;
+        console.log('[DEBUG] ClientDataSelectionModal - додано інші матеріали:', selectedMaterials.otherMaterials);
       }
       
       formUpdates.materials = selectedMaterials;
+      console.log('[DEBUG] ClientDataSelectionModal - фінальні матеріали:', selectedMaterials);
     }
     
+    console.log('[DEBUG] ClientDataSelectionModal - formUpdates:', formUpdates);
     onApply(formUpdates);
     onClose();
   };
@@ -467,9 +477,9 @@ const ClientDataSelectionModal = ({
                                       type="checkbox"
                                       checked={selectedData.materials.selectedMaterials.oil.enabled}
                                       onChange={(e) => handleMaterialTypeChange('oil', e.target.checked)}
-                                      style={{ marginRight: '8px', marginTop: '2px' }}
+                                      style={{ marginRight: '8px', marginTop: '2px', marginLeft: '0' }}
                                     />
-                                    <strong style={{ fontSize: '14px' }}>🛢️ Олива</strong>
+                                    <strong style={{ fontSize: '14px', color: '#000' }}>🛢️ Олива</strong>
                                   </div>
                                   {selectedData.materials.selectedMaterials.oil.enabled && (
                                     <div style={{ marginLeft: '25px' }}>
@@ -528,9 +538,9 @@ const ClientDataSelectionModal = ({
                                       type="checkbox"
                                       checked={selectedData.materials.selectedMaterials.oilFilter.enabled}
                                       onChange={(e) => handleMaterialTypeChange('oilFilter', e.target.checked)}
-                                      style={{ marginRight: '8px', marginTop: '2px' }}
+                                      style={{ marginRight: '8px', marginTop: '2px', marginLeft: '0' }}
                                     />
-                                    <strong style={{ fontSize: '14px' }}>🔧 Масляний фільтр</strong>
+                                    <strong style={{ fontSize: '14px', color: '#000' }}>🔧 Масляний фільтр</strong>
                                   </div>
                                   {selectedData.materials.selectedMaterials.oilFilter.enabled && (
                                     <div style={{ marginLeft: '25px' }}>
@@ -589,9 +599,9 @@ const ClientDataSelectionModal = ({
                                       type="checkbox"
                                       checked={selectedData.materials.selectedMaterials.fuelFilter.enabled}
                                       onChange={(e) => handleMaterialTypeChange('fuelFilter', e.target.checked)}
-                                      style={{ marginRight: '8px', marginTop: '2px' }}
+                                      style={{ marginRight: '8px', marginTop: '2px', marginLeft: '0' }}
                                     />
-                                    <strong style={{ fontSize: '14px' }}>⛽ Паливний фільтр</strong>
+                                    <strong style={{ fontSize: '14px', color: '#000' }}>⛽ Паливний фільтр</strong>
                                   </div>
                                   {selectedData.materials.selectedMaterials.fuelFilter.enabled && (
                                     <div style={{ marginLeft: '25px' }}>
@@ -650,9 +660,9 @@ const ClientDataSelectionModal = ({
                                       type="checkbox"
                                       checked={selectedData.materials.selectedMaterials.airFilter.enabled}
                                       onChange={(e) => handleMaterialTypeChange('airFilter', e.target.checked)}
-                                      style={{ marginRight: '8px', marginTop: '2px' }}
+                                      style={{ marginRight: '8px', marginTop: '2px', marginLeft: '0' }}
                                     />
-                                    <strong style={{ fontSize: '14px' }}>💨 Повітряний фільтр</strong>
+                                    <strong style={{ fontSize: '14px', color: '#000' }}>💨 Повітряний фільтр</strong>
                                   </div>
                                   {selectedData.materials.selectedMaterials.airFilter.enabled && (
                                     <div style={{ marginLeft: '25px' }}>
@@ -711,9 +721,9 @@ const ClientDataSelectionModal = ({
                                       type="checkbox"
                                       checked={selectedData.materials.selectedMaterials.antifreeze.enabled}
                                       onChange={(e) => handleMaterialTypeChange('antifreeze', e.target.checked)}
-                                      style={{ marginRight: '8px', marginTop: '2px' }}
+                                      style={{ marginRight: '8px', marginTop: '2px', marginLeft: '0' }}
                                     />
-                                    <strong style={{ fontSize: '14px' }}>🧊 Антифриз</strong>
+                                    <strong style={{ fontSize: '14px', color: '#000' }}>🧊 Антифриз</strong>
                                   </div>
                                   {selectedData.materials.selectedMaterials.antifreeze.enabled && (
                                     <div style={{ marginLeft: '25px' }}>
@@ -772,9 +782,9 @@ const ClientDataSelectionModal = ({
                                       type="checkbox"
                                       checked={selectedData.materials.selectedMaterials.otherMaterials.enabled}
                                       onChange={(e) => handleMaterialTypeChange('otherMaterials', e.target.checked)}
-                                      style={{ marginRight: '8px', marginTop: '2px' }}
+                                      style={{ marginRight: '8px', marginTop: '2px', marginLeft: '0' }}
                                     />
-                                    <strong style={{ fontSize: '14px' }}>📦 Інші матеріали</strong>
+                                    <strong style={{ fontSize: '14px', color: '#000' }}>📦 Інші матеріали</strong>
                                   </div>
                                   {selectedData.materials.selectedMaterials.otherMaterials.enabled && (
                                     <div style={{ marginLeft: '25px' }}>
