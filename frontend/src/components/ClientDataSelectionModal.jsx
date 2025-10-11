@@ -101,9 +101,12 @@ const ClientDataSelectionModal = ({
 
   const loadMaterials = async (equipmentType) => {
     if (!edrpou || !equipmentType) return;
+    
+    console.log('[DEBUG] ClientDataSelectionModal - loadMaterials:', edrpou, equipmentType);
     setMaterialsLoading(true);
     try {
       const materialsData = await getEdrpouEquipmentMaterials(edrpou, equipmentType);
+      console.log('[DEBUG] ClientDataSelectionModal - завантажені матеріали:', materialsData);
       setMaterials(materialsData);
     } catch (error) {
       console.error('Помилка завантаження матеріалів:', error);
@@ -138,6 +141,7 @@ const ClientDataSelectionModal = ({
   };
 
   const handleMaterialTypeChange = (materialType, enabled) => {
+    console.log('[DEBUG] ClientDataSelectionModal - handleMaterialTypeChange:', materialType, enabled);
     setSelectedData(prev => ({
       ...prev,
       materials: {
@@ -154,6 +158,7 @@ const ClientDataSelectionModal = ({
   };
 
   const handleMaterialValueChange = (materialType, field, value) => {
+    console.log('[DEBUG] ClientDataSelectionModal - handleMaterialValueChange:', materialType, field, value);
     setSelectedData(prev => ({
       ...prev,
       materials: {
@@ -172,6 +177,11 @@ const ClientDataSelectionModal = ({
   const handleApply = () => {
     const formUpdates = {};
     
+    console.log('[DEBUG] ClientDataSelectionModal - handleApply початок');
+    console.log('[DEBUG] ClientDataSelectionModal - selectedData:', selectedData);
+    console.log('[DEBUG] ClientDataSelectionModal - selectedEquipmentType:', selectedEquipmentType);
+    console.log('[DEBUG] ClientDataSelectionModal - materials:', materials);
+    
     if (selectedData.client.enabled) {
       formUpdates.client = selectedData.client.value;
     }
@@ -188,6 +198,10 @@ const ClientDataSelectionModal = ({
     if (selectedEquipmentType) {
       formUpdates.equipment = selectedEquipmentType;
     }
+    
+    console.log('[DEBUG] ClientDataSelectionModal - перевірка матеріалів:');
+    console.log('[DEBUG] ClientDataSelectionModal - selectedData.materials.enabled:', selectedData.materials.enabled);
+    console.log('[DEBUG] ClientDataSelectionModal - selectedData.materials.value:', selectedData.materials.value);
     
     if (selectedData.materials.enabled && selectedData.materials.value) {
       // Формуємо матеріали з вибраними значеннями
