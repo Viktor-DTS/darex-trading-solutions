@@ -593,8 +593,8 @@ const styles = `
 
   /* Стилі для ClientDataSelectionModal */
   .client-data-selection-modal {
-    min-width: 600px;
-    max-width: 800px;
+    min-width: 800px;
+    max-width: 1000px;
   }
 
   .client-data-selection {
