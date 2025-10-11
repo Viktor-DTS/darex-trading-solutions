@@ -3379,6 +3379,18 @@ app.put('/api/invoice-requests/:id', async (req, res) => {
       });
     }
     
+    // Оновлюємо статус рахунку в основній заявці
+    try {
+      await Task.findOneAndUpdate(
+        { invoiceRequestId: req.params.id },
+        { invoiceStatus: status },
+        { new: true }
+      );
+      console.log('[DEBUG] PUT /api/invoice-requests/:id - оновлено invoiceStatus в заявці:', status);
+    } catch (taskUpdateError) {
+      console.error('[ERROR] PUT /api/invoice-requests/:id - помилка оновлення заявки:', taskUpdateError);
+    }
+    
     // Відправляємо сповіщення користувачу про зміну статусу
     if (status === 'completed') {
       try {
@@ -3457,6 +3469,18 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
       },
       { new: true }
     );
+    
+    // Оновлюємо статус рахунку в основній заявці
+    try {
+      await Task.findOneAndUpdate(
+        { invoiceRequestId: req.params.id },
+        { invoiceStatus: 'completed' },
+        { new: true }
+      );
+      console.log('[DEBUG] POST /api/invoice-requests/:id/upload - оновлено invoiceStatus в заявці: completed');
+    } catch (taskUpdateError) {
+      console.error('[ERROR] POST /api/invoice-requests/:id/upload - помилка оновлення заявки:', taskUpdateError);
+    }
     
     res.json({ 
       success: true, 
