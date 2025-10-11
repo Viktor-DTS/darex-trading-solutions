@@ -739,43 +739,33 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         const materials = formUpdates.materials;
         
         // Застосовуємо матеріали до відповідних полів
-        if (materials.oil && materials.oil.types.length > 0) {
-          newForm.oilType = materials.oil.types[0]; // Беремо перший тип
-        }
-        if (materials.oil && materials.oil.quantities.length > 0) {
-          newForm.oilUsed = materials.oil.quantities[0]; // Беремо першу кількість
+        if (materials.oil && materials.oil.type && materials.oil.quantity) {
+          newForm.oilType = materials.oil.type;
+          newForm.oilUsed = materials.oil.quantity;
         }
         
-        if (materials.oilFilter && materials.oilFilter.names.length > 0) {
-          newForm.filterName = materials.oilFilter.names[0];
-        }
-        if (materials.oilFilter && materials.oilFilter.quantities.length > 0) {
-          newForm.filterCount = materials.oilFilter.quantities[0];
+        if (materials.oilFilter && materials.oilFilter.name && materials.oilFilter.quantity) {
+          newForm.filterName = materials.oilFilter.name;
+          newForm.filterCount = materials.oilFilter.quantity;
         }
         
-        if (materials.fuelFilter && materials.fuelFilter.names.length > 0) {
-          newForm.fuelFilterName = materials.fuelFilter.names[0];
-        }
-        if (materials.fuelFilter && materials.fuelFilter.quantities.length > 0) {
-          newForm.fuelFilterCount = materials.fuelFilter.quantities[0];
+        if (materials.fuelFilter && materials.fuelFilter.name && materials.fuelFilter.quantity) {
+          newForm.fuelFilterName = materials.fuelFilter.name;
+          newForm.fuelFilterCount = materials.fuelFilter.quantity;
         }
         
-        if (materials.airFilter && materials.airFilter.names.length > 0) {
-          newForm.airFilterName = materials.airFilter.names[0];
-        }
-        if (materials.airFilter && materials.airFilter.quantities.length > 0) {
-          newForm.airFilterCount = materials.airFilter.quantities[0];
+        if (materials.airFilter && materials.airFilter.name && materials.airFilter.quantity) {
+          newForm.airFilterName = materials.airFilter.name;
+          newForm.airFilterCount = materials.airFilter.quantity;
         }
         
-        if (materials.antifreeze && materials.antifreeze.types.length > 0) {
-          newForm.antifreezeType = materials.antifreeze.types[0];
-        }
-        if (materials.antifreeze && materials.antifreeze.quantities.length > 0) {
-          newForm.antifreezeL = materials.antifreeze.quantities[0];
+        if (materials.antifreeze && materials.antifreeze.type && materials.antifreeze.quantity) {
+          newForm.antifreezeType = materials.antifreeze.type;
+          newForm.antifreezeL = materials.antifreeze.quantity;
         }
         
-        if (materials.otherMaterials && materials.otherMaterials.length > 0) {
-          newForm.otherMaterials = materials.otherMaterials[0];
+        if (materials.otherMaterials) {
+          newForm.otherMaterials = materials.otherMaterials;
         }
         
         console.log('[DEBUG] handleClientDataApply - застосовано матеріали:', {

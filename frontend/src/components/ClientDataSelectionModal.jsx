@@ -23,12 +23,12 @@ const ClientDataSelectionModal = ({
       enabled: false, 
       value: null,
       selectedMaterials: {
-        oil: { enabled: false, types: [], quantities: [] },
-        oilFilter: { enabled: false, names: [], quantities: [] },
-        fuelFilter: { enabled: false, names: [], quantities: [] },
-        airFilter: { enabled: false, names: [], quantities: [] },
-        antifreeze: { enabled: false, types: [], quantities: [] },
-        otherMaterials: { enabled: false, materials: [] }
+        oil: { enabled: false, selectedType: '', selectedQuantity: '' },
+        oilFilter: { enabled: false, selectedName: '', selectedQuantity: '' },
+        fuelFilter: { enabled: false, selectedName: '', selectedQuantity: '' },
+        airFilter: { enabled: false, selectedName: '', selectedQuantity: '' },
+        antifreeze: { enabled: false, selectedType: '', selectedQuantity: '' },
+        otherMaterials: { enabled: false, selectedMaterial: '' }
       }
     }
   });
@@ -153,6 +153,22 @@ const ClientDataSelectionModal = ({
     }));
   };
 
+  const handleMaterialValueChange = (materialType, field, value) => {
+    setSelectedData(prev => ({
+      ...prev,
+      materials: {
+        ...prev.materials,
+        selectedMaterials: {
+          ...prev.materials.selectedMaterials,
+          [materialType]: {
+            ...prev.materials.selectedMaterials[materialType],
+            [field]: value
+          }
+        }
+      }
+    }));
+  };
+
   const handleApply = () => {
     const formUpdates = {};
     
@@ -169,28 +185,42 @@ const ClientDataSelectionModal = ({
       formUpdates.contractFile = selectedData.contractFile.value;
     }
     if (selectedData.materials.enabled && selectedData.materials.value) {
-      // Фільтруємо тільки вибрані типи матеріалів
+      // Формуємо матеріали з вибраними значеннями
       const selectedMaterials = {};
-      const materials = selectedData.materials.value;
       const selectedTypes = selectedData.materials.selectedMaterials;
       
-      if (selectedTypes.oil.enabled && materials.oil) {
-        selectedMaterials.oil = materials.oil;
+      if (selectedTypes.oil.enabled && selectedTypes.oil.selectedType && selectedTypes.oil.selectedQuantity) {
+        selectedMaterials.oil = {
+          type: selectedTypes.oil.selectedType,
+          quantity: selectedTypes.oil.selectedQuantity
+        };
       }
-      if (selectedTypes.oilFilter.enabled && materials.oilFilter) {
-        selectedMaterials.oilFilter = materials.oilFilter;
+      if (selectedTypes.oilFilter.enabled && selectedTypes.oilFilter.selectedName && selectedTypes.oilFilter.selectedQuantity) {
+        selectedMaterials.oilFilter = {
+          name: selectedTypes.oilFilter.selectedName,
+          quantity: selectedTypes.oilFilter.selectedQuantity
+        };
       }
-      if (selectedTypes.fuelFilter.enabled && materials.fuelFilter) {
-        selectedMaterials.fuelFilter = materials.fuelFilter;
+      if (selectedTypes.fuelFilter.enabled && selectedTypes.fuelFilter.selectedName && selectedTypes.fuelFilter.selectedQuantity) {
+        selectedMaterials.fuelFilter = {
+          name: selectedTypes.fuelFilter.selectedName,
+          quantity: selectedTypes.fuelFilter.selectedQuantity
+        };
       }
-      if (selectedTypes.airFilter.enabled && materials.airFilter) {
-        selectedMaterials.airFilter = materials.airFilter;
+      if (selectedTypes.airFilter.enabled && selectedTypes.airFilter.selectedName && selectedTypes.airFilter.selectedQuantity) {
+        selectedMaterials.airFilter = {
+          name: selectedTypes.airFilter.selectedName,
+          quantity: selectedTypes.airFilter.selectedQuantity
+        };
       }
-      if (selectedTypes.antifreeze.enabled && materials.antifreeze) {
-        selectedMaterials.antifreeze = materials.antifreeze;
+      if (selectedTypes.antifreeze.enabled && selectedTypes.antifreeze.selectedType && selectedTypes.antifreeze.selectedQuantity) {
+        selectedMaterials.antifreeze = {
+          type: selectedTypes.antifreeze.selectedType,
+          quantity: selectedTypes.antifreeze.selectedQuantity
+        };
       }
-      if (selectedTypes.otherMaterials.enabled && materials.otherMaterials) {
-        selectedMaterials.otherMaterials = materials.otherMaterials;
+      if (selectedTypes.otherMaterials.enabled && selectedTypes.otherMaterials.selectedMaterial) {
+        selectedMaterials.otherMaterials = selectedTypes.otherMaterials.selectedMaterial;
       }
       
       formUpdates.materials = selectedMaterials;
@@ -426,23 +456,59 @@ const ClientDataSelectionModal = ({
                               
                               {/* Олива */}
                               {materials.oil && (materials.oil.types.length > 0 || materials.oil.quantities.length > 0) && (
-                                <div style={{ marginBottom: '8px' }}>
-                                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                <div style={{ marginBottom: '15px', padding: '10px', border: '1px solid #e0e0e0', borderRadius: '4px' }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '10px' }}>
                                     <input
                                       type="checkbox"
                                       checked={selectedData.materials.selectedMaterials.oil.enabled}
                                       onChange={(e) => handleMaterialTypeChange('oil', e.target.checked)}
                                       style={{ marginRight: '8px' }}
                                     />
-                                    <strong>🛢️ Олива:</strong>
+                                    <strong>🛢️ Олива</strong>
                                   </label>
                                   {selectedData.materials.selectedMaterials.oil.enabled && (
-                                    <div style={{ marginLeft: '25px', fontSize: '12px' }}>
+                                    <div style={{ marginLeft: '25px' }}>
                                       {materials.oil.types.length > 0 && (
-                                        <div>Типи: {materials.oil.types.join(', ')}</div>
+                                        <div style={{ marginBottom: '8px' }}>
+                                          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Тип оливи:</label>
+                                          <select
+                                            value={selectedData.materials.selectedMaterials.oil.selectedType}
+                                            onChange={(e) => handleMaterialValueChange('oil', 'selectedType', e.target.value)}
+                                            style={{
+                                              width: '100%',
+                                              padding: '6px 8px',
+                                              border: '1px solid #ddd',
+                                              borderRadius: '4px',
+                                              fontSize: '12px'
+                                            }}
+                                          >
+                                            <option value="">Виберіть тип</option>
+                                            {materials.oil.types.map((type, index) => (
+                                              <option key={index} value={type}>{type}</option>
+                                            ))}
+                                          </select>
+                                        </div>
                                       )}
                                       {materials.oil.quantities.length > 0 && (
-                                        <div>Кількості: {materials.oil.quantities.join(', ')}</div>
+                                        <div>
+                                          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Кількість (л):</label>
+                                          <select
+                                            value={selectedData.materials.selectedMaterials.oil.selectedQuantity}
+                                            onChange={(e) => handleMaterialValueChange('oil', 'selectedQuantity', e.target.value)}
+                                            style={{
+                                              width: '100%',
+                                              padding: '6px 8px',
+                                              border: '1px solid #ddd',
+                                              borderRadius: '4px',
+                                              fontSize: '12px'
+                                            }}
+                                          >
+                                            <option value="">Виберіть кількість</option>
+                                            {materials.oil.quantities.map((quantity, index) => (
+                                              <option key={index} value={quantity}>{quantity}</option>
+                                            ))}
+                                          </select>
+                                        </div>
                                       )}
                                     </div>
                                   )}
@@ -451,23 +517,59 @@ const ClientDataSelectionModal = ({
 
                               {/* Масляний фільтр */}
                               {materials.oilFilter && (materials.oilFilter.names.length > 0 || materials.oilFilter.quantities.length > 0) && (
-                                <div style={{ marginBottom: '8px' }}>
-                                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                <div style={{ marginBottom: '15px', padding: '10px', border: '1px solid #e0e0e0', borderRadius: '4px' }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '10px' }}>
                                     <input
                                       type="checkbox"
                                       checked={selectedData.materials.selectedMaterials.oilFilter.enabled}
                                       onChange={(e) => handleMaterialTypeChange('oilFilter', e.target.checked)}
                                       style={{ marginRight: '8px' }}
                                     />
-                                    <strong>🔧 Масляний фільтр:</strong>
+                                    <strong>🔧 Масляний фільтр</strong>
                                   </label>
                                   {selectedData.materials.selectedMaterials.oilFilter.enabled && (
-                                    <div style={{ marginLeft: '25px', fontSize: '12px' }}>
+                                    <div style={{ marginLeft: '25px' }}>
                                       {materials.oilFilter.names.length > 0 && (
-                                        <div>Назви: {materials.oilFilter.names.join(', ')}</div>
+                                        <div style={{ marginBottom: '8px' }}>
+                                          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Назва фільтра:</label>
+                                          <select
+                                            value={selectedData.materials.selectedMaterials.oilFilter.selectedName}
+                                            onChange={(e) => handleMaterialValueChange('oilFilter', 'selectedName', e.target.value)}
+                                            style={{
+                                              width: '100%',
+                                              padding: '6px 8px',
+                                              border: '1px solid #ddd',
+                                              borderRadius: '4px',
+                                              fontSize: '12px'
+                                            }}
+                                          >
+                                            <option value="">Виберіть фільтр</option>
+                                            {materials.oilFilter.names.map((name, index) => (
+                                              <option key={index} value={name}>{name}</option>
+                                            ))}
+                                          </select>
+                                        </div>
                                       )}
                                       {materials.oilFilter.quantities.length > 0 && (
-                                        <div>Кількості: {materials.oilFilter.quantities.join(', ')}</div>
+                                        <div>
+                                          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Кількість (шт):</label>
+                                          <select
+                                            value={selectedData.materials.selectedMaterials.oilFilter.selectedQuantity}
+                                            onChange={(e) => handleMaterialValueChange('oilFilter', 'selectedQuantity', e.target.value)}
+                                            style={{
+                                              width: '100%',
+                                              padding: '6px 8px',
+                                              border: '1px solid #ddd',
+                                              borderRadius: '4px',
+                                              fontSize: '12px'
+                                            }}
+                                          >
+                                            <option value="">Виберіть кількість</option>
+                                            {materials.oilFilter.quantities.map((quantity, index) => (
+                                              <option key={index} value={quantity}>{quantity}</option>
+                                            ))}
+                                          </select>
+                                        </div>
                                       )}
                                     </div>
                                   )}
@@ -476,23 +578,59 @@ const ClientDataSelectionModal = ({
 
                               {/* Паливний фільтр */}
                               {materials.fuelFilter && (materials.fuelFilter.names.length > 0 || materials.fuelFilter.quantities.length > 0) && (
-                                <div style={{ marginBottom: '8px' }}>
-                                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                <div style={{ marginBottom: '15px', padding: '10px', border: '1px solid #e0e0e0', borderRadius: '4px' }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '10px' }}>
                                     <input
                                       type="checkbox"
                                       checked={selectedData.materials.selectedMaterials.fuelFilter.enabled}
                                       onChange={(e) => handleMaterialTypeChange('fuelFilter', e.target.checked)}
                                       style={{ marginRight: '8px' }}
                                     />
-                                    <strong>⛽ Паливний фільтр:</strong>
+                                    <strong>⛽ Паливний фільтр</strong>
                                   </label>
                                   {selectedData.materials.selectedMaterials.fuelFilter.enabled && (
-                                    <div style={{ marginLeft: '25px', fontSize: '12px' }}>
+                                    <div style={{ marginLeft: '25px' }}>
                                       {materials.fuelFilter.names.length > 0 && (
-                                        <div>Назви: {materials.fuelFilter.names.join(', ')}</div>
+                                        <div style={{ marginBottom: '8px' }}>
+                                          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Назва фільтра:</label>
+                                          <select
+                                            value={selectedData.materials.selectedMaterials.fuelFilter.selectedName}
+                                            onChange={(e) => handleMaterialValueChange('fuelFilter', 'selectedName', e.target.value)}
+                                            style={{
+                                              width: '100%',
+                                              padding: '6px 8px',
+                                              border: '1px solid #ddd',
+                                              borderRadius: '4px',
+                                              fontSize: '12px'
+                                            }}
+                                          >
+                                            <option value="">Виберіть фільтр</option>
+                                            {materials.fuelFilter.names.map((name, index) => (
+                                              <option key={index} value={name}>{name}</option>
+                                            ))}
+                                          </select>
+                                        </div>
                                       )}
                                       {materials.fuelFilter.quantities.length > 0 && (
-                                        <div>Кількості: {materials.fuelFilter.quantities.join(', ')}</div>
+                                        <div>
+                                          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Кількість (шт):</label>
+                                          <select
+                                            value={selectedData.materials.selectedMaterials.fuelFilter.selectedQuantity}
+                                            onChange={(e) => handleMaterialValueChange('fuelFilter', 'selectedQuantity', e.target.value)}
+                                            style={{
+                                              width: '100%',
+                                              padding: '6px 8px',
+                                              border: '1px solid #ddd',
+                                              borderRadius: '4px',
+                                              fontSize: '12px'
+                                            }}
+                                          >
+                                            <option value="">Виберіть кількість</option>
+                                            {materials.fuelFilter.quantities.map((quantity, index) => (
+                                              <option key={index} value={quantity}>{quantity}</option>
+                                            ))}
+                                          </select>
+                                        </div>
                                       )}
                                     </div>
                                   )}
@@ -501,23 +639,59 @@ const ClientDataSelectionModal = ({
 
                               {/* Повітряний фільтр */}
                               {materials.airFilter && (materials.airFilter.names.length > 0 || materials.airFilter.quantities.length > 0) && (
-                                <div style={{ marginBottom: '8px' }}>
-                                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                <div style={{ marginBottom: '15px', padding: '10px', border: '1px solid #e0e0e0', borderRadius: '4px' }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '10px' }}>
                                     <input
                                       type="checkbox"
                                       checked={selectedData.materials.selectedMaterials.airFilter.enabled}
                                       onChange={(e) => handleMaterialTypeChange('airFilter', e.target.checked)}
                                       style={{ marginRight: '8px' }}
                                     />
-                                    <strong>💨 Повітряний фільтр:</strong>
+                                    <strong>💨 Повітряний фільтр</strong>
                                   </label>
                                   {selectedData.materials.selectedMaterials.airFilter.enabled && (
-                                    <div style={{ marginLeft: '25px', fontSize: '12px' }}>
+                                    <div style={{ marginLeft: '25px' }}>
                                       {materials.airFilter.names.length > 0 && (
-                                        <div>Назви: {materials.airFilter.names.join(', ')}</div>
+                                        <div style={{ marginBottom: '8px' }}>
+                                          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Назва фільтра:</label>
+                                          <select
+                                            value={selectedData.materials.selectedMaterials.airFilter.selectedName}
+                                            onChange={(e) => handleMaterialValueChange('airFilter', 'selectedName', e.target.value)}
+                                            style={{
+                                              width: '100%',
+                                              padding: '6px 8px',
+                                              border: '1px solid #ddd',
+                                              borderRadius: '4px',
+                                              fontSize: '12px'
+                                            }}
+                                          >
+                                            <option value="">Виберіть фільтр</option>
+                                            {materials.airFilter.names.map((name, index) => (
+                                              <option key={index} value={name}>{name}</option>
+                                            ))}
+                                          </select>
+                                        </div>
                                       )}
                                       {materials.airFilter.quantities.length > 0 && (
-                                        <div>Кількості: {materials.airFilter.quantities.join(', ')}</div>
+                                        <div>
+                                          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Кількість (шт):</label>
+                                          <select
+                                            value={selectedData.materials.selectedMaterials.airFilter.selectedQuantity}
+                                            onChange={(e) => handleMaterialValueChange('airFilter', 'selectedQuantity', e.target.value)}
+                                            style={{
+                                              width: '100%',
+                                              padding: '6px 8px',
+                                              border: '1px solid #ddd',
+                                              borderRadius: '4px',
+                                              fontSize: '12px'
+                                            }}
+                                          >
+                                            <option value="">Виберіть кількість</option>
+                                            {materials.airFilter.quantities.map((quantity, index) => (
+                                              <option key={index} value={quantity}>{quantity}</option>
+                                            ))}
+                                          </select>
+                                        </div>
                                       )}
                                     </div>
                                   )}
@@ -526,23 +700,59 @@ const ClientDataSelectionModal = ({
 
                               {/* Антифриз */}
                               {materials.antifreeze && (materials.antifreeze.types.length > 0 || materials.antifreeze.quantities.length > 0) && (
-                                <div style={{ marginBottom: '8px' }}>
-                                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                <div style={{ marginBottom: '15px', padding: '10px', border: '1px solid #e0e0e0', borderRadius: '4px' }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '10px' }}>
                                     <input
                                       type="checkbox"
                                       checked={selectedData.materials.selectedMaterials.antifreeze.enabled}
                                       onChange={(e) => handleMaterialTypeChange('antifreeze', e.target.checked)}
                                       style={{ marginRight: '8px' }}
                                     />
-                                    <strong>🧊 Антифриз:</strong>
+                                    <strong>🧊 Антифриз</strong>
                                   </label>
                                   {selectedData.materials.selectedMaterials.antifreeze.enabled && (
-                                    <div style={{ marginLeft: '25px', fontSize: '12px' }}>
+                                    <div style={{ marginLeft: '25px' }}>
                                       {materials.antifreeze.types.length > 0 && (
-                                        <div>Типи: {materials.antifreeze.types.join(', ')}</div>
+                                        <div style={{ marginBottom: '8px' }}>
+                                          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Тип антифризу:</label>
+                                          <select
+                                            value={selectedData.materials.selectedMaterials.antifreeze.selectedType}
+                                            onChange={(e) => handleMaterialValueChange('antifreeze', 'selectedType', e.target.value)}
+                                            style={{
+                                              width: '100%',
+                                              padding: '6px 8px',
+                                              border: '1px solid #ddd',
+                                              borderRadius: '4px',
+                                              fontSize: '12px'
+                                            }}
+                                          >
+                                            <option value="">Виберіть тип</option>
+                                            {materials.antifreeze.types.map((type, index) => (
+                                              <option key={index} value={type}>{type}</option>
+                                            ))}
+                                          </select>
+                                        </div>
                                       )}
                                       {materials.antifreeze.quantities.length > 0 && (
-                                        <div>Кількості: {materials.antifreeze.quantities.join(', ')}</div>
+                                        <div>
+                                          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Кількість (л):</label>
+                                          <select
+                                            value={selectedData.materials.selectedMaterials.antifreeze.selectedQuantity}
+                                            onChange={(e) => handleMaterialValueChange('antifreeze', 'selectedQuantity', e.target.value)}
+                                            style={{
+                                              width: '100%',
+                                              padding: '6px 8px',
+                                              border: '1px solid #ddd',
+                                              borderRadius: '4px',
+                                              fontSize: '12px'
+                                            }}
+                                          >
+                                            <option value="">Виберіть кількість</option>
+                                            {materials.antifreeze.quantities.map((quantity, index) => (
+                                              <option key={index} value={quantity}>{quantity}</option>
+                                            ))}
+                                          </select>
+                                        </div>
                                       )}
                                     </div>
                                   )}
@@ -551,19 +761,35 @@ const ClientDataSelectionModal = ({
 
                               {/* Інші матеріали */}
                               {materials.otherMaterials && materials.otherMaterials.length > 0 && (
-                                <div style={{ marginBottom: '8px' }}>
-                                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                <div style={{ marginBottom: '15px', padding: '10px', border: '1px solid #e0e0e0', borderRadius: '4px' }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '10px' }}>
                                     <input
                                       type="checkbox"
                                       checked={selectedData.materials.selectedMaterials.otherMaterials.enabled}
                                       onChange={(e) => handleMaterialTypeChange('otherMaterials', e.target.checked)}
                                       style={{ marginRight: '8px' }}
                                     />
-                                    <strong>📦 Інші матеріали:</strong>
+                                    <strong>📦 Інші матеріали</strong>
                                   </label>
                                   {selectedData.materials.selectedMaterials.otherMaterials.enabled && (
-                                    <div style={{ marginLeft: '25px', fontSize: '12px' }}>
-                                      {materials.otherMaterials.join(', ')}
+                                    <div style={{ marginLeft: '25px' }}>
+                                      <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Матеріал:</label>
+                                      <select
+                                        value={selectedData.materials.selectedMaterials.otherMaterials.selectedMaterial}
+                                        onChange={(e) => handleMaterialValueChange('otherMaterials', 'selectedMaterial', e.target.value)}
+                                        style={{
+                                          width: '100%',
+                                          padding: '6px 8px',
+                                          border: '1px solid #ddd',
+                                          borderRadius: '4px',
+                                          fontSize: '12px'
+                                        }}
+                                      >
+                                        <option value="">Виберіть матеріал</option>
+                                        {materials.otherMaterials.map((material, index) => (
+                                          <option key={index} value={material}>{material}</option>
+                                        ))}
+                                      </select>
                                     </div>
                                   )}
                                 </div>
