@@ -202,8 +202,15 @@ const ClientDataSelectionModal = ({
     console.log('[DEBUG] ClientDataSelectionModal - перевірка матеріалів:');
     console.log('[DEBUG] ClientDataSelectionModal - selectedData.materials.enabled:', selectedData.materials.enabled);
     console.log('[DEBUG] ClientDataSelectionModal - selectedData.materials.value:', selectedData.materials.value);
+    console.log('[DEBUG] ClientDataSelectionModal - selectedData.materials.selectedMaterials:', selectedData.materials.selectedMaterials);
     
-    if (selectedData.materials.enabled && selectedData.materials.value) {
+    // Перевіряємо чи є активовані матеріали
+    const hasActiveMaterials = selectedData.materials.selectedMaterials && 
+      Object.values(selectedData.materials.selectedMaterials).some(material => material.enabled);
+    
+    console.log('[DEBUG] ClientDataSelectionModal - hasActiveMaterials:', hasActiveMaterials);
+    
+    if (selectedData.materials.enabled && hasActiveMaterials) {
       // Формуємо матеріали з вибраними значеннями
       const selectedMaterials = {};
       const selectedTypes = selectedData.materials.selectedMaterials;
