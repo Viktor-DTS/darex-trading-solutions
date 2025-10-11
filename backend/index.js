@@ -893,6 +893,24 @@ app.get('/api/tasks', async (req, res) => {
     
     console.log('[DEBUG] GET /api/tasks - знайдено завдань:', tasks.length);
     
+    // Синхронізуємо статуси рахунків для заявок з запитами на рахунки
+    const tasksWithInvoiceRequests = tasks.filter(task => task.invoiceRequestId);
+    if (tasksWithInvoiceRequests.length > 0) {
+      console.log('[DEBUG] GET /api/tasks - синхронізуємо статуси для заявок з запитами на рахунки:', tasksWithInvoiceRequests.length);
+      
+      for (const task of tasksWithInvoiceRequests) {
+        try {
+          const invoiceRequest = await InvoiceRequest.findById(task.invoiceRequestId);
+          if (invoiceRequest && invoiceRequest.status !== task.invoiceStatus) {
+            task.invoiceStatus = invoiceRequest.status;
+            console.log('[DEBUG] GET /api/tasks - синхронізовано статус для заявки:', task._id, 'статус:', invoiceRequest.status);
+          }
+        } catch (syncError) {
+          console.error('[ERROR] GET /api/tasks - помилка синхронізації для заявки:', task._id, syncError);
+        }
+      }
+    }
+    
     // Додаємо числовий id для сумісності з фронтендом
     const tasksWithId = tasks.map(task => ({
       ...task,
@@ -2947,6 +2965,52 @@ app.get('/api/contract-files', async (req, res) => {
   } catch (error) {
     console.error('[ERROR] GET /api/contract-files - помилка:', error);
     console.error('[ERROR] GET /api/contract-files - стек помилки:', error.stack);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для синхронізації статусів рахунків
+app.post('/api/sync-invoice-statuses', async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/sync-invoice-statuses - синхронізація статусів рахунків');
+    
+    // Знаходимо всі заявки з запитами на рахунки
+    const tasksWithInvoiceRequests = await Task.find({
+      invoiceRequestId: { $exists: true, $ne: null }
+    });
+    
+    console.log('[DEBUG] POST /api/sync-invoice-statuses - знайдено заявок з запитами на рахунки:', tasksWithInvoiceRequests.length);
+    
+    let updatedCount = 0;
+    
+    for (const task of tasksWithInvoiceRequests) {
+      try {
+        // Знаходимо відповідний запит на рахунок
+        const invoiceRequest = await InvoiceRequest.findById(task.invoiceRequestId);
+        
+        if (invoiceRequest && invoiceRequest.status !== task.invoiceStatus) {
+          // Оновлюємо статус в заявці
+          await Task.findByIdAndUpdate(task._id, {
+            invoiceStatus: invoiceRequest.status
+          });
+          
+          console.log('[DEBUG] POST /api/sync-invoice-statuses - оновлено заявку:', task._id, 'статус:', invoiceRequest.status);
+          updatedCount++;
+        }
+      } catch (taskError) {
+        console.error('[ERROR] POST /api/sync-invoice-statuses - помилка оновлення заявки:', task._id, taskError);
+      }
+    }
+    
+    console.log('[DEBUG] POST /api/sync-invoice-statuses - оновлено заявок:', updatedCount);
+    
+    res.json({
+      success: true,
+      message: `Синхронізовано статуси для ${updatedCount} заявок`,
+      updatedCount
+    });
+  } catch (error) {
+    console.error('[ERROR] POST /api/sync-invoice-statuses - помилка:', error);
     res.status(500).json({ error: error.message });
   }
 });
