@@ -10,6 +10,7 @@ import MaterialsSelectionModal from './components/MaterialsSelectionModal';
 import InvoiceRequestModal from './components/InvoiceRequestModal';
 import InvoiceRequestBlock from './components/InvoiceRequestBlock';
 import ContractFileSelector from './components/ContractFileSelector';
+import ClientDataSelectionModal from './components/ClientDataSelectionModal';
 // Функція для отримання коду регіону
 const getRegionCode = (region) => {
   const regionMap = {
@@ -306,6 +307,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false);
   const [filteredEdrpouList, setFilteredEdrpouList] = useState([]);
   const [showContractFileSelector, setShowContractFileSelector] = useState(false);
+  const [clientDataModal, setClientDataModal] = useState({ open: false, edrpou: '' });
   useEffect(() => {
     const f = { ...initialData };
     if ('approvedByWarehouse' in f) f.approvedByWarehouse = toSelectString(f.approvedByWarehouse);
@@ -709,33 +711,24 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   };
 
   // --- Обробник вибору ЄДРПОУ з автодоповнення ---
-  const handleEdrpouSelect = async (edrpou) => {
+  const handleEdrpouSelect = (edrpou) => {
     console.log('[DEBUG] handleEdrpouSelect - ФУНКЦІЯ ВИКЛИКАНА з ЄДРПОУ:', edrpou);
     setForm({ ...form, edrpou: edrpou });
     setShowEdrpouDropdown(false);
     setFilteredEdrpouList([]);
     
-    // Завантажуємо дані клієнта по ЄДРПОУ
-    try {
-      console.log('[DEBUG] handleEdrpouSelect - завантажуємо дані клієнта для ЄДРПОУ:', edrpou);
-      const clientData = await getClientData(edrpou);
-      console.log('[DEBUG] handleEdrpouSelect - отримано дані клієнта:', clientData);
-      
-      // Автоматично заповнюємо поля
-      setForm(prev => ({
-        ...prev,
-        edrpou: edrpou,
-        client: clientData.client || prev.client,
-        address: clientData.address || prev.address,
-        invoiceRecipientDetails: clientData.invoiceRecipientDetails || prev.invoiceRecipientDetails,
-        contractFile: clientData.contractFile || prev.contractFile
-      }));
-    } catch (error) {
-      console.error('[ERROR] handleEdrpouSelect - помилка завантаження даних клієнта:', error);
-    }
+    // Відкриваємо модальне вікно для вибору даних клієнта
+    console.log('[DEBUG] handleEdrpouSelect - відкриваємо модальне вікно даних клієнта');
+    setClientDataModal({ open: true, edrpou });
+    console.log('[DEBUG] handleEdrpouSelect - clientDataModal встановлено:', { open: true, edrpou });
   };
   // --- Обробник застосування матеріалів ---
   const handleMaterialsApply = (formUpdates) => {
+    setForm(prev => ({ ...prev, ...formUpdates }));
+  };
+
+  // --- Обробник застосування даних клієнта ---
+  const handleClientDataApply = (formUpdates) => {
     setForm(prev => ({ ...prev, ...formUpdates }));
   };
 
@@ -2122,6 +2115,15 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         onClose={() => setShowContractFileSelector(false)}
         onSelect={handleContractFileSelect}
         currentContractFile={form.contractFile}
+      />
+      
+      {/* Модальне вікно вибору даних клієнта */}
+      <ClientDataSelectionModal
+        open={clientDataModal.open}
+        onClose={() => setClientDataModal({ open: false, edrpou: '' })}
+        onApply={handleClientDataApply}
+        edrpou={clientDataModal.edrpou}
+        currentFormData={form}
       />
     </div>
   );

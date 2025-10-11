@@ -590,6 +590,83 @@ const styles = `
     padding: 40px;
     color: #aaa;
   }
+
+  /* Стилі для ClientDataSelectionModal */
+  .client-data-selection-modal {
+    min-width: 600px;
+    max-width: 800px;
+  }
+
+  .client-data-selection {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .data-section {
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 16px;
+    background: #1a2636;
+  }
+
+  .data-header {
+    margin-bottom: 12px;
+  }
+
+  .data-header label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+  }
+
+  .data-header input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #00bfff;
+  }
+
+  .data-fields {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #444;
+  }
+
+  .field-group {
+    margin-bottom: 12px;
+  }
+
+  .field-group label {
+    display: block;
+    margin-bottom: 4px;
+    color: #aaa;
+    font-size: 14px;
+  }
+
+  .field-group input,
+  .field-group textarea {
+    width: 100%;
+    padding: 8px;
+    background: #22334a;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+
+  .field-group input:focus,
+  .field-group textarea:focus {
+    outline: none;
+    border-color: #00bfff;
+  }
+
+  .field-group textarea {
+    resize: vertical;
+    min-height: 60px;
+  }
 `;
 
 // Додаємо стилі до DOM
