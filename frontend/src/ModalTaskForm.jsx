@@ -2170,6 +2170,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         onClose={() => setShowContractFileSelector(false)}
         onSelect={handleContractFileSelect}
         currentContractFile={form.contractFile}
+        currentEdrpou={form.edrpou}
       />
       
       {/* Модальне вікно вибору даних клієнта */}

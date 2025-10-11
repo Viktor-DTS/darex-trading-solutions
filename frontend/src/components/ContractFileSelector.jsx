@@ -5,7 +5,8 @@ const ContractFileSelector = ({
   open, 
   onClose, 
   onSelect, 
-  currentContractFile = null 
+  currentContractFile = null,
+  currentEdrpou = null
 }) => {
   const [contractFiles, setContractFiles] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -38,11 +39,24 @@ const ContractFileSelector = ({
     onClose();
   };
 
-  const filteredFiles = contractFiles.filter(file => 
-    file.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    file.edrpou.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    file.fileName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Спочатку фільтруємо по ЄДРПОУ, якщо він вказаний
+  let filteredFiles = contractFiles;
+  if (currentEdrpou && currentEdrpou.trim()) {
+    filteredFiles = contractFiles.filter(file => 
+      file.edrpou === currentEdrpou
+    );
+    console.log('[DEBUG] ContractFileSelector - фільтрація по ЄДРПОУ:', currentEdrpou, 'знайдено файлів:', filteredFiles.length);
+  }
+  
+  // Потім фільтруємо по пошуковому терміну
+  if (searchTerm && searchTerm.trim()) {
+    filteredFiles = filteredFiles.filter(file => 
+      file.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      file.edrpou.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      file.fileName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    console.log('[DEBUG] ContractFileSelector - фільтрація по пошуку:', searchTerm, 'знайдено файлів:', filteredFiles.length);
+  }
 
   if (!open) return null;
 
@@ -62,7 +76,7 @@ const ContractFileSelector = ({
               <div className="search-section">
                 <input
                   type="text"
-                  placeholder="Пошук по клієнту, ЄДРПОУ або назві файлу..."
+                  placeholder={currentEdrpou ? `Файли для ЄДРПОУ ${currentEdrpou}. Пошук по клієнту або назві файлу...` : "Пошук по клієнту, ЄДРПОУ або назві файлу..."}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="search-input"
@@ -73,7 +87,10 @@ const ContractFileSelector = ({
               <div className="files-list">
                 {filteredFiles.length === 0 ? (
                   <div className="no-files">
-                    {searchTerm ? 'Файли не знайдено' : 'Немає доступних файлів договорів'}
+                    {currentEdrpou ? 
+                      (searchTerm ? `Файли для ЄДРПОУ ${currentEdrpou} не знайдено за пошуком "${searchTerm}"` : `Немає файлів договорів для ЄДРПОУ ${currentEdrpou}`) :
+                      (searchTerm ? 'Файли не знайдено' : 'Немає доступних файлів договорів')
+                    }
                   </div>
                 ) : (
                   filteredFiles.map((file, index) => (
