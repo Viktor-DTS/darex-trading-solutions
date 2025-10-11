@@ -2776,6 +2776,81 @@ app.get('/api/equipment-materials/:equipmentType', async (req, res) => {
   }
 });
 
+// API для отримання типів обладнання по ЄДРПОУ
+app.get('/api/edrpou-equipment-types/:edrpou', async (req, res) => {
+  try {
+    const { edrpou } = req.params;
+    console.log('[DEBUG] GET /api/edrpou-equipment-types/:edrpou - запит для ЄДРПОУ:', edrpou);
+    
+    // Знаходимо всі завдання з цим ЄДРПОУ
+    const tasks = await Task.find({ 
+      edrpou: { $regex: new RegExp(edrpou, 'i') } 
+    });
+    
+    // Збираємо унікальні типи обладнання
+    const equipmentTypes = [...new Set(tasks.map(t => t.equipment).filter(e => e && e.trim()))].sort();
+    
+    console.log('[DEBUG] GET /api/edrpou-equipment-types/:edrpou - знайдено типів обладнання:', equipmentTypes.length);
+    res.json(equipmentTypes);
+  } catch (error) {
+    console.error('[ERROR] GET /api/edrpou-equipment-types/:edrpou - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для отримання матеріалів по ЄДРПОУ та типу обладнання
+app.get('/api/edrpou-equipment-materials/:edrpou/:equipmentType', async (req, res) => {
+  try {
+    const { edrpou, equipmentType } = req.params;
+    console.log('[DEBUG] GET /api/edrpou-equipment-materials/:edrpou/:equipmentType - запит для ЄДРПОУ:', edrpou, 'обладнання:', equipmentType);
+    
+    // Знаходимо всі завдання з цим ЄДРПОУ та типом обладнання
+    const tasks = await Task.find({ 
+      edrpou: { $regex: new RegExp(edrpou, 'i') },
+      equipment: { $regex: new RegExp(equipmentType, 'i') } 
+    });
+    
+    // Збираємо унікальні матеріали
+    const materials = {
+      oil: {
+        types: [...new Set(tasks.map(t => t.oilType).filter(t => t && t.trim()))],
+        quantities: [...new Set(tasks.map(t => t.oilUsed).filter(q => q && q.trim()))]
+      },
+      oilFilter: {
+        names: [...new Set(tasks.map(t => t.filterName).filter(n => n && n.trim()))],
+        quantities: [...new Set(tasks.map(t => t.filterCount).filter(q => q && q.trim()))]
+      },
+      fuelFilter: {
+        names: [...new Set(tasks.map(t => t.fuelFilterName).filter(n => n && n.trim()))],
+        quantities: [...new Set(tasks.map(t => t.fuelFilterCount).filter(q => q && q.trim()))]
+      },
+      airFilter: {
+        names: [...new Set(tasks.map(t => t.airFilterName).filter(n => n && n.trim()))],
+        quantities: [...new Set(tasks.map(t => t.airFilterCount).filter(q => q && q.trim()))]
+      },
+      antifreeze: {
+        types: [...new Set(tasks.map(t => t.antifreezeType).filter(t => t && t.trim()))],
+        quantities: [...new Set(tasks.map(t => t.antifreezeL).filter(q => q && q.trim()))]
+      },
+      otherMaterials: [...new Set(tasks.map(t => t.otherMaterials).filter(m => m && m.trim()))]
+    };
+    
+    console.log('[DEBUG] GET /api/edrpou-equipment-materials/:edrpou/:equipmentType - знайдено матеріалів:', {
+      oil: materials.oil.types.length,
+      oilFilter: materials.oilFilter.names.length,
+      fuelFilter: materials.fuelFilter.names.length,
+      airFilter: materials.airFilter.names.length,
+      antifreeze: materials.antifreeze.types.length,
+      otherMaterials: materials.otherMaterials.length
+    });
+    
+    res.json(materials);
+  } catch (error) {
+    console.error('[ERROR] GET /api/edrpou-equipment-materials/:edrpou/:equipmentType - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // API для отримання унікальних ЄДРПОУ
 app.get('/api/edrpou-list', async (req, res) => {
   try {

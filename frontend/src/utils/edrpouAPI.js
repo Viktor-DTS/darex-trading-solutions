@@ -44,3 +44,29 @@ export const getContractFiles = async () => {
     throw error;
   }
 };
+
+export const getEdrpouEquipmentTypes = async (edrpou) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/edrpou-equipment-types/${encodeURIComponent(edrpou)}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка отримання типів обладнання для ЄДРПОУ:', error);
+    throw error;
+  }
+};
+
+export const getEdrpouEquipmentMaterials = async (edrpou, equipmentType) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/edrpou-equipment-materials/${encodeURIComponent(edrpou)}/${encodeURIComponent(equipmentType)}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка отримання матеріалів для ЄДРПОУ та типу обладнання:', error);
+    throw error;
+  }
+};

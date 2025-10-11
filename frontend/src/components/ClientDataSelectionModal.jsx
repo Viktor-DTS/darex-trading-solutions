@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getClientData } from '../utils/edrpouAPI';
+import { getClientData, getEdrpouEquipmentTypes, getEdrpouEquipmentMaterials } from '../utils/edrpouAPI';
 
 const ClientDataSelectionModal = ({ 
   open, 
@@ -10,19 +10,32 @@ const ClientDataSelectionModal = ({
 }) => {
   const [clientData, setClientData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [equipmentTypes, setEquipmentTypes] = useState([]);
+  const [materials, setMaterials] = useState(null);
+  const [selectedEquipmentType, setSelectedEquipmentType] = useState('');
+  const [materialsLoading, setMaterialsLoading] = useState(false);
   const [selectedData, setSelectedData] = useState({
     client: { enabled: false, value: '' },
     address: { enabled: false, value: '' },
     invoiceRecipientDetails: { enabled: false, value: '' },
-    contractFile: { enabled: false, value: null }
+    contractFile: { enabled: false, value: null },
+    materials: { enabled: false, value: null }
   });
 
   // Завантаження даних клієнта при відкритті модального вікна
   useEffect(() => {
     if (open && edrpou) {
       loadClientData();
+      loadEquipmentTypes();
     }
   }, [open, edrpou]);
+
+  // Завантаження матеріалів при зміні типу обладнання
+  useEffect(() => {
+    if (selectedEquipmentType && edrpou) {
+      loadMaterials(selectedEquipmentType);
+    }
+  }, [selectedEquipmentType, edrpou]);
 
   const loadClientData = async () => {
     if (!edrpou) return;
@@ -65,12 +78,49 @@ const ClientDataSelectionModal = ({
     }
   };
 
+  const loadEquipmentTypes = async () => {
+    if (!edrpou) return;
+    try {
+      const types = await getEdrpouEquipmentTypes(edrpou);
+      setEquipmentTypes(types);
+    } catch (error) {
+      console.error('Помилка завантаження типів обладнання:', error);
+    }
+  };
+
+  const loadMaterials = async (equipmentType) => {
+    if (!edrpou || !equipmentType) return;
+    setMaterialsLoading(true);
+    try {
+      const materialsData = await getEdrpouEquipmentMaterials(edrpou, equipmentType);
+      setMaterials(materialsData);
+    } catch (error) {
+      console.error('Помилка завантаження матеріалів:', error);
+    } finally {
+      setMaterialsLoading(false);
+    }
+  };
+
   const handleDataChange = (field, enabled, value) => {
     setSelectedData(prev => ({
       ...prev,
       [field]: {
         enabled,
         value: enabled ? value : prev[field].value
+      }
+    }));
+  };
+
+  const handleEquipmentTypeChange = (equipmentType) => {
+    setSelectedEquipmentType(equipmentType);
+  };
+
+  const handleMaterialsChange = (enabled, materialsData) => {
+    setSelectedData(prev => ({
+      ...prev,
+      materials: {
+        enabled,
+        value: materialsData
       }
     }));
   };
@@ -89,6 +139,9 @@ const ClientDataSelectionModal = ({
     }
     if (selectedData.contractFile.enabled) {
       formUpdates.contractFile = selectedData.contractFile.value;
+    }
+    if (selectedData.materials.enabled && selectedData.materials.value) {
+      formUpdates.materials = selectedData.materials.value;
     }
     
     onApply(formUpdates);
@@ -263,6 +316,175 @@ const ClientDataSelectionModal = ({
                         </div>
                       </div>
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Автозаповнення матеріалів по ЄДРПОУ */}
+              <div className="data-section">
+                <div className="data-header">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={selectedData.materials.enabled}
+                      onChange={(e) => handleMaterialsChange(e.target.checked, materials)}
+                    />
+                    Автозаповнення матеріалів
+                  </label>
+                </div>
+                {selectedData.materials.enabled && (
+                  <div className="data-fields">
+                    {/* Вибір типу обладнання */}
+                    <div className="field-group">
+                      <label>Тип обладнання для цього ЄДРПОУ:</label>
+                      <select
+                        value={selectedEquipmentType}
+                        onChange={(e) => handleEquipmentTypeChange(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          fontSize: '14px'
+                        }}
+                      >
+                        <option value="">Оберіть тип обладнання</option>
+                        {equipmentTypes.map((type, index) => (
+                          <option key={index} value={type}>
+                            {type}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Матеріали */}
+                    {selectedEquipmentType && (
+                      <div className="field-group">
+                        <div style={{ marginTop: '10px' }}>
+                          {materialsLoading ? (
+                            <div className="loading">Завантаження матеріалів...</div>
+                          ) : materials ? (
+                            <div style={{ 
+                              border: '1px solid #ddd', 
+                              borderRadius: '4px', 
+                              padding: '10px',
+                              backgroundColor: '#f9f9f9'
+                            }}>
+                              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>Доступні матеріали для автозаповнення:</h4>
+                              
+                              {/* Олива */}
+                              {materials.oil && (materials.oil.types.length > 0 || materials.oil.quantities.length > 0) && (
+                                <div style={{ marginBottom: '8px' }}>
+                                  <strong>🛢️ Олива:</strong>
+                                  {materials.oil.types.length > 0 && (
+                                    <div style={{ marginLeft: '15px', fontSize: '12px' }}>
+                                      Типи: {materials.oil.types.join(', ')}
+                                    </div>
+                                  )}
+                                  {materials.oil.quantities.length > 0 && (
+                                    <div style={{ marginLeft: '15px', fontSize: '12px' }}>
+                                      Кількості: {materials.oil.quantities.join(', ')}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Масляний фільтр */}
+                              {materials.oilFilter && (materials.oilFilter.names.length > 0 || materials.oilFilter.quantities.length > 0) && (
+                                <div style={{ marginBottom: '8px' }}>
+                                  <strong>🔧 Масляний фільтр:</strong>
+                                  {materials.oilFilter.names.length > 0 && (
+                                    <div style={{ marginLeft: '15px', fontSize: '12px' }}>
+                                      Назви: {materials.oilFilter.names.join(', ')}
+                                    </div>
+                                  )}
+                                  {materials.oilFilter.quantities.length > 0 && (
+                                    <div style={{ marginLeft: '15px', fontSize: '12px' }}>
+                                      Кількості: {materials.oilFilter.quantities.join(', ')}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Паливний фільтр */}
+                              {materials.fuelFilter && (materials.fuelFilter.names.length > 0 || materials.fuelFilter.quantities.length > 0) && (
+                                <div style={{ marginBottom: '8px' }}>
+                                  <strong>⛽ Паливний фільтр:</strong>
+                                  {materials.fuelFilter.names.length > 0 && (
+                                    <div style={{ marginLeft: '15px', fontSize: '12px' }}>
+                                      Назви: {materials.fuelFilter.names.join(', ')}
+                                    </div>
+                                  )}
+                                  {materials.fuelFilter.quantities.length > 0 && (
+                                    <div style={{ marginLeft: '15px', fontSize: '12px' }}>
+                                      Кількості: {materials.fuelFilter.quantities.join(', ')}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Повітряний фільтр */}
+                              {materials.airFilter && (materials.airFilter.names.length > 0 || materials.airFilter.quantities.length > 0) && (
+                                <div style={{ marginBottom: '8px' }}>
+                                  <strong>💨 Повітряний фільтр:</strong>
+                                  {materials.airFilter.names.length > 0 && (
+                                    <div style={{ marginLeft: '15px', fontSize: '12px' }}>
+                                      Назви: {materials.airFilter.names.join(', ')}
+                                    </div>
+                                  )}
+                                  {materials.airFilter.quantities.length > 0 && (
+                                    <div style={{ marginLeft: '15px', fontSize: '12px' }}>
+                                      Кількості: {materials.airFilter.quantities.join(', ')}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Антифриз */}
+                              {materials.antifreeze && (materials.antifreeze.types.length > 0 || materials.antifreeze.quantities.length > 0) && (
+                                <div style={{ marginBottom: '8px' }}>
+                                  <strong>🧊 Антифриз:</strong>
+                                  {materials.antifreeze.types.length > 0 && (
+                                    <div style={{ marginLeft: '15px', fontSize: '12px' }}>
+                                      Типи: {materials.antifreeze.types.join(', ')}
+                                    </div>
+                                  )}
+                                  {materials.antifreeze.quantities.length > 0 && (
+                                    <div style={{ marginLeft: '15px', fontSize: '12px' }}>
+                                      Кількості: {materials.antifreeze.quantities.join(', ')}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Інші матеріали */}
+                              {materials.otherMaterials && materials.otherMaterials.length > 0 && (
+                                <div style={{ marginBottom: '8px' }}>
+                                  <strong>📦 Інші матеріали:</strong>
+                                  <div style={{ marginLeft: '15px', fontSize: '12px' }}>
+                                    {materials.otherMaterials.join(', ')}
+                                  </div>
+                                </div>
+                              )}
+
+                              {Object.values(materials).every(m => 
+                                !m || (Array.isArray(m) ? m.length === 0 : 
+                                  (m.types && m.types.length === 0 && m.quantities && m.quantities.length === 0) ||
+                                  (m.names && m.names.length === 0 && m.quantities && m.quantities.length === 0))
+                              ) && (
+                                <div style={{ color: '#666', fontStyle: 'italic' }}>
+                                  Немає доступних матеріалів для цього типу обладнання
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{ color: '#666', fontStyle: 'italic' }}>
+                              Немає доступних матеріалів для цього типу обладнання
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

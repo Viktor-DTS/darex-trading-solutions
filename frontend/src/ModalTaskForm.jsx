@@ -729,7 +729,72 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
 
   // --- Обробник застосування даних клієнта ---
   const handleClientDataApply = (formUpdates) => {
-    setForm(prev => ({ ...prev, ...formUpdates }));
+    console.log('[DEBUG] handleClientDataApply - отримано оновлення:', formUpdates);
+    
+    setForm(prev => {
+      const newForm = { ...prev, ...formUpdates };
+      
+      // Якщо є матеріали, застосовуємо їх до форми
+      if (formUpdates.materials) {
+        const materials = formUpdates.materials;
+        
+        // Застосовуємо матеріали до відповідних полів
+        if (materials.oil && materials.oil.types.length > 0) {
+          newForm.oilType = materials.oil.types[0]; // Беремо перший тип
+        }
+        if (materials.oil && materials.oil.quantities.length > 0) {
+          newForm.oilUsed = materials.oil.quantities[0]; // Беремо першу кількість
+        }
+        
+        if (materials.oilFilter && materials.oilFilter.names.length > 0) {
+          newForm.filterName = materials.oilFilter.names[0];
+        }
+        if (materials.oilFilter && materials.oilFilter.quantities.length > 0) {
+          newForm.filterCount = materials.oilFilter.quantities[0];
+        }
+        
+        if (materials.fuelFilter && materials.fuelFilter.names.length > 0) {
+          newForm.fuelFilterName = materials.fuelFilter.names[0];
+        }
+        if (materials.fuelFilter && materials.fuelFilter.quantities.length > 0) {
+          newForm.fuelFilterCount = materials.fuelFilter.quantities[0];
+        }
+        
+        if (materials.airFilter && materials.airFilter.names.length > 0) {
+          newForm.airFilterName = materials.airFilter.names[0];
+        }
+        if (materials.airFilter && materials.airFilter.quantities.length > 0) {
+          newForm.airFilterCount = materials.airFilter.quantities[0];
+        }
+        
+        if (materials.antifreeze && materials.antifreeze.types.length > 0) {
+          newForm.antifreezeType = materials.antifreeze.types[0];
+        }
+        if (materials.antifreeze && materials.antifreeze.quantities.length > 0) {
+          newForm.antifreezeL = materials.antifreeze.quantities[0];
+        }
+        
+        if (materials.otherMaterials && materials.otherMaterials.length > 0) {
+          newForm.otherMaterials = materials.otherMaterials[0];
+        }
+        
+        console.log('[DEBUG] handleClientDataApply - застосовано матеріали:', {
+          oilType: newForm.oilType,
+          oilUsed: newForm.oilUsed,
+          filterName: newForm.filterName,
+          filterCount: newForm.filterCount,
+          fuelFilterName: newForm.fuelFilterName,
+          fuelFilterCount: newForm.fuelFilterCount,
+          airFilterName: newForm.airFilterName,
+          airFilterCount: newForm.airFilterCount,
+          antifreezeType: newForm.antifreezeType,
+          antifreezeL: newForm.antifreezeL,
+          otherMaterials: newForm.otherMaterials
+        });
+      }
+      
+      return newForm;
+    });
   };
 
   // --- Обробник вибору файлу договору ---
