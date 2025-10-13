@@ -893,24 +893,6 @@ app.get('/api/tasks', async (req, res) => {
     
     console.log('[DEBUG] GET /api/tasks - знайдено завдань:', tasks.length);
     
-    // Синхронізуємо статуси рахунків для заявок з запитами на рахунки
-    const tasksWithInvoiceRequests = tasks.filter(task => task.invoiceRequestId);
-    if (tasksWithInvoiceRequests.length > 0) {
-      console.log('[DEBUG] GET /api/tasks - синхронізуємо статуси для заявок з запитами на рахунки:', tasksWithInvoiceRequests.length);
-      
-      for (const task of tasksWithInvoiceRequests) {
-        try {
-          const invoiceRequest = await InvoiceRequest.findById(task.invoiceRequestId);
-          if (invoiceRequest && invoiceRequest.status !== task.invoiceStatus) {
-            task.invoiceStatus = invoiceRequest.status;
-            console.log('[DEBUG] GET /api/tasks - синхронізовано статус для заявки:', task._id, 'статус:', invoiceRequest.status);
-          }
-        } catch (syncError) {
-          console.error('[ERROR] GET /api/tasks - помилка синхронізації для заявки:', task._id, syncError);
-        }
-      }
-    }
-    
     // Додаємо числовий id для сумісності з фронтендом
     const tasksWithId = tasks.map(task => ({
       ...task,
