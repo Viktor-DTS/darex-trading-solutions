@@ -127,10 +127,15 @@ export default function WarehouseArea({ user }) {
     setLoading(true);
     const t = tasks.find(t => t.id === id);
     if (!t) return;
+    
+    // Автоматично заповнюємо дату підтвердження зав. складу
+    const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD формат
+    
     // Перевіряємо чи всі підтвердження пройшли для автоматичного заповнення bonusApprovalDate
     let next = {
       ...t,
       approvedByWarehouse: approved,
+      warehouseApprovalDate: approved === 'Підтверджено' ? currentDate : (approved === 'Відмова' ? '' : t.warehouseApprovalDate),
       warehouseComment: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.warehouseComment)
     };
     let bonusApprovalDate = t.bonusApprovalDate;

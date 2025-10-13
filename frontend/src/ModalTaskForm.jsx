@@ -104,6 +104,7 @@ export const fields = [
   { name: 'transportKm', label: 'Транспортні витрати, км', type: 'text' },
   { name: 'transportSum', label: 'Загальна вартість тр. витрат', type: 'text' },
   { name: 'approvedByWarehouse', label: 'Підтвердження зав. складу', type: 'select', options: ['На розгляді', 'Підтверджено', 'Відмова'], role: 'warehouse' },
+  { name: 'warehouseApprovalDate', label: 'Дата підтвердження зав. складу', type: 'date', role: 'warehouse' },
   { name: 'warehouseComment', label: 'Опис відмови (зав. склад)', type: 'textarea', role: 'warehouse' },
   { name: 'approvedByAccountant', label: 'Підтвердження бухгалтера', type: 'select', options: ['На розгляді', 'Підтверджено', 'Відмова'], role: 'accountant' },
   { name: 'accountantComment', label: 'Опис відмови (бухгалтер)', type: 'textarea', role: 'accountant' },
@@ -666,6 +667,22 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     if (name === 'approvedByWarehouse' && form.approvedByWarehouse === 'Відмова' && value !== 'Відмова') {
       setForm({ ...form, [name]: value, warehouseComment: '' });
       return;
+    }
+    
+    // Автоматичне заповнення дати підтвердження зав. складу
+    if (name === 'approvedByWarehouse') {
+      const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD формат
+      if (value === 'Підтверджено') {
+        setForm({ ...form, [name]: value, warehouseApprovalDate: currentDate });
+        return;
+      } else if (value === 'Відмова') {
+        setForm({ ...form, [name]: value, warehouseApprovalDate: '' });
+        return;
+      } else {
+        // Для "На розгляді" не змінюємо дату
+        setForm({ ...form, [name]: value });
+        return;
+      }
     }
     if (name === 'approvedByAccountant' && form.approvedByAccountant === 'Відмова' && value !== 'Відмова') {
       setForm({ ...form, [name]: value, accountantComment: '', accountantComments: '' });
