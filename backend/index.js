@@ -3305,13 +3305,14 @@ app.post('/api/invoice-requests', (req, res) => {
     console.log('🔥🔥🔥 POST /api/invoice-requests - req.body:', JSON.stringify(req.body, null, 2));
     
     console.log('🔥🔥🔥 POST /api/invoice-requests - розпаковуємо req.body...');
-    const { taskId, requesterId, requesterName, companyDetails } = req.body;
+    const { taskId, requesterId, requesterName, companyDetails, invoiceRecipientDetails } = req.body;
     
     console.log('🔥🔥🔥 POST /api/invoice-requests - розпаковані поля:', {
       taskId,
       requesterId,
       requesterName,
-      companyDetails
+      companyDetails,
+      invoiceRecipientDetails
     });
     
     console.log('🔥🔥🔥 POST /api/invoice-requests - перевіряємо обов\'язкові поля...');
