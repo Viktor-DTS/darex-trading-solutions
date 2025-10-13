@@ -188,7 +188,7 @@ const orderedFields = [
 const labelAboveFields = [
   'status', 'requestDate', 'requestDesc', 'address', 'paymentDate', 'invoiceRecipientDetails', 'paymentType', 'serviceTotal', 'customerEquipmentNumber', 'otherMaterials',
   'debtStatus', 'debtStatusCheckbox',
-  'approvedByWarehouse', 'warehouseComment',
+  'approvedByWarehouse', 'warehouseApprovalDate', 'warehouseComment',
   'approvedByAccountant', 'accountantComment', 'accountantComments',
   // 'approvedByRegionalManager', 'regionalManagerComment', 
   'comments'
@@ -2012,6 +2012,14 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                       <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field textarea'} style={{flex:2}}>
                         <label>{f.label}</label>
                         <textarea name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} style={{minHeight:40}} />
+                      </div>
+                    );
+                  }
+                  if (n === 'warehouseApprovalDate') {
+                    return (
+                      <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
+                        <label>{f.label}</label>
+                        <input type="date" name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} />
                       </div>
                     );
                   }
