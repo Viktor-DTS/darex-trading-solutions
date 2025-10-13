@@ -3491,22 +3491,28 @@ app.post('/api/invoice-requests', async (req, res) => {
 // Отримання списку запитів на рахунки
 app.get('/api/invoice-requests', async (req, res) => {
   try {
-    const { status, requesterId, taskId } = req.query;
+    const { status, requesterId, taskId, showAll } = req.query;
     
-    console.log('DEBUG GET /api/invoice-requests:', { status, requesterId, taskId });
+    addLog(`📋 Loading invoice requests - showAll: ${showAll}`, 'info');
     
     let filter = {};
     if (status) filter.status = status;
     if (requesterId) filter.requesterId = requesterId;
     if (taskId) filter.taskId = taskId;
     
-    console.log('DEBUG filter:', filter);
+    // Якщо showAll не встановлено або false, показуємо тільки pending запити
+    if (!showAll || showAll === 'false') {
+      filter.status = 'pending';
+      addLog('🔍 Filtering to pending requests only', 'info');
+    } else {
+      addLog('📋 Showing all requests (pending, completed, rejected)', 'info');
+    }
     
     const requests = await InvoiceRequest.find(filter)
       .sort({ createdAt: -1 })
       .limit(100);
     
-    console.log('DEBUG знайдено запитів:', requests.length);
+    addLog(`✅ Found ${requests.length} invoice requests`, 'success');
     
     res.json({ 
       success: true, 
@@ -3514,7 +3520,7 @@ app.get('/api/invoice-requests', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Помилка отримання запитів на рахунки:', error);
+    addLog(`❌ Error loading invoice requests: ${error.message}`, 'error');
     res.status(500).json({ 
       success: false, 
       message: 'Помилка отримання запитів на рахунки',
