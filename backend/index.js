@@ -387,7 +387,17 @@ const userSchema = new mongoose.Schema({
   columnsSettings: Object,
   id: Number,
   telegramChatId: String,
-  lastActivity: { type: Date, default: Date.now }
+  lastActivity: { type: Date, default: Date.now },
+  notificationSettings: {
+    newRequests: { type: Boolean, default: false },
+    pendingApproval: { type: Boolean, default: false },
+    accountantApproval: { type: Boolean, default: false },
+    approvedRequests: { type: Boolean, default: false },
+    rejectedRequests: { type: Boolean, default: false },
+    invoiceRequests: { type: Boolean, default: false },
+    completedInvoices: { type: Boolean, default: false },
+    systemNotifications: { type: Boolean, default: false }
+  }
 });
 const User = mongoose.model('User', userSchema);
 
@@ -760,6 +770,7 @@ app.get('/api/users/:login', async (req, res) => {
 app.post('/api/users', async (req, res) => {
   try {
     const userData = req.body;
+    addLog(`📝 Updating user: ${userData.login}`, 'info');
     console.log('[DEBUG] POST /api/users - отримано дані:', JSON.stringify(userData, null, 2));
     
     let user = await User.findOne({ login: userData.login });
@@ -767,6 +778,7 @@ app.post('/api/users', async (req, res) => {
       console.log('[DEBUG] Оновлюємо існуючого користувача:', userData.login);
       Object.assign(user, userData);
       await user.save();
+      addLog(`✅ User updated: ${userData.login}`, 'success');
       console.log('[DEBUG] Користувача оновлено:', userData.login, 'telegramChatId:', user.telegramChatId);
     } else {
       console.log('[DEBUG] Створюємо нового користувача:', userData.login);
@@ -4072,6 +4084,49 @@ app.get('/api/notification-logs', async (req, res) => {
   }
 });
 
+// API для ініціалізації налаштувань сповіщень
+app.post('/api/notification-settings/init', async (req, res) => {
+  try {
+    addLog('🔧 Initializing notification settings for all users', 'info');
+    
+    // Отримуємо всіх користувачів
+    const users = await User.find({});
+    let initializedCount = 0;
+    
+    for (const user of users) {
+      // Ініціалізуємо налаштування сповіщень для користувача, якщо їх немає
+      if (!user.notificationSettings) {
+        user.notificationSettings = {
+          newRequests: false,
+          pendingApproval: false,
+          accountantApproval: false,
+          approvedRequests: false,
+          rejectedRequests: false,
+          invoiceRequests: false,
+          completedInvoices: false,
+          systemNotifications: false
+        };
+        
+        await user.save();
+        initializedCount++;
+        addLog(`✅ Initialized notification settings for user: ${user.login}`, 'info');
+      }
+    }
+    
+    addLog(`🎯 Initialized notification settings for ${initializedCount} users`, 'success');
+    
+    res.json({
+      success: true,
+      message: `Ініціалізовано налаштувань для ${initializedCount} користувачів`,
+      initializedCount
+    });
+  } catch (error) {
+    addLog(`❌ Error initializing notification settings: ${error.message}`, 'error');
+    console.error('[ERROR] POST /api/notification-settings/init - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // API для глобальних налаштувань сповіщень
 app.get('/api/notification-settings/global', async (req, res) => {
   try {
@@ -4153,9 +4208,12 @@ app.get('/api/users/with-telegram', async (req, res) => {
 // API для отримання списку користувачів
 app.get('/api/users', async (req, res) => {
   try {
-    const users = await executeWithRetry(() => User.find({}, 'login name role region telegramChatId'));
+    addLog('📋 Loading users list', 'info');
+    const users = await executeWithRetry(() => User.find({}, 'login name role region telegramChatId notificationSettings'));
+    addLog(`✅ Found ${users.length} users`, 'success');
     res.json(users);
   } catch (error) {
+    addLog(`❌ Error loading users: ${error.message}`, 'error');
     console.error('[ERROR] GET /api/users - помилка:', error);
     res.status(500).json({ error: error.message });
   }
