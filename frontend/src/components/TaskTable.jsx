@@ -732,6 +732,8 @@ function TaskTableComponent({
         invoiceRequested: task.invoiceRequested,
         invoiceRequestId: task.invoiceRequestId,
         invoiceStatus: task.invoiceStatus,
+        invoiceFile: task.invoiceFile,
+        invoiceFileName: task.invoiceFileName,
         allFields: Object.keys(task).filter(key => 
           key.toLowerCase().includes('invoice') || 
           key.toLowerCase().includes('рахунок') ||
@@ -750,11 +752,17 @@ function TaskTableComponent({
       return { status: 'not_requested', color: '#dc3545', label: 'Не подана' }; // Червоний
     }
     
+    // ДОДАТКОВА ЛОГІКА: Якщо є файл рахунку, показуємо "Виконано"
+    if (task.invoiceFile && task.invoiceFile.trim() !== '') {
+      console.log('[DEBUG] getInvoiceStatus - знайдено файл рахунку для заявки:', task.id, 'файл:', task.invoiceFile);
+      return { status: 'completed', color: '#28a745', label: 'Виконано' }; // Зелений
+    }
+    
     // Перевіряємо статус запиту на рахунок
     if (task.invoiceStatus) {
       switch (task.invoiceStatus) {
         case 'completed':
-          return { status: 'completed', color: '#28a745', label: 'Виконана' }; // Зелений
+          return { status: 'completed', color: '#28a745', label: 'Виконано' }; // Зелений
         case 'rejected':
           return { status: 'rejected', color: '#dc3545', label: 'Відхилена' }; // Червоний
         case 'processing':

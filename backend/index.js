@@ -893,8 +893,27 @@ app.get('/api/tasks', async (req, res) => {
     
     console.log('[DEBUG] GET /api/tasks - знайдено завдань:', tasks.length);
     
+    // Додаємо інформацію про файл рахунку для заявок з invoiceRequestId
+    const tasksWithInvoiceInfo = await Promise.all(tasks.map(async (task) => {
+      if (task.invoiceRequestId) {
+        try {
+          const invoiceRequest = await InvoiceRequest.findById(task.invoiceRequestId);
+          if (invoiceRequest && invoiceRequest.invoiceFile) {
+            // Якщо є файл рахунку, встановлюємо статус "completed"
+            task.invoiceStatus = 'completed';
+            task.invoiceFile = invoiceRequest.invoiceFile;
+            task.invoiceFileName = invoiceRequest.invoiceFileName;
+            console.log('[DEBUG] GET /api/tasks - знайдено файл рахунку для заявки:', task._id, 'статус встановлено: completed');
+          }
+        } catch (invoiceError) {
+          console.error('[ERROR] GET /api/tasks - помилка отримання InvoiceRequest для заявки:', task._id, invoiceError);
+        }
+      }
+      return task;
+    }));
+    
     // Додаємо числовий id для сумісності з фронтендом
-    const tasksWithId = tasks.map(task => ({
+    const tasksWithId = tasksWithInvoiceInfo.map(task => ({
       ...task,
       id: task._id.toString()
     }));
