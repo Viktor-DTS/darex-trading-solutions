@@ -66,16 +66,29 @@ const UserNotificationManager = ({ user }) => {
         
         // Створюємо об'єкт де ключ - login користувача, значення - налаштування
         usersData.forEach(user => {
-          settings[user.login] = user.notificationSettings || {
-            newRequests: false,
-            pendingApproval: false,
-            accountantApproval: false,
-            approvedRequests: false,
-            rejectedRequests: false,
-            invoiceRequests: false,
-            completedInvoices: false,
-            systemNotifications: false
-          };
+          // ТИМЧАСОВЕ РІШЕННЯ: Якщо notificationSettings відсутні, ініціалізуємо їх
+          if (!user.notificationSettings) {
+            console.log(`[DEBUG] Ініціалізація налаштувань для користувача: ${user.login}`);
+            user.notificationSettings = {
+              newRequests: false,
+              pendingApproval: false,
+              accountantApproval: false,
+              approvedRequests: false,
+              rejectedRequests: false,
+              invoiceRequests: false,
+              completedInvoices: false,
+              systemNotifications: false
+            };
+            
+            // Зберігаємо оновлені налаштування на сервері
+            fetch(`${API_BASE_URL}/users`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(user)
+            }).catch(err => console.error(`[ERROR] Помилка збереження налаштувань для ${user.login}:`, err));
+          }
+          
+          settings[user.login] = user.notificationSettings;
         });
         
         console.log('[DEBUG] Налаштування завантажено:', settings);
@@ -92,25 +105,55 @@ const UserNotificationManager = ({ user }) => {
     try {
       console.log('[DEBUG] Ініціалізація налаштувань сповіщень...');
       
-      const response = await fetch(`${API_BASE_URL}/notification-settings/init`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
+      // ТИМЧАСОВЕ РІШЕННЯ: Ініціалізуємо налаштування через frontend
+      const response = await fetch(`${API_BASE_URL}/users`);
       if (response.ok) {
-        const result = await response.json();
-        console.log('[DEBUG] Ініціалізація успішна:', result);
-        alert(`Ініціалізовано налаштувань для ${result.initializedCount} користувачів`);
+        const usersData = await response.json();
+        let initializedCount = 0;
+        
+        // Оновлюємо кожного користувача
+        for (const user of usersData) {
+          if (!user.notificationSettings) {
+            const updatedUser = {
+              ...user,
+              notificationSettings: {
+                newRequests: false,
+                pendingApproval: false,
+                accountantApproval: false,
+                approvedRequests: false,
+                rejectedRequests: false,
+                invoiceRequests: false,
+                completedInvoices: false,
+                systemNotifications: false
+              }
+            };
+            
+            try {
+              await fetch(`${API_BASE_URL}/users`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedUser)
+              });
+              initializedCount++;
+              console.log(`[DEBUG] Ініціалізовано налаштування для: ${user.login}`);
+            } catch (err) {
+              console.error(`[ERROR] Помилка ініціалізації для ${user.login}:`, err);
+            }
+          }
+        }
+        
+        console.log(`[DEBUG] Ініціалізовано налаштувань для ${initializedCount} користувачів`);
+        alert(`Ініціалізовано налаштувань для ${initializedCount} користувачів`);
         
         // Перезавантажуємо налаштування
         await loadNotificationSettings();
       } else {
-        console.error('Помилка ініціалізації:', response.status, response.statusText);
-        alert('Помилка ініціалізації налаштувань');
+        console.error('Помилка завантаження користувачів:', response.status, response.statusText);
+        alert('Помилка завантаження користувачів');
       }
     } catch (error) {
       console.error('Помилка ініціалізації налаштувань:', error);
-      alert('Помилка ініціалізації налаштувань');
+      alert('Помилка ініціалізації налаштувань: ' + error.message);
     }
   };
 
