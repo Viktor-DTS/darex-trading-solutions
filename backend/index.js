@@ -3291,11 +3291,16 @@ app.get('/api/test-invoice', (req, res) => {
 });
 
 // Створення запиту на рахунок
-app.post('/api/invoice-requests', async (req, res) => {
+app.post('/api/invoice-requests', (req, res) => {
   console.log('🔥🔥🔥 POST /api/invoice-requests - ENDPOINT ВИКЛИКАНИЙ! 🔥🔥🔥');
   console.log('🔥🔥🔥 TIMESTAMP:', new Date().toISOString());
   console.log('🔥🔥🔥 HEADERS:', req.headers);
-  try {
+  console.log('🔥🔥🔥 BODY TYPE:', typeof req.body);
+  console.log('🔥🔥🔥 BODY:', req.body);
+  
+  // Обробляємо асинхронно
+  (async () => {
+    try {
     console.log('🔥🔥🔥 POST /api/invoice-requests - запит отримано');
     console.log('🔥🔥🔥 POST /api/invoice-requests - req.body:', JSON.stringify(req.body, null, 2));
     
@@ -3403,6 +3408,7 @@ app.post('/api/invoice-requests', async (req, res) => {
       error: error.message 
     });
   }
+  })();
 });
 
 // Отримання списку запитів на рахунки
