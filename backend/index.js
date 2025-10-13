@@ -18,6 +18,39 @@ const multer = require('multer');
 const cloudinary = require('./config/cloudinary');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
+// === АВТОМАТИЧНИЙ ЛОГІНГ СИСТЕМА ===
+const logs = [];
+const endpointStats = {};
+
+function addLog(message, type = 'info') {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    message,
+    type
+  };
+  logs.push(logEntry);
+  
+  // Зберігати тільки останні 100 логів
+  if (logs.length > 100) {
+    logs.shift();
+  }
+  
+  console.log(`[${type.toUpperCase()}] ${message}`);
+}
+
+// Middleware для відстеження endpoint'ів
+function trackEndpoint(req, res, next) {
+  const key = `${req.method} ${req.path}`;
+  if (!endpointStats[key]) {
+    endpointStats[key] = { calls: 0, errors: 0, lastCall: null };
+  }
+  
+  endpointStats[key].calls++;
+  endpointStats[key].lastCall = new Date().toISOString();
+  
+  next();
+}
+
 
 const app = express();
 
@@ -634,6 +667,9 @@ app.use((err, req, res, next) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Автоматичне відстеження всіх endpoint'ів
+app.use(trackEndpoint);
+
 // Додаємо роут файлів
 app.use('/api/files', filesRouter);
 
@@ -877,7 +913,7 @@ app.post('/api/tasks/imported', async (req, res) => {
 
 app.get('/api/tasks', async (req, res) => {
   try {
-    console.log('[DEBUG] GET /api/tasks - запит на отримання завдань');
+    addLog('📋 Loading tasks', 'info');
     
     // Отримуємо параметри запиту
     const { limit = 1000, skip = 0, sort = '-requestDate' } = req.query;
@@ -1255,6 +1291,86 @@ app.get('/api/ping', (req, res) => {
       mongoUriExists: !!process.env.MONGODB_URI
     }
   });
+});
+
+// === АВТОМАТИЧНИЙ DASHBOARD ===
+app.get('/api/dashboard', (req, res) => {
+  res.json({
+    system: {
+      status: 'online',
+      timestamp: new Date().toISOString(),
+      mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+      memory: process.memoryUsage(),
+      uptime: process.uptime()
+    },
+    recentLogs: logs.slice(-20),
+    endpointStats,
+    health: {
+      totalLogs: logs.length,
+      errorCount: logs.filter(log => log.type === 'error').length,
+      lastError: logs.filter(log => log.type === 'error').slice(-1)[0] || null
+    }
+  });
+});
+
+app.get('/api/recent-logs', (req, res) => {
+  res.json({ logs: logs.slice(-50) });
+});
+
+app.get('/api/endpoint-stats', (req, res) => {
+  res.json(endpointStats);
+});
+
+// Screenshot endpoint для візуального моніторингу
+app.get('/api/screenshot', async (req, res) => {
+  try {
+    addLog('📸 Taking screenshot', 'info');
+    
+    // Простий HTML для тестування
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>DTS System Status</title>
+      <style>
+        body { font-family: Arial; margin: 20px; background: #f5f5f5; }
+        .status { background: white; padding: 20px; border-radius: 8px; margin: 10px 0; }
+        .success { border-left: 4px solid #28a745; }
+        .error { border-left: 4px solid #dc3545; }
+        .warning { border-left: 4px solid #ffc107; }
+        .timestamp { color: #666; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <h1>🚀 DTS System Dashboard</h1>
+      <div class="status success">
+        <h3>✅ System Online</h3>
+        <p>MongoDB: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'}</p>
+        <p>Uptime: ${Math.floor(process.uptime())} seconds</p>
+        <p class="timestamp">${new Date().toISOString()}</p>
+      </div>
+      <div class="status ${logs.filter(log => log.type === 'error').length > 0 ? 'error' : 'success'}">
+        <h3>📊 Recent Activity</h3>
+        <p>Total Logs: ${logs.length}</p>
+        <p>Errors: ${logs.filter(log => log.type === 'error').length}</p>
+        <p>Last Error: ${logs.filter(log => log.type === 'error').slice(-1)[0]?.message || 'None'}</p>
+      </div>
+      <div class="status warning">
+        <h3>🔧 Endpoint Stats</h3>
+        <p>Total Endpoints: ${Object.keys(endpointStats).length}</p>
+        <p>Most Used: ${Object.entries(endpointStats).sort((a,b) => b[1].calls - a[1].calls)[0]?.[0] || 'None'}</p>
+      </div>
+    </body>
+    </html>
+    `;
+    
+    res.set('Content-Type', 'text/html');
+    res.send(html);
+    
+  } catch (error) {
+    addLog(`❌ Screenshot failed: ${error.message}`, 'error');
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Тестовий ендпоінт для перевірки MongoDB
@@ -3291,88 +3407,57 @@ app.get('/api/test-invoice', (req, res) => {
 });
 
 // Створення запиту на рахунок
-app.post('/api/invoice-requests', (req, res) => {
-  console.log('🔥🔥🔥 POST /api/invoice-requests - ENDPOINT ВИКЛИКАНИЙ! 🔥🔥🔥');
-  console.log('🔥🔥🔥 TIMESTAMP:', new Date().toISOString());
-  console.log('🔥🔥🔥 HEADERS:', req.headers);
-  console.log('🔥🔥🔥 BODY TYPE:', typeof req.body);
-  console.log('🔥🔥🔥 BODY:', req.body);
+app.post('/api/invoice-requests', async (req, res) => {
+  addLog('🔥 INVOICE REQUEST STARTED', 'info');
   
-  // Обробляємо асинхронно
-  (async () => {
-    try {
-    console.log('🔥🔥🔥 POST /api/invoice-requests - запит отримано');
-    console.log('🔥🔥🔥 POST /api/invoice-requests - req.body:', JSON.stringify(req.body, null, 2));
-    
-    console.log('🔥🔥🔥 POST /api/invoice-requests - розпаковуємо req.body...');
+  try {
     const { taskId, requesterId, requesterName, companyDetails, invoiceRecipientDetails } = req.body;
-    
-    console.log('🔥🔥🔥 POST /api/invoice-requests - розпаковані поля:', {
-      taskId,
-      requesterId,
-      requesterName,
-      companyDetails,
-      invoiceRecipientDetails
-    });
-    
-    console.log('🔥🔥🔥 POST /api/invoice-requests - перевіряємо обов\'язкові поля...');
+    addLog(`Invoice request for task: ${taskId}`, 'info');
     
     if (!taskId || !requesterId || !requesterName || !companyDetails) {
-      console.log('🔥🔥🔥 ERROR - відсутні обов\'язкові поля:', {
-        taskId: !!taskId,
-        requesterId: !!requesterId,
-        requesterName: !!requesterName,
-        companyDetails: !!companyDetails
-      });
+      addLog('❌ Missing required fields', 'error');
       return res.status(400).json({ 
         success: false, 
         message: 'Відсутні обов\'язкові поля' 
       });
     }
     
-    console.log('🔥🔥🔥 POST /api/invoice-requests - всі поля присутні, шукаємо заявку...');
-    
     // Отримуємо заявку для отримання requestNumber
-    console.log('🔥🔥🔥 POST /api/invoice-requests - шукаємо заявку з taskId:', taskId);
     const task = await Task.findById(taskId);
     if (!task) {
-      console.log('🔥🔥🔥 ERROR - заявка не знайдена для taskId:', taskId);
+      addLog(`❌ Task not found: ${taskId}`, 'error');
       return res.status(404).json({ 
         success: false, 
         message: 'Заявка не знайдена' 
       });
     }
-    console.log('🔥🔥🔥 POST /api/invoice-requests - знайдено заявку:', task._id, 'requestNumber:', task.requestNumber);
+    addLog(`✅ Task found: ${task._id}`, 'info');
     
     // Перевіряємо чи не існує вже запит для цієї заявки
-    console.log('🔥🔥🔥 POST /api/invoice-requests - перевіряємо існуючі запити для taskId:', taskId);
     const existingRequest = await InvoiceRequest.findOne({ taskId });
     if (existingRequest) {
-      console.log('🔥🔥🔥 ERROR - запит вже існує для taskId:', taskId, 'existingRequestId:', existingRequest._id);
+      addLog(`❌ Invoice request already exists for task: ${taskId}`, 'error');
       return res.status(400).json({ 
         success: false, 
         message: 'Запит на рахунок для цієї заявки вже існує' 
       });
     }
     
-    console.log('🔥🔥🔥 POST /api/invoice-requests - існуючих запитів немає, створюємо новий...');
-    
-    console.log('🔥🔥🔥 POST /api/invoice-requests - створюємо новий запит на рахунок');
+    // Створюємо новий запит на рахунок
     const invoiceRequest = new InvoiceRequest({
       taskId,
       requestNumber: task.requestNumber || 'Н/Д',
       requesterId,
       requesterName,
       companyDetails,
+      invoiceRecipientDetails,
       status: 'pending'
     });
     
-    console.log('🔥🔥🔥 POST /api/invoice-requests - зберігаємо запит на рахунок...');
     await invoiceRequest.save();
-    console.log('🔥🔥🔥 POST /api/invoice-requests - запит збережено з ID:', invoiceRequest._id);
+    addLog(`✅ Invoice request created: ${invoiceRequest._id}`, 'success');
     
     // Відправляємо сповіщення бухгалтерам
-    console.log('🔥🔥🔥 POST /api/invoice-requests - відправляємо сповіщення...');
     try {
       const telegramService = new TelegramNotificationService();
       await telegramService.sendNotification('invoice_requested', {
@@ -3381,35 +3466,26 @@ app.post('/api/invoice-requests', (req, res) => {
         companyName: companyDetails.companyName,
         edrpou: companyDetails.edrpou
       });
-      console.log('🔥🔥🔥 POST /api/invoice-requests - сповіщення відправлено успішно');
+      addLog('✅ Telegram notification sent', 'info');
     } catch (notificationError) {
-      console.error('🔥🔥🔥 ERROR - помилка відправки сповіщення:', notificationError);
+      addLog(`⚠️ Telegram notification failed: ${notificationError.message}`, 'warning');
     }
     
-    console.log('🔥🔥🔥 POST /api/invoice-requests - відправляємо успішну відповідь...');
     res.json({ 
       success: true, 
       message: 'Запит на рахунок створено успішно',
       data: invoiceRequest 
     });
-    console.log('🔥🔥🔥 POST /api/invoice-requests - ВІДПОВІДЬ ВІДПРАВЛЕНА!');
+    addLog('✅ INVOICE REQUEST COMPLETED', 'success');
     
   } catch (error) {
-    console.error('🔥🔥🔥 CRITICAL ERROR - помилка створення запиту на рахунок:', error);
-    console.error('🔥🔥🔥 CRITICAL ERROR - стек помилки:', error.stack);
-    console.error('🔥🔥🔥 CRITICAL ERROR - повна інформація про помилку:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-      code: error.code
-    });
+    addLog(`❌ INVOICE REQUEST FAILED: ${error.message}`, 'error');
     res.status(500).json({ 
       success: false, 
       message: 'Помилка створення запиту на рахунок',
       error: error.message 
     });
   }
-  })();
 });
 
 // Отримання списку запитів на рахунки
