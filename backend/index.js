@@ -3292,10 +3292,12 @@ app.get('/api/test-invoice', (req, res) => {
 
 // Створення запиту на рахунок
 app.post('/api/invoice-requests', async (req, res) => {
-  console.log('[DEBUG] POST /api/invoice-requests - ENDPOINT ВИКЛИКАНИЙ!');
+  console.log('🔥🔥🔥 POST /api/invoice-requests - ENDPOINT ВИКЛИКАНИЙ! 🔥🔥🔥');
+  console.log('🔥🔥🔥 TIMESTAMP:', new Date().toISOString());
+  console.log('🔥🔥🔥 HEADERS:', req.headers);
   try {
-    console.log('[DEBUG] POST /api/invoice-requests - запит отримано');
-    console.log('[DEBUG] POST /api/invoice-requests - req.body:', req.body);
+    console.log('🔥🔥🔥 POST /api/invoice-requests - запит отримано');
+    console.log('🔥🔥🔥 POST /api/invoice-requests - req.body:', JSON.stringify(req.body, null, 2));
     
     const { taskId, requesterId, requesterName, companyDetails } = req.body;
     
