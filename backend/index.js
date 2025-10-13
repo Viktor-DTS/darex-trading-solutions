@@ -3280,8 +3280,19 @@ ${message}
 
 // ===== API ENDPOINTS ДЛЯ ЗАПИТІВ НА РАХУНКИ =====
 
+// Тестовий endpoint для перевірки
+app.get('/api/test-invoice', (req, res) => {
+  console.log('[DEBUG] GET /api/test-invoice - тестовий endpoint працює');
+  res.json({ 
+    success: true, 
+    message: 'Тестовий endpoint працює',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Створення запиту на рахунок
 app.post('/api/invoice-requests', async (req, res) => {
+  console.log('[DEBUG] POST /api/invoice-requests - ENDPOINT ВИКЛИКАНИЙ!');
   try {
     console.log('[DEBUG] POST /api/invoice-requests - запит отримано');
     console.log('[DEBUG] POST /api/invoice-requests - req.body:', req.body);
