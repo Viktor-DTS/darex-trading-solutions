@@ -3329,8 +3329,9 @@ app.get('/api/users/active', async (req, res) => {
 // API endpoint для відправки системних повідомлень
 app.post('/api/notifications/send-system-message', async (req, res) => {
   try {
-    console.log('[DEBUG] POST /api/notifications/send-system-message - отримано запит');
-    console.log('[DEBUG] POST /api/notifications/send-system-message - body:', req.body);
+    addLog('📨 System message request received', 'info');
+    addLog(`📝 Message: ${req.body.message}`, 'info');
+    addLog(`🔔 Type: ${req.body.notificationType}`, 'info');
     
     const { message, notificationType } = req.body;
     
@@ -3382,15 +3383,21 @@ ${message}
 📅 <b>Час відправки:</b> ${new Date().toLocaleString('uk-UA')}`;
     
     // Відправляємо повідомлення всім підписаним користувачам
+    addLog(`📤 Sending system message to ${chatIds.length} users`, 'info');
     const results = [];
     for (const chatId of chatIds) {
       const success = await telegramService.sendMessage(chatId, systemMessage);
       results.push({ chatId, success });
+      if (success) {
+        addLog(`✅ Message sent to chatId: ${chatId}`, 'success');
+      } else {
+        addLog(`❌ Failed to send message to chatId: ${chatId}`, 'error');
+      }
     }
     
     const successCount = results.filter(r => r.success).length;
     
-    console.log(`[DEBUG] POST /api/notifications/send-system-message - відправлено ${successCount}/${chatIds.length} повідомлень`);
+    addLog(`📊 System message sent: ${successCount}/${chatIds.length} users`, 'info');
     
     res.json({ 
       success: true, 
