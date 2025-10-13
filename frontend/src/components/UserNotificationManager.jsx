@@ -273,7 +273,7 @@ const UserNotificationManager = ({ user }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: systemMessage,
-          type: 'system_notifications'
+          notificationType: 'system_notifications'
         })
       });
 

@@ -3346,19 +3346,24 @@ app.post('/api/notifications/send-system-message', async (req, res) => {
     }
     
     // Отримуємо користувачів, які підписані на системні сповіщення
-    const globalSettings = await GlobalNotificationSettings.findOne();
-    let chatIds = [];
+    addLog(`🔍 Searching for users with ${notificationType} enabled`, 'info');
     
-    if (globalSettings?.settings?.[notificationType]) {
-      const userIds = globalSettings.settings[notificationType];
-      if (userIds && userIds.length > 0) {
-        const users = await User.find({ login: { $in: userIds } });
-        const userChatIds = users
-          .filter(user => user.telegramChatId && user.telegramChatId.trim())
-          .map(user => user.telegramChatId);
-        chatIds.push(...userChatIds);
-      }
-    }
+    const users = await User.find({});
+    const chatIds = users
+      .filter(user => {
+        // Перевіряємо чи у користувача увімкнені системні сповіщення
+        const hasSystemNotifications = user.notificationSettings?.systemNotifications === true;
+        const hasTelegramChatId = user.telegramChatId && user.telegramChatId.trim() && user.telegramChatId !== 'Chat ID';
+        
+        if (hasSystemNotifications && hasTelegramChatId) {
+          addLog(`✅ User ${user.login} has system notifications enabled`, 'info');
+          return true;
+        }
+        return false;
+      })
+      .map(user => user.telegramChatId);
+    
+    addLog(`📋 Found ${chatIds.length} users with system notifications enabled`, 'info');
     
     if (chatIds.length === 0) {
       return res.json({ 
