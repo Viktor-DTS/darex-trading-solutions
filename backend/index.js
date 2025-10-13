@@ -3283,9 +3283,25 @@ ${message}
 // Створення запиту на рахунок
 app.post('/api/invoice-requests', async (req, res) => {
   try {
+    console.log('[DEBUG] POST /api/invoice-requests - запит отримано');
+    console.log('[DEBUG] POST /api/invoice-requests - req.body:', req.body);
+    
     const { taskId, requesterId, requesterName, companyDetails } = req.body;
     
+    console.log('[DEBUG] POST /api/invoice-requests - розпаковані поля:', {
+      taskId,
+      requesterId,
+      requesterName,
+      companyDetails
+    });
+    
     if (!taskId || !requesterId || !requesterName || !companyDetails) {
+      console.log('[ERROR] POST /api/invoice-requests - відсутні обов\'язкові поля:', {
+        taskId: !!taskId,
+        requesterId: !!requesterId,
+        requesterName: !!requesterName,
+        companyDetails: !!companyDetails
+      });
       return res.status(400).json({ 
         success: false, 
         message: 'Відсутні обов\'язкові поля' 
@@ -3293,23 +3309,29 @@ app.post('/api/invoice-requests', async (req, res) => {
     }
     
     // Отримуємо заявку для отримання requestNumber
+    console.log('[DEBUG] POST /api/invoice-requests - шукаємо заявку з taskId:', taskId);
     const task = await Task.findById(taskId);
     if (!task) {
+      console.log('[ERROR] POST /api/invoice-requests - заявка не знайдена для taskId:', taskId);
       return res.status(404).json({ 
         success: false, 
         message: 'Заявка не знайдена' 
       });
     }
+    console.log('[DEBUG] POST /api/invoice-requests - знайдено заявку:', task._id, 'requestNumber:', task.requestNumber);
     
     // Перевіряємо чи не існує вже запит для цієї заявки
+    console.log('[DEBUG] POST /api/invoice-requests - перевіряємо існуючі запити для taskId:', taskId);
     const existingRequest = await InvoiceRequest.findOne({ taskId });
     if (existingRequest) {
+      console.log('[ERROR] POST /api/invoice-requests - запит вже існує для taskId:', taskId, 'existingRequestId:', existingRequest._id);
       return res.status(400).json({ 
         success: false, 
         message: 'Запит на рахунок для цієї заявки вже існує' 
       });
     }
     
+    console.log('[DEBUG] POST /api/invoice-requests - створюємо новий запит на рахунок');
     const invoiceRequest = new InvoiceRequest({
       taskId,
       requestNumber: task.requestNumber || 'Н/Д',
@@ -3319,7 +3341,9 @@ app.post('/api/invoice-requests', async (req, res) => {
       status: 'pending'
     });
     
+    console.log('[DEBUG] POST /api/invoice-requests - зберігаємо запит на рахунок');
     await invoiceRequest.save();
+    console.log('[DEBUG] POST /api/invoice-requests - запит збережено з ID:', invoiceRequest._id);
     
     // Відправляємо сповіщення бухгалтерам
     try {
@@ -3341,7 +3365,8 @@ app.post('/api/invoice-requests', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Помилка створення запиту на рахунок:', error);
+    console.error('[ERROR] POST /api/invoice-requests - помилка створення запиту на рахунок:', error);
+    console.error('[ERROR] POST /api/invoice-requests - стек помилки:', error.stack);
     res.status(500).json({ 
       success: false, 
       message: 'Помилка створення запиту на рахунок',
