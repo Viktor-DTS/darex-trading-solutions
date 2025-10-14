@@ -133,13 +133,18 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
   };
 
   const generatePersonnelReport = async () => {
+    console.log('[PERSONNEL REPORT] Starting generation...');
+    console.log('[PERSONNEL REPORT] Filters:', personnelFilters);
+    
     if (!personnelFilters.month || !personnelFilters.year) {
+      console.log('[PERSONNEL REPORT] Missing month or year');
       alert('Будь ласка, вкажіть місяць та рік для звіту');
       return;
     }
 
     setLoading(true);
     try {
+      console.log('[PERSONNEL REPORT] Loading started...');
       // Використовуємо дані з пропсів (як в робочій версії)
       
       const months = [
@@ -150,10 +155,12 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       
       // Отримуємо всіх інженерів (service роль)
       const allEngineers = users.filter(u => u.role === 'service');
+      console.log('[PERSONNEL REPORT] All engineers found:', allEngineers.length);
       
       // Отримуємо заявки за вказаний місяць/рік
       const startDate = new Date(personnelFilters.year, personnelFilters.month - 1, 1);
       const endDate = new Date(personnelFilters.year, personnelFilters.month, 0, 23, 59, 59);
+      console.log('[PERSONNEL REPORT] Date range:', startDate, 'to', endDate);
       
       const monthTasks = tasks.filter(t => {
         if (t.status !== 'Виконано') return false;
@@ -161,6 +168,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         const taskDate = new Date(t.date);
         return taskDate >= startDate && taskDate <= endDate;
       });
+      console.log('[PERSONNEL REPORT] Month tasks found:', monthTasks.length);
       
       
       // Функція для перевірки затвердження
@@ -192,10 +200,12 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       
       // Генеруємо звіт з групуванням по регіонам
       const generateRegionReport = (region) => {
+        console.log(`[PERSONNEL REPORT] Generating report for region: ${region}`);
         const regionTasks = regionGroups[region];
         const regionEngineers = allEngineers.filter(engineer => 
           engineer.region === region || engineer.region === 'Україна'
         );
+        console.log(`[PERSONNEL REPORT] Region ${region}: tasks=${regionTasks.length}, engineers=${regionEngineers.length}`);
         
         // Створюємо табель часу
         const engineerHours = {};
@@ -486,10 +496,19 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       win.document.close();
       
     } catch (error) {
-      console.error('Помилка генерації звіту по персоналу:', error);
-      alert('Помилка генерації звіту по персоналу');
+      console.error('[PERSONNEL REPORT] Error generating report:', error);
+      console.error('[PERSONNEL REPORT] Error stack:', error.stack);
+      console.error('[PERSONNEL REPORT] Error details:', {
+        message: error.message,
+        name: error.name,
+        filters: personnelFilters,
+        tasksCount: tasks.length,
+        usersCount: users.length
+      });
+      alert(`Помилка генерації звіту по персоналу: ${error.message}`);
     } finally {
       setLoading(false);
+      console.log('[PERSONNEL REPORT] Generation completed');
     }
   };
 
