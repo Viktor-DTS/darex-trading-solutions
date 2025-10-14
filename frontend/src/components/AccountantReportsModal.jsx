@@ -170,15 +170,29 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       });
       console.log('[PERSONNEL REPORT] Month tasks found:', monthTasks.length);
       
-      // ДЛЯ ПРЕМІЙ: Беремо заявки тільки за ВИБРАНИЙ МІСЯЦЬ (як у регіонального керівника)
+      // ДЛЯ ПРЕМІЙ: Беремо заявки тільки за ВИБРАНИЙ МІСЯЦЬ з перевіркою дати затвердження
       const allTasksForBonuses = tasks.filter(t => {
         if (t.status !== 'Виконано') return false;
         if (!t.date) return false;
-        // Беремо заявки тільки за вибраний місяць для розрахунку премій
-        const taskDate = new Date(t.date);
-        return taskDate >= startDate && taskDate <= endDate;
+        
+        // Перевіряємо дату затвердження премії (як у регіонального керівника)
+        let bonusMonth = personnelFilters.month;
+        let bonusYear = personnelFilters.year;
+        
+        if (t.bonusApprovalDate) {
+          const bonusDate = new Date(t.bonusApprovalDate);
+          bonusMonth = bonusDate.getMonth() + 1;
+          bonusYear = bonusDate.getFullYear();
+        } else if (t.approvedByAccountantDate) {
+          const approvalDate = new Date(t.approvedByAccountantDate);
+          bonusMonth = approvalDate.getMonth() + 1;
+          bonusYear = approvalDate.getFullYear();
+        }
+        
+        // Нараховуємо премію тільки якщо дата затвердження відповідає вибраному місяцю
+        return bonusMonth === personnelFilters.month && bonusYear === personnelFilters.year;
       });
-      console.log('[PERSONNEL REPORT] Tasks for bonuses (monthly) found:', allTasksForBonuses.length);
+      console.log('[PERSONNEL REPORT] Tasks for bonuses (with approval date check) found:', allTasksForBonuses.length);
       
       
       // Функція для перевірки затвердження
@@ -234,6 +248,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         );
         console.log(`[PERSONNEL REPORT] Region ${region}: tasks=${regionTasks.length}, tasksForBonuses=${regionTasksForBonuses.length}, engineers=${regionEngineers.length}`);
         console.log(`[PERSONNEL REPORT] Region ${region}: Using monthly tasks for both timesheet and bonuses (like regional manager)`);
+        console.log(`[PERSONNEL REPORT] Region ${region}: Tasks for bonuses dates:`, regionTasksForBonuses.map(t => ({date: t.date, bonusApprovalDate: t.bonusApprovalDate, approvedByAccountantDate: t.approvedByAccountantDate})));
         
         // Визначаємо workHours всередині функції
         const workHours = 176; // Норма робочих годин на місяць (22 робочі дні * 8 годин)
@@ -306,40 +321,23 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           // Показуємо повну ставку для всіх інженерів з регіону
           const basePay = salary; // Повна ставка 25000 для всіх інженерів з регіону
           
-          // Розрахунок премії за сервісні роботи (тільки за вибраний місяць, як у регіонального керівника)
+          // Розрахунок премії за сервісні роботи (заявки вже відфільтровані за датою затвердження)
           let engineerBonus = 0;
           regionTasksForBonuses.forEach(task => {
-            // Перевіряємо дату затвердження премії (як у регіонального керівника)
-            let bonusMonth = personnelFilters.month;
-            let bonusYear = personnelFilters.year;
+            const workPrice = parseFloat(task.workPrice) || 0;
+            const bonusVal = workPrice * 0.25;
             
-            if (task.bonusApprovalDate) {
-              const bonusDate = new Date(task.bonusApprovalDate);
-              bonusMonth = bonusDate.getMonth() + 1;
-              bonusYear = bonusDate.getFullYear();
-            } else if (task.approvedByAccountantDate) {
-              const approvalDate = new Date(task.approvedByAccountantDate);
-              bonusMonth = approvalDate.getMonth() + 1;
-              bonusYear = approvalDate.getFullYear();
-            }
+            const engineers = [
+              (task.engineer1 || '').trim(),
+              (task.engineer2 || '').trim(),
+              (task.engineer3 || '').trim(),
+              (task.engineer4 || '').trim(),
+              (task.engineer5 || '').trim(),
+              (task.engineer6 || '').trim()
+            ].filter(eng => eng && eng.length > 0);
             
-            // Нараховуємо премію тільки якщо дата затвердження відповідає вибраному місяцю
-            if (bonusMonth === personnelFilters.month && bonusYear === personnelFilters.year) {
-              const workPrice = parseFloat(task.workPrice) || 0;
-              const bonusVal = workPrice * 0.25;
-              
-              const engineers = [
-                (task.engineer1 || '').trim(),
-                (task.engineer2 || '').trim(),
-                (task.engineer3 || '').trim(),
-                (task.engineer4 || '').trim(),
-                (task.engineer5 || '').trim(),
-                (task.engineer6 || '').trim()
-              ].filter(eng => eng && eng.length > 0);
-              
-              if (engineers.includes(engineer.name) && engineers.length > 0) {
-                engineerBonus += bonusVal / engineers.length;
-              }
+            if (engineers.includes(engineer.name) && engineers.length > 0) {
+              engineerBonus += bonusVal / engineers.length;
             }
           });
           
