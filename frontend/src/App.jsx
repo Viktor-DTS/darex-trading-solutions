@@ -1462,7 +1462,16 @@ function ServiceArea({ user }) {
     <div style={{padding:32}}>
       <h2>Заявки сервісної служби</h2>
       {loading && <div>Завантаження...</div>}
-      <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16}}>Додати заявку</button>
+      
+      {/* Оптимізований рядок з усіма кнопками */}
+      <div style={{display:'flex',gap:8,marginBottom:24,justifyContent:'flex-start',flexWrap:'wrap',alignItems:'center'}}>
+        <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{padding:'10px 20px',background:'#28a745',color:'#fff',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>Додати заявку</button>
+        <button onClick={()=>setTab('notDone')} style={{padding:'10px 16px',background:tab==='notDone'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='notDone'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Невиконані заявки</button>
+        <button onClick={()=>setTab('pending')} style={{padding:'10px 16px',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Заявка на підтвердженні</button>
+        <button onClick={()=>setTab('done')} style={{padding:'10px 16px',background:tab==='done'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='done'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Архів виконаних заявок</button>
+        <button onClick={()=>setTab('blocked')} style={{padding:'10px 16px',background:tab==='blocked'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='blocked'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Заблоковані заявки</button>
+      </div>
+      
       <ModalTaskForm 
         open={modalOpen} 
         onClose={()=>{setModalOpen(false);setEditTask(null);}} 
@@ -1472,12 +1481,6 @@ function ServiceArea({ user }) {
         user={user}
         readOnly={editTask?._readOnly || false}
       />
-      <div style={{display:'flex',gap:8,marginBottom:24,justifyContent:'flex-start'}}>
-        <button onClick={()=>setTab('notDone')} style={{width:220,padding:'10px 0',background:tab==='notDone'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='notDone'?700:400,cursor:'pointer'}}>Невиконані заявки</button>
-        <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
-        <button onClick={()=>setTab('done')} style={{width:220,padding:'10px 0',background:tab==='done'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='done'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
-        <button onClick={()=>setTab('blocked')} style={{width:220,padding:'10px 0',background:tab==='blocked'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='blocked'?700:400,cursor:'pointer'}}>Заблоковані заявки</button>
-      </div>
       <TaskTable
         key={tableKey}
         tasks={tableData}
