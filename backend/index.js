@@ -2,14 +2,25 @@
 require('dotenv').config({ path: './config.env' });
 
 // Override MongoDB URI for production if not set in environment
-if (process.env.NODE_ENV === 'production' && !process.env.MONGODB_URI) {
+console.log('[ENV DEBUG] NODE_ENV:', process.env.NODE_ENV);
+console.log('[ENV DEBUG] MONGODB_URI exists:', !!process.env.MONGODB_URI);
+console.log('[ENV DEBUG] MONGODB_URI value:', process.env.MONGODB_URI ? 'SET' : 'NOT SET');
+
+// Force MongoDB URI for production
+if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
+  console.log('[ENV] Setting MongoDB URI for production/Render');
   process.env.MONGODB_URI = 'mongodb+srv://darexuser:viktor22@cluster0.yaec2av.mongodb.net/test?retryWrites=true&w=majority&appName=Cluster0';
+  console.log('[ENV] MongoDB URI set successfully');
 }
 
 // Додаткова перевірка для Render
 if (process.env.NODE_ENV === 'production') {
   console.log('[ENV] Production mode detected');
   console.log('[ENV] MONGODB_URI exists:', !!process.env.MONGODB_URI);
+  if (process.env.MONGODB_URI) {
+    const uriWithoutPassword = process.env.MONGODB_URI.replace(/\/\/[^:]+:[^@]+@/, '//***:***@');
+    console.log('[ENV] MONGODB_URI (masked):', uriWithoutPassword);
+  }
   console.log('[ENV] PORT:', process.env.PORT);
   console.log('[ENV] MONGODB_URI preview:', process.env.MONGODB_URI ? process.env.MONGODB_URI.substring(0, 20) + '...' : 'NOT SET');
 }
