@@ -207,6 +207,9 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         );
         console.log(`[PERSONNEL REPORT] Region ${region}: tasks=${regionTasks.length}, engineers=${regionEngineers.length}`);
         
+        // Визначаємо workHours всередині функції
+        const workHours = 176; // Норма робочих годин на місяць (22 робочі дні * 8 годин)
+        
         // Створюємо табель часу
         const engineerHours = {};
         regionEngineers.forEach(engineer => {
