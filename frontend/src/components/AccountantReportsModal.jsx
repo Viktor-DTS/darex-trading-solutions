@@ -240,12 +240,12 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           const total = engineerHours[engineer.name]?.total || 0;
           const salary = 25000;
           const bonus = 0;
-          const workHours = 168; // Норма робочих годин на місяць
+          const workHours = 176; // Норма робочих годин на місяць (22 робочі дні * 8 годин)
           const overtime = Math.max(0, total - workHours);
-          const overtimeRate = workHours > 0 ? (salary / workHours) * 2 : 0;
+          const overtimeRate = workHours > 0 ? (salary / workHours) * 1.5 : 0; // 1.5x замість 2x
           const overtimePay = overtime * overtimeRate;
           // Виправляємо розрахунок базової оплати - тільки за фактично відпрацьовані години
-          const basePay = Math.round(salary * total / workHours);
+          const basePay = total > 0 ? Math.round(salary * total / workHours) : 0;
           
           // Розрахунок премії за сервісні роботи
           let engineerBonus = 0;
@@ -359,6 +359,10 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
               }).join('')}
             </tbody>
           </table>
+          <div style="margin-top: 16px; font-size: 14px; color: #666;">
+            <p><strong>Кількість робочих днів у місяці:</strong> 22</p>
+            <p><strong>Норма робочих годин у місяці:</strong> 176</p>
+          </div>
         `;
         
         // Деталізація виконаних робіт
