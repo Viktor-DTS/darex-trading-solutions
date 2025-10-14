@@ -1,6 +1,11 @@
 // Завантаження змінних середовища
 require('dotenv').config({ path: './config.env' });
 
+// Override MongoDB URI for production if not set in environment
+if (process.env.NODE_ENV === 'production' && !process.env.MONGODB_URI) {
+  process.env.MONGODB_URI = 'mongodb+srv://darexuser:viktor22@cluster0.yaec2av.mongodb.net/test?retryWrites=true&w=majority&appName=Cluster0';
+}
+
 // Додаткова перевірка для Render
 if (process.env.NODE_ENV === 'production') {
   console.log('[ENV] Production mode detected');
