@@ -297,10 +297,10 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         // Розраховуємо зарплати
         const engineerSalaries = {};
         regionEngineers.forEach(engineer => {
+          const workHours = 176; // Норма робочих годин на місяць (22 робочі дні * 8 годин)
           const total = workHours; // Завжди показуємо повну норму (176 годин)
           const salary = 25000;
           const bonus = 0;
-          const workHours = 176; // Норма робочих годин на місяць (22 робочі дні * 8 годин)
           const overtime = Math.max(0, total - workHours);
           const overtimeRate = workHours > 0 ? (salary / workHours) * 1.5 : 0; // 1.5x замість 2x
           const overtimePay = overtime * overtimeRate;
