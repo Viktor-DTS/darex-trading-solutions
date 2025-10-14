@@ -255,28 +255,28 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           }
         });
         
-        // Підраховуємо загальні години - показуємо повну норму для інженерів з завданнями
+        // Підраховуємо загальні години - показуємо повну норму для всіх інженерів з регіону
         Object.keys(engineerHours).forEach(engineer => {
           const calculatedTotal = Object.values(engineerHours[engineer])
             .filter(val => typeof val === 'number')
             .reduce((sum, hours) => sum + hours, 0);
           
-          // Якщо інженер має завдання, показуємо повну норму (176 годин)
-          engineerHours[engineer].total = calculatedTotal > 0 ? workHours : 0;
+          // Показуємо повну норму (176 годин) для всіх інженерів з регіону
+          engineerHours[engineer].total = workHours;
         });
         
         // Розраховуємо зарплати
         const engineerSalaries = {};
         regionEngineers.forEach(engineer => {
-          const total = engineerHours[engineer.name]?.total || 0;
+          const total = workHours; // Завжди показуємо повну норму (176 годин)
           const salary = 25000;
           const bonus = 0;
           const workHours = 176; // Норма робочих годин на місяць (22 робочі дні * 8 годин)
           const overtime = Math.max(0, total - workHours);
           const overtimeRate = workHours > 0 ? (salary / workHours) * 1.5 : 0; // 1.5x замість 2x
           const overtimePay = overtime * overtimeRate;
-          // Виправляємо розрахунок базової оплати - показуємо повну ставку для інженерів з завданнями
-          const basePay = total > 0 ? salary : 0; // Повна ставка 25000 для всіх інженерів з завданнями
+          // Показуємо повну ставку для всіх інженерів з регіону
+          const basePay = salary; // Повна ставка 25000 для всіх інженерів з регіону
           
           // Розрахунок премії за сервісні роботи
           let engineerBonus = 0;
@@ -313,11 +313,8 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           };
         });
         
-        // Фільтруємо інженерів з ненульовими годинами роботи
-        const usersWithPayment = regionEngineers.filter(engineer => {
-          const total = engineerHours[engineer.name]?.total || 0;
-          return total > 0;
-        });
+        // Показуємо всіх інженерів з регіону, а не тільки з ненульовими годинами
+        const usersWithPayment = regionEngineers;
         
         const days = Array.from({length: 31}, (_, i) => i + 1);
         
