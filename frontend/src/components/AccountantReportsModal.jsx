@@ -170,17 +170,15 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       });
       console.log('[PERSONNEL REPORT] Month tasks found:', monthTasks.length);
       
-      // ДЛЯ ПРЕМІЙ: Беремо ВСІ заявки, які впливають на премії (не тільки за місяць)
+      // ДЛЯ ПРЕМІЙ: Беремо заявки тільки за ВИБРАНИЙ МІСЯЦЬ (як у регіонального керівника)
       const allTasksForBonuses = tasks.filter(t => {
         if (t.status !== 'Виконано') return false;
         if (!t.date) return false;
-        // Беремо заявки за весь рік для розрахунку премій
+        // Беремо заявки тільки за вибраний місяць для розрахунку премій
         const taskDate = new Date(t.date);
-        const yearStart = new Date(personnelFilters.year, 0, 1);
-        const yearEnd = new Date(personnelFilters.year, 11, 31, 23, 59, 59);
-        return taskDate >= yearStart && taskDate <= yearEnd;
+        return taskDate >= startDate && taskDate <= endDate;
       });
-      console.log('[PERSONNEL REPORT] All tasks for bonuses found:', allTasksForBonuses.length);
+      console.log('[PERSONNEL REPORT] Tasks for bonuses (monthly) found:', allTasksForBonuses.length);
       
       
       // Функція для перевірки затвердження
@@ -235,6 +233,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           engineer.region === region || engineer.region === 'Україна'
         );
         console.log(`[PERSONNEL REPORT] Region ${region}: tasks=${regionTasks.length}, tasksForBonuses=${regionTasksForBonuses.length}, engineers=${regionEngineers.length}`);
+        console.log(`[PERSONNEL REPORT] Region ${region}: Using monthly tasks for both timesheet and bonuses (like regional manager)`);
         
         // Визначаємо workHours всередині функції
         const workHours = 176; // Норма робочих годин на місяць (22 робочі дні * 8 годин)
@@ -307,23 +306,40 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           // Показуємо повну ставку для всіх інженерів з регіону
           const basePay = salary; // Повна ставка 25000 для всіх інженерів з регіону
           
-          // Розрахунок премії за сервісні роботи (використовуємо ВСІ заявки за рік)
+          // Розрахунок премії за сервісні роботи (тільки за вибраний місяць, як у регіонального керівника)
           let engineerBonus = 0;
           regionTasksForBonuses.forEach(task => {
-            const workPrice = parseFloat(task.workPrice) || 0;
-            const bonusVal = workPrice * 0.25;
+            // Перевіряємо дату затвердження премії (як у регіонального керівника)
+            let bonusMonth = personnelFilters.month;
+            let bonusYear = personnelFilters.year;
             
-            const engineers = [
-              (task.engineer1 || '').trim(),
-              (task.engineer2 || '').trim(),
-              (task.engineer3 || '').trim(),
-              (task.engineer4 || '').trim(),
-              (task.engineer5 || '').trim(),
-              (task.engineer6 || '').trim()
-            ].filter(eng => eng && eng.length > 0);
+            if (task.bonusApprovalDate) {
+              const bonusDate = new Date(task.bonusApprovalDate);
+              bonusMonth = bonusDate.getMonth() + 1;
+              bonusYear = bonusDate.getFullYear();
+            } else if (task.approvedByAccountantDate) {
+              const approvalDate = new Date(task.approvedByAccountantDate);
+              bonusMonth = approvalDate.getMonth() + 1;
+              bonusYear = approvalDate.getFullYear();
+            }
             
-            if (engineers.includes(engineer.name) && engineers.length > 0) {
-              engineerBonus += bonusVal / engineers.length;
+            // Нараховуємо премію тільки якщо дата затвердження відповідає вибраному місяцю
+            if (bonusMonth === personnelFilters.month && bonusYear === personnelFilters.year) {
+              const workPrice = parseFloat(task.workPrice) || 0;
+              const bonusVal = workPrice * 0.25;
+              
+              const engineers = [
+                (task.engineer1 || '').trim(),
+                (task.engineer2 || '').trim(),
+                (task.engineer3 || '').trim(),
+                (task.engineer4 || '').trim(),
+                (task.engineer5 || '').trim(),
+                (task.engineer6 || '').trim()
+              ].filter(eng => eng && eng.length > 0);
+              
+              if (engineers.includes(engineer.name) && engineers.length > 0) {
+                engineerBonus += bonusVal / engineers.length;
+              }
             }
           });
           
@@ -441,7 +457,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
               </tr>
             </thead>
             <tbody>
-              ${regionTasksForBonuses.map(task => {
+              ${regionTasks.map(task => {
                 const engineers = [
                   task.engineer1 || '',
                   task.engineer2 || '',
