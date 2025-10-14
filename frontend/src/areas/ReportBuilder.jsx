@@ -80,7 +80,7 @@ export default function ReportBuilder({ user }) {
   // Додаємо стани для dropdown фільтрів
   const [regions, setRegions] = useState([]);
   const [users, setUsers] = useState([]);
-  const [statusOptions] = useState(['Новий', 'В роботі', 'Виконано', 'Заблоковано']);
+  const [statusOptions] = useState(['Заявка', 'В роботі', 'Виконано', 'Заблоковано']);
   const [companyOptions] = useState(['Дарекс Енерго', 'Інша компанія']);
   const [paymentTypeOptions] = useState(['Безготівка', 'Готівка', 'Картка']);
   const [approvalOptions] = useState(['Підтверджено', 'Відмова', 'На розгляді']);
