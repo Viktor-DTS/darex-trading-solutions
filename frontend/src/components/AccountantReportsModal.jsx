@@ -170,18 +170,36 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       });
       console.log('[PERSONNEL REPORT] Month tasks found:', monthTasks.length);
       
+      // ДЛЯ ПРЕМІЙ: Беремо ВСІ заявки, які впливають на премії (не тільки за місяць)
+      const allTasksForBonuses = tasks.filter(t => {
+        if (t.status !== 'Виконано') return false;
+        if (!t.date) return false;
+        // Беремо заявки за весь рік для розрахунку премій
+        const taskDate = new Date(t.date);
+        const yearStart = new Date(personnelFilters.year, 0, 1);
+        const yearEnd = new Date(personnelFilters.year, 11, 31, 23, 59, 59);
+        return taskDate >= yearStart && taskDate <= yearEnd;
+      });
+      console.log('[PERSONNEL REPORT] All tasks for bonuses found:', allTasksForBonuses.length);
+      
       
       // Функція для перевірки затвердження
       const isApproved = (value) => value === true || value === 'Підтверджено';
       
-      // Фільтруємо заявки з затвердженням
+      // Фільтруємо заявки з затвердженням (для табелю часу - тільки за місяць)
       const approvedTasks = monthTasks.filter(task => 
         isApproved(task.approvedByWarehouse) && 
         isApproved(task.approvedByAccountant)
       );
       
+      // Фільтруємо заявки з затвердженням (для премій - за весь рік)
+      const approvedTasksForBonuses = allTasksForBonuses.filter(task => 
+        isApproved(task.approvedByWarehouse) && 
+        isApproved(task.approvedByAccountant)
+      );
       
-      // Групуємо заявки по регіонах
+      
+      // Групуємо заявки по регіонах (для табелю часу - тільки за місяць)
       const regionGroups = {};
       approvedTasks.forEach(task => {
         const region = task.serviceRegion || 'Невідомо';
@@ -189,6 +207,16 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           regionGroups[region] = [];
         }
         regionGroups[region].push(task);
+      });
+      
+      // Групуємо заявки по регіонах (для премій - за весь рік)
+      const regionGroupsForBonuses = {};
+      approvedTasksForBonuses.forEach(task => {
+        const region = task.serviceRegion || 'Невідомо';
+        if (!regionGroupsForBonuses[region]) {
+          regionGroupsForBonuses[region] = [];
+        }
+        regionGroupsForBonuses[region].push(task);
       });
       
       // Логування для діагностики
@@ -201,11 +229,12 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       // Генеруємо звіт з групуванням по регіонам
       const generateRegionReport = (region) => {
         console.log(`[PERSONNEL REPORT] Generating report for region: ${region}`);
-        const regionTasks = regionGroups[region];
+        const regionTasks = regionGroups[region] || [];
+        const regionTasksForBonuses = regionGroupsForBonuses[region] || [];
         const regionEngineers = allEngineers.filter(engineer => 
           engineer.region === region || engineer.region === 'Україна'
         );
-        console.log(`[PERSONNEL REPORT] Region ${region}: tasks=${regionTasks.length}, engineers=${regionEngineers.length}`);
+        console.log(`[PERSONNEL REPORT] Region ${region}: tasks=${regionTasks.length}, tasksForBonuses=${regionTasksForBonuses.length}, engineers=${regionEngineers.length}`);
         
         // Визначаємо workHours всередині функції
         const workHours = 176; // Норма робочих годин на місяць (22 робочі дні * 8 годин)
@@ -278,9 +307,9 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           // Показуємо повну ставку для всіх інженерів з регіону
           const basePay = salary; // Повна ставка 25000 для всіх інженерів з регіону
           
-          // Розрахунок премії за сервісні роботи
+          // Розрахунок премії за сервісні роботи (використовуємо ВСІ заявки за рік)
           let engineerBonus = 0;
-          regionTasks.forEach(task => {
+          regionTasksForBonuses.forEach(task => {
             const workPrice = parseFloat(task.workPrice) || 0;
             const bonusVal = workPrice * 0.25;
             
@@ -412,7 +441,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
               </tr>
             </thead>
             <tbody>
-              ${regionTasks.map(task => {
+              ${regionTasksForBonuses.map(task => {
                 const engineers = [
                   task.engineer1 || '',
                   task.engineer2 || '',
