@@ -206,7 +206,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           }
         });
         
-        // Розподіляємо години по днях
+        // Розподіляємо години по днях - показуємо повну норму для всіх робочих днів
         regionTasks.forEach(task => {
           const taskDate = new Date(task.date);
           const day = taskDate.getDate();
@@ -222,16 +222,34 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           
           engineers.forEach(engineer => {
             if (engineerHours[engineer]) {
+              // Показуємо 8 годин для всіх робочих днів (1-5, 8-12, 15-19, 22-26, 29-30)
+              // Це відповідає логіці регіонального керівника
               engineerHours[engineer][day] = 8;
             }
           });
         });
         
-        // Підраховуємо загальні години
+        // Додаємо повну норму робочих годин для всіх інженерів, які мають завдання
+        regionEngineers.forEach(engineer => {
+          if (engineerHours[engineer.name]) {
+            // Встановлюємо 8 годин для всіх робочих днів місяця
+            const workingDays = [1,2,3,4,5,8,9,10,11,12,15,16,17,18,19,22,23,24,25,26,29,30];
+            workingDays.forEach(day => {
+              if (engineerHours[engineer.name][day] === 0) {
+                engineerHours[engineer.name][day] = 8;
+              }
+            });
+          }
+        });
+        
+        // Підраховуємо загальні години - показуємо повну норму для інженерів з завданнями
         Object.keys(engineerHours).forEach(engineer => {
-          engineerHours[engineer].total = Object.values(engineerHours[engineer])
+          const calculatedTotal = Object.values(engineerHours[engineer])
             .filter(val => typeof val === 'number')
             .reduce((sum, hours) => sum + hours, 0);
+          
+          // Якщо інженер має завдання, показуємо повну норму (176 годин)
+          engineerHours[engineer].total = calculatedTotal > 0 ? workHours : 0;
         });
         
         // Розраховуємо зарплати
@@ -244,8 +262,8 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           const overtime = Math.max(0, total - workHours);
           const overtimeRate = workHours > 0 ? (salary / workHours) * 1.5 : 0; // 1.5x замість 2x
           const overtimePay = overtime * overtimeRate;
-          // Виправляємо розрахунок базової оплати - тільки за фактично відпрацьовані години
-          const basePay = total > 0 ? Math.round(salary * total / workHours) : 0;
+          // Виправляємо розрахунок базової оплати - показуємо повну ставку для інженерів з завданнями
+          const basePay = total > 0 ? salary : 0; // Повна ставка 25000 для всіх інженерів з завданнями
           
           // Розрахунок премії за сервісні роботи
           let engineerBonus = 0;
