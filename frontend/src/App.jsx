@@ -1162,6 +1162,8 @@ function ServiceArea({ user }) {
         if (!t[key] || !t[key].toString().toLowerCase().includes(value.toLowerCase())) return false;
       } else if (typeof t[key] === 'string' || typeof t[key] === 'number') {
         console.log('DEBUG filter: Checking general string/number filter:', key, 'value:', value, 'task value:', t[key]);
+        // Пропускаємо serviceRegion - він вже оброблений вище
+        if (key === 'serviceRegion') continue;
         if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
       }
     }
