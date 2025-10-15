@@ -2317,7 +2317,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
     tasks.forEach((t, i) => {
       if (!t.bonusApprovalDate) {
         console.warn(`[WARN][REPORT] Task #${i} (id=${t.id}) has no bonusApprovalDate`, t);
-      } else if (!/^[\d]{2}-[\d]{4}$/.test(t.bonusApprovalDate)) {
+      } else if (!/^[\d]{2}-[\d]{4}$/.test(t.bonusApprovalDate) && !/^\d{4}-\d{2}-\d{2}$/.test(t.bonusApprovalDate)) {
         console.error(`[ERROR][REPORT] Task #${i} (id=${t.id}) has invalid bonusApprovalDate format:`, t.bonusApprovalDate, t);
       }
     });

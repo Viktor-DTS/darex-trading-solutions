@@ -180,13 +180,39 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         let bonusYear = personnelFilters.year;
         
         if (t.bonusApprovalDate) {
-          const bonusDate = new Date(t.bonusApprovalDate);
-          bonusMonth = bonusDate.getMonth() + 1;
-          bonusYear = bonusDate.getFullYear();
+          let bonusDate;
+          // Обробляємо різні формати дат
+          if (/^\d{4}-\d{2}-\d{2}$/.test(t.bonusApprovalDate)) {
+            // Формат YYYY-MM-DD
+            const [year, month] = t.bonusApprovalDate.split('-');
+            bonusDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+          } else if (/^\d{2}-\d{4}$/.test(t.bonusApprovalDate)) {
+            // Формат MM-YYYY
+            const [month, year] = t.bonusApprovalDate.split('-');
+            bonusDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+          } else {
+            // Спробуємо стандартний парсинг
+            bonusDate = new Date(t.bonusApprovalDate);
+          }
+          
+          if (!isNaN(bonusDate.getTime())) {
+            bonusMonth = bonusDate.getMonth() + 1;
+            bonusYear = bonusDate.getFullYear();
+          }
         } else if (t.approvedByAccountantDate) {
           const approvalDate = new Date(t.approvedByAccountantDate);
-          bonusMonth = approvalDate.getMonth() + 1;
-          bonusYear = approvalDate.getFullYear();
+          if (!isNaN(approvalDate.getTime())) {
+            bonusMonth = approvalDate.getMonth() + 1;
+            bonusYear = approvalDate.getFullYear();
+          }
+        } else {
+          // Якщо немає bonusApprovalDate та approvedByAccountantDate, 
+          // використовуємо дату виконання робіт як запасний варіант
+          const workDate = new Date(t.date);
+          if (!isNaN(workDate.getTime())) {
+            bonusMonth = workDate.getMonth() + 1;
+            bonusYear = workDate.getFullYear();
+          }
         }
         
         // Нараховуємо премію тільки якщо дата затвердження відповідає вибраному місяцю
