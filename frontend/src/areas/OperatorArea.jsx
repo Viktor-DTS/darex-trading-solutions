@@ -528,7 +528,7 @@ export default function OperatorArea({ user }) {
         dateRange={{}}
         setDateRange={()=>{}}
         user={user}
-        isArchive={tab === 'archive'}
+        isArchive={activeTab === 'archive'}
         onHistoryClick={openClientReport}
       />
     </div>
