@@ -3376,7 +3376,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                           return (
                             <tr key={u.id}>
                               <td>{u.name}</td>
-                              <td><input type="number" value={payData[u.id || u._id]?.salary || 25000} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
+                              <td><input type="number" value={payData[u.id || u._id]?.salary || 25000} onChange={e => {console.log('RegionalManagerArea salary changed:', u.name, e.target.value); handlePayChange(u.id, 'salary', e.target.value);}} style={{width:90}} /></td>
                               <td>{total}</td>
                               <td>{overtime}</td>
                               <td>{overtimeRate.toFixed(2)}</td>
