@@ -2581,6 +2581,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
         <table class="details">
           <thead>
             <tr>
+              <th>Номер заявки</th>
               <th>Дата</th>
               <th>Інженер</th>
               <th>Клієнт</th>
@@ -2596,8 +2597,10 @@ function RegionalManagerArea({ tab: propTab, user }) {
           <tbody>
             ${regionTasks.map(t => {
               const bonus = (parseFloat(t.workPrice) || 0) * 0.25;
+              const workPrice = parseFloat(t.workPrice) || 0;
               return `
                 <tr>
+                  <td>${t.requestNumber || ''}</td>
                   <td>${t.date || ''}</td>
                   <td>${[
                     t.engineer1 || '',
@@ -2613,7 +2616,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   <td>${t.work || ''}</td>
                   <td>${t.company || ''}</td>
                   <td>${t.serviceTotal || ''}</td>
-                  <td>${t.workPrice || ''}</td>
+                  <td>${workPrice.toFixed(2)}</td>
                   <td>${bonus ? bonus.toFixed(2) : '0.00'}</td>
                 </tr>
               `;

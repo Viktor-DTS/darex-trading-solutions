@@ -468,6 +468,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           <table class="details">
             <thead>
               <tr>
+                <th>Номер заявки</th>
                 <th>Дата</th>
                 <th>Інженер</th>
                 <th>Клієнт</th>
@@ -496,6 +497,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
                 
                 return `
                   <tr>
+                    <td>${task.requestNumber || ''}</td>
                     <td>${task.date || ''}</td>
                     <td>${engineers.join(', ')}</td>
                     <td>${task.client || ''}</td>
@@ -504,7 +506,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
                     <td>${task.work || ''}</td>
                     <td>${task.company || ''}</td>
                     <td>${task.serviceTotal || ''}</td>
-                    <td>${task.workPrice || ''}</td>
+                    <td>${workPrice.toFixed(2)}</td>
                     <td>${serviceBonus ? serviceBonus.toFixed(2) : '0.00'}</td>
                   </tr>
                 `;
