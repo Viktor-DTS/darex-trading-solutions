@@ -92,7 +92,7 @@ export default function AccountantArea({ user }) {
       setUsers(JSON.parse(savedUsers));
     }
   }, []);
-  const [loading, setLoading] = useState(true);
+  // loading state видалено - тепер використовуємо loading з useLazyData
   // Ініціалізую filters з усіма можливими ключами для фільтрації
   const allFilterKeys = allTaskFields
     .map(f => f.name)
@@ -582,10 +582,10 @@ export default function AccountantArea({ user }) {
   
   // Завантаження запитів на рахунки
   useEffect(() => {
-    if (tab === 'invoices') {
+    if (activeTab === 'invoices') {
       loadInvoiceRequests();
     }
-  }, [tab, showAllInvoices]);
+  }, [activeTab, showAllInvoices]);
   // Автоматичне оновлення даних при фокусі на вкладку браузера
   useEffect(() => {
     const handleFocus = () => {
@@ -598,7 +598,10 @@ export default function AccountantArea({ user }) {
         console.error('[ERROR] AccountantArea - помилка оновлення при фокусі:', error);
       });
     };
-    // Старі useEffect видалені - тепер використовуємо useLazyData
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+  // Старі useEffect видалені - тепер використовуємо useLazyData
   const handleApprove = async (id, approved, comment) => {
     try {
       const t = tasks.find(t => t.id === id);
@@ -650,7 +653,7 @@ export default function AccountantArea({ user }) {
     delete taskData._readOnly; // Видаляємо прапорець з даних завдання
     
     // Якщо це вкладка заборгованості, обмежуємо редагування тільки полем заборгованості
-    if (tab === 'debt') {
+    if (activeTab === 'debt') {
       taskData._debtEditOnly = true; // Прапорець для обмеження редагування
     }
     
@@ -1401,7 +1404,7 @@ export default function AccountantArea({ user }) {
       />
       
       {/* Вкладка запитів на рахунки */}
-      {tab === 'invoices' ? (
+      {activeTab === 'invoices' ? (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h3 style={{ margin: 0, color: '#333' }}>Запити на рахунки</h3>
@@ -1999,7 +2002,7 @@ export default function AccountantArea({ user }) {
             </div>
           )}
         </div>
-      ) : tab === 'debt' ? (
+      ) : activeTab === 'debt' ? (
         <div>
           {console.log('[DEBUG] Debt tab - all tasks:', tableData.length)}
           {console.log('[DEBUG] Debt tab - tasks with debtStatus:', tableData.filter(t => t.debtStatus).length)}
@@ -2039,7 +2042,7 @@ export default function AccountantArea({ user }) {
       ) : (
         <div>
           {/* Чекбокс "Відобразити всі заявки" тільки для вкладки "Заявка на підтвердженні" */}
-          {tab === 'pending' && (
+          {activeTab === 'pending' && (
             <div style={{ 
               display: 'flex', 
               justifyContent: 'flex-start', 
@@ -2146,4 +2149,4 @@ export default function AccountantArea({ user }) {
       )}
     </div>
   );
-} 
+}
