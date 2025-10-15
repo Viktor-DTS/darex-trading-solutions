@@ -2484,7 +2484,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
               return `
                 <tr>
                   <td>${u.name}</td>
-                  <td><input type="number" value="${salary}" onchange="window.handlePayChange('${u.id || u._id}', 'salary', this.value)" style="width:90px; border: 1px solid #ccc; padding: 4px;" /></td>
+                  <td><input type="number" value="${salary}" onchange="console.log('Input changed for user:', '${u.id || u._id}', 'value:', this.value); window.handlePayChange('${u.id || u._id}', 'salary', this.value)" style="width:90px; border: 1px solid #ccc; padding: 4px;" /></td>
                   <td>${displayTotal}</td>
                   <td>${overtime}</td>
                   <td>${overtimeRate.toFixed(2)}</td>
@@ -2667,7 +2667,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
         ${regionsContent}
         <script>
           // Функція для оновлення зарплати
-          window.handlePayChange = function(userId, field, value) {
+          window.handlePayChange = function(userId, field, value, inputElement) {
             console.log('handlePayChange called:', { userId, field, value });
             
             // Оновлюємо localStorage
@@ -2685,7 +2685,12 @@ function RegionalManagerArea({ tab: propTab, user }) {
             const overtimeRate = workHours > 0 ? (salary / workHours) * 2 : 0;
             
             // Знаходимо рядок з цим input
-            const input = event.target;
+            const input = inputElement || (window.event && window.event.target);
+            if (!input) {
+              console.error('No input element found');
+              return;
+            }
+            
             const row = input.closest('tr');
             const cells = row.querySelectorAll('td');
             
@@ -2733,7 +2738,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   if (match) {
                     const userId = match[1];
                     const field = match[2];
-                    window.handlePayChange(userId, field, this.value);
+                    window.handlePayChange(userId, field, this.value, this);
                   }
                 }
               });
