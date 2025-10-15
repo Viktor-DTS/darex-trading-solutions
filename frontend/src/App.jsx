@@ -1547,6 +1547,10 @@ function RegionalManagerArea({ tab: propTab, user }) {
   // Використовуємо хук useLazyData для оптимізації
   const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, getTabCount } = useLazyData(user, 'pending');
   
+  // Додатковий стан для всіх заявок (потрібно для звіту по персоналу)
+  const [allTasks, setAllTasks] = useState([]);
+  const [allTasksLoading, setAllTasksLoading] = useState(false);
+  
   const allFilterKeys = allTaskFields
     .map(f => f.name)
     .reduce((acc, key) => {
@@ -1616,6 +1620,21 @@ function RegionalManagerArea({ tab: propTab, user }) {
   }, [user?.region, filters.serviceRegion]);
   
   // Старі useEffect видалені - тепер використовуємо useLazyData
+  
+  // Завантаження всіх заявок для звіту по персоналу
+  useEffect(() => {
+    if (tab === 'report') {
+      setAllTasksLoading(true);
+      tasksAPI.getAll().then(allTasksData => {
+        setAllTasks(allTasksData);
+        setAllTasksLoading(false);
+      }).catch(error => {
+        console.error('Помилка завантаження всіх заявок для звіту:', error);
+        setAllTasksLoading(false);
+      });
+    }
+  }, [tab]);
+  
   // Додаю useEffect для завантаження користувачів з бази
   useEffect(() => {
     const loadUsers = async () => {
@@ -2578,10 +2597,12 @@ function RegionalManagerArea({ tab: propTab, user }) {
   // Видалено посилання на filtered, оскільки воно не доступне в цій області видимості
   // Додаємо функцію експорту в Excel
   const exportFilteredToExcel = () => {
+    // Для звіту по персоналу використовуємо всі заявки, для інших вкладок - тільки потрібні
+    const tasksForExport = tab === 'report' ? allTasks : tasks;
     // Логуємо всі завдання зі статусом 'Виконано'
-    const completedTasks = tasks.filter(t => t.status === 'Виконано');
+    const completedTasks = tasksForExport.filter(t => t.status === 'Виконано');
     // Фільтруємо виконані заявки за діапазоном дат, регіоном та статусом затвердження
-    const filteredTasks = tasks.filter(t => {
+    const filteredTasks = tasksForExport.filter(t => {
       if (t.status !== 'Виконано') {
         return false;
       }
@@ -2838,7 +2859,9 @@ function RegionalManagerArea({ tab: propTab, user }) {
       user.region.split(',').map(r => r.trim()) : 
       [user?.region || 'Без регіону'];
   // Фільтрація завдань для регіонального керівника
-  const filtered = tasks.filter(t => {
+  // Для звіту по персоналу використовуємо всі заявки, для інших вкладок - тільки потрібні
+  const tasksForFiltering = tab === 'report' ? allTasks : tasks;
+  const filtered = tasksForFiltering.filter(t => {
     // Перевірка доступу до регіону заявки
     if (user?.region && user.region !== 'Україна') {
       // Якщо користувач має множинні регіони (через кому)
@@ -3002,6 +3025,18 @@ function RegionalManagerArea({ tab: propTab, user }) {
       {tab === 'report' && (
         <>
           <h3>Табель персоналу</h3>
+          {allTasksLoading && (
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              padding: '20px',
+              fontSize: '16px',
+              color: '#666'
+            }}>
+              Завантаження всіх заявок для звіту...
+            </div>
+          )}
           <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:16}}>
               <label style={{color:'#fff'}}>Місяць:
               <select value={month} onChange={e => setMonth(Number(e.target.value))} style={{marginLeft:8}}>
