@@ -139,35 +139,18 @@ export default function AccountantArea({ user }) {
       console.log('[DEBUG] AccountantArea refreshCache - початок оновлення кешу...');
       console.log('[DEBUG] AccountantArea refreshCache - поточний стан tasks:', tasks.length);
       
-      setLoading(true);
-      console.log('[DEBUG] AccountantArea refreshCache - викликаємо tasksAPI.getAll()...');
+      console.log('[DEBUG] AccountantArea refreshCache - викликаємо refreshData...');
       
-      const freshTasks = await tasksAPI.getAll();
-      console.log('[DEBUG] AccountantArea refreshCache - отримано з API:', freshTasks.length, 'заявок');
-      console.log('[DEBUG] AccountantArea refreshCache - перші 3 заявки:', freshTasks.slice(0, 3));
-      
-      console.log('[DEBUG] AccountantArea refreshCache - встановлюємо новий стан...');
-      
-      // Примусове оновлення стану - створюємо новий масив
-      setTasks([...freshTasks]);
+      // Оновлюємо дані через useLazyData
+      await refreshData(activeTab);
       setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
       
-      console.log('[DEBUG] AccountantArea refreshCache - кеш оновлено успішно!');
-      console.log('[DEBUG] AccountantArea refreshCache - новий масив створено, довжина:', freshTasks.length);
-      console.log('[DEBUG] AccountantArea refreshCache - tableKey збільшено для примусового перерендеру');
-      
-      // Додаткова перевірка через setTimeout
-      setTimeout(() => {
-        console.log('[DEBUG] AccountantArea refreshCache - перевірка стану через 1 сек:', tasks.length);
-      }, 1000);
+      console.log('[DEBUG] AccountantArea refreshCache - дані оновлено через useLazyData');
       
     } catch (error) {
       console.error('[ERROR] AccountantArea refreshCache - помилка оновлення кешу:', error);
       console.error('[ERROR] AccountantArea refreshCache - деталі помилки:', error.message, error.stack);
       alert('Помилка оновлення даних: ' + error.message);
-    } finally {
-      setLoading(false);
-      console.log('[DEBUG] AccountantArea refreshCache - завершено, loading = false');
     }
   };
   
@@ -484,8 +467,7 @@ export default function AccountantArea({ user }) {
     try {
       console.log('[DEBUG] loadTaskInfo - taskId:', taskId);
       
-      // Показуємо індикатор завантаження
-      setLoading(true);
+      // Індикатор завантаження тепер керується useLazyData
       
       // Спочатку спробуємо знайти заявку за ID
       let task;
@@ -549,7 +531,7 @@ export default function AccountantArea({ user }) {
       console.error('Помилка завантаження інформації про заявку:', error);
       alert('Помилка завантаження інформації про заявку: ' + error.message);
     } finally {
-      setLoading(false);
+      // Індикатор завантаження тепер керується useLazyData
     }
   };
   
@@ -666,7 +648,6 @@ export default function AccountantArea({ user }) {
     }
   };
   const handleSave = async (task) => {
-    setLoading(true);
     let updatedTask = null;
     
     try {
@@ -678,26 +659,11 @@ export default function AccountantArea({ user }) {
         console.log('[DEBUG] AccountantArea handleSave - заявка створена:', updatedTask);
       }
       
-      // Оновлюємо дані з бази після збереження
-      console.log('[DEBUG] AccountantArea handleSave - оновлюємо кеш з бази даних...');
-      console.log('[DEBUG] AccountantArea handleSave - поточний стан tasks перед оновленням:', tasks.length);
-      
-      const freshTasks = await tasksAPI.getAll();
-      console.log('[DEBUG] AccountantArea handleSave - отримано з API:', freshTasks.length, 'заявок');
-      
-      // Примусове оновлення стану - створюємо новий масив
-      setTasks([...freshTasks]);
+      // Оновлюємо дані через useLazyData
+      console.log('[DEBUG] AccountantArea handleSave - оновлюємо дані через useLazyData...');
+      await refreshData(activeTab);
       setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
-      console.log('[DEBUG] AccountantArea handleSave - кеш оновлено, завантажено заявок:', freshTasks.length);
-      
-      // Додатково оновлюємо локальний стан для швидшого відображення
-      if (editTask && editTask.id) {
-        setTasks(prevTasks => 
-          prevTasks.map(t => t.id === editTask.id ? updatedTask : t)
-        );
-      } else {
-        setTasks(prevTasks => [...prevTasks, updatedTask]);
-      }
+      console.log('[DEBUG] AccountantArea handleSave - дані оновлено через useLazyData');
       
     } catch (error) {
       console.error('[ERROR] AccountantArea handleSave - помилка збереження або оновлення даних:', error);
@@ -706,7 +672,6 @@ export default function AccountantArea({ user }) {
       // Закриваємо модальне вікно
       setModalOpen(false);
       setEditTask(null);
-      setLoading(false);
     }
   };
   const filtered = tasks.filter(t => {

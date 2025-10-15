@@ -1635,6 +1635,15 @@ function RegionalManagerArea({ tab: propTab, user }) {
       }).catch(error => {
         console.error('Помилка предзавантаження заявок з архіву:', error);
       });
+      
+      // Також завантажуємо дані для вкладки "pending" (Заявки відхилені) в кеш
+      tasksAPI.getByStatus('pending', user?.region).then(pendingTasks => {
+        console.log('📊 Предзавантажено заявок відхилених в кеш:', pendingTasks.length);
+        preloadCache('pending', pendingTasks); // Поповнюємо кеш useLazyData
+        console.log('✅ Кеш useLazyData поповнено для вкладки "pending"');
+      }).catch(error => {
+        console.error('Помилка предзавантаження заявок відхилених:', error);
+      });
     }
   }, [user?.role, user?.region, preloadCache]);
   

@@ -186,23 +186,16 @@ export default function WarehouseArea({ user }) {
     }
   };
   const handleSave = async (task) => {
-    setLoading(true);
     let updatedTask = null;
     if (editTask && editTask.id) {
       updatedTask = await tasksAPI.update(editTask.id, task);
     } else {
       updatedTask = await tasksAPI.add(task);
     }
-    // Оновлюємо дані з бази після збереження
-    try {
-      const freshTasks = await tasksAPI.getAll();
-      setTasks(freshTasks);
-    } catch (error) {
-      console.error('[ERROR] WarehouseArea handleSave - помилка оновлення даних з бази:', error);
-    }
+    // Оновлюємо список завдань
+    await refreshData(activeTab);
     // Закриваємо модальне вікно
     setEditTask(null);
-    setLoading(false);
   };
   const filtered = useMemo(() => {
     console.log('DEBUG WarehouseArea filtered: useMemo dependencies changed, recalculating...');
