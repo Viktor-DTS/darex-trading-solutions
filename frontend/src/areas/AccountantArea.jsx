@@ -788,7 +788,7 @@ export default function AccountantArea({ user }) {
   
   // Логування для діагностики tableData
   console.log('[DEBUG] AccountantArea - tableData оновлено:', {
-    tab,
+    activeTab,
     tableDataLength: tableData.length,
     pendingLength: pending.length,
     archiveLength: archive.length,

@@ -314,7 +314,7 @@ export default function WarehouseArea({ user }) {
   );
   console.log('📋 ARCHIVE TASKS:', archive.length);
   const tableData = activeTab === 'pending' ? pending : archive;
-  console.log('📋 TABLE DATA:', tableData.length, 'for tab:', tab);
+  console.log('📋 TABLE DATA:', tableData.length, 'for activeTab:', activeTab);
   const columns = allTaskFields.map(f => ({
     key: f.name,
     label: f.label,
