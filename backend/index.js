@@ -1051,7 +1051,15 @@ app.get('/api/tasks/filter', async (req, res) => {
     
     // Фільтрація по регіону
     if (region && region !== 'Україна') {
-      query.serviceRegion = region;
+      // Якщо регіон містить кому (мультирегіональний користувач)
+      if (region.includes(',')) {
+        const regions = region.split(',').map(r => r.trim());
+        query.serviceRegion = { $in: regions };
+        console.log('[DEBUG] GET /api/tasks/filter - мультирегіональний користувач, регіони:', regions);
+      } else {
+        query.serviceRegion = region;
+        console.log('[DEBUG] GET /api/tasks/filter - одинарний регіон:', region);
+      }
     }
     
     console.log('[DEBUG] GET /api/tasks/filter - запит:', JSON.stringify(query, null, 2));
