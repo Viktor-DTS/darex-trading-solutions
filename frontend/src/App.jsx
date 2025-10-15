@@ -1110,8 +1110,8 @@ function ServiceArea({ user }) {
         console.log('DEBUG filter: t.serviceRegion =', t.serviceRegion);
         console.log('DEBUG filter: userRegions =', userRegions);
         
-        // Якщо вибрано "Загальний" або нічого не вибрано, показуємо всі регіони користувача
-        if (filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
+        // Якщо вибрано "Всі" або "Загальний" або нічого не вибрано, показуємо всі регіони користувача
+        if (filters.serviceRegion === 'Всі' || filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
           console.log('DEBUG filter: Showing all user regions');
           console.log('DEBUG filter: Task region', t.serviceRegion, 'is in user regions?', userRegions.includes(t.serviceRegion));
           if (!userRegions.includes(t.serviceRegion)) {
@@ -2909,8 +2909,8 @@ function RegionalManagerArea({ tab: propTab, user }) {
         console.log('DEBUG filter: t.serviceRegion =', t.serviceRegion);
         console.log('DEBUG filter: userRegions =', userRegions);
         
-        // Якщо вибрано "Загальний" або нічого не вибрано, показуємо всі регіони користувача
-        if (filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
+        // Якщо вибрано "Всі" або "Загальний" або нічого не вибрано, показуємо всі регіони користувача
+        if (filters.serviceRegion === 'Всі' || filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
           console.log('DEBUG filter: Showing all user regions');
           console.log('DEBUG filter: Task region', t.serviceRegion, 'is in user regions?', userRegions.includes(t.serviceRegion));
           if (!userRegions.includes(t.serviceRegion)) {
