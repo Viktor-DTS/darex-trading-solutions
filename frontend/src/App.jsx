@@ -1545,7 +1545,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
   // taskTab state видалено - тепер використовуємо activeTab з useLazyData
   
   // Використовуємо хук useLazyData для оптимізації
-  const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, getTabCount } = useLazyData(user, 'pending');
+  const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, preloadCache, getTabCount } = useLazyData(user, 'pending');
   
   // Додатковий стан для всіх заявок (потрібно для звіту по персоналу)
   const [allTasks, setAllTasks] = useState([]);
@@ -1630,11 +1630,13 @@ function RegionalManagerArea({ tab: propTab, user }) {
       tasksAPI.getByStatus('done', user?.region).then(archiveTasks => {
         console.log('📊 Предзавантажено заявок з архіву в кеш:', archiveTasks.length);
         setAllTasks(archiveTasks); // Зберігаємо для звіту
+        preloadCache('done', archiveTasks); // Поповнюємо кеш useLazyData
+        console.log('✅ Кеш useLazyData поповнено для вкладки "done"');
       }).catch(error => {
         console.error('Помилка предзавантаження заявок з архіву:', error);
       });
     }
-  }, [user?.role, user?.region]);
+  }, [user?.role, user?.region, preloadCache]);
   
   // Завантаження даних в кеш для "Архів виконаних заявок" при переході на звіт по персоналу
   useEffect(() => {

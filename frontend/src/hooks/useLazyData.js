@@ -64,6 +64,13 @@ export const useLazyData = (user, initialTab = 'notDone') => {
     setData(prev => ({ ...prev, [tabToRefresh]: freshData }));
   }, [activeTab, fetchDataForTab]);
 
+  // Функція для поповнення кешу зовнішніми даними
+  const preloadCache = useCallback((tab, data) => {
+    console.log(`[useLazyData] 📦 Preloading cache for tab: ${tab}, count: ${data.length}`);
+    cacheRef.current = { ...cacheRef.current, [tab]: data };
+    setData(prev => ({ ...prev, [tab]: data }));
+  }, []);
+
   return {
     data: data[activeTab] || [],
     loading,
@@ -71,6 +78,7 @@ export const useLazyData = (user, initialTab = 'notDone') => {
     activeTab,
     setActiveTab,
     refreshData,
+    preloadCache,
     allCachedData: data,
     getTabCount: useCallback((tabName) => (cacheRef.current[tabName] || []).length, [])
   };
