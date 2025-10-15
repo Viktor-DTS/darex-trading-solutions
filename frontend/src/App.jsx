@@ -2312,7 +2312,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
   const handleFormTimeReport = () => {
     // Додаю детальний вивід задач для діагностики
     // Додатковий лог по bonusApprovalDate
-    tasks.forEach((t, i) => {
+    allTasks.forEach((t, i) => {
       if (!t.bonusApprovalDate) {
         console.warn(`[WARN][REPORT] Task #${i} (id=${t.id}) has no bonusApprovalDate`, t);
       } else if (!/^[\d]{2}-[\d]{4}$/.test(t.bonusApprovalDate) && !/^\d{4}-\d{2}-\d{2}$/.test(t.bonusApprovalDate)) {
@@ -2340,7 +2340,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
         
         // Розраховуємо премію за виконання сервісних робіт
         let engineerBonus = 0;
-        tasks.forEach(t => {
+        allTasks.forEach(t => {
           if (
             t.status === 'Виконано' &&
             isApproved(t.approvedByWarehouse) &&
@@ -2531,7 +2531,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
         </table>
       `;
       // Формування таблиці виконаних робіт для регіону
-      const regionTasks = tasks.filter(t => {
+      const regionTasks = allTasks.filter(t => {
         if (
           t.status !== 'Виконано' ||
           !t.date ||
@@ -2712,7 +2712,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
       return true;
     });
     // Додаткова перевірка - логуємо всі завдання зі статусом 'Виконано' та їх статус затвердження
-    const completedTasksWithApproval = tasks.filter(t => t.status === 'Виконано').map(t => ({
+    const completedTasksWithApproval = allTasks.filter(t => t.status === 'Виконано').map(t => ({
       id: t.id,
       approvedByWarehouse: t.approvedByWarehouse,
       approvedByAccountant: t.approvedByAccountant,
@@ -3234,7 +3234,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                           const monthStr = String(month).padStart(2, '0');
                           const yearStr = String(year);
                           let engineerBonus = 0;
-                          tasks.forEach(t => {
+                          allTasks.forEach(t => {
                             if (
                               t.status === 'Виконано' &&
                               isApproved(t.approvedByWarehouse) &&
