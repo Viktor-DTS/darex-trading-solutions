@@ -14,6 +14,12 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
   const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeReport, setActiveReport] = useState('financial'); // 'financial' або 'personnel'
+  
+  // Стан для зберігання даних про зарплати
+  const [payData, setPayData] = useState(() => {
+    const saved = localStorage.getItem(`payData_${personnelFilters.year}_${personnelFilters.month}`);
+    return saved ? JSON.parse(saved) : {};
+  });
 
   useEffect(() => {
     if (isOpen) {
@@ -27,6 +33,17 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       }));
     }
   }, [isOpen]);
+
+  // Оновлення payData при зміні місяця/року
+  useEffect(() => {
+    const saved = localStorage.getItem(`payData_${personnelFilters.year}_${personnelFilters.month}`);
+    setPayData(saved ? JSON.parse(saved) : {});
+  }, [personnelFilters.year, personnelFilters.month]);
+
+  // Збереження payData в localStorage
+  useEffect(() => {
+    localStorage.setItem(`payData_${personnelFilters.year}_${personnelFilters.month}`, JSON.stringify(payData));
+  }, [payData, personnelFilters.year, personnelFilters.month]);
 
   const loadRegions = async () => {
     try {
@@ -63,6 +80,15 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       ...prev,
       [field]: value
     }));
+  };
+
+  // Функція для зміни параметрів виплат
+  const handlePayChange = (userId, field, value) => {
+    setPayData(prev => {
+      const userPay = prev[userId] || { salary: '', bonus: '' };
+      const newUserPay = { ...userPay, [field]: value };
+      return { ...prev, [userId]: newUserPay };
+    });
   };
 
   const generateReport = async (format) => {
@@ -339,7 +365,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         regionEngineers.forEach(engineer => {
           const workHours = 176; // Норма робочих годин на місяць (22 робочі дні * 8 годин)
           const total = workHours; // Завжди показуємо повну норму (176 годин)
-          const salary = 25000;
+          const salary = Number(payData[engineer.id || engineer._id]?.salary) || 25000;
           const bonus = 0;
           const overtime = Math.max(0, total - workHours);
           const overtimeRate = workHours > 0 ? (salary / workHours) * 1.5 : 0; // 1.5x замість 2x
@@ -440,10 +466,11 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
             <tbody>
               ${usersWithPayment.map(engineer => {
                 const salary = engineerSalaries[engineer.name];
+                const currentSalary = payData[engineer.id || engineer._id]?.salary || 25000;
                 return `
                   <tr>
                     <td>${engineer.name}</td>
-                    <td>${salary.baseRate}</td>
+                    <td><input type="number" value="${currentSalary}" onchange="window.handlePayChange('${engineer.id || engineer._id}', 'salary', this.value)" style="width:90px; border: 1px solid #ccc; padding: 4px;" /></td>
                     <td>${salary.totalHours}</td>
                     <td>${salary.overtimeHours}</td>
                     <td>${salary.overtimeRate.toFixed(2)}</td>
@@ -558,6 +585,36 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         <body>
           <h2>${reportTitle}</h2>
           ${regionsContent}
+          <script>
+            // Функція для оновлення зарплати
+            window.handlePayChange = function(userId, field, value) {
+              // Оновлюємо localStorage
+              const currentData = JSON.parse(localStorage.getItem('payData_${personnelFilters.year}_${personnelFilters.month}') || '{}');
+              if (!currentData[userId]) {
+                currentData[userId] = { salary: '', bonus: '' };
+              }
+              currentData[userId][field] = value;
+              localStorage.setItem('payData_${personnelFilters.year}_${personnelFilters.month}', JSON.stringify(currentData));
+              
+              // Оновлюємо розрахунки в реальному часі
+              const salary = parseFloat(value) || 0;
+              const workHours = 176;
+              const overtimeRate = workHours > 0 ? (salary / workHours) * 1.5 : 0;
+              
+              // Знаходимо рядок з цим input
+              const input = event.target;
+              const row = input.closest('tr');
+              const cells = row.querySelectorAll('td');
+              
+              // Оновлюємо ціну за годину понаднормові (колонка 5)
+              if (cells[4]) cells[4].textContent = overtimeRate.toFixed(2);
+              // Оновлюємо відпрацьовану ставку (колонка 7)
+              if (cells[6]) cells[6].textContent = salary;
+              // Оновлюємо загальну суму (ставка + премія) (колонка 9)
+              const serviceBonus = parseFloat(cells[7].textContent) || 0;
+              if (cells[8]) cells[8].textContent = (salary + serviceBonus).toFixed(2);
+            };
+          </script>
         </body>
         </html>
       `;
