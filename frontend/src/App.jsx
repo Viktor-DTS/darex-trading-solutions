@@ -2668,6 +2668,8 @@ function RegionalManagerArea({ tab: propTab, user }) {
         <script>
           // Функція для оновлення зарплати
           window.handlePayChange = function(userId, field, value) {
+            console.log('handlePayChange called:', { userId, field, value });
+            
             // Оновлюємо localStorage
             const currentData = JSON.parse(localStorage.getItem('payData_${year}_${month}') || '{}');
             if (!currentData[userId]) {
@@ -2675,6 +2677,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
             }
             currentData[userId][field] = value;
             localStorage.setItem('payData_${year}_${month}', JSON.stringify(currentData));
+            console.log('Updated localStorage:', currentData);
             
             // Оновлюємо розрахунки в реальному часі
             const salary = parseFloat(value) || 0;
@@ -2686,14 +2689,56 @@ function RegionalManagerArea({ tab: propTab, user }) {
             const row = input.closest('tr');
             const cells = row.querySelectorAll('td');
             
+            console.log('Found row with cells:', cells.length);
+            
             // Оновлюємо ціну за годину понаднормові (колонка 5)
-            if (cells[4]) cells[4].textContent = overtimeRate.toFixed(2);
+            if (cells[4]) {
+              cells[4].textContent = overtimeRate.toFixed(2);
+              console.log('Updated overtime rate:', overtimeRate.toFixed(2));
+            }
+            
             // Оновлюємо відпрацьовану ставку (колонка 7)
-            if (cells[6]) cells[6].textContent = Math.round(salary * Math.min(parseInt(cells[2].textContent) || 0, workHours) / workHours);
-            // Оновлюємо загальну суму (ставка + премія) (колонка 9)
+            const actualHours = parseInt(cells[2].textContent) || 0;
+            const workedRate = Math.round(salary * Math.min(actualHours, workHours) / workHours);
+            if (cells[6]) {
+              cells[6].textContent = workedRate;
+              console.log('Updated worked rate:', workedRate);
+            }
+            
+            // Оновлюємо загальну суму (ставка + премія) (колонка 8)
             const serviceBonus = parseFloat(cells[7].textContent) || 0;
-            if (cells[8]) cells[8].textContent = (Math.round(salary * Math.min(parseInt(cells[2].textContent) || 0, workHours) / workHours) + serviceBonus).toFixed(2);
+            const totalPay = workedRate + serviceBonus;
+            if (cells[8]) {
+              cells[8].textContent = totalPay.toFixed(2);
+              console.log('Updated total pay:', totalPay.toFixed(2));
+            }
+            
+            console.log('Salary update completed');
           };
+          
+          // Додаємо обробник подій для всіх input полів
+          document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, setting up event listeners');
+            const inputs = document.querySelectorAll('input[type="number"]');
+            console.log('Found input fields:', inputs.length);
+            
+            inputs.forEach(input => {
+              input.addEventListener('change', function() {
+                console.log('Input changed:', this.value);
+                // Викликаємо handlePayChange з правильними параметрами
+                const onchangeAttr = this.getAttribute('onchange');
+                if (onchangeAttr) {
+                  // Парсимо параметри з onchange атрибута
+                  const match = onchangeAttr.match(/window\.handlePayChange\('([^']+)',\s*'([^']+)',\s*this\.value\)/);
+                  if (match) {
+                    const userId = match[1];
+                    const field = match[2];
+                    window.handlePayChange(userId, field, this.value);
+                  }
+                }
+              });
+            });
+          });
         </script>
       </body>
       </html>
