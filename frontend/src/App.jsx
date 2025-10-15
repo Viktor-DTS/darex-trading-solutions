@@ -1562,7 +1562,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
   
   // Використовуємо хук useLazyData для оптимізації
   // НЕ передаємо регіон - фільтрація відбувається на frontend як в WarehouseArea
-  const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, preloadCache, getTabCount } = useLazyData(user, 'notDone');
+  const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, preloadCache, getTabCount } = useLazyData(user, 'pending');
   
   // Додатковий стан для всіх заявок (потрібно для звіту по персоналу)
   const [allTasks, setAllTasks] = useState([]);
@@ -1635,6 +1635,31 @@ function RegionalManagerArea({ tab: propTab, user }) {
       setFilters(prev => ({ ...prev, serviceRegion: 'Загальний' }));
     }
   }, [user?.region, filters.serviceRegion]);
+
+  // Попереднє завантаження кешу для вкладок pending та archive при вході в панель
+  useEffect(() => {
+    if (user) {
+      console.log('DEBUG RegionalManagerArea: Preloading cache for pending and archive tabs');
+      // Завантажуємо дані для вкладок pending та archive
+      const preloadTabs = async () => {
+        try {
+          // Завантажуємо дані для pending (відхилені заявки)
+          const pendingData = await tasksAPI.getByStatus('pending', user.region);
+          preloadCache('pending', pendingData);
+          console.log('DEBUG RegionalManagerArea: Preloaded pending data:', pendingData.length);
+          
+          // Завантажуємо дані для archive (архів виконаних заявок)
+          const archiveData = await tasksAPI.getByStatus('archive', user.region);
+          preloadCache('archive', archiveData);
+          console.log('DEBUG RegionalManagerArea: Preloaded archive data:', archiveData.length);
+        } catch (error) {
+          console.error('DEBUG RegionalManagerArea: Error preloading cache:', error);
+        }
+      };
+      
+      preloadTabs();
+    }
+  }, [user, preloadCache]);
   
   // Старі useEffect видалені - тепер використовуємо useLazyData
   
