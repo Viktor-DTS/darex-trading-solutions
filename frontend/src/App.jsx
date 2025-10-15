@@ -2020,11 +2020,32 @@ function RegionalManagerArea({ tab: propTab, user }) {
     console.log('🔧 handlePayChange called:', { userId, field, value });
     console.log('🔧 Current payData before update:', payData);
     
+    // Логування на сервер
+    fetch('/api/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        message: `handlePayChange: userId=${userId}, field=${field}, value=${value}`, 
+        type: 'info' 
+      })
+    }).catch(err => console.error('Failed to log to server:', err));
+    
     setPayData(prev => {
       const userPay = prev[userId] || { salary: '', bonus: '' };
       const newUserPay = { ...userPay, [field]: value };
       const newData = { ...prev, [userId]: newUserPay };
       console.log('🔧 Updated payData state:', newData);
+      
+      // Логування оновлення стану
+      fetch('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: `payData updated: ${JSON.stringify(newData)}`, 
+          type: 'info' 
+        })
+      }).catch(err => console.error('Failed to log state update:', err));
+      
       return newData;
     });
     
@@ -3885,11 +3906,32 @@ function PersonnelTimesheet({ user }) {
     console.log('🔧 handlePayChange called:', { userId, field, value });
     console.log('🔧 Current payData before update:', payData);
     
+    // Логування на сервер
+    fetch('/api/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        message: `handlePayChange: userId=${userId}, field=${field}, value=${value}`, 
+        type: 'info' 
+      })
+    }).catch(err => console.error('Failed to log to server:', err));
+    
     setPayData(prev => {
       const userPay = prev[userId] || { salary: '', bonus: '' };
       const newUserPay = { ...userPay, [field]: value };
       const newData = { ...prev, [userId]: newUserPay };
       console.log('🔧 Updated payData state:', newData);
+      
+      // Логування оновлення стану
+      fetch('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: `payData updated: ${JSON.stringify(newData)}`, 
+          type: 'info' 
+        })
+      }).catch(err => console.error('Failed to log state update:', err));
+      
       return newData;
     });
     

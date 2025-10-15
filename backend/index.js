@@ -54,6 +54,9 @@ function addLog(message, type = 'info') {
   console.log(`[${type.toUpperCase()}] ${message}`);
 }
 
+// Глобальна функція для логування з фронтенду
+global.addLog = addLog;
+
 // Middleware для відстеження endpoint'ів
 function trackEndpoint(req, res, next) {
   const key = `${req.method} ${req.path}`;
@@ -1448,6 +1451,17 @@ app.get('/api/recent-logs', (req, res) => {
 
 app.get('/api/endpoint-stats', (req, res) => {
   res.json(endpointStats);
+});
+
+// Endpoint для логування з фронтенду
+app.post('/api/log', (req, res) => {
+  try {
+    const { message, type = 'info' } = req.body;
+    addLog(`[FRONTEND] ${message}`, type);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Screenshot endpoint для візуального моніторингу
