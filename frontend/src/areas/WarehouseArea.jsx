@@ -257,6 +257,16 @@ export default function WarehouseArea({ user }) {
         }
       }
       
+      // Обробка фільтра serviceRegion для користувачів з регіоном "Україна"
+      if (user?.region === 'Україна' && filters.serviceRegion && filters.serviceRegion !== 'Всі' && filters.serviceRegion !== 'Загальний') {
+        console.log('🌍 Ukraine user - checking serviceRegion filter:', filters.serviceRegion, 'task region:', t.serviceRegion);
+        if (t.serviceRegion !== filters.serviceRegion) {
+          console.log('🌍 Ukraine user - filtering out task - region does not match');
+          return false;
+        }
+        console.log('✅ Ukraine user - task passed serviceRegion filter');
+      }
+      
       // Інші фільтри
     for (const key in filters) {
       const value = filters[key];

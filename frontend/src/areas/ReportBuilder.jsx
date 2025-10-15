@@ -284,6 +284,16 @@ export default function ReportBuilder({ user }) {
         }
       }
       
+      // Обробка фільтра serviceRegion для користувачів з регіоном "Україна"
+      if (user?.region === 'Україна' && filters.serviceRegion && filters.serviceRegion !== 'Всі' && filters.serviceRegion !== 'Загальний') {
+        console.log('🌍 ReportBuilder Ukraine user - checking serviceRegion filter:', filters.serviceRegion, 'task region:', t.serviceRegion);
+        if (t.serviceRegion !== filters.serviceRegion) {
+          console.log('🌍 ReportBuilder Ukraine user - filtering out task - region does not match');
+          return false;
+        }
+        console.log('✅ ReportBuilder Ukraine user - task passed serviceRegion filter');
+      }
+      
       // Фільтр по діапазону дати проведення робіт
       if (dateRangeFilter.from && (!t.date || t.date < dateRangeFilter.from)) {
         return false;

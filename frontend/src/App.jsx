@@ -1134,6 +1134,17 @@ function ServiceArea({ user }) {
         if (t.serviceRegion !== user.region) return false;
       }
     }
+    
+    // Обробка фільтра serviceRegion для користувачів з регіоном "Україна"
+    if (user?.region === 'Україна' && filters.serviceRegion && filters.serviceRegion !== 'Всі' && filters.serviceRegion !== 'Загальний') {
+      console.log('DEBUG filter: Ukraine user - checking serviceRegion filter:', filters.serviceRegion, 'task region:', t.serviceRegion);
+      if (t.serviceRegion !== filters.serviceRegion) {
+        console.log('DEBUG filter: Ukraine user - filtering out task - region does not match');
+        return false;
+      }
+      console.log('DEBUG filter: Ukraine user - task passed serviceRegion filter');
+    }
+    
     for (const key in filters) {
       const value = filters[key];
       if (!value) continue;
@@ -2938,6 +2949,17 @@ function RegionalManagerArea({ tab: propTab, user }) {
         if (t.serviceRegion !== user.region) return false;
       }
     }
+    
+    // Обробка фільтра serviceRegion для користувачів з регіоном "Україна"
+    if (user?.region === 'Україна' && filters.serviceRegion && filters.serviceRegion !== 'Всі' && filters.serviceRegion !== 'Загальний') {
+      console.log('DEBUG filter: Ukraine user - checking serviceRegion filter:', filters.serviceRegion, 'task region:', t.serviceRegion);
+      if (t.serviceRegion !== filters.serviceRegion) {
+        console.log('DEBUG filter: Ukraine user - filtering out task - region does not match');
+        return false;
+      }
+      console.log('DEBUG filter: Ukraine user - task passed serviceRegion filter');
+    }
+    
     for (const key in filters) {
       const value = filters[key];
       if (!value) continue;
