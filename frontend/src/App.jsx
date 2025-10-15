@@ -2484,7 +2484,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
               return `
                 <tr>
                   <td>${u.name}</td>
-                  <td>${salary}</td>
+                  <td><input type="number" value="${salary}" onchange="window.handlePayChange('${u.id || u._id}', 'salary', this.value)" style="width:90px; border: 1px solid #ccc; padding: 4px;" /></td>
                   <td>${displayTotal}</td>
                   <td>${overtime}</td>
                   <td>${overtimeRate.toFixed(2)}</td>
@@ -2665,6 +2665,36 @@ function RegionalManagerArea({ tab: propTab, user }) {
       <body>
         <h2>${reportTitle}</h2>
         ${regionsContent}
+        <script>
+          // Функція для оновлення зарплати
+          window.handlePayChange = function(userId, field, value) {
+            // Оновлюємо localStorage
+            const currentData = JSON.parse(localStorage.getItem('payData_${year}_${month}') || '{}');
+            if (!currentData[userId]) {
+              currentData[userId] = { salary: '', bonus: '' };
+            }
+            currentData[userId][field] = value;
+            localStorage.setItem('payData_${year}_${month}', JSON.stringify(currentData));
+            
+            // Оновлюємо розрахунки в реальному часі
+            const salary = parseFloat(value) || 0;
+            const workHours = 176;
+            const overtimeRate = workHours > 0 ? (salary / workHours) * 2 : 0;
+            
+            // Знаходимо рядок з цим input
+            const input = event.target;
+            const row = input.closest('tr');
+            const cells = row.querySelectorAll('td');
+            
+            // Оновлюємо ціну за годину понаднормові (колонка 5)
+            if (cells[4]) cells[4].textContent = overtimeRate.toFixed(2);
+            // Оновлюємо відпрацьовану ставку (колонка 7)
+            if (cells[6]) cells[6].textContent = Math.round(salary * Math.min(parseInt(cells[2].textContent) || 0, workHours) / workHours);
+            // Оновлюємо загальну суму (ставка + премія) (колонка 9)
+            const serviceBonus = parseFloat(cells[7].textContent) || 0;
+            if (cells[8]) cells[8].textContent = (Math.round(salary * Math.min(parseInt(cells[2].textContent) || 0, workHours) / workHours) + serviceBonus).toFixed(2);
+          };
+        </script>
       </body>
       </html>
     `;
