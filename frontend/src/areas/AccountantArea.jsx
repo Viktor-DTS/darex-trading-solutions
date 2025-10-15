@@ -572,9 +572,8 @@ export default function AccountantArea({ user }) {
   useEffect(() => {
     const handleFocus = () => {
       console.log('[DEBUG] AccountantArea handleFocus - оновлення при фокусі вікна...');
-      tasksAPI.getAll().then(freshTasks => {
-        console.log('[DEBUG] AccountantArea handleFocus - оновлено заявок:', freshTasks.length);
-        setTasks([...freshTasks]);
+      refreshData(activeTab).then(() => {
+        console.log('[DEBUG] AccountantArea handleFocus - оновлено заявок для вкладки:', activeTab);
         setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
       }).catch(error => {
         console.error('[ERROR] AccountantArea - помилка оновлення при фокусі:', error);
@@ -582,7 +581,7 @@ export default function AccountantArea({ user }) {
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, []);
+  }, [activeTab, refreshData]);
   // Старі useEffect видалені - тепер використовуємо useLazyData
   const handleApprove = async (id, approved, comment) => {
     try {
