@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { tasksAPI } from '../utils/tasksAPI';
 
-export const useLazyData = (user, initialTab = 'notDone', regionOverride = null) => {
+export const useLazyData = (user, initialTab = 'notDone') => {
   console.log(`[useLazyData] Hook initialized with user:`, user?.login, 'initialTab:', initialTab);
   
   const [data, setData] = useState({});
@@ -28,8 +28,7 @@ export const useLazyData = (user, initialTab = 'notDone', regionOverride = null)
 
     try {
       // Завантажуємо тільки потрібні заявки з сервера через новий endpoint
-      const regionToUse = regionOverride || user.region;
-      const tabData = await tasksAPI.getByStatus(tab, regionToUse);
+      const tabData = await tasksAPI.getByStatus(tab, user.region);
 
       // Зберігаємо в кеш
       cacheRef.current = { ...cacheRef.current, [tab]: tabData };
@@ -42,7 +41,7 @@ export const useLazyData = (user, initialTab = 'notDone', regionOverride = null)
     } finally {
       setLoading(false);
     }
-  }, [user?.region, regionOverride]);
+  }, [user?.region]);
 
   // Завантаження даних для активної вкладки
   useEffect(() => {
@@ -55,7 +54,7 @@ export const useLazyData = (user, initialTab = 'notDone', regionOverride = null)
       };
       loadData();
     }
-  }, [activeTab, user?.region, regionOverride, fetchDataForTab]);
+  }, [activeTab, user?.region, fetchDataForTab]);
 
   const refreshData = useCallback(async (tabToRefresh = activeTab) => {
     console.log(`[useLazyData] 🔄 Refreshing data for tab: ${tabToRefresh}`);
