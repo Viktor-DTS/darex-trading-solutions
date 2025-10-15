@@ -1545,7 +1545,9 @@ function RegionalManagerArea({ tab: propTab, user }) {
   // taskTab state видалено - тепер використовуємо activeTab з useLazyData
   
   // Використовуємо хук useLazyData для оптимізації
-  const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, preloadCache, getTabCount } = useLazyData(user, 'notDone');
+  // Передаємо регіон з фільтра, якщо він встановлений
+  const regionToUse = filters.serviceRegion && filters.serviceRegion !== '' ? filters.serviceRegion : null;
+  const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, preloadCache, getTabCount } = useLazyData(user, 'notDone', regionToUse);
   
   // Додатковий стан для всіх заявок (потрібно для звіту по персоналу)
   const [allTasks, setAllTasks] = useState([]);
