@@ -1158,11 +1158,14 @@ function ServiceArea({ user }) {
       } else if ([
         'regionalManagerComment', 'airFilterName'
       ].includes(key)) {
+        console.log('DEBUG filter: Checking regionalManagerComment/airFilterName filter:', key, 'value:', value, 'task value:', t[key]);
         if (!t[key] || !t[key].toString().toLowerCase().includes(value.toLowerCase())) return false;
       } else if (typeof t[key] === 'string' || typeof t[key] === 'number') {
+        console.log('DEBUG filter: Checking general string/number filter:', key, 'value:', value, 'task value:', t[key]);
         if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
       }
     }
+    console.log('DEBUG filter: Task passed all filters:', t.requestNumber);
     return true;
   });
   
