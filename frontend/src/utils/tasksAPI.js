@@ -98,5 +98,40 @@ export const tasksAPI = {
       console.error('[ERROR] tasksAPI.getById - виняток:', error);
       throw error;
     }
+  },
+  // НОВІ МЕТОДИ ДЛЯ ОПТИМІЗАЦІЇ - завантаження тільки потрібних заявок
+  async getByStatus(status, region = null) {
+    try {
+      let url = `${API_BASE_URL}/tasks/filter?status=${encodeURIComponent(status)}`;
+      if (region && region !== 'Україна') {
+        url += `&region=${encodeURIComponent(region)}`;
+      }
+      
+      console.log(`[tasksAPI] Fetching tasks with status: ${status}, region: ${region}`);
+      const res = await fetch(url);
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('[ERROR] tasksAPI.getByStatus - помилка сервера:', errorText);
+        throw new Error('Помилка завантаження заявок по статусу');
+      }
+      const data = await res.json();
+      console.log(`[tasksAPI] Fetched ${data.length} tasks for status: ${status}`);
+      return data;
+    } catch (error) {
+      console.error('[ERROR] tasksAPI.getByStatus - виняток:', error);
+      throw error;
+    }
+  },
+  async getNotDone(region = null) {
+    return this.getByStatus('notDone', region);
+  },
+  async getPending(region = null) {
+    return this.getByStatus('pending', region);
+  },
+  async getDone(region = null) {
+    return this.getByStatus('done', region);
+  },
+  async getBlocked(region = null) {
+    return this.getByStatus('blocked', region);
   }
 }; 

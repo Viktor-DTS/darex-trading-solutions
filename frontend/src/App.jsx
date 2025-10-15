@@ -8,6 +8,7 @@ import Login from './Login'
 import Sidebar from './Sidebar'
 import ModalTaskForm, { fields as allTaskFields } from './ModalTaskForm'
 import TaskTable from './components/TaskTable'
+import { useLazyData } from './hooks/useLazyData'
 import ExcelImportModal from './components/ExcelImportModal'
 import ServiceReminderModal from './components/ServiceReminderModal'
 import MobileViewArea from './components/MobileViewArea'
@@ -906,12 +907,33 @@ function AdminSystemParamsArea({ user }) {
 function ServiceArea({ user }) {
   console.log('DEBUG ServiceArea: user =', user);
   console.log('DEBUG ServiceArea: user.region =', user?.region);
-  const region = user?.region || '';
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Перевіряємо чи користувач завантажений
+  if (!user) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '200px',
+        fontSize: '16px',
+        color: '#666'
+      }}>
+        Завантаження даних користувача...
+      </div>
+    );
+  }
+
   const [modalOpen, setModalOpen] = useState(false);
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const [tableKey, setTableKey] = useState(0);
+  const [editTask, setEditTask] = useState(null);
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
+
+  // Використовуємо хук useLazyData для оптимізації
+  const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, getTabCount } = useLazyData(user, 'notDone');
+  
+  // Ініціалізуємо фільтри
   const allFilterKeys = allTaskFields
     .map(f => f.name)
     .reduce((acc, key) => {
@@ -923,9 +945,6 @@ function ServiceArea({ user }) {
       return acc;
     }, {});
   const [filters, setFilters] = useState(allFilterKeys);
-  const [editTask, setEditTask] = useState(null);
-  const [tab, setTab] = useState('notDone');
-  const [dateRange, setDateRange] = useState({ from: '', to: '' });
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
   // але зберігаємо вже введені користувачем значення
   useEffect(() => {
@@ -969,29 +988,10 @@ function ServiceArea({ user }) {
     label: f.label,
     filter: true
   })), []);
-  useEffect(() => {
-    setLoading(true);
-    tasksAPI.getAll().then(tasks => {
-      setTasks(tasks);
-      setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
-    }).finally(() => setLoading(false));
-  }, []);
-  // Автоматичне оновлення даних при фокусі на вкладку браузера
-  useEffect(() => {
-    const handleFocus = () => {
-      tasksAPI.getAll().then(freshTasks => {
-        setTasks(freshTasks);
-        setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
-      }).catch(error => {
-        console.error('[ERROR] ServiceArea - помилка оновлення при фокусі:', error);
-      });
-    };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, []);
+  // Старі useEffect видалені - тепер використовуємо useLazyData
   // useEffect для перевірки та показу нагадування
   useEffect(() => {
-    if (!loading && tasks.length > 0 && tab === 'notDone') {
+    if (!loading && tasks.length > 0 && activeTab === 'notDone') {
       // Фільтруємо заявки по регіону користувача
       const requestTasks = tasks.filter(task => {
         if (task.status !== 'Заявка') return false;
@@ -1004,29 +1004,27 @@ function ServiceArea({ user }) {
         setReminderModalOpen(true);
       }
     }
-  }, [loading, tasks, tab, user?.region]);
+  }, [loading, tasks, activeTab, user?.region]);
   const handleSave = async (task) => {
-    setLoading(true);
-    let updatedTask = null;
-    if (editTask && editTask.id) {
-      updatedTask = await tasksAPI.update(editTask.id, task);
-    } else {
-      updatedTask = await tasksAPI.add(task);
-    }
-    // Оновлюємо дані з бази після збереження
     try {
-      const freshTasks = await tasksAPI.getAll();
-      setTasks(freshTasks);
+      let updatedTask = null;
+      if (editTask && editTask.id) {
+        updatedTask = await tasksAPI.update(editTask.id, task);
+      } else {
+        updatedTask = await tasksAPI.add(task);
+      }
+      
+      // Оновлюємо дані через refreshData
+      await refreshData(activeTab);
+      
+      // Закриваємо модальне вікно
+      setModalOpen(false);
+      setEditTask(null);
+      setTableKey(prev => prev + 1); // Примусово оновлюємо таблицю
     } catch (error) {
-      console.error('[ERROR] handleSave - помилка оновлення даних з бази:', error);
+      console.error('[ERROR] handleSave - помилка збереження:', error);
+      alert('Помилка збереження заявки');
     }
-    // Закриваємо модальне вікно
-    setEditTask(null);
-    setLoading(false);
-    // Примусово оновлюємо таблицю після закриття форми
-    setTableKey(prev => prev + 1);
-    // НЕ змінюємо вкладку автоматично - залишаємося на поточній
-    // Користувач може сам перейти на потрібну вкладку
   };
   const handleEdit = t => {
     const isReadOnly = t._readOnly;
@@ -1041,30 +1039,42 @@ function ServiceArea({ user }) {
     }
   };
   const handleStatus = async (id, status) => {
-    setLoading(true);
-    const t = tasks.find(t => t.id === id);
-    if (!t) return;
-    let updated;
-        if (status === 'Виконано') {
-      updated = await tasksAPI.update(id, {
-            ...t,
-            status,
-            approvedByWarehouse: false,
-            approvedByAccountant: false,
-            approvedByRegionalManager: false,
-      });
-    } else {
-      updated = await tasksAPI.update(id, { ...t, status });
+    try {
+      const t = tasks.find(t => t.id === id);
+      if (!t) return;
+      
+      let updated;
+      if (status === 'Виконано') {
+        updated = await tasksAPI.update(id, {
+          ...t,
+          status,
+          approvedByWarehouse: false,
+          approvedByAccountant: false,
+          approvedByRegionalManager: false,
+        });
+      } else {
+        updated = await tasksAPI.update(id, { ...t, status });
       }
-    setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
-    setLoading(false);
+      
+      // Оновлюємо дані через refreshData
+      await refreshData(activeTab);
+      setTableKey(prev => prev + 1); // Примусово оновлюємо таблицю
+    } catch (error) {
+      console.error('[ERROR] handleStatus - помилка оновлення статусу:', error);
+      alert('Помилка оновлення статусу заявки');
+    }
   };
   const handleDelete = async (id) => {
-    setLoading(true);
-    await tasksAPI.remove(id);
-    setTasks(tasks => tasks.filter(t => t.id !== id));
-    setTableKey(prev => prev + 1); // Примусово оновлюємо таблицю
-    setLoading(false);
+    try {
+      await tasksAPI.remove(id);
+      
+      // Оновлюємо дані через refreshData
+      await refreshData(activeTab);
+      setTableKey(prev => prev + 1); // Примусово оновлюємо таблицю
+    } catch (error) {
+      console.error('[ERROR] handleDelete - помилка видалення:', error);
+      alert('Помилка видалення заявки');
+    }
   };
   const handleFilter = useCallback(e => {
     console.log('DEBUG App: handleFilter CALLED - e.target.name =', e.target.name);
@@ -1179,9 +1189,9 @@ function ServiceArea({ user }) {
   ), [filtered]);
   const blocked = useMemo(() => filtered.filter(t => t.status === 'Заблоковано'), [filtered]);
   let tableData = notDone;
-  if (tab === 'pending') tableData = pending;
-  if (tab === 'done') tableData = done;
-  if (tab === 'blocked') tableData = blocked;
+  if (activeTab === 'pending') tableData = pending;
+  if (activeTab === 'done') tableData = done;
+  if (activeTab === 'blocked') tableData = blocked;
   // Функція для створення звіту по замовнику
   const openClientReport = (clientName) => {
     const clientTasks = tasks.filter(task => task.client === clientName);
@@ -1466,10 +1476,10 @@ function ServiceArea({ user }) {
       {/* Оптимізований рядок з усіма кнопками */}
       <div style={{display:'flex',gap:8,marginBottom:24,justifyContent:'flex-start',flexWrap:'wrap',alignItems:'center'}}>
         <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{padding:'10px 20px',background:'#28a745',color:'#fff',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>Додати заявку</button>
-        <button onClick={()=>setTab('notDone')} style={{padding:'10px 16px',background:tab==='notDone'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='notDone'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Невиконані заявки</button>
-        <button onClick={()=>setTab('pending')} style={{padding:'10px 16px',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Заявка на підтвердженні</button>
-        <button onClick={()=>setTab('done')} style={{padding:'10px 16px',background:tab==='done'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='done'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Архів виконаних заявок</button>
-        <button onClick={()=>setTab('blocked')} style={{padding:'10px 16px',background:tab==='blocked'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='blocked'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Заблоковані заявки</button>
+        <button onClick={()=>setActiveTab('notDone')} style={{padding:'10px 16px',background:activeTab==='notDone'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='notDone'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Невиконані заявки ({getTabCount('notDone')})</button>
+        <button onClick={()=>setActiveTab('pending')} style={{padding:'10px 16px',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
+        <button onClick={()=>setActiveTab('done')} style={{padding:'10px 16px',background:activeTab==='done'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='done'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Архів виконаних заявок ({getTabCount('done')})</button>
+        <button onClick={()=>setActiveTab('blocked')} style={{padding:'10px 16px',background:activeTab==='blocked'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='blocked'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Заблоковані заявки ({getTabCount('blocked')})</button>
       </div>
       
       <ModalTaskForm 
@@ -1477,7 +1487,7 @@ function ServiceArea({ user }) {
         onClose={()=>{setModalOpen(false);setEditTask(null);}} 
         onSave={handleSave} 
         initialData={editTask||initialTask} 
-        mode={tab === 'done' ? 'admin' : 'service'} 
+        mode={activeTab === 'done' ? 'admin' : 'service'} 
         user={user}
         readOnly={editTask?._readOnly || false}
       />
@@ -1496,7 +1506,7 @@ function ServiceArea({ user }) {
         dateRange={dateRange}
         setDateRange={setDateRange}
         user={user}
-        isArchive={tab === 'done'}
+        isArchive={activeTab === 'done'}
         onHistoryClick={openClientReport}
       />
       <ServiceReminderModal

@@ -990,6 +990,78 @@ app.get('/api/tasks', async (req, res) => {
   }
 });
 
+// НОВИЙ ENDPOINT ДЛЯ ОПТИМІЗАЦІЇ - фільтрація заявок по статусу
+app.get('/api/tasks/filter', async (req, res) => {
+  try {
+    addLog('📋 Loading filtered tasks', 'info');
+    
+    // Отримуємо параметри фільтрації
+    const { status, region, limit = 1000, skip = 0, sort = '-requestDate' } = req.query;
+    
+    console.log('[DEBUG] GET /api/tasks/filter - параметри:', { status, region, limit, skip, sort });
+    
+    // Будуємо запит для фільтрації
+    let query = {};
+    
+    // Фільтрація по статусу
+    if (status) {
+      switch (status) {
+        case 'notDone':
+          query.status = { $in: ['Заявка', 'В роботі'] };
+          break;
+        case 'pending':
+          query.status = 'Виконано';
+          query.$or = [
+            { approvedByWarehouse: { $ne: 'Підтверджено' } },
+            { approvedByAccountant: { $ne: 'Підтверджено' } },
+            { approvedByRegionalManager: { $ne: 'Підтверджено' } }
+          ];
+          break;
+        case 'done':
+          query.status = 'Виконано';
+          query.approvedByWarehouse = 'Підтверджено';
+          query.approvedByAccountant = 'Підтверджено';
+          query.approvedByRegionalManager = 'Підтверджено';
+          break;
+        case 'blocked':
+          query.status = 'Заблоковано';
+          break;
+        default:
+          query.status = status;
+      }
+    }
+    
+    // Фільтрація по регіону
+    if (region && region !== 'Україна') {
+      query.serviceRegion = region;
+    }
+    
+    console.log('[DEBUG] GET /api/tasks/filter - запит:', JSON.stringify(query, null, 2));
+    
+    // Виконуємо запит
+    const tasks = await executeWithRetry(() => 
+      Task.find(query)
+        .sort(sort)
+        .limit(parseInt(limit))
+        .skip(parseInt(skip))
+        .lean()
+    );
+    
+    console.log('[DEBUG] GET /api/tasks/filter - знайдено завдань:', tasks.length);
+    
+    // Додаємо числовий id для сумісності з фронтендом
+    const tasksWithId = tasks.map(task => ({
+      ...task,
+      id: task._id.toString()
+    }));
+    
+    res.json(tasksWithId);
+  } catch (error) {
+    console.error('[ERROR] GET /api/tasks/filter - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Маршрут для отримання конкретного завдання за ID
 app.get('/api/tasks/:id', async (req, res) => {
   try {
