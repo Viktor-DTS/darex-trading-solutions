@@ -1521,11 +1521,32 @@ function ServiceArea({ user }) {
 function RegionalManagerArea({ tab: propTab, user }) {
   console.log('DEBUG RegionalManagerArea: user =', user);
   console.log('DEBUG RegionalManagerArea: user.region =', user?.region);
+  
+  // Перевіряємо чи користувач завантажений
+  if (!user) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '200px',
+        fontSize: '16px',
+        color: '#666'
+      }}>
+        Завантаження даних користувача...
+      </div>
+    );
+  }
+
   const { t } = useTranslation();
   const [tab, setTab] = useState(propTab || 'tasks');
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
-  const [taskTab, setTaskTab] = useState('pending');
+  // taskTab state видалено - тепер використовуємо activeTab з useLazyData
+  
+  // Використовуємо хук useLazyData для оптимізації
+  const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, getTabCount } = useLazyData(user, 'pending');
+  
   const allFilterKeys = allTaskFields
     .map(f => f.name)
     .reduce((acc, key) => {
@@ -1537,8 +1558,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
       return acc;
     }, {});
   const [filters, setFilters] = useState(allFilterKeys);
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState([]);
   const [region, setRegion] = useState('');
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
@@ -1596,11 +1615,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
     }
   }, [user?.region, filters.serviceRegion]);
   
-  // Завантаження завдань з API
-  useEffect(() => {
-    setLoading(true);
-    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
-  }, []);
+  // Старі useEffect видалені - тепер використовуємо useLazyData
   // Додаю useEffect для завантаження користувачів з бази
   useEffect(() => {
     const loadUsers = async () => {
@@ -1699,49 +1714,54 @@ function RegionalManagerArea({ tab: propTab, user }) {
   }, []);
   // --- Функція handleApprove для підтвердження задач ---
   async function handleApprove(id, approved, comment) {
-    setLoading(true);
-    const t = tasks.find(t => t.id === id);
-    if (!t) return;
-    let next = {
-      ...t,
-      approvedByRegionalManager: approved,
-      regionalManagerComment: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.regionalManagerComment)
-    };
-    let bonusApprovalDate = t.bonusApprovalDate;
-    if (
-      next.status === 'Виконано' &&
-      (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
-      (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true)
-    ) {
-      const d = new Date();
-      const currentDay = d.getDate();
-      const currentMonth = d.getMonth() + 1;
-      const currentYear = d.getFullYear();
-      
-      // Перевіряємо дату виконання робіт
-      const workDate = new Date(t.date);
-      const workMonth = workDate.getMonth() + 1;
-      const workYear = workDate.getFullYear();
-      
-      // Нова логіка: якщо день >= 16 і місяць затвердження != місяць виконання
-      if (currentDay >= 16 && (workMonth !== currentMonth || workYear !== currentYear)) {
-        // Встановлюємо поточний місяць + 1
-        if (currentMonth === 12) {
-          bonusApprovalDate = `01-${currentYear + 1}`;
+    try {
+      const t = tasks.find(t => t.id === id);
+      if (!t) return;
+      let next = {
+        ...t,
+        approvedByRegionalManager: approved,
+        regionalManagerComment: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.regionalManagerComment)
+      };
+      let bonusApprovalDate = t.bonusApprovalDate;
+      if (
+        next.status === 'Виконано' &&
+        (next.approvedByWarehouse === 'Підтверджено' || next.approvedByWarehouse === true) &&
+        (next.approvedByAccountant === 'Підтверджено' || next.approvedByAccountant === true)
+      ) {
+        const d = new Date();
+        const currentDay = d.getDate();
+        const currentMonth = d.getMonth() + 1;
+        const currentYear = d.getFullYear();
+        
+        // Перевіряємо дату виконання робіт
+        const workDate = new Date(t.date);
+        const workMonth = workDate.getMonth() + 1;
+        const workYear = workDate.getFullYear();
+        
+        // Нова логіка: якщо день >= 16 і місяць затвердження != місяць виконання
+        if (currentDay >= 16 && (workMonth !== currentMonth || workYear !== currentYear)) {
+          // Встановлюємо поточний місяць + 1
+          if (currentMonth === 12) {
+            bonusApprovalDate = `01-${currentYear + 1}`;
+          } else {
+            bonusApprovalDate = `${String(currentMonth + 1).padStart(2, '0')}-${currentYear}`;
+          }
         } else {
-          bonusApprovalDate = `${String(currentMonth + 1).padStart(2, '0')}-${currentYear}`;
+          // Стара логіка: поточний місяць
+          bonusApprovalDate = `${String(currentMonth).padStart(2, '0')}-${currentYear}`;
         }
-      } else {
-        // Стара логіка: поточний місяць
-        bonusApprovalDate = `${String(currentMonth).padStart(2, '0')}-${currentYear}`;
       }
+      const updated = await tasksAPI.update(id, {
+        ...next,
+        bonusApprovalDate
+      });
+      
+      // Оновлюємо дані через refreshData
+      await refreshData(activeTab);
+    } catch (error) {
+      console.error('[ERROR] handleApprove - помилка підтвердження:', error);
+      alert('Помилка підтвердження заявки');
     }
-    const updated = await tasksAPI.update(id, {
-      ...next,
-      bonusApprovalDate
-    });
-    setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
-    setLoading(false);
   }
   // --- Аналогічно для handleApprove адміністратора ---
   const handleApproveAdmin = async (id, approved, comment) => {
@@ -2881,9 +2901,9 @@ function RegionalManagerArea({ tab: propTab, user }) {
         <>
             <h2>Завдання для регіонального керівника</h2>
             <div style={{display:'flex',gap:8,marginBottom:16}}>
-              <button onClick={()=>setTaskTab('pending')} style={{width:220,padding:'10px 0',background:taskTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='pending'?700:400,cursor:'pointer'}}>Заявки відхилені</button>
-              <button onClick={()=>setTaskTab('archive')} style={{width:220,padding:'10px 0',background:taskTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
-              <button onClick={()=>setTaskTab('debt')} style={{width:220,padding:'10px 0',background:taskTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:taskTab==='debt'?700:400,cursor:'pointer'}}>Заборгованість по документам</button>
+              <button onClick={()=>setActiveTab('pending')} style={{width:220,padding:'10px 0',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer'}}>Заявки відхилені ({getTabCount('pending')})</button>
+              <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
+              <button onClick={()=>setActiveTab('debt')} style={{width:220,padding:'10px 0',background:activeTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='debt'?700:400,cursor:'pointer'}}>Заборгованість по документам ({getTabCount('debt')})</button>
               <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
             </div>
             <div style={{display:'flex',gap:8,marginBottom:16}}>
@@ -2958,13 +2978,13 @@ function RegionalManagerArea({ tab: propTab, user }) {
               />
             ) : (
               <TaskTable
-                tasks={taskTab === 'pending' ? filtered.filter(t => {
+                tasks={activeTab === 'pending' ? filtered.filter(t => {
                   const isWarehouseRejected = isRejected(t.approvedByWarehouse);
                   const isAccountantRejected = isRejected(t.approvedByAccountant);
                   return t.status === 'Виконано' && (isWarehouseRejected || isAccountantRejected);
-                }) : taskTab === 'archive' ? filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant)) : taskTab === 'debt' ? filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant)) : filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByRegionalManager))}
+                }) : activeTab === 'archive' ? filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant)) : activeTab === 'debt' ? filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant)) : filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByRegionalManager))}
                 allTasks={tasks}
-                onApprove={taskTab === 'pending' ? undefined : handleApprove}
+                onApprove={activeTab === 'pending' ? undefined : handleApprove}
                 onEdit={handleEdit}
                 role="regional"
                 filters={filters}
@@ -2974,7 +2994,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                 approveField="approvedByRegionalManager"
                 commentField="regionalManagerComment"
                 user={user}
-                isArchive={taskTab === 'archive'}
+                isArchive={activeTab === 'archive'}
               />
             )}
         </>

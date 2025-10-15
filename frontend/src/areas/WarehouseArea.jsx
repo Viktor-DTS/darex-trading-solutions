@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
 import { tasksAPI } from '../utils/tasksAPI';
+import { useLazyData } from '../hooks/useLazyData';
 const initialTask = {
   id: null,
   status: '',
@@ -58,8 +59,25 @@ const initialTask = {
 export default function WarehouseArea({ user }) {
   console.log('DEBUG WarehouseArea: user =', user);
   console.log('DEBUG WarehouseArea: user.region =', user?.region);
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Перевіряємо чи користувач завантажений
+  if (!user) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '200px',
+        fontSize: '16px',
+        color: '#666'
+      }}>
+        Завантаження даних користувача...
+      </div>
+    );
+  }
+
+  // Використовуємо хук useLazyData для оптимізації
+  const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, getTabCount } = useLazyData(user, 'pending');
   // Ініціалізую filters з усіма можливими ключами для фільтрації
   const allFilterKeys = allTaskFields
     .map(f => f.name)
@@ -74,7 +92,7 @@ export default function WarehouseArea({ user }) {
   const [filters, setFilters] = useState(allFilterKeys);
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
-  const [tab, setTab] = useState('pending');
+  // tab state видалено - тепер використовуємо activeTab з useLazyData
   const region = user?.region || '';
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
   // але зберігаємо вже введені користувачем значення
@@ -105,28 +123,11 @@ export default function WarehouseArea({ user }) {
   // Для користувачів з множинними регіонами не встановлюємо автоматично жодного фільтра
   // Вони будуть бачити всі свої регіони за замовчуванням
 
-  useEffect(() => {
-    setLoading(true);
-    tasksAPI.getAll().then(tasks => {
-      setTasks(tasks);
-    }).finally(() => setLoading(false));
-  }, []);
-  // Автоматичне оновлення даних при фокусі на вкладку браузера
-  useEffect(() => {
-    const handleFocus = () => {
-      tasksAPI.getAll().then(freshTasks => {
-        setTasks(freshTasks);
-      }).catch(error => {
-        console.error('[ERROR] WarehouseArea - помилка оновлення при фокусі:', error);
-      });
-    };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, []);
+  // Старі useEffect видалені - тепер використовуємо useLazyData
   const handleApprove = async (id, approved, comment) => {
-    setLoading(true);
-    const t = tasks.find(t => t.id === id);
-    if (!t) return;
+    try {
+      const t = tasks.find(t => t.id === id);
+      if (!t) return;
     
     // Автоматично заповнюємо дату підтвердження зав. складу
     const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD формат
@@ -152,11 +153,16 @@ export default function WarehouseArea({ user }) {
       ...next,
       bonusApprovalDate
     });
-    setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
+    // Оновлюємо дані через refreshData
+    await refreshData(activeTab);
+    
     if (approved === 'Підтверджено') {
-      setTab('archive');
+      setActiveTab('archive');
     }
-    setLoading(false);
+    } catch (error) {
+      console.error('[ERROR] handleApprove - помилка підтвердження:', error);
+      alert('Помилка підтвердження заявки');
+    }
   };
   const handleFilter = e => {
     console.log('DEBUG WarehouseArea: handleFilter CALLED - e.target.name =', e.target.name);
@@ -307,7 +313,7 @@ export default function WarehouseArea({ user }) {
     t => t.status === 'Виконано' && t.approvedByWarehouse === 'Підтверджено'
   );
   console.log('📋 ARCHIVE TASKS:', archive.length);
-  const tableData = tab === 'pending' ? pending : archive;
+  const tableData = activeTab === 'pending' ? pending : archive;
   console.log('📋 TABLE DATA:', tableData.length, 'for tab:', tab);
   const columns = allTaskFields.map(f => ({
     key: f.name,
@@ -722,8 +728,8 @@ export default function WarehouseArea({ user }) {
       <h2>Завдання для затвердження (Зав. склад)</h2>
       {loading && <div>Завантаження...</div>}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
-        <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
+        <button onClick={()=>setActiveTab('pending')} style={{width:220,padding:'10px 0',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
+        <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
       </div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
         <label style={{display:'flex',alignItems:'center',gap:4}}>
@@ -750,7 +756,7 @@ export default function WarehouseArea({ user }) {
         dateRange={{ from: filters.dateFrom, to: filters.dateTo }}
         setDateRange={r => setFilters(f => ({ ...f, dateFrom: r.from, dateTo: r.to }))}
         user={user}
-        isArchive={tab === 'archive'}
+        isArchive={activeTab === 'archive'}
         onHistoryClick={openClientReport}
       />
     </div>

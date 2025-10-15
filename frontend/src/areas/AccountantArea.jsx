@@ -4,6 +4,7 @@ import TaskTable from '../components/TaskTable';
 import AccountantReportsModal from '../components/AccountantReportsModal';
 import { tasksAPI } from '../utils/tasksAPI';
 import { processFileForUpload } from '../utils/pdfConverter';
+import { useLazyData } from '../hooks/useLazyData';
 import * as XLSX from 'xlsx-js-style';
 const initialTask = {
   id: null,
@@ -59,7 +60,24 @@ const initialTask = {
   transportSum: '',
 };
 export default function AccountantArea({ user }) {
-  const [tasks, setTasks] = useState([]);
+  // Перевіряємо чи користувач завантажений
+  if (!user) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '200px',
+        fontSize: '16px',
+        color: '#666'
+      }}>
+        Завантаження даних користувача...
+      </div>
+    );
+  }
+
+  // Використовуємо хук useLazyData для оптимізації
+  const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, getTabCount } = useLazyData(user, 'pending');
   const [users, setUsers] = useState([]);
   
   // Додаткове логування для відстеження змін стану
@@ -103,7 +121,7 @@ export default function AccountantArea({ user }) {
   const [approvalFilter, setApprovalFilter] = useState('all'); // 'all', 'approved', 'not_approved'
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
-  const [tab, setTab] = useState('pending');
+  // tab state видалено - тепер використовуємо activeTab з useLazyData
   const [invoiceRequests, setInvoiceRequests] = useState([]);
   const [invoiceRequestsLoading, setInvoiceRequestsLoading] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(new Set());
@@ -560,23 +578,7 @@ export default function AccountantArea({ user }) {
       return updatedFilters;
     });
   }, [allTaskFields]); // Залежність від allTaskFields
-  useEffect(() => {
-    console.log('[DEBUG] AccountantArea useEffect - початкове завантаження даних...');
-    setLoading(true);
-    tasksAPI.getAll()
-      .then(tasks => {
-        console.log('[DEBUG] AccountantArea useEffect - завантажено заявок:', tasks.length);
-        setTasks([...tasks]);
-        setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
-      })
-      .catch(error => {
-        console.error('[ERROR] AccountantArea useEffect - помилка завантаження:', error);
-      })
-      .finally(() => {
-        setLoading(false);
-        console.log('[DEBUG] AccountantArea useEffect - завантаження завершено');
-      });
-  }, []);
+  // Старі useEffect видалені - тепер використовуємо useLazyData
   
   // Завантаження запитів на рахунки
   useEffect(() => {
@@ -596,12 +598,8 @@ export default function AccountantArea({ user }) {
         console.error('[ERROR] AccountantArea - помилка оновлення при фокусі:', error);
       });
     };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, []);
+    // Старі useEffect видалені - тепер використовуємо useLazyData
   const handleApprove = async (id, approved, comment) => {
-    setLoading(true);
-    
     try {
       const t = tasks.find(t => t.id === id);
       if (!t) {
@@ -633,26 +631,13 @@ export default function AccountantArea({ user }) {
       
       console.log('[DEBUG] AccountantArea handleApprove - заявка підтверджена:', updated);
       
-      // Оновлюємо локальний стан
-      setTasks(tasks => tasks.map(tt => tt.id === id ? updated : tt));
-      
-      // Додатково оновлюємо кеш з бази для гарантії актуальності
-      console.log('[DEBUG] AccountantArea handleApprove - оновлюємо кеш після підтвердження...');
-      console.log('[DEBUG] AccountantArea handleApprove - поточний стан tasks перед оновленням:', tasks.length);
-      
-      const freshTasks = await tasksAPI.getAll();
-      console.log('[DEBUG] AccountantArea handleApprove - отримано з API:', freshTasks.length, 'заявок');
-      
-      // Примусове оновлення стану - створюємо новий масив
-      setTasks([...freshTasks]);
+      // Оновлюємо дані через refreshData
+      await refreshData(activeTab);
       setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
-      console.log('[DEBUG] AccountantArea handleApprove - кеш оновлено, завантажено заявок:', freshTasks.length);
       
     } catch (error) {
       console.error('[ERROR] AccountantArea handleApprove - помилка підтвердження заявки:', error);
       alert('Помилка підтвердження заявки: ' + error.message);
-    } finally {
-      setLoading(false);
     }
   };
   const handleFilter = e => {
@@ -796,7 +781,7 @@ export default function AccountantArea({ user }) {
     return v === true || v === 'Підтверджено';
   }
   const archive = filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByAccountant));
-  const tableData = tab === 'pending' ? pending : archive;
+  const tableData = activeTab === 'pending' ? pending : archive;
   
   // Логування для діагностики tableData
   console.log('[DEBUG] AccountantArea - tableData оновлено:', {
@@ -1345,10 +1330,10 @@ export default function AccountantArea({ user }) {
       <h2>Завдання для затвердження (Бухгалтер)</h2>
       {loading && <div>Завантаження...</div>}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <button onClick={()=>setTab('pending')} style={{width:220,padding:'10px 0',background:tab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні</button>
-        <button onClick={()=>setTab('archive')} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
-        <button onClick={()=>setTab('debt')} style={{width:220,padding:'10px 0',background:tab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='debt'?700:400,cursor:'pointer'}}>Заборгованість по документам</button>
-        <button onClick={()=>setTab('invoices')} style={{width:220,padding:'10px 0',background:tab==='invoices'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='invoices'?700:400,cursor:'pointer'}}>📄 Запити на рахунки</button>
+        <button onClick={()=>setActiveTab('pending')} style={{width:220,padding:'10px 0',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
+        <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
+        <button onClick={()=>setActiveTab('debt')} style={{width:220,padding:'10px 0',background:activeTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='debt'?700:400,cursor:'pointer'}}>Заборгованість по документам ({getTabCount('debt')})</button>
+        <button onClick={()=>setActiveTab('invoices')} style={{width:220,padding:'10px 0',background:activeTab==='invoices'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='invoices'?700:400,cursor:'pointer'}}>📄 Запити на рахунки ({getTabCount('invoices')})</button>
         <button onClick={()=>setReportsModalOpen(true)} style={{width:220,padding:'10px 0',background:'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:400,cursor:'pointer'}}>📊 Бухгалтерські звіти</button>
         <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
         <button onClick={() => {
@@ -2103,7 +2088,7 @@ export default function AccountantArea({ user }) {
             approveField="approvedByAccountant"
             commentField="accountantComment"
             user={user}
-            isArchive={tab === 'archive'}
+            isArchive={activeTab === 'archive'}
             onHistoryClick={openClientReport}
           />
         </div>

@@ -1026,6 +1026,24 @@ app.get('/api/tasks/filter', async (req, res) => {
         case 'blocked':
           query.status = 'Заблоковано';
           break;
+        case 'inProgress':
+          query.status = { $in: ['Заявка', 'В роботі'] };
+          break;
+        case 'archive':
+          query.status = { $nin: ['Заявка', 'В роботі'] };
+          break;
+        case 'debt':
+          // Заборгованість по документам - заявки з неповними документами
+          query.status = 'Виконано';
+          query.$or = [
+            { invoice: { $in: [null, '', undefined] } },
+            { paymentDate: { $in: [null, '', undefined] } }
+          ];
+          break;
+        case 'invoices':
+          // Запити на рахунки - заявки з запитами на рахунки
+          query.invoiceRequestId = { $exists: true, $ne: null };
+          break;
         default:
           query.status = status;
       }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
 import { tasksAPI } from '../utils/tasksAPI';
+import { useLazyData } from '../hooks/useLazyData';
 const initialTask = {
   id: null,
   status: '',
@@ -56,9 +57,26 @@ const initialTask = {
   transportSum: '',
 };
 export default function OperatorArea({ user }) {
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Перевіряємо чи користувач завантажений
+  if (!user) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '200px',
+        fontSize: '16px',
+        color: '#666'
+      }}>
+        Завантаження даних користувача...
+      </div>
+    );
+  }
+
   const [modalOpen, setModalOpen] = useState(false);
+  
+  // Використовуємо хук useLazyData для оптимізації
+  const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, getTabCount } = useLazyData(user, 'inProgress');
   const allFilterKeys = allTaskFields
     .map(f => f.name)
     .reduce((acc, key) => {
@@ -71,7 +89,7 @@ export default function OperatorArea({ user }) {
     }, {});
   const [filters, setFilters] = useState(allFilterKeys);
   const [editTask, setEditTask] = useState(null);
-  const [tab, setTab] = useState('inProgress');
+  // tab state видалено - тепер використовуємо activeTab з useLazyData
   const region = user?.region || '';
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
   // але зберігаємо вже введені користувачем значення
@@ -98,40 +116,26 @@ export default function OperatorArea({ user }) {
       return updatedFilters;
     });
   }, [allTaskFields]); // Залежність від allTaskFields
-  useEffect(() => {
-    setLoading(true);
-    tasksAPI.getAll().then(setTasks).finally(() => setLoading(false));
-  }, []);
-  // Автоматичне оновлення даних при фокусі на вкладку браузера
-  useEffect(() => {
-    const handleFocus = () => {
-      tasksAPI.getAll().then(freshTasks => {
-        setTasks(freshTasks);
-      }).catch(error => {
-        console.error('[ERROR] OperatorArea - помилка оновлення при фокусі:', error);
-      });
-    };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, []);
+  // Старі useEffect видалені - тепер використовуємо useLazyData
   const handleSave = async (task) => {
-    setLoading(true);
-    let updatedTask = null;
-    if (editTask && editTask.id) {
-      updatedTask = await tasksAPI.update(editTask.id, task);
-    } else {
-      updatedTask = await tasksAPI.add(task);
-    }
-    // Оновлюємо дані з бази після збереження
     try {
-      const freshTasks = await tasksAPI.getAll();
-      setTasks(freshTasks);
+      let updatedTask = null;
+      if (editTask && editTask.id) {
+        updatedTask = await tasksAPI.update(editTask.id, task);
+      } else {
+        updatedTask = await tasksAPI.add(task);
+      }
+      
+      // Оновлюємо дані через refreshData
+      await refreshData(activeTab);
+      
+      // Закриваємо модальне вікно
+      setModalOpen(false);
+      setEditTask(null);
     } catch (error) {
-      console.error('[ERROR] OperatorArea handleSave - помилка оновлення даних з бази:', error);
+      console.error('[ERROR] handleSave - помилка збереження:', error);
+      alert('Помилка збереження заявки');
     }
-    // Закриваємо модальне вікно
-    setEditTask(null);
-    setLoading(false);
   };
   const handleFilter = e => {
     const newFilters = { ...filters, [e.target.name]: e.target.value };
@@ -150,10 +154,15 @@ export default function OperatorArea({ user }) {
     }
   };
   const handleDelete = async id => {
-    setLoading(true);
-    await tasksAPI.remove(id);
-    setTasks(tasks => tasks.filter(t => t.id !== id));
-    setLoading(false);
+    try {
+      await tasksAPI.remove(id);
+      
+      // Оновлюємо дані через refreshData
+      await refreshData(activeTab);
+    } catch (error) {
+      console.error('[ERROR] handleDelete - помилка видалення:', error);
+      alert('Помилка видалення заявки');
+    }
   };
   const columns = allTaskFields.map(f => ({
     key: f.name,
@@ -225,7 +234,7 @@ export default function OperatorArea({ user }) {
   const archive = filtered.filter(t => 
     t.status !== 'Заявка' && t.status !== 'В роботі'
   );
-  const tableData = tab === 'inProgress' ? inProgress : archive;
+  const tableData = activeTab === 'inProgress' ? inProgress : archive;
   // Функція для створення звіту по замовнику
   const openClientReport = (clientName) => {
     const clientTasks = tasks.filter(task => task.client === clientName);
@@ -500,8 +509,8 @@ export default function OperatorArea({ user }) {
       <h2>Заявки оператора</h2>
       {loading && <div>Завантаження...</div>}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <button onClick={()=>{setTab('inProgress')}} style={{width:220,padding:'10px 0',background:tab==='inProgress'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='inProgress'?700:400,cursor:'pointer'}}>Заявки на виконанні</button>
-        <button onClick={()=>{setTab('archive')}} style={{width:220,padding:'10px 0',background:tab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок</button>
+        <button onClick={()=>{setActiveTab('inProgress')}} style={{width:220,padding:'10px 0',background:activeTab==='inProgress'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='inProgress'?700:400,cursor:'pointer'}}>Заявки на виконанні ({getTabCount('inProgress')})</button>
+        <button onClick={()=>{setActiveTab('archive')}} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
       </div>
       <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16}}>Додати заявку</button>
       <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="operator" user={user} readOnly={editTask?._readOnly || false} />
