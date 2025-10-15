@@ -2012,15 +2012,23 @@ function RegionalManagerArea({ tab: propTab, user }) {
     setPayData(saved ? JSON.parse(saved) : {});
   }, [year, month]);
   useEffect(() => {
+    console.log('💾 Saving payData to localStorage:', payData);
     localStorage.setItem(`payData_${year}_${month}`, JSON.stringify(payData));
   }, [payData, year, month]);
   // --- Функція для зміни параметрів виплат ---
   const handlePayChange = (userId, field, value) => {
+    console.log('🔧 handlePayChange called:', { userId, field, value });
+    console.log('🔧 Current payData before update:', payData);
+    
     setPayData(prev => {
       const userPay = prev[userId] || { salary: '', bonus: '' };
       const newUserPay = { ...userPay, [field]: value };
-      return { ...prev, [userId]: newUserPay };
+      const newData = { ...prev, [userId]: newUserPay };
+      console.log('🔧 Updated payData state:', newData);
+      return newData;
     });
+    
+    console.log('🔧 handlePayChange completed');
   };
   // --- Експорт у Excel (CSV) ---
   function exportToCSV() {
@@ -3376,7 +3384,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                           return (
                             <tr key={u.id}>
                               <td>{u.name}</td>
-                              <td><input type="number" value={payData[u.id || u._id]?.salary || 25000} onChange={e => {console.log('RegionalManagerArea salary changed:', u.name, e.target.value); handlePayChange(u.id, 'salary', e.target.value);}} style={{width:90}} /></td>
+                              <td><input type="number" value={payData[u.id || u._id]?.salary || 25000} onChange={e => {console.log('🔧 RegionalManagerArea salary changed:', u.name, e.target.value); console.log('🔧 User ID:', u.id || u._id); handlePayChange(u.id, 'salary', e.target.value);}} style={{width:90}} /></td>
                               <td>{total}</td>
                               <td>{overtime}</td>
                               <td>{overtimeRate.toFixed(2)}</td>
@@ -3869,15 +3877,23 @@ function PersonnelTimesheet({ user }) {
     setPayData(saved ? JSON.parse(saved) : {});
   }, [year, month]);
   useEffect(() => {
+    console.log('💾 Saving payData to localStorage:', payData);
     localStorage.setItem(`payData_${year}_${month}`, JSON.stringify(payData));
   }, [payData, year, month]);
   // --- Функція для зміни параметрів виплат ---
   const handlePayChange = (userId, field, value) => {
+    console.log('🔧 handlePayChange called:', { userId, field, value });
+    console.log('🔧 Current payData before update:', payData);
+    
     setPayData(prev => {
       const userPay = prev[userId] || { salary: '', bonus: '' };
       const newUserPay = { ...userPay, [field]: value };
-      return { ...prev, [userId]: newUserPay };
+      const newData = { ...prev, [userId]: newUserPay };
+      console.log('🔧 Updated payData state:', newData);
+      return newData;
     });
+    
+    console.log('🔧 handlePayChange completed');
   };
   // --- Експорт у Excel (CSV) ---
   function exportToCSV() {
