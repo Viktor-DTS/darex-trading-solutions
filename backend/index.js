@@ -1056,6 +1056,9 @@ app.get('/api/tasks/filter', async (req, res) => {
         const regions = region.split(',').map(r => r.trim());
         query.serviceRegion = { $in: regions };
         console.log('[DEBUG] GET /api/tasks/filter - мультирегіональний користувач, регіони:', regions);
+      } else if (region === 'Загальний') {
+        // Для "Загальний" регіону не додаємо фільтр - показуємо всі заявки
+        console.log('[DEBUG] GET /api/tasks/filter - регіон "Загальний", не фільтруємо по регіону');
       } else {
         query.serviceRegion = region;
         console.log('[DEBUG] GET /api/tasks/filter - одинарний регіон:', region);
