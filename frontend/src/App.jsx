@@ -2939,7 +2939,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
               user={user}
               readOnly={editTask?._readOnly || false}
             />
-            {taskTab === 'debt' ? (
+            {activeTab === 'debt' ? (
               <TaskTable
                 tasks={filtered.filter(task => {
                   console.log('[DEBUG] Regional debt tab - task:', task.requestNumber, 'debtStatus:', task.debtStatus, 'paymentType:', task.paymentType, 'approvedByAccountant:', task.approvedByAccountant);
