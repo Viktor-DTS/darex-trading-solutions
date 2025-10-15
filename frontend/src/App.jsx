@@ -1689,30 +1689,28 @@ function RegionalManagerArea({ tab: propTab, user }) {
     }
   }, [user?.role, user?.region, preloadCache]);
   
-  // Завантаження даних в кеш для "Архів виконаних заявок" при переході на звіт по персоналу
+  // Завантаження всіх даних для звіту по персоналу при першому завантаженні панелі
   useEffect(() => {
-    if (tab === 'report') {
-      // Якщо дані вже є в кеші (предзавантажені), не завантажуємо повторно
-      if (allTasks.length > 0) {
-        console.log('📊 Використовуємо предзавантажені дані з архіву для звіту:', allTasks.length);
-        setAllTasksLoading(false);
-        return;
-      }
-      
-      setAllTasksLoading(true);
-      console.log('📊 Завантаження даних в кеш для "Архів виконаних заявок" для звіту по персоналу...');
-      
-      // Завантажуємо дані для вкладки "done" (Архів виконаних заявок) в кеш useLazyData
-      tasksAPI.getByStatus('done', user?.region).then(archiveTasks => {
-        console.log('📊 Завантажено заявок з архіву в кеш:', archiveTasks.length);
-        setAllTasks(archiveTasks); // Зберігаємо для звіту
-        setAllTasksLoading(false);
-      }).catch(error => {
-        console.error('Помилка завантаження заявок з архіву в кеш:', error);
-        setAllTasksLoading(false);
-      });
+    // Якщо дані вже є в кеші, не завантажуємо повторно
+    if (allTasks.length > 0) {
+      console.log('📊 Використовуємо предзавантажені дані для звіту:', allTasks.length);
+      setAllTasksLoading(false);
+      return;
     }
-  }, [tab, user?.region, allTasks.length]);
+    
+    setAllTasksLoading(true);
+    console.log('📊 Завантаження всіх даних для звіту по персоналу...');
+    
+    // Завантажуємо ВСІ завдання для звіту по персоналу
+    tasksAPI.getAll().then(allTasksData => {
+      console.log('📊 Завантажено всіх заявок для звіту:', allTasksData.length);
+      setAllTasks(allTasksData); // Зберігаємо для звіту
+      setAllTasksLoading(false);
+    }).catch(error => {
+      console.error('Помилка завантаження всіх заявок для звіту:', error);
+      setAllTasksLoading(false);
+    });
+  }, [user?.region, allTasks.length]);
   
   // Додаю useEffect для завантаження користувачів з бази
   useEffect(() => {
@@ -2104,7 +2102,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
           const basePay = Math.round(salary * Math.min(total, summary.workHours || 168) / (summary.workHours || 168));
           let engineerBonus = 0;
           let details = [];
-          tasks.forEach(t => {
+          allTasks.forEach(t => {
             if (
               t.status === 'Виконано' &&
               isApproved(t.approvedByWarehouse) &&
@@ -2422,7 +2420,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
               const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
               const overtimePay = overtime * overtimeRate;
               const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
-              const tasksForMonth = tasks.filter(t => {
+              const tasksForMonth = allTasks.filter(t => {
                 if (
                   t.status !== 'Виконано' ||
                   !t.date ||
