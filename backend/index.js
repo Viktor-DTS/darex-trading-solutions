@@ -271,6 +271,8 @@ const invoiceRequestSchema = new mongoose.Schema({
   completedAt: { type: Date },
   invoiceFile: { type: String, default: '' },
   invoiceFileName: { type: String, default: '' },
+  actFile: { type: String, default: '' },
+  actFileName: { type: String, default: '' },
   comments: { type: String, default: '' },
   rejectionReason: { type: String, default: '' }
 });
@@ -4665,6 +4667,63 @@ app.get('/api/telegram/test-send', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: 'Помилка при відправці тестового повідомлення', 
+      error: error.message 
+    });
+  }
+});
+
+// DELETE /api/invoice-requests/:id - видалити запит на рахунок
+app.delete('/api/invoice-requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    addLog(`🗑️ Deleting invoice request: ${id}`, 'info');
+    
+    const request = await InvoiceRequest.findById(id);
+    if (!request) {
+      addLog(`❌ Invoice request not found: ${id}`, 'error');
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Запит на рахунок не знайдено' 
+      });
+    }
+    
+    // Видаляємо файли з Cloudinary, якщо вони є
+    if (request.invoiceFile) {
+      try {
+        const publicId = request.invoiceFile.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(publicId);
+        addLog(`✅ Invoice file deleted from Cloudinary: ${publicId}`, 'info');
+      } catch (cloudinaryError) {
+        addLog(`⚠️ Failed to delete invoice file from Cloudinary: ${cloudinaryError.message}`, 'warning');
+      }
+    }
+    
+    if (request.actFile) {
+      try {
+        const publicId = request.actFile.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(publicId);
+        addLog(`✅ Act file deleted from Cloudinary: ${publicId}`, 'info');
+      } catch (cloudinaryError) {
+        addLog(`⚠️ Failed to delete act file from Cloudinary: ${cloudinaryError.message}`, 'warning');
+      }
+    }
+    
+    // Видаляємо запит з бази даних
+    await InvoiceRequest.findByIdAndDelete(id);
+    
+    addLog(`✅ Invoice request deleted: ${id}`, 'success');
+    
+    res.json({ 
+      success: true, 
+      message: 'Запит на рахунок успішно видалено' 
+    });
+    
+  } catch (error) {
+    addLog(`❌ Error deleting invoice request: ${error.message}`, 'error');
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка видалення запиту на рахунок',
       error: error.message 
     });
   }
