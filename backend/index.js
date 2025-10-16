@@ -3566,8 +3566,8 @@ app.post('/api/invoice-requests', async (req, res) => {
   addLog('🔥 INVOICE REQUEST STARTED', 'info');
   
   try {
-    const { taskId, requesterId, requesterName, companyDetails, invoiceRecipientDetails } = req.body;
-    addLog(`Invoice request for task: ${taskId}`, 'info');
+    const { taskId, requesterId, requesterName, companyDetails, invoiceRecipientDetails, needInvoice, needAct } = req.body;
+    addLog(`Invoice request for task: ${taskId}, needInvoice: ${needInvoice}, needAct: ${needAct}`, 'info');
     
     if (!taskId || !requesterId || !requesterName || !companyDetails) {
       addLog('❌ Missing required fields', 'error');
@@ -3606,6 +3606,8 @@ app.post('/api/invoice-requests', async (req, res) => {
       requesterName,
       companyDetails,
       invoiceRecipientDetails,
+      needInvoice: needInvoice || false,
+      needAct: needAct || false,
       status: 'pending'
     });
     
