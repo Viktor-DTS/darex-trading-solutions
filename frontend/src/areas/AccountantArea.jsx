@@ -711,6 +711,11 @@ export default function AccountantArea({ user }) {
     tasksLength: tasks.length,
     filteredLength: filtered.length,
     filters: Object.keys(filters).filter(key => filters[key]).length,
+    statusCounts: {
+      'Заявка': filtered.filter(t => t.status === 'Заявка').length,
+      'В роботі': filtered.filter(t => t.status === 'В роботі').length,
+      'Виконано': filtered.filter(t => t.status === 'Виконано').length
+    },
     paymentDateFilters: {
       paymentDateFrom: filters.paymentDateFrom,
       paymentDateTo: filters.paymentDateTo,
@@ -719,7 +724,9 @@ export default function AccountantArea({ user }) {
     }
   });
   const pending = useMemo(() => {
-    return filtered.filter(t => {
+    console.log('[DEBUG] AccountantArea - pending useMemo triggered:', { showAllTasks, filteredLength: filtered.length });
+    
+    const result = filtered.filter(t => {
       // Базовий фільтр: заявки на підтвердженні
       const isPendingApproval = t.status === 'Виконано' && 
         isApproved(t.approvedByWarehouse) && (
@@ -733,11 +740,31 @@ export default function AccountantArea({ user }) {
       // Якщо чекбокс "Відобразити всі заявки" активний, додаємо заявки зі статусом "Заявка" та "В роботі"
       if (showAllTasks) {
         const isNewOrInProgress = t.status === 'Заявка' || t.status === 'В роботі';
-        return isPendingApproval || isNewOrInProgress;
+        const shouldInclude = isPendingApproval || isNewOrInProgress;
+        
+        if (isNewOrInProgress) {
+          console.log('[DEBUG] AccountantArea - including new/in-progress task:', {
+            requestNumber: t.requestNumber,
+            status: t.status,
+            isPendingApproval,
+            isNewOrInProgress,
+            shouldInclude
+          });
+        }
+        
+        return shouldInclude;
       }
       
       return isPendingApproval;
     });
+    
+    console.log('[DEBUG] AccountantArea - pending result:', {
+      resultLength: result.length,
+      showAllTasks,
+      newInProgressCount: result.filter(t => t.status === 'Заявка' || t.status === 'В роботі').length
+    });
+    
+    return result;
   }, [filtered, showAllTasks]);
   
   // Логування для діагностики pending
@@ -2037,7 +2064,10 @@ export default function AccountantArea({ user }) {
                 <input
                   type="checkbox"
                   checked={showAllTasks}
-                  onChange={(e) => setShowAllTasks(e.target.checked)}
+                  onChange={(e) => {
+                    console.log('[DEBUG] AccountantArea - showAllTasks checkbox changed:', e.target.checked);
+                    setShowAllTasks(e.target.checked);
+                  }}
                   style={{ 
                     margin: 0,
                     transform: 'scale(1.2)',
