@@ -258,11 +258,14 @@ const invoiceRequestSchema = new mongoose.Schema({
     email: { type: String, default: '' },
     comments: { type: String, default: '' }
   },
+  invoiceRecipientDetails: { type: String, default: '' },
   status: { 
     type: String, 
     enum: ['pending', 'processing', 'completed', 'rejected'], 
     default: 'pending' 
   },
+  needInvoice: { type: Boolean, default: false },
+  needAct: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   processedAt: { type: Date },
   completedAt: { type: Date },
