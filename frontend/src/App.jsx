@@ -3405,7 +3405,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                           return (
                             <tr key={u.id}>
                               <td>{u.name}</td>
-                              <td><input type="number" value={payData[u.id || u._id]?.salary || 25000} onChange={e => {console.log('🔧 RegionalManagerArea salary changed:', u.name, e.target.value); console.log('🔧 User ID:', u.id || u._id); console.log('🔧 handlePayChange function:', typeof handlePayChange); console.log('🔧 payData before:', payData); handlePayChange(u.id, 'salary', e.target.value); console.log('🔧 handlePayChange called');}} style={{width:90}} /></td>
+                              <td><input type="number" value={payData[u.id || u._id]?.salary || 25000} onChange={e => {const userId = u.id || u._id; console.log('🔧 RegionalManagerArea salary changed:', u.name, e.target.value); console.log('🔧 User ID:', userId); console.log('🔧 handlePayChange function:', typeof handlePayChange); console.log('🔧 payData before:', payData); console.log('🔧 setPayData function:', typeof setPayData); handlePayChange(userId, 'salary', e.target.value); console.log('🔧 handlePayChange called');}} style={{width:90}} /></td>
                               <td>{total}</td>
                               <td>{overtime}</td>
                               <td>{overtimeRate.toFixed(2)}</td>
@@ -4084,8 +4084,8 @@ function PersonnelTimesheet({ user }) {
                   <tr key={u.id}>
                     <td>{u.name}</td>
                     <td>{total}</td>
-                    <td><input type="number" value={payData[u.id || u._id]?.salary || ''} onChange={e => handlePayChange(u.id, 'salary', e.target.value)} style={{width:90}} /></td>
-                    <td><input type="number" value={payData[u.id || u._id]?.bonus || ''} onChange={e => handlePayChange(u.id, 'bonus', e.target.value)} style={{width:90}} /></td>
+                    <td><input type="number" value={payData[u.id || u._id]?.salary || ''} onChange={e => {const userId = u.id || u._id; handlePayChange(userId, 'salary', e.target.value);}} style={{width:90}} /></td>
+                    <td><input type="number" value={payData[u.id || u._id]?.bonus || ''} onChange={e => {const userId = u.id || u._id; handlePayChange(userId, 'bonus', e.target.value);}} style={{width:90}} /></td>
                     <td style={{fontWeight:600}}>{payout}</td>
                   </tr>
                 );
