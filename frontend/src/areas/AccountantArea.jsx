@@ -707,22 +707,32 @@ export default function AccountantArea({ user }) {
   });
   
   // Логування для діагностики filtered
+  const statusCounts = {
+    'Заявка': filtered.filter(t => t.status === 'Заявка').length,
+    'В роботі': filtered.filter(t => t.status === 'В роботі').length,
+    'Виконано': filtered.filter(t => t.status === 'Виконано').length
+  };
+  
   console.log('[DEBUG] AccountantArea - filtered оновлено:', {
     tasksLength: tasks.length,
     filteredLength: filtered.length,
     filters: Object.keys(filters).filter(key => filters[key]).length,
-    statusCounts: {
-      'Заявка': filtered.filter(t => t.status === 'Заявка').length,
-      'В роботі': filtered.filter(t => t.status === 'В роботі').length,
-      'Виконано': filtered.filter(t => t.status === 'Виконано').length
-    },
-    paymentDateFilters: {
-      paymentDateFrom: filters.paymentDateFrom,
-      paymentDateTo: filters.paymentDateTo,
-      hasPaymentDateFrom: !!filters.paymentDateFrom,
-      hasPaymentDateTo: !!filters.paymentDateTo
-    }
+    statusCounts: statusCounts
   });
+  
+  // Додаткове логування для завдань зі статусом "Заявка" та "В роботі"
+  if (statusCounts['Заявка'] > 0 || statusCounts['В роботі'] > 0) {
+    console.log('[DEBUG] AccountantArea - знайдено завдання зі статусом "Заявка" або "В роботі":', {
+      'Заявка': filtered.filter(t => t.status === 'Заявка').map(t => ({ requestNumber: t.requestNumber, status: t.status })),
+      'В роботі': filtered.filter(t => t.status === 'В роботі').map(t => ({ requestNumber: t.requestNumber, status: t.status }))
+    });
+  } else {
+    console.log('[DEBUG] AccountantArea - НЕ знайдено завдань зі статусом "Заявка" або "В роботі"');
+  }
+  
+  // Логування всіх унікальних статусів
+  const allStatuses = [...new Set(filtered.map(t => t.status))];
+  console.log('[DEBUG] AccountantArea - всі унікальні статуси в filtered:', allStatuses);
   const pending = useMemo(() => {
     console.log('[DEBUG] AccountantArea - pending useMemo triggered:', { showAllTasks, filteredLength: filtered.length });
     
