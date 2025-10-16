@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
 import AccountantReportsModal from '../components/AccountantReportsModal';
@@ -718,25 +718,27 @@ export default function AccountantArea({ user }) {
       hasPaymentDateTo: !!filters.paymentDateTo
     }
   });
-  const pending = filtered.filter(t => {
-    // Базовий фільтр: заявки на підтвердженні
-    const isPendingApproval = t.status === 'Виконано' && 
-      isApproved(t.approvedByWarehouse) && (
-      t.approvedByAccountant === null ||
-      t.approvedByAccountant === undefined ||
-      t.approvedByAccountant === 'На розгляді' ||
-      t.approvedByAccountant === false ||
-      t.approvedByAccountant === 'Відмова'
-    );
-    
-    // Якщо чекбокс "Відобразити всі заявки" активний, додаємо заявки зі статусом "Заявка" та "В роботі"
-    if (showAllTasks) {
-      const isNewOrInProgress = t.status === 'Заявка' || t.status === 'В роботі';
-      return isPendingApproval || isNewOrInProgress;
-    }
-    
-    return isPendingApproval;
-  });
+  const pending = useMemo(() => {
+    return filtered.filter(t => {
+      // Базовий фільтр: заявки на підтвердженні
+      const isPendingApproval = t.status === 'Виконано' && 
+        isApproved(t.approvedByWarehouse) && (
+        t.approvedByAccountant === null ||
+        t.approvedByAccountant === undefined ||
+        t.approvedByAccountant === 'На розгляді' ||
+        t.approvedByAccountant === false ||
+        t.approvedByAccountant === 'Відмова'
+      );
+      
+      // Якщо чекбокс "Відобразити всі заявки" активний, додаємо заявки зі статусом "Заявка" та "В роботі"
+      if (showAllTasks) {
+        const isNewOrInProgress = t.status === 'Заявка' || t.status === 'В роботі';
+        return isPendingApproval || isNewOrInProgress;
+      }
+      
+      return isPendingApproval;
+    });
+  }, [filtered, showAllTasks]);
   
   // Логування для діагностики pending
   console.log('[DEBUG] AccountantArea - pending оновлено:', {
@@ -761,10 +763,12 @@ export default function AccountantArea({ user }) {
   });
   const invoices = filtered.filter(t => t.invoiceRequestId);
   
-  const tableData = activeTab === 'pending' ? pending : 
-                   activeTab === 'archive' ? archive :
-                   activeTab === 'debt' ? debt :
-                   activeTab === 'invoices' ? invoices : [];
+  const tableData = useMemo(() => {
+    return activeTab === 'pending' ? pending : 
+           activeTab === 'archive' ? archive :
+           activeTab === 'debt' ? debt :
+           activeTab === 'invoices' ? invoices : [];
+  }, [activeTab, pending, archive, debt, invoices]);
   
   // Логування для діагностики tableData
   console.log('[DEBUG] AccountantArea - tableData оновлено:', {
