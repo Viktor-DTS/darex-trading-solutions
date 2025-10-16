@@ -80,6 +80,30 @@ export default function AccountantArea({ user }) {
   const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, getTabCount } = useLazyData(user, 'pending');
   const [users, setUsers] = useState([]);
   
+  // Додаткові завдання для чекбокса "Відобразити всі заявки"
+  const [additionalTasks, setAdditionalTasks] = useState([]);
+  const [loadingAdditionalTasks, setLoadingAdditionalTasks] = useState(false);
+  
+  // Функція для завантаження додаткових завдань (статус "Заявка" та "В роботі")
+  const loadAdditionalTasks = async () => {
+    if (additionalTasks.length > 0) {
+      console.log('[DEBUG] AccountantArea - додаткові завдання вже завантажені:', additionalTasks.length);
+      return;
+    }
+    
+    setLoadingAdditionalTasks(true);
+    try {
+      console.log('[DEBUG] AccountantArea - завантажуємо додаткові завдання (notDone)...');
+      const notDoneTasks = await tasksAPI.getByStatus('notDone', user.region);
+      console.log('[DEBUG] AccountantArea - завантажено додаткових завдань:', notDoneTasks.length);
+      setAdditionalTasks(notDoneTasks);
+    } catch (error) {
+      console.error('[ERROR] AccountantArea - помилка завантаження додаткових завдань:', error);
+    } finally {
+      setLoadingAdditionalTasks(false);
+    }
+  };
+  
   // Додаткове логування для відстеження змін стану
   useEffect(() => {
     console.log('[DEBUG] AccountantArea - стан tasks змінився, кількість заявок:', tasks.length);
@@ -673,7 +697,15 @@ export default function AccountantArea({ user }) {
       setEditTask(null);
     }
   };
-  const filtered = tasks.filter(t => {
+  // Об'єднуємо основні завдання з додатковими (якщо чекбокс активний)
+  const allTasks = useMemo(() => {
+    if (showAllTasks) {
+      return [...tasks, ...additionalTasks];
+    }
+    return tasks;
+  }, [tasks, additionalTasks, showAllTasks]);
+  
+  const filtered = allTasks.filter(t => {
     for (const key in filters) {
       const value = filters[key];
       if (!value) continue;
@@ -715,7 +747,10 @@ export default function AccountantArea({ user }) {
   
   console.log('[DEBUG] AccountantArea - filtered оновлено:', {
     tasksLength: tasks.length,
+    additionalTasksLength: additionalTasks.length,
+    allTasksLength: allTasks.length,
     filteredLength: filtered.length,
+    showAllTasks: showAllTasks,
     filters: Object.keys(filters).filter(key => filters[key]).length,
     statusCounts: statusCounts
   });
@@ -734,7 +769,12 @@ export default function AccountantArea({ user }) {
   const allStatuses = [...new Set(filtered.map(t => t.status))];
   console.log('[DEBUG] AccountantArea - всі унікальні статуси в filtered:', allStatuses);
   const pending = useMemo(() => {
-    console.log('[DEBUG] AccountantArea - pending useMemo triggered:', { showAllTasks, filteredLength: filtered.length });
+    console.log('[DEBUG] AccountantArea - pending useMemo triggered:', { 
+      showAllTasks, 
+      filteredLength: filtered.length,
+      allTasksLength: allTasks.length,
+      additionalTasksLength: additionalTasks.length
+    });
     
     const result = filtered.filter(t => {
       // Базовий фільтр: заявки на підтвердженні
@@ -771,17 +811,21 @@ export default function AccountantArea({ user }) {
     console.log('[DEBUG] AccountantArea - pending result:', {
       resultLength: result.length,
       showAllTasks,
-      newInProgressCount: result.filter(t => t.status === 'Заявка' || t.status === 'В роботі').length
+      newInProgressCount: result.filter(t => t.status === 'Заявка' || t.status === 'В роботі').length,
+      allTasksLength: allTasks.length,
+      additionalTasksLength: additionalTasks.length
     });
     
     return result;
-  }, [filtered, showAllTasks]);
+  }, [filtered, showAllTasks, allTasks, additionalTasks]);
   
   // Логування для діагностики pending
   console.log('[DEBUG] AccountantArea - pending оновлено:', {
     pendingLength: pending.length,
     showAllTasks,
-    filteredLength: filtered.length
+    filteredLength: filtered.length,
+    allTasksLength: allTasks.length,
+    additionalTasksLength: additionalTasks.length
   });
   function isApproved(v) {
     return v === true || v === 'Підтверджено';
@@ -2074,9 +2118,14 @@ export default function AccountantArea({ user }) {
                 <input
                   type="checkbox"
                   checked={showAllTasks}
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     console.log('[DEBUG] AccountantArea - showAllTasks checkbox changed:', e.target.checked);
                     setShowAllTasks(e.target.checked);
+                    
+                    // Якщо чекбокс активується, завантажуємо додаткові завдання
+                    if (e.target.checked) {
+                      await loadAdditionalTasks();
+                    }
                   }}
                   style={{ 
                     margin: 0,
