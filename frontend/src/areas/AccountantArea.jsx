@@ -748,7 +748,23 @@ export default function AccountantArea({ user }) {
     return v === true || v === 'Підтверджено';
   }
   const archive = filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByAccountant));
-  const tableData = activeTab === 'pending' ? pending : archive;
+  const debt = filtered.filter(task => {
+    // Показуємо завдання, які потребують встановлення статусу заборгованості:
+    // 1. Не мають встановленого debtStatus (undefined або порожнє)
+    // 2. Мають paymentType (не порожнє)
+    // 3. paymentType не є 'Готівка'
+    const hasPaymentType = task.paymentType && task.paymentType.trim() !== '';
+    const isNotCash = !['Готівка'].includes(task.paymentType);
+    const needsDebtStatus = !task.debtStatus || task.debtStatus === undefined || task.debtStatus === '';
+    
+    return needsDebtStatus && hasPaymentType && isNotCash;
+  });
+  const invoices = filtered.filter(t => t.invoiceRequestId);
+  
+  const tableData = activeTab === 'pending' ? pending : 
+                   activeTab === 'archive' ? archive :
+                   activeTab === 'debt' ? debt :
+                   activeTab === 'invoices' ? invoices : [];
   
   // Логування для діагностики tableData
   console.log('[DEBUG] AccountantArea - tableData оновлено:', {
@@ -756,6 +772,8 @@ export default function AccountantArea({ user }) {
     tableDataLength: tableData.length,
     pendingLength: pending.length,
     archiveLength: archive.length,
+    debtLength: debt.length,
+    invoicesLength: invoices.length,
     filteredLength: filtered.length,
     tasksLength: tasks.length
   });
@@ -1973,21 +1991,7 @@ export default function AccountantArea({ user }) {
           {console.log('[DEBUG] Debt tab - tasks with paymentType:', tableData.filter(t => t.paymentType).length)}
           <TaskTable
           key={tableKey}
-          tasks={tableData.filter(task => {
-            console.log('[DEBUG] Debt tab - task:', task.requestNumber, 'debtStatus:', task.debtStatus, 'paymentType:', task.paymentType);
-            // Показуємо завдання, які потребують встановлення статусу заборгованості:
-            // 1. Не мають встановленого debtStatus (undefined або порожнє)
-            // 2. Мають paymentType (не порожнє)
-            // 3. paymentType не є 'Готівка'
-            const hasPaymentType = task.paymentType && task.paymentType.trim() !== '';
-            const isNotCash = !['Готівка'].includes(task.paymentType);
-            const needsDebtStatus = !task.debtStatus || task.debtStatus === undefined || task.debtStatus === '';
-            
-            const shouldShow = needsDebtStatus && hasPaymentType && isNotCash;
-            console.log('[DEBUG] Debt filter - shouldShow:', shouldShow, 'needsDebtStatus:', needsDebtStatus, 'hasPaymentType:', hasPaymentType, 'isNotCash:', isNotCash);
-            
-            return shouldShow;
-          })}
+          tasks={tableData}
         allTasks={tasks}
         onApprove={handleApprove}
         onEdit={handleEdit}
