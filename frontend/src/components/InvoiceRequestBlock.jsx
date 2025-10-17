@@ -8,6 +8,17 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
   const [needInvoice, setNeedInvoice] = useState(true); // За замовчуванням активний
   const [needAct, setNeedAct] = useState(false); // За замовчуванням неактивний
 
+  // Логування отриманих даних
+  console.log('[DEBUG] InvoiceRequestBlock - отримано task:', {
+    id: task.id,
+    _id: task._id,
+    invoiceFile: task.invoiceFile,
+    invoiceFileName: task.invoiceFileName,
+    invoiceStatus: task.invoiceStatus,
+    invoiceRequestId: task.invoiceRequestId,
+    status: task.status
+  });
+
   // Функція для завантаження інформації про запит на рахунок
   const loadInvoiceRequest = async () => {
     console.log('DEBUG InvoiceRequestBlock: loadInvoiceRequest викликано');
