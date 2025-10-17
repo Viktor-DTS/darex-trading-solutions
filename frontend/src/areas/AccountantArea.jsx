@@ -1521,7 +1521,7 @@ export default function AccountantArea({ user }) {
         }} 
         onSave={handleSave} 
         initialData={editTask || {}} 
-        mode="accountant" 
+        mode="buhgalteria" 
         user={user} 
         readOnly={editTask?._readOnly || false} 
       />
@@ -2237,7 +2237,7 @@ export default function AccountantArea({ user }) {
           }}
           onSave={() => {}} // Тільки для перегляду
           initialData={selectedTaskInfo}
-          mode="accountant"
+          mode="buhgalteria"
           user={user}
           readOnly={true}
         />

@@ -586,7 +586,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     if (mode === 'warehouse') {
       return !(name === 'approvedByWarehouse' || name === 'warehouseComment');
     }
-    if (mode === 'accountant') {
+    if (mode === 'accountant' || mode === 'buhgalteria') {
       // Бухгалтер має доступ до всіх полів окрім полів складу
       const warehouseFields = ['approvedByWarehouse', 'warehouseComment'];
       if (warehouseFields.includes(name)) {
@@ -618,7 +618,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     if (mode === 'operator' && name === 'client') return false;
     // Спеціальна обробка для полів заборгованості - вони відображаються для всіх, але редагування тільки для бухгалтера
     if (name === 'debtStatus' || name === 'debtStatusCheckbox') {
-      return mode !== 'accountant';
+      return mode !== 'accountant' && mode !== 'buhgalteria';
     }
     if (fields.find(f => f.name === name && f.role) && (!mode || fields.find(f => f.name === name).role !== mode)) return true;
     if (mode === 'operator') {
