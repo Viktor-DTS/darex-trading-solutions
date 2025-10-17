@@ -4359,7 +4359,7 @@ app.get('/api/users/with-telegram', async (req, res) => {
 app.get('/api/users', async (req, res) => {
   try {
     addLog('📋 Loading users list', 'info');
-    const users = await executeWithRetry(() => User.find({}, 'login name role region telegramChatId notificationSettings'));
+    const users = await executeWithRetry(() => User.find({}, 'login password name role region telegramChatId notificationSettings'));
     addLog(`✅ Found ${users.length} users`, 'success');
     res.json(users);
   } catch (error) {
