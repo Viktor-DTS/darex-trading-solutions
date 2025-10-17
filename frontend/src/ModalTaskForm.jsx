@@ -318,6 +318,24 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       invoiceStatus: f.invoiceStatus
     });
     
+    // Завантажуємо дані про файл рахунку з InvoiceRequest якщо є invoiceRequestId
+    if (f.invoiceRequestId && !f.invoiceFile) {
+      console.log('[DEBUG] ModalTaskForm - завантажуємо дані про файл рахунку для invoiceRequestId:', f.invoiceRequestId);
+      loadInvoiceRequestData(f.invoiceRequestId).then(invoiceData => {
+        if (invoiceData && invoiceData.invoiceFile) {
+          console.log('[DEBUG] ModalTaskForm - знайдено файл рахунку:', invoiceData);
+          setForm(prev => ({
+            ...prev,
+            invoiceFile: invoiceData.invoiceFile,
+            invoiceFileName: invoiceData.invoiceFileName,
+            invoiceStatus: invoiceData.status
+          }));
+        }
+      }).catch(error => {
+        console.error('[ERROR] ModalTaskForm - помилка завантаження даних про файл рахунку:', error);
+      });
+    }
+    
     if ('approvedByWarehouse' in f) f.approvedByWarehouse = toSelectString(f.approvedByWarehouse);
     if ('approvedByAccountant' in f) f.approvedByAccountant = toSelectString(f.approvedByAccountant);
     if ('approvedByRegionalManager' in f) f.approvedByRegionalManager = toSelectString(f.approvedByRegionalManager);
@@ -1013,6 +1031,30 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     onClose();
   };
 
+  // Функція для завантаження даних про файл рахунку
+  const loadInvoiceRequestData = async (invoiceRequestId) => {
+    try {
+      console.log('[DEBUG] ModalTaskForm - завантаження даних InvoiceRequest для ID:', invoiceRequestId);
+      
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      
+      const response = await fetch(`${API_BASE_URL}/invoice-requests/${invoiceRequestId}`);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[DEBUG] ModalTaskForm - отримано дані InvoiceRequest:', result);
+        return result.data;
+      } else {
+        console.error('[ERROR] ModalTaskForm - помилка завантаження InvoiceRequest:', response.status);
+        return null;
+      }
+    } catch (error) {
+      console.error('[ERROR] ModalTaskForm - помилка завантаження InvoiceRequest:', error);
+      return null;
+    }
+  };
+
   // Функція для обробки запиту рахунку
   const handleInvoiceRequest = async (invoiceData) => {
     try {
@@ -1437,7 +1479,14 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                       justifyContent: 'space-between'
                     }}>
                       <InvoiceRequestBlock 
-                        task={form} 
+                        task={{
+                          ...form,
+                          // Передаємо дані про файл рахунку з InvoiceRequest
+                          invoiceFile: form.invoiceFile,
+                          invoiceFileName: form.invoiceFileName,
+                          invoiceStatus: form.invoiceStatus,
+                          invoiceRequestId: form.invoiceRequestId
+                        }} 
                         user={user} 
                         onRequest={handleInvoiceRequest}
                       />

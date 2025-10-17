@@ -121,16 +121,17 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
   const viewInvoiceFile = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (invoiceRequest?.invoiceFile) {
+    const fileUrl = task.invoiceFile || invoiceRequest?.invoiceFile;
+    if (fileUrl) {
       // Для Cloudinary URL додаємо параметри для кращого відображення
-      let fileUrl = invoiceRequest.invoiceFile;
-      if (fileUrl.includes('cloudinary.com')) {
+      let finalFileUrl = fileUrl;
+      if (finalFileUrl.includes('cloudinary.com')) {
         // Додаємо параметри для кращого відображення PDF
-        if (fileUrl.includes('.pdf')) {
-          fileUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
+        if (finalFileUrl.includes('.pdf')) {
+          finalFileUrl = finalFileUrl.replace('/upload/', '/upload/fl_attachment/');
         }
       }
-      window.open(fileUrl, '_blank');
+      window.open(finalFileUrl, '_blank');
     }
   };
 
@@ -138,11 +139,14 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
   const downloadInvoiceFile = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!invoiceRequest?.invoiceFile) return;
+    const fileUrl = task.invoiceFile || invoiceRequest?.invoiceFile;
+    const fileName = task.invoiceFileName || invoiceRequest?.invoiceFileName;
+    
+    if (!fileUrl) return;
     
     try {
       // Завантажуємо файл через fetch для правильного завантаження
-      const response = await fetch(invoiceRequest.invoiceFile);
+      const response = await fetch(fileUrl);
       const blob = await response.blob();
       
       // Створюємо URL для blob
@@ -151,7 +155,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
       // Створюємо тимчасовий елемент <a> для завантаження
       const link = document.createElement('a');
       link.href = url;
-      link.download = invoiceRequest.invoiceFileName || 'invoice.pdf';
+      link.download = fileName || 'invoice.pdf';
       // НЕ додаємо target='_blank' для завантаження
       document.body.appendChild(link);
       link.click();
@@ -241,7 +245,14 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
               console.log('DEBUG InvoiceRequestBlock: status =', invoiceRequest.status);
               console.log('DEBUG InvoiceRequestBlock: invoiceFile =', invoiceRequest.invoiceFile);
               console.log('DEBUG InvoiceRequestBlock: needInvoice =', invoiceRequest.needInvoice);
-              return invoiceRequest.status === 'completed' && invoiceRequest.invoiceFile && invoiceRequest.needInvoice;
+              console.log('DEBUG InvoiceRequestBlock: task.invoiceFile =', task.invoiceFile);
+              console.log('DEBUG InvoiceRequestBlock: task.invoiceFileName =', task.invoiceFileName);
+              
+              // Перевіряємо файл рахунку з InvoiceRequest або з task (якщо передано з ModalTaskForm)
+              const hasInvoiceFile = (invoiceRequest.status === 'completed' && invoiceRequest.invoiceFile && invoiceRequest.needInvoice) ||
+                                   (task.invoiceFile && task.invoiceFileName);
+              
+              return hasInvoiceFile;
             })() && (
               <div style={{
                 marginBottom: '15px',
@@ -252,7 +263,9 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
               }}>
                 <div style={{ marginBottom: '8px' }}>
                   <strong style={{ color: '#000' }}>📄 Файл рахунку:</strong> 
-                  <span style={{ color: '#000', marginLeft: '8px' }}>{invoiceRequest.invoiceFileName}</span>
+                  <span style={{ color: '#000', marginLeft: '8px' }}>
+                    {task.invoiceFileName || invoiceRequest.invoiceFileName}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button 
