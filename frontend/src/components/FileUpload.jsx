@@ -275,6 +275,51 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
+                      const link = document.createElement('a');
+                      link.href = file.cloudinaryUrl;
+                      link.download = file.originalName;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}
+                    className="download-button"
+                    title="Завантажити файл"
+                  >
+                    ⬇️
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      const printWindow = window.open('', '_blank');
+                      printWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>Друк - ${file.originalName}</title>
+                            <style>
+                              body { margin: 0; padding: 20px; text-align: center; }
+                              img { max-width: 100%; max-height: 100vh; }
+                            </style>
+                          </head>
+                          <body>
+                            <img src="${file.cloudinaryUrl}" alt="${file.originalName}" />
+                          </body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                      printWindow.print();
+                    }}
+                    className="print-button"
+                    title="Друк"
+                  >
+                    🖨️
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
                       handleDeleteFile(file.id);
                     }}
                     className="delete-button"
