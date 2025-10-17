@@ -375,6 +375,17 @@ export default function AccountantArea({ user }) {
             : req
         ));
         
+        // Оновлюємо selectedTaskInfo якщо він відкритий
+        if (selectedTaskInfo && selectedTaskInfo.invoiceRequestId === requestId) {
+          console.log('[DEBUG] AccountantArea - оновлюємо selectedTaskInfo після видалення файлу рахунку');
+          setSelectedTaskInfo(prev => ({
+            ...prev,
+            invoiceFile: '',
+            invoiceFileName: '',
+            invoiceStatus: 'pending'
+          }));
+        }
+        
         alert('Файл успішно видалено!');
       } else {
         const error = await response.json();
@@ -505,6 +516,18 @@ export default function AccountantArea({ user }) {
             ? { ...req, actFile: '', actFileName: '' }
             : req
         ));
+        
+        // Оновлюємо selectedTaskInfo якщо він відкритий
+        if (selectedTaskInfo && selectedTaskInfo.invoiceRequestId === requestId) {
+          console.log('[DEBUG] AccountantArea - оновлюємо selectedTaskInfo після видалення файлу акту');
+          setSelectedTaskInfo(prev => ({
+            ...prev,
+            actFile: '',
+            actFileName: '',
+            actStatus: 'pending'
+          }));
+        }
+        
         alert('Файл акту успішно видалено!');
       } else {
         const error = await response.json();

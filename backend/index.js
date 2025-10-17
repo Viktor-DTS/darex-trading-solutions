@@ -5132,6 +5132,72 @@ app.delete('/api/invoice-requests/:id/file', async (req, res) => {
   }
 });
 
+// DELETE /api/invoice-requests/:id/act-file - видалити файл акту виконаних робіт
+app.delete('/api/invoice-requests/:id/act-file', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const request = await InvoiceRequest.findById(id);
+    if (!request) {
+      return res.status(404).json({ success: false, message: 'Запит не знайдено' });
+    }
+    
+    if (!request.actFile) {
+      return res.status(400).json({ success: false, message: 'Файл акту не знайдено' });
+    }
+    
+    // Видаляємо файл з Cloudinary
+    if (request.actFile) {
+      try {
+        const publicId = request.actFile.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(`darex-trading-solutions/acts/${publicId}`);
+      } catch (cloudinaryError) {
+        console.error('Помилка видалення файлу акту з Cloudinary:', cloudinaryError);
+        // Продовжуємо навіть якщо не вдалося видалити з Cloudinary
+      }
+    }
+    
+    // Оновлюємо запит - видаляємо посилання на файл акту
+    await InvoiceRequest.findByIdAndUpdate(id, {
+      $unset: { actFile: 1, actFileName: 1 }
+    });
+    
+    // Також оновлюємо Task документ
+    try {
+      await Task.findOneAndUpdate(
+        { invoiceRequestId: id },
+        { 
+          $unset: { actFile: 1, actFileName: 1 },
+          actStatus: 'pending'
+        }
+      );
+      
+      // Якщо не знайдено по invoiceRequestId, шукаємо по taskId
+      if (!request.taskId) {
+        await Task.findOneAndUpdate(
+          { _id: request.taskId },
+          { 
+            $unset: { actFile: 1, actFileName: 1 },
+            actStatus: 'pending'
+          }
+        );
+      }
+    } catch (taskUpdateError) {
+      console.error('Помилка оновлення Task при видаленні файлу акту:', taskUpdateError);
+    }
+    
+    res.json({ success: true, message: 'Файл акту успішно видалено' });
+    
+  } catch (error) {
+    console.error('Помилка видалення файлу акту:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка при видаленні файлу акту', 
+      error: error.message 
+    });
+  }
+});
+
 // API endpoint для бухгалтерських звітів
 app.get('/api/reports/financial', async (req, res) => {
   try {
