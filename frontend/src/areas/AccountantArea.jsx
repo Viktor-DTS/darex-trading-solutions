@@ -2095,6 +2095,23 @@ export default function AccountantArea({ user }) {
                           </div>
                         </div>
                       )}
+                      
+                      {/* Кнопка видалення запиту для всіх статусів */}
+                      <button
+                        onClick={() => deleteInvoiceRequest(request._id)}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: '#6c757d',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          marginLeft: 'auto'
+                        }}
+                      >
+                        🗑️ Видалити запит
+                      </button>
                     </div>
                   </div>
                 ))
