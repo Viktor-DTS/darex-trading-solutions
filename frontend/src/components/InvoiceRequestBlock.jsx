@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import FileViewer from './FileViewer';
 // PDF конвертація тепер виконується на сервері
 
 const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
@@ -7,6 +8,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
   const [loading, setLoading] = useState(false);
   const [needInvoice, setNeedInvoice] = useState(true); // За замовчуванням активний
   const [needAct, setNeedAct] = useState(false); // За замовчуванням неактивний
+  const [fileViewer, setFileViewer] = useState({ open: false, fileUrl: '', fileName: '' });
 
   // Логування отриманих даних
   console.log('[DEBUG] InvoiceRequestBlock - отримано task:', {
@@ -163,6 +165,8 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
     e.preventDefault();
     e.stopPropagation();
     const fileUrl = task.invoiceFile || invoiceRequest?.invoiceFile;
+    const fileName = task.invoiceFileName || invoiceRequest?.invoiceFileName;
+    
     if (fileUrl) {
       // Для Cloudinary URL додаємо параметри для кращого відображення
       let finalFileUrl = fileUrl;
@@ -172,7 +176,12 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
           finalFileUrl = finalFileUrl.replace('/upload/', '/upload/fl_attachment/');
         }
       }
-      window.open(finalFileUrl, '_blank');
+      
+      setFileViewer({
+        open: true,
+        fileUrl: finalFileUrl,
+        fileName: fileName || 'Файл рахунку'
+      });
     }
   };
 
@@ -389,6 +398,8 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
                             e.preventDefault();
                             e.stopPropagation();
                             const fileUrl = task.actFile || invoiceRequest?.actFile;
+                            const fileName = task.actFileName || invoiceRequest?.actFileName;
+                            
                             if (fileUrl) {
                               // Для Cloudinary URL додаємо параметри для кращого відображення
                               let finalFileUrl = fileUrl;
@@ -398,7 +409,12 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
                                   finalFileUrl = finalFileUrl.replace('/upload/', '/upload/fl_attachment/');
                                 }
                               }
-                              window.open(finalFileUrl, '_blank');
+                              
+                              setFileViewer({
+                                open: true,
+                                fileUrl: finalFileUrl,
+                                fileName: fileName || 'Файл акту виконаних робіт'
+                              });
                             }
                           }}
                           style={{
@@ -604,7 +620,12 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
                         if (fileUrl.includes('cloudinary.com') && fileUrl.includes('.pdf')) {
                           fileUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
                         }
-                        window.open(fileUrl, '_blank');
+                        
+                        setFileViewer({
+                          open: true,
+                          fileUrl: fileUrl,
+                          fileName: task.actFileName || 'Файл акту виконаних робіт'
+                        });
                       }
                     }}
                     style={{
@@ -914,6 +935,15 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
             </form>
           </div>
         </div>
+      )}
+      
+      {/* FileViewer для перегляду файлів */}
+      {fileViewer.open && (
+        <FileViewer
+          fileUrl={fileViewer.fileUrl}
+          fileName={fileViewer.fileName}
+          onClose={() => setFileViewer({ open: false, fileUrl: '', fileName: '' })}
+        />
       )}
     </>
   );

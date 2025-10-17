@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
 import AccountantReportsModal from '../components/AccountantReportsModal';
+import FileViewer from '../components/FileViewer';
 import { tasksAPI } from '../utils/tasksAPI';
 import { processFileForUpload } from '../utils/pdfConverter';
 import { useLazyData } from '../hooks/useLazyData';
@@ -155,6 +156,7 @@ export default function AccountantArea({ user }) {
   const [showAllInvoices, setShowAllInvoices] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [tableKey, setTableKey] = useState(0);
+  const [fileViewer, setFileViewer] = useState({ open: false, fileUrl: '', fileName: '' });
   const region = user?.region || '';
   
   // Функція для ручного оновлення кешу
@@ -1696,7 +1698,11 @@ export default function AccountantArea({ user }) {
                             <span style={{ color: '#000' }}> {request.invoiceFileName}</span>
                             <div style={{ marginTop: '8px' }}>
                               <button 
-                                onClick={() => window.open(request.invoiceFile, '_blank')}
+                                onClick={() => setFileViewer({
+                                  open: true,
+                                  fileUrl: request.invoiceFile,
+                                  fileName: request.invoiceFileName || 'Файл рахунку'
+                                })}
                                 style={{
                                   marginRight: '8px',
                                   padding: '4px 8px',
@@ -1767,7 +1773,11 @@ export default function AccountantArea({ user }) {
                             <span style={{ color: '#000' }}> {request.actFileName}</span>
                             <div style={{ marginTop: '8px' }}>
                               <button 
-                                onClick={() => downloadActFile(request._id)}
+                                onClick={() => setFileViewer({
+                                  open: true,
+                                  fileUrl: request.actFile,
+                                  fileName: request.actFileName || 'Файл акту виконаних робіт'
+                                })}
                                 style={{
                                   marginRight: '8px',
                                   padding: '4px 8px',
@@ -2257,6 +2267,15 @@ export default function AccountantArea({ user }) {
             <div>Завантаження інформації про заявку...</div>
           </div>
         </div>
+      )}
+      
+      {/* FileViewer для перегляду файлів */}
+      {fileViewer.open && (
+        <FileViewer
+          fileUrl={fileViewer.fileUrl}
+          fileName={fileViewer.fileName}
+          onClose={() => setFileViewer({ open: false, fileUrl: '', fileName: '' })}
+        />
       )}
     </div>
   );
