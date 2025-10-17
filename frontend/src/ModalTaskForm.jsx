@@ -312,34 +312,54 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   useEffect(() => {
     const f = { ...initialData };
     console.log('[DEBUG] ModalTaskForm - встановлення форми, initialData:', initialData);
-    console.log('[DEBUG] ModalTaskForm - перевірка файлу рахунку:', {
+    console.log('[DEBUG] ModalTaskForm - перевірка файлів:', {
       invoiceFile: f.invoiceFile,
       invoiceFileName: f.invoiceFileName,
       invoiceStatus: f.invoiceStatus,
       invoiceRequestId: f.invoiceRequestId,
+      actFile: f.actFile,
+      actFileName: f.actFileName,
+      actStatus: f.actStatus,
       id: f.id,
       _id: f._id
     });
     
-    // Завантажуємо дані про файл рахунку з InvoiceRequest якщо є ID заявки
+    // Завантажуємо дані про файли з InvoiceRequest якщо є ID заявки
     const taskId = f.id || f._id;
-    if (taskId && !f.invoiceFile) {
-      console.log('[DEBUG] ModalTaskForm - завантажуємо дані про файл рахунку для taskId:', taskId);
+    if (taskId && (!f.invoiceFile || !f.actFile)) {
+      console.log('[DEBUG] ModalTaskForm - завантажуємо дані про файли для taskId:', taskId);
       loadInvoiceRequestDataByTaskId(taskId).then(invoiceData => {
-        if (invoiceData && invoiceData.invoiceFile) {
-          console.log('[DEBUG] ModalTaskForm - знайдено файл рахунку:', invoiceData);
+        if (invoiceData) {
+          console.log('[DEBUG] ModalTaskForm - знайдено дані InvoiceRequest:', invoiceData);
+          const updates = {
+            invoiceRequestId: invoiceData._id
+          };
+          
+          // Оновлюємо дані про файл рахунку
+          if (invoiceData.invoiceFile) {
+            updates.invoiceFile = invoiceData.invoiceFile;
+            updates.invoiceFileName = invoiceData.invoiceFileName;
+            updates.invoiceStatus = invoiceData.status;
+            console.log('[DEBUG] ModalTaskForm - оновлено дані про файл рахунку');
+          }
+          
+          // Оновлюємо дані про файл акту
+          if (invoiceData.actFile) {
+            updates.actFile = invoiceData.actFile;
+            updates.actFileName = invoiceData.actFileName;
+            updates.actStatus = invoiceData.status;
+            console.log('[DEBUG] ModalTaskForm - оновлено дані про файл акту');
+          }
+          
           setForm(prev => ({
             ...prev,
-            invoiceFile: invoiceData.invoiceFile,
-            invoiceFileName: invoiceData.invoiceFileName,
-            invoiceStatus: invoiceData.status,
-            invoiceRequestId: invoiceData._id
+            ...updates
           }));
         } else {
-          console.log('[DEBUG] ModalTaskForm - файл рахунку не знайдено для taskId:', taskId);
+          console.log('[DEBUG] ModalTaskForm - дані InvoiceRequest не знайдено для taskId:', taskId);
         }
       }).catch(error => {
-        console.error('[ERROR] ModalTaskForm - помилка завантаження даних про файл рахунку:', error);
+        console.error('[ERROR] ModalTaskForm - помилка завантаження даних про файли:', error);
       });
     }
     
@@ -1516,10 +1536,13 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                         task={(() => {
                           const taskData = {
                             ...form,
-                            // Передаємо дані про файл рахунку з InvoiceRequest
+                            // Передаємо дані про файли з InvoiceRequest
                             invoiceFile: form.invoiceFile,
                             invoiceFileName: form.invoiceFileName,
                             invoiceStatus: form.invoiceStatus,
+                            actFile: form.actFile,
+                            actFileName: form.actFileName,
+                            actStatus: form.actStatus,
                             invoiceRequestId: form.invoiceRequestId
                           };
                           console.log('[DEBUG] ModalTaskForm - передаємо в InvoiceRequestBlock:', {
@@ -1533,6 +1556,15 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                         })()} 
                         user={user} 
                         onRequest={handleInvoiceRequest}
+                        onFileUploaded={(fileType, fileData) => {
+                          console.log('[DEBUG] ModalTaskForm - файл завантажено:', fileType, fileData);
+                          
+                          // Оновлюємо стан форми з новими даними про файл
+                          setForm(prev => ({
+                            ...prev,
+                            ...fileData
+                          }));
+                        }}
                       />
                     </div>
                   </div>

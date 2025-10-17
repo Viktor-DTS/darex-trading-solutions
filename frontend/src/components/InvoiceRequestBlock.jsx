@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // PDF конвертація тепер виконується на сервері
 
-const InvoiceRequestBlock = ({ task, user, onRequest }) => {
+const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
   const [showModal, setShowModal] = useState(false);
   const [invoiceRequest, setInvoiceRequest] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -15,6 +15,9 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
     invoiceFile: task.invoiceFile,
     invoiceFileName: task.invoiceFileName,
     invoiceStatus: task.invoiceStatus,
+    actFile: task.actFile,
+    actFileName: task.actFileName,
+    actStatus: task.actStatus,
     invoiceRequestId: task.invoiceRequestId,
     status: task.status
   });
@@ -125,6 +128,33 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
       }, 1000); // Затримка 1 секунда
     } catch (error) {
       console.error('Помилка створення запиту на рахунок:', error);
+    }
+  };
+
+  // Функція для оновлення даних після завантаження файлу
+  const handleFileUploaded = (fileType, fileData) => {
+    console.log('[DEBUG] InvoiceRequestBlock - файл завантажено:', fileType, fileData);
+    
+    // Оновлюємо локальний стан
+    if (fileType === 'invoice') {
+      setInvoiceRequest(prev => prev ? {
+        ...prev,
+        invoiceFile: fileData.invoiceFile,
+        invoiceFileName: fileData.invoiceFileName,
+        status: 'completed'
+      } : null);
+    } else if (fileType === 'act') {
+      setInvoiceRequest(prev => prev ? {
+        ...prev,
+        actFile: fileData.actFile,
+        actFileName: fileData.actFileName,
+        status: 'completed'
+      } : null);
+    }
+    
+    // Викликаємо callback для оновлення батьківського компонента
+    if (onFileUploaded) {
+      onFileUploaded(fileType, fileData);
     }
   };
 
