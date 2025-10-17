@@ -314,6 +314,7 @@ export default function AccountantArea({ user }) {
       
       if (response.ok) {
         const result = await response.json();
+        console.log('[DEBUG] AccountantArea - файл рахунку завантажено успішно:', result);
         // Оновлюємо локальний стан
         setInvoiceRequests(prev => 
           prev.map(req => 
@@ -322,6 +323,18 @@ export default function AccountantArea({ user }) {
               : req
           )
         );
+        
+        // Оновлюємо selectedTaskInfo якщо він відкритий
+        if (selectedTaskInfo && selectedTaskInfo.invoiceRequestId === requestId) {
+          console.log('[DEBUG] AccountantArea - оновлюємо selectedTaskInfo з даними про файл рахунку');
+          setSelectedTaskInfo(prev => ({
+            ...prev,
+            invoiceFile: result.data.invoiceFile,
+            invoiceFileName: result.data.invoiceFileName,
+            invoiceStatus: 'completed'
+          }));
+        }
+        
         alert('Файл рахунку завантажено успішно');
       } else {
         const error = await response.json();
@@ -414,12 +427,30 @@ export default function AccountantArea({ user }) {
       
       if (response.ok) {
         const result = await response.json();
+        console.log('[DEBUG] AccountantArea - файл акту завантажено успішно:', result);
         // Оновлюємо локальний стан
         setInvoiceRequests(prev => prev.map(req => 
           req._id === requestId 
-            ? { ...req, actFile: result.data.fileUrl, actFileName: result.data.fileName }
+            ? { 
+                ...req, 
+                status: 'completed',
+                actFile: result.data.actFile, 
+                actFileName: result.data.actFileName 
+              }
             : req
         ));
+        
+        // Оновлюємо selectedTaskInfo якщо він відкритий
+        if (selectedTaskInfo && selectedTaskInfo.invoiceRequestId === requestId) {
+          console.log('[DEBUG] AccountantArea - оновлюємо selectedTaskInfo з даними про файл акту');
+          setSelectedTaskInfo(prev => ({
+            ...prev,
+            actFile: result.data.actFile,
+            actFileName: result.data.actFileName,
+            actStatus: 'completed'
+          }));
+        }
+        
         alert('Файл акту завантажено успішно');
       } else {
         const error = await response.json();
@@ -1771,27 +1802,6 @@ export default function AccountantArea({ user }) {
                               style={{ marginRight: '8px' }}
                             />
                             <span style={{ color: '#666', fontSize: '12px' }}>Завантажте файл акту виконаних робіт</span>
-                          </div>
-                        )}
-                        {request.actFile && (
-                          <div style={{ marginTop: '8px' }}>
-                            <button
-                              onClick={() => {
-                                const comments = prompt('Додайте коментарі (необов\'язково):');
-                                updateInvoiceRequestStatus(request._id, 'completed', comments || '');
-                              }}
-                              style={{
-                                padding: '8px 16px',
-                                backgroundColor: '#28a745',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '14px'
-                              }}
-                            >
-                              Завершити заявку
-                            </button>
                           </div>
                         )}
                       </div>
