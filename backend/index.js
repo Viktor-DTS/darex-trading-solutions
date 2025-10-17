@@ -3795,22 +3795,40 @@ app.put('/api/invoice-requests/:id', async (req, res) => {
 // Завантаження файлу рахунку
 app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async (req, res) => {
   try {
+    console.log('[DEBUG] POST /api/invoice-requests/:id/upload - запит отримано для ID:', req.params.id);
+    
     const request = await InvoiceRequest.findById(req.params.id);
     
     if (!request) {
+      console.log('[ERROR] POST /api/invoice-requests/:id/upload - запит не знайдено:', req.params.id);
       return res.status(404).json({ 
         success: false, 
         message: 'Запит на рахунок не знайдено' 
       });
     }
     
+    console.log('[DEBUG] POST /api/invoice-requests/:id/upload - знайдено запит:', {
+      id: request._id,
+      taskId: request.taskId,
+      status: request.status,
+      needInvoice: request.needInvoice
+    });
+    
     // Перевіряємо чи є файл в запиті
     if (!req.file) {
+      console.log('[ERROR] POST /api/invoice-requests/:id/upload - файл не надано');
       return res.status(400).json({ 
         success: false, 
         message: 'Файл не був завантажений' 
       });
     }
+    
+    console.log('[DEBUG] POST /api/invoice-requests/:id/upload - файл отримано:', {
+      originalname: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      path: req.file.path
+    });
     
     // Оновлюємо запит з інформацією про файл
     // Виправляємо кодування назви файлу
@@ -3843,12 +3861,26 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
     
     // Оновлюємо статус рахунку в основній заявці
     try {
-      await Task.findOneAndUpdate(
+      const updatedTask = await Task.findOneAndUpdate(
         { invoiceRequestId: req.params.id },
-        { invoiceStatus: 'completed' },
+        { 
+          invoiceStatus: 'completed',
+          invoiceFile: updatedRequest.invoiceFile,
+          invoiceFileName: updatedRequest.invoiceFileName
+        },
         { new: true }
       );
-      console.log('[DEBUG] POST /api/invoice-requests/:id/upload - оновлено invoiceStatus в заявці: completed');
+      
+      if (updatedTask) {
+        console.log('[DEBUG] POST /api/invoice-requests/:id/upload - оновлено заявку:', {
+          taskId: updatedTask._id,
+          invoiceStatus: updatedTask.invoiceStatus,
+          invoiceFile: updatedTask.invoiceFile,
+          invoiceFileName: updatedTask.invoiceFileName
+        });
+      } else {
+        console.log('[WARNING] POST /api/invoice-requests/:id/upload - заявка не знайдена для оновлення');
+      }
     } catch (taskUpdateError) {
       console.error('[ERROR] POST /api/invoice-requests/:id/upload - помилка оновлення заявки:', taskUpdateError);
     }
