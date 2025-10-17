@@ -27,6 +27,7 @@ import EventLogArea from './areas/EventLogArea';
 import AnalyticsArea from './areas/AnalyticsArea';
 import NotificationSettings from './components/NotificationSettings';
 import UserNotificationManager from './components/UserNotificationManager';
+import NotificationDebugPanel from './components/NotificationDebugPanel';
 import * as XLSX from 'xlsx-js-style';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import API_BASE_URL from './config.js';
@@ -4430,6 +4431,7 @@ function AdminArea({ user }) {
         <button onClick={()=>setTab('events')} style={{padding:'10px 32px',background:tab==='events'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='events'?700:400,cursor:'pointer'}}>Журнал подій</button>
         <button onClick={()=>setTab('notifications')} style={{padding:'10px 32px',background:tab==='notifications'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='notifications'?700:400,cursor:'pointer'}}>Telegram сповіщення</button>
         <button onClick={()=>setTab('userNotifications')} style={{padding:'10px 32px',background:tab==='userNotifications'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='userNotifications'?700:400,cursor:'pointer'}}>Управління сповіщеннями</button>
+        <button onClick={()=>setTab('debugNotifications')} style={{padding:'10px 32px',background:tab==='debugNotifications'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='debugNotifications'?700:400,cursor:'pointer'}}>🔧 Дебаг сповіщень</button>
       </div>
       {tab === 'system' && <AdminSystemParamsArea />}
       {tab === 'edit' && <AdminEditTasksArea user={user} />}
@@ -4437,6 +4439,7 @@ function AdminArea({ user }) {
       {tab === 'events' && <EventLogArea user={user} />}
       {tab === 'notifications' && <NotificationSettings user={user} />}
       {tab === 'userNotifications' && <UserNotificationManager user={user} />}
+      {tab === 'debugNotifications' && <NotificationDebugPanel user={user} />}
     </div>
   );
 }

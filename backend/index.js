@@ -4672,6 +4672,147 @@ app.get('/api/telegram/test-send', async (req, res) => {
   }
 });
 
+// ===== API ENDPOINTS ДЛЯ ДЕБАГУ СПОВІЩЕНЬ =====
+
+// Підключаємо дебагер сповіщень
+const NotificationDebugger = require('./notification-debugger');
+const notificationDebugger = new NotificationDebugger();
+
+// GET /api/notifications/debug/analyze-users - аналіз налаштувань користувачів
+app.get('/api/notifications/debug/analyze-users', async (req, res) => {
+  try {
+    addLog('🔍 Аналіз налаштувань користувачів для сповіщень', 'info');
+    
+    const analysis = await notificationDebugger.analyzeUserSettings();
+    
+    res.json({
+      success: true,
+      data: analysis,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    addLog(`❌ Помилка аналізу користувачів: ${error.message}`, 'error');
+    console.error('[ERROR] GET /api/notifications/debug/analyze-users - помилка:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// POST /api/notifications/debug/simulate - симуляція відправки сповіщення
+app.post('/api/notifications/debug/simulate', async (req, res) => {
+  try {
+    const { type, data } = req.body;
+    
+    if (!type) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'type is required' 
+      });
+    }
+    
+    addLog(`🧪 Симуляція сповіщення типу: ${type}`, 'info');
+    
+    const result = await notificationDebugger.simulateNotification(type, data || {});
+    
+    res.json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    addLog(`❌ Помилка симуляції сповіщення: ${error.message}`, 'error');
+    console.error('[ERROR] POST /api/notifications/debug/simulate - помилка:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// GET /api/notifications/debug/logs - аналіз логів сповіщень
+app.get('/api/notifications/debug/logs', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    
+    addLog(`📊 Аналіз логів сповіщень (останні ${limit})`, 'info');
+    
+    const analysis = await notificationDebugger.analyzeNotificationLogs(limit);
+    
+    res.json({
+      success: true,
+      data: analysis,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    addLog(`❌ Помилка аналізу логів: ${error.message}`, 'error');
+    console.error('[ERROR] GET /api/notifications/debug/logs - помилка:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// POST /api/notifications/debug/test-user - тест сповіщення для конкретного користувача
+app.post('/api/notifications/debug/test-user', async (req, res) => {
+  try {
+    const { userLogin, message } = req.body;
+    
+    if (!userLogin) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'userLogin is required' 
+      });
+    }
+    
+    addLog(`🧪 Тест сповіщення для користувача: ${userLogin}`, 'info');
+    
+    const result = await notificationDebugger.testUserNotification(userLogin, message);
+    
+    res.json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    addLog(`❌ Помилка тестування користувача: ${error.message}`, 'error');
+    console.error('[ERROR] POST /api/notifications/debug/test-user - помилка:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// GET /api/notifications/debug/report - генерація повного звіту
+app.get('/api/notifications/debug/report', async (req, res) => {
+  try {
+    addLog('📊 Генерація звіту про стан системи сповіщень', 'info');
+    
+    const report = await notificationDebugger.generateSystemReport();
+    
+    res.json({
+      success: true,
+      data: report,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    addLog(`❌ Помилка генерації звіту: ${error.message}`, 'error');
+    console.error('[ERROR] GET /api/notifications/debug/report - помилка:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // DELETE /api/invoice-requests/:id - видалити запит на рахунок
 app.delete('/api/invoice-requests/:id', async (req, res) => {
   try {
