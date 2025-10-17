@@ -88,12 +88,14 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
        user?.role === 'Оператор' || 
        user?.role === 'Адміністратор' ||
        user?.role === 'Регіональний керівник' ||
+       user?.role === 'Бухгалтер' ||
        user?.role === 'administrator' ||
        user?.role === 'service' ||
        user?.role === 'operator' ||
        user?.role === 'admin' ||
        user?.role === 'regional_manager' ||
-       user?.role === 'regkerivn')
+       user?.role === 'regkerivn' ||
+       user?.role === 'accountant')
     );
     
     console.log('DEBUG InvoiceRequestBlock:', {
