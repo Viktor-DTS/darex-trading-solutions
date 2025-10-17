@@ -1411,71 +1411,12 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                     );
                   }
                   
-                  // Спеціальна обробка для поля "Номер рахунку" з відображенням файлу
+                  // Спеціальна обробка для поля "Номер рахунку"
                   if (n === 'invoice') {
                     return (
                       <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                         <label>{f.label}</label>
                         <input type={f.type} name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} />
-                        
-                        {/* Відображення файлу рахунку якщо він є */}
-                        {form.invoiceFile && form.invoiceFileName && (
-                          <div style={{ 
-                            marginTop: '8px', 
-                            padding: '8px 12px', 
-                            backgroundColor: '#e8f5e8', 
-                            border: '1px solid #4caf50', 
-                            borderRadius: '4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between'
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '14px', color: '#2e7d32' }}>
-                                📄 {form.invoiceFileName}
-                              </span>
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button
-                                type="button"
-                                onClick={() => window.open(form.invoiceFile, '_blank')}
-                                style={{
-                                  padding: '4px 8px',
-                                  backgroundColor: '#17a2b8',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '4px',
-                                  cursor: 'pointer',
-                                  fontSize: '12px'
-                                }}
-                              >
-                                👁️ Переглянути
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const link = document.createElement('a');
-                                  link.href = form.invoiceFile;
-                                  link.download = form.invoiceFileName;
-                                  document.body.appendChild(link);
-                                  link.click();
-                                  document.body.removeChild(link);
-                                }}
-                                style={{
-                                  padding: '4px 8px',
-                                  backgroundColor: '#28a745',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '4px',
-                                  cursor: 'pointer',
-                                  fontSize: '12px'
-                                }}
-                              >
-                                ⬇️ Завантажити
-                              </button>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     );
                   }
