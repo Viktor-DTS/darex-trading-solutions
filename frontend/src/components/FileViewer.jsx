@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
 const FileViewer = ({ fileUrl, fileName, onClose }) => {
+  console.log('[DEBUG] FileViewer - отримано props:', { fileUrl, fileName, onClose });
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [fileType, setFileType] = useState('');

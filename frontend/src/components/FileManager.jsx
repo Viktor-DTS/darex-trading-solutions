@@ -181,11 +181,18 @@ export default function FileManager({ taskId, onFilesChange }) {
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
-                    onClick={() => setFileViewer({
-                      open: true,
-                      fileUrl: filesAPI.getFileViewUrl(file._id),
-                      fileName: file.originalName
-                    })}
+                    onClick={() => {
+                      console.log('[DEBUG] FileManager - натиснуто кнопку перегляду файлу:', {
+                        fileId: file._id,
+                        fileName: file.originalName,
+                        fileUrl: filesAPI.getFileViewUrl(file._id)
+                      });
+                      setFileViewer({
+                        open: true,
+                        fileUrl: filesAPI.getFileViewUrl(file._id),
+                        fileName: file.originalName
+                      });
+                    }}
                     style={{
                       background: '#4CAF50',
                       color: '#fff',
