@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { filesAPI } from '../utils/filesAPI';
 import { processFileForUpload } from '../utils/pdfConverter';
+import FileViewer from './FileViewer';
 export default function FileManager({ taskId, onFilesChange }) {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [description, setDescription] = useState('');
+  const [fileViewer, setFileViewer] = useState({ open: false, fileUrl: '', fileName: '' });
   useEffect(() => {
     if (taskId) {
       loadFiles();
@@ -178,10 +180,12 @@ export default function FileManager({ taskId, onFilesChange }) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <a
-                    href={filesAPI.getFileViewUrl(file._id)}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => setFileViewer({
+                      open: true,
+                      fileUrl: filesAPI.getFileViewUrl(file._id),
+                      fileName: file.originalName
+                    })}
                     style={{
                       background: '#4CAF50',
                       color: '#fff',
@@ -189,15 +193,12 @@ export default function FileManager({ taskId, onFilesChange }) {
                       borderRadius: 4,
                       padding: '6px 12px',
                       cursor: 'pointer',
-                      fontSize: 12,
-                      textDecoration: 'none',
-                      display: 'inline-block',
-                      textAlign: 'center'
+                      fontSize: 12
                     }}
                     title="Переглянути"
                   >
                     👁️
-                  </a>
+                  </button>
                   <button
                     onClick={() => filesAPI.downloadFile(file._id, file.originalName)}
                     style={{
@@ -268,6 +269,15 @@ export default function FileManager({ taskId, onFilesChange }) {
           </div>
         )}
       </div>
+      
+      {/* FileViewer для перегляду файлів */}
+      {fileViewer.open && (
+        <FileViewer
+          fileUrl={fileViewer.fileUrl}
+          fileName={fileViewer.fileName}
+          onClose={() => setFileViewer({ open: false, fileUrl: '', fileName: '' })}
+        />
+      )}
     </div>
   );
 } 
