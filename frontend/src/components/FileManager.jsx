@@ -214,6 +214,40 @@ export default function FileManager({ taskId, onFilesChange }) {
                     ⬇️
                   </button>
                   <button
+                    onClick={() => {
+                      const fileUrl = filesAPI.getFileViewUrl(file._id);
+                      const printWindow = window.open('', '_blank');
+                      printWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>Друк - ${file.originalName}</title>
+                            <style>
+                              body { margin: 0; padding: 20px; text-align: center; }
+                              img { max-width: 100%; max-height: 100vh; }
+                            </style>
+                          </head>
+                          <body>
+                            <img src="${fileUrl}" alt="${file.originalName}" />
+                          </body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                      printWindow.print();
+                    }}
+                    style={{
+                      background: '#17a2b8',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 4,
+                      padding: '6px 12px',
+                      cursor: 'pointer',
+                      fontSize: 12
+                    }}
+                    title="Друк"
+                  >
+                    🖨️
+                  </button>
+                  <button
                     onClick={() => handleDelete(file._id)}
                     style={{
                       background: '#f44336',
