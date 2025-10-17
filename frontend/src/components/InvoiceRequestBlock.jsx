@@ -322,10 +322,21 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
             {/* Файл акту виконаних робіт */}
             {(() => {
               console.log('DEBUG InvoiceRequestBlock: перевірка умов для файлу акту');
-              console.log('DEBUG InvoiceRequestBlock: status =', invoiceRequest.status);
-              console.log('DEBUG InvoiceRequestBlock: actFile =', invoiceRequest.actFile);
-              console.log('DEBUG InvoiceRequestBlock: needAct =', invoiceRequest.needAct);
-              return invoiceRequest.status === 'completed' && invoiceRequest.needAct;
+              console.log('DEBUG InvoiceRequestBlock: invoiceRequest =', invoiceRequest);
+              console.log('DEBUG InvoiceRequestBlock: task =', task);
+              
+              // Перевіряємо файл акту з InvoiceRequest або з task
+              const hasActFileFromRequest = invoiceRequest && 
+                                          invoiceRequest.status === 'completed' && 
+                                          invoiceRequest.actFile && 
+                                          invoiceRequest.needAct;
+              
+              const hasActFileFromTask = task.actFile && task.actFileName;
+              
+              console.log('DEBUG InvoiceRequestBlock: hasActFileFromRequest =', hasActFileFromRequest);
+              console.log('DEBUG InvoiceRequestBlock: hasActFileFromTask =', hasActFileFromTask);
+              
+              return hasActFileFromRequest || hasActFileFromTask;
             })() && (
               <div style={{
                 marginBottom: '15px',
@@ -336,25 +347,28 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
               }}>
                 <div style={{ marginBottom: '8px' }}>
                   <strong style={{ color: '#000' }}>📋 Файл акту виконаних робіт:</strong>
-                  {invoiceRequest.actFile ? (
+                  {(task.actFile || invoiceRequest.actFile) ? (
                     <>
-                      <span style={{ color: '#000', marginLeft: '8px' }}>{invoiceRequest.actFileName}</span>
+                      <span style={{ color: '#000', marginLeft: '8px' }}>
+                        {task.actFileName || invoiceRequest.actFileName}
+                      </span>
                       <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                         <button 
                           type="button"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            if (invoiceRequest?.actFile) {
+                            const fileUrl = task.actFile || invoiceRequest?.actFile;
+                            if (fileUrl) {
                               // Для Cloudinary URL додаємо параметри для кращого відображення
-                              let fileUrl = invoiceRequest.actFile;
-                              if (fileUrl.includes('cloudinary.com')) {
+                              let finalFileUrl = fileUrl;
+                              if (finalFileUrl.includes('cloudinary.com')) {
                                 // Додаємо параметри для кращого відображення PDF
-                                if (fileUrl.includes('.pdf')) {
-                                  fileUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
+                                if (finalFileUrl.includes('.pdf')) {
+                                  finalFileUrl = finalFileUrl.replace('/upload/', '/upload/fl_attachment/');
                                 }
                               }
-                              window.open(fileUrl, '_blank');
+                              window.open(finalFileUrl, '_blank');
                             }
                           }}
                           style={{
@@ -375,11 +389,14 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                           onClick={async (e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            if (!invoiceRequest?.actFile) return;
+                            const fileUrl = task.actFile || invoiceRequest?.actFile;
+                            const fileName = task.actFileName || invoiceRequest?.actFileName;
+                            
+                            if (!fileUrl) return;
                             
                             try {
                               // Завантажуємо файл через fetch для правильного завантаження
-                              const response = await fetch(invoiceRequest.actFile);
+                              const response = await fetch(fileUrl);
                               const blob = await response.blob();
                               
                               // Створюємо URL для blob
@@ -388,7 +405,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                               // Створюємо тимчасовий елемент <a> для завантаження
                               const link = document.createElement('a');
                               link.href = url;
-                              link.download = invoiceRequest.actFileName || 'act.pdf';
+                              link.download = fileName || 'act.pdf';
                               document.body.appendChild(link);
                               link.click();
                               
@@ -449,7 +466,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
           </div>
         ) : (
           <div>
-            {/* Показуємо файл рахунку якщо він є в task, але немає InvoiceRequest */}
+            {/* Показуємо файли якщо вони є в task, але немає InvoiceRequest */}
             {task.invoiceFile && task.invoiceFileName && (
               <div style={{
                 marginBottom: '15px',
@@ -512,6 +529,88 @@ const InvoiceRequestBlock = ({ task, user, onRequest }) => {
                       } catch (error) {
                         console.error('Помилка завантаження файлу:', error);
                         alert('Помилка завантаження файлу');
+                      }
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#28a745',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600'
+                    }}
+                  >
+                    📥 Завантажити файл
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Показуємо файл акту якщо він є в task, але немає InvoiceRequest */}
+            {task.actFile && task.actFileName && (
+              <div style={{
+                marginBottom: '15px',
+                padding: '12px',
+                backgroundColor: '#e6f3ff',
+                borderRadius: '4px',
+                border: '1px solid #b8daff'
+              }}>
+                <div style={{ marginBottom: '8px' }}>
+                  <strong style={{ color: '#000' }}>📋 Файл акту виконаних робіт:</strong> 
+                  <span style={{ color: '#000', marginLeft: '8px' }}>
+                    {task.actFileName}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (task.actFile) {
+                        let fileUrl = task.actFile;
+                        if (fileUrl.includes('cloudinary.com') && fileUrl.includes('.pdf')) {
+                          fileUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
+                        }
+                        window.open(fileUrl, '_blank');
+                      }
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#17a2b8',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600'
+                    }}
+                  >
+                    👁️ Переглянути файл
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (!task.actFile) return;
+                      
+                      try {
+                        const response = await fetch(task.actFile);
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = task.actFileName || 'act.pdf';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(url);
+                      } catch (error) {
+                        console.error('Помилка завантаження файлу акту:', error);
+                        alert('Помилка завантаження файлу акту');
                       }
                     }}
                     style={{

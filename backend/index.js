@@ -992,16 +992,31 @@ app.get('/api/tasks', async (req, res) => {
         }
       }
       
-      // Оновлюємо дані заявки якщо знайшли InvoiceRequest з файлом
-      if (invoiceRequest && invoiceRequest.invoiceFile) {
-        task.invoiceStatus = 'completed';
-        task.invoiceFile = invoiceRequest.invoiceFile;
-        task.invoiceFileName = invoiceRequest.invoiceFileName;
+      // Оновлюємо дані заявки якщо знайшли InvoiceRequest з файлами
+      if (invoiceRequest) {
+        // Оновлюємо дані про файл рахунку
+        if (invoiceRequest.invoiceFile) {
+          task.invoiceStatus = 'completed';
+          task.invoiceFile = invoiceRequest.invoiceFile;
+          task.invoiceFileName = invoiceRequest.invoiceFileName;
+        }
+        
+        // Оновлюємо дані про файл акту
+        if (invoiceRequest.actFile) {
+          task.actStatus = 'completed';
+          task.actFile = invoiceRequest.actFile;
+          task.actFileName = invoiceRequest.actFileName;
+        }
+        
         task.invoiceRequestId = invoiceRequest._id.toString(); // Додаємо invoiceRequestId для майбутніх запитів
-        console.log('[DEBUG] GET /api/tasks - оновлено дані про файл рахунку для заявки:', task._id, {
+        
+        console.log('[DEBUG] GET /api/tasks - оновлено дані про файли для заявки:', task._id, {
           invoiceStatus: task.invoiceStatus,
           invoiceFile: task.invoiceFile,
           invoiceFileName: task.invoiceFileName,
+          actStatus: task.actStatus,
+          actFile: task.actFile,
+          actFileName: task.actFileName,
           invoiceRequestId: task.invoiceRequestId
         });
       }
@@ -3943,6 +3958,135 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
     res.status(500).json({ 
       success: false, 
       message: 'Помилка завантаження файлу рахунку',
+      error: error.message 
+    });
+  }
+});
+
+// Завантаження файлу акту виконаних робіт
+app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async (req, res) => {
+  try {
+    console.log('[DEBUG] POST /api/invoice-requests/:id/upload-act - запит отримано для ID:', req.params.id);
+    
+    const request = await InvoiceRequest.findById(req.params.id);
+    
+    if (!request) {
+      console.log('[ERROR] POST /api/invoice-requests/:id/upload-act - запит не знайдено:', req.params.id);
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Запит на рахунок не знайдено' 
+      });
+    }
+    
+    console.log('[DEBUG] POST /api/invoice-requests/:id/upload-act - знайдено запит:', {
+      id: request._id,
+      taskId: request.taskId,
+      status: request.status,
+      needAct: request.needAct
+    });
+    
+    // Перевіряємо чи є файл в запиті
+    if (!req.file) {
+      console.log('[ERROR] POST /api/invoice-requests/:id/upload-act - файл не надано');
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Файл не був завантажений' 
+      });
+    }
+    
+    console.log('[DEBUG] POST /api/invoice-requests/:id/upload-act - файл отримано:', {
+      originalname: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      path: req.file.path
+    });
+    
+    // Виправляємо кодування назви файлу
+    let fileName = req.file.originalname;
+    try {
+      // Спробуємо декодувати як UTF-8 з latin1
+      const decoded = Buffer.from(fileName, 'latin1').toString('utf8');
+      // Перевіряємо чи декодування дало зміст
+      if (decoded && decoded !== fileName && !decoded.includes('')) {
+        fileName = decoded;
+      } else {
+        // Спробуємо інший метод
+        fileName = decodeURIComponent(escape(fileName));
+      }
+    } catch (error) {
+      // Якщо не вдалося, залишаємо оригінальну назву
+      console.log('Не вдалося декодувати назву файлу акту:', error);
+    }
+    
+    const updatedRequest = await InvoiceRequest.findByIdAndUpdate(
+      req.params.id,
+      { 
+        status: 'completed',
+        completedAt: new Date(),
+        actFile: req.file.path, // Cloudinary URL
+        actFileName: fileName
+      },
+      { new: true }
+    );
+    
+    // Оновлюємо статус акту в основній заявці
+    try {
+      // Спочатку шукаємо по invoiceRequestId
+      let updatedTask = await Task.findOneAndUpdate(
+        { invoiceRequestId: req.params.id },
+        { 
+          actStatus: 'completed',
+          actFile: updatedRequest.actFile,
+          actFileName: updatedRequest.actFileName
+        },
+        { new: true }
+      );
+      
+      // Якщо не знайшли по invoiceRequestId, шукаємо по taskId
+      if (!updatedTask) {
+        updatedTask = await Task.findOneAndUpdate(
+          { _id: updatedRequest.taskId },
+          { 
+            actStatus: 'completed',
+            actFile: updatedRequest.actFile,
+            actFileName: updatedRequest.actFileName,
+            invoiceRequestId: req.params.id // Додаємо invoiceRequestId для майбутніх запитів
+          },
+          { new: true }
+        );
+        console.log('[DEBUG] POST /api/invoice-requests/:id/upload-act - оновлено заявку по taskId:', updatedRequest.taskId);
+      } else {
+        console.log('[DEBUG] POST /api/invoice-requests/:id/upload-act - оновлено заявку по invoiceRequestId:', req.params.id);
+      }
+      
+      if (updatedTask) {
+        console.log('[DEBUG] POST /api/invoice-requests/:id/upload-act - оновлено заявку:', {
+          taskId: updatedTask._id,
+          actStatus: updatedTask.actStatus,
+          actFile: updatedTask.actFile,
+          actFileName: updatedTask.actFileName,
+          invoiceRequestId: updatedTask.invoiceRequestId
+        });
+      } else {
+        console.log('[WARNING] POST /api/invoice-requests/:id/upload-act - заявка не знайдена для оновлення');
+      }
+    } catch (taskUpdateError) {
+      console.error('[ERROR] POST /api/invoice-requests/:id/upload-act - помилка оновлення заявки:', taskUpdateError);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Файл акту виконаних робіт завантажено успішно',
+      data: {
+        actFile: updatedRequest.actFile,
+        actFileName: updatedRequest.actFileName
+      }
+    });
+  } catch (error) {
+    console.error('Помилка завантаження файлу акту:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Помилка завантаження файлу акту',
       error: error.message 
     });
   }
