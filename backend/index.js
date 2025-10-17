@@ -965,22 +965,47 @@ app.get('/api/tasks', async (req, res) => {
     
     console.log('[DEBUG] GET /api/tasks - знайдено завдань:', tasks.length);
     
-    // Додаємо інформацію про файл рахунку для заявок з invoiceRequestId
+    // Додаємо інформацію про файл рахунку для заявок
     const tasksWithInvoiceInfo = await Promise.all(tasks.map(async (task) => {
+      let invoiceRequest = null;
+      
+      // Спочатку шукаємо по invoiceRequestId (для старих заявок)
       if (task.invoiceRequestId) {
         try {
-          const invoiceRequest = await InvoiceRequest.findById(task.invoiceRequestId);
-          if (invoiceRequest && invoiceRequest.invoiceFile) {
-            // Якщо є файл рахунку, встановлюємо статус "completed"
-            task.invoiceStatus = 'completed';
-            task.invoiceFile = invoiceRequest.invoiceFile;
-            task.invoiceFileName = invoiceRequest.invoiceFileName;
-            console.log('[DEBUG] GET /api/tasks - знайдено файл рахунку для заявки:', task._id, 'статус встановлено: completed');
-          }
+          invoiceRequest = await InvoiceRequest.findById(task.invoiceRequestId);
+          console.log('[DEBUG] GET /api/tasks - знайдено InvoiceRequest по invoiceRequestId для заявки:', task._id);
         } catch (invoiceError) {
-          console.error('[ERROR] GET /api/tasks - помилка отримання InvoiceRequest для заявки:', task._id, invoiceError);
+          console.error('[ERROR] GET /api/tasks - помилка отримання InvoiceRequest по invoiceRequestId для заявки:', task._id, invoiceError);
         }
       }
+      
+      // Якщо не знайшли по invoiceRequestId, шукаємо по taskId (для нових заявок)
+      if (!invoiceRequest) {
+        try {
+          const invoiceRequests = await InvoiceRequest.find({ taskId: task._id.toString() });
+          if (invoiceRequests && invoiceRequests.length > 0) {
+            invoiceRequest = invoiceRequests[0]; // Беремо перший знайдений
+            console.log('[DEBUG] GET /api/tasks - знайдено InvoiceRequest по taskId для заявки:', task._id);
+          }
+        } catch (invoiceError) {
+          console.error('[ERROR] GET /api/tasks - помилка пошуку InvoiceRequest по taskId для заявки:', task._id, invoiceError);
+        }
+      }
+      
+      // Оновлюємо дані заявки якщо знайшли InvoiceRequest з файлом
+      if (invoiceRequest && invoiceRequest.invoiceFile) {
+        task.invoiceStatus = 'completed';
+        task.invoiceFile = invoiceRequest.invoiceFile;
+        task.invoiceFileName = invoiceRequest.invoiceFileName;
+        task.invoiceRequestId = invoiceRequest._id.toString(); // Додаємо invoiceRequestId для майбутніх запитів
+        console.log('[DEBUG] GET /api/tasks - оновлено дані про файл рахунку для заявки:', task._id, {
+          invoiceStatus: task.invoiceStatus,
+          invoiceFile: task.invoiceFile,
+          invoiceFileName: task.invoiceFileName,
+          invoiceRequestId: task.invoiceRequestId
+        });
+      }
+      
       return task;
     }));
     
@@ -3861,7 +3886,8 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
     
     // Оновлюємо статус рахунку в основній заявці
     try {
-      const updatedTask = await Task.findOneAndUpdate(
+      // Спочатку шукаємо по invoiceRequestId
+      let updatedTask = await Task.findOneAndUpdate(
         { invoiceRequestId: req.params.id },
         { 
           invoiceStatus: 'completed',
@@ -3871,12 +3897,30 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
         { new: true }
       );
       
+      // Якщо не знайшли по invoiceRequestId, шукаємо по taskId
+      if (!updatedTask) {
+        updatedTask = await Task.findOneAndUpdate(
+          { _id: updatedRequest.taskId },
+          { 
+            invoiceStatus: 'completed',
+            invoiceFile: updatedRequest.invoiceFile,
+            invoiceFileName: updatedRequest.invoiceFileName,
+            invoiceRequestId: req.params.id // Додаємо invoiceRequestId для майбутніх запитів
+          },
+          { new: true }
+        );
+        console.log('[DEBUG] POST /api/invoice-requests/:id/upload - оновлено заявку по taskId:', updatedRequest.taskId);
+      } else {
+        console.log('[DEBUG] POST /api/invoice-requests/:id/upload - оновлено заявку по invoiceRequestId:', req.params.id);
+      }
+      
       if (updatedTask) {
         console.log('[DEBUG] POST /api/invoice-requests/:id/upload - оновлено заявку:', {
           taskId: updatedTask._id,
           invoiceStatus: updatedTask.invoiceStatus,
           invoiceFile: updatedTask.invoiceFile,
-          invoiceFileName: updatedTask.invoiceFileName
+          invoiceFileName: updatedTask.invoiceFileName,
+          invoiceRequestId: updatedTask.invoiceRequestId
         });
       } else {
         console.log('[WARNING] POST /api/invoice-requests/:id/upload - заявка не знайдена для оновлення');
