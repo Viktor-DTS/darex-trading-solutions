@@ -2606,6 +2606,21 @@ function RegionalManagerArea({ tab: propTab, user }) {
         }
         return bonusMonth === month && bonusYear === year;
       });
+      // Розраховуємо загальні суми
+      let totalServiceSum = 0;
+      let totalWorkPrice = 0;
+      let totalBonus = 0;
+      
+      regionTasks.forEach(t => {
+        const serviceTotal = parseFloat(t.serviceTotal) || 0;
+        const workPrice = parseFloat(t.workPrice) || 0;
+        const bonus = workPrice * 0.25;
+        
+        totalServiceSum += serviceTotal;
+        totalWorkPrice += workPrice;
+        totalBonus += bonus;
+      });
+
       const workDetailsTable = `
         <h4>Деталізація виконаних робіт - Регіон: ${region}</h4>
         <table class="details">
@@ -2651,6 +2666,12 @@ function RegionalManagerArea({ tab: propTab, user }) {
                 </tr>
               `;
             }).join('')}
+            <tr style="background-color: #e9ecef; font-weight: bold;">
+              <td colspan="8" style="text-align: right; padding: 8px;">ЗАГАЛЬНА СУМА:</td>
+              <td style="text-align: center; padding: 8px;">${totalServiceSum.toFixed(2)}</td>
+              <td style="text-align: center; padding: 8px;">${totalWorkPrice.toFixed(2)}</td>
+              <td style="text-align: center; padding: 8px;">${totalBonus.toFixed(2)}</td>
+            </tr>
           </tbody>
         </table>
       `;
