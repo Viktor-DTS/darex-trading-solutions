@@ -84,6 +84,21 @@ function TaskTableComponent({
   const [editDateModal, setEditDateModal] = useState({ open: false, taskId: null, month: '', year: '' });
   const [regions, setRegions] = useState([]);
   
+  // Форматує значення клітинки, щоб уникнути передачі об'єктів у JSX
+  function formatCellValue(value) {
+    if (value === null || value === undefined) return '';
+    const type = typeof value;
+    if (type === 'string' || type === 'number' || type === 'boolean') return value;
+    if (Array.isArray(value)) return value.join(', ');
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    try {
+      const json = JSON.stringify(value);
+      return json && json.length <= 80 ? json : '';
+    } catch (_) {
+      return '';
+    }
+  }
+  
   // Додаю стан для сортування
   const [sortConfig, setSortConfig] = useState({ field: null, direction: 'asc' });
   
@@ -2581,7 +2596,7 @@ function TaskTableComponent({
                       col.key === 'approvedByWarehouse' ? (t.approvedByWarehouse === 'Підтверджено' ? 'Підтверджено' : t.approvedByWarehouse === 'Відмова' ? 'Відмова' : 'На розгляді') :
                       col.key === 'approvedByAccountant' ? (t.approvedByAccountant === 'Підтверджено' ? 'Підтверджено' : t.approvedByAccountant === 'Відмова' ? 'Відмова' : 'На розгляді') :
                       col.key === 'approvedByRegionalManager' ? (t.approvedByRegionalManager === 'Підтверджено' ? 'Підтверджено' : t.approvedByRegionalManager === 'Відмова' ? 'Відхилено' : 'На розгляді') :
-                      t[col.key]
+                      formatCellValue(t[col.key])
                     }</td>)}
                     <td style={getRowColor(t) ? {color:'#111'} : {}}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -2633,7 +2648,7 @@ function TaskTableComponent({
                     {commentField && (
                       <td style={getRowColor(t) ? {color:'#111'} : {}}>
                         <input
-                          value={t[commentField]||''}
+                          value={typeof t[commentField] === 'string' ? t[commentField] : ''}
                           onChange={e => {onApprove(t.id, t[approveField], e.target.value);}}
                           placeholder="Коментар"
                           style={getRowColor(t) ? {width:120, color:'#111', background:'#fff'} : {width:120}}
