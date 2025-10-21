@@ -2357,7 +2357,7 @@ export default function AccountantArea({ user }) {
             filters={filters}
             onFilterChange={handleFilter}
             columns={invoiceRequestsColumns}
-            allColumns={allTaskFields.map(f => ({ key: f.name, label: f.label }))}
+            allColumns={[...allTaskFields.map(f => ({ key: f.name, label: f.label })), { key: 'documentType', label: 'Тип документів' }]}
             approveField="approvedByAccountant"
             commentField="accountantComment"
             user={user}
