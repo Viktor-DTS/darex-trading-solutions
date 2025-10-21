@@ -2471,22 +2471,24 @@ function TaskTableComponent({
                               ✏️ Редагувати
                             </button>
                             
-                            <button 
-                              onClick={() => {
-                                setDocumentUploadModal({ open: true, task: t });
-                              }}
-                              style={{
-                                background: '#28a745',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '4px',
-                                padding: '6px 12px',
-                                fontSize: '12px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              📤 Завантажити документи
-                            </button>
+                            {onInvoiceUpload && onActUpload && onInvoiceDelete && onActDelete && uploadingFiles && (
+                              <button 
+                                onClick={() => {
+                                  setDocumentUploadModal({ open: true, task: t });
+                                }}
+                                style={{
+                                  background: '#28a745',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  padding: '6px 12px',
+                                  fontSize: '12px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                📤 Завантажити документи
+                              </button>
+                            )}
                             
                             <button 
                               onClick={() => {
@@ -2942,17 +2944,19 @@ function TaskTableComponent({
         </div>
       )}
       
-      {/* Модальне вікно для завантаження документів */}
-      <DocumentUploadModal
-        isOpen={documentUploadModal.open}
-        onClose={() => setDocumentUploadModal({ open: false, task: null })}
-        task={documentUploadModal.task}
-        onInvoiceUpload={onInvoiceUpload}
-        onActUpload={onActUpload}
-        onInvoiceDelete={onInvoiceDelete}
-        onActDelete={onActDelete}
-        uploadingFiles={uploadingFiles}
-      />
+      {/* Модальне вікно для завантаження документів - тільки якщо функції передані */}
+      {onInvoiceUpload && onActUpload && onInvoiceDelete && onActDelete && uploadingFiles && (
+        <DocumentUploadModal
+          isOpen={documentUploadModal.open}
+          onClose={() => setDocumentUploadModal({ open: false, task: null })}
+          task={documentUploadModal.task}
+          onInvoiceUpload={onInvoiceUpload}
+          onActUpload={onActUpload}
+          onInvoiceDelete={onInvoiceDelete}
+          onActDelete={onActDelete}
+          uploadingFiles={uploadingFiles}
+        />
+      )}
     </>
   );
 } 
