@@ -770,8 +770,16 @@ export default function AccountantArea({ user }) {
       
       console.log('[DEBUG] AccountantArea - завдання завершено:', updatedTask);
       
+      // Оновлюємо локальний стан allTasksFromAPI
+      setAllTasksFromAPI(prevTasks => 
+        prevTasks.map(task => task.id === taskId ? updatedTask : task)
+      );
+      
       // Оновлюємо дані через useLazyData
       await refreshData(activeTab);
+      
+      // Примусово оновлюємо таблицю
+      setTableKey(prev => prev + 1);
       
       // Показуємо повідомлення про успіх
       alert('Завдання успішно завершено!');
