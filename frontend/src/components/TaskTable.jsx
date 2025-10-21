@@ -65,6 +65,11 @@ function TaskTableComponent({
   onHistoryClick,
   showInvoiceActions = false,
   onCompleteInvoiceRequest,
+  onInvoiceUpload = () => {},
+  onActUpload = () => {},
+  onInvoiceDelete = () => {},
+  onActDelete = () => {},
+  uploadingFiles = new Set(),
 }) {
   console.log('[LOG] TaskTable received columns:', columns);
   console.log('[LOG] TaskTable role:', role);

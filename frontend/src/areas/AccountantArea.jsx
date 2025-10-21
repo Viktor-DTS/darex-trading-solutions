@@ -4,6 +4,7 @@ import TaskTable from '../components/TaskTable';
 import AccountantReportsModal from '../components/AccountantReportsModal';
 import FileViewer from '../components/FileViewer';
 import { tasksAPI } from '../utils/tasksAPI';
+import { columnsSettingsAPI } from '../utils/columnsSettingsAPI';
 import { processFileForUpload } from '../utils/pdfConverter';
 import { useLazyData } from '../hooks/useLazyData';
 import * as XLSX from 'xlsx-js-style';
