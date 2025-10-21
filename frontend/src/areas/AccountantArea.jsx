@@ -335,7 +335,10 @@ export default function AccountantArea({ user }) {
           }));
         }
         
-        alert('Файл рахунку завантажено успішно');
+        alert('✅ Файл рахунку завантажено успішно!');
+        
+        // Оновлюємо дані в таблиці
+        await loadInvoiceRequests();
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка завантаження файлу');
@@ -462,7 +465,10 @@ export default function AccountantArea({ user }) {
           }));
         }
         
-        alert('Файл акту завантажено успішно');
+        alert('✅ Файл акту завантажено успішно!');
+        
+        // Оновлюємо дані в таблиці
+        await loadInvoiceRequests();
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка завантаження файлу акту');
@@ -853,6 +859,9 @@ export default function AccountantArea({ user }) {
           const defaultColumns = allTaskFields
             .filter(field => ['requestNumber', 'client', 'work', 'status', 'needInvoice', 'needAct', 'invoiceStatus', 'createdAt'].includes(field.name))
             .map(f => ({ key: f.name, label: f.label }));
+          
+          // Додаємо спеціальну колонку для типу документів
+          defaultColumns.push({ key: 'documentType', label: 'Тип документів' });
           setInvoiceRequestsColumns(defaultColumns);
           setInvoiceRequestsColumnsSettings(prev => ({ ...prev, selected: defaultColumns.map(c => c.key) }));
           console.log('[DEBUG] AccountantArea - використовуємо стандартні колонки для invoiceRequests:', defaultColumns.length);
@@ -863,6 +872,9 @@ export default function AccountantArea({ user }) {
         const defaultColumns = allTaskFields
           .filter(field => ['requestNumber', 'client', 'work', 'status', 'needInvoice', 'needAct', 'invoiceStatus', 'createdAt'].includes(field.name))
           .map(f => ({ key: f.name, label: f.label }));
+        
+        // Додаємо спеціальну колонку для типу документів
+        defaultColumns.push({ key: 'documentType', label: 'Тип документів' });
         setInvoiceRequestsColumns(defaultColumns);
         setInvoiceRequestsColumnsSettings(prev => ({ ...prev, selected: defaultColumns.map(c => c.key) }));
       }
@@ -1601,6 +1613,14 @@ export default function AccountantArea({ user }) {
   };
   return (
     <div style={{padding:32}}>
+      <style>
+        {`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}
+      </style>
       <h2>Завдання для затвердження (Бухгалтер)</h2>
       {loading && <div>Завантаження...</div>}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
@@ -1898,17 +1918,33 @@ export default function AccountantArea({ user }) {
                           </>
                         ) : (
                           <div style={{ marginTop: '8px' }}>
-                            <input
-                              type="file"
-                              accept=".pdf,.jpg,.jpeg,.png"
-                              onChange={(e) => {
-                                if (e.target.files[0]) {
-                                  uploadInvoiceFile(request._id, e.target.files[0]);
-                                }
-                              }}
-                              style={{ marginRight: '8px' }}
-                            />
-                            <span style={{ color: '#666', fontSize: '12px' }}>Завантажте файл рахунку</span>
+                            {uploadingFiles.has(request._id) ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ 
+                                  width: '16px', 
+                                  height: '16px', 
+                                  border: '2px solid #f3f3f3',
+                                  borderTop: '2px solid #3498db',
+                                  borderRadius: '50%',
+                                  animation: 'spin 1s linear infinite'
+                                }}></div>
+                                <span style={{ color: '#666', fontSize: '12px' }}>Завантаження файлу рахунку...</span>
+                              </div>
+                            ) : (
+                              <>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.jpg,.jpeg,.png"
+                                  onChange={(e) => {
+                                    if (e.target.files[0]) {
+                                      uploadInvoiceFile(request._id, e.target.files[0]);
+                                    }
+                                  }}
+                                  style={{ marginRight: '8px' }}
+                                />
+                                <span style={{ color: '#666', fontSize: '12px' }}>Завантажте файл рахунку</span>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1973,17 +2009,33 @@ export default function AccountantArea({ user }) {
                           </>
                         ) : (
                           <div style={{ marginTop: '8px' }}>
-                            <input
-                              type="file"
-                              accept=".pdf,.jpg,.jpeg,.png"
-                              onChange={(e) => {
-                                if (e.target.files[0]) {
-                                  uploadActFile(request._id, e.target.files[0]);
-                                }
-                              }}
-                              style={{ marginRight: '8px' }}
-                            />
-                            <span style={{ color: '#666', fontSize: '12px' }}>Завантажте файл акту виконаних робіт</span>
+                            {uploadingFiles.has(request._id) ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ 
+                                  width: '16px', 
+                                  height: '16px', 
+                                  border: '2px solid #f3f3f3',
+                                  borderTop: '2px solid #3498db',
+                                  borderRadius: '50%',
+                                  animation: 'spin 1s linear infinite'
+                                }}></div>
+                                <span style={{ color: '#666', fontSize: '12px' }}>Завантаження файлу акту...</span>
+                              </div>
+                            ) : (
+                              <>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.jpg,.jpeg,.png"
+                                  onChange={(e) => {
+                                    if (e.target.files[0]) {
+                                      uploadActFile(request._id, e.target.files[0]);
+                                    }
+                                  }}
+                                  style={{ marginRight: '8px' }}
+                                />
+                                <span style={{ color: '#666', fontSize: '12px' }}>Завантажте файл акту виконаних робіт</span>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>

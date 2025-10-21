@@ -2717,6 +2717,49 @@ function TaskTableComponent({
                       col.key === 'approvedByRegionalManager' ? (t.approvedByRegionalManager === 'Підтверджено' ? 'Підтверджено' : t.approvedByRegionalManager === 'Відмова' ? 'Відхилено' : 'На розгляді') :
                       col.key === 'debtStatus' ? (t.debtStatus === 'Документи в наявності' ? 'В наявності' : 'Заборгованість') :
                       col.key === 'debtStatusCheckbox' ? (t.debtStatusCheckbox ? 'В наявності' : 'Ні') :
+                      col.key === 'documentType' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          {t.needInvoice && (
+                            <span style={{ 
+                              fontSize: '10px', 
+                              color: '#28a745', 
+                              fontWeight: 'bold',
+                              background: '#d4edda',
+                              padding: '2px 4px',
+                              borderRadius: '3px',
+                              display: 'inline-block'
+                            }}>
+                              📄 Потрібен рахунок
+                            </span>
+                          )}
+                          {t.needAct && (
+                            <span style={{ 
+                              fontSize: '10px', 
+                              color: '#17a2b8', 
+                              fontWeight: 'bold',
+                              background: '#d1ecf1',
+                              padding: '2px 4px',
+                              borderRadius: '3px',
+                              display: 'inline-block'
+                            }}>
+                              📋 Потрібен акт
+                            </span>
+                          )}
+                          {!t.needInvoice && !t.needAct && (
+                            <span style={{ 
+                              fontSize: '10px', 
+                              color: '#dc3545', 
+                              fontWeight: 'bold',
+                              background: '#f8d7da',
+                              padding: '2px 4px',
+                              borderRadius: '3px',
+                              display: 'inline-block'
+                            }}>
+                              ⚠️ Не вказано
+                            </span>
+                          )}
+                        </div>
+                      ) :
                       formatCellValue(t[col.key])
                     }</td>)}
                     <td style={getRowColor(t) ? {color:'#111'} : {}}>
