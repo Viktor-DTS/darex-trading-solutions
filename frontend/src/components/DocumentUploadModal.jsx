@@ -19,6 +19,8 @@ function DocumentUploadModal({
 
   const handleInvoiceFileChange = async (e) => {
     const file = e.target.files[0];
+    console.log('DEBUG DocumentUploadModal: Файл вибрано:', { fileName: file?.name, fileSize: file?.size, fileType: file?.type, taskId: task?.id });
+    
     if (file) {
       // Валідація розміру файлу (10MB)
       if (file.size > 10 * 1024 * 1024) {
@@ -41,6 +43,7 @@ function DocumentUploadModal({
       const generatedInvoiceNumber = `${currentDate}_${fileName}`;
       
       console.log('DEBUG DocumentUploadModal: Згенеровано номер рахунку:', generatedInvoiceNumber);
+      console.log('DEBUG DocumentUploadModal: Викликаємо onInvoiceUpload з параметрами:', { taskId: task.id, fileName: file.name });
       alert(`📄 Номер рахунку буде автоматично встановлений: ${generatedInvoiceNumber}`);
       
       onInvoiceUpload(task.id, file);

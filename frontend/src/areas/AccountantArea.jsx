@@ -277,13 +277,18 @@ export default function AccountantArea({ user }) {
   // Функція для завантаження файлу рахунку
   const uploadInvoiceFile = async (requestId, file) => {
     try {
+      console.log('DEBUG AccountantArea: Початок завантаження файлу рахунку:', { requestId, fileName: file.name, fileSize: file.size, fileType: file.type });
+      
       // Додаємо requestId до списку завантажуваних файлів
       setUploadingFiles(prev => new Set([...prev, requestId]));
       
       const API_BASE_URL = process.env.REACT_APP_API_URL || 
         (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
       
+      console.log('DEBUG AccountantArea: API_BASE_URL:', API_BASE_URL);
+      
       // Конвертуємо PDF в JPG якщо потрібно
+      console.log('DEBUG AccountantArea: Викликаємо processFileForUpload...');
       const { file: processedFile, ocrData } = await processFileForUpload(file);
       console.log('DEBUG PDF Converter Invoice: Оброблений файл:', processedFile.name, processedFile.type);
       console.log('DEBUG PDF Converter Invoice: OCR дані:', ocrData);
