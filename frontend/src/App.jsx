@@ -372,7 +372,9 @@ function AdminSystemParamsArea({ user }) {
   const [onlineUsers, setOnlineUsers] = useState(new Set());
   // Функція для визначення статусу користувача
   const isUserOnline = (userLogin) => {
-    return onlineUsers.has(userLogin);
+    const isOnline = onlineUsers.has(userLogin);
+    console.log('[DEBUG] isUserOnline - перевірка статусу для:', userLogin, 'результат:', isOnline);
+    return isOnline;
   };
   // Функція для оновлення статусу активності користувача
   const updateUserActivity = async (userLogin) => {
@@ -381,6 +383,7 @@ function AdminSystemParamsArea({ user }) {
     // Також оновлюємо на сервері
     try {
       await activityAPI.updateActivity(userLogin);
+      console.log('[DEBUG] updateUserActivity - активність оновлена на сервері для:', userLogin);
     } catch (error) {
       console.error('Помилка оновлення активності на сервері:', error);
     }
@@ -401,18 +404,19 @@ function AdminSystemParamsArea({ user }) {
       // Спочатку пробуємо отримати з сервера
       const serverActiveUsers = await activityAPI.getActiveUsers();
       if (serverActiveUsers && serverActiveUsers.length > 0) {
+        console.log('[DEBUG] getActiveUsers - сервер повернув активних користувачів:', serverActiveUsers);
         return new Set(serverActiveUsers);
       }
     } catch (error) {
       console.error('Помилка отримання активних користувачів з сервера:', error);
     }
-    // Fallback до локальної перевірки
+    
+    // Fallback до локальної перевірки (тільки для поточного користувача)
     const activeUsers = new Set();
-    users.forEach(user => {
-      if (checkUserActivity(user.login)) {
-        activeUsers.add(user.login);
-      }
-    });
+    if (user?.login && checkUserActivity(user.login)) {
+      activeUsers.add(user.login);
+      console.log('[DEBUG] getActiveUsers - fallback до localStorage для поточного користувача:', user.login);
+    }
     return activeUsers;
   };
   // Відстеження активності поточного користувача
@@ -430,6 +434,7 @@ function AdminSystemParamsArea({ user }) {
   useEffect(() => {
     const updateOnlineUsers = async () => {
       const activeUsers = await getActiveUsers();
+      console.log('[DEBUG] updateOnlineUsers - оновлення статусу користувачів:', Array.from(activeUsers));
       setOnlineUsers(activeUsers);
     };
     // Початкове оновлення
@@ -437,7 +442,7 @@ function AdminSystemParamsArea({ user }) {
     // Оновлюємо кожні 5 секунд
     const statusInterval = setInterval(updateOnlineUsers, 5000);
     return () => clearInterval(statusInterval);
-  }, [users]);
+  }, [users, user?.login]); // Додаємо user?.login як залежність
   // Завантаження користувачів з API
   useEffect(() => {
     const loadUsers = async () => {
