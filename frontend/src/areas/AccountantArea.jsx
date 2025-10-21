@@ -288,24 +288,13 @@ export default function AccountantArea({ user }) {
       const formData = new FormData();
       formData.append('invoiceFile', processedFile);
       
-      // OCR функціональність тимчасово відключена
-      console.log('DEBUG AccountantArea Invoice: OCR функціональність тимчасово відключена');
-      // Додаємо OCR дані якщо вони є (тимчасово відключено)
-      // if (ocrData && ocrData.success) {
-      //   console.log('DEBUG AccountantArea Invoice: OCR дані для відправки:', ocrData);
-      //   if (ocrData.invoiceNumber) {
-      //     formData.append('invoiceNumber', ocrData.invoiceNumber);
-      //     console.log('DEBUG AccountantArea Invoice: Додано invoiceNumber до formData:', ocrData.invoiceNumber);
-      //     alert(`🤖 Система визначила номер рахунку: ${ocrData.invoiceNumber}\n\nВін буде автоматично встановлений в поле "Номер рахунку".\nЯкщо дані не вірні, змініть вручну в даному полі.`);
-      //   }
-      //   if (ocrData.invoiceDate) {
-      //     formData.append('invoiceDate', ocrData.invoiceDate);
-      //     console.log('DEBUG AccountantArea Invoice: Додано invoiceDate до formData:', ocrData.invoiceDate);
-      //     alert(`📅 Система визначила дату рахунку: ${ocrData.invoiceDate}\n\nВона буде автоматично встановлена в поле "Дата рахунку".\nЯкщо дані не вірні, змініть вручну в даному полі.`);
-      //   }
-      // } else {
-      //   console.log('DEBUG AccountantArea Invoice: OCR дані відсутні або невдалі:', ocrData);
-      // }
+      // Генеруємо номер рахунку: дата завантаження + назва файлу
+      const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const fileName = file.name.replace(/\.[^/.]+$/, ""); // Без розширення
+      const generatedInvoiceNumber = `${currentDate}_${fileName}`;
+      
+      formData.append('invoiceNumber', generatedInvoiceNumber);
+      console.log('DEBUG AccountantArea Invoice: Згенеровано номер рахунку:', generatedInvoiceNumber);
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload`, {
         method: 'POST',
@@ -2367,6 +2356,11 @@ export default function AccountantArea({ user }) {
             columnsSettings={invoiceRequestsColumnsSettings}
             onSaveColumns={handleSaveInvoiceRequestsColumns}
             onCompleteInvoiceRequest={handleCompleteInvoiceRequest}
+            onInvoiceUpload={uploadInvoiceFile}
+            onActUpload={uploadActFile}
+            onInvoiceDelete={deleteInvoiceFile}
+            onActDelete={deleteActFile}
+            uploadingFiles={uploadingFiles}
           />
         </div>
       ) : activeTab === 'debt' ? (
@@ -2390,6 +2384,11 @@ export default function AccountantArea({ user }) {
         user={user}
         isArchive={false}
         onHistoryClick={openClientReport}
+        onInvoiceUpload={uploadInvoiceFile}
+        onActUpload={uploadActFile}
+        onInvoiceDelete={deleteInvoiceFile}
+        onActDelete={deleteActFile}
+        uploadingFiles={uploadingFiles}
       />
         </div>
       ) : (
@@ -2454,6 +2453,11 @@ export default function AccountantArea({ user }) {
             user={user}
             isArchive={activeTab === 'archive'}
             onHistoryClick={openClientReport}
+            onInvoiceUpload={uploadInvoiceFile}
+            onActUpload={uploadActFile}
+            onInvoiceDelete={deleteInvoiceFile}
+            onActDelete={deleteActFile}
+            uploadingFiles={uploadingFiles}
           />
         </div>
       )}

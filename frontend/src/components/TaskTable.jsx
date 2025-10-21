@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ModalTaskForm from '../ModalTaskForm';
+import DocumentUploadModal from './DocumentUploadModal';
 import { columnsSettingsAPI } from '../utils/columnsSettingsAPI';
 import { regionsAPI } from '../utils/regionsAPI';
 import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from '../utils/eventLogAPI';
@@ -84,6 +85,7 @@ function TaskTableComponent({
   const [rejectModal, setRejectModal] = useState({ open: false, taskId: null, comment: '' });
   const [deleteConfirmModal, setDeleteConfirmModal] = useState({ open: false, taskId: null, taskInfo: null });
   const [editDateModal, setEditDateModal] = useState({ open: false, taskId: null, month: '', year: '' });
+  const [documentUploadModal, setDocumentUploadModal] = useState({ open: false, task: null });
   const [regions, setRegions] = useState([]);
   
   // Форматує значення клітинки, щоб уникнути передачі об'єктів у JSX
@@ -2471,10 +2473,7 @@ function TaskTableComponent({
                             
                             <button 
                               onClick={() => {
-                                // Відкриваємо модальне вікно з інформацією про заявку для завантаження документів
-                                if (onEdit) {
-                                  onEdit(t);
-                                }
+                                setDocumentUploadModal({ open: true, task: t });
                               }}
                               style={{
                                 background: '#28a745',
@@ -2942,6 +2941,18 @@ function TaskTableComponent({
           </div>
         </div>
       )}
+      
+      {/* Модальне вікно для завантаження документів */}
+      <DocumentUploadModal
+        isOpen={documentUploadModal.open}
+        onClose={() => setDocumentUploadModal({ open: false, task: null })}
+        task={documentUploadModal.task}
+        onInvoiceUpload={onInvoiceUpload}
+        onActUpload={onActUpload}
+        onInvoiceDelete={onInvoiceDelete}
+        onActDelete={onActDelete}
+        uploadingFiles={uploadingFiles}
+      />
     </>
   );
 } 
