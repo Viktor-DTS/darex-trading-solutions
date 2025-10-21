@@ -79,6 +79,9 @@ function TaskTableComponent({
   console.log('[LOG] TaskTable onDelete:', onDelete);
   console.log('[LOG] TaskTable user?.role:', user?.role);
   console.log('[LOG] TaskTable onFilterChange:', onFilterChange);
+  console.log('[LOG] TaskTable onInvoiceUpload:', typeof onInvoiceUpload, onInvoiceUpload);
+  console.log('[LOG] TaskTable onActUpload:', typeof onActUpload, onActUpload);
+  console.log('[LOG] TaskTable uploadingFiles:', uploadingFiles);
   
   // Всі хуки повинні бути на початку компонента
   const [showSettings, setShowSettings] = useState(false);
