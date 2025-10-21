@@ -84,6 +84,10 @@ async function attemptAutoFixes(errorLogs) {
   
   if (fixes.length === 0) {
     log('ℹ️  No automatic fixes available for these errors', 'blue');
+    
+    // Відправка звіту про критичні помилки
+    log('📧 Sending error report to development team...', 'yellow');
+    await sendErrorReport(errorLogs);
   }
 }
 
@@ -150,22 +154,66 @@ async function fixJSErrors(jsErrors) {
   }
 }
 
-function makeRequest(path) {
+// Відправка звіту про помилки
+async function sendErrorReport(errorLogs) {
+  try {
+    const report = {
+      timestamp: new Date().toISOString(),
+      system: 'DTS Auto-Monitor',
+      errors: errorLogs.map(log => ({
+        message: log.message,
+        timestamp: log.timestamp,
+        type: log.type
+      })),
+      recommendation: 'Manual intervention required - contact development team'
+    };
+    
+    // Відправляємо звіт на backend для логування
+    await makeRequest('/log-error-report', 'POST', report);
+    log('✅ Error report sent to development team', 'green');
+    
+    // Також зберігаємо локально
+    const fs = require('fs');
+    const reportFile = `error-report-${Date.now()}.json`;
+    fs.writeFileSync(reportFile, JSON.stringify(report, null, 2));
+    log(`📄 Local report saved: ${reportFile}`, 'blue');
+    
+  } catch (error) {
+    log('❌ Failed to send error report', 'red');
+    log(`   Error: ${error.message}`, 'red');
+  }
+}
+
+function makeRequest(path, method = 'GET', data = null) {
   return new Promise((resolve, reject) => {
     const url = `${BASE_URL}${path}`;
     const client = url.startsWith('https') ? https : http;
     
-    client.get(url, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
+    const options = {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    };
+    
+    const req = client.request(url, options, (res) => {
+      let responseData = '';
+      res.on('data', chunk => responseData += chunk);
       res.on('end', () => {
         try {
-          resolve(JSON.parse(data));
+          resolve(JSON.parse(responseData));
         } catch (e) {
-          resolve(data);
+          resolve(responseData);
         }
       });
-    }).on('error', reject);
+    });
+    
+    if (data && method === 'POST') {
+      req.write(JSON.stringify(data));
+    }
+    
+    req.on('error', reject);
+    req.end();
   });
 }
 

@@ -1,0 +1,12 @@
+{
+  "timestamp": "2025-10-21T20:19:09.607Z",
+  "system": "DTS Auto-Monitor",
+  "errors": [
+    {
+      "message": "❌ Invoice request not found: 68f7ba7f179f05b6c4dcad6a",
+      "timestamp": "2025-10-21T20:14:37.077Z",
+      "type": "error"
+    }
+  ],
+  "recommendation": "Manual intervention required - contact development team"
+}
