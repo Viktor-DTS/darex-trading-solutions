@@ -724,6 +724,29 @@ export default function AccountantArea({ user }) {
       setEditTask(prev => ({ ...prev, _readOnly: true }));
     }
   };
+  
+  // Функція для збереження налаштувань колонок
+  const handleSaveColumns = async (selectedColumns) => {
+    try {
+      await columnsSettingsAPI.saveColumnsSettings(user.login, 'service', selectedColumns);
+      setColumnsSettings({ open: false, selected: selectedColumns });
+      console.log('[DEBUG] AccountantArea - збережено налаштування колонок:', selectedColumns);
+    } catch (error) {
+      console.error('[ERROR] AccountantArea - помилка збереження налаштувань колонок:', error);
+    }
+  };
+  
+  // Функція для збереження налаштувань колонок для вкладки "Заявка на рахунок"
+  const handleSaveInvoiceRequestsColumns = async (selectedColumns) => {
+    try {
+      await columnsSettingsAPI.saveColumnsSettings(user.login, 'invoiceRequests', selectedColumns);
+      setInvoiceRequestsColumnsSettings({ open: false, selected: selectedColumns });
+      console.log('[DEBUG] AccountantArea - збережено налаштування колонок для invoiceRequests:', selectedColumns);
+    } catch (error) {
+      console.error('[ERROR] AccountantArea - помилка збереження налаштувань колонок для invoiceRequests:', error);
+    }
+  };
+  
   const handleSave = async (task) => {
     let updatedTask = null;
     
@@ -772,6 +795,40 @@ export default function AccountantArea({ user }) {
     
     loadAllTasks();
   }, []); // Завантажуємо при кожному монтуванні компонента
+  
+  // Завантажуємо налаштування колонок для вкладки "Заявка на рахунок"
+  useEffect(() => {
+    const loadInvoiceRequestsColumns = async () => {
+      try {
+        const settings = await columnsSettingsAPI.getColumnsSettings(user.login, 'invoiceRequests');
+        if (settings && settings.length > 0) {
+          setInvoiceRequestsColumns(settings);
+          setInvoiceRequestsColumnsSettings(prev => ({ ...prev, selected: settings }));
+          console.log('[DEBUG] AccountantArea - завантажено налаштування колонок для invoiceRequests:', settings.length);
+        } else {
+          // Використовуємо стандартні колонки для заявок на рахунки
+          const defaultColumns = allTaskFields
+            .filter(field => ['requestNumber', 'client', 'work', 'status', 'needInvoice', 'needAct', 'invoiceStatus', 'createdAt'].includes(field.name))
+            .map(f => ({ key: f.name, label: f.label }));
+          setInvoiceRequestsColumns(defaultColumns);
+          setInvoiceRequestsColumnsSettings(prev => ({ ...prev, selected: defaultColumns.map(c => c.key) }));
+          console.log('[DEBUG] AccountantArea - використовуємо стандартні колонки для invoiceRequests:', defaultColumns.length);
+        }
+      } catch (error) {
+        console.error('[ERROR] AccountantArea - помилка завантаження налаштувань колонок для invoiceRequests:', error);
+        // Використовуємо стандартні колонки при помилці
+        const defaultColumns = allTaskFields
+          .filter(field => ['requestNumber', 'client', 'work', 'status', 'needInvoice', 'needAct', 'invoiceStatus', 'createdAt'].includes(field.name))
+          .map(f => ({ key: f.name, label: f.label }));
+        setInvoiceRequestsColumns(defaultColumns);
+        setInvoiceRequestsColumnsSettings(prev => ({ ...prev, selected: defaultColumns.map(c => c.key) }));
+      }
+    };
+    
+    if (user?.login) {
+      loadInvoiceRequestsColumns();
+    }
+  }, [user?.login, allTaskFields]);
   
   // Об'єднуємо основні завдання з додатковими (якщо чекбокс активний)
   const allTasks = useMemo(() => {
@@ -928,6 +985,13 @@ export default function AccountantArea({ user }) {
   // Нова вкладка "Заявка на рахунок" - фільтруємо завдання з запитами на рахунки
   const [showCompletedRequests, setShowCompletedRequests] = useState(false);
   const [invoiceRequestsLoading, setInvoiceRequestsLoading] = useState(false);
+  
+  // Окрема конфігурація колонок для вкладки "Заявка на рахунок"
+  const [invoiceRequestsColumns, setInvoiceRequestsColumns] = useState([]);
+  const [invoiceRequestsColumnsSettings, setInvoiceRequestsColumnsSettings] = useState({
+    open: false,
+    selected: []
+  });
   const invoiceRequests = allTasksFromAPI.filter(task => {
     // Показуємо завдання з запитами на рахунки
     const hasInvoiceRequest = task.invoiceRequestId || task.needInvoice || task.needAct;
@@ -2197,7 +2261,7 @@ export default function AccountantArea({ user }) {
             role="accountant"
             filters={filters}
             onFilterChange={handleFilter}
-            columns={columns}
+            columns={invoiceRequestsColumns}
             allColumns={allTaskFields.map(f => ({ key: f.name, label: f.label }))}
             approveField="approvedByAccountant"
             commentField="accountantComment"
@@ -2205,6 +2269,8 @@ export default function AccountantArea({ user }) {
             isArchive={false}
             onHistoryClick={openClientReport}
             showInvoiceActions={true}
+            columnsSettings={invoiceRequestsColumnsSettings}
+            onSaveColumns={handleSaveInvoiceRequestsColumns}
           />
         </div>
       ) : activeTab === 'debt' ? (
