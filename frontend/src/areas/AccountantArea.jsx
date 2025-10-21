@@ -753,6 +753,30 @@ export default function AccountantArea({ user }) {
       setEditTask(null);
     }
   };
+  // Для вкладки debt використовуємо всі завдання з API (як у регіонального керівника)
+  const [allTasksFromAPI, setAllTasksFromAPI] = useState([]);
+  const [allTasksLoading, setAllTasksLoading] = useState(false);
+  
+  // Завантажуємо всі завдання для вкладки debt
+  useEffect(() => {
+    const loadAllTasks = async () => {
+      if (allTasksFromAPI.length === 0) {
+        setAllTasksLoading(true);
+        try {
+          const allTasksData = await tasksAPI.getAll();
+          setAllTasksFromAPI(allTasksData);
+          console.log('[DEBUG] AccountantArea - завантажено всіх завдань з API:', allTasksData.length);
+        } catch (error) {
+          console.error('[ERROR] AccountantArea - помилка завантаження всіх завдань:', error);
+        } finally {
+          setAllTasksLoading(false);
+        }
+      }
+    };
+    
+    loadAllTasks();
+  }, [allTasksFromAPI.length]);
+  
   // Об'єднуємо основні завдання з додатковими (якщо чекбокс активний)
   const allTasks = useMemo(() => {
     if (showAllTasks) {
@@ -887,8 +911,8 @@ export default function AccountantArea({ user }) {
     return v === true || v === 'Підтверджено';
   }
   const archive = filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByAccountant));
-  // Для вкладки debt використовуємо всі завдання (як у регіонального керівника)
-  const debt = allTasks.filter(task => {
+  // Для вкладки debt використовуємо всі завдання з API (як у регіонального керівника)
+  const debt = allTasksFromAPI.filter(task => {
     // Показуємо завдання, які потребують встановлення статусу заборгованості:
     // 1. Не мають встановленого debtStatus (undefined або порожнє)
     // 2. Мають paymentType (не порожнє)
