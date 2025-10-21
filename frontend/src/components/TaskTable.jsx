@@ -2597,7 +2597,7 @@ function TaskTableComponent({
                       col.key === 'approvedByAccountant' ? (t.approvedByAccountant === 'Підтверджено' ? 'Підтверджено' : t.approvedByAccountant === 'Відмова' ? 'Відмова' : 'На розгляді') :
                       col.key === 'approvedByRegionalManager' ? (t.approvedByRegionalManager === 'Підтверджено' ? 'Підтверджено' : t.approvedByRegionalManager === 'Відмова' ? 'Відхилено' : 'На розгляді') :
                       col.key === 'debtStatus' ? (t.debtStatus === 'Документи в наявності' ? 'В наявності' : 'Заборгованість') :
-                      col.key === 'debtStatusCheckbox' ? (t.debtStatusCheckbox ? 'Так' : 'Ні') :
+                      col.key === 'debtStatusCheckbox' ? (t.debtStatusCheckbox ? 'В наявності' : 'Ні') :
                       formatCellValue(t[col.key])
                     }</td>)}
                     <td style={getRowColor(t) ? {color:'#111'} : {}}>
