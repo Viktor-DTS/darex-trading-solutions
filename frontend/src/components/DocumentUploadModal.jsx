@@ -14,6 +14,13 @@ function DocumentUploadModal({
   const [actFile, setActFile] = useState(null);
 
   if (!isOpen || !task) return null;
+  
+  // Безпечні перевірки функцій
+  if (typeof onInvoiceUpload !== 'function' || typeof onActUpload !== 'function' || 
+      typeof onInvoiceDelete !== 'function' || typeof onActDelete !== 'function' || 
+      !uploadingFiles) {
+    return null;
+  }
 
   const handleInvoiceFileChange = async (e) => {
     const file = e.target.files[0];

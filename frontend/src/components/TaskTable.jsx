@@ -2471,7 +2471,7 @@ function TaskTableComponent({
                               ✏️ Редагувати
                             </button>
                             
-                            {onInvoiceUpload && onActUpload && onInvoiceDelete && onActDelete && uploadingFiles && (
+                            {typeof onInvoiceUpload === 'function' && typeof onActUpload === 'function' && typeof onInvoiceDelete === 'function' && typeof onActDelete === 'function' && uploadingFiles && (
                               <button 
                                 onClick={() => {
                                   setDocumentUploadModal({ open: true, task: t });
@@ -2945,7 +2945,7 @@ function TaskTableComponent({
       )}
       
       {/* Модальне вікно для завантаження документів - тільки якщо функції передані */}
-      {onInvoiceUpload && onActUpload && onInvoiceDelete && onActDelete && uploadingFiles && (
+      {typeof onInvoiceUpload === 'function' && typeof onActUpload === 'function' && typeof onInvoiceDelete === 'function' && typeof onActDelete === 'function' && uploadingFiles && (
         <DocumentUploadModal
           isOpen={documentUploadModal.open}
           onClose={() => setDocumentUploadModal({ open: false, task: null })}
