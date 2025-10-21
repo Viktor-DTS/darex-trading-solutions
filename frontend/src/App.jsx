@@ -1570,9 +1570,29 @@ function RegionalManagerArea({ tab: propTab, user }) {
   // НЕ передаємо регіон - фільтрація відбувається на frontend як в WarehouseArea
   const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, preloadCache, getTabCount } = useLazyData(user, 'pending');
   
-  // Додатковий стан для всіх заявок (потрібно для звіту по персоналу)
+  // Додатковий стан для всіх заявок (потрібно для звіту по персоналу та вкладки debt)
   const [allTasks, setAllTasks] = useState([]);
   const [allTasksLoading, setAllTasksLoading] = useState(false);
+  
+  // Завантажуємо всі завдання для вкладки debt (як у бухгалтера)
+  useEffect(() => {
+    const loadAllTasks = async () => {
+      if (allTasks.length === 0) {
+        setAllTasksLoading(true);
+        try {
+          const allTasksData = await tasksAPI.getAll();
+          setAllTasks(allTasksData);
+          console.log('[DEBUG] RegionalManagerArea - завантажено всіх завдань:', allTasksData.length);
+        } catch (error) {
+          console.error('[ERROR] RegionalManagerArea - помилка завантаження всіх завдань:', error);
+        } finally {
+          setAllTasksLoading(false);
+        }
+      }
+    };
+    
+    loadAllTasks();
+  }, [allTasks.length]);
   
   const allFilterKeys = allTaskFields
     .map(f => f.name)
@@ -3076,7 +3096,8 @@ function RegionalManagerArea({ tab: propTab, user }) {
       [user?.region || 'Без регіону'];
   // Фільтрація завдань для регіонального керівника
   // Для звіту по персоналу використовуємо всі заявки, для інших вкладок - тільки потрібні
-  const tasksForFiltering = tab === 'report' ? allTasks : tasks;
+  // Для вкладки debt використовуємо всі завдання (як у бухгалтера)
+  const tasksForFiltering = (tab === 'report' || activeTab === 'debt') ? allTasks : tasks;
   const filtered = tasksForFiltering.filter(t => {
     // Перевірка доступу до регіону заявки
     if (user?.region && user.region !== 'Україна') {
