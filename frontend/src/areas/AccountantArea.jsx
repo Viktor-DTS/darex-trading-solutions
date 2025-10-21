@@ -61,6 +61,8 @@ const initialTask = {
   transportSum: '',
 };
 export default function AccountantArea({ user }) {
+  // Унікальний ключ для примусового оновлення компонента
+  const componentKey = `accountant-area-${Date.now()}`;
   // Перевіряємо чи користувач завантажений
   if (!user) {
     return (
@@ -1601,7 +1603,7 @@ export default function AccountantArea({ user }) {
     newWindow.document.close();
   };
   return (
-    <div style={{padding:32}}>
+    <div key={componentKey} style={{padding:32}}>
       <style>
         {`
           @keyframes spin {
@@ -2337,7 +2339,7 @@ export default function AccountantArea({ user }) {
           </div>
           
           <TaskTable
-            key={tableKey}
+            key={`invoice-requests-${tableKey}-${Date.now()}`}
             tasks={tableData}
             allTasks={tasks}
             onApprove={handleApprove}
@@ -2369,7 +2371,7 @@ export default function AccountantArea({ user }) {
           {console.log('[DEBUG] Debt tab - tasks with debtStatus:', tableData.filter(t => t.debtStatus).length)}
           {console.log('[DEBUG] Debt tab - tasks with paymentType:', tableData.filter(t => t.paymentType).length)}
           <TaskTable
-          key={tableKey}
+          key={`debt-${tableKey}-${Date.now()}`}
           tasks={tableData}
         allTasks={tasks}
         onApprove={handleApprove}
@@ -2438,7 +2440,7 @@ export default function AccountantArea({ user }) {
           )}
           
           <TaskTable
-            key={tableKey}
+            key={`main-${tableKey}-${Date.now()}`}
             tasks={tableData}
             allTasks={tasks}
             onApprove={handleApprove}
