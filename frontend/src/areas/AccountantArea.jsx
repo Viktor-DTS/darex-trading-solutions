@@ -1661,13 +1661,13 @@ export default function AccountantArea({ user }) {
                     <div style={{ marginBottom: '16px' }}>
                       <h5 style={{ margin: '0 0 8px 0', color: '#333' }}>Реквізити компанії:</h5>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '14px', color: '#000' }}>
-                        <div><strong>Компанія:</strong> {request.companyDetails.companyName}</div>
-                        <div><strong>ЄДРПОУ:</strong> {request.companyDetails.edrpou}</div>
-                        <div><strong>Контактна особа:</strong> {request.companyDetails.contactPerson}</div>
-                        <div><strong>Телефон:</strong> {request.companyDetails.phone}</div>
-                        <div style={{ gridColumn: '1 / -1' }}><strong>Адреса:</strong> {request.companyDetails.address}</div>
-                        <div style={{ gridColumn: '1 / -1' }}><strong>Банківські реквізити:</strong> {request.companyDetails.bankDetails}</div>
-                        {request.companyDetails.email && (
+                        <div><strong>Компанія:</strong> {request.companyDetails?.companyName || 'Не вказано'}</div>
+                        <div><strong>ЄДРПОУ:</strong> {request.companyDetails?.edrpou || 'Не вказано'}</div>
+                        <div><strong>Контактна особа:</strong> {request.companyDetails?.contactPerson || 'Не вказано'}</div>
+                        <div><strong>Телефон:</strong> {request.companyDetails?.phone || 'Не вказано'}</div>
+                        <div style={{ gridColumn: '1 / -1' }}><strong>Адреса:</strong> {request.companyDetails?.address || 'Не вказано'}</div>
+                        <div style={{ gridColumn: '1 / -1' }}><strong>Банківські реквізити:</strong> {request.companyDetails?.bankDetails || 'Не вказано'}</div>
+                        {request.companyDetails?.email && (
                           <div style={{ gridColumn: '1 / -1' }}><strong>Email:</strong> {request.companyDetails.email}</div>
                         )}
                       </div>
@@ -1725,7 +1725,7 @@ export default function AccountantArea({ user }) {
                             ⚠️ Тип документів не вказано
                           </span>
                         )}
-                        {request.companyDetails.comments && (
+                        {request.companyDetails?.comments && (
                           <div style={{ gridColumn: '1 / -1', color: '#000' }}><strong>Коментарі:</strong> {request.companyDetails.comments}</div>
                         )}
                       </div>
