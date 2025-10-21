@@ -43,10 +43,13 @@ function DocumentUploadModal({
       const generatedInvoiceNumber = `${currentDate}_${fileName}`;
       
       console.log('DEBUG DocumentUploadModal: Згенеровано номер рахунку:', generatedInvoiceNumber);
-      console.log('DEBUG DocumentUploadModal: Викликаємо onInvoiceUpload з параметрами:', { taskId: task.id, fileName: file.name });
+      console.log('DEBUG DocumentUploadModal: Викликаємо onInvoiceUpload з параметрами:', { taskId: task.id, invoiceRequestId: task.invoiceRequestId, fileName: file.name });
       alert(`📄 Номер рахунку буде автоматично встановлений: ${generatedInvoiceNumber}`);
       
-      onInvoiceUpload(task.id, file);
+      // Передаємо invoiceRequestId замість task.id
+      const requestId = task.invoiceRequestId || task.id;
+      console.log('DEBUG DocumentUploadModal: Використовуємо requestId:', requestId);
+      onInvoiceUpload(requestId, file);
     }
   };
 
@@ -67,7 +70,11 @@ function DocumentUploadModal({
       }
 
       setActFile(file);
-      onActUpload(task.id, file);
+      
+      // Передаємо invoiceRequestId замість task.id
+      const requestId = task.invoiceRequestId || task.id;
+      console.log('DEBUG DocumentUploadModal: Використовуємо requestId для акту:', requestId);
+      onActUpload(requestId, file);
     }
   };
 
@@ -134,7 +141,11 @@ function DocumentUploadModal({
                   Переглянути
                 </button>
                 <button
-                  onClick={() => onInvoiceDelete(task.id)}
+                  onClick={() => {
+                    const requestId = task.invoiceRequestId || task.id;
+                    console.log('DEBUG DocumentUploadModal: Видаляємо файл рахунку з requestId:', requestId);
+                    onInvoiceDelete(requestId);
+                  }}
                   style={{
                     padding: '8px 15px',
                     backgroundColor: '#dc3545',
@@ -210,7 +221,11 @@ function DocumentUploadModal({
                   Переглянути
                 </button>
                 <button
-                  onClick={() => onActDelete(task.id)}
+                  onClick={() => {
+                    const requestId = task.invoiceRequestId || task.id;
+                    console.log('DEBUG DocumentUploadModal: Видаляємо файл акту з requestId:', requestId);
+                    onActDelete(requestId);
+                  }}
                   style={{
                     padding: '8px 15px',
                     backgroundColor: '#dc3545',
