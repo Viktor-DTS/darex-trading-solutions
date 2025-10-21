@@ -760,22 +760,20 @@ export default function AccountantArea({ user }) {
   // Завантажуємо всі завдання для вкладки debt
   useEffect(() => {
     const loadAllTasks = async () => {
-      if (allTasksFromAPI.length === 0) {
-        setAllTasksLoading(true);
-        try {
-          const allTasksData = await tasksAPI.getAll();
-          setAllTasksFromAPI(allTasksData);
-          console.log('[DEBUG] AccountantArea - завантажено всіх завдань з API:', allTasksData.length);
-        } catch (error) {
-          console.error('[ERROR] AccountantArea - помилка завантаження всіх завдань:', error);
-        } finally {
-          setAllTasksLoading(false);
-        }
+      setAllTasksLoading(true);
+      try {
+        const allTasksData = await tasksAPI.getAll();
+        setAllTasksFromAPI(allTasksData);
+        console.log('[DEBUG] AccountantArea - завантажено всіх завдань з API:', allTasksData.length);
+      } catch (error) {
+        console.error('[ERROR] AccountantArea - помилка завантаження всіх завдань:', error);
+      } finally {
+        setAllTasksLoading(false);
       }
     };
     
     loadAllTasks();
-  }, [allTasksFromAPI.length]);
+  }, []); // Завантажуємо при кожному монтуванні компонента
   
   // Об'єднуємо основні завдання з додатковими (якщо чекбокс активний)
   const allTasks = useMemo(() => {
@@ -923,6 +921,10 @@ export default function AccountantArea({ user }) {
     
     return needsDebtStatus && hasPaymentType && isNotCash;
   });
+  
+  // Додаємо логування для діагностики
+  console.log('[DEBUG] AccountantArea debt tab - allTasksFromAPI.length:', allTasksFromAPI.length);
+  console.log('[DEBUG] AccountantArea debt tab - debt.length:', debt.length);
   const invoices = filtered.filter(t => t.invoiceRequestId);
   
   const tableData = useMemo(() => {
