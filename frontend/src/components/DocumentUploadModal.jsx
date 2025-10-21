@@ -4,77 +4,18 @@ function DocumentUploadModal({
   isOpen,
   onClose,
   task,
-  onInvoiceUpload,
-  onActUpload,
-  onInvoiceDelete,
-  onActDelete,
-  uploadingFiles
+  onInvoiceUpload = () => {},
+  onActUpload = () => {},
+  onInvoiceDelete = () => {},
+  onActDelete = () => {},
+  uploadingFiles = new Set()
 }) {
   const [invoiceFile, setInvoiceFile] = useState(null);
   const [actFile, setActFile] = useState(null);
 
   if (!isOpen || !task) return null;
   
-  // Безпечні перевірки функцій - тільки якщо функції передані
-  const hasAllFunctions = typeof onInvoiceUpload === 'function' && typeof onActUpload === 'function' && 
-                         typeof onInvoiceDelete === 'function' && typeof onActDelete === 'function' && 
-                         uploadingFiles;
-  
-  // Додаткова безпечна перевірка
-  const safeOnInvoiceUpload = typeof onInvoiceUpload === 'function' ? onInvoiceUpload : () => {};
-  const safeOnActUpload = typeof onActUpload === 'function' ? onActUpload : () => {};
-  const safeOnInvoiceDelete = typeof onInvoiceDelete === 'function' ? onInvoiceDelete : () => {};
-  const safeOnActDelete = typeof onActDelete === 'function' ? onActDelete : () => {};
-  
-  if (!hasAllFunctions) {
-    // Показуємо повідомлення про відсутність функцій
-    return (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 10000,
-      }}>
-        <div style={{
-          backgroundColor: '#22334a',
-          padding: '30px',
-          borderRadius: '10px',
-          width: '90%',
-          maxWidth: '500px',
-          boxShadow: '0 5px 15px rgba(0, 0, 0, 0.3)',
-          color: '#fff',
-          textAlign: 'center',
-        }}>
-          <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#00bfff' }}>
-            ⚠️ Функція недоступна
-          </h3>
-          <p style={{ marginBottom: '20px' }}>
-            Функція завантаження документів недоступна в цій області.
-          </p>
-          <button
-            onClick={onClose}
-            style={{
-              padding: '10px 25px',
-              backgroundColor: '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-              fontSize: '16px',
-            }}
-          >
-            Закрити
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Всі функції тепер мають значення за замовчуванням, тому перевірки не потрібні
 
   const handleInvoiceFileChange = async (e) => {
     const file = e.target.files[0];
@@ -102,7 +43,7 @@ function DocumentUploadModal({
       console.log('DEBUG DocumentUploadModal: Згенеровано номер рахунку:', generatedInvoiceNumber);
       alert(`📄 Номер рахунку буде автоматично встановлений: ${generatedInvoiceNumber}`);
       
-      safeOnInvoiceUpload(task.id, file);
+      onInvoiceUpload(task.id, file);
     }
   };
 
@@ -123,7 +64,7 @@ function DocumentUploadModal({
       }
 
       setActFile(file);
-      safeOnActUpload(task.id, file);
+      onActUpload(task.id, file);
     }
   };
 
@@ -190,7 +131,7 @@ function DocumentUploadModal({
                   Переглянути
                 </button>
                 <button
-                  onClick={() => safeOnInvoiceDelete(task.id)}
+                  onClick={() => onInvoiceDelete(task.id)}
                   style={{
                     padding: '8px 15px',
                     backgroundColor: '#dc3545',
@@ -266,7 +207,7 @@ function DocumentUploadModal({
                   Переглянути
                 </button>
                 <button
-                  onClick={() => safeOnActDelete(task.id)}
+                  onClick={() => onActDelete(task.id)}
                   style={{
                     padding: '8px 15px',
                     backgroundColor: '#dc3545',

@@ -2471,29 +2471,22 @@ function TaskTableComponent({
                               ✏️ Редагувати
                             </button>
                             
-                            {(() => {
-                              // Безпечна перевірка для показу кнопки
-                              const isAccountant = role === 'accountant';
-                              const hasAllFunctions = typeof onInvoiceUpload === 'function' && typeof onActUpload === 'function' && typeof onInvoiceDelete === 'function' && typeof onActDelete === 'function' && uploadingFiles;
-                              return isAccountant || hasAllFunctions;
-                            })() && (
-                              <button 
-                                onClick={() => {
-                                  setDocumentUploadModal({ open: true, task: t });
-                                }}
-                                style={{
-                                  background: '#28a745',
-                                  color: '#fff',
-                                  border: 'none',
-                                  borderRadius: '4px',
-                                  padding: '6px 12px',
-                                  fontSize: '12px',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                📤 Завантажити документи
-                              </button>
-                            )}
+                            <button 
+                              onClick={() => {
+                                setDocumentUploadModal({ open: true, task: t });
+                              }}
+                              style={{
+                                background: '#28a745',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '4px',
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              📤 Завантажити документи
+                            </button>
                             
                             <button 
                               onClick={() => {
@@ -2950,23 +2943,16 @@ function TaskTableComponent({
       )}
       
       {/* Модальне вікно для завантаження документів - тільки якщо функції передані */}
-      {(() => {
-        // Безпечна перевірка для показу модального вікна
-        const isAccountant = role === 'accountant';
-        const hasAllFunctions = typeof onInvoiceUpload === 'function' && typeof onActUpload === 'function' && typeof onInvoiceDelete === 'function' && typeof onActDelete === 'function' && uploadingFiles;
-        return isAccountant || hasAllFunctions;
-      })() && (
-        <DocumentUploadModal
-          isOpen={documentUploadModal.open}
-          onClose={() => setDocumentUploadModal({ open: false, task: null })}
-          task={documentUploadModal.task}
-          onInvoiceUpload={onInvoiceUpload}
-          onActUpload={onActUpload}
-          onInvoiceDelete={onInvoiceDelete}
-          onActDelete={onActDelete}
-          uploadingFiles={uploadingFiles}
-        />
-      )}
+      <DocumentUploadModal
+        isOpen={documentUploadModal.open}
+        onClose={() => setDocumentUploadModal({ open: false, task: null })}
+        task={documentUploadModal.task}
+        onInvoiceUpload={onInvoiceUpload}
+        onActUpload={onActUpload}
+        onInvoiceDelete={onInvoiceDelete}
+        onActDelete={onActDelete}
+        uploadingFiles={uploadingFiles}
+      />
     </>
   );
 } 
