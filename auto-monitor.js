@@ -30,6 +30,126 @@ function log(message, color = 'reset') {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
+// Автоматичні виправлення помилок
+async function attemptAutoFixes(errorLogs) {
+  const fixes = [];
+  
+  for (const errorLog of errorLogs) {
+    const message = errorLog.message.toLowerCase();
+    
+    // Виправлення помилок підключення до MongoDB
+    if (message.includes('mongodb') && message.includes('connection')) {
+      fixes.push('🔄 Restarting MongoDB connection...');
+      try {
+        await makeRequest('/restart-mongodb');
+        log('✅ MongoDB connection restarted', 'green');
+      } catch (e) {
+        log('❌ Failed to restart MongoDB', 'red');
+      }
+    }
+    
+    // Виправлення помилок пам'яті
+    if (message.includes('memory') || message.includes('heap')) {
+      fixes.push('🧹 Clearing memory cache...');
+      try {
+        await makeRequest('/clear-cache');
+        log('✅ Memory cache cleared', 'green');
+      } catch (e) {
+        log('❌ Failed to clear cache', 'red');
+      }
+    }
+    
+    // Виправлення помилок файлів
+    if (message.includes('file') && message.includes('not found')) {
+      fixes.push('📁 Checking file system...');
+      try {
+        await makeRequest('/check-filesystem');
+        log('✅ File system checked', 'green');
+      } catch (e) {
+        log('❌ File system check failed', 'red');
+      }
+    }
+    
+    // Виправлення помилок API
+    if (message.includes('api') && message.includes('timeout')) {
+      fixes.push('⏱️ Resetting API timeouts...');
+      try {
+        await makeRequest('/reset-timeouts');
+        log('✅ API timeouts reset', 'green');
+      } catch (e) {
+        log('❌ Failed to reset timeouts', 'red');
+      }
+    }
+  }
+  
+  if (fixes.length === 0) {
+    log('ℹ️  No automatic fixes available for these errors', 'blue');
+  }
+}
+
+// Перевірка frontend помилок
+async function checkFrontendErrors() {
+  try {
+    // Перевіряємо чи frontend доступний
+    const frontendCheck = await makeRequest('/frontend-health');
+    
+    if (frontendCheck && frontendCheck.errors) {
+      const jsErrors = frontendCheck.errors.filter(e => e.type === 'javascript');
+      const networkErrors = frontendCheck.errors.filter(e => e.type === 'network');
+      
+      if (jsErrors.length > 0) {
+        log(`❌ JavaScript errors: ${jsErrors.length}`, 'red');
+        jsErrors.slice(0, 3).forEach(error => {
+          log(`  • ${error.message}`, 'red');
+        });
+        
+        // Автоматичні виправлення JS помилок
+        await fixJSErrors(jsErrors);
+      }
+      
+      if (networkErrors.length > 0) {
+        log(`❌ Network errors: ${networkErrors.length}`, 'red');
+        networkErrors.slice(0, 3).forEach(error => {
+          log(`  • ${error.message}`, 'red');
+        });
+      }
+    } else {
+      log('✅ No frontend errors detected', 'green');
+    }
+  } catch (error) {
+    log('⚠️  Could not check frontend errors', 'yellow');
+  }
+}
+
+// Виправлення JS помилок
+async function fixJSErrors(jsErrors) {
+  for (const error of jsErrors) {
+    const message = error.message.toLowerCase();
+    
+    // Виправлення ReferenceError
+    if (message.includes('referenceerror') && message.includes('not defined')) {
+      log('🔧 Attempting to fix ReferenceError...', 'yellow');
+      try {
+        await makeRequest('/fix-reference-errors');
+        log('✅ ReferenceError fix applied', 'green');
+      } catch (e) {
+        log('❌ Failed to fix ReferenceError', 'red');
+      }
+    }
+    
+    // Виправлення TypeError
+    if (message.includes('typeerror')) {
+      log('🔧 Attempting to fix TypeError...', 'yellow');
+      try {
+        await makeRequest('/fix-type-errors');
+        log('✅ TypeError fix applied', 'green');
+      } catch (e) {
+        log('❌ Failed to fix TypeError', 'red');
+      }
+    }
+  }
+}
+
 function makeRequest(path) {
   return new Promise((resolve, reject) => {
     const url = `${BASE_URL}${path}`;
@@ -82,6 +202,10 @@ async function checkSystemHealth() {
         errorLogs.slice(-3).forEach(log => {
           console.log(`  • ${log.timestamp}: ${log.message}`);
         });
+        
+        // Автоматичні виправлення
+        log('\n🔧 Attempting automatic fixes...', 'yellow');
+        await attemptAutoFixes(errorLogs);
       }
     }
     
@@ -111,7 +235,11 @@ async function checkSystemHealth() {
       log('❌ Test endpoint failed', 'red');
     }
     
-    // 5. Аналіз та рекомендації
+    // 5. Перевірка frontend помилок
+    log('\n🌐 Checking frontend errors...', 'blue');
+    await checkFrontendErrors();
+    
+    // 6. Аналіз та рекомендації
     log('\n🎯 ANALYSIS & RECOMMENDATIONS', 'magenta');
     log('=' .repeat(50), 'magenta');
     
