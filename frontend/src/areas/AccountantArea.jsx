@@ -752,8 +752,17 @@ export default function AccountantArea({ user }) {
     try {
       console.log('[DEBUG] AccountantArea - завершення завдання:', taskId);
       
-      // Оновлюємо статус завдання на "Виконано"
+      // Знаходимо поточне завдання
+      const currentTask = allTasksFromAPI.find(t => t.id === taskId);
+      if (!currentTask) {
+        console.error('[ERROR] AccountantArea - завдання не знайдено:', taskId);
+        alert('Завдання не знайдено!');
+        return;
+      }
+      
+      // Оновлюємо статус завдання на "Виконано" з повними даними
       const updatedTask = await tasksAPI.update(taskId, { 
+        ...currentTask, // Передаємо всі поточні дані
         status: 'Виконано',
         invoiceStatus: 'completed',
         completedAt: new Date().toISOString()
