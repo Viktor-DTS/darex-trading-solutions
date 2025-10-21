@@ -887,7 +887,8 @@ export default function AccountantArea({ user }) {
     return v === true || v === 'Підтверджено';
   }
   const archive = filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByAccountant));
-  const debt = filtered.filter(task => {
+  // Для вкладки debt використовуємо всі завдання (як у регіонального керівника)
+  const debt = allTasks.filter(task => {
     // Показуємо завдання, які потребують встановлення статусу заборгованості:
     // 1. Не мають встановленого debtStatus (undefined або порожнє)
     // 2. Мають paymentType (не порожнє)
