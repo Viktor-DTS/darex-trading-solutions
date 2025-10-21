@@ -3192,21 +3192,18 @@ function RegionalManagerArea({ tab: propTab, user }) {
             {activeTab === 'debt' ? (
               <TaskTable
                 tasks={filtered.filter(task => {
-                  console.log('[DEBUG] Regional debt tab - task:', task.requestNumber, 'debtStatus:', task.debtStatus, 'debtStatusCheckbox:', task.debtStatusCheckbox, 'paymentType:', task.paymentType, 'approvedByAccountant:', task.approvedByAccountant);
-                  // Показуємо завдання з архіву бухгалтера, які стосуються заборгованості:
-                  // 1. Підтверджені бухгалтером (з архіву бухгалтера)
+                  console.log('[DEBUG] Regional debt tab - task:', task.requestNumber, 'debtStatus:', task.debtStatus, 'paymentType:', task.paymentType, 'approvedByAccountant:', task.approvedByAccountant);
+                  // Використовуємо ТОЧНО ТАКУ Ж логіку як у бухгалтера:
+                  // Показуємо завдання, які потребують встановлення статусу заборгованості:
+                  // 1. Не мають встановленого debtStatus (undefined або порожнє)
                   // 2. Мають paymentType (не порожнє)
                   // 3. paymentType не є 'Готівка'
-                  // 4. АБО мають встановлений debtStatus/debtStatusCheckbox
-                  const isApprovedByAccountant = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
                   const hasPaymentType = task.paymentType && task.paymentType.trim() !== '';
                   const isNotCash = !['Готівка'].includes(task.paymentType);
-                  const hasDebtStatus = task.debtStatus && task.debtStatus.trim() !== '';
-                  const hasDebtStatusCheckbox = task.debtStatusCheckbox !== undefined && task.debtStatusCheckbox !== null;
+                  const needsDebtStatus = !task.debtStatus || task.debtStatus === undefined || task.debtStatus === '';
                   
-                  // Показуємо якщо: (підтверджені бухгалтером + мають paymentType + не готівка) АБО мають встановлений статус заборгованості
-                  const shouldShow = (isApprovedByAccountant && hasPaymentType && isNotCash) || hasDebtStatus || hasDebtStatusCheckbox;
-                  console.log('[DEBUG] Regional debt filter - shouldShow:', shouldShow, 'isApprovedByAccountant:', isApprovedByAccountant, 'hasPaymentType:', hasPaymentType, 'isNotCash:', isNotCash, 'hasDebtStatus:', hasDebtStatus, 'hasDebtStatusCheckbox:', hasDebtStatusCheckbox);
+                  const shouldShow = needsDebtStatus && hasPaymentType && isNotCash;
+                  console.log('[DEBUG] Regional debt filter - shouldShow:', shouldShow, 'needsDebtStatus:', needsDebtStatus, 'hasPaymentType:', hasPaymentType, 'isNotCash:', isNotCash);
                   
                   if (shouldShow) {
                     // Додаємо прапор для вкладки "debt"
