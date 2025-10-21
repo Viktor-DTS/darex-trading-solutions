@@ -20,6 +20,12 @@ function DocumentUploadModal({
                          typeof onInvoiceDelete === 'function' && typeof onActDelete === 'function' && 
                          uploadingFiles;
   
+  // Додаткова безпечна перевірка
+  const safeOnInvoiceUpload = typeof onInvoiceUpload === 'function' ? onInvoiceUpload : () => {};
+  const safeOnActUpload = typeof onActUpload === 'function' ? onActUpload : () => {};
+  const safeOnInvoiceDelete = typeof onInvoiceDelete === 'function' ? onInvoiceDelete : () => {};
+  const safeOnActDelete = typeof onActDelete === 'function' ? onActDelete : () => {};
+  
   if (!hasAllFunctions) {
     // Показуємо повідомлення про відсутність функцій
     return (
@@ -96,7 +102,7 @@ function DocumentUploadModal({
       console.log('DEBUG DocumentUploadModal: Згенеровано номер рахунку:', generatedInvoiceNumber);
       alert(`📄 Номер рахунку буде автоматично встановлений: ${generatedInvoiceNumber}`);
       
-      onInvoiceUpload(task.id, file);
+      safeOnInvoiceUpload(task.id, file);
     }
   };
 
@@ -117,7 +123,7 @@ function DocumentUploadModal({
       }
 
       setActFile(file);
-      onActUpload(task.id, file);
+      safeOnActUpload(task.id, file);
     }
   };
 
@@ -184,7 +190,7 @@ function DocumentUploadModal({
                   Переглянути
                 </button>
                 <button
-                  onClick={() => onInvoiceDelete(task.id)}
+                  onClick={() => safeOnInvoiceDelete(task.id)}
                   style={{
                     padding: '8px 15px',
                     backgroundColor: '#dc3545',
@@ -260,7 +266,7 @@ function DocumentUploadModal({
                   Переглянути
                 </button>
                 <button
-                  onClick={() => onActDelete(task.id)}
+                  onClick={() => safeOnActDelete(task.id)}
                   style={{
                     padding: '8px 15px',
                     backgroundColor: '#dc3545',
