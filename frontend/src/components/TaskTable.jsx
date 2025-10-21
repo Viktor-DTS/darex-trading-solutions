@@ -63,6 +63,7 @@ function TaskTableComponent({
   isImported = false, // Новий параметр для імпортованих заявок
   onHistoryClick,
   showInvoiceActions = false,
+  onCompleteInvoiceRequest,
 }) {
   console.log('[LOG] TaskTable received columns:', columns);
   console.log('[LOG] TaskTable role:', role);
@@ -2494,8 +2495,12 @@ function TaskTableComponent({
                                   '\n\nФайли не прикріплені.';
                                 
                                 if (confirm(`Ви дійсно хочете закрити заявку?\n\nЗаявка: ${t.requestNumber || 'Без номера'}\nКлієнт: ${t.client || 'Без клієнта'}${filesInfo}`)) {
-                                  // TODO: Змінити статус на "Виконано"
-                                  alert('Функція завершення завдання буде реалізована');
+                                  if (onCompleteInvoiceRequest) {
+                                    onCompleteInvoiceRequest(t.id);
+                                  } else {
+                                    console.error('[ERROR] TaskTable - onCompleteInvoiceRequest не передано');
+                                    alert('Помилка: функція завершення завдання не налаштована');
+                                  }
                                 }
                               }}
                               style={{

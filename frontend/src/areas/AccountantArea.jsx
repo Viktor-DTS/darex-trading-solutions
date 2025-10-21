@@ -747,6 +747,32 @@ export default function AccountantArea({ user }) {
     }
   };
   
+  // Функція для завершення завдання в вкладці "Заявка на рахунок"
+  const handleCompleteInvoiceRequest = async (taskId) => {
+    try {
+      console.log('[DEBUG] AccountantArea - завершення завдання:', taskId);
+      
+      // Оновлюємо статус завдання на "Виконано"
+      const updatedTask = await tasksAPI.update(taskId, { 
+        status: 'Виконано',
+        invoiceStatus: 'completed',
+        completedAt: new Date().toISOString()
+      });
+      
+      console.log('[DEBUG] AccountantArea - завдання завершено:', updatedTask);
+      
+      // Оновлюємо дані через useLazyData
+      await refreshData(activeTab);
+      
+      // Показуємо повідомлення про успіх
+      alert('Завдання успішно завершено!');
+      
+    } catch (error) {
+      console.error('[ERROR] AccountantArea - помилка завершення завдання:', error);
+      alert('Помилка при завершенні завдання. Спробуйте ще раз.');
+    }
+  };
+  
   const handleSave = async (task) => {
     let updatedTask = null;
     
@@ -2271,6 +2297,7 @@ export default function AccountantArea({ user }) {
             showInvoiceActions={true}
             columnsSettings={invoiceRequestsColumnsSettings}
             onSaveColumns={handleSaveInvoiceRequestsColumns}
+            onCompleteInvoiceRequest={handleCompleteInvoiceRequest}
           />
         </div>
       ) : activeTab === 'debt' ? (
