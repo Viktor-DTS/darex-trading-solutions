@@ -147,8 +147,6 @@ export default function AccountantArea({ user }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
   // tab state видалено - тепер використовуємо activeTab з useLazyData
-  const [invoiceRequests, setInvoiceRequests] = useState([]);
-  const [invoiceRequestsLoading, setInvoiceRequestsLoading] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(new Set());
   const [reportsModalOpen, setReportsModalOpen] = useState(false);
   const [taskInfoModalOpen, setTaskInfoModalOpen] = useState(false);
@@ -927,12 +925,27 @@ export default function AccountantArea({ user }) {
   console.log('[DEBUG] AccountantArea debt tab - debt.length:', debt.length);
   const invoices = filtered.filter(t => t.invoiceRequestId);
   
+  // Нова вкладка "Заявка на рахунок" - фільтруємо завдання з запитами на рахунки
+  const [showCompletedRequests, setShowCompletedRequests] = useState(false);
+  const invoiceRequests = allTasksFromAPI.filter(task => {
+    // Показуємо завдання з запитами на рахунки
+    const hasInvoiceRequest = task.invoiceRequestId || task.needInvoice || task.needAct;
+    
+    // Якщо чекбокс "Показати виконані" не активний, приховуємо виконані
+    if (!showCompletedRequests && task.invoiceStatus === 'completed') {
+      return false;
+    }
+    
+    return hasInvoiceRequest;
+  });
+  
   const tableData = useMemo(() => {
     return activeTab === 'pending' ? pending : 
            activeTab === 'archive' ? archive :
            activeTab === 'debt' ? debt :
-           activeTab === 'invoices' ? invoices : [];
-  }, [activeTab, pending, archive, debt, invoices]);
+           activeTab === 'invoices' ? invoices :
+           activeTab === 'invoiceRequests' ? invoiceRequests : [];
+  }, [activeTab, pending, archive, debt, invoices, invoiceRequests]);
   
   // Логування для діагностики tableData
   console.log('[DEBUG] AccountantArea - tableData оновлено:', {
@@ -1487,6 +1500,7 @@ export default function AccountantArea({ user }) {
         <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
         <button onClick={()=>setActiveTab('debt')} style={{width:220,padding:'10px 0',background:activeTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='debt'?700:400,cursor:'pointer'}}>Заборгованість по документам ({getTabCount('debt')})</button>
         <button onClick={()=>setActiveTab('invoices')} style={{width:220,padding:'10px 0',background:activeTab==='invoices'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='invoices'?700:400,cursor:'pointer'}}>📄 Запити на рахунки ({getTabCount('invoices')})</button>
+        <button onClick={()=>setActiveTab('invoiceRequests')} style={{width:220,padding:'10px 0',background:activeTab==='invoiceRequests'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='invoiceRequests'?700:400,cursor:'pointer'}}>📋 Заявка на рахунок ({invoiceRequests.length})</button>
         <button onClick={()=>setReportsModalOpen(true)} style={{width:220,padding:'10px 0',background:'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:400,cursor:'pointer'}}>📊 Бухгалтерські звіти</button>
         <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
         <button onClick={() => {
@@ -2155,6 +2169,42 @@ export default function AccountantArea({ user }) {
               )}
             </div>
           )}
+        </div>
+      ) : activeTab === 'invoiceRequests' ? (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ margin: 0, color: '#333' }}>Заявка на рахунок</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={showCompletedRequests}
+                  onChange={(e) => setShowCompletedRequests(e.target.checked)}
+                  style={{ margin: 0 }}
+                />
+                <span style={{ color: '#fff', fontSize: '14px' }}>Показати виконані заявки</span>
+              </label>
+            </div>
+          </div>
+          
+          <TaskTable
+            key={tableKey}
+            tasks={tableData}
+            allTasks={tasks}
+            onApprove={handleApprove}
+            onEdit={handleEdit}
+            role="accountant"
+            filters={filters}
+            onFilterChange={handleFilter}
+            columns={columns}
+            allColumns={allTaskFields.map(f => ({ key: f.name, label: f.label }))}
+            approveField="approvedByAccountant"
+            commentField="accountantComment"
+            user={user}
+            isArchive={false}
+            onHistoryClick={openClientReport}
+            showInvoiceActions={true}
+          />
         </div>
       ) : activeTab === 'debt' ? (
         <div>

@@ -62,6 +62,7 @@ function TaskTableComponent({
   isArchive = false,
   isImported = false, // Новий параметр для імпортованих заявок
   onHistoryClick,
+  showInvoiceActions = false,
 }) {
   console.log('[LOG] TaskTable received columns:', columns);
   console.log('[LOG] TaskTable role:', role);
@@ -2421,6 +2422,117 @@ function TaskTableComponent({
                       </div>
                       {/* Другий ряд кнопок */}
                       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                      {/* Спеціальна логіка для вкладки "Заявка на рахунок" */}
+                      {showInvoiceActions ? (
+                        <>
+                          {/* Інформація про тип документів */}
+                          <div style={{ 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            gap: '4px', 
+                            marginBottom: '8px',
+                            padding: '8px',
+                            backgroundColor: '#f8f9fa',
+                            borderRadius: '4px',
+                            border: '1px solid #dee2e6'
+                          }}>
+                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#495057' }}>
+                              Тип документів:
+                            </div>
+                            {t.needInvoice && (
+                              <div style={{ fontSize: '11px', color: '#28a745' }}>
+                                📄 Потрібен рахунок
+                              </div>
+                            )}
+                            {t.needAct && (
+                              <div style={{ fontSize: '11px', color: '#17a2b8' }}>
+                                📋 Потрібен акт виконаних робіт
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Кнопки дій для заявки на рахунок */}
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                            <button 
+                              onClick={() => onEdit && onEdit(t)}
+                              style={{
+                                background: '#007bff',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '4px',
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ✏️ Редагувати
+                            </button>
+                            
+                            <button 
+                              onClick={() => {
+                                // TODO: Відкрити модальне вікно завантаження документів
+                                alert('Функція завантаження документів буде реалізована');
+                              }}
+                              style={{
+                                background: '#28a745',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '4px',
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              📤 Завантажити документи
+                            </button>
+                            
+                            <button 
+                              onClick={() => {
+                                const hasFiles = t.invoiceFiles && t.invoiceFiles.length > 0;
+                                const filesInfo = hasFiles ? 
+                                  `\n\nПрикріплені файли:\n${t.invoiceFiles.map(f => `- ${f.name}`).join('\n')}` : 
+                                  '\n\nФайли не прикріплені.';
+                                
+                                if (confirm(`Ви дійсно хочете закрити заявку?\n\nЗаявка: ${t.requestNumber || 'Без номера'}\nКлієнт: ${t.client || 'Без клієнта'}${filesInfo}`)) {
+                                  // TODO: Змінити статус на "Виконано"
+                                  alert('Функція завершення завдання буде реалізована');
+                                }
+                              }}
+                              style={{
+                                background: '#ffc107',
+                                color: '#000',
+                                border: 'none',
+                                borderRadius: '4px',
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ✅ Завершити завдання
+                            </button>
+                            
+                            <button 
+                              onClick={() => {
+                                if (confirm(`Ви дійсно хочете видалити заявку?\n\nЗаявка: ${t.requestNumber || 'Без номера'}\nКлієнт: ${t.client || 'Без клієнта'}`)) {
+                                  onDelete && onDelete(t.id);
+                                }
+                              }}
+                              style={{
+                                background: '#dc3545',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '4px',
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              🗑️ Видалити завдання
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
                       {/* Кнопка редагування - в архіві тільки для адміністратора */}
                       {(!isArchive || role === 'admin' || user?.role === 'admin' || user?.role === 'administrator') && (
                         <>
@@ -2584,6 +2696,8 @@ function TaskTableComponent({
                             )}
                           </div>
                         </>
+                      )}
+                      </>
                       )}
                       </div>
                     </td>
