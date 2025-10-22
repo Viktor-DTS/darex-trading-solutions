@@ -91,15 +91,14 @@ export default function AccountantArea({ user }) {
   // Функція для завантаження додаткових завдань (статус "Заявка" та "В роботі")
   const loadAdditionalTasks = async () => {
     if (additionalTasks.length > 0) {
-      console.log('[DEBUG] AccountantArea - додаткові завдання вже завантажені:', additionalTasks.length);
+      // Debug log removed
       return;
     }
     
     setLoadingAdditionalTasks(true);
     try {
-      console.log('[DEBUG] AccountantArea - завантажуємо додаткові завдання (notDone)...');
+      // Debug logs removed
       const notDoneTasks = await tasksAPI.getByStatus('notDone', user.region);
-      console.log('[DEBUG] AccountantArea - завантажено додаткових завдань:', notDoneTasks.length);
       setAdditionalTasks(notDoneTasks);
     } catch (error) {
       console.error('[ERROR] AccountantArea - помилка завантаження додаткових завдань:', error);
