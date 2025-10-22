@@ -242,7 +242,12 @@ function DocumentUploadModal({
                   <input
                     type="file"
                     accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={handleInvoiceFileChange}
+                    onChange={(e) => {
+                      console.log('🎯 DEBUG DocumentUploadModal: onChange спрацював в JSX!', e);
+                      console.log('🎯 DEBUG DocumentUploadModal: e.target.files:', e.target.files);
+                      console.log('🎯 DEBUG DocumentUploadModal: e.target.files.length:', e.target.files?.length);
+                      handleInvoiceFileChange(e);
+                    }}
                     style={{ marginRight: '10px', color: '#fff' }}
                   />
                   <span style={{ color: '#ccc', fontSize: '14px' }}>Завантажте файл рахунку</span>
@@ -322,7 +327,12 @@ function DocumentUploadModal({
                   <input
                     type="file"
                     accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={handleActFileChange}
+                    onChange={(e) => {
+                      console.log('🎯 DEBUG DocumentUploadModal: onChange для акту спрацював в JSX!', e);
+                      console.log('🎯 DEBUG DocumentUploadModal: e.target.files для акту:', e.target.files);
+                      console.log('🎯 DEBUG DocumentUploadModal: e.target.files.length для акту:', e.target.files?.length);
+                      handleActFileChange(e);
+                    }}
                     style={{ marginRight: '10px', color: '#fff' }}
                   />
                   <span style={{ color: '#ccc', fontSize: '14px' }}>Завантажте файл акту виконаних робіт</span>
