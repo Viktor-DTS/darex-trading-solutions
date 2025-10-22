@@ -3985,7 +3985,6 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
       let updatedTask = await Task.findOneAndUpdate(
         { invoiceRequestId: req.params.id },
         { 
-          invoiceStatus: 'completed',
           invoiceFile: updatedRequest.invoiceFile,
           invoiceFileName: updatedRequest.invoiceFileName
         },
@@ -3997,7 +3996,6 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
         updatedTask = await Task.findOneAndUpdate(
           { _id: updatedRequest.taskId },
           { 
-            invoiceStatus: 'completed',
             invoiceFile: updatedRequest.invoiceFile,
             invoiceFileName: updatedRequest.invoiceFileName,
             invoiceRequestId: req.params.id // Додаємо invoiceRequestId для майбутніх запитів
@@ -4123,7 +4121,6 @@ app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async
       let updatedTask = await Task.findOneAndUpdate(
         { invoiceRequestId: req.params.id },
         { 
-          actStatus: 'completed',
           actFile: updatedRequest.actFile,
           actFileName: updatedRequest.actFileName
         },
@@ -4135,7 +4132,6 @@ app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async
         updatedTask = await Task.findOneAndUpdate(
           { _id: updatedRequest.taskId },
           { 
-            actStatus: 'completed',
             actFile: updatedRequest.actFile,
             actFileName: updatedRequest.actFileName,
             invoiceRequestId: req.params.id // Додаємо invoiceRequestId для майбутніх запитів
