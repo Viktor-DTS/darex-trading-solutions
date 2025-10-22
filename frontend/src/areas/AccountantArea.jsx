@@ -844,7 +844,7 @@ export default function AccountantArea({ user }) {
       console.log('[DEBUG] AccountantArea handleDelete - видалення завдання:', taskId);
       
       // Видаляємо завдання через API
-      await tasksAPI.delete(taskId);
+      await tasksAPI.remove(taskId);
       
       // Оновлюємо дані
       await refreshData(activeTab);
