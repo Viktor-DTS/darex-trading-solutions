@@ -670,6 +670,14 @@ export default function AccountantArea({ user }) {
   useEffect(() => {
     const handleFocus = () => {
       console.log('[DEBUG] AccountantArea handleFocus - оновлення при фокусі вікна...');
+      
+      // Перевіряємо, чи не відкрите модальне вікно завантаження документів
+      const isModalOpen = document.querySelector('[style*="position: fixed"]') !== null;
+      if (isModalOpen) {
+        console.log('[DEBUG] AccountantArea handleFocus - модальне вікно відкрите, пропускаємо оновлення');
+        return;
+      }
+      
       refreshData(activeTab).then(() => {
         console.log('[DEBUG] AccountantArea handleFocus - оновлено заявок для вкладки:', activeTab);
         setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
