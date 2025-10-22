@@ -313,11 +313,11 @@ export default function AccountantArea({ user }) {
       if (response.ok) {
         const result = await response.json();
         console.log('[DEBUG] AccountantArea - файл рахунку завантажено успішно:', result);
-        // Оновлюємо локальний стан
+        // Оновлюємо локальний стан (НЕ змінюємо статус - це робить кнопка "Завершити завдання")
         setInvoiceRequests(prev => 
           prev.map(req => 
             req._id === requestId 
-              ? { ...req, status: 'completed', invoiceFile: result.data.invoiceFile, invoiceFileName: result.data.invoiceFileName }
+              ? { ...req, invoiceFile: result.data.invoiceFile, invoiceFileName: result.data.invoiceFileName }
               : req
           )
         );
@@ -337,6 +337,9 @@ export default function AccountantArea({ user }) {
         
         // Оновлюємо дані в таблиці
         await loadInvoiceRequests();
+        
+        // Оновлюємо основну таблицю завдань
+        await refreshData(activeTab);
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка завантаження файлу');
@@ -449,12 +452,11 @@ export default function AccountantArea({ user }) {
       if (response.ok) {
         const result = await response.json();
         console.log('[DEBUG] AccountantArea - файл акту завантажено успішно:', result);
-        // Оновлюємо локальний стан
+        // Оновлюємо локальний стан (НЕ змінюємо статус - це робить кнопка "Завершити завдання")
         setInvoiceRequests(prev => prev.map(req => 
           req._id === requestId 
             ? { 
                 ...req, 
-                status: 'completed',
                 actFile: result.data.actFile, 
                 actFileName: result.data.actFileName 
               }
@@ -476,6 +478,9 @@ export default function AccountantArea({ user }) {
         
         // Оновлюємо дані в таблиці
         await loadInvoiceRequests();
+        
+        // Оновлюємо основну таблицю завдань
+        await refreshData(activeTab);
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка завантаження файлу акту');
