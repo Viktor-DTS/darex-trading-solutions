@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест завантаження файлів</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .file-input {
+            margin: 10px 0;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест завантаження файлів</h1>
+    
+    <div class="test-container">
+        <h2>📄 Тест 1: Базове завантаження файлу</h2>
+        <div class="test-section">
+            <label for="testFile1">Виберіть файл:</label>
+            <input type="file" id="testFile1" class="file-input" accept=".pdf,.jpg,.jpeg,.png">
+            <button onclick="testFileSelection('testFile1')">Тестувати вибір файлу</button>
+            <div id="log1" class="log"></div>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>📋 Тест 2: Завантаження з обробкою</h2>
+        <div class="test-section">
+            <label for="testFile2">Виберіть файл:</label>
+            <input type="file" id="testFile2" class="file-input" accept=".pdf,.jpg,.jpeg,.png">
+            <button onclick="testFileProcessing('testFile2')">Тестувати обробку файлу</button>
+            <div id="log2" class="log"></div>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>🔗 Тест 3: API завантаження</h2>
+        <div class="test-section">
+            <label for="testFile3">Виберіть файл для завантаження:</label>
+            <input type="file" id="testFile3" class="file-input" accept=".pdf,.jpg,.jpeg,.png">
+            <button onclick="testAPIUpload('testFile3')">Тестувати API завантаження</button>
+            <div id="log3" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // Функція для логування
+        function log(message, logId, type = 'info') {
+            const logElement = document.getElementById(logId);
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : '';
+            logElement.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        // Тест 1: Базове завантаження файлу
+        function testFileSelection(inputId) {
+            const logId = inputId.replace('testFile', 'log');
+            log('🔍 Тестуємо вибір файлу...', logId);
+            
+            const fileInput = document.getElementById(inputId);
+            
+            // Додаємо обробник події
+            fileInput.addEventListener('change', function(e) {
+                log('✅ Подія onChange спрацювала!', logId, 'success');
+                log(`📁 Файл вибрано: ${e.target.files[0]?.name || 'None'}`, logId);
+                log(`📊 Кількість файлів: ${e.target.files.length}`, logId);
+                
+                if (e.target.files[0]) {
+                    const file = e.target.files[0];
+                    log(`📄 Деталі файлу:`, logId);
+                    log(`   - Назва: ${file.name}`, logId);
+                    log(`   - Розмір: ${file.size} bytes`, logId);
+                    log(`   - Тип: ${file.type}`, logId);
+                    log(`   - Остання зміна: ${new Date(file.lastModified).toLocaleString()}`, logId);
+                }
+            });
+            
+            log('✅ Обробник події додано', logId, 'success');
+            log('💡 Тепер натисніть "Виберіть файл" і виберіть файл', logId);
+        }
+
+        // Тест 2: Обробка файлу
+        function testFileProcessing(inputId) {
+            const logId = inputId.replace('testFile', 'log');
+            log('🔍 Тестуємо обробку файлу...', logId);
+            
+            const fileInput = document.getElementById(inputId);
+            
+            fileInput.addEventListener('change', async function(e) {
+                log('✅ Подія onChange спрацювала!', logId, 'success');
+                
+                if (e.target.files[0]) {
+                    const file = e.target.files[0];
+                    log(`📁 Обробляємо файл: ${file.name}`, logId);
+                    
+                    // Валідація розміру
+                    if (file.size > 10 * 1024 * 1024) {
+                        log('❌ Файл занадто великий (>10MB)', logId, 'error');
+                        return;
+                    }
+                    log('✅ Розмір файлу OK', logId, 'success');
+                    
+                    // Валідація типу
+                    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+                    if (!allowedTypes.includes(file.type)) {
+                        log('❌ Непідтримуваний тип файлу', logId, 'error');
+                        return;
+                    }
+                    log('✅ Тип файлу OK', logId, 'success');
+                    
+                    // Симуляція обробки
+                    log('🔄 Обробляємо файл...', logId);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    log('✅ Файл оброблено успішно!', logId, 'success');
+                }
+            });
+            
+            log('✅ Обробник події додано', logId, 'success');
+            log('💡 Тепер натисніть "Виберіть файл" і виберіть файл', logId);
+        }
+
+        // Тест 3: API завантаження
+        function testAPIUpload(inputId) {
+            const logId = inputId.replace('testFile', 'log');
+            log('🔍 Тестуємо API завантаження...', logId);
+            
+            const fileInput = document.getElementById(inputId);
+            
+            fileInput.addEventListener('change', async function(e) {
+                log('✅ Подія onChange спрацювала!', logId, 'success');
+                
+                if (e.target.files[0]) {
+                    const file = e.target.files[0];
+                    log(`📁 Завантажуємо файл: ${file.name}`, logId);
+                    
+                    try {
+                        // Створюємо FormData
+                        const formData = new FormData();
+                        formData.append('invoiceFile', file);
+                        formData.append('invoiceNumber', 'TEST-' + Date.now());
+                        
+                        log('📤 Відправляємо запит на сервер...', logId);
+                        
+                        // Відправляємо на тестовий endpoint
+                        const response = await fetch('https://darex-trading-solutions.onrender.com/api/invoice-requests/68e637d7af11b7e215887380/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        log(`📊 Статус відповіді: ${response.status}`, logId);
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            log('✅ Файл успішно завантажено!', logId, 'success');
+                            log(`📄 URL файлу: ${result.data?.invoiceFile || 'N/A'}`, logId);
+                        } else {
+                            const error = await response.text();
+                            log(`❌ Помилка завантаження: ${error}`, logId, 'error');
+                        }
+                    } catch (error) {
+                        log(`❌ Помилка: ${error.message}`, logId, 'error');
+                    }
+                }
+            });
+            
+            log('✅ Обробник події додано', logId, 'success');
+            log('💡 Тепер натисніть "Виберіть файл" і виберіть файл', logId);
+        }
+
+        // Ініціалізація
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🚀 Тест завантаження файлів ініціалізовано', 'log1');
+            log('🚀 Тест завантаження файлів ініціалізовано', 'log2');
+            log('🚀 Тест завантаження файлів ініціалізовано', 'log3');
+        });
+    </script>
+</body>
+</html>
