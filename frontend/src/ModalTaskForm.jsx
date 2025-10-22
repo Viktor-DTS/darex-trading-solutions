@@ -340,6 +340,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             updates.invoiceFile = invoiceData.invoiceFile;
             updates.invoiceFileName = invoiceData.invoiceFileName;
             updates.invoiceStatus = invoiceData.status;
+            // Автозаповнення поля "Номер рахунку" в основній формі
+            if (invoiceData.invoiceNumber) {
+              updates.invoice = invoiceData.invoiceNumber;
+              console.log('[DEBUG] ModalTaskForm - автозаповнено поле "Номер рахунку":', invoiceData.invoiceNumber);
+            }
             console.log('[DEBUG] ModalTaskForm - оновлено дані про файл рахунку');
           }
           
