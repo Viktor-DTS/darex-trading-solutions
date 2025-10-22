@@ -33,6 +33,14 @@ function DocumentUploadModal({
     uploadingFiles: Array.from(uploadingFiles)
   });
   
+  // Додаткове детальне логування
+  if (task) {
+    console.log('DEBUG DocumentUploadModal: Повні дані завдання:', task);
+    console.log('DEBUG DocumentUploadModal: requestId для завантаження:', task.invoiceRequestId || task.id);
+    console.log('DEBUG DocumentUploadModal: needInvoice:', task.needInvoice);
+    console.log('DEBUG DocumentUploadModal: needAct:', task.needAct);
+  }
+  
   // Всі функції тепер мають значення за замовчуванням, тому перевірки не потрібні
 
   const handleInvoiceFileChange = async (e) => {

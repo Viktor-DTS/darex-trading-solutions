@@ -2491,6 +2491,7 @@ function TaskTableComponent({
                                   invoiceFile: t.invoiceFile,
                                   actFile: t.actFile
                                 });
+                                console.log('DEBUG TaskTable: Повні дані завдання для модального вікна:', t);
                                 setDocumentUploadModal({ open: true, task: t });
                               }}
                               style={{
