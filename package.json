@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "@octokit/rest": "^22.0.0",
+    "form-data": "^4.0.4",
     "gridfs-stream": "^1.1.1",
     "mongoose": "^8.16.1",
     "multer-gridfs-storage": "^5.0.2",

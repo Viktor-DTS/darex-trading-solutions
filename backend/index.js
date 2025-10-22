@@ -1010,6 +1010,10 @@ app.get('/api/tasks', async (req, res) => {
         
         task.invoiceRequestId = invoiceRequest._id.toString(); // Додаємо invoiceRequestId для майбутніх запитів
         
+        // Додаємо поля needInvoice та needAct з InvoiceRequest
+        task.needInvoice = invoiceRequest.needInvoice;
+        task.needAct = invoiceRequest.needAct;
+        
         console.log('[DEBUG] GET /api/tasks - оновлено дані про файли для заявки:', task._id, {
           invoiceStatus: task.invoiceStatus,
           invoiceFile: task.invoiceFile,
@@ -1017,7 +1021,9 @@ app.get('/api/tasks', async (req, res) => {
           actStatus: task.actStatus,
           actFile: task.actFile,
           actFileName: task.actFileName,
-          invoiceRequestId: task.invoiceRequestId
+          invoiceRequestId: task.invoiceRequestId,
+          needInvoice: task.needInvoice,
+          needAct: task.needAct
         });
       }
       
@@ -1126,8 +1132,59 @@ app.get('/api/tasks/filter', async (req, res) => {
     
     console.log('[DEBUG] GET /api/tasks/filter - знайдено завдань:', tasks.length);
     
+    // Додаємо інформацію про файл рахунку для заявок (як в /api/tasks)
+    const tasksWithInvoiceInfo = await Promise.all(tasks.map(async (task) => {
+      let invoiceRequest = null;
+      
+      // Спочатку шукаємо по invoiceRequestId (для старих заявок)
+      if (task.invoiceRequestId) {
+        try {
+          invoiceRequest = await InvoiceRequest.findById(task.invoiceRequestId);
+        } catch (invoiceError) {
+          console.error('[ERROR] GET /api/tasks/filter - помилка отримання InvoiceRequest по invoiceRequestId для заявки:', task._id, invoiceError);
+        }
+      }
+      
+      // Якщо не знайшли по invoiceRequestId, шукаємо по taskId (для нових заявок)
+      if (!invoiceRequest) {
+        try {
+          const invoiceRequests = await InvoiceRequest.find({ taskId: task._id.toString() });
+          if (invoiceRequests && invoiceRequests.length > 0) {
+            invoiceRequest = invoiceRequests[0]; // Беремо перший знайдений
+          }
+        } catch (invoiceError) {
+          console.error('[ERROR] GET /api/tasks/filter - помилка пошуку InvoiceRequest по taskId для заявки:', task._id, invoiceError);
+        }
+      }
+      
+      // Оновлюємо дані заявки якщо знайшли InvoiceRequest з файлами
+      if (invoiceRequest) {
+        // Оновлюємо дані про файл рахунку
+        if (invoiceRequest.invoiceFile) {
+          task.invoiceStatus = 'completed';
+          task.invoiceFile = invoiceRequest.invoiceFile;
+          task.invoiceFileName = invoiceRequest.invoiceFileName;
+        }
+        
+        // Оновлюємо дані про файл акту
+        if (invoiceRequest.actFile) {
+          task.actStatus = 'completed';
+          task.actFile = invoiceRequest.actFile;
+          task.actFileName = invoiceRequest.actFileName;
+        }
+        
+        task.invoiceRequestId = invoiceRequest._id.toString();
+        
+        // Додаємо поля needInvoice та needAct з InvoiceRequest
+        task.needInvoice = invoiceRequest.needInvoice;
+        task.needAct = invoiceRequest.needAct;
+      }
+      
+      return task;
+    }));
+    
     // Додаємо числовий id для сумісності з фронтендом
-    const tasksWithId = tasks.map(task => ({
+    const tasksWithId = tasksWithInvoiceInfo.map(task => ({
       ...task,
       id: task._id.toString()
     }));
