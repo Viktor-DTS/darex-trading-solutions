@@ -1105,7 +1105,6 @@ export default function AccountantArea({ user }) {
   // Додаємо логування для діагностики
   console.log('[DEBUG] AccountantArea debt tab - allTasksFromAPI.length:', allTasksFromAPI.length);
   console.log('[DEBUG] AccountantArea debt tab - debt.length:', debt.length);
-  const invoices = filtered.filter(t => t.invoiceRequestId);
   
   // Нова вкладка "Заявка на рахунок" - фільтруємо завдання з запитами на рахунки
   const [invoiceRequests, setInvoiceRequests] = useState([]);
@@ -1134,9 +1133,8 @@ export default function AccountantArea({ user }) {
     return activeTab === 'pending' ? pending : 
            activeTab === 'archive' ? archive :
            activeTab === 'debt' ? debt :
-           activeTab === 'invoices' ? invoices :
            activeTab === 'invoiceRequests' ? filteredInvoiceRequests : [];
-  }, [activeTab, pending, archive, debt, invoices, filteredInvoiceRequests]);
+  }, [activeTab, pending, archive, debt, filteredInvoiceRequests]);
   
   // Логування для діагностики tableData
   console.log('[DEBUG] AccountantArea - tableData оновлено:', {
@@ -1145,7 +1143,6 @@ export default function AccountantArea({ user }) {
     pendingLength: pending.length,
     archiveLength: archive.length,
     debtLength: debt.length,
-    invoicesLength: invoices.length,
     filteredLength: filtered.length,
     tasksLength: tasks.length
   });
@@ -1698,7 +1695,6 @@ export default function AccountantArea({ user }) {
         <button onClick={()=>setActiveTab('pending')} style={{width:220,padding:'10px 0',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
         <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
         <button onClick={()=>setActiveTab('debt')} style={{width:220,padding:'10px 0',background:activeTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='debt'?700:400,cursor:'pointer'}}>Заборгованість по документам ({getTabCount('debt')})</button>
-        <button onClick={()=>setActiveTab('invoices')} style={{width:220,padding:'10px 0',background:activeTab==='invoices'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='invoices'?700:400,cursor:'pointer'}}>📄 Запити на рахунки ({getTabCount('invoices')})</button>
         <button onClick={()=>setActiveTab('invoiceRequests')} style={{width:220,padding:'10px 0',background:activeTab==='invoiceRequests'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='invoiceRequests'?700:400,cursor:'pointer'}}>📋 Заявка на рахунок ({invoiceRequests.length})</button>
         <button onClick={()=>setReportsModalOpen(true)} style={{width:220,padding:'10px 0',background:'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:400,cursor:'pointer'}}>📊 Бухгалтерські звіти</button>
         <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
