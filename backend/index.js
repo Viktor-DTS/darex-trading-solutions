@@ -3893,8 +3893,11 @@ app.put('/api/invoice-requests/:id', async (req, res) => {
 app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async (req, res) => {
   try {
     console.log('[DEBUG] POST /api/invoice-requests/:id/upload - запит отримано для ID:', req.params.id);
+    console.log('[DEBUG] POST /api/invoice-requests/:id/upload - req.file:', req.file);
+    console.log('[DEBUG] POST /api/invoice-requests/:id/upload - req.body:', req.body);
     
     const request = await InvoiceRequest.findById(req.params.id);
+    console.log('[DEBUG] POST /api/invoice-requests/:id/upload - знайдено запит:', request ? 'YES' : 'NO');
     
     if (!request) {
       console.log('[ERROR] POST /api/invoice-requests/:id/upload - запит не знайдено:', req.params.id);
@@ -4024,14 +4027,17 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
 app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async (req, res) => {
   try {
     console.log('[DEBUG] POST /api/invoice-requests/:id/upload-act - запит отримано для ID:', req.params.id);
+    console.log('[DEBUG] POST /api/invoice-requests/:id/upload-act - req.file:', req.file);
+    console.log('[DEBUG] POST /api/invoice-requests/:id/upload-act - req.body:', req.body);
     
     const request = await InvoiceRequest.findById(req.params.id);
+    console.log('[DEBUG] POST /api/invoice-requests/:id/upload-act - знайдено запит:', request ? 'YES' : 'NO');
     
     if (!request) {
       console.log('[ERROR] POST /api/invoice-requests/:id/upload-act - запит не знайдено:', req.params.id);
       return res.status(404).json({ 
         success: false, 
-        message: 'Запит на рахунок не знайдено' 
+        message: 'Запит на рахунок не знайдено'
       });
     }
     
