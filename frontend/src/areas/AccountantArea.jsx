@@ -391,6 +391,9 @@ export default function AccountantArea({ user }) {
         }
         
         alert('Файл успішно видалено!');
+        
+        // Оновлюємо основну таблицю завдань
+        await refreshData(activeTab);
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка видалення файлу');
@@ -554,6 +557,9 @@ export default function AccountantArea({ user }) {
         }
         
         alert('Файл акту успішно видалено!');
+        
+        // Оновлюємо основну таблицю завдань
+        await refreshData(activeTab);
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка видалення файлу акту');
