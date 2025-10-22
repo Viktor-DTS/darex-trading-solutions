@@ -82,6 +82,8 @@ function DocumentUploadModal({
       // Передаємо invoiceRequestId замість task.id
       const requestId = task.invoiceRequestId || task.id;
       console.log('DEBUG DocumentUploadModal: Використовуємо requestId:', requestId);
+      console.log('DEBUG DocumentUploadModal: Викликаємо onInvoiceUpload з параметрами:', { requestId, fileName: file.name, fileSize: file.size, fileType: file.type });
+      console.log('DEBUG DocumentUploadModal: onInvoiceUpload функція:', typeof onInvoiceUpload, onInvoiceUpload);
       onInvoiceUpload(requestId, file);
     }
   };
@@ -116,6 +118,8 @@ function DocumentUploadModal({
       // Передаємо invoiceRequestId замість task.id
       const requestId = task.invoiceRequestId || task.id;
       console.log('DEBUG DocumentUploadModal: Використовуємо requestId для акту:', requestId);
+      console.log('DEBUG DocumentUploadModal: Викликаємо onActUpload з параметрами:', { requestId, fileName: file.name, fileSize: file.size, fileType: file.type });
+      console.log('DEBUG DocumentUploadModal: onActUpload функція:', typeof onActUpload, onActUpload);
       onActUpload(requestId, file);
     }
   };

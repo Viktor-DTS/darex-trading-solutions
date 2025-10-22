@@ -277,7 +277,8 @@ export default function AccountantArea({ user }) {
   // Функція для завантаження файлу рахунку
   const uploadInvoiceFile = async (requestId, file) => {
     try {
-      console.log('DEBUG AccountantArea: Початок завантаження файлу рахунку:', { requestId, fileName: file.name, fileSize: file.size, fileType: file.type });
+      console.log('🚀 DEBUG AccountantArea: Початок завантаження файлу рахунку:', { requestId, fileName: file.name, fileSize: file.size, fileType: file.type });
+      console.log('🚀 DEBUG AccountantArea: uploadInvoiceFile викликано з параметрами:', { requestId, file });
       
       // Додаємо requestId до списку завантажуваних файлів
       setUploadingFiles(prev => new Set([...prev, requestId]));
@@ -401,7 +402,8 @@ export default function AccountantArea({ user }) {
   // Функція для завантаження файлу акту виконаних робіт
   const uploadActFile = async (requestId, file) => {
     try {
-      console.log('DEBUG AccountantArea: Початок завантаження файлу акту:', { requestId, fileName: file.name, fileSize: file.size, fileType: file.type });
+      console.log('🚀 DEBUG AccountantArea: Початок завантаження файлу акту:', { requestId, fileName: file.name, fileSize: file.size, fileType: file.type });
+      console.log('🚀 DEBUG AccountantArea: uploadActFile викликано з параметрами:', { requestId, file });
       
       // Додаємо requestId до списку завантажуваних файлів
       setUploadingFiles(prev => new Set([...prev, requestId]));
