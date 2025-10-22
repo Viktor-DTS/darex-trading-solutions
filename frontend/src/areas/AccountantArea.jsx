@@ -440,7 +440,7 @@ export default function AccountantArea({ user }) {
       
       if (response.ok) {
         const result = await response.json();
-        console.log('[DEBUG] AccountantArea - файл акту завантажено успішно:', result);
+        // Debug log removed
         // Оновлюємо локальний стан (НЕ змінюємо статус - це робить кнопка "Завершити завдання")
         setInvoiceRequests(prev => prev.map(req => 
           req._id === requestId 
@@ -454,7 +454,7 @@ export default function AccountantArea({ user }) {
         
         // Оновлюємо selectedTaskInfo якщо він відкритий
         if (selectedTaskInfo && selectedTaskInfo.invoiceRequestId === requestId) {
-          console.log('[DEBUG] AccountantArea - оновлюємо selectedTaskInfo з даними про файл акту');
+          // Debug log removed
           setSelectedTaskInfo(prev => ({
             ...prev,
             actFile: result.data.actFile,
@@ -533,7 +533,7 @@ export default function AccountantArea({ user }) {
         
         // Оновлюємо selectedTaskInfo якщо він відкритий
         if (selectedTaskInfo && selectedTaskInfo.invoiceRequestId === requestId) {
-          console.log('[DEBUG] AccountantArea - оновлюємо selectedTaskInfo після видалення файлу акту');
+          // Debug log removed
           setSelectedTaskInfo(prev => ({
             ...prev,
             actFile: '',
