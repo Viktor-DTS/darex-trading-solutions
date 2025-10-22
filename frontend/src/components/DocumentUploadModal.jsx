@@ -14,6 +14,9 @@ function DocumentUploadModal({
   const [actFile, setActFile] = useState(null);
   const [selectedInvoiceFile, setSelectedInvoiceFile] = useState(null);
   const [selectedActFile, setSelectedActFile] = useState(null);
+  
+  // Примусове оновлення для Render.com
+  console.log('🔄 FORCE UPDATE: DocumentUploadModal v2.0', new Date().toISOString());
 
   if (!isOpen || !task) return null;
   

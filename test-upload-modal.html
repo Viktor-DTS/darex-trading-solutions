@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест DocumentUploadModal</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .log { background: #f8f9fa; padding: 10px; margin: 10px 0; border-left: 3px solid #007bff; }
+    </style>
+</head>
+<body>
+    <h1>Тест DocumentUploadModal</h1>
+    
+    <div class="test-section">
+        <h2>Тест 1: Перевірка версії коду</h2>
+        <button onclick="checkVersion()">Перевірити версію</button>
+        <div id="version-result" class="log"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Тест 2: Симуляція вибору файлу</h2>
+        <input type="file" id="test-file" accept=".pdf,.jpg,.jpeg,.png" onchange="testFileSelection(event)">
+        <div id="file-result" class="log"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Тест 3: Перевірка логів консолі</h2>
+        <button onclick="checkConsoleLogs()">Перевірити логи</button>
+        <div id="console-result" class="log"></div>
+    </div>
+
+    <script>
+        function checkVersion() {
+            const result = document.getElementById('version-result');
+            result.innerHTML = `
+                <strong>Поточна дата:</strong> ${new Date().toLocaleString()}<br>
+                <strong>User Agent:</strong> ${navigator.userAgent}<br>
+                <strong>URL:</strong> ${window.location.href}<br>
+                <strong>Timestamp:</strong> ${Date.now()}
+            `;
+        }
+
+        function testFileSelection(event) {
+            const file = event.target.files[0];
+            const result = document.getElementById('file-result');
+            
+            if (file) {
+                result.innerHTML = `
+                    <strong>Файл вибрано:</strong><br>
+                    Назва: ${file.name}<br>
+                    Розмір: ${file.size} байт<br>
+                    Тип: ${file.type}<br>
+                    <strong>Час вибору:</strong> ${new Date().toLocaleString()}
+                `;
+                console.log('🧪 ТЕСТ: Файл вибрано:', file.name);
+            } else {
+                result.innerHTML = '<strong>Файл не вибрано</strong>';
+            }
+        }
+
+        function checkConsoleLogs() {
+            const result = document.getElementById('console-result');
+            result.innerHTML = `
+                <strong>Перевірте консоль браузера (F12)</strong><br>
+                Шукайте логи з "DEBUG DocumentUploadModal"<br>
+                Якщо їх немає - код не оновився<br>
+                <strong>Час перевірки:</strong> ${new Date().toLocaleString()}
+            `;
+        }
+
+        // Автоматично перевіряємо версію при завантаженні
+        window.onload = function() {
+            console.log('🧪 ТЕСТ: Сторінка завантажена', new Date().toLocaleString());
+            checkVersion();
+        };
+    </script>
+</body>
+</html>
