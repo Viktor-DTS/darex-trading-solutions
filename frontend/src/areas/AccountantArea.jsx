@@ -300,7 +300,7 @@ export default function AccountantArea({ user }) {
         setInvoiceRequests(prev => 
           prev.map(req => 
             req._id === requestId 
-              ? { ...req, invoiceFile: result.data.invoiceFile, invoiceFileName: result.data.invoiceFileName }
+              ? { ...req, invoiceFile: result.data.invoiceFile, invoiceFileName: result.data.invoiceFileName, invoiceNumber: result.data.invoiceNumber }
               : req
           )
         );
@@ -312,6 +312,7 @@ export default function AccountantArea({ user }) {
             ...prev,
             invoiceFile: result.data.invoiceFile,
             invoiceFileName: result.data.invoiceFileName,
+            invoiceNumber: result.data.invoiceNumber,
             invoiceStatus: 'completed'
           }));
         }
@@ -358,7 +359,7 @@ export default function AccountantArea({ user }) {
         // Оновлюємо локальний стан
         setInvoiceRequests(prev => prev.map(req => 
           req._id === requestId 
-            ? { ...req, invoiceFile: '', invoiceFileName: '' }
+            ? { ...req, invoiceFile: '', invoiceFileName: '', invoiceNumber: '' }
             : req
         ));
         
@@ -369,6 +370,7 @@ export default function AccountantArea({ user }) {
             ...prev,
             invoiceFile: '',
             invoiceFileName: '',
+            invoiceNumber: '',
             invoiceStatus: 'pending'
           }));
         }
@@ -1939,6 +1941,11 @@ export default function AccountantArea({ user }) {
                         {request.invoiceFile ? (
                           <>
                             <span style={{ color: '#000' }}> {request.invoiceFileName}</span>
+                            {request.invoiceNumber && (
+                              <div style={{ marginTop: '4px', fontSize: '12px', color: '#666' }}>
+                                <strong>Номер рахунку:</strong> {request.invoiceNumber}
+                              </div>
+                            )}
                             <div style={{ marginTop: '8px' }}>
                               <button 
                                 onClick={() => setFileViewer({

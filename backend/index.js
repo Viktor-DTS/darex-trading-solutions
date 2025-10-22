@@ -284,6 +284,7 @@ const invoiceRequestSchema = new mongoose.Schema({
   completedAt: { type: Date },
   invoiceFile: { type: String, default: '' },
   invoiceFileName: { type: String, default: '' },
+  invoiceNumber: { type: String, default: '' },
   actFile: { type: String, default: '' },
   actFileName: { type: String, default: '' },
   comments: { type: String, default: '' },
@@ -3974,7 +3975,8 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
         status: 'completed',
         completedAt: new Date(),
         invoiceFile: req.file.path, // Cloudinary URL
-        invoiceFileName: fileName
+        invoiceFileName: fileName,
+        invoiceNumber: req.body.invoiceNumber || ''
       },
       { new: true }
     );
@@ -3986,7 +3988,8 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
         { invoiceRequestId: req.params.id },
         { 
           invoiceFile: updatedRequest.invoiceFile,
-          invoiceFileName: updatedRequest.invoiceFileName
+          invoiceFileName: updatedRequest.invoiceFileName,
+          invoiceNumber: updatedRequest.invoiceNumber
         },
         { new: true }
       );
@@ -3998,6 +4001,7 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
           { 
             invoiceFile: updatedRequest.invoiceFile,
             invoiceFileName: updatedRequest.invoiceFileName,
+            invoiceNumber: updatedRequest.invoiceNumber,
             invoiceRequestId: req.params.id // Додаємо invoiceRequestId для майбутніх запитів
           },
           { new: true }
@@ -4027,7 +4031,8 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
       message: 'Файл рахунку завантажено успішно',
       data: {
         invoiceFile: updatedRequest.invoiceFile,
-        invoiceFileName: updatedRequest.invoiceFileName
+        invoiceFileName: updatedRequest.invoiceFileName,
+        invoiceNumber: updatedRequest.invoiceNumber
       }
     });
     
@@ -5212,7 +5217,7 @@ app.delete('/api/invoice-requests/:id/file', async (req, res) => {
     
     // Оновлюємо запит - видаляємо посилання на файл
     await InvoiceRequest.findByIdAndUpdate(id, {
-      $unset: { invoiceFile: 1, invoiceFileName: 1 }
+      $unset: { invoiceFile: 1, invoiceFileName: 1, invoiceNumber: 1 }
     });
     
     // Також оновлюємо Task документ
@@ -5220,7 +5225,7 @@ app.delete('/api/invoice-requests/:id/file', async (req, res) => {
       await Task.findOneAndUpdate(
         { invoiceRequestId: id },
         { 
-          $unset: { invoiceFile: 1, invoiceFileName: 1 },
+          $unset: { invoiceFile: 1, invoiceFileName: 1, invoiceNumber: 1 },
           invoiceStatus: 'pending'
         }
       );
@@ -5230,7 +5235,7 @@ app.delete('/api/invoice-requests/:id/file', async (req, res) => {
         await Task.findOneAndUpdate(
           { _id: request.taskId },
           { 
-            $unset: { invoiceFile: 1, invoiceFileName: 1 },
+            $unset: { invoiceFile: 1, invoiceFileName: 1, invoiceNumber: 1 },
             invoiceStatus: 'pending'
           }
         );
