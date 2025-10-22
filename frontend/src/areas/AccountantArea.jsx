@@ -109,7 +109,7 @@ export default function AccountantArea({ user }) {
   
   // Додаткове логування для відстеження змін стану
   useEffect(() => {
-    console.log('[DEBUG] AccountantArea - стан tasks змінився, кількість заявок:', tasks.length);
+    // Debug log removed
   }, [tasks]);
 
   // Завантажуємо users з localStorage
@@ -151,16 +151,11 @@ export default function AccountantArea({ user }) {
   // Функція для ручного оновлення кешу
   const refreshCache = async () => {
     try {
-      console.log('[DEBUG] AccountantArea refreshCache - початок оновлення кешу...');
-      console.log('[DEBUG] AccountantArea refreshCache - поточний стан tasks:', tasks.length);
-      
-      console.log('[DEBUG] AccountantArea refreshCache - викликаємо refreshData...');
+      // Debug logs removed
       
       // Оновлюємо дані через useLazyData
       await refreshData(activeTab);
       setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
-      
-      console.log('[DEBUG] AccountantArea refreshCache - дані оновлено через useLazyData');
       
     } catch (error) {
       console.error('[ERROR] AccountantArea refreshCache - помилка оновлення кешу:', error);
