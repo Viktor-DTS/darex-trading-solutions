@@ -563,7 +563,7 @@ export default function AccountantArea({ user }) {
   // Функція для завантаження інформації про заявку
   const loadTaskInfo = async (taskId) => {
     try {
-      console.log('[DEBUG] loadTaskInfo - taskId:', taskId);
+      // Debug log removed
       
       // Індикатор завантаження тепер керується useLazyData
       
@@ -571,7 +571,7 @@ export default function AccountantArea({ user }) {
       let task;
       try {
         task = await tasksAPI.getById(taskId);
-        console.log('[DEBUG] loadTaskInfo - знайдено за ID:', task);
+        // Debug log removed
         
         // Перевіряємо, чи заявка містить всі необхідні дані
         if (!task || !task.id) {
@@ -583,24 +583,24 @@ export default function AccountantArea({ user }) {
         const missingFields = requiredFields.filter(field => !task[field]);
         
         if (missingFields.length > 0) {
-          console.log('[DEBUG] loadTaskInfo - відсутні поля:', missingFields);
+          // Debug log removed
           // Спробуємо оновити дані з сервера
           const freshTasks = await tasksAPI.getAll();
           const freshTask = freshTasks.find(t => t.id === taskId || t._id === taskId || t.requestNumber === taskId);
           if (freshTask) {
             task = freshTask;
-            console.log('[DEBUG] loadTaskInfo - оновлено зі свіжих даних:', task);
+            // Debug log removed
           }
         }
         
       } catch (idError) {
-        console.log('[DEBUG] loadTaskInfo - не знайдено за ID, шукаємо в локальних заявках');
+        // Debug log removed
         
         // Якщо не знайдено за ID, шукаємо в локальних заявках
         const localTask = tasks.find(t => t.id === taskId || t._id === taskId || t.requestNumber === taskId);
         if (localTask) {
           task = localTask;
-          console.log('[DEBUG] loadTaskInfo - знайдено в локальних заявках:', task);
+          // Debug log removed
         } else {
           throw new Error('Заявка не знайдена');
         }
@@ -615,10 +615,10 @@ export default function AccountantArea({ user }) {
           const freshTask = freshTasks.find(t => t.id === taskId || t._id === taskId);
           if (freshTask) {
             task = freshTask;
-            console.log('[DEBUG] loadTaskInfo - оновлено зі свіжих даних (fallback):', task);
+            // Debug log removed
           }
         } catch (updateError) {
-          console.warn('[DEBUG] loadTaskInfo - не вдалося оновити дані:', updateError);
+          // Debug log removed
         }
       }
       
