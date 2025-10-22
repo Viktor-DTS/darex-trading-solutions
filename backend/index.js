@@ -5195,8 +5195,19 @@ app.delete('/api/invoice-requests/:id/file', async (req, res) => {
     // Видаляємо файл з Cloudinary
     if (request.invoiceFile) {
       try {
-        const publicId = request.invoiceFile.split('/').pop().split('.')[0];
-        await cloudinary.uploader.destroy(`darex-trading-solutions/invoices/${publicId}`);
+        console.log('[DEBUG] Видаляємо файл рахунку з Cloudinary:', request.invoiceFile);
+        
+        // Витягуємо public_id з Cloudinary URL
+        const urlParts = request.invoiceFile.split('/');
+        const fileName = urlParts[urlParts.length - 1];
+        const publicId = fileName.split('.')[0];
+        
+        console.log('[DEBUG] Витягнуто public_id для видалення:', publicId);
+        
+        // Видаляємо файл з Cloudinary
+        const result = await cloudinary.uploader.destroy(`darex-trading-solutions/invoices/${publicId}`);
+        console.log('[DEBUG] Результат видалення з Cloudinary:', result);
+        
       } catch (cloudinaryError) {
         console.error('Помилка видалення файлу з Cloudinary:', cloudinaryError);
         // Продовжуємо навіть якщо не вдалося видалити з Cloudinary
@@ -5237,8 +5248,19 @@ app.delete('/api/invoice-requests/:id/act-file', async (req, res) => {
     // Видаляємо файл з Cloudinary
     if (request.actFile) {
       try {
-        const publicId = request.actFile.split('/').pop().split('.')[0];
-        await cloudinary.uploader.destroy(`darex-trading-solutions/acts/${publicId}`);
+        console.log('[DEBUG] Видаляємо файл акту з Cloudinary:', request.actFile);
+        
+        // Витягуємо public_id з Cloudinary URL
+        const urlParts = request.actFile.split('/');
+        const fileName = urlParts[urlParts.length - 1];
+        const publicId = fileName.split('.')[0];
+        
+        console.log('[DEBUG] Витягнуто public_id для видалення акту:', publicId);
+        
+        // Видаляємо файл з Cloudinary
+        const result = await cloudinary.uploader.destroy(`darex-trading-solutions/acts/${publicId}`);
+        console.log('[DEBUG] Результат видалення акту з Cloudinary:', result);
+        
       } catch (cloudinaryError) {
         console.error('Помилка видалення файлу акту з Cloudinary:', cloudinaryError);
         // Продовжуємо навіть якщо не вдалося видалити з Cloudinary
