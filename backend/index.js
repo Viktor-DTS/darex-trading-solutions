@@ -1011,14 +1011,14 @@ app.get('/api/tasks', async (req, res) => {
       if (invoiceRequest) {
         // Оновлюємо дані про файл рахунку
         if (invoiceRequest.invoiceFile) {
-          task.invoiceStatus = 'completed';
+          // task.invoiceStatus = 'completed'; // НЕ змінюємо статус автоматично
           task.invoiceFile = invoiceRequest.invoiceFile;
           task.invoiceFileName = invoiceRequest.invoiceFileName;
         }
         
         // Оновлюємо дані про файл акту
         if (invoiceRequest.actFile) {
-          task.actStatus = 'completed';
+          // task.actStatus = 'completed'; // НЕ змінюємо статус автоматично
           task.actFile = invoiceRequest.actFile;
           task.actFileName = invoiceRequest.actFileName;
         }
@@ -1176,14 +1176,14 @@ app.get('/api/tasks/filter', async (req, res) => {
       if (invoiceRequest) {
         // Оновлюємо дані про файл рахунку
         if (invoiceRequest.invoiceFile) {
-          task.invoiceStatus = 'completed';
+          // task.invoiceStatus = 'completed'; // НЕ змінюємо статус автоматично
           task.invoiceFile = invoiceRequest.invoiceFile;
           task.invoiceFileName = invoiceRequest.invoiceFileName;
         }
         
         // Оновлюємо дані про файл акту
         if (invoiceRequest.actFile) {
-          task.actStatus = 'completed';
+          // task.actStatus = 'completed'; // НЕ змінюємо статус автоматично
           task.actFile = invoiceRequest.actFile;
           task.actFileName = invoiceRequest.actFileName;
         }
@@ -5214,6 +5214,30 @@ app.delete('/api/invoice-requests/:id/file', async (req, res) => {
     await InvoiceRequest.findByIdAndUpdate(id, {
       $unset: { invoiceFile: 1, invoiceFileName: 1 }
     });
+    
+    // Також оновлюємо Task документ
+    try {
+      await Task.findOneAndUpdate(
+        { invoiceRequestId: id },
+        { 
+          $unset: { invoiceFile: 1, invoiceFileName: 1 },
+          invoiceStatus: 'pending'
+        }
+      );
+      
+      // Якщо не знайдено по invoiceRequestId, шукаємо по taskId
+      if (!request.taskId) {
+        await Task.findOneAndUpdate(
+          { _id: request.taskId },
+          { 
+            $unset: { invoiceFile: 1, invoiceFileName: 1 },
+            invoiceStatus: 'pending'
+          }
+        );
+      }
+    } catch (taskUpdateError) {
+      console.error('Помилка оновлення Task при видаленні файлу рахунку:', taskUpdateError);
+    }
     
     res.json({ success: true, message: 'Файл успішно видалено' });
     
