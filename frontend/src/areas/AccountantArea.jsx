@@ -790,12 +790,11 @@ export default function AccountantArea({ user }) {
         return;
       }
       
-      // Оновлюємо статус завдання на "Виконано" з повними даними
+      // Оновлюємо тільки статус рахунку, НЕ основний статус заявки
       const updatedTask = await tasksAPI.update(taskId, { 
         ...currentTask, // Передаємо всі поточні дані
-        status: 'Виконано',
-        invoiceStatus: 'completed',
-        completedAt: new Date().toISOString()
+        invoiceStatus: 'completed'
+        // НЕ змінюємо status - основний статус заявки залишається під контролем інженерів
       });
       
       // Debug log removed
@@ -812,7 +811,7 @@ export default function AccountantArea({ user }) {
       setTableKey(prev => prev + 1);
       
       // Показуємо повідомлення про успіх
-      alert('Завдання успішно завершено!');
+      alert('Рахунок успішно завершено!');
       
     } catch (error) {
       console.error('[ERROR] AccountantArea - помилка завершення завдання:', error);
