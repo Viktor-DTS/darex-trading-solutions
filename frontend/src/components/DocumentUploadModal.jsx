@@ -136,6 +136,14 @@ function DocumentUploadModal({
 
   const requestId = task.invoiceRequestId || task.id;
   const isUploading = uploadingFiles.has(requestId);
+  
+  // Діагностика isUploading
+  console.log('🔍 DEBUG DocumentUploadModal: isUploading діагностика:', {
+    requestId,
+    uploadingFiles: Array.from(uploadingFiles),
+    isUploading,
+    hasRequestId: uploadingFiles.has(requestId)
+  });
 
   // Логування при рендерингу
   console.log('🔍 DEBUG DocumentUploadModal: Рендеринг компонента, isOpen:', isOpen);
@@ -225,7 +233,10 @@ function DocumentUploadModal({
             </>
           ) : (
             <div style={{ marginTop: '10px' }}>
-              {isUploading ? (
+              {(() => {
+                console.log('🔍 DEBUG DocumentUploadModal: Перевіряємо isUploading для рахунку:', isUploading);
+                return isUploading;
+              })() ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div style={{
                     width: '20px',
@@ -323,7 +334,10 @@ function DocumentUploadModal({
             </>
           ) : (
             <div style={{ marginTop: '10px' }}>
-              {isUploading ? (
+              {(() => {
+                console.log('🔍 DEBUG DocumentUploadModal: Перевіряємо isUploading для акту:', isUploading);
+                return isUploading;
+              })() ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div style={{
                     width: '20px',
