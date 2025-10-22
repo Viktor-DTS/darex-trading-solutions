@@ -44,6 +44,10 @@ function DocumentUploadModal({
   // Всі функції тепер мають значення за замовчуванням, тому перевірки не потрібні
 
   const handleInvoiceFileChange = async (e) => {
+    console.log('DEBUG DocumentUploadModal: handleInvoiceFileChange викликано, event:', e);
+    console.log('DEBUG DocumentUploadModal: e.target.files:', e.target.files);
+    console.log('DEBUG DocumentUploadModal: e.target.files.length:', e.target.files?.length);
+    
     const file = e.target.files[0];
     console.log('DEBUG DocumentUploadModal: Файл рахунку вибрано:', { 
       fileName: file?.name, 
@@ -89,6 +93,10 @@ function DocumentUploadModal({
   };
 
   const handleActFileChange = (e) => {
+    console.log('DEBUG DocumentUploadModal: handleActFileChange викликано, event:', e);
+    console.log('DEBUG DocumentUploadModal: e.target.files:', e.target.files);
+    console.log('DEBUG DocumentUploadModal: e.target.files.length:', e.target.files?.length);
+    
     const file = e.target.files[0];
     console.log('DEBUG DocumentUploadModal: Файл акту вибрано:', { 
       fileName: file?.name, 
