@@ -246,16 +246,11 @@ function DocumentUploadModal({
                       console.log('🎯 DEBUG DocumentUploadModal: onChange спрацював в JSX!', e);
                       console.log('🎯 DEBUG DocumentUploadModal: e.target.files:', e.target.files);
                       console.log('🎯 DEBUG DocumentUploadModal: e.target.files.length:', e.target.files?.length);
-                      console.log('🎯 DEBUG DocumentUploadModal: e.target.value:', e.target.value);
-                      console.log('🎯 DEBUG DocumentUploadModal: e.type:', e.type);
-                      console.log('🎯 DEBUG DocumentUploadModal: e.target:', e.target);
-                      handleInvoiceFileChange(e);
-                    }}
-                    onClick={() => {
-                      console.log('🖱️ DEBUG DocumentUploadModal: onClick спрацював!');
-                    }}
-                    onFocus={() => {
-                      console.log('👁️ DEBUG DocumentUploadModal: onFocus спрацював!');
+                      
+                      if (e.target.files[0]) {
+                        console.log('🎯 DEBUG DocumentUploadModal: Викликаємо onInvoiceUpload напряму');
+                        onInvoiceUpload(requestId, e.target.files[0]);
+                      }
                     }}
                     style={{ marginRight: '10px', color: '#fff' }}
                   />
@@ -340,16 +335,11 @@ function DocumentUploadModal({
                       console.log('🎯 DEBUG DocumentUploadModal: onChange для акту спрацював в JSX!', e);
                       console.log('🎯 DEBUG DocumentUploadModal: e.target.files для акту:', e.target.files);
                       console.log('🎯 DEBUG DocumentUploadModal: e.target.files.length для акту:', e.target.files?.length);
-                      console.log('🎯 DEBUG DocumentUploadModal: e.target.value для акту:', e.target.value);
-                      console.log('🎯 DEBUG DocumentUploadModal: e.type для акту:', e.type);
-                      console.log('🎯 DEBUG DocumentUploadModal: e.target для акту:', e.target);
-                      handleActFileChange(e);
-                    }}
-                    onClick={() => {
-                      console.log('🖱️ DEBUG DocumentUploadModal: onClick для акту спрацював!');
-                    }}
-                    onFocus={() => {
-                      console.log('👁️ DEBUG DocumentUploadModal: onFocus для акту спрацював!');
+                      
+                      if (e.target.files[0]) {
+                        console.log('🎯 DEBUG DocumentUploadModal: Викликаємо onActUpload напряму');
+                        onActUpload(requestId, e.target.files[0]);
+                      }
                     }}
                     style={{ marginRight: '10px', color: '#fff' }}
                   />
