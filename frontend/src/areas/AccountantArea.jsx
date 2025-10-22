@@ -669,17 +669,17 @@ export default function AccountantArea({ user }) {
   // Автоматичне оновлення даних при фокусі на вкладку браузера
   useEffect(() => {
     const handleFocus = () => {
-      console.log('[DEBUG] AccountantArea handleFocus - оновлення при фокусі вікна...');
+      // Debug log removed
       
       // Перевіряємо, чи не відкрите модальне вікно завантаження документів
       const isModalOpen = document.querySelector('[style*="position: fixed"]') !== null;
       if (isModalOpen) {
-        console.log('[DEBUG] AccountantArea handleFocus - модальне вікно відкрите, пропускаємо оновлення');
+        // Debug log removed
         return;
       }
       
       refreshData(activeTab).then(() => {
-        console.log('[DEBUG] AccountantArea handleFocus - оновлено заявок для вкладки:', activeTab);
+        // Debug log removed
         setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
       }).catch(error => {
         console.error('[ERROR] AccountantArea - помилка оновлення при фокусі:', error);
@@ -719,7 +719,7 @@ export default function AccountantArea({ user }) {
         bonusApprovalDate
       });
       
-      console.log('[DEBUG] AccountantArea handleApprove - заявка підтверджена:', updated);
+      // Debug log removed
       
       // Оновлюємо дані через refreshData
       await refreshData(activeTab);
