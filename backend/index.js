@@ -1015,7 +1015,7 @@ app.get('/api/tasks', async (req, res) => {
           // task.invoiceStatus = 'completed'; // НЕ змінюємо статус автоматично
           task.invoiceFile = invoiceRequest.invoiceFile;
           task.invoiceFileName = invoiceRequest.invoiceFileName;
-          task.invoiceNumber = invoiceRequest.invoiceNumber; // Додаємо номер рахунку
+          task.invoice = invoiceRequest.invoiceNumber; // Додаємо номер рахунку в поле invoice
         }
         
         // Оновлюємо дані про файл акту
@@ -1181,7 +1181,7 @@ app.get('/api/tasks/filter', async (req, res) => {
           // task.invoiceStatus = 'completed'; // НЕ змінюємо статус автоматично
           task.invoiceFile = invoiceRequest.invoiceFile;
           task.invoiceFileName = invoiceRequest.invoiceFileName;
-          task.invoiceNumber = invoiceRequest.invoiceNumber; // Додаємо номер рахунку
+          task.invoice = invoiceRequest.invoiceNumber; // Додаємо номер рахунку в поле invoice
         }
         
         // Оновлюємо дані про файл акту

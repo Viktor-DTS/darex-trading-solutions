@@ -298,7 +298,7 @@ export default function AccountantArea({ user }) {
         setInvoiceRequests(prev => 
           prev.map(req => 
             req._id === requestId 
-              ? { ...req, invoiceFile: result.data.invoiceFile, invoiceFileName: result.data.invoiceFileName, invoiceNumber: result.data.invoiceNumber }
+              ? { ...req, invoiceFile: result.data.invoiceFile, invoiceFileName: result.data.invoiceFileName, invoice: result.data.invoiceNumber }
               : req
           )
         );
@@ -310,7 +310,7 @@ export default function AccountantArea({ user }) {
             ...prev,
             invoiceFile: result.data.invoiceFile,
             invoiceFileName: result.data.invoiceFileName,
-            invoiceNumber: result.data.invoiceNumber,
+            invoice: result.data.invoiceNumber,
             invoiceStatus: 'completed'
           }));
         }
@@ -357,7 +357,7 @@ export default function AccountantArea({ user }) {
         // Оновлюємо локальний стан
         setInvoiceRequests(prev => prev.map(req => 
           req._id === requestId 
-            ? { ...req, invoiceFile: '', invoiceFileName: '', invoiceNumber: '' }
+            ? { ...req, invoiceFile: '', invoiceFileName: '', invoice: '' }
             : req
         ));
         
@@ -368,7 +368,7 @@ export default function AccountantArea({ user }) {
             ...prev,
             invoiceFile: '',
             invoiceFileName: '',
-            invoiceNumber: '',
+            invoice: '',
             invoiceStatus: 'pending'
           }));
         }
