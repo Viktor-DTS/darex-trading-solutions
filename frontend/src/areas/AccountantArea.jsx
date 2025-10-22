@@ -287,6 +287,7 @@ export default function AccountantArea({ user }) {
       
       formData.append('invoiceNumber', generatedInvoiceNumber);
       console.log('DEBUG AccountantArea Invoice: Згенеровано номер рахунку:', generatedInvoiceNumber);
+      console.log('DEBUG AccountantArea Invoice: FormData містить invoiceNumber:', formData.get('invoiceNumber'));
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload`, {
         method: 'POST',
@@ -295,7 +296,8 @@ export default function AccountantArea({ user }) {
       
       if (response.ok) {
         const result = await response.json();
-        // Debug log removed
+        console.log('DEBUG AccountantArea Invoice: Відповідь від сервера:', result);
+        console.log('DEBUG AccountantArea Invoice: invoiceNumber в відповіді:', result.data?.invoiceNumber);
         // Оновлюємо локальний стан (НЕ змінюємо статус - це робить кнопка "Завершити завдання")
         setInvoiceRequests(prev => 
           prev.map(req => 
@@ -1945,6 +1947,10 @@ export default function AccountantArea({ user }) {
                                 <strong>Номер рахунку:</strong> {request.invoiceNumber}
                               </div>
                             )}
+                            {/* DEBUG: Показуємо всі дані для діагностики */}
+                            <div style={{ marginTop: '4px', fontSize: '10px', color: '#999' }}>
+                              DEBUG: invoiceNumber = "{request.invoiceNumber}", тип: {typeof request.invoiceNumber}
+                            </div>
                             <div style={{ marginTop: '8px' }}>
                               <button 
                                 onClick={() => setFileViewer({
