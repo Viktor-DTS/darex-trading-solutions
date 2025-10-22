@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ModalTaskForm from '../ModalTaskForm';
-import DocumentUploadModal from './DocumentUploadModal';
+import NewDocumentUploadModal from './NewDocumentUploadModal';
 import { columnsSettingsAPI } from '../utils/columnsSettingsAPI';
 import { regionsAPI } from '../utils/regionsAPI';
 import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from '../utils/eventLogAPI';
@@ -2962,7 +2962,7 @@ function TaskTableComponent({
       )}
       
       {/* Модальне вікно для завантаження документів - тільки якщо функції передані */}
-      <DocumentUploadModal
+      <NewDocumentUploadModal
         isOpen={documentUploadModal.open}
         onClose={() => setDocumentUploadModal({ open: false, task: null })}
         task={documentUploadModal.task}
