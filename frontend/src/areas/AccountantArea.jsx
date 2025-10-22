@@ -392,6 +392,9 @@ export default function AccountantArea({ user }) {
         
         alert('Файл успішно видалено!');
         
+        // Оновлюємо дані в таблиці
+        await loadInvoiceRequests();
+        
         // Оновлюємо основну таблицю завдань
         await refreshData(activeTab);
       } else {
@@ -557,6 +560,9 @@ export default function AccountantArea({ user }) {
         }
         
         alert('Файл акту успішно видалено!');
+        
+        // Оновлюємо дані в таблиці
+        await loadInvoiceRequests();
         
         // Оновлюємо основну таблицю завдань
         await refreshData(activeTab);
