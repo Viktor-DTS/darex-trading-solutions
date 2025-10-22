@@ -1072,6 +1072,7 @@ export default function AccountantArea({ user }) {
   const invoices = filtered.filter(t => t.invoiceRequestId);
   
   // Нова вкладка "Заявка на рахунок" - фільтруємо завдання з запитами на рахунки
+  const [invoiceRequests, setInvoiceRequests] = useState([]);
   const [showCompletedRequests, setShowCompletedRequests] = useState(false);
   const [invoiceRequestsLoading, setInvoiceRequestsLoading] = useState(false);
   
