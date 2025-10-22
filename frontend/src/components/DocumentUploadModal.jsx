@@ -152,7 +152,7 @@ function DocumentUploadModal({
           Завантаження документів для заявки №{task.requestNumber}
         </h3>
 
-        {/* Секція для рахунку */}
+        {/* Секція для рахунку - показуємо завжди */}
         <div style={{ marginBottom: '25px', padding: '20px', backgroundColor: '#1a2636', borderRadius: '8px', border: '1px solid #00bfff' }}>
           <h4 style={{ marginTop: 0, marginBottom: '15px', color: '#00bfff' }}>📄 Файл рахунку:</h4>
           {task.invoiceFile ? (
@@ -232,7 +232,7 @@ function DocumentUploadModal({
           )}
         </div>
 
-        {/* Секція для акту виконаних робіт */}
+        {/* Секція для акту виконаних робіт - показуємо завжди */}
         <div style={{ marginBottom: '25px', padding: '20px', backgroundColor: '#1a2636', borderRadius: '8px', border: '1px solid #00bfff' }}>
           <h4 style={{ marginTop: 0, marginBottom: '15px', color: '#00bfff' }}>📋 Файл акту виконаних робіт:</h4>
           {task.actFile ? (
