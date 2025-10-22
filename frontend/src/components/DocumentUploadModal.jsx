@@ -246,13 +246,22 @@ function DocumentUploadModal({
                       console.log('🎯 DEBUG DocumentUploadModal: onChange спрацював в JSX!', e);
                       console.log('🎯 DEBUG DocumentUploadModal: e.target.files:', e.target.files);
                       console.log('🎯 DEBUG DocumentUploadModal: e.target.files.length:', e.target.files?.length);
+                      console.log('🎯 DEBUG DocumentUploadModal: requestId:', requestId);
+                      console.log('🎯 DEBUG DocumentUploadModal: onInvoiceUpload:', typeof onInvoiceUpload);
                       
                       if (e.target.files[0]) {
-                        console.log('🎯 DEBUG DocumentUploadModal: Викликаємо onInvoiceUpload напряму');
+                        console.log('🎯 DEBUG DocumentUploadModal: Файл вибрано, викликаємо onInvoiceUpload');
+                        console.log('🎯 DEBUG DocumentUploadModal: Параметри:', { requestId, fileName: e.target.files[0].name });
                         onInvoiceUpload(requestId, e.target.files[0]);
+                        console.log('🎯 DEBUG DocumentUploadModal: onInvoiceUpload викликано');
+                      } else {
+                        console.log('🎯 DEBUG DocumentUploadModal: Файл не вибрано');
                       }
                     }}
-                    style={{ marginRight: '10px', color: '#fff' }}
+                    onClick={() => {
+                      console.log('🖱️ DEBUG DocumentUploadModal: onClick спрацював!');
+                    }}
+                    style={{ marginRight: '10px', color: '#fff', border: '2px solid red' }}
                   />
                   <span style={{ color: '#ccc', fontSize: '14px' }}>Завантажте файл рахунку</span>
                 </>
@@ -335,13 +344,22 @@ function DocumentUploadModal({
                       console.log('🎯 DEBUG DocumentUploadModal: onChange для акту спрацював в JSX!', e);
                       console.log('🎯 DEBUG DocumentUploadModal: e.target.files для акту:', e.target.files);
                       console.log('🎯 DEBUG DocumentUploadModal: e.target.files.length для акту:', e.target.files?.length);
+                      console.log('🎯 DEBUG DocumentUploadModal: requestId для акту:', requestId);
+                      console.log('🎯 DEBUG DocumentUploadModal: onActUpload:', typeof onActUpload);
                       
                       if (e.target.files[0]) {
-                        console.log('🎯 DEBUG DocumentUploadModal: Викликаємо onActUpload напряму');
+                        console.log('🎯 DEBUG DocumentUploadModal: Файл акту вибрано, викликаємо onActUpload');
+                        console.log('🎯 DEBUG DocumentUploadModal: Параметри акту:', { requestId, fileName: e.target.files[0].name });
                         onActUpload(requestId, e.target.files[0]);
+                        console.log('🎯 DEBUG DocumentUploadModal: onActUpload викликано');
+                      } else {
+                        console.log('🎯 DEBUG DocumentUploadModal: Файл акту не вибрано');
                       }
                     }}
-                    style={{ marginRight: '10px', color: '#fff' }}
+                    onClick={() => {
+                      console.log('🖱️ DEBUG DocumentUploadModal: onClick для акту спрацював!');
+                    }}
+                    style={{ marginRight: '10px', color: '#fff', border: '2px solid blue' }}
                   />
                   <span style={{ color: '#ccc', fontSize: '14px' }}>Завантажте файл акту виконаних робіт</span>
                 </>
