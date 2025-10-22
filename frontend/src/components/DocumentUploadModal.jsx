@@ -12,6 +12,8 @@ function DocumentUploadModal({
 }) {
   const [invoiceFile, setInvoiceFile] = useState(null);
   const [actFile, setActFile] = useState(null);
+  const [selectedInvoiceFile, setSelectedInvoiceFile] = useState(null);
+  const [selectedActFile, setSelectedActFile] = useState(null);
 
   if (!isOpen || !task) return null;
   
@@ -43,12 +45,10 @@ function DocumentUploadModal({
   
   // Всі функції тепер мають значення за замовчуванням, тому перевірки не потрібні
 
-  const handleInvoiceFileChange = async (e) => {
+  const handleInvoiceFileChange = (e) => {
     console.log('🚀 DEBUG DocumentUploadModal: handleInvoiceFileChange викликано, event:', e);
     console.log('🚀 DEBUG DocumentUploadModal: e.target.files:', e.target.files);
     console.log('🚀 DEBUG DocumentUploadModal: e.target.files.length:', e.target.files?.length);
-    console.log('🚀 DEBUG DocumentUploadModal: e.target:', e.target);
-    console.log('🚀 DEBUG DocumentUploadModal: e.type:', e.type);
     
     const file = e.target.files[0];
     console.log('DEBUG DocumentUploadModal: Файл рахунку вибрано:', { 
@@ -74,23 +74,9 @@ function DocumentUploadModal({
         return;
       }
 
-      setInvoiceFile(file);
-      
-      // Генеруємо номер рахунку: дата завантаження + назва файлу
-      const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-      const fileName = file.name.replace(/\.[^/.]+$/, ""); // Без розширення
-      const generatedInvoiceNumber = `${currentDate}_${fileName}`;
-      
-      console.log('DEBUG DocumentUploadModal: Згенеровано номер рахунку:', generatedInvoiceNumber);
-      console.log('DEBUG DocumentUploadModal: Викликаємо onInvoiceUpload з параметрами:', { taskId: task.id, invoiceRequestId: task.invoiceRequestId, fileName: file.name });
-      alert(`📄 Номер рахунку буде автоматично встановлений: ${generatedInvoiceNumber}`);
-      
-      // Передаємо invoiceRequestId замість task.id
-      const requestId = task.invoiceRequestId || task.id;
-      console.log('DEBUG DocumentUploadModal: Використовуємо requestId:', requestId);
-      console.log('DEBUG DocumentUploadModal: Викликаємо onInvoiceUpload з параметрами:', { requestId, fileName: file.name, fileSize: file.size, fileType: file.type });
-      console.log('DEBUG DocumentUploadModal: onInvoiceUpload функція:', typeof onInvoiceUpload, onInvoiceUpload);
-      onInvoiceUpload(requestId, file);
+      // Тільки зберігаємо файл, не завантажуємо одразу
+      setSelectedInvoiceFile(file);
+      console.log('DEBUG DocumentUploadModal: Файл рахунку вибрано, чекаємо на збереження');
     }
   };
 
@@ -123,19 +109,39 @@ function DocumentUploadModal({
         return;
       }
 
-      setActFile(file);
-      
-      // Передаємо invoiceRequestId замість task.id
-      const requestId = task.invoiceRequestId || task.id;
-      console.log('DEBUG DocumentUploadModal: Використовуємо requestId для акту:', requestId);
-      console.log('DEBUG DocumentUploadModal: Викликаємо onActUpload з параметрами:', { requestId, fileName: file.name, fileSize: file.size, fileType: file.type });
-      console.log('DEBUG DocumentUploadModal: onActUpload функція:', typeof onActUpload, onActUpload);
-      onActUpload(requestId, file);
+      // Тільки зберігаємо файл, не завантажуємо одразу
+      setSelectedActFile(file);
+      console.log('DEBUG DocumentUploadModal: Файл акту вибрано, чекаємо на збереження');
     }
   };
 
   const requestId = task.invoiceRequestId || task.id;
   const isUploading = uploadingFiles.has(requestId);
+  
+  // Функція збереження файлів
+  const handleSave = async () => {
+    try {
+      if (selectedInvoiceFile) {
+        console.log('💾 DEBUG DocumentUploadModal: Зберігаємо файл рахунку:', selectedInvoiceFile.name);
+        onInvoiceUpload(requestId, selectedInvoiceFile);
+      }
+      
+      if (selectedActFile) {
+        console.log('💾 DEBUG DocumentUploadModal: Зберігаємо файл акту:', selectedActFile.name);
+        onActUpload(requestId, selectedActFile);
+      }
+      
+      // Очищаємо вибрані файли
+      setSelectedInvoiceFile(null);
+      setSelectedActFile(null);
+      
+      // Закриваємо модальне вікно
+      onClose();
+    } catch (error) {
+      console.error('Помилка збереження файлів:', error);
+      alert('Помилка збереження файлів: ' + error.message);
+    }
+  };
   
   // Діагностика isUploading
   console.log('🔍 DEBUG DocumentUploadModal: isUploading діагностика:', {
@@ -250,31 +256,37 @@ function DocumentUploadModal({
                 </div>
               ) : (
                 <>
-                  <input
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={(e) => {
-                      console.log('🎯 DEBUG DocumentUploadModal: onChange спрацював в JSX!', e);
-                      console.log('🎯 DEBUG DocumentUploadModal: e.target.files:', e.target.files);
-                      console.log('🎯 DEBUG DocumentUploadModal: e.target.files.length:', e.target.files?.length);
-                      console.log('🎯 DEBUG DocumentUploadModal: requestId:', requestId);
-                      console.log('🎯 DEBUG DocumentUploadModal: onInvoiceUpload:', typeof onInvoiceUpload);
-                      
-                      if (e.target.files[0]) {
-                        console.log('🎯 DEBUG DocumentUploadModal: Файл вибрано, викликаємо onInvoiceUpload');
-                        console.log('🎯 DEBUG DocumentUploadModal: Параметри:', { requestId, fileName: e.target.files[0].name });
-                        onInvoiceUpload(requestId, e.target.files[0]);
-                        console.log('🎯 DEBUG DocumentUploadModal: onInvoiceUpload викликано');
-                      } else {
-                        console.log('🎯 DEBUG DocumentUploadModal: Файл не вибрано');
-                      }
-                    }}
-                    onClick={() => {
-                      console.log('🖱️ DEBUG DocumentUploadModal: onClick спрацював!');
-                    }}
-                    style={{ marginRight: '10px', color: '#fff', border: '2px solid red' }}
-                  />
-                  <span style={{ color: '#ccc', fontSize: '14px' }}>Завантажте файл рахунку</span>
+                  {selectedInvoiceFile ? (
+                    <div style={{ marginBottom: '10px' }}>
+                      <p style={{ color: '#00bfff', marginBottom: '10px' }}>
+                        📄 Вибрано файл: {selectedInvoiceFile.name}
+                      </p>
+                      <button
+                        onClick={() => setSelectedInvoiceFile(null)}
+                        style={{
+                          padding: '5px 10px',
+                          backgroundColor: '#dc3545',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '3px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                        }}
+                      >
+                        Скасувати
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={handleInvoiceFileChange}
+                        style={{ marginRight: '10px', color: '#fff' }}
+                      />
+                      <span style={{ color: '#ccc', fontSize: '14px' }}>Виберіть файл рахунку</span>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -351,38 +363,44 @@ function DocumentUploadModal({
                 </div>
               ) : (
                 <>
-                  <input
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={(e) => {
-                      console.log('🎯 DEBUG DocumentUploadModal: onChange для акту спрацював в JSX!', e);
-                      console.log('🎯 DEBUG DocumentUploadModal: e.target.files для акту:', e.target.files);
-                      console.log('🎯 DEBUG DocumentUploadModal: e.target.files.length для акту:', e.target.files?.length);
-                      console.log('🎯 DEBUG DocumentUploadModal: requestId для акту:', requestId);
-                      console.log('🎯 DEBUG DocumentUploadModal: onActUpload:', typeof onActUpload);
-                      
-                      if (e.target.files[0]) {
-                        console.log('🎯 DEBUG DocumentUploadModal: Файл акту вибрано, викликаємо onActUpload');
-                        console.log('🎯 DEBUG DocumentUploadModal: Параметри акту:', { requestId, fileName: e.target.files[0].name });
-                        onActUpload(requestId, e.target.files[0]);
-                        console.log('🎯 DEBUG DocumentUploadModal: onActUpload викликано');
-                      } else {
-                        console.log('🎯 DEBUG DocumentUploadModal: Файл акту не вибрано');
-                      }
-                    }}
-                    onClick={() => {
-                      console.log('🖱️ DEBUG DocumentUploadModal: onClick для акту спрацював!');
-                    }}
-                    style={{ marginRight: '10px', color: '#fff', border: '2px solid blue' }}
-                  />
-                  <span style={{ color: '#ccc', fontSize: '14px' }}>Завантажте файл акту виконаних робіт</span>
+                  {selectedActFile ? (
+                    <div style={{ marginBottom: '10px' }}>
+                      <p style={{ color: '#00bfff', marginBottom: '10px' }}>
+                        📋 Вибрано файл: {selectedActFile.name}
+                      </p>
+                      <button
+                        onClick={() => setSelectedActFile(null)}
+                        style={{
+                          padding: '5px 10px',
+                          backgroundColor: '#dc3545',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '3px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                        }}
+                      >
+                        Скасувати
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={handleActFileChange}
+                        style={{ marginRight: '10px', color: '#fff' }}
+                      />
+                      <span style={{ color: '#ccc', fontSize: '14px' }}>Виберіть файл акту виконаних робіт</span>
+                    </>
+                  )}
                 </>
               )}
             </div>
           )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '30px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
           <button
             onClick={onClose}
             style={{
@@ -395,8 +413,25 @@ function DocumentUploadModal({
               fontSize: '16px',
             }}
           >
-            Закрити
+            Скасувати
           </button>
+          
+          {(selectedInvoiceFile || selectedActFile) && (
+            <button
+              onClick={handleSave}
+              style={{
+                padding: '10px 25px',
+                backgroundColor: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontSize: '16px',
+              }}
+            >
+              💾 Зберегти файли
+            </button>
+          )}
         </div>
       </div>
     </div>

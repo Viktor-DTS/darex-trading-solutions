@@ -6,6 +6,11 @@ console.log('[ENV DEBUG] NODE_ENV:', process.env.NODE_ENV);
 console.log('[ENV DEBUG] MONGODB_URI exists:', !!process.env.MONGODB_URI);
 console.log('[ENV DEBUG] MONGODB_URI value:', process.env.MONGODB_URI ? 'SET' : 'NOT SET');
 
+// Cloudinary налаштування діагностика
+console.log('[ENV DEBUG] CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET');
+console.log('[ENV DEBUG] CLOUDINARY_API_KEY:', process.env.CLOUDINARY_API_KEY ? 'SET' : 'NOT SET');
+console.log('[ENV DEBUG] CLOUDINARY_API_SECRET:', process.env.CLOUDINARY_API_SECRET ? 'SET' : 'NOT SET');
+
 // Force MongoDB URI for production
 if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
   console.log('[ENV] Setting MongoDB URI for production/Render');
@@ -74,6 +79,12 @@ function trackEndpoint(req, res, next) {
 const app = express();
 
 // Налаштування multer для Cloudinary
+console.log('[CLOUDINARY DEBUG] Ініціалізація Cloudinary...');
+console.log('[CLOUDINARY DEBUG] cloudinary object:', !!cloudinary);
+console.log('[CLOUDINARY DEBUG] CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME);
+console.log('[CLOUDINARY DEBUG] CLOUDINARY_API_KEY:', process.env.CLOUDINARY_API_KEY ? 'SET' : 'NOT SET');
+console.log('[CLOUDINARY DEBUG] CLOUDINARY_API_SECRET:', process.env.CLOUDINARY_API_SECRET ? 'SET' : 'NOT SET');
+
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
@@ -82,6 +93,8 @@ const storage = new CloudinaryStorage({
     transformation: [{ width: 1000, height: 1000, crop: 'limit' }]
   }
 });
+
+console.log('[CLOUDINARY DEBUG] CloudinaryStorage створено:', !!storage);
 
 const upload = multer({ 
   storage: storage,
@@ -3932,6 +3945,11 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
       path: req.file.path
     });
     
+    // Діагностика Cloudinary URL
+    console.log('[CLOUDINARY DEBUG] req.file.path (Cloudinary URL):', req.file.path);
+    console.log('[CLOUDINARY DEBUG] req.file.secure_url:', req.file.secure_url);
+    console.log('[CLOUDINARY DEBUG] req.file.public_id:', req.file.public_id);
+    
     // Оновлюємо запит з інформацією про файл
     // Виправляємо кодування назви файлу
     let fileName = req.file.originalname;
@@ -4065,6 +4083,11 @@ app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async
       mimetype: req.file.mimetype,
       path: req.file.path
     });
+    
+    // Діагностика Cloudinary URL для акту
+    console.log('[CLOUDINARY DEBUG] req.file.path (Cloudinary URL) для акту:', req.file.path);
+    console.log('[CLOUDINARY DEBUG] req.file.secure_url для акту:', req.file.secure_url);
+    console.log('[CLOUDINARY DEBUG] req.file.public_id для акту:', req.file.public_id);
     
     // Виправляємо кодування назви файлу
     let fileName = req.file.originalname;
