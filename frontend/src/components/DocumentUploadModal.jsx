@@ -44,9 +44,11 @@ function DocumentUploadModal({
   // Всі функції тепер мають значення за замовчуванням, тому перевірки не потрібні
 
   const handleInvoiceFileChange = async (e) => {
-    console.log('DEBUG DocumentUploadModal: handleInvoiceFileChange викликано, event:', e);
-    console.log('DEBUG DocumentUploadModal: e.target.files:', e.target.files);
-    console.log('DEBUG DocumentUploadModal: e.target.files.length:', e.target.files?.length);
+    console.log('🚀 DEBUG DocumentUploadModal: handleInvoiceFileChange викликано, event:', e);
+    console.log('🚀 DEBUG DocumentUploadModal: e.target.files:', e.target.files);
+    console.log('🚀 DEBUG DocumentUploadModal: e.target.files.length:', e.target.files?.length);
+    console.log('🚀 DEBUG DocumentUploadModal: e.target:', e.target);
+    console.log('🚀 DEBUG DocumentUploadModal: e.type:', e.type);
     
     const file = e.target.files[0];
     console.log('DEBUG DocumentUploadModal: Файл рахунку вибрано:', { 
@@ -134,6 +136,12 @@ function DocumentUploadModal({
 
   const requestId = task.invoiceRequestId || task.id;
   const isUploading = uploadingFiles.has(requestId);
+
+  // Логування при рендерингу
+  console.log('🔍 DEBUG DocumentUploadModal: Рендеринг компонента, isOpen:', isOpen);
+  console.log('🔍 DEBUG DocumentUploadModal: task:', task);
+  console.log('🔍 DEBUG DocumentUploadModal: onInvoiceUpload:', typeof onInvoiceUpload);
+  console.log('🔍 DEBUG DocumentUploadModal: onActUpload:', typeof onActUpload);
 
   return (
     <div style={{

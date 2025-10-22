@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест обробників подій файлів</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        input[type="file"] {
+            margin: 10px 0;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест обробників подій файлів</h1>
+    
+    <div class="test-section">
+        <h2>Тест 1: Базовий обробник onChange</h2>
+        <input type="file" id="fileInput1" accept=".pdf,.jpg,.jpeg,.png">
+        <button onclick="testBasicHandler()">Тестувати базовий обробник</button>
+        <div id="log1" class="log"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Тест 2: Обробник з валідацією</h2>
+        <input type="file" id="fileInput2" accept=".pdf,.jpg,.jpeg,.png">
+        <button onclick="testValidationHandler()">Тестувати з валідацією</button>
+        <div id="log2" class="log"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Тест 3: Обробник з async функцією</h2>
+        <input type="file" id="fileInput3" accept=".pdf,.jpg,.jpeg,.png">
+        <button onclick="testAsyncHandler()">Тестувати async обробник</button>
+        <div id="log3" class="log"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Тест 4: Симуляція DocumentUploadModal</h2>
+        <input type="file" id="fileInput4" accept=".pdf,.jpg,.jpeg,.png">
+        <button onclick="testModalHandler()">Тестувати як в модалі</button>
+        <div id="log4" class="log"></div>
+    </div>
+
+    <script>
+        function log(message, logId) {
+            console.log('🔍 log() викликано з logId:', logId, 'message:', message);
+            const logElement = document.getElementById(logId);
+            if (!logElement) {
+                console.error('❌ Log element not found:', logId);
+                console.error('❌ Available elements:', document.querySelectorAll('[id^="log"]'));
+                return;
+            }
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.innerHTML += `[${timestamp}] ${message}<br>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function testBasicHandler() {
+            const input = document.getElementById('fileInput1');
+            const logId = 'log1';
+            
+            log('🔍 Додаємо базовий обробник onChange...', logId);
+            
+            // Використовуємо addEventListener замість onchange
+            input.addEventListener('change', function(e) {
+                log('✅ Подія onChange спрацювала!', logId);
+                log(`📁 Файл: ${e.target.files[0]?.name || 'не вибрано'}`, logId);
+                log(`📊 Кількість файлів: ${e.target.files.length}`, logId);
+            });
+            
+            log('✅ Обробник додано. Тепер виберіть файл!', logId);
+        }
+
+        function testValidationHandler() {
+            const input = document.getElementById('fileInput2');
+            const logId = 'log2';
+            
+            log('🔍 Додаємо обробник з валідацією...', logId);
+            
+            input.onchange = function(e) {
+                log('✅ Подія onChange спрацювала!', logId);
+                
+                const file = e.target.files[0];
+                if (!file) {
+                    log('❌ Файл не вибрано', logId);
+                    return;
+                }
+                
+                log(`📁 Файл: ${file.name}`, logId);
+                log(`📊 Розмір: ${(file.size / 1024 / 1024).toFixed(2)} MB`, logId);
+                log(`📋 Тип: ${file.type}`, logId);
+                
+                // Валідація розміру
+                if (file.size > 10 * 1024 * 1024) {
+                    log('❌ Файл занадто великий (>10MB)', logId);
+                    return;
+                }
+                
+                // Валідація типу
+                const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+                if (!allowedTypes.includes(file.type)) {
+                    log('❌ Непідтримуваний тип файлу', logId);
+                    return;
+                }
+                
+                log('✅ Валідація пройшла успішно!', logId);
+            };
+            
+            log('✅ Обробник з валідацією додано. Тепер виберіть файл!', logId);
+        }
+
+        function testAsyncHandler() {
+            const input = document.getElementById('fileInput3');
+            const logId = 'log3';
+            
+            log('🔍 Додаємо async обробник...', logId);
+            
+            input.onchange = async function(e) {
+                log('✅ Подія onChange спрацювала!', logId);
+                
+                const file = e.target.files[0];
+                if (!file) {
+                    log('❌ Файл не вибрано', logId);
+                    return;
+                }
+                
+                log(`📁 Обробляємо файл: ${file.name}`, logId);
+                
+                // Симуляція async обробки
+                log('⏳ Симуляція обробки файлу...', logId);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                log('✅ Файл оброблено успішно!', logId);
+            };
+            
+            log('✅ Async обробник додано. Тепер виберіть файл!', logId);
+        }
+
+        function testModalHandler() {
+            const input = document.getElementById('fileInput4');
+            const logId = 'log4';
+            
+            log('🔍 Додаємо обробник як в DocumentUploadModal...', logId);
+            
+            // Очищуємо попередні обробники
+            input.onchange = null;
+            input.removeEventListener('change', input._previousHandler);
+            
+            const handleInvoiceFileChange = async (e) => {
+                console.log('🎯 DEBUG: handleInvoiceFileChange викликано, logId:', logId);
+                console.log('🎯 DEBUG: logElement існує:', !!document.getElementById(logId));
+                
+                log('DEBUG DocumentUploadModal: handleInvoiceFileChange викликано, event: ' + e, logId);
+                log('DEBUG DocumentUploadModal: e.target.files: ' + e.target.files, logId);
+                log('DEBUG DocumentUploadModal: e.target.files.length: ' + e.target.files?.length, logId);
+                
+                const file = e.target.files[0];
+                log('DEBUG DocumentUploadModal: Файл рахунку вибрано: ' + JSON.stringify({
+                    fileName: file?.name,
+                    fileSize: file?.size,
+                    fileType: file?.type
+                }), logId);
+                
+                if (file) {
+                    // Валідація розміру файлу (10MB)
+                    if (file.size > 10 * 1024 * 1024) {
+                        log('❌ Файл занадто великий. Максимальний розмір: 10MB', logId);
+                        return;
+                    }
+
+                    // Валідація типу файлу
+                    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+                    if (!allowedTypes.includes(file.type)) {
+                        log('❌ Непідтримуваний тип файлу. Дозволені: PDF, JPEG, PNG', logId);
+                        return;
+                    }
+                    
+                    log('✅ Валідація пройшла успішно!', logId);
+                    log('🔄 Симуляція завантаження...', logId);
+                    
+                    // Симуляція завантаження
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    log('✅ Файл успішно завантажено!', logId);
+                }
+            };
+            
+            // Зберігаємо посилання на обробник для можливого видалення
+            input._previousHandler = handleInvoiceFileChange;
+            
+            // Використовуємо addEventListener замість onchange
+            input.addEventListener('change', handleInvoiceFileChange);
+            
+            log('✅ Обробник DocumentUploadModal додано. Тепер виберіть файл!', logId);
+        }
+
+        // Очищення логів
+        function clearLog(logId) {
+            document.getElementById(logId).innerHTML = '';
+        }
+
+        // Додаємо кнопки очищення
+        document.addEventListener('DOMContentLoaded', function() {
+            const sections = document.querySelectorAll('.test-section');
+            sections.forEach((section, index) => {
+                const button = document.createElement('button');
+                button.textContent = 'Очистити лог';
+                button.onclick = () => clearLog(`log${index + 1}`);
+                button.style.background = '#6c757d';
+                section.appendChild(button);
+            });
+        });
+    </script>
+</body>
+</html>
