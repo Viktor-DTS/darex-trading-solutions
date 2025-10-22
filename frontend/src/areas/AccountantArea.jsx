@@ -838,7 +838,7 @@ export default function AccountantArea({ user }) {
     }
   };
 
-  // Функція для видалення завдання
+  // Функція для видалення завдання (для звичайних завдань)
   const handleDelete = async (taskId) => {
     try {
       console.log('[DEBUG] AccountantArea handleDelete - видалення завдання:', taskId);
@@ -854,6 +854,42 @@ export default function AccountantArea({ user }) {
     } catch (error) {
       console.error('[ERROR] AccountantArea handleDelete - помилка видалення завдання:', error);
       alert('Помилка видалення завдання: ' + error.message);
+    }
+  };
+
+  // Функція для видалення запиту на рахунок (для вкладки invoiceRequests)
+  const handleDeleteInvoiceRequest = async (taskId) => {
+    try {
+      console.log('[DEBUG] AccountantArea handleDeleteInvoiceRequest - видалення запиту на рахунок:', taskId);
+      
+      // Знаходимо завдання, щоб отримати invoiceRequestId
+      const task = allTasksFromAPI.find(t => t.id === taskId);
+      if (!task || !task.invoiceRequestId) {
+        throw new Error('Не знайдено запит на рахунок для цього завдання');
+      }
+      
+      // Видаляємо запит на рахунок через API
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 
+        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      
+      const response = await fetch(`${API_BASE_URL}/invoice-requests/${task.invoiceRequestId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Помилка видалення запиту на рахунок');
+      }
+      
+      // Оновлюємо дані
+      await refreshData(activeTab);
+      setTableKey(prev => prev + 1);
+      
+      console.log('[DEBUG] AccountantArea handleDeleteInvoiceRequest - запит на рахунок успішно видалено');
+      alert('Запит на рахунок успішно видалено');
+    } catch (error) {
+      console.error('[ERROR] AccountantArea handleDeleteInvoiceRequest - помилка видалення запиту на рахунок:', error);
+      alert('Помилка видалення запиту на рахунок: ' + error.message);
     }
   };
 
@@ -2388,7 +2424,7 @@ export default function AccountantArea({ user }) {
             allTasks={tasks}
             onApprove={handleApprove}
             onEdit={handleEdit}
-            onDelete={handleDelete}
+            onDelete={handleDeleteInvoiceRequest}
             role="accountant"
             filters={filters}
             onFilterChange={handleFilter}
