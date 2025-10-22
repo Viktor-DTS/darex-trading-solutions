@@ -1082,7 +1082,7 @@ export default function AccountantArea({ user }) {
     open: false,
     selected: []
   });
-  const invoiceRequests = allTasksFromAPI.filter(task => {
+  const filteredInvoiceRequests = allTasksFromAPI.filter(task => {
     // Показуємо завдання з запитами на рахунки
     const hasInvoiceRequest = task.invoiceRequestId || task.needInvoice || task.needAct;
     
@@ -1099,8 +1099,8 @@ export default function AccountantArea({ user }) {
            activeTab === 'archive' ? archive :
            activeTab === 'debt' ? debt :
            activeTab === 'invoices' ? invoices :
-           activeTab === 'invoiceRequests' ? invoiceRequests : [];
-  }, [activeTab, pending, archive, debt, invoices, invoiceRequests]);
+           activeTab === 'invoiceRequests' ? filteredInvoiceRequests : [];
+  }, [activeTab, pending, archive, debt, invoices, filteredInvoiceRequests]);
   
   // Логування для діагностики tableData
   console.log('[DEBUG] AccountantArea - tableData оновлено:', {
