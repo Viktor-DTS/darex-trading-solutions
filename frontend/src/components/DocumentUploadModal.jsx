@@ -15,6 +15,24 @@ function DocumentUploadModal({
 
   if (!isOpen || !task) return null;
   
+  // Логування для діагностики
+  console.log('DEBUG DocumentUploadModal: Модальне вікно відкрито з даними завдання:', {
+    isOpen,
+    task: task ? {
+      id: task.id,
+      _id: task._id,
+      invoiceRequestId: task.invoiceRequestId,
+      requestNumber: task.requestNumber,
+      needInvoice: task.needInvoice,
+      needAct: task.needAct,
+      invoiceFile: task.invoiceFile,
+      actFile: task.actFile,
+      invoiceFileName: task.invoiceFileName,
+      actFileName: task.actFileName
+    } : null,
+    uploadingFiles: Array.from(uploadingFiles)
+  });
+  
   // Всі функції тепер мають значення за замовчуванням, тому перевірки не потрібні
 
   const handleInvoiceFileChange = async (e) => {

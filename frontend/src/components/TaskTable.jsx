@@ -2481,6 +2481,16 @@ function TaskTableComponent({
                             
                             <button 
                               onClick={() => {
+                                console.log('DEBUG TaskTable: Відкриваємо модальне вікно завантаження для завдання:', {
+                                  taskId: t.id,
+                                  _id: t._id,
+                                  invoiceRequestId: t.invoiceRequestId,
+                                  requestNumber: t.requestNumber,
+                                  needInvoice: t.needInvoice,
+                                  needAct: t.needAct,
+                                  invoiceFile: t.invoiceFile,
+                                  actFile: t.actFile
+                                });
                                 setDocumentUploadModal({ open: true, task: t });
                               }}
                               style={{
