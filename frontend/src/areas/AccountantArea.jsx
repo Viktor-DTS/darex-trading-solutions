@@ -1942,7 +1942,7 @@ export default function AccountantArea({ user }) {
                         {request.invoiceFile ? (
                           <>
                             <span style={{ color: '#000' }}> {request.invoiceFileName}</span>
-                            {request.invoiceNumber && (
+                            {request.invoiceNumber && request.invoiceNumber.trim() !== '' && (
                               <div style={{ marginTop: '4px', fontSize: '12px', color: '#666' }}>
                                 <strong>Номер рахунку:</strong> {request.invoiceNumber}
                               </div>
@@ -1950,6 +1950,9 @@ export default function AccountantArea({ user }) {
                             {/* DEBUG: Показуємо всі дані для діагностики */}
                             <div style={{ marginTop: '4px', fontSize: '10px', color: '#999' }}>
                               DEBUG: invoiceNumber = "{request.invoiceNumber}", тип: {typeof request.invoiceNumber}
+                              <br/>DEBUG: request keys = {Object.keys(request).join(', ')}
+                              <br/>DEBUG: invoiceFile = "{request.invoiceFile}"
+                              <br/>DEBUG: invoiceFileName = "{request.invoiceFileName}"
                             </div>
                             <div style={{ marginTop: '8px' }}>
                               <button 
