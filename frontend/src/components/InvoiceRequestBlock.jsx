@@ -535,13 +535,6 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
                     <strong>Номер рахунку:</strong> {task.invoiceNumber}
                   </div>
                 )}
-                {/* DEBUG інформація для invoiceNumber */}
-                <div style={{ marginTop: '4px', fontSize: '10px', color: '#999' }}>
-                  DEBUG: invoiceNumber = "{task.invoiceNumber}", тип: {typeof task.invoiceNumber}
-                  <br/>DEBUG: task keys = {Object.keys(task).join(', ')}
-                  <br/>DEBUG: invoiceFile = "{task.invoiceFile}"
-                  <br/>DEBUG: invoiceFileName = "{task.invoiceFileName}"
-                </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button 
                     type="button"
