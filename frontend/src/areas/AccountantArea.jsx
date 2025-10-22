@@ -835,6 +835,26 @@ export default function AccountantArea({ user }) {
       setEditTask(null);
     }
   };
+
+  // Функція для видалення завдання
+  const handleDelete = async (taskId) => {
+    try {
+      console.log('[DEBUG] AccountantArea handleDelete - видалення завдання:', taskId);
+      
+      // Видаляємо завдання через API
+      await tasksAPI.delete(taskId);
+      
+      // Оновлюємо дані
+      await refreshData(activeTab);
+      setTableKey(prev => prev + 1);
+      
+      console.log('[DEBUG] AccountantArea handleDelete - завдання успішно видалено');
+    } catch (error) {
+      console.error('[ERROR] AccountantArea handleDelete - помилка видалення завдання:', error);
+      alert('Помилка видалення завдання: ' + error.message);
+    }
+  };
+
   // Для вкладки debt використовуємо всі завдання з API (як у регіонального керівника)
   const [allTasksFromAPI, setAllTasksFromAPI] = useState([]);
   const [allTasksLoading, setAllTasksLoading] = useState(false);
@@ -2365,6 +2385,7 @@ export default function AccountantArea({ user }) {
             allTasks={tasks}
             onApprove={handleApprove}
             onEdit={handleEdit}
+            onDelete={handleDelete}
             role="accountant"
             filters={filters}
             onFilterChange={handleFilter}
@@ -2397,6 +2418,7 @@ export default function AccountantArea({ user }) {
         allTasks={tasks}
         onApprove={handleApprove}
         onEdit={handleEdit}
+        onDelete={handleDelete}
         role="accountant"
         filters={filters}
         onFilterChange={handleFilter}
@@ -2466,6 +2488,7 @@ export default function AccountantArea({ user }) {
             allTasks={tasks}
             onApprove={handleApprove}
             onEdit={handleEdit}
+            onDelete={handleDelete}
             role="accountant"
             filters={filters}
             onFilterChange={handleFilter}
