@@ -758,7 +758,7 @@ export default function AccountantArea({ user }) {
     try {
       await columnsSettingsAPI.saveColumnsSettings(user.login, 'service', selectedColumns);
       setColumnsSettings({ open: false, selected: selectedColumns });
-      console.log('[DEBUG] AccountantArea - збережено налаштування колонок:', selectedColumns);
+      // Debug log removed
     } catch (error) {
       console.error('[ERROR] AccountantArea - помилка збереження налаштувань колонок:', error);
     }
@@ -769,7 +769,7 @@ export default function AccountantArea({ user }) {
     try {
       await columnsSettingsAPI.saveColumnsSettings(user.login, 'invoiceRequests', selectedColumns);
       setInvoiceRequestsColumnsSettings({ open: false, selected: selectedColumns });
-      console.log('[DEBUG] AccountantArea - збережено налаштування колонок для invoiceRequests:', selectedColumns);
+      // Debug log removed
     } catch (error) {
       console.error('[ERROR] AccountantArea - помилка збереження налаштувань колонок для invoiceRequests:', error);
     }
@@ -778,7 +778,7 @@ export default function AccountantArea({ user }) {
   // Функція для завершення завдання в вкладці "Заявка на рахунок"
   const handleCompleteInvoiceRequest = async (taskId) => {
     try {
-      console.log('[DEBUG] AccountantArea - завершення завдання:', taskId);
+      // Debug log removed
       
       // Знаходимо поточне завдання
       const currentTask = allTasksFromAPI.find(t => t.id === taskId);
@@ -796,7 +796,7 @@ export default function AccountantArea({ user }) {
         completedAt: new Date().toISOString()
       });
       
-      console.log('[DEBUG] AccountantArea - завдання завершено:', updatedTask);
+      // Debug log removed
       
       // Оновлюємо локальний стан allTasksFromAPI
       setAllTasksFromAPI(prevTasks => 
@@ -824,17 +824,16 @@ export default function AccountantArea({ user }) {
     try {
       if (editTask && editTask.id) {
         updatedTask = await tasksAPI.update(editTask.id, task);
-        console.log('[DEBUG] AccountantArea handleSave - заявка оновлена:', updatedTask);
+        // Debug log removed
       } else {
         updatedTask = await tasksAPI.add(task);
-        console.log('[DEBUG] AccountantArea handleSave - заявка створена:', updatedTask);
+        // Debug log removed
       }
       
       // Оновлюємо дані через useLazyData
-      console.log('[DEBUG] AccountantArea handleSave - оновлюємо дані через useLazyData...');
+      // Debug logs removed
       await refreshData(activeTab);
       setTableKey(prev => prev + 1); // Примусово перерендерюємо таблицю
-      console.log('[DEBUG] AccountantArea handleSave - дані оновлено через useLazyData');
       
     } catch (error) {
       console.error('[ERROR] AccountantArea handleSave - помилка збереження або оновлення даних:', error);
@@ -849,7 +848,7 @@ export default function AccountantArea({ user }) {
   // Функція для видалення завдання (для звичайних завдань)
   const handleDelete = async (taskId) => {
     try {
-      console.log('[DEBUG] AccountantArea handleDelete - видалення завдання:', taskId);
+      // Debug log removed
       
       // Видаляємо завдання через API
       await tasksAPI.remove(taskId);
@@ -858,7 +857,7 @@ export default function AccountantArea({ user }) {
       await refreshData(activeTab);
       setTableKey(prev => prev + 1);
       
-      console.log('[DEBUG] AccountantArea handleDelete - завдання успішно видалено');
+      // Debug log removed
     } catch (error) {
       console.error('[ERROR] AccountantArea handleDelete - помилка видалення завдання:', error);
       alert('Помилка видалення завдання: ' + error.message);
