@@ -19,7 +19,14 @@ function DocumentUploadModal({
 
   const handleInvoiceFileChange = async (e) => {
     const file = e.target.files[0];
-    console.log('DEBUG DocumentUploadModal: Файл вибрано:', { fileName: file?.name, fileSize: file?.size, fileType: file?.type, taskId: task?.id });
+    console.log('DEBUG DocumentUploadModal: Файл рахунку вибрано:', { 
+      fileName: file?.name, 
+      fileSize: file?.size, 
+      fileType: file?.type, 
+      taskId: task?.id,
+      invoiceRequestId: task?.invoiceRequestId,
+      requestNumber: task?.requestNumber
+    });
     
     if (file) {
       // Валідація розміру файлу (10MB)
@@ -55,6 +62,15 @@ function DocumentUploadModal({
 
   const handleActFileChange = (e) => {
     const file = e.target.files[0];
+    console.log('DEBUG DocumentUploadModal: Файл акту вибрано:', { 
+      fileName: file?.name, 
+      fileSize: file?.size, 
+      fileType: file?.type, 
+      taskId: task?.id,
+      invoiceRequestId: task?.invoiceRequestId,
+      requestNumber: task?.requestNumber
+    });
+    
     if (file) {
       // Валідація розміру файлу (10MB)
       if (file.size > 10 * 1024 * 1024) {
@@ -78,7 +94,8 @@ function DocumentUploadModal({
     }
   };
 
-  const isUploading = uploadingFiles.has(task.id);
+  const requestId = task.invoiceRequestId || task.id;
+  const isUploading = uploadingFiles.has(requestId);
 
   return (
     <div style={{
