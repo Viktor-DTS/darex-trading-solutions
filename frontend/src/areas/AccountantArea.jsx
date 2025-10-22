@@ -134,18 +134,7 @@ export default function AccountantArea({ user }) {
     }, {});
   const [filters, setFilters] = useState(allFilterKeys);
   
-  // Логування для діагностики створення фільтрів
-  console.log('[DEBUG] AccountantArea - створені фільтри:', {
-    allFilterKeys: Object.keys(allFilterKeys),
-    paymentDateFilters: {
-      paymentDate: allFilterKeys.paymentDate,
-      paymentDateFrom: allFilterKeys.paymentDateFrom,
-      paymentDateTo: allFilterKeys.paymentDateTo
-    },
-    hasPaymentDateFrom: 'paymentDateFrom' in allFilterKeys,
-    hasPaymentDateTo: 'paymentDateTo' in allFilterKeys,
-    allFilterKeysValues: allFilterKeys
-  });
+  // Debug logs removed for performance
   const [approvalFilter, setApprovalFilter] = useState('all'); // 'all', 'approved', 'not_approved'
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
