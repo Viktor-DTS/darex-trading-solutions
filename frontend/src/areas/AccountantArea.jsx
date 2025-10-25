@@ -167,20 +167,47 @@ export default function AccountantArea({ user }) {
    // Функція для повного оновлення всіх даних
   const refreshAllData = async () => {
     try {
-      console.log('🔄 Refreshing all data...');
+      console.log('🔄 Refreshing all data after file operation...');
       
-      // Оновлюємо дані в таблиці запитів на рахунки
-      await loadInvoiceRequests();
+      // Оновлюємо дані в таблиці запитів на рахунки (якщо на вкладці invoices)
+      if (activeTab === 'invoices') {
+        await loadInvoiceRequests();
+      }
       
-      // Оновлюємо основну таблицю завдань
+      // Оновлюємо основну таблицю завдань через /api/tasks/filter
+      // Це найважливіше, оскільки тут оновлюються дані про файли
+      console.log('🔄 Refreshing main tasks data from /api/tasks/filter...');
       await refreshData(activeTab);
+      
+      // Також оновлюємо інші релевантні вкладки
+      const relevantTabs = ['pending', 'done', 'archive', 'debt'];
+      for (const tab of relevantTabs) {
+        if (tab !== activeTab) {
+          console.log(`🔄 Refreshing additional tab: ${tab}`);
+          await refreshData(tab);
+        }
+      }
       
       // Примусово перерендерюємо таблицю
       setTableKey(prev => prev + 1);
       
-      console.log('✅ All data refreshed successfully');
+      console.log('✅ All data refreshed successfully - main tasks and invoice requests updated');
     } catch (error) {
       console.error('❌ Error refreshing data:', error);
+    }
+  };
+
+  // Функція для прямого оновлення основних завдань через /api/tasks/filter
+  const refreshMainTasksData = async () => {
+    try {
+      console.log('🔄 Directly refreshing main tasks data from /api/tasks/filter...');
+      
+      // Використовуємо існуючу функцію refreshData з useLazyData
+      await refreshData(activeTab);
+      
+      console.log('✅ Main tasks data refreshed from /api/tasks/filter');
+    } catch (error) {
+      console.error('❌ Error refreshing main tasks data:', error);
     }
   };
 
@@ -335,10 +362,13 @@ export default function AccountantArea({ user }) {
           }));
         }
         
-        alert('✅ Файл рахунку завантажено успішно! (TESTING)');
+        alert('✅ Файл рахунку завантажено успішно!');
         
         // Оновлюємо всі дані після успішного завантаження
         await refreshAllData();
+        
+        // Додатково оновлюємо основні завдання через /api/tasks/filter
+        await refreshMainTasksData();
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка завантаження файлу');
@@ -394,6 +424,9 @@ export default function AccountantArea({ user }) {
         
         // Оновлюємо всі дані після успішного видалення
         await refreshAllData();
+        
+        // Додатково оновлюємо основні завдання через /api/tasks/filter
+        await refreshMainTasksData();
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка видалення файлу');
@@ -481,6 +514,9 @@ export default function AccountantArea({ user }) {
         
         // Оновлюємо всі дані після успішного завантаження
         await refreshAllData();
+        
+        // Додатково оновлюємо основні завдання через /api/tasks/filter
+        await refreshMainTasksData();
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка завантаження файлу акту');
@@ -557,6 +593,9 @@ export default function AccountantArea({ user }) {
         
         // Оновлюємо всі дані після успішного видалення
         await refreshAllData();
+        
+        // Додатково оновлюємо основні завдання через /api/tasks/filter
+        await refreshMainTasksData();
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка видалення файлу акту');
