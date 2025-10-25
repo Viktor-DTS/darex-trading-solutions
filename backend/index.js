@@ -1063,6 +1063,7 @@ app.get('/api/tasks', async (req, res) => {
 
 // НОВИЙ ENDPOINT ДЛЯ ОПТИМІЗАЦІЇ - фільтрація заявок по статусу
 app.get('/api/tasks/filter', async (req, res) => {
+  const startTime = Date.now();
   try {
     addLog('📋 Loading filtered tasks', 'info');
     
@@ -1139,6 +1140,7 @@ app.get('/api/tasks/filter', async (req, res) => {
     console.log('[DEBUG] GET /api/tasks/filter - запит:', JSON.stringify(query, null, 2));
     
     // Виконуємо запит
+    const dbStartTime = Date.now();
     const tasks = await executeWithRetry(() => 
       Task.find(query)
         .sort(sort)
@@ -1146,6 +1148,8 @@ app.get('/api/tasks/filter', async (req, res) => {
         .skip(parseInt(skip))
         .lean()
     );
+    const dbResponseTime = Date.now() - dbStartTime;
+    console.log(`[DB] Task.find() - takes ${dbResponseTime}ms (${tasks.length} results)`);
     
     console.log('[DEBUG] GET /api/tasks/filter - знайдено завдань:', tasks.length);
     
@@ -1156,7 +1160,10 @@ app.get('/api/tasks/filter', async (req, res) => {
       // Спочатку шукаємо по invoiceRequestId (для старих заявок)
       if (task.invoiceRequestId) {
         try {
+          const invoiceDbStart = Date.now();
           invoiceRequest = await InvoiceRequest.findById(task.invoiceRequestId);
+          const invoiceDbTime = Date.now() - invoiceDbStart;
+          console.log(`[DB] InvoiceRequest.findById('${task.invoiceRequestId}') - takes ${invoiceDbTime}ms`);
         } catch (invoiceError) {
           console.error('[ERROR] GET /api/tasks/filter - помилка отримання InvoiceRequest по invoiceRequestId для заявки:', task._id, invoiceError);
         }
@@ -1165,7 +1172,10 @@ app.get('/api/tasks/filter', async (req, res) => {
       // Якщо не знайшли по invoiceRequestId, шукаємо по taskId (для нових заявок)
       if (!invoiceRequest) {
         try {
+          const invoiceDbStart = Date.now();
           const invoiceRequests = await InvoiceRequest.find({ taskId: task._id.toString() });
+          const invoiceDbTime = Date.now() - invoiceDbStart;
+          console.log(`[DB] InvoiceRequest.find({ taskId: '${task._id}' }) - takes ${invoiceDbTime}ms`);
           if (invoiceRequests && invoiceRequests.length > 0) {
             invoiceRequest = invoiceRequests[0]; // Беремо перший знайдений
           }
@@ -1207,9 +1217,18 @@ app.get('/api/tasks/filter', async (req, res) => {
       id: task._id.toString()
     }));
     
+    // Логуємо час виконання
+    const responseTime = Date.now() - startTime;
+    console.log(`[PERFORMANCE] GET /api/tasks/filter - takes ${responseTime}ms`);
+    
     res.json(tasksWithId);
   } catch (error) {
     console.error('[ERROR] GET /api/tasks/filter - помилка:', error);
+    
+    // Логуємо час виконання навіть при помилці
+    const responseTime = Date.now() - startTime;
+    console.log(`[PERFORMANCE] GET /api/tasks/filter - takes ${responseTime}ms (ERROR)`);
+    
     res.status(500).json({ error: error.message });
   }
 });
