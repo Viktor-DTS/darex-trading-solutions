@@ -1140,7 +1140,6 @@ app.get('/api/tasks/filter', async (req, res) => {
     console.log('[DEBUG] GET /api/tasks/filter - запит:', JSON.stringify(query, null, 2));
     
     // Виконуємо запит
-    const dbStartTime = Date.now();
     const tasks = await executeWithRetry(() => 
       Task.find(query)
         .sort(sort)
@@ -1148,55 +1147,66 @@ app.get('/api/tasks/filter', async (req, res) => {
         .skip(parseInt(skip))
         .lean()
     );
-    const dbResponseTime = Date.now() - dbStartTime;
-    console.log(`[DB] Task.find() - takes ${dbResponseTime}ms (${tasks.length} results)`);
     
     console.log('[DEBUG] GET /api/tasks/filter - знайдено завдань:', tasks.length);
     
-    // Додаємо інформацію про файл рахунку для заявок (як в /api/tasks)
-    const tasksWithInvoiceInfo = await Promise.all(tasks.map(async (task) => {
+    // ОПТИМІЗАЦІЯ: Отримуємо всі InvoiceRequest за один запит
+    const taskIds = tasks.map(task => task._id.toString());
+    const invoiceRequestIds = tasks
+      .map(task => task.invoiceRequestId)
+      .filter(id => id); // Фільтруємо тільки існуючі ID
+    
+    console.log(`[OPTIMIZATION] Fetching InvoiceRequest data for ${taskIds.length} tasks and ${invoiceRequestIds.length} invoiceRequestIds`);
+    
+    // Один запит для отримання всіх InvoiceRequest
+    const invoiceDbStart = Date.now();
+    const invoiceRequests = await InvoiceRequest.find({
+      $or: [
+        { taskId: { $in: taskIds } },
+        { _id: { $in: invoiceRequestIds } }
+      ]
+    });
+    const invoiceDbTime = Date.now() - invoiceDbStart;
+    console.log(`[DB] InvoiceRequest.find() (OPTIMIZED) - takes ${invoiceDbTime}ms (${invoiceRequests.length} results)`);
+    
+    // Створюємо мапи для швидкого пошуку
+    const invoiceRequestByTaskId = new Map();
+    const invoiceRequestById = new Map();
+    
+    invoiceRequests.forEach(invoice => {
+      // Мапа по taskId
+      if (invoice.taskId) {
+        invoiceRequestByTaskId.set(invoice.taskId, invoice);
+      }
+      // Мапа по _id
+      invoiceRequestById.set(invoice._id.toString(), invoice);
+    });
+    
+    // Додаємо інформацію про файл рахунку для заявок (оптимізовано)
+    const tasksWithInvoiceInfo = tasks.map(task => {
       let invoiceRequest = null;
       
       // Спочатку шукаємо по invoiceRequestId (для старих заявок)
       if (task.invoiceRequestId) {
-        try {
-          const invoiceDbStart = Date.now();
-          invoiceRequest = await InvoiceRequest.findById(task.invoiceRequestId);
-          const invoiceDbTime = Date.now() - invoiceDbStart;
-          console.log(`[DB] InvoiceRequest.findById('${task.invoiceRequestId}') - takes ${invoiceDbTime}ms`);
-        } catch (invoiceError) {
-          console.error('[ERROR] GET /api/tasks/filter - помилка отримання InvoiceRequest по invoiceRequestId для заявки:', task._id, invoiceError);
-        }
+        invoiceRequest = invoiceRequestById.get(task.invoiceRequestId);
       }
       
       // Якщо не знайшли по invoiceRequestId, шукаємо по taskId (для нових заявок)
       if (!invoiceRequest) {
-        try {
-          const invoiceDbStart = Date.now();
-          const invoiceRequests = await InvoiceRequest.find({ taskId: task._id.toString() });
-          const invoiceDbTime = Date.now() - invoiceDbStart;
-          console.log(`[DB] InvoiceRequest.find({ taskId: '${task._id}' }) - takes ${invoiceDbTime}ms`);
-          if (invoiceRequests && invoiceRequests.length > 0) {
-            invoiceRequest = invoiceRequests[0]; // Беремо перший знайдений
-          }
-        } catch (invoiceError) {
-          console.error('[ERROR] GET /api/tasks/filter - помилка пошуку InvoiceRequest по taskId для заявки:', task._id, invoiceError);
-        }
+        invoiceRequest = invoiceRequestByTaskId.get(task._id.toString());
       }
       
       // Оновлюємо дані заявки якщо знайшли InvoiceRequest з файлами
       if (invoiceRequest) {
         // Оновлюємо дані про файл рахунку
         if (invoiceRequest.invoiceFile) {
-          // task.invoiceStatus = 'completed'; // НЕ змінюємо статус автоматично
           task.invoiceFile = invoiceRequest.invoiceFile;
           task.invoiceFileName = invoiceRequest.invoiceFileName;
-          task.invoice = invoiceRequest.invoiceNumber; // Додаємо номер рахунку в поле invoice
+          task.invoice = invoiceRequest.invoiceNumber;
         }
         
         // Оновлюємо дані про файл акту
         if (invoiceRequest.actFile) {
-          // task.actStatus = 'completed'; // НЕ змінюємо статус автоматично
           task.actFile = invoiceRequest.actFile;
           task.actFileName = invoiceRequest.actFileName;
         }
@@ -1209,7 +1219,7 @@ app.get('/api/tasks/filter', async (req, res) => {
       }
       
       return task;
-    }));
+    });
     
     // Додаємо числовий id для сумісності з фронтендом
     const tasksWithId = tasksWithInvoiceInfo.map(task => ({
@@ -1217,17 +1227,17 @@ app.get('/api/tasks/filter', async (req, res) => {
       id: task._id.toString()
     }));
     
-    // Логуємо час виконання
-    const responseTime = Date.now() - startTime;
-    console.log(`[PERFORMANCE] GET /api/tasks/filter - takes ${responseTime}ms`);
+    // Логуємо загальну продуктивність
+    const totalTime = Date.now() - startTime;
+    console.log(`[PERFORMANCE] GET /api/tasks/filter (OPTIMIZED) - takes ${totalTime}ms (${tasksWithId.length} results)`);
     
     res.json(tasksWithId);
   } catch (error) {
     console.error('[ERROR] GET /api/tasks/filter - помилка:', error);
     
     // Логуємо час виконання навіть при помилці
-    const responseTime = Date.now() - startTime;
-    console.log(`[PERFORMANCE] GET /api/tasks/filter - takes ${responseTime}ms (ERROR)`);
+    const totalTime = Date.now() - startTime;
+    console.log(`[PERFORMANCE] GET /api/tasks/filter (OPTIMIZED) - takes ${totalTime}ms (ERROR)`);
     
     res.status(500).json({ error: error.message });
   }
