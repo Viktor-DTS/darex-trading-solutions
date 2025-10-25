@@ -182,14 +182,14 @@ export default function AccountantArea({ user }) {
       await refreshData(activeTab);
       
       // Step 3: Refresh all other relevant tabs
-      console.log('🔄 Step 3: Refreshing all other tabs...');
-      const relevantTabs = ['pending', 'done', 'archive', 'debt'];
-      for (const tab of relevantTabs) {
-        if (tab !== activeTab) {
-          console.log(`🔄 Refreshing tab: ${tab}`);
-          await refreshData(tab);
-        }
-      }
+      // console.log('🔄 Step 3: Refreshing all other tabs...');
+      // const relevantTabs = ['pending', 'done', 'archive', 'debt'];
+      // for (const tab of relevantTabs) {
+      //   if (tab !== activeTab) {
+      //     console.log(`🔄 Refreshing tab: ${tab}`);
+      //     await refreshData(tab);
+      //   }
+      // }
       
       // Step 4: Force reload additional tasks if needed
       if (showAllTasks) {
@@ -232,14 +232,14 @@ export default function AccountantArea({ user }) {
       await refreshData(activeTab);
       
       // Step 2: Refresh all other relevant tabs
-      console.log('🔄 Step 2: Refreshing all other tabs...');
-      const relevantTabs = ['pending', 'done', 'archive', 'debt'];
-      for (const tab of relevantTabs) {
-        if (tab !== activeTab) {
-          console.log(`🔄 Refreshing additional tab: ${tab}`);
-          await refreshData(tab);
-        }
-      }
+      // console.log('🔄 Step 2: Refreshing all other tabs...');
+      // const relevantTabs = ['pending', 'done', 'archive', 'debt'];
+      // for (const tab of relevantTabs) {
+      //   if (tab !== activeTab) {
+      //     console.log(`🔄 Refreshing additional tab: ${tab}`);
+      //     await refreshData(tab);
+      //   }
+      // }
       
       // Step 3: Force reload all tasks from API
       console.log('🔄 Step 3: Reloading all tasks from API...');
