@@ -167,19 +167,72 @@ export default function AccountantArea({ user }) {
    // Функція для повного оновлення всіх даних
   const refreshAllData = async () => {
     try {
-      console.log('🔄 Refreshing all data after file operation...');
+      console.log('🔄 COMPLETE DATA RELOAD: Starting comprehensive refresh after file operation...');
+      
+      // Step 1: Clear all caches and force fresh data fetch
+      console.log('🔄 Step 1: Clearing all caches and fetching fresh data...');
       
       // Оновлюємо дані в таблиці запитів на рахунки (якщо на вкладці invoices)
       if (activeTab === 'invoices') {
         await loadInvoiceRequests();
       }
       
-      // Оновлюємо основну таблицю завдань через /api/tasks/filter
-      // Це найважливіше, оскільки тут оновлюються дані про файли
-      console.log('🔄 Refreshing main tasks data from /api/tasks/filter...');
+      // Step 2: Force refresh of current tab data
+      console.log('🔄 Step 2: Refreshing current tab data...');
       await refreshData(activeTab);
       
-      // Також оновлюємо інші релевантні вкладки
+      // Step 3: Refresh all other relevant tabs
+      console.log('🔄 Step 3: Refreshing all other tabs...');
+      const relevantTabs = ['pending', 'done', 'archive', 'debt'];
+      for (const tab of relevantTabs) {
+        if (tab !== activeTab) {
+          console.log(`🔄 Refreshing tab: ${tab}`);
+          await refreshData(tab);
+        }
+      }
+      
+      // Step 4: Force reload additional tasks if needed
+      if (showAllTasks) {
+        console.log('🔄 Step 4: Reloading additional tasks...');
+        setAdditionalTasks([]); // Clear existing
+        await loadAdditionalTasks();
+      }
+      
+      // Step 5: Force reload all tasks from API for debt tab
+      console.log('🔄 Step 5: Reloading all tasks from API...');
+      try {
+        const allTasksData = await tasksAPI.getAll();
+        setAllTasksFromAPI(allTasksData);
+        console.log('✅ All tasks from API reloaded:', allTasksData.length);
+      } catch (error) {
+        console.error('❌ Error reloading all tasks from API:', error);
+      }
+      
+      // Step 6: Force component re-render
+      console.log('🔄 Step 6: Forcing component re-render...');
+      setTableKey(prev => prev + 1);
+      setDataSyncKey(prev => prev + 1);
+      
+      // Step 7: Small delay to ensure all state updates are processed
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      console.log('✅ COMPLETE DATA RELOAD: All data refreshed successfully');
+    } catch (error) {
+      console.error('❌ Error in complete data reload:', error);
+    }
+  };
+
+  // Функція для прямого оновлення основних завдань через /api/tasks/filter
+  const refreshMainTasksData = async () => {
+    try {
+      console.log('🔄 COMPLETE MAIN TASKS REFRESH: Starting comprehensive main tasks refresh...');
+      
+      // Step 1: Force refresh current tab
+      console.log('🔄 Step 1: Refreshing current tab...');
+      await refreshData(activeTab);
+      
+      // Step 2: Refresh all other relevant tabs
+      console.log('🔄 Step 2: Refreshing all other tabs...');
       const relevantTabs = ['pending', 'done', 'archive', 'debt'];
       for (const tab of relevantTabs) {
         if (tab !== activeTab) {
@@ -188,26 +241,27 @@ export default function AccountantArea({ user }) {
         }
       }
       
-      // Примусово перерендерюємо таблицю
+      // Step 3: Force reload all tasks from API
+      console.log('🔄 Step 3: Reloading all tasks from API...');
+      try {
+        const allTasksData = await tasksAPI.getAll();
+        setAllTasksFromAPI(allTasksData);
+        console.log('✅ All tasks from API reloaded:', allTasksData.length);
+      } catch (error) {
+        console.error('❌ Error reloading all tasks from API:', error);
+      }
+      
+      // Step 4: Force state updates
+      console.log('🔄 Step 4: Forcing state updates...');
+      setDataSyncKey(prev => prev + 1);
       setTableKey(prev => prev + 1);
       
-      console.log('✅ All data refreshed successfully - main tasks and invoice requests updated');
-    } catch (error) {
-      console.error('❌ Error refreshing data:', error);
-    }
-  };
-
-  // Функція для прямого оновлення основних завдань через /api/tasks/filter
-  const refreshMainTasksData = async () => {
-    try {
-      console.log('🔄 Directly refreshing main tasks data from /api/tasks/filter...');
+      // Step 5: Small delay to ensure state updates are processed
+      await new Promise(resolve => setTimeout(resolve, 50));
       
-      // Використовуємо існуючу функцію refreshData з useLazyData
-      await refreshData(activeTab);
-      
-      console.log('✅ Main tasks data refreshed from /api/tasks/filter');
+      console.log('✅ COMPLETE MAIN TASKS REFRESH: All main tasks data refreshed');
     } catch (error) {
-      console.error('❌ Error refreshing main tasks data:', error);
+      console.error('❌ Error in complete main tasks refresh:', error);
     }
   };
 
@@ -365,10 +419,16 @@ export default function AccountantArea({ user }) {
         alert('✅ Файл рахунку завантажено успішно!');
         
         // Оновлюємо всі дані після успішного завантаження
+        console.log('🔄 Starting comprehensive data refresh after invoice file upload...');
         await refreshAllData();
         
         // Додатково оновлюємо основні завдання через /api/tasks/filter
         await refreshMainTasksData();
+        
+        // Optional: Add a small delay and then check if data is fresh
+        setTimeout(() => {
+          console.log('🔄 Invoice file upload: Data refresh completed. If data still appears stale, consider manual refresh.');
+        }, 1000);
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка завантаження файлу');
@@ -513,10 +573,16 @@ export default function AccountantArea({ user }) {
         alert('✅ Файл акту завантажено успішно!');
         
         // Оновлюємо всі дані після успішного завантаження
+        console.log('🔄 Starting comprehensive data refresh after act file upload...');
         await refreshAllData();
         
         // Додатково оновлюємо основні завдання через /api/tasks/filter
         await refreshMainTasksData();
+        
+        // Optional: Add a small delay and then check if data is fresh
+        setTimeout(() => {
+          console.log('🔄 Act file upload: Data refresh completed. If data still appears stale, consider manual refresh.');
+        }, 1000);
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка завантаження файлу акту');
@@ -1008,13 +1074,22 @@ export default function AccountantArea({ user }) {
     }
   }, [user?.login, allTaskFields]);
   
+  // State to track data freshness for modal synchronization
+  const [dataSyncKey, setDataSyncKey] = useState(0);
+  
+  // Function to force complete page refresh as fallback
+  const forceCompleteRefresh = () => {
+    console.log('🔄 FORCE COMPLETE REFRESH: Reloading entire page...');
+    window.location.reload();
+  };
+  
   // Об'єднуємо основні завдання з додатковими (якщо чекбокс активний)
   const allTasks = useMemo(() => {
     if (showAllTasks) {
       return [...tasks, ...additionalTasks];
     }
     return tasks;
-  }, [tasks, additionalTasks, showAllTasks]);
+  }, [tasks, additionalTasks, showAllTasks, dataSyncKey]);
   
   const filtered = allTasks.filter(t => {
     for (const key in filters) {
@@ -2482,7 +2557,8 @@ export default function AccountantArea({ user }) {
           <TaskTable
             key={`invoice-requests-${tableKey}-${Date.now()}`}
             tasks={tableData}
-            allTasks={tasks}
+            allTasks={allTasks}
+            dataSyncKey={dataSyncKey}
             onApprove={handleApprove}
             onEdit={handleEdit}
             onDelete={handleDeleteInvoiceRequest}
@@ -2515,7 +2591,8 @@ export default function AccountantArea({ user }) {
           <TaskTable
           key={`debt-${tableKey}-${Date.now()}`}
           tasks={tableData}
-        allTasks={tasks}
+        allTasks={allTasks}
+        dataSyncKey={dataSyncKey}
         onApprove={handleApprove}
         onEdit={handleEdit}
         onDelete={handleDelete}
@@ -2585,7 +2662,8 @@ export default function AccountantArea({ user }) {
           <TaskTable
             key={`main-${tableKey}-${Date.now()}`}
             tasks={tableData}
-            allTasks={tasks}
+            allTasks={allTasks}
+            dataSyncKey={dataSyncKey}
             onApprove={handleApprove}
             onEdit={handleEdit}
             onDelete={handleDelete}
