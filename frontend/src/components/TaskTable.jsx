@@ -2491,8 +2491,19 @@ function TaskTableComponent({
                                   invoiceFile: t.invoiceFile,
                                   actFile: t.actFile
                                 });
-                                console.log('DEBUG TaskTable: Повні дані завдання для модального вікна:', t);
-                                setDocumentUploadModal({ open: true, task: t });
+                                
+                                // Отримуємо найсвіжіші дані завдання з allTasks
+                                const latestTask = allTasks.find(task => task.id === t.id || task._id === t._id);
+                                const taskToPass = latestTask || t;
+                                
+                                console.log('DEBUG TaskTable: Використовуємо найсвіжіші дані завдання:', {
+                                  originalTask: t,
+                                  latestTask: latestTask,
+                                  taskToPass: taskToPass,
+                                  hasLatestData: latestTask ? 'YES' : 'NO'
+                                });
+                                
+                                setDocumentUploadModal({ open: true, task: taskToPass });
                               }}
                               style={{
                                 background: '#28a745',

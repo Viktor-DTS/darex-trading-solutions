@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 function NewDocumentUploadModal({
   isOpen,
@@ -14,21 +14,41 @@ function NewDocumentUploadModal({
   const [selectedActFile, setSelectedActFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Логування даних завдання при відкритті модального вікна
+  useEffect(() => {
+    if (isOpen && task) {
+      console.log('🔄 NEW DocumentUploadModal: Модальне вікно відкрито з даними:', {
+        isOpen,
+        task: {
+          id: task.id,
+          _id: task._id,
+          invoiceRequestId: task.invoiceRequestId,
+          requestNumber: task.requestNumber,
+          needInvoice: task.needInvoice,
+          needAct: task.needAct,
+          invoiceFile: task.invoiceFile,
+          invoiceFileName: task.invoiceFileName,
+          actFile: task.actFile,
+          actFileName: task.actFileName,
+          invoice: task.invoice,
+          invoiceStatus: task.invoiceStatus,
+          actStatus: task.actStatus
+        }
+      });
+      
+      // Додаткова діагностика файлів
+      console.log('🔄 NEW DocumentUploadModal: Діагностика файлів:', {
+        hasInvoiceFile: !!task.invoiceFile,
+        hasActFile: !!task.actFile,
+        invoiceFileName: task.invoiceFileName,
+        actFileName: task.actFileName,
+        invoiceStatus: task.invoiceStatus,
+        actStatus: task.actStatus
+      });
+    }
+  }, [isOpen, task]);
+
   if (!isOpen || !task) return null;
-  
-  console.log('🔄 NEW DocumentUploadModal: Модальне вікно відкрито', {
-    isOpen,
-    task: task ? {
-      id: task.id,
-      _id: task._id,
-      invoiceRequestId: task.invoiceRequestId,
-      requestNumber: task.requestNumber,
-      needInvoice: task.needInvoice,
-      needAct: task.needAct,
-      invoiceFile: task.invoiceFile,
-      actFile: task.actFile
-    } : null
-  });
 
   const handleInvoiceFileChange = (e) => {
     const file = e.target.files[0];
