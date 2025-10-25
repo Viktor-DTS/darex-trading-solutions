@@ -164,6 +164,26 @@ export default function AccountantArea({ user }) {
     }
   };
   
+   // Функція для повного оновлення всіх даних
+  const refreshAllData = async () => {
+    try {
+      console.log('🔄 Refreshing all data...');
+      
+      // Оновлюємо дані в таблиці запитів на рахунки
+      await loadInvoiceRequests();
+      
+      // Оновлюємо основну таблицю завдань
+      await refreshData(activeTab);
+      
+      // Примусово перерендерюємо таблицю
+      setTableKey(prev => prev + 1);
+      
+      console.log('✅ All data refreshed successfully');
+    } catch (error) {
+      console.error('❌ Error refreshing data:', error);
+    }
+  };
+
   // Функція для завантаження запитів на рахунки
   const loadInvoiceRequests = async () => {
     try {
@@ -315,13 +335,10 @@ export default function AccountantArea({ user }) {
           }));
         }
         
-        alert('✅ Файл рахунку завантажено успішно!');
+        alert('✅ Файл рахунку завантажено успішно! (TESTING)');
         
-        // Оновлюємо дані в таблиці
-        await loadInvoiceRequests();
-        
-        // Оновлюємо основну таблицю завдань
-        await refreshData(activeTab);
+        // Оновлюємо всі дані після успішного завантаження
+        await refreshAllData();
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка завантаження файлу');
@@ -375,11 +392,8 @@ export default function AccountantArea({ user }) {
         
         alert('Файл успішно видалено!');
         
-        // Оновлюємо дані в таблиці
-        await loadInvoiceRequests();
-        
-        // Оновлюємо основну таблицю завдань
-        await refreshData(activeTab);
+        // Оновлюємо всі дані після успішного видалення
+        await refreshAllData();
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка видалення файлу');
@@ -465,11 +479,8 @@ export default function AccountantArea({ user }) {
         
         alert('✅ Файл акту завантажено успішно!');
         
-        // Оновлюємо дані в таблиці
-        await loadInvoiceRequests();
-        
-        // Оновлюємо основну таблицю завдань
-        await refreshData(activeTab);
+        // Оновлюємо всі дані після успішного завантаження
+        await refreshAllData();
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка завантаження файлу акту');
@@ -544,11 +555,8 @@ export default function AccountantArea({ user }) {
         
         alert('Файл акту успішно видалено!');
         
-        // Оновлюємо дані в таблиці
-        await loadInvoiceRequests();
-        
-        // Оновлюємо основну таблицю завдань
-        await refreshData(activeTab);
+        // Оновлюємо всі дані після успішного видалення
+        await refreshAllData();
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка видалення файлу акту');
