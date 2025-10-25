@@ -45,6 +45,10 @@ function NewDocumentUploadModal({
         invoiceStatus: task.invoiceStatus,
         actStatus: task.actStatus
       });
+      
+      // Reset file selections when modal opens with fresh data
+      setSelectedInvoiceFile(null);
+      setSelectedActFile(null);
     }
   }, [isOpen, task]);
 

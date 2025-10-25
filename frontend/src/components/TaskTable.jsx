@@ -94,6 +94,7 @@ function TaskTableComponent({
   const [deleteConfirmModal, setDeleteConfirmModal] = useState({ open: false, taskId: null, taskInfo: null });
   const [editDateModal, setEditDateModal] = useState({ open: false, taskId: null, month: '', year: '' });
   const [documentUploadModal, setDocumentUploadModal] = useState({ open: false, task: null });
+  const [modalKey, setModalKey] = useState(0);
   const [regions, setRegions] = useState([]);
   
   // Форматує значення клітинки, щоб уникнути передачі об'єктів у JSX
@@ -2492,6 +2493,9 @@ function TaskTableComponent({
                                   actFile: t.actFile
                                 });
                                 
+                                // Force modal to re-render with fresh data
+                                setModalKey(prev => prev + 1);
+                                
                                 // Отримуємо найсвіжіші дані завдання з allTasks
                                 const latestTask = allTasks.find(task => task.id === t.id || task._id === t._id);
                                 const taskToPass = latestTask || t;
@@ -2500,10 +2504,15 @@ function TaskTableComponent({
                                   originalTask: t,
                                   latestTask: latestTask,
                                   taskToPass: taskToPass,
-                                  hasLatestData: latestTask ? 'YES' : 'NO'
+                                  hasLatestData: latestTask ? 'YES' : 'NO',
+                                  modalKey: modalKey + 1
                                 });
                                 
-                                setDocumentUploadModal({ open: true, task: taskToPass });
+                                setDocumentUploadModal({ 
+                                  open: true, 
+                                  task: taskToPass,
+                                  key: modalKey + 1 // Add key to force re-render
+                                });
                               }}
                               style={{
                                 background: '#28a745',
@@ -2974,6 +2983,7 @@ function TaskTableComponent({
       
       {/* Модальне вікно для завантаження документів - тільки якщо функції передані */}
       <NewDocumentUploadModal
+        key={documentUploadModal.key || modalKey} // Force re-render with fresh data
         isOpen={documentUploadModal.open}
         onClose={() => setDocumentUploadModal({ open: false, task: null })}
         task={documentUploadModal.task}
