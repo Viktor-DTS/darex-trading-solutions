@@ -1072,10 +1072,10 @@ export default function AccountantArea({ user }) {
           console.log('[DEBUG] AccountantArea - завантажено налаштування колонок для invoiceRequests:', settings.length);
         } else {
           // Використовуємо всі колонки як в основній вкладці
-          const defaultColumns = allTaskFields.map(f => ({ key: f.name, label: f.label }));
+          const defaultColumns = allTaskFields.map(f => ({ key: f.name, label: f.label, filter: true }));
           
           // Додаємо спеціальну колонку для типу документів
-          defaultColumns.push({ key: 'documentType', label: 'Тип документів' });
+          defaultColumns.push({ key: 'documentType', label: 'Тип документів', filter: true });
           setInvoiceRequestsColumns(defaultColumns);
           setInvoiceRequestsColumnsSettings(prev => ({ ...prev, selected: defaultColumns.map(c => c.key) }));
           console.log('[DEBUG] AccountantArea - використовуємо стандартні колонки для invoiceRequests:', defaultColumns.length);
@@ -1083,10 +1083,10 @@ export default function AccountantArea({ user }) {
       } catch (error) {
         console.error('[ERROR] AccountantArea - помилка завантаження налаштувань колонок для invoiceRequests:', error);
         // Використовуємо всі колонки як в основній вкладці при помилці
-        const defaultColumns = allTaskFields.map(f => ({ key: f.name, label: f.label }));
+        const defaultColumns = allTaskFields.map(f => ({ key: f.name, label: f.label, filter: true }));
         
         // Додаємо спеціальну колонку для типу документів
-        defaultColumns.push({ key: 'documentType', label: 'Тип документів' });
+        defaultColumns.push({ key: 'documentType', label: 'Тип документів', filter: true });
         setInvoiceRequestsColumns(defaultColumns);
         setInvoiceRequestsColumnsSettings(prev => ({ ...prev, selected: defaultColumns.map(c => c.key) }));
       }
@@ -2595,7 +2595,7 @@ export default function AccountantArea({ user }) {
             filters={filters}
             onFilterChange={handleFilter}
             columns={invoiceRequestsColumns}
-            allColumns={[...allTaskFields.map(f => ({ key: f.name, label: f.label })), { key: 'documentType', label: 'Тип документів' }]}
+            allColumns={[...allTaskFields.map(f => ({ key: f.name, label: f.label, filter: true })), { key: 'documentType', label: 'Тип документів', filter: true }]}
             approveField="approvedByAccountant"
             commentField="accountantComment"
             user={user}
