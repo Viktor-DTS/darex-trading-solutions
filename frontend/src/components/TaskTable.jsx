@@ -396,7 +396,7 @@ function TaskTableComponent({
     };
     loadUserSettings();
     return () => { isMounted = false; };
-  }, [userLoginRef.current, areaRef.current, defaultKeysRef.current, settingsLoaded]); // Використовуємо refs як залежності
+  }, [userLoginRef.current, areaRef.current, defaultKeysRef.current]); // Видалено settingsLoaded з залежностей
   
   // Завантаження регіонів
   useEffect(() => {
@@ -424,7 +424,7 @@ function TaskTableComponent({
     
     
   // Рендеримо спінер, поки налаштування не завантажено
-  if (loadingSettings || selected.length === 0) {
+  if (loadingSettings || !settingsLoaded || selected.length === 0) {
     return (
       <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'200px',color:'#666'}}>
         <div style={{textAlign:'center'}}>
