@@ -866,14 +866,14 @@ export default function AccountantArea({ user }) {
     }
   };
   
-  // Функція для збереження налаштувань колонок
-  const handleSaveColumns = async (selectedColumns) => {
+  // Функція для збереження налаштувань колонок для основної вкладки
+  const handleSaveMainColumns = async (selectedColumns) => {
     try {
-      await columnsSettingsAPI.saveColumnsSettings(user.login, 'service', selectedColumns);
-      setColumnsSettings({ open: false, selected: selectedColumns });
-      // Debug log removed
+      await columnsSettingsAPI.saveColumnsSettings(user.login, 'accountant', selectedColumns);
+      setMainColumnsSettings({ open: false, selected: selectedColumns });
+      console.log('[DEBUG] AccountantArea - збережено налаштування колонок для основної вкладки:', selectedColumns.length);
     } catch (error) {
-      console.error('[ERROR] AccountantArea - помилка збереження налаштувань колонок:', error);
+      console.error('[ERROR] AccountantArea - помилка збереження налаштувань колонок для основної вкладки:', error);
     }
   };
   
@@ -1034,6 +1034,33 @@ export default function AccountantArea({ user }) {
     loadAllTasks();
   }, []); // Завантажуємо при кожному монтуванні компонента
   
+  // Завантажуємо налаштування колонок для основної вкладки
+  useEffect(() => {
+    const loadMainColumns = async () => {
+      try {
+        const settings = await columnsSettingsAPI.getColumnsSettings(user.login, 'accountant');
+        if (settings && settings.length > 0) {
+          setMainColumnsSettings(prev => ({ ...prev, selected: settings }));
+          console.log('[DEBUG] AccountantArea - завантажено налаштування колонок для основної вкладки:', settings.length);
+        } else {
+          // Використовуємо всі колонки за замовчуванням
+          const defaultColumns = allTaskFields.map(f => f.name);
+          setMainColumnsSettings(prev => ({ ...prev, selected: defaultColumns }));
+          console.log('[DEBUG] AccountantArea - використовуємо стандартні колонки для основної вкладки:', defaultColumns.length);
+        }
+      } catch (error) {
+        console.error('[ERROR] AccountantArea - помилка завантаження налаштувань колонок для основної вкладки:', error);
+        // Використовуємо всі колонки при помилці
+        const defaultColumns = allTaskFields.map(f => f.name);
+        setMainColumnsSettings(prev => ({ ...prev, selected: defaultColumns }));
+      }
+    };
+    
+    if (user?.login) {
+      loadMainColumns();
+    }
+  }, [user?.login, allTaskFields]);
+
   // Завантажуємо налаштування колонок для вкладки "Заявка на рахунок"
   useEffect(() => {
     const loadInvoiceRequestsColumns = async () => {
@@ -1234,6 +1261,12 @@ export default function AccountantArea({ user }) {
   const [invoiceRequests, setInvoiceRequests] = useState([]);
   const [showCompletedRequests, setShowCompletedRequests] = useState(false);
   const [invoiceRequestsLoading, setInvoiceRequestsLoading] = useState(false);
+  
+  // Окрема конфігурація колонок для основної вкладки
+  const [mainColumnsSettings, setMainColumnsSettings] = useState({
+    open: false,
+    selected: []
+  });
   
   // Окрема конфігурація колонок для вкладки "Заявка на рахунок"
   const [invoiceRequestsColumns, setInvoiceRequestsColumns] = useState([]);
@@ -2678,6 +2711,8 @@ export default function AccountantArea({ user }) {
             onInvoiceDelete={deleteInvoiceFile}
             onActDelete={deleteActFile}
             uploadingFiles={uploadingFiles}
+            columnsSettings={mainColumnsSettings}
+            onSaveColumns={handleSaveMainColumns}
           />
         </div>
       )}
