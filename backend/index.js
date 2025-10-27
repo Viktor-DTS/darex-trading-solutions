@@ -99,7 +99,7 @@ console.log('[CLOUDINARY DEBUG] CloudinaryStorage створено:', !!storage)
 const upload = multer({ 
   storage: storage,
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB ліміт
+    fileSize: 20 * 1024 * 1024 // 20MB ліміт
   },
   fileFilter: (req, file, cb) => {
     // Дозволяємо тільки PDF та зображення для рахунків
@@ -4231,7 +4231,7 @@ app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({
         success: false,
-        message: 'Файл занадто великий. Максимальний розмір: 10MB'
+        message: 'Файл занадто великий. Максимальний розмір: 20MB'
       });
     }
   }

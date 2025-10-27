@@ -430,7 +430,7 @@ router.post('/upload-contract', (req, res, next) => {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({
             success: false,
-            error: 'Файл занадто великий. Максимальний розмір: 10MB'
+            error: 'Файл занадто великий. Максимальний розмір: 20MB'
           });
         }
       }

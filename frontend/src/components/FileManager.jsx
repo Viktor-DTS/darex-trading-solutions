@@ -38,8 +38,8 @@ export default function FileManager({ taskId, onFilesChange }) {
         alert(`Файл ${file.name} має непідтримуваний тип. Дозволені тільки PDF, JPEG, JPG, PNG.`);
         return false;
       }
-      if (file.size > 10 * 1024 * 1024) {
-        alert(`Файл ${file.name} занадто великий. Максимум 10MB.`);
+      if (file.size > 20 * 1024 * 1024) {
+        alert(`Файл ${file.name} занадто великий. Максимум 20MB.`);
         return false;
       }
       return true;

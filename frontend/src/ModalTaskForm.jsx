@@ -1674,8 +1674,8 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                                 onChange={(e) => {
                                   const file = e.target.files[0];
                                   if (file) {
-                                    if (file.size > 10 * 1024 * 1024) {
-                                      alert('Файл занадто великий. Максимальний розмір: 10MB');
+                                    if (file.size > 20 * 1024 * 1024) {
+                                      alert('Файл занадто великий. Максимальний розмір: 20MB');
                                       return;
                                     }
                                     console.log('[DEBUG] ModalTaskForm - завантажено файл договору:', file);
@@ -1692,7 +1692,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                                 }}
                               />
                               <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                                Підтримувані формати: PDF, DOC, DOCX, JPG, PNG (макс. 10MB)
+                                Підтримувані формати: PDF, DOC, DOCX, JPG, PNG (макс. 20MB)
                               </div>
                             </div>
                           )}

@@ -2308,9 +2308,9 @@ export default function AccountantArea({ user }) {
                             onChange={(e) => {
                               const file = e.target.files[0];
                               if (file) {
-                                // Валідація розміру файлу (10MB)
-                                if (file.size > 10 * 1024 * 1024) {
-                                  alert('Файл занадто великий. Максимальний розмір: 10MB');
+                                // Валідація розміру файлу (20MB)
+                                if (file.size > 20 * 1024 * 1024) {
+                                  alert('Файл занадто великий. Максимальний розмір: 20MB');
                                   return;
                                 }
                                 
