@@ -880,7 +880,7 @@ export default function AccountantArea({ user }) {
   // Функція для збереження налаштувань колонок для вкладки "Заявка на рахунок"
   const handleSaveInvoiceRequestsColumns = async (selectedColumns) => {
     try {
-      await columnsSettingsAPI.saveColumnsSettings(user.login, 'invoiceRequests', selectedColumns);
+      await columnsSettingsAPI.saveColumnsSettings(user.login, 'accountant-invoice', selectedColumns);
       setInvoiceRequestsColumnsSettings({ open: false, selected: selectedColumns });
       // Debug log removed
     } catch (error) {
@@ -1065,7 +1065,7 @@ export default function AccountantArea({ user }) {
   useEffect(() => {
     const loadInvoiceRequestsColumns = async () => {
       try {
-        const settings = await columnsSettingsAPI.getColumnsSettings(user.login, 'invoiceRequests');
+        const settings = await columnsSettingsAPI.getColumnsSettings(user.login, 'accountant-invoice');
         if (settings && settings.length > 0) {
           setInvoiceRequestsColumns(settings);
           setInvoiceRequestsColumnsSettings(prev => ({ ...prev, selected: settings }));
@@ -2591,7 +2591,7 @@ export default function AccountantArea({ user }) {
             onApprove={handleApprove}
             onEdit={handleEdit}
             onDelete={handleDeleteInvoiceRequest}
-            role="accountant"
+            role="accountant-invoice"
             filters={filters}
             onFilterChange={handleFilter}
             columns={invoiceRequestsColumns}
@@ -2625,7 +2625,7 @@ export default function AccountantArea({ user }) {
         onApprove={handleApprove}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        role="accountant"
+        role="accountant-debt"
         filters={filters}
         onFilterChange={handleFilter}
         columns={columns}
