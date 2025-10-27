@@ -426,7 +426,6 @@ function TaskTableComponent({
     'Виконано': 3,
     'Заблоковано': 4,
   };
-  const sortedTasks = [...filterTasks(tasks, filters)].sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
 
   // Додаю функцію для визначення кольору рядка
   function getRowColor(t) {
@@ -873,6 +872,9 @@ function TaskTableComponent({
       return true;
     });
   };
+
+  // Створюємо відсортовані завдання після оголошення filterTasks
+  const sortedTasks = [...filterTasks(tasks, filters)].sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
 
   // Функція для сортування даних
   const sortData = (data, field, direction) => {
