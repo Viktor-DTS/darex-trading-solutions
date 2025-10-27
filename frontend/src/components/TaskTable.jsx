@@ -97,6 +97,49 @@ function TaskTableComponent({
   const [modalKey, setModalKey] = useState(0);
   const [regions, setRegions] = useState([]);
   
+  // Мемоізовані функції для оптимізації продуктивності
+  const getFilterType = useMemo(() => {
+    const selectFields = {
+      'status': ['', 'Заявка', 'В роботі', 'Виконано', 'Заблоковано'],
+      'company': ['', 'ДТС', 'Дарекс Енерго', 'інша'],
+      'paymentType': ['не вибрано', 'Безготівка', 'Готівка', 'На карту', 'Інше'],
+      'approvedByWarehouse': ['На розгляді', 'Підтверджено', 'Відмова'],
+      'approvedByAccountant': ['На розгляді', 'Підтверджено', 'Відмова'],
+      'approvedByRegionalManager': ['На розгляді', 'Підтверджено', 'Відмова'],
+      'serviceRegion': (() => {
+        if (regions.length === 0) return [];
+        
+        // Якщо користувач має множинні регіони, показуємо тільки їх регіони (без "Загальний")
+        if (user?.region && user.region.includes(',')) {
+          const userRegions = user.region.split(',').map(r => r.trim());
+          return ['', ...userRegions];
+        }
+        
+        // Якщо користувач має доступ до всіх регіонів або один регіон
+        return ['', ...regions.map(r => r.name)];
+      })()
+    };
+    
+    return (colKey) => selectFields[colKey] || null;
+  }, [regions, user?.region]);
+
+  const isFieldDisabled = useMemo(() => {
+    return (colKey) => {
+      if (colKey === 'serviceRegion') {
+        // Розблоковуємо для користувачів з множинними регіонами або з регіоном "Україна"
+        if (user?.region === 'Україна') return false;
+        if (user?.region && user.region.includes(',')) return false;
+        // Блокуємо для користувачів з одним регіоном
+        return true;
+      }
+      return false;
+    };
+  }, [user?.region]);
+
+  const getClientHistory = useMemo(() => {
+    return (client) => (allTasks.length ? allTasks : tasks).filter(t => t.client === client);
+  }, [allTasks, tasks]);
+  
   // Форматує значення клітинки, щоб уникнути передачі об'єктів у JSX
   function formatCellValue(value) {
     if (value === null || value === undefined) return '';
@@ -468,51 +511,6 @@ function TaskTableComponent({
     if (reg) return 'regional-approved';
     return '';
   }
-
-  // Мемоізована функція для визначення типу фільтра
-  const getFilterType = useMemo(() => {
-    const selectFields = {
-      'status': ['', 'Заявка', 'В роботі', 'Виконано', 'Заблоковано'],
-      'company': ['', 'ДТС', 'Дарекс Енерго', 'інша'],
-      'paymentType': ['не вибрано', 'Безготівка', 'Готівка', 'На карту', 'Інше'],
-      'approvedByWarehouse': ['На розгляді', 'Підтверджено', 'Відмова'],
-      'approvedByAccountant': ['На розгляді', 'Підтверджено', 'Відмова'],
-      'approvedByRegionalManager': ['На розгляді', 'Підтверджено', 'Відмова'],
-      'serviceRegion': (() => {
-        if (regions.length === 0) return [];
-        
-        // Якщо користувач має множинні регіони, показуємо тільки їх регіони (без "Загальний")
-        if (user?.region && user.region.includes(',')) {
-          const userRegions = user.region.split(',').map(r => r.trim());
-          return ['', ...userRegions];
-        }
-        
-        // Якщо користувач має доступ до всіх регіонів або один регіон
-        return ['', ...regions.map(r => r.name)];
-      })()
-    };
-    
-    return (colKey) => selectFields[colKey] || null;
-  }, [regions, user?.region]);
-
-  // Мемоізована функція для визначення, чи поле заблоковане
-  const isFieldDisabled = useMemo(() => {
-    return (colKey) => {
-      if (colKey === 'serviceRegion') {
-        // Розблоковуємо для користувачів з множинними регіонами або з регіоном "Україна"
-        if (user?.region === 'Україна') return false;
-        if (user?.region && user.region.includes(',')) return false;
-        // Блокуємо для користувачів з одним регіоном
-        return true;
-      }
-      return false;
-    };
-  }, [user?.region]);
-
-  // Мемоізована функція для вибору історії по замовнику
-  const getClientHistory = useMemo(() => {
-    return (client) => (allTasks.length ? allTasks : tasks).filter(t => t.client === client);
-  }, [allTasks, tasks]);
 
   // Модалка інформації
   function InfoModal({task, onClose, history}) {
