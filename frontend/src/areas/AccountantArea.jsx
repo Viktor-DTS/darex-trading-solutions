@@ -1044,10 +1044,8 @@ export default function AccountantArea({ user }) {
           setInvoiceRequestsColumnsSettings(prev => ({ ...prev, selected: settings }));
           console.log('[DEBUG] AccountantArea - завантажено налаштування колонок для invoiceRequests:', settings.length);
         } else {
-          // Використовуємо стандартні колонки для заявок на рахунки
-          const defaultColumns = allTaskFields
-            .filter(field => ['requestNumber', 'client', 'work', 'status', 'needInvoice', 'needAct', 'invoiceStatus', 'createdAt'].includes(field.name))
-            .map(f => ({ key: f.name, label: f.label }));
+          // Використовуємо всі колонки як в основній вкладці
+          const defaultColumns = allTaskFields.map(f => ({ key: f.name, label: f.label }));
           
           // Додаємо спеціальну колонку для типу документів
           defaultColumns.push({ key: 'documentType', label: 'Тип документів' });
@@ -1057,10 +1055,8 @@ export default function AccountantArea({ user }) {
         }
       } catch (error) {
         console.error('[ERROR] AccountantArea - помилка завантаження налаштувань колонок для invoiceRequests:', error);
-        // Використовуємо стандартні колонки при помилці
-        const defaultColumns = allTaskFields
-          .filter(field => ['requestNumber', 'client', 'work', 'status', 'needInvoice', 'needAct', 'invoiceStatus', 'createdAt'].includes(field.name))
-          .map(f => ({ key: f.name, label: f.label }));
+        // Використовуємо всі колонки як в основній вкладці при помилці
+        const defaultColumns = allTaskFields.map(f => ({ key: f.name, label: f.label }));
         
         // Додаємо спеціальну колонку для типу документів
         defaultColumns.push({ key: 'documentType', label: 'Тип документів' });
