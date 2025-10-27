@@ -426,7 +426,7 @@ function TaskTableComponent({
     'Виконано': 3,
     'Заблоковано': 4,
   };
-  const sortedTasks = [...tasks].sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
+  const sortedTasks = [...filterTasks(tasks, filters)].sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
 
   // Додаю функцію для визначення кольору рядка
   function getRowColor(t) {
@@ -842,6 +842,35 @@ function TaskTableComponent({
           direction: 'asc'
         };
       }
+    });
+  };
+
+  // Функція для фільтрації завдань за фільтрами
+  const filterTasks = (data, filters) => {
+    if (!filters || Object.keys(filters).length === 0) return data;
+    
+    console.log('[DEBUG] Фільтрація завдань:', { filters, dataLength: data.length });
+    
+    return data.filter(task => {
+      // Перевіряємо кожен фільтр
+      for (const [key, value] of Object.entries(filters)) {
+        if (!value || value === '') continue; // Пропускаємо порожні фільтри
+        
+        let taskValue = task[key];
+        
+        // Обробка null/undefined значень
+        if (taskValue === null || taskValue === undefined) taskValue = '';
+        
+        // Перетворюємо в рядок для порівняння
+        const filterValue = String(value).toLowerCase();
+        const taskValueStr = String(taskValue).toLowerCase();
+        
+        // Перевіряємо чи містить значення завдання фільтр
+        if (!taskValueStr.includes(filterValue)) {
+          return false;
+        }
+      }
+      return true;
     });
   };
 
@@ -2383,7 +2412,7 @@ function TaskTableComponent({
                 </tr>
               </thead>
               <tbody>
-                {sortData(tasks, sortConfig.field, sortConfig.direction).map(t => (
+                {sortData(filterTasks(tasks, filters), sortConfig.field, sortConfig.direction).map(t => (
                   <tr key={t.id} className={getRowClass(t)} style={getRowColor(t) ? {background:getRowColor(t)} : {}}>
                     <td className="action-buttons" style={getRowColor(t) ? {color:'#111'} : {}}>
                       {/* Індикатор стану рахунку */}
