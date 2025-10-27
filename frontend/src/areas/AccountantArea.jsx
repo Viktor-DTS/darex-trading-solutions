@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
 import AccountantReportsModal from '../components/AccountantReportsModal';
@@ -843,10 +843,10 @@ export default function AccountantArea({ user }) {
       alert('Помилка підтвердження заявки: ' + error.message);
     }
   };
-  const handleFilter = e => {
+  const handleFilter = useCallback(e => {
     const newFilters = { ...filters, [e.target.name]: e.target.value };
     setFilters(newFilters);
-  };
+  }, [filters]);
   const handleEdit = t => {
     const isReadOnly = t._readOnly;
     const taskData = { ...t };
@@ -2584,7 +2584,7 @@ export default function AccountantArea({ user }) {
           </div>
           
           <TaskTable
-            key={`invoice-requests-${tableKey}-${Date.now()}`}
+            key={`invoice-requests-${activeTab}`}
             tasks={tableData}
             allTasks={allTasks}
             dataSyncKey={dataSyncKey}
@@ -2618,7 +2618,7 @@ export default function AccountantArea({ user }) {
           {console.log('[DEBUG] Debt tab - tasks with debtStatus:', tableData.filter(t => t.debtStatus).length)}
           {console.log('[DEBUG] Debt tab - tasks with paymentType:', tableData.filter(t => t.paymentType).length)}
           <TaskTable
-          key={`debt-${tableKey}-${Date.now()}`}
+          key={`debt-${activeTab}`}
           tasks={tableData}
         allTasks={allTasks}
         dataSyncKey={dataSyncKey}
@@ -2689,7 +2689,7 @@ export default function AccountantArea({ user }) {
           )}
           
           <TaskTable
-            key={`main-${tableKey}-${Date.now()}`}
+            key={`main-${activeTab}`}
             tasks={tableData}
             allTasks={allTasks}
             dataSyncKey={dataSyncKey}
