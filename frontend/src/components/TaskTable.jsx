@@ -469,8 +469,8 @@ function TaskTableComponent({
     return '';
   }
 
-  // Функція для визначення типу фільтра
-  function getFilterType(colKey) {
+  // Мемоізована функція для визначення типу фільтра
+  const getFilterType = useMemo(() => {
     const selectFields = {
       'status': ['', 'Заявка', 'В роботі', 'Виконано', 'Заблоковано'],
       'company': ['', 'ДТС', 'Дарекс Енерго', 'інша'],
@@ -481,44 +481,38 @@ function TaskTableComponent({
       'serviceRegion': (() => {
         if (regions.length === 0) return [];
         
-        console.log('DEBUG getFilterType: user.region =', user?.region);
-        console.log('DEBUG getFilterType: user.region type =', typeof user?.region);
-        console.log('DEBUG getFilterType: user.region includes comma =', user?.region?.includes(','));
-        console.log('DEBUG getFilterType: regions =', regions.map(r => r.name));
-        
         // Якщо користувач має множинні регіони, показуємо тільки їх регіони (без "Загальний")
         if (user?.region && user.region.includes(',')) {
           const userRegions = user.region.split(',').map(r => r.trim());
-          console.log('DEBUG getFilterType: userRegions =', userRegions);
-          const result = ['', ...userRegions];
-          console.log('DEBUG getFilterType: result for multi-region user (without Загальний) =', result);
-          return result;
+          return ['', ...userRegions];
         }
         
         // Якщо користувач має доступ до всіх регіонів або один регіон
-        const result = ['', ...regions.map(r => r.name)];
-        console.log('DEBUG getFilterType: result for single-region user =', result);
-        return result;
+        return ['', ...regions.map(r => r.name)];
       })()
     };
     
-    return selectFields[colKey] || null;
-  }
+    return (colKey) => selectFields[colKey] || null;
+  }, [regions, user?.region]);
 
-  // Функція для визначення, чи поле заблоковане
-  function isFieldDisabled(colKey) {
-    if (colKey === 'serviceRegion') {
-      // Розблоковуємо для користувачів з множинними регіонами або з регіоном "Україна"
-      if (user?.region === 'Україна') return false;
-      if (user?.region && user.region.includes(',')) return false;
-      // Блокуємо для користувачів з одним регіоном
-      return true;
-    }
-    return false;
-  }
+  // Мемоізована функція для визначення, чи поле заблоковане
+  const isFieldDisabled = useMemo(() => {
+    return (colKey) => {
+      if (colKey === 'serviceRegion') {
+        // Розблоковуємо для користувачів з множинними регіонами або з регіоном "Україна"
+        if (user?.region === 'Україна') return false;
+        if (user?.region && user.region.includes(',')) return false;
+        // Блокуємо для користувачів з одним регіоном
+        return true;
+      }
+      return false;
+    };
+  }, [user?.region]);
 
-  // Вибір історії по замовнику
-  const getClientHistory = (client) => (allTasks.length ? allTasks : tasks).filter(t => t.client === client);
+  // Мемоізована функція для вибору історії по замовнику
+  const getClientHistory = useMemo(() => {
+    return (client) => (allTasks.length ? allTasks : tasks).filter(t => t.client === client);
+  }, [allTasks, tasks]);
 
   // Модалка інформації
   function InfoModal({task, onClose, history}) {
