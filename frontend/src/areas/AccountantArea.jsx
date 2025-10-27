@@ -844,9 +844,11 @@ export default function AccountantArea({ user }) {
     }
   };
   const handleFilter = useCallback(e => {
-    const newFilters = { ...filters, [e.target.name]: e.target.value };
-    setFilters(newFilters);
-  }, [filters]);
+    setFilters(prevFilters => {
+      const newFilters = { ...prevFilters, [e.target.name]: e.target.value };
+      return newFilters;
+    });
+  }, []); // Порожні залежності як в ServiceArea
   const handleEdit = t => {
     const isReadOnly = t._readOnly;
     const taskData = { ...t };
