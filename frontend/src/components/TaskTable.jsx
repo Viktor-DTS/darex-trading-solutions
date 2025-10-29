@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import ModalTaskForm from '../ModalTaskForm';
 import NewDocumentUploadModal from './NewDocumentUploadModal';
 import { columnsSettingsAPI } from '../utils/columnsSettingsAPI';
@@ -71,17 +71,17 @@ function TaskTableComponent({
   onActDelete = () => {},
   uploadingFiles = new Set(),
 }) {
-  console.log('[LOG] TaskTable received columns:', columns);
-  console.log('[LOG] TaskTable role:', role);
-  console.log('[LOG] TaskTable user:', user);
-  console.log('[LOG] TaskTable user?.region:', user?.region);
-  console.log('[LOG] TaskTable filters:', filters);
-  console.log('[LOG] TaskTable onDelete:', onDelete);
-  console.log('[LOG] TaskTable user?.role:', user?.role);
-  console.log('[LOG] TaskTable onFilterChange:', onFilterChange);
-  console.log('[LOG] TaskTable onInvoiceUpload:', typeof onInvoiceUpload, onInvoiceUpload);
-  console.log('[LOG] TaskTable onActUpload:', typeof onActUpload, onActUpload);
-  console.log('[LOG] TaskTable uploadingFiles:', uploadingFiles);
+  // console.log('[LOG] TaskTable received columns:', columns);
+  // console.log('[LOG] TaskTable role:', role);
+  // console.log('[LOG] TaskTable user:', user);
+  // console.log('[LOG] TaskTable user?.region:', user?.region);
+  // console.log('[LOG] TaskTable filters:', filters);
+  // console.log('[LOG] TaskTable onDelete:', onDelete);
+  // console.log('[LOG] TaskTable user?.role:', user?.role);
+  // console.log('[LOG] TaskTable onFilterChange:', onFilterChange);
+  // console.log('[LOG] TaskTable onInvoiceUpload:', typeof onInvoiceUpload, onInvoiceUpload);
+  // console.log('[LOG] TaskTable onActUpload:', typeof onActUpload, onActUpload);
+  // console.log('[LOG] TaskTable uploadingFiles:', uploadingFiles);
   
   // Всі хуки повинні бути на початку компонента
   const [showSettings, setShowSettings] = useState(false);
@@ -97,7 +97,24 @@ function TaskTableComponent({
   const [modalKey, setModalKey] = useState(0);
   const [regions, setRegions] = useState([]);
   
-  // Мемоізовані функції для оптимізації продуктивності
+  // Ref для збереження фокусу в фільтрах
+  const filterInputRefs = useRef({});
+  
+  // Оптимізована функція обробки змін фільтрів
+  const handleFilterChange = useCallback((e) => {
+    const { name, value } = e.target;
+    
+    // Оновлюємо локальний стан фільтрів
+    setLocalFilters(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // Викликаємо onFilterChange
+    if (typeof onFilterChange === 'function') {
+      onFilterChange(e);
+    }
+  }, [onFilterChange]);
   const getFilterType = useMemo(() => {
     const selectFields = {
       'status': ['', 'Заявка', 'В роботі', 'Виконано', 'Заблоковано'],
@@ -191,6 +208,50 @@ function TaskTableComponent({
   const [selected, setSelected] = useState([]);
   const [columnWidths, setColumnWidths] = useState({});
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [localFilters, setLocalFilters] = useState(filters || {});
+  
+  // Синхронізуємо локальний стан з пропсом
+  useEffect(() => {
+    setLocalFilters(filters || {});
+  }, [filters]);
+  
+  // Додаємо логування для відстеження фокусу
+  useEffect(() => {
+    const handleFocusIn = (e) => {
+      if (e.target.tagName === 'INPUT' && e.target.name) {
+        console.log('[DEBUG] Focus gained on input:', e.target.name, e.target.value);
+        // Зберігаємо поточний активний елемент
+        filterInputRefs.current.activeElement = e.target;
+      }
+    };
+    
+    const handleFocusOut = (e) => {
+      if (e.target.tagName === 'INPUT' && e.target.name) {
+        console.log('[DEBUG] Focus lost on input:', e.target.name, e.target.value);
+      }
+    };
+    
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
+    
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
+    };
+  }, []);
+  
+  // Відновлюємо фокус після перерендеру
+  useEffect(() => {
+    const activeElement = filterInputRefs.current.activeElement;
+    if (activeElement && document.activeElement !== activeElement) {
+      // Невелика затримка для відновлення фокусу
+      setTimeout(() => {
+        if (activeElement && activeElement.offsetParent !== null) {
+          activeElement.focus();
+        }
+      }, 10);
+    }
+  });
   
   // Додаємо логування при зміні selected
   useEffect(() => {
@@ -743,23 +804,6 @@ function TaskTableComponent({
 
   // Функція для визначення статусу рахунку
   const getInvoiceStatus = (task) => {
-    // Логуємо тільки для перших 3 заявок для діагностики
-    if (task.id && (task.id.includes('0000173') || task.id.includes('0000174') || task.id.includes('0000175'))) {
-      console.log('[DEBUG] getInvoiceStatus - поля заявки:', {
-        id: task.id,
-        requestNumber: task.requestNumber,
-        invoiceRequested: task.invoiceRequested,
-        invoiceRequestId: task.invoiceRequestId,
-        invoiceStatus: task.invoiceStatus,
-        invoiceFile: task.invoiceFile,
-        invoiceFileName: task.invoiceFileName,
-        allFields: Object.keys(task).filter(key => 
-          key.toLowerCase().includes('invoice') || 
-          key.toLowerCase().includes('рахунок') ||
-          key.toLowerCase().includes('request')
-        )
-      });
-    }
     
     // Перевіряємо, чи створений запит на рахунок
     const hasInvoiceRequest = task.invoiceRequested === true || 
@@ -773,7 +817,6 @@ function TaskTableComponent({
     
     // ДОДАТКОВА ЛОГІКА: Якщо є файл рахунку, показуємо "Виконано"
     if (task.invoiceFile && task.invoiceFile.trim() !== '') {
-      console.log('[DEBUG] getInvoiceStatus - знайдено файл рахунку для заявки:', task.id, 'файл:', task.invoiceFile);
       return { status: 'completed', color: '#28a745', label: 'Виконано' }; // Зелений
     }
     
@@ -846,6 +889,27 @@ function TaskTableComponent({
       // Перевіряємо кожен фільтр
       for (const [key, value] of Object.entries(filters)) {
         if (!value || value === '') continue; // Пропускаємо порожні фільтри
+        
+        // Обробка фільтрів дат з From/To
+        if (key.endsWith('From')) {
+          const field = key.replace('From', '');
+          if (!task[field]) return false;
+          const taskDate = new Date(task[field]);
+          const filterDate = new Date(value);
+          if (isNaN(taskDate.getTime()) || isNaN(filterDate.getTime())) return false;
+          if (taskDate < filterDate) return false;
+          continue;
+        }
+        
+        if (key.endsWith('To')) {
+          const field = key.replace('To', '');
+          if (!task[field]) return false;
+          const taskDate = new Date(task[field]);
+          const filterDate = new Date(value);
+          if (isNaN(taskDate.getTime()) || isNaN(filterDate.getTime())) return false;
+          if (taskDate > filterDate) return false;
+          continue;
+        }
         
         let taskValue = task[key];
         
@@ -2317,26 +2381,14 @@ function TaskTableComponent({
                       {col.filter && (
                           col.key === 'date' || col.key === 'requestDate' || col.key === 'paymentDate' ? (
                             <div style={{display:'flex',flexDirection:'column',minWidth:120, background:'#fff'}}>
-                              <input type="date" name={col.key+"From"} value={filters[col.key+"From"] || ''} onChange={onFilterChange} style={{marginBottom:2, background:'#fff'}} />
-                              <input type="date" name={col.key+"To"} value={filters[col.key+"To"] || ''} onChange={onFilterChange} style={{background:'#fff'}} />
+                              <input type="date" name={col.key+"From"} value={localFilters[col.key+"From"] || ''} onChange={handleFilterChange} style={{marginBottom:2, background:'#fff'}} />
+                              <input type="date" name={col.key+"To"} value={localFilters[col.key+"To"] || ''} onChange={handleFilterChange} style={{background:'#fff'}} />
                             </div>
                           ) : getFilterType(col.key) ? (
                             <select
                               name={col.key}
-                              value={filters[col.key] || ''}
-                              onChange={(e) => {
-                                console.log('[DEBUG] TaskTable filter select changed:', col.key, e.target.value);
-                                console.log('[DEBUG] Current filters state:', filters);
-                                console.log('[DEBUG] TaskTable calling onFilterChange with:', e.target.name, e.target.value);
-                                console.log('[DEBUG] TaskTable onFilterChange function:', onFilterChange);
-                                console.log('[DEBUG] TaskTable onFilterChange type:', typeof onFilterChange);
-                                if (typeof onFilterChange === 'function') {
-                                  console.log('[DEBUG] TaskTable calling onFilterChange function');
-                                  onFilterChange(e);
-                                } else {
-                                  console.error('[ERROR] TaskTable onFilterChange is not a function!');
-                                }
-                              }}
+                              value={localFilters[col.key] || ''}
+                              onChange={handleFilterChange}
                               disabled={isFieldDisabled(col.key)}
                               style={{
                                 width:'100%', 
@@ -2355,22 +2407,11 @@ function TaskTableComponent({
                             </select>
                           ) : (
                             <input
+                              ref={(el) => { filterInputRefs.current[col.key] = el; }}
                               name={col.key}
                               placeholder={col.label}
-                              value={filters[col.key] || ''}
-                              onChange={(e) => {
-                                console.log('[DEBUG] TaskTable filter input changed:', col.key, e.target.value);
-                                console.log('[DEBUG] Current filters state:', filters);
-                                console.log('[DEBUG] TaskTable calling onFilterChange with:', e.target.name, e.target.value);
-                                console.log('[DEBUG] TaskTable onFilterChange function:', onFilterChange);
-                                console.log('[DEBUG] TaskTable onFilterChange type:', typeof onFilterChange);
-                                if (typeof onFilterChange === 'function') {
-                                  console.log('[DEBUG] TaskTable calling onFilterChange function');
-                                  onFilterChange(e);
-                                } else {
-                                  console.error('[ERROR] TaskTable onFilterChange is not a function!');
-                                }
-                              }}
+                              value={localFilters[col.key] || ''}
+                              onChange={handleFilterChange}
                               style={{width:'100%', background:'#fff'}}
                             />
                           )
@@ -3046,4 +3087,22 @@ const TaskTable = React.memo(TaskTableComponent, (prevProps, nextProps) => {
   return criticalPropsEqual;
 });
 
-export default TaskTable; 
+export default React.memo(TaskTable, (prevProps, nextProps) => {
+  // Порівнюємо тільки критичні пропси для запобігання перерендеру
+  const criticalPropsEqual = (
+    prevProps.tasks === nextProps.tasks &&
+    prevProps.filters === nextProps.filters &&
+    prevProps.columns === nextProps.columns &&
+    prevProps.role === nextProps.role &&
+    prevProps.user === nextProps.user &&
+    prevProps.onFilterChange === nextProps.onFilterChange
+  );
+  
+  // Якщо критичні пропси не змінилися, не перерендерюємо
+  if (criticalPropsEqual) {
+    return true; // Не перерендерювати
+  }
+  
+  // Перерендерюємо тільки якщо змінилися критичні пропси
+  return false;
+}); 

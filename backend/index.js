@@ -493,6 +493,8 @@ app.use(cors({
     'https://darex-trading-solutions.onrender.com',
     'http://localhost:3000',
     'http://localhost:3001',
+    'http://localhost:5173',
+    'http://localhost:5174',
     'null', // Дозволяємо локальні файли
     'file://' // Дозволяємо file:// протокол
   ],
@@ -1254,6 +1256,119 @@ app.get('/api/tasks/filter', async (req, res) => {
     const totalTime = Date.now() - startTime;
     console.log(`[PERFORMANCE] GET /api/tasks/filter (OPTIMIZED) - takes ${totalTime}ms (ERROR)`);
     
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// === ОПТИМІЗОВАНИЙ ENDPOINT ДЛЯ ПАНЕЛІ БУХГАЛТЕРА ===
+// Завантажує всі необхідні дані одним запитом для оптимізації продуктивності
+app.post('/api/accountant/data', async (req, res) => {
+  const startTime = Date.now();
+  console.log('[PERFORMANCE] POST /api/accountant/data - початок оптимізованого завантаження...');
+  
+  try {
+    const { userLogin, region } = req.body;
+    
+    if (!userLogin) {
+      return res.status(400).json({ error: 'userLogin обов\'язковий параметр' });
+    }
+
+    console.log(`[PERFORMANCE] POST /api/accountant/data - завантаження для користувача: ${userLogin}, регіон: ${region}`);
+
+    // Паралельно завантажуємо всі необхідні дані
+    const [
+      notDoneTasks,
+      pendingTasks, 
+      doneTasks,
+      blockedTasks,
+      user,
+      columnSettings,
+      invoiceColumnSettings,
+      accessRules,
+      roles
+    ] = await Promise.all([
+      // Завантажуємо завдання для всіх вкладок (використовуємо правильні статуси)
+      Task.find({ 
+        status: { $in: ['Заявка', 'В роботі'] },
+        ...(region && region !== 'Україна' ? { region } : {})
+      }).lean(),
+      Task.find({ 
+        status: 'Виконано',
+        $or: [
+          { approvedByWarehouse: { $ne: 'Підтверджено' } },
+          { approvedByAccountant: { $ne: 'Підтверджено' } },
+          { approvedByRegionalManager: { $ne: 'Підтверджено' } }
+        ],
+        ...(region && region !== 'Україна' ? { region } : {})
+      }).lean(),
+      Task.find({ 
+        status: 'Виконано',
+        approvedByWarehouse: 'Підтверджено',
+        approvedByAccountant: 'Підтверджено',
+        approvedByRegionalManager: 'Підтверджено',
+        ...(region && region !== 'Україна' ? { region } : {})
+      }).lean(),
+      Task.find({ 
+        status: 'Заблоковано',
+        ...(region && region !== 'Україна' ? { region } : {})
+      }).lean(),
+      
+      // Завантажуємо дані користувача
+      User.findOne({ login: userLogin }).lean(),
+      
+      // Завантажуємо налаштування колонок
+      User.findOne({ login: userLogin }).select('columnsSettings.accountant').lean(),
+      User.findOne({ login: userLogin }).select('columnsSettings.accountant-invoice').lean(),
+      
+      // Завантажуємо правила доступу та ролі
+      AccessRules.findOne().lean(),
+      Role.find().lean()
+    ]);
+
+    // Обробляємо завдання (додаємо ID якщо потрібно)
+    const processTasks = (tasks) => {
+      return tasks.map(task => ({
+        ...task,
+        id: task._id ? task._id.toString() : task.id
+      }));
+    };
+
+    // Обробляємо налаштування колонок
+    const processedColumnSettings = columnSettings?.columnsSettings?.accountant || { visible: [], order: [], widths: {} };
+    const processedInvoiceColumnSettings = invoiceColumnSettings?.columnsSettings?.['accountant-invoice'] || { visible: [], order: [], widths: {} };
+
+    // Обробляємо правила доступу та ролі
+    const processedAccessRules = accessRules?.rules || {};
+    const processedRoles = roles || [];
+
+    const result = {
+      tasks: {
+        notDone: processTasks(notDoneTasks),
+        pending: processTasks(pendingTasks),
+        done: processTasks(doneTasks),
+        blocked: processTasks(blockedTasks)
+      },
+      columnSettings: processedColumnSettings,
+      invoiceColumnSettings: processedInvoiceColumnSettings,
+      accessRules: processedAccessRules,
+      roles: processedRoles,
+      user: user ? {
+        ...user,
+        password: undefined // Видаляємо пароль з відповіді
+      } : null
+    };
+
+    const totalTime = Date.now() - startTime;
+    const totalTasks = Object.values(result.tasks).reduce((sum, tasks) => sum + tasks.length, 0);
+    
+    console.log(`[PERFORMANCE] POST /api/accountant/data - завершено за ${totalTime}ms`);
+    console.log(`[PERFORMANCE] POST /api/accountant/data - завантажено: ${totalTasks} завдань, налаштування колонок, правила доступу, ${processedRoles.length} ролей`);
+    console.log(`[PERFORMANCE] POST /api/accountant/data - деталі: notDone: ${result.tasks.notDone.length}, pending: ${result.tasks.pending.length}, done: ${result.tasks.done.length}, blocked: ${result.tasks.blocked.length}`);
+
+    res.json(result);
+  } catch (error) {
+    const totalTime = Date.now() - startTime;
+    console.error(`[ERROR] POST /api/accountant/data - помилка за ${totalTime}ms:`, error);
     res.status(500).json({ error: error.message });
   }
 });

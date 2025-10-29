@@ -1,6 +1,6 @@
 // Утиліта для аналізу розміру бандлу
 export function analyzeBundleSize() {
-  if (process.env.NODE_ENV === 'development') {
+  if (window.location.hostname === 'localhost') {
     console.log('Bundle Analysis:');
     
     // Аналізуємо розмір localStorage
@@ -48,7 +48,7 @@ export function clearCaches() {
 
 // Функція для моніторингу продуктивності
 export function monitorPerformance() {
-  if (process.env.NODE_ENV === 'development') {
+  if (window.location.hostname === 'localhost') {
     // Моніторимо FPS
     let lastTime = performance.now();
     let frameCount = 0;

@@ -9,7 +9,9 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const API_URL = process.env.REACT_APP_API_URL || 'https://darex-trading-solutions.onrender.com';
+  const API_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:3001'
+    : 'https://darex-trading-solutions.onrender.com';
   // Завантаження існуючих файлів
   useEffect(() => {
     if (taskId) {

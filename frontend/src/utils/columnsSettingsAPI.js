@@ -17,7 +17,14 @@ export const columnsSettingsAPI = {
       return { visible: [], order: [] };
     }
   },
-  // Зберегти налаштування колонок для користувача та області
+  // Завантажити налаштування колонок для користувача та області (alias для loadSettings)
+  async getColumnsSettings(userLogin, area) {
+    return this.loadSettings(userLogin, area);
+  },
+  // Зберегти налаштування колонок для користувача та області (alias для saveSettings)
+  async saveColumnsSettings(userLogin, area, visible, order, widths = {}) {
+    return this.saveSettings(userLogin, area, visible, order, widths);
+  },
   async saveSettings(userLogin, area, visible, order, widths = {}) {
     try {
       const requestBody = { area, visible, order, widths };

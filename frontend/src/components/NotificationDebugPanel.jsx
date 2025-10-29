@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
 // API URL налаштування
-const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+const API_BASE_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:3001/api'
+  : 'https://darex-trading-solutions.onrender.com/api';
 
 const NotificationDebugPanel = ({ user }) => {
   const [activeTab, setActiveTab] = useState('users');

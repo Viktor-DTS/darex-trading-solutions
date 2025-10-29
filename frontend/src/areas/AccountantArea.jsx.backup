@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import ModalTaskForm, { fields as allTaskFields } from '../ModalTaskForm';
 import TaskTable from '../components/TaskTable';
 import AccountantReportsModal from '../components/AccountantReportsModal';
@@ -6,7 +6,7 @@ import FileViewer from '../components/FileViewer';
 import { tasksAPI } from '../utils/tasksAPI';
 import { columnsSettingsAPI } from '../utils/columnsSettingsAPI';
 import { processFileForUpload } from '../utils/pdfConverter';
-import { useLazyData } from '../hooks/useLazyData';
+import { useOptimizedLazyData } from '../hooks/useOptimizedLazyData';
 import { debounce } from '../utils/debounce';
 import * as XLSX from 'xlsx-js-style';
 const initialTask = {
@@ -62,7 +62,9 @@ const initialTask = {
   transportKm: '',
   transportSum: '',
 };
-const AccountantArea = memo(function AccountantArea({ user }) {
+export default function AccountantArea({ user }) {
+  // Унікальний ключ для примусового оновлення компонента
+  const componentKey = `accountant-area-${Date.now()}`;
   // Перевіряємо чи користувач завантажений
   if (!user) {
     return (
@@ -79,7 +81,7 @@ const AccountantArea = memo(function AccountantArea({ user }) {
     );
   }
 
-  // Використовуємо хук useLazyData для оптимізації (як у AccountantApprovalArea)
+  // Використовуємо оптимізований хук useOptimizedLazyData для завантаження всіх даних одним запитом
   const { 
     data: tasks, 
     loading, 
@@ -87,28 +89,16 @@ const AccountantArea = memo(function AccountantArea({ user }) {
     activeTab, 
     setActiveTab, 
     refreshData, 
-    getTabCount 
-  } = useLazyData(user, 'invoiceRequests');
+    getTabCount,
+    columnSettings: optimizedColumnSettings,
+    invoiceColumnSettings: optimizedInvoiceColumnSettings,
+    accessRules: optimizedAccessRules,
+    roles: optimizedRoles,
+    isInitialized,
+    updateColumnSettings,
+    updateInvoiceColumnSettings
+  } = useOptimizedLazyData(user, 'pending');
   const [users, setUsers] = useState([]);
-  
-  // Налаштування колонок
-  const [columnSettings, setColumnSettings] = useState({});
-  
-  // Завантаження налаштувань колонок
-  useEffect(() => {
-    const loadColumnSettings = async () => {
-      try {
-        const settings = await columnsSettingsAPI.loadSettings(user.login, 'accountant');
-        setColumnSettings(settings);
-      } catch (error) {
-        console.error('Помилка завантаження налаштувань колонок:', error);
-      }
-    };
-    
-    if (user?.login) {
-      loadColumnSettings();
-    }
-  }, [user?.login]);
   
   // Додаткові завдання для чекбокса "Відобразити всі заявки"
   const [additionalTasks, setAdditionalTasks] = useState([]);
@@ -928,14 +918,14 @@ const AccountantArea = memo(function AccountantArea({ user }) {
     }
   };
   
-  // Функція для збереження налаштувань колонок
-  const handleSaveColumns = async (selectedColumns) => {
+  // Функція для збереження налаштувань колонок для основної вкладки
+  const handleSaveMainColumns = async (selectedColumns) => {
     try {
       await columnsSettingsAPI.saveColumnsSettings(user.login, 'accountant', selectedColumns);
-      setColumnSettings({ ...columnSettings, visible: selectedColumns });
-      console.log('[DEBUG] AccountantArea - збережено налаштування колонок:', selectedColumns.length);
+      setMainColumnsSettings({ open: false, selected: selectedColumns });
+      console.log('[DEBUG] AccountantArea - збережено налаштування колонок для основної вкладки:', selectedColumns.length);
     } catch (error) {
-      console.error('[ERROR] AccountantArea - помилка збереження налаштувань колонок:', error);
+      console.error('[ERROR] AccountantArea - помилка збереження налаштувань колонок для основної вкладки:', error);
     }
   };
   
@@ -1183,18 +1173,10 @@ const AccountantArea = memo(function AccountantArea({ user }) {
       if (!value) continue;
       if (key.endsWith('From')) {
         const field = key.replace('From', '');
-        if (!t[field]) return false;
-        const taskDate = new Date(t[field]);
-        const filterDate = new Date(value);
-        if (isNaN(taskDate.getTime()) || isNaN(filterDate.getTime())) return false;
-        if (taskDate < filterDate) return false;
+        if (!t[field] || t[field] < value) return false;
       } else if (key.endsWith('To')) {
         const field = key.replace('To', '');
-        if (!t[field]) return false;
-        const taskDate = new Date(t[field]);
-        const filterDate = new Date(value);
-        if (isNaN(taskDate.getTime()) || isNaN(filterDate.getTime())) return false;
-        if (taskDate > filterDate) return false;
+        if (!t[field] || t[field] > value) return false;
       } else if ([
         'approvedByRegionalManager', 'approvedByWarehouse', 'approvedByAccountant', 'paymentType', 'status'
       ].includes(key)) {
@@ -1333,6 +1315,12 @@ const AccountantArea = memo(function AccountantArea({ user }) {
   const [showCompletedRequests, setShowCompletedRequests] = useState(false);
   const [invoiceRequestsLoading, setInvoiceRequestsLoading] = useState(false);
   
+  // Окрема конфігурація колонок для основної вкладки
+  const [mainColumnsSettings, setMainColumnsSettings] = useState({
+    open: false,
+    selected: []
+  });
+  
   // Окрема конфігурація колонок для вкладки "Заявка на рахунок"
   const [invoiceRequestsColumns, setInvoiceRequestsColumns] = useState([]);
   const [invoiceRequestsColumnsSettings, setInvoiceRequestsColumnsSettings] = useState({
@@ -1352,14 +1340,20 @@ const AccountantArea = memo(function AccountantArea({ user }) {
   });
   
   const tableData = useMemo(() => {
-    return activeTab === 'invoiceRequests' ? filteredInvoiceRequests : [];
-  }, [activeTab, filteredInvoiceRequests]);
+    return activeTab === 'pending' ? pending : 
+           activeTab === 'archive' ? archive :
+           activeTab === 'debt' ? debt :
+           activeTab === 'invoiceRequests' ? filteredInvoiceRequests : [];
+  }, [activeTab, pending, archive, debt, filteredInvoiceRequests]);
   
   // Логування для діагностики tableData
   console.log('[DEBUG] AccountantArea - tableData оновлено:', {
     activeTab,
     tableDataLength: tableData.length,
-    filteredInvoiceRequestsLength: filteredInvoiceRequests.length,
+    pendingLength: pending.length,
+    archiveLength: archive.length,
+    debtLength: debt.length,
+    filteredLength: filtered.length,
     tasksLength: tasks.length
   });
   const columns = allTaskFields.map(f => ({
@@ -1896,7 +1890,7 @@ const AccountantArea = memo(function AccountantArea({ user }) {
     newWindow.document.close();
   };
   return (
-    <div style={{padding:32}}>
+    <div key={componentKey} style={{padding:32}}>
       <style>
         {`
           @keyframes spin {
@@ -1905,9 +1899,12 @@ const AccountantArea = memo(function AccountantArea({ user }) {
           }
         `}
       </style>
-      <h2>Заявки на рахунки (Бух. рахунки)</h2>
+      <h2>Завдання для затвердження (Бухгалтер)</h2>
       {loading && <div>Завантаження...</div>}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
+        <button onClick={()=>setActiveTab('pending')} style={{width:220,padding:'10px 0',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
+        <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
+        <button onClick={()=>setActiveTab('debt')} style={{width:220,padding:'10px 0',background:activeTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='debt'?700:400,cursor:'pointer'}}>Заборгованість по документам ({getTabCount('debt')})</button>
         <button onClick={()=>setActiveTab('invoiceRequests')} style={{width:220,padding:'10px 0',background:activeTab==='invoiceRequests'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='invoiceRequests'?700:400,cursor:'pointer'}}>📋 Заявка на рахунок ({invoiceRequests.length})</button>
         <button onClick={()=>setReportsModalOpen(true)} style={{width:220,padding:'10px 0',background:'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:400,cursor:'pointer'}}>📊 Бухгалтерські звіти</button>
         <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
@@ -2767,11 +2764,8 @@ const AccountantArea = memo(function AccountantArea({ user }) {
             onInvoiceDelete={deleteInvoiceFile}
             onActDelete={deleteActFile}
             uploadingFiles={uploadingFiles}
-            columnsSettings={{
-              open: false,
-              selected: columnSettings?.visible || allTaskFields.map(f => f.name)
-            }}
-            onSaveColumns={handleSaveColumns}
+            columnsSettings={mainColumnsSettings}
+            onSaveColumns={handleSaveMainColumns}
           />
         </div>
       )}
@@ -2837,6 +2831,4 @@ const AccountantArea = memo(function AccountantArea({ user }) {
       )}
     </div>
   );
-});
-
-export default AccountantArea;
+}

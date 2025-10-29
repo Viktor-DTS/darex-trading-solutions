@@ -194,7 +194,7 @@ const labelAboveFields = [
   'comments'
 ];
 export default function ModalTaskForm({ open, onClose, onSave, initialData = {}, mode = 'service', user, readOnly = false }) {
-  console.log('[DEBUG] ModalTaskForm - компонент рендериться, open:', open);
+  // console.log('[DEBUG] ModalTaskForm - компонент рендериться, open:', open);
   const isRegionReadOnly = user && user.region && user.region !== 'Україна' && user.role !== 'zavsklad';
   function toSelectString(val) {
     if (val === true) return 'Підтверджено';
@@ -995,8 +995,9 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         uploadFormData.append('file', form.contractFile);
         uploadFormData.append('type', 'contract');
         
-        const API_BASE_URL = process.env.REACT_APP_API_URL || 
-          (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+        const API_BASE_URL = window.location.hostname === 'localhost' 
+          ? 'http://localhost:3001/api'
+          : 'https://darex-trading-solutions.onrender.com/api';
         
         console.log('[DEBUG] ModalTaskForm - відправляємо запит на /api/files/upload-contract');
         const uploadResponse = await fetch(`${API_BASE_URL}/files/upload-contract`, {
@@ -1068,8 +1069,9 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     try {
       console.log('[DEBUG] ModalTaskForm - завантаження даних InvoiceRequest для taskId:', taskId);
       
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      const API_BASE_URL = window.location.hostname === 'localhost' 
+        ? 'http://localhost:3001/api'
+        : 'https://darex-trading-solutions.onrender.com/api';
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests?taskId=${taskId}`);
       
@@ -1095,8 +1097,9 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     try {
       console.log('[DEBUG] ModalTaskForm - завантаження даних InvoiceRequest для ID:', invoiceRequestId);
       
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      const API_BASE_URL = window.location.hostname === 'localhost' 
+        ? 'http://localhost:3001/api'
+        : 'https://darex-trading-solutions.onrender.com/api';
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests/${invoiceRequestId}`);
       
@@ -1119,8 +1122,9 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     try {
       console.log('[DEBUG] ModalTaskForm - створення запиту на рахунок:', invoiceData);
       
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 
-        (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+      const API_BASE_URL = window.location.hostname === 'localhost' 
+        ? 'http://localhost:3001/api'
+        : 'https://darex-trading-solutions.onrender.com/api';
       
       const response = await fetch(`${API_BASE_URL}/invoice-requests`, {
         method: 'POST',

@@ -1,5 +1,5 @@
 // Конфігурація API URL
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://darex-trading-solutions.onrender.com/api'
-  : 'http://localhost:3001/api';
+const API_BASE_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:3001/api'
+  : 'https://darex-trading-solutions.onrender.com/api';
 export default API_BASE_URL; 

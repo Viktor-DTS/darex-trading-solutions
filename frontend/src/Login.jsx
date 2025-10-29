@@ -11,8 +11,8 @@ const roles = [
   { value: 'regional', label: 'Регіональний керівник' },
 ];
 export default function Login({ onLogin }) {
-  console.log('DEBUG Login: Login component rendered');
-  console.log('DEBUG Login: This is a test log');
+  // console.log('DEBUG Login: Login component rendered');
+  // console.log('DEBUG Login: This is a test log');
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('admin');

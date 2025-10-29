@@ -19,6 +19,7 @@ import MobileViewArea from './components/MobileViewArea'
 const FinancialReport = React.lazy(() => import('./FinancialReport'));
 const ReportsList = React.lazy(() => import('./ReportsList'));
 const AccountantArea = React.lazy(() => import('./areas/AccountantArea'));
+const AccountantApprovalArea = React.lazy(() => import('./areas/AccountantApprovalArea'));
 const WarehouseArea = React.lazy(() => import('./areas/WarehouseArea'));
 const OperatorArea = React.lazy(() => import('./areas/OperatorArea'));
 import MaterialsAnalysisArea from './areas/MaterialsAnalysisArea';
@@ -44,7 +45,7 @@ const roles = [
   { value: 'service', label: 'Сервісна служба' },
   { value: 'operator', label: 'Оператор' },
   { value: 'warehouse', label: 'Зав. склад' },
-  { value: 'accountant', label: 'Бухгалтер' },
+  { value: 'accountant', label: 'Бух. рахунки' },
   { value: 'regional', label: 'Регіональний керівник' },
 ];
 // === Єдиний шаблон заявки для всіх областей ===
@@ -120,14 +121,15 @@ const getDefaultAccess = (rolesList = []) => {
     { value: 'service', label: 'Сервісна служба' },
     { value: 'operator', label: 'Оператор' },
     { value: 'warehouse', label: 'Зав. склад' },
-    { value: 'accountant', label: 'Бухгалтер' },
+    { value: 'accountant', label: 'Бух. рахунки' },
     { value: 'regional', label: 'Регіональний керівник' },
   ];
   const tabs = [
     { key: 'service', label: 'Сервісна служба' },
     { key: 'operator', label: 'Оператор' },
     { key: 'warehouse', label: 'Зав. склад' },
-    { key: 'accountant', label: 'Бухгалтер' },
+    { key: 'accountant', label: 'Бух. рахунки' },
+    { key: 'accountant-approval', label: 'Бух. на Затвердженні' },
     { key: 'regional', label: 'Регіональний керівник' },
     { key: 'admin', label: 'Адміністратор' },
     { key: 'reports', label: 'Звіти' },
@@ -144,6 +146,12 @@ const getDefaultAccess = (rolesList = []) => {
         defaultAccess[role.value][tab.key] = 'full';
       } else if (role.value === 'admin') {
         // Адміністратор має повний доступ до всього
+        defaultAccess[role.value][tab.key] = 'full';
+      } else if (role.value === 'buhgalteria' && tab.key === 'accountant') {
+        // Бух. рахунки має доступ до основної панелі бухгалтера
+        defaultAccess[role.value][tab.key] = 'full';
+      } else if (role.value === 'buhgalteria' && tab.key === 'accountant-approval') {
+        // Бух. рахунки має доступ до панелі затвердження
         defaultAccess[role.value][tab.key] = 'full';
       } else if (tab.key === 'reports') {
         // Всі ролі мають доступ для читання до звітів
@@ -182,7 +190,7 @@ function AccessRulesModal({ open, onClose }) {
     { value: 'service', label: 'Сервісна служба' },
     { value: 'operator', label: 'Оператор' },
     { value: 'warehouse', label: 'Зав. склад' },
-    { value: 'accountant', label: 'Бухгалтер' },
+    { value: 'accountant', label: 'Бух. рахунки' },
     { value: 'regional', label: 'Регіональний керівник' },
   ];
     }
@@ -191,7 +199,8 @@ function AccessRulesModal({ open, onClose }) {
     { key: 'service', label: 'Сервісна служба' },
     { key: 'operator', label: 'Оператор' },
     { key: 'warehouse', label: 'Зав. склад' },
-    { key: 'accountant', label: 'Бухгалтер' },
+    { key: 'accountant', label: 'Бух. рахунки' },
+    { key: 'accountant-approval', label: 'Бух. на Затвердженні' },
     { key: 'regional', label: 'Регіональний керівник' },
     { key: 'admin', label: 'Адміністратор' },
     { key: 'reports', label: 'Звіти' },
@@ -231,7 +240,7 @@ function AccessRulesModal({ open, onClose }) {
           { value: 'service', label: 'Сервісна служба' },
           { value: 'operator', label: 'Оператор' },
           { value: 'warehouse', label: 'Зав. склад' },
-          { value: 'accountant', label: 'Бухгалтер' },
+          { value: 'accountant', label: 'Бух. рахунки' },
           { value: 'regional', label: 'Регіональний керівник' },
         ];
         setRoles(defaultRoles);
@@ -563,7 +572,8 @@ function AdminSystemParamsArea({ user }) {
             { key: 'service', label: 'Сервісна служба' },
             { key: 'operator', label: 'Оператор' },
             { key: 'warehouse', label: 'Зав. склад' },
-            { key: 'accountant', label: 'Бухгалтер' },
+            { key: 'accountant', label: 'Бух. рахунки' },
+            { key: 'accountant-approval', label: 'Бух. на Затвердженні' },
             { key: 'regional', label: 'Регіональний керівник' },
             { key: 'admin', label: 'Адміністратор' },
             { key: 'reports', label: 'Звіти' },
@@ -1156,10 +1166,18 @@ function ServiceArea({ user }) {
       if (!value) continue;
       if (key.endsWith('From')) {
         const field = key.replace('From', '');
-        if (!t[field] || t[field] < value) return false;
+        if (!t[field]) return false;
+        const taskDate = new Date(t[field]);
+        const filterDate = new Date(value);
+        if (isNaN(taskDate.getTime()) || isNaN(filterDate.getTime())) return false;
+        if (taskDate < filterDate) return false;
       } else if (key.endsWith('To')) {
         const field = key.replace('To', '');
-        if (!t[field] || t[field] > value) return false;
+        if (!t[field]) return false;
+        const taskDate = new Date(t[field]);
+        const filterDate = new Date(value);
+        if (isNaN(taskDate.getTime()) || isNaN(filterDate.getTime())) return false;
+        if (taskDate > filterDate) return false;
       } else if ([
         'approvedByRegionalManager', 'approvedByWarehouse', 'approvedByAccountant', 'paymentType', 'status'
       ].includes(key)) {
@@ -3148,10 +3166,18 @@ function RegionalManagerArea({ tab: propTab, user }) {
       if (!value) continue;
       if (key.endsWith('From')) {
         const field = key.replace('From', '');
-        if (!t[field] || t[field] < value) return false;
+        if (!t[field]) return false;
+        const taskDate = new Date(t[field]);
+        const filterDate = new Date(value);
+        if (isNaN(taskDate.getTime()) || isNaN(filterDate.getTime())) return false;
+        if (taskDate < filterDate) return false;
       } else if (key.endsWith('To')) {
         const field = key.replace('To', '');
-        if (!t[field] || t[field] > value) return false;
+        if (!t[field]) return false;
+        const taskDate = new Date(t[field]);
+        const filterDate = new Date(value);
+        if (isNaN(taskDate.getTime()) || isNaN(filterDate.getTime())) return false;
+        if (taskDate > filterDate) return false;
       } else if (key === 'date' || key === 'requestDate') {
         if (!t[key] || !t[key].includes(value)) return false;
       } else if (typeof t[key] === 'string') {
@@ -3624,6 +3650,11 @@ const areas = {
       <AccountantArea {...props} />
     </Suspense>
   ),
+  'accountant-approval': (props) => (
+    <Suspense fallback={<div style={{padding: '20px', textAlign: 'center'}}>Завантаження...</div>}>
+      <AccountantApprovalArea {...props} />
+    </Suspense>
+  ),
   regional: (props) => <RegionalManagerArea {...props} />,
   reports: (props) => <ReportBuilder {...props} />,
   materials: (props) => <MaterialsAnalysisArea {...props} />,
@@ -3634,8 +3665,8 @@ const areaByRole = {
   admin: (props) => <AdminArea {...props} />,
 };
 function App() {
-  console.log('DEBUG App: App component rendered');
-  console.log('DEBUG App: This is a test log');
+  // console.log('DEBUG App: App component rendered');
+  // console.log('DEBUG App: This is a test log');
   const { t } = useTranslation();
   const [serverMsg, setServerMsg] = useState('');
   const [user, setUser] = useState(null);
@@ -3706,7 +3737,7 @@ function App() {
           { value: 'service', label: 'Сервісна служба' },
           { value: 'operator', label: 'Оператор' },
           { value: 'warehouse', label: 'Зав. склад' },
-          { value: 'accountant', label: 'Бухгалтер' },
+          { value: 'accountant', label: 'Бух. рахунки' },
           { value: 'regional', label: 'Регіональний керівник' },
         ];
         setAccessRules(getDefaultAccess(defaultRoles));
@@ -3726,6 +3757,16 @@ function App() {
           updatedRules[roleKey].materials = 'full';
         } else {
           updatedRules[roleKey].materials = 'read';
+        }
+      }
+      // Додаємо права для нової вкладки accountant-approval
+      if (!updatedRules[roleKey]['accountant-approval']) {
+        if (roleKey === 'admin' || roleKey === 'administrator') {
+          updatedRules[roleKey]['accountant-approval'] = 'full';
+        } else if (roleKey === 'buhgalteria' || roleKey === 'accountant') {
+          updatedRules[roleKey]['accountant-approval'] = 'full';
+        } else {
+          updatedRules[roleKey]['accountant-approval'] = 'none';
         }
       }
     });
