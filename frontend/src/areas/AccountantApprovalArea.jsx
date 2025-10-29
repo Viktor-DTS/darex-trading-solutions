@@ -130,6 +130,47 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user }) {
     }
   };
 
+  // Функція для повного перезавантаження вкладки (оптимізована версія)
+  const fullTabReload = useCallback(async () => {
+    try {
+      console.log('🔄 AccountantApprovalArea FULL TAB RELOAD: Starting optimized reload...');
+      
+      // Step 1: Очищаємо кеш поточної вкладки (не всіх, тільки активної для оптимізації)
+      console.log('🔄 Step 1: Clearing cache for active tab...');
+      await refreshData(activeTab);
+      
+      // Step 2: Перезавантажуємо всі завдання з API (без попереднього очищення для меншої кількості ре-рендерів)
+      console.log('🔄 Step 2: Reloading all tasks from API...');
+      try {
+        const allTasksData = await tasksAPI.getAll();
+        setAllTasksFromAPI(allTasksData);
+        console.log('✅ All tasks from API reloaded:', allTasksData.length);
+      } catch (error) {
+        console.error('❌ Error reloading all tasks from API:', error);
+      }
+      
+      // Step 4: Перезавантажуємо additionalTasks якщо showAllTasks активний (оптимізовано - тільки якщо потрібно)
+      if (showAllTasks) {
+        console.log('🔄 Step 4: Reloading additional tasks for showAllTasks...');
+        try {
+          const notDoneTasks = await tasksAPI.getByStatus('notDone', user.region);
+          setAdditionalTasks(notDoneTasks);
+          console.log('✅ Additional tasks reloaded:', notDoneTasks.length);
+        } catch (error) {
+          console.error('❌ Error reloading additional tasks:', error);
+        }
+      }
+      
+      // Step 4: Форсуємо ре-рендер компонента (без зайвих затримок, React сам оновить UI)
+      console.log('🔄 Step 4: Forcing component re-render...');
+      setTableKey(prev => prev + 1);
+      
+      console.log('✅ AccountantApprovalArea FULL TAB RELOAD: Complete tab reload finished');
+    } catch (error) {
+      console.error('❌ Error in AccountantApprovalArea full tab reload:', error);
+    }
+  }, [activeTab, refreshData, showAllTasks, user.region]);
+
   const handleApprove = async (id, approved, comment) => {
     try {
       const t = tasks.find(t => t.id === id);
@@ -202,17 +243,32 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user }) {
     }
   }, [handleFilterDebounced, handleFilterImmediate]);
 
-  const handleEdit = t => {
+  const handleEdit = async t => {
     const isReadOnly = t._readOnly;
-    const taskData = { ...t };
-    delete taskData._readOnly; // Видаляємо прапорець з даних завдання
     
-    setEditTask(taskData);
-    setModalOpen(true);
-    // Передаємо readOnly в ModalTaskForm
-    if (isReadOnly) {
-      // Встановлюємо прапорець для ModalTaskForm
-      setEditTask(prev => ({ ...prev, _readOnly: true }));
+    // Завантажуємо сві array дані з бази для гарантії актуальності
+    try {
+      const freshTask = await tasksAPI.getById(t.id || t._id);
+      const taskData = { ...freshTask };
+      delete taskData._readOnly; // Видаляємо прапорець з даних завдання
+      
+      setEditTask(taskData);
+      setModalOpen(true);
+      // Передаємо readOnly в ModalTaskForm
+      if (isReadOnly) {
+        // Встановлюємо прапорець для ModalTaskForm
+        setEditTask(prev => ({ ...prev, _readOnly: true }));
+      }
+    } catch (error) {
+      console.error('[ERROR] AccountantApprovalArea handleEdit - помилка завантаження даних:', error);
+      // Якщо не вдалося завантажити, використовуємо дані з таблиці
+      const taskData = { ...t };
+      delete taskData._readOnly;
+      setEditTask(taskData);
+      setModalOpen(true);
+      if (isReadOnly) {
+        setEditTask(prev => ({ ...prev, _readOnly: true }));
+      }
     }
   };
   
@@ -237,8 +293,8 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user }) {
         updatedTask = await tasksAPI.add(task);
       }
       
-      // Оновлюємо дані через useLazyData
-      await refreshData(activeTab);
+      // Повне перезавантаження вкладки для оновлення даних
+      await fullTabReload();
       
     } catch (error) {
       console.error('[ERROR] AccountantApprovalArea handleSave - помилка збереження або оновлення даних:', error);
@@ -544,46 +600,48 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user }) {
   }, [tasks, additionalTasks, showAllTasks]);
 
   // Фільтрація завдань (логіка як у бухгалтера - заявки на підтвердження)
-  const filtered = allTasks.filter(t => {
-    for (const key in filters) {
-      const value = filters[key];
-      if (!value) continue;
-      if (key.endsWith('From')) {
-        const field = key.replace('From', '');
-        if (!t[field]) return false;
-        const taskDate = new Date(t[field]);
-        const filterDate = new Date(value);
-        if (isNaN(taskDate.getTime()) || isNaN(filterDate.getTime())) return false;
-        if (taskDate < filterDate) return false;
-      } else if (key.endsWith('To')) {
-        const field = key.replace('To', '');
-        if (!t[field]) return false;
-        const taskDate = new Date(t[field]);
-        const filterDate = new Date(value);
-        if (isNaN(taskDate.getTime()) || isNaN(filterDate.getTime())) return false;
-        if (taskDate > filterDate) return false;
-      } else if ([
-        'approvedByRegionalManager', 'approvedByWarehouse', 'approvedByAccountant', 'paymentType', 'status'
-      ].includes(key)) {
-        if (t[key]?.toString() !== value.toString()) return false;
-      } else if ([
-        'airFilterCount', 'airFilterPrice', 'serviceBonus'
-      ].includes(key)) {
-        if (Number(t[key]) !== Number(value)) return false;
-      } else if ([
-        'bonusApprovalDate'
-      ].includes(key)) {
-        if (t[key] !== value) return false;
-      } else if ([
-        'regionalManagerComment', 'airFilterName'
-      ].includes(key)) {
-        if (!t[key] || !t[key].toString().toLowerCase().includes(value.toLowerCase())) return false;
-      } else if (typeof t[key] === 'string' || typeof t[key] === 'number') {
-        if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
+  const filtered = useMemo(() => {
+    return allTasks.filter(t => {
+      for (const key in filters) {
+        const value = filters[key];
+        if (!value) continue;
+        if (key.endsWith('From')) {
+          const field = key.replace('From', '');
+          if (!t[field]) return false;
+          const taskDate = new Date(t[field]);
+          const filterDate = new Date(value);
+          if (isNaN(taskDate.getTime()) || isNaN(filterDate.getTime())) return false;
+          if (taskDate < filterDate) return false;
+        } else if (key.endsWith('To')) {
+          const field = key.replace('To', '');
+          if (!t[field]) return false;
+          const taskDate = new Date(t[field]);
+          const filterDate = new Date(value);
+          if (isNaN(taskDate.getTime()) || isNaN(filterDate.getTime())) return false;
+          if (taskDate > filterDate) return false;
+        } else if ([
+          'approvedByRegionalManager', 'approvedByWarehouse', 'approvedByAccountant', 'paymentType', 'status'
+        ].includes(key)) {
+          if (t[key]?.toString() !== value.toString()) return false;
+        } else if ([
+          'airFilterCount', 'airFilterPrice', 'serviceBonus'
+        ].includes(key)) {
+          if (Number(t[key]) !== Number(value)) return false;
+        } else if ([
+          'bonusApprovalDate'
+        ].includes(key)) {
+          if (t[key] !== value) return false;
+        } else if ([
+          'regionalManagerComment', 'airFilterName'
+        ].includes(key)) {
+          if (!t[key] || !t[key].toString().toLowerCase().includes(value.toLowerCase())) return false;
+        } else if (typeof t[key] === 'string' || typeof t[key] === 'number') {
+          if (!t[key]?.toString().toLowerCase().includes(value.toLowerCase())) return false;
+        }
       }
-    }
-    return true;
-  });
+      return true;
+    });
+  }, [allTasks, filters]);
 
   function isApproved(v) {
     return v === true || v === 'Підтверджено';
@@ -628,7 +686,9 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user }) {
     });
   }, [filtered, showAllTasks, approvalFilter]);
 
-  const archive = filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByAccountant));
+  const archive = useMemo(() => {
+    return filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByAccountant));
+  }, [filtered]);
 
   // Для вкладки debt використовуємо всі завдання з API (як у бухгалтера)
   const [allTasksFromAPI, setAllTasksFromAPI] = useState([]);
@@ -740,14 +800,13 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user }) {
         </label>
       </div>
       <ModalTaskForm 
+        key={`modal-${editTask?.id || 'new'}`}
         open={modalOpen} 
-        onClose={async ()=>{
+        onClose={()=>{
           console.log('[DEBUG] AccountantApprovalArea - модальне вікно закривається...');
           setModalOpen(false);
           setEditTask(null);
-          // Оновлюємо кеш при закритті модального вікна
-          console.log('[DEBUG] AccountantApprovalArea - оновлюємо кеш при закритті модального вікна...');
-          await refreshCache();
+          // Примітка: fullTabReload() вже викликається в handleSave, тому тут не потрібен
         }} 
         onSave={handleSave} 
         initialData={editTask || {}} 
@@ -801,7 +860,7 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user }) {
       )}
       
       <TaskTable
-        key={`main-${activeTab}`}
+        key={`main-${activeTab}-${tableKey}`}
         tasks={tableData}
         allTasks={allTasks}
         onApprove={handleApprove}

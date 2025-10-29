@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { tasksAPI } from '../utils/tasksAPI';
 
 const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
   const [reportFilters, setReportFilters] = useState({
@@ -172,8 +173,11 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
 
     setLoading(true);
     try {
-      console.log('[PERSONNEL REPORT] Loading started...');
-      // Використовуємо дані з пропсів (як в робочій версії)
+      console.log('[PERSONNEL REPORT] Запит до бази даних для отримання всіх завдань...');
+      
+      // ЗАПИТ ДО БАЗИ ДАНИХ: Отримуємо всі завдання з API
+      const allTasksFromDB = await tasksAPI.getAll();
+      console.log('[PERSONNEL REPORT] Завдання завантажено з БД:', allTasksFromDB.length);
       
       const months = [
         'Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'
@@ -190,7 +194,23 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       const endDate = new Date(personnelFilters.year, personnelFilters.month, 0, 23, 59, 59);
       console.log('[PERSONNEL REPORT] Date range:', startDate, 'to', endDate);
       
-      const monthTasks = tasks.filter(t => {
+      // Розраховуємо кількість робочих днів та норму годин
+      const daysInMonth = new Date(personnelFilters.year, personnelFilters.month, 0).getDate();
+      let workDays = 0;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const date = new Date(personnelFilters.year, personnelFilters.month - 1, d);
+        const dayOfWeek = date.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) workDays++;
+      }
+      const workHoursNorm = workDays * 8;
+      
+      // Отримуємо табель з localStorage (якщо є)
+      const storageKey = `timesheetData_${personnelFilters.year}_${personnelFilters.month}`;
+      const serviceStorageKey = `serviceTimesheetData_${personnelFilters.year}_${personnelFilters.month}`;
+      const timesheetDataFromStorage = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      const serviceTimesheetDataFromStorage = JSON.parse(localStorage.getItem(serviceStorageKey) || '{}');
+      
+      const monthTasks = allTasksFromDB.filter(t => {
         if (t.status !== 'Виконано') return false;
         if (!t.date) return false;
         const taskDate = new Date(t.date);
@@ -199,7 +219,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       console.log('[PERSONNEL REPORT] Month tasks found:', monthTasks.length);
       
       // ДЛЯ ПРЕМІЙ: Беремо заявки тільки за ВИБРАНИЙ МІСЯЦЬ з перевіркою дати затвердження
-      const allTasksForBonuses = tasks.filter(t => {
+      const allTasksForBonuses = allTasksFromDB.filter(t => {
         if (t.status !== 'Виконано') return false;
         if (!t.date) return false;
         
@@ -304,76 +324,88 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         console.log(`[PERSONNEL REPORT] Region ${region}: Using monthly tasks for both timesheet and bonuses (like regional manager)`);
         console.log(`[PERSONNEL REPORT] Region ${region}: Tasks for bonuses dates:`, regionTasksForBonuses.map(t => ({date: t.date, bonusApprovalDate: t.bonusApprovalDate, approvedByAccountantDate: t.approvedByAccountantDate})));
         
-        // Визначаємо workHours всередині функції
-        const workHours = 176; // Норма робочих годин на місяць (22 робочі дні * 8 годин)
+        // Розраховуємо кількість робочих днів та норму годин для конкретного місяця (як у регіонального керівника)
+        const daysInMonth = new Date(personnelFilters.year, personnelFilters.month, 0).getDate();
+        let workDays = 0;
+        for (let d = 1; d <= daysInMonth; d++) {
+          const date = new Date(personnelFilters.year, personnelFilters.month - 1, d);
+          const dayOfWeek = date.getDay();
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) workDays++;
+        }
+        const workHoursNorm = workDays * 8; // Норма робочих годин на місяць (робочі дні * 8 годин)
         
-        // Створюємо табель часу
+        // Створюємо табель часу - використовуємо дані з localStorage, якщо є, інакше розраховуємо з завдань
         const engineerHours = {};
         regionEngineers.forEach(engineer => {
           engineerHours[engineer.name] = {};
-          for (let day = 1; day <= 31; day++) {
-            engineerHours[engineer.name][day] = 0;
-          }
-        });
-        
-        // Розподіляємо години по днях - показуємо повну норму для всіх робочих днів
-        regionTasks.forEach(task => {
-          const taskDate = new Date(task.date);
-          const day = taskDate.getDate();
+          const engineerId = engineer.id || engineer._id;
           
-          const engineers = [
-            task.engineer1,
-            task.engineer2,
-            task.engineer3,
-            task.engineer4,
-            task.engineer5,
-            task.engineer6
-          ].filter(eng => eng && eng.trim().length > 0);
+          // Перевіряємо, чи є дані в localStorage (спочатку serviceTimesheetData, потім timesheetData)
+          const serviceData = serviceTimesheetDataFromStorage[engineerId];
+          const regularData = timesheetDataFromStorage[engineerId];
+          const userTimesheetData = serviceData || regularData;
           
-          engineers.forEach(engineer => {
-            if (engineerHours[engineer]) {
-              // Показуємо 8 годин для всіх робочих днів (1-5, 8-12, 15-19, 22-26, 29-30)
-              // Це відповідає логіці регіонального керівника
-              engineerHours[engineer][day] = 8;
+          if (userTimesheetData && userTimesheetData.total) {
+            // Використовуємо дані з localStorage
+            for (let day = 1; day <= daysInMonth; day++) {
+              engineerHours[engineer.name][day] = Number(userTimesheetData[day]) || 0;
             }
-          });
-        });
-        
-        // Додаємо повну норму робочих годин для всіх інженерів, які мають завдання
-        regionEngineers.forEach(engineer => {
-          if (engineerHours[engineer.name]) {
-            // Встановлюємо 8 годин для всіх робочих днів місяця
-            const workingDays = [1,2,3,4,5,8,9,10,11,12,15,16,17,18,19,22,23,24,25,26,29,30];
-            workingDays.forEach(day => {
-              if (engineerHours[engineer.name][day] === 0) {
-                engineerHours[engineer.name][day] = 8;
-              }
-            });
+            engineerHours[engineer.name].total = Number(userTimesheetData.total) || 0;
+          } else {
+            // Якщо немає даних в localStorage, розраховуємо з завдань
+            for (let day = 1; day <= daysInMonth; day++) {
+              engineerHours[engineer.name][day] = 0;
+            }
+            engineerHours[engineer.name].total = 0;
           }
         });
         
-        // Підраховуємо загальні години - показуємо повну норму для всіх інженерів з регіону
-        Object.keys(engineerHours).forEach(engineer => {
-          const calculatedTotal = Object.values(engineerHours[engineer])
-            .filter(val => typeof val === 'number')
-            .reduce((sum, hours) => sum + hours, 0);
-          
-          // Показуємо повну норму (176 годин) для всіх інженерів з регіону
-          engineerHours[engineer].total = workHours;
+        // Якщо дані не були взяті з localStorage, розраховуємо години з завдань
+        regionEngineers.forEach(engineer => {
+          if (engineerHours[engineer.name].total === 0) {
+            // Перевіряємо, чи є завдання для цього інженера
+            const engineerTasks = regionTasks.filter(task => {
+              const engineers = [
+                (task.engineer1 || '').trim(),
+                (task.engineer2 || '').trim(),
+                (task.engineer3 || '').trim(),
+                (task.engineer4 || '').trim(),
+                (task.engineer5 || '').trim(),
+                (task.engineer6 || '').trim()
+              ];
+              return engineers.includes(engineer.name);
+            });
+            
+            if (engineerTasks.length > 0) {
+              // Якщо є завдання, встановлюємо 8 годин для всіх робочих днів місяця
+              for (let d = 1; d <= daysInMonth; d++) {
+                const date = new Date(personnelFilters.year, personnelFilters.month - 1, d);
+                const dayOfWeek = date.getDay();
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                if (!isWeekend) {
+                  engineerHours[engineer.name][d] = 8;
+                }
+              }
+              // Перераховуємо загальні години
+              engineerHours[engineer.name].total = Object.values(engineerHours[engineer.name])
+                .filter(val => typeof val === 'number' && val !== engineerHours[engineer.name].total)
+                .reduce((sum, hours) => sum + hours, 0);
+            }
+          }
         });
         
-        // Розраховуємо зарплати
+        // Розраховуємо зарплати (логіка як у регіонального керівника)
         const engineerSalaries = {};
         regionEngineers.forEach(engineer => {
-          const workHours = 176; // Норма робочих годин на місяць (22 робочі дні * 8 годин)
-          const total = workHours; // Завжди показуємо повну норму (176 годин)
+          // Використовуємо реальну суму годин з табелю
+          const total = engineerHours[engineer.name]?.total || 0;
           const salary = Number(payData[engineer.id || engineer._id]?.salary) || 25000;
-          const bonus = 0;
-          const overtime = Math.max(0, total - workHours);
-          const overtimeRate = workHours > 0 ? (salary / workHours) * 1.5 : 0; // 1.5x замість 2x
+          const bonus = Number(payData[engineer.id || engineer._id]?.bonus) || 0;
+          const overtime = Math.max(0, total - workHoursNorm);
+          const overtimeRate = workHoursNorm > 0 ? (salary / workHoursNorm) * 2 : 0; // 2x як у регіонального керівника
           const overtimePay = overtime * overtimeRate;
-          // Показуємо повну ставку для всіх інженерів з регіону
-          const basePay = salary; // Повна ставка 25000 для всіх інженерів з регіону
+          // Розраховуємо пропорційну ставку (як у регіонального керівника)
+          const basePay = Math.round(salary * Math.min(total, workHoursNorm) / workHoursNorm);
           
           // Розрахунок премії за сервісні роботи (заявки вже відфільтровані за датою затвердження)
           let engineerBonus = 0;
@@ -401,7 +433,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
             baseRate: salary,
             totalHours: total,
             overtimeHours: overtime,
-            hourlyRate: workHours > 0 ? salary / workHours : 0,
+            hourlyRate: workHoursNorm > 0 ? salary / workHoursNorm : 0,
             overtimeRate: overtimeRate,
             overtimePay: overtimePay,
             workedRate: basePay,
@@ -467,27 +499,46 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
             </thead>
             <tbody>
               ${usersWithPayment.map(engineer => {
-                const salary = engineerSalaries[engineer.name];
-                const currentSalary = payData[engineer.id || engineer._id]?.salary || 25000;
+                const salaryData = engineerSalaries[engineer.name];
+                // Перевіряємо, чи існують дані про зарплату (якщо інженер не має завдань, salaryData може бути undefined)
+                if (!salaryData) {
+                  // Якщо немає даних, створюємо порожні значення
+                  const currentSalary = Number(payData[engineer.id || engineer._id]?.salary) || 25000;
+                  const total = 0;
+                  return `
+                    <tr>
+                      <td>${engineer.name}</td>
+                      <td><input type="number" value="${currentSalary}" onchange="window.handlePayChange('${engineer.id || engineer._id}', 'salary', this.value)" style="width:90px; border: 1px solid #ccc; padding: 4px;" /></td>
+                      <td>${total}</td>
+                      <td>0</td>
+                      <td>${workHoursNorm > 0 ? ((currentSalary / workHoursNorm) * 2).toFixed(2) : '0.00'}</td>
+                      <td>0.00</td>
+                      <td>0</td>
+                      <td>0.00</td>
+                      <td>0.00</td>
+                    </tr>
+                  `;
+                }
+                const currentSalary = Number(payData[engineer.id || engineer._id]?.salary) || 25000;
                 return `
                   <tr>
                     <td>${engineer.name}</td>
                     <td><input type="number" value="${currentSalary}" onchange="window.handlePayChange('${engineer.id || engineer._id}', 'salary', this.value)" style="width:90px; border: 1px solid #ccc; padding: 4px;" /></td>
-                    <td>${salary.totalHours}</td>
-                    <td>${salary.overtimeHours}</td>
-                    <td>${salary.overtimeRate.toFixed(2)}</td>
-                    <td>${salary.overtimePay.toFixed(2)}</td>
-                    <td>${salary.workedRate}</td>
-                    <td>${salary.serviceBonus.toFixed(2)}</td>
-                    <td>${salary.totalPay.toFixed(2)}</td>
+                    <td>${salaryData.totalHours}</td>
+                    <td>${salaryData.overtimeHours}</td>
+                    <td>${salaryData.overtimeRate.toFixed(2)}</td>
+                    <td>${salaryData.overtimePay.toFixed(2)}</td>
+                    <td>${salaryData.workedRate}</td>
+                    <td>${salaryData.serviceBonus.toFixed(2)}</td>
+                    <td>${salaryData.totalPay.toFixed(2)}</td>
                   </tr>
                 `;
               }).join('')}
             </tbody>
           </table>
           <div style="margin-top: 16px; font-size: 14px; color: #666;">
-            <p><strong>Кількість робочих днів у місяці:</strong> 22</p>
-            <p><strong>Норма робочих годин у місяці:</strong> 176</p>
+            <p><strong>Кількість робочих днів у місяці:</strong> ${workDays}</p>
+            <p><strong>Норма робочих годин у місяці:</strong> ${workHoursNorm}</p>
           </div>
         `;
         
@@ -497,8 +548,9 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           <table class="details">
             <thead>
               <tr>
+                <th>Дата затвердження премії</th>
                 <th>Номер заявки</th>
-                <th>Дата</th>
+                <th>Дата виконання</th>
                 <th>Інженер</th>
                 <th>Клієнт</th>
                 <th>Адреса</th>
@@ -507,11 +559,12 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
                 <th>Компанія виконавець</th>
                 <th>Загальна сума з матеріалами</th>
                 <th>Вартість робіт</th>
-                <th>Загальна премія за послугу (Без розподілення)</th>
+                <th>Загальна премія за послугу</th>
+                <th>Премія інженера</th>
               </tr>
             </thead>
             <tbody>
-              ${regionTasks.map(task => {
+              ${regionTasksForBonuses.map(task => {
                 const engineers = [
                   task.engineer1 || '',
                   task.engineer2 || '',
@@ -524,21 +577,29 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
                 const workPrice = parseFloat(task.workPrice) || 0;
                 const serviceBonus = workPrice * 0.25;
                 
-                return `
-                  <tr>
-                    <td>${task.requestNumber || ''}</td>
-                    <td>${task.date || ''}</td>
-                    <td>${engineers.join(', ')}</td>
-                    <td>${task.client || ''}</td>
-                    <td>${task.address || ''}</td>
-                    <td>${task.equipment || ''}</td>
-                    <td>${task.work || ''}</td>
-                    <td>${task.company || ''}</td>
-                    <td>${task.serviceTotal || ''}</td>
-                    <td>${workPrice.toFixed(2)}</td>
-                    <td>${serviceBonus ? serviceBonus.toFixed(2) : '0.00'}</td>
-                  </tr>
-                `;
+                const bonusApprovalDate = task.bonusApprovalDate || task.approvedByAccountantDate || task.date || '';
+                
+                // Створюємо рядок для кожного інженера окремо
+                return engineers.map(engineer => {
+                  const bonusPerEngineer = engineers.length > 0 ? serviceBonus / engineers.length : 0;
+                  return `
+                    <tr>
+                      <td>${bonusApprovalDate}</td>
+                      <td>${task.requestNumber || ''}</td>
+                      <td>${task.date || ''}</td>
+                      <td>${engineer}</td>
+                      <td>${task.client || ''}</td>
+                      <td>${task.address || ''}</td>
+                      <td>${task.equipment || ''}</td>
+                      <td>${task.work || ''}</td>
+                      <td>${task.company || ''}</td>
+                      <td>${task.serviceTotal || ''}</td>
+                      <td>${workPrice.toFixed(2)}</td>
+                      <td>${serviceBonus.toFixed(2)}</td>
+                      <td style="font-weight:600;">${bonusPerEngineer.toFixed(2)}</td>
+                    </tr>
+                  `;
+                }).join('');
               }).join('')}
             </tbody>
           </table>
