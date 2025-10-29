@@ -218,9 +218,16 @@ function NewDocumentUploadModal({
                     👁️ Переглянути
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       console.log('🔄 NEW DocumentUploadModal: Видаляємо файл рахунку');
-                      onInvoiceDelete(requestId);
+                      try {
+                        await onInvoiceDelete(requestId);
+                        // Автоматично закриваємо модальне вікно після успішного видалення
+                        onClose();
+                      } catch (error) {
+                        console.error('Помилка видалення файлу рахунку:', error);
+                        // Не закриваємо модальне вікно при помилці
+                      }
                     }}
                     style={{
                       padding: '8px 15px',
@@ -330,9 +337,16 @@ function NewDocumentUploadModal({
                     👁️ Переглянути
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       console.log('🔄 NEW DocumentUploadModal: Видаляємо файл акту');
-                      onActDelete(requestId);
+                      try {
+                        await onActDelete(requestId);
+                        // Автоматично закриваємо модальне вікно після успішного видалення
+                        onClose();
+                      } catch (error) {
+                        console.error('Помилка видалення файлу акту:', error);
+                        // Не закриваємо модальне вікно при помилці
+                      }
                     }}
                     style={{
                       padding: '8px 15px',
