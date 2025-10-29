@@ -296,6 +296,58 @@ const AccountantArea = memo(function AccountantArea({ user }) {
     }
   };
 
+  // Функція для повного перезавантаження вкладки (імітація виходу і входу)
+  const fullTabReload = async () => {
+    try {
+      console.log('🔄 FULL TAB RELOAD: Starting complete tab reload simulation...');
+      
+      // Step 1: Очищаємо весь кеш useLazyData
+      console.log('🔄 Step 1: Clearing all useLazyData cache...');
+      // Очищаємо кеш через refreshData для всіх можливих вкладок
+      const allTabs = ['invoiceRequests', 'pending', 'done', 'archive', 'debt'];
+      for (const tab of allTabs) {
+        console.log(`🔄 Clearing cache for tab: ${tab}`);
+        await refreshData(tab);
+      }
+      
+      // Step 2: Очищаємо всі локальні стани
+      console.log('🔄 Step 2: Clearing all local states...');
+      setInvoiceRequests([]);
+      setAllTasksFromAPI([]);
+      setAdditionalTasks([]);
+      
+      // Step 3: Перезавантажуємо всі дані з нуля
+      console.log('🔄 Step 3: Reloading all data from scratch...');
+      
+      // Перезавантажуємо запити на рахунки
+      await loadInvoiceRequests();
+      
+      // Перезавантажуємо всі завдання з API
+      try {
+        const allTasksData = await tasksAPI.getAll();
+        setAllTasksFromAPI(allTasksData);
+        console.log('✅ All tasks from API reloaded:', allTasksData.length);
+      } catch (error) {
+        console.error('❌ Error reloading all tasks from API:', error);
+      }
+      
+      // Step 4: Форсуємо перезавантаження поточної вкладки
+      console.log('🔄 Step 4: Force reloading current tab...');
+      await refreshData(activeTab);
+      
+      // Step 5: Форсуємо ре-рендер компонента
+      console.log('🔄 Step 5: Forcing component re-render...');
+      setDataSyncKey(prev => prev + 1);
+      
+      // Step 6: Невелика затримка для обробки всіх оновлень стану
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      console.log('✅ FULL TAB RELOAD: Complete tab reload simulation finished');
+    } catch (error) {
+      console.error('❌ Error in full tab reload:', error);
+    }
+  };
+
   // Функція для завантаження запитів на рахунки
   const loadInvoiceRequests = async () => {
     try {
@@ -455,10 +507,7 @@ const AccountantArea = memo(function AccountantArea({ user }) {
         
         // Оновлюємо всі дані після успішного завантаження
         console.log('🔄 Starting comprehensive data refresh after invoice file upload...');
-        await refreshAllData();
-        
-        // Додатково оновлюємо основні завдання через /api/tasks/filter
-        await refreshMainTasksData();
+        await fullTabReload();
         
         // Optional: Add a small delay and then check if data is fresh
         setTimeout(() => {
@@ -519,10 +568,7 @@ const AccountantArea = memo(function AccountantArea({ user }) {
         alert('Файл успішно видалено!');
         
         // Оновлюємо всі дані після успішного видалення
-        await refreshAllData();
-        
-        // Додатково оновлюємо основні завдання через /api/tasks/filter
-        await refreshMainTasksData();
+        await fullTabReload();
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка видалення файлу');
@@ -611,10 +657,7 @@ const AccountantArea = memo(function AccountantArea({ user }) {
         
         // Оновлюємо всі дані після успішного завантаження
         console.log('🔄 Starting comprehensive data refresh after act file upload...');
-        await refreshAllData();
-        
-        // Додатково оновлюємо основні завдання через /api/tasks/filter
-        await refreshMainTasksData();
+        await fullTabReload();
         
         // Optional: Add a small delay and then check if data is fresh
         setTimeout(() => {
@@ -697,10 +740,7 @@ const AccountantArea = memo(function AccountantArea({ user }) {
         alert('Файл акту успішно видалено!');
         
         // Оновлюємо всі дані після успішного видалення
-        await refreshAllData();
-        
-        // Додатково оновлюємо основні завдання через /api/tasks/filter
-        await refreshMainTasksData();
+        await fullTabReload();
       } else {
         const error = await response.json();
         throw new Error(error.message || 'Помилка видалення файлу акту');
