@@ -198,8 +198,8 @@ const AccountantArea = memo(function AccountantArea({ user }) {
       // Step 1: Clear all caches and force fresh data fetch
       console.log('🔄 Step 1: Clearing all caches and fetching fresh data...');
       
-      // Оновлюємо дані в таблиці запитів на рахунки (якщо на вкладці invoices)
-      if (activeTab === 'invoices') {
+      // Оновлюємо дані в таблиці запитів на рахунки (якщо на вкладці invoiceRequests)
+      if (activeTab === 'invoiceRequests') {
         await loadInvoiceRequests();
       }
       
@@ -256,6 +256,11 @@ const AccountantArea = memo(function AccountantArea({ user }) {
       // Step 1: Force refresh current tab
       console.log('🔄 Step 1: Refreshing current tab...');
       await refreshData(activeTab);
+      
+      // Оновлюємо дані в таблиці запитів на рахунки (якщо на вкладці invoiceRequests)
+      if (activeTab === 'invoiceRequests') {
+        await loadInvoiceRequests();
+      }
       
       // Step 2: Refresh all other relevant tabs
       // console.log('🔄 Step 2: Refreshing all other tabs...');
