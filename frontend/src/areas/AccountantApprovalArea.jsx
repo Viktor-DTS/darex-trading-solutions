@@ -37,6 +37,20 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user }) {
 
   // Налаштування колонок
   const [columnSettings, setColumnSettings] = useState({});
+  // Користувачі (для звітів)
+  const [users, setUsers] = useState([]);
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const usersData = await columnsSettingsAPI.getAllUsers();
+        setUsers(usersData || []);
+      } catch (error) {
+        console.error('[ERROR] AccountantApprovalArea - помилка завантаження користувачів:', error);
+        setUsers([]);
+      }
+    };
+    loadUsers();
+  }, []);
   
   // Завантаження налаштувань колонок
   useEffect(() => {
