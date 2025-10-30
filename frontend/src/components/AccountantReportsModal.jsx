@@ -202,6 +202,8 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       // Отримуємо всіх інженерів (service роль)
       const allEngineers = users.filter(u => u.role === 'service');
       console.log('[PERSONNEL REPORT] All engineers found:', allEngineers.length);
+      console.log('[PERSONNEL REPORT] All users roles:', users.map(u => ({name: u.name, role: u.role})));
+      console.log('[PERSONNEL REPORT] Engineers details:', allEngineers.map(e => ({name: e.name, region: e.region, id: e.id || e._id})));
       
       // Отримуємо заявки за вказаний місяць/рік
       // Важливо: monthNum - це число 1-12 від користувача, але Date() використовує місяці 0-11
@@ -370,8 +372,20 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           engineer.region === region || engineer.region === 'Україна'
         );
         console.log(`[PERSONNEL REPORT] Region ${region}: tasks=${regionTasks.length}, tasksForBonuses=${regionTasksForBonuses.length}, engineers=${regionEngineers.length}`);
+        console.log(`[PERSONNEL REPORT] Region ${region}: engineers details:`, regionEngineers.map(e => ({name: e.name, region: e.region})));
         console.log(`[PERSONNEL REPORT] Region ${region}: Using monthly tasks for both timesheet and bonuses (like regional manager)`);
         console.log(`[PERSONNEL REPORT] Region ${region}: Tasks for bonuses dates:`, regionTasksForBonuses.map(t => ({date: t.date, bonusApprovalDate: t.bonusApprovalDate, approvedByAccountantDate: t.approvedByAccountantDate})));
+        console.log(`[PERSONNEL REPORT] Region ${region}: Engineers in tasks:`, regionTasks.map(t => ({
+          requestNumber: t.requestNumber,
+          engineers: [
+            (t.engineer1 || '').trim(),
+            (t.engineer2 || '').trim(),
+            (t.engineer3 || '').trim(),
+            (t.engineer4 || '').trim(),
+            (t.engineer5 || '').trim(),
+            (t.engineer6 || '').trim()
+          ].filter(eng => eng && eng.length > 0)
+        })));
         
         // Розраховуємо кількість робочих днів та норму годин для конкретного місяця (як у регіонального керівника)
         const daysInMonth = new Date(personnelFilters.year, monthNum, 0).getDate();
@@ -385,7 +399,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         
         // Створюємо табель часу - використовуємо дані з localStorage, якщо є, інакше розраховуємо з завдань
         const engineerHours = {};
-        regionEngineers.forEach(engineer => {
+        usersWithPayment.forEach(engineer => {
           engineerHours[engineer.name] = {};
           const engineerId = engineer.id || engineer._id;
           
@@ -410,7 +424,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         });
         
         // Якщо дані не були взяті з localStorage, розраховуємо години з завдань
-        regionEngineers.forEach(engineer => {
+        usersWithPayment.forEach(engineer => {
           if (engineerHours[engineer.name].total === 0) {
             // Перевіряємо, чи є завдання для цього інженера
             const engineerTasks = regionTasks.filter(task => {
@@ -445,7 +459,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         
         // Розраховуємо зарплати (логіка як у регіонального керівника)
         const engineerSalaries = {};
-        regionEngineers.forEach(engineer => {
+        usersWithPayment.forEach(engineer => {
           // Використовуємо реальну суму годин з табелю
           const total = engineerHours[engineer.name]?.total || 0;
           const salary = Number(payData[engineer.id || engineer._id]?.salary) || 25000;
@@ -491,8 +505,36 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           };
         });
         
-        // Показуємо всіх інженерів з регіону, а не тільки з ненульовими годинами
-        const usersWithPayment = regionEngineers;
+        // Якщо немає інженерів з роллю service, спробуємо знайти їх в завданнях
+        let usersWithPayment = regionEngineers;
+        if (usersWithPayment.length === 0) {
+          console.log(`[PERSONNEL REPORT] No engineers with 'service' role found for region ${region}, looking in tasks...`);
+          
+          // Збираємо всіх унікальних інженерів з завдань регіону
+          const engineersFromTasks = new Set();
+          regionTasks.forEach(task => {
+            [
+              (task.engineer1 || '').trim(),
+              (task.engineer2 || '').trim(),
+              (task.engineer3 || '').trim(),
+              (task.engineer4 || '').trim(),
+              (task.engineer5 || '').trim(),
+              (task.engineer6 || '').trim()
+            ].filter(eng => eng && eng.length > 0).forEach(eng => engineersFromTasks.add(eng));
+          });
+          
+          console.log(`[PERSONNEL REPORT] Engineers found in tasks:`, Array.from(engineersFromTasks));
+          
+          // Створюємо об'єкти інженерів для тих, хто згадується в завданнях
+          usersWithPayment = Array.from(engineersFromTasks).map(engineerName => ({
+            name: engineerName,
+            region: region,
+            id: `temp_${engineerName.replace(/\s+/g, '_')}`,
+            role: 'service' // Призначаємо ролю service для відображення
+          }));
+          
+          console.log(`[PERSONNEL REPORT] Created engineer objects:`, usersWithPayment);
+        }
         
         const days = Array.from({length: 31}, (_, i) => i + 1);
         
