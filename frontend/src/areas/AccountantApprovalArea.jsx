@@ -889,7 +889,7 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user }) {
         onClose={() => setReportsModalOpen(false)}
         user={user}
         tasks={tasks}
-        users={[]}
+        users={users}
       />
     </div>
   );
