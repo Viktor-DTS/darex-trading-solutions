@@ -471,19 +471,41 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
             });
             
             if (engineerTasks.length > 0) {
-              // Якщо є завдання, встановлюємо 8 годин для всіх робочих днів місяця
+              // Розраховуємо години на основі конкретних дат завдань
+              const taskDates = new Set();
+              engineerTasks.forEach(task => {
+                if (task.date) {
+                  let taskDate = new Date(task.date);
+                  // Якщо дата прийшла як рядок типу "YYYY-MM-DD", парсимо її правильно
+                  if (typeof task.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(task.date)) {
+                    const [year, month, day] = task.date.split('-').map(Number);
+                    taskDate = new Date(year, month - 1, day);
+                  }
+                  taskDate.setHours(0, 0, 0, 0);
+                  
+                  // Перевіряємо, чи дата завдання в межах вибраного місяця
+                  if (taskDate >= startDate && taskDate <= endDate) {
+                    const dayOfMonth = taskDate.getDate();
+                    taskDates.add(dayOfMonth);
+                  }
+                }
+              });
+              
+              // Встановлюємо 8 годин тільки для днів, коли є завдання
               for (let d = 1; d <= daysInMonth; d++) {
-                const date = new Date(personnelFilters.year, monthNum - 1, d);
-                const dayOfWeek = date.getDay();
-                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                if (!isWeekend) {
+                if (taskDates.has(d)) {
                   engineerHours[engineer.name][d] = 8;
+                } else {
+                  engineerHours[engineer.name][d] = 0;
                 }
               }
+              
               // Перераховуємо загальні години
               engineerHours[engineer.name].total = Object.values(engineerHours[engineer.name])
                 .filter(val => typeof val === 'number' && val !== engineerHours[engineer.name].total)
                 .reduce((sum, hours) => sum + hours, 0);
+              
+              console.log(`[PERSONNEL REPORT] Engineer ${engineer.name}: tasks=${engineerTasks.length}, taskDates=${Array.from(taskDates).sort((a,b) => a-b)}, totalHours=${engineerHours[engineer.name].total}`);
             }
           }
         });
