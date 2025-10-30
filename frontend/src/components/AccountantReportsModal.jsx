@@ -397,6 +397,37 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         }
         const workHoursNorm = workDays * 8; // Норма робочих годин на місяць (робочі дні * 8 годин)
         
+        // Якщо немає інженерів з роллю service, спробуємо знайти їх в завданнях
+        let usersWithPayment = regionEngineers;
+        if (usersWithPayment.length === 0) {
+          console.log(`[PERSONNEL REPORT] No engineers with 'service' role found for region ${region}, looking in tasks...`);
+          
+          // Збираємо всіх унікальних інженерів з завдань регіону
+          const engineersFromTasks = new Set();
+          regionTasks.forEach(task => {
+            [
+              (task.engineer1 || '').trim(),
+              (task.engineer2 || '').trim(),
+              (task.engineer3 || '').trim(),
+              (task.engineer4 || '').trim(),
+              (task.engineer5 || '').trim(),
+              (task.engineer6 || '').trim()
+            ].filter(eng => eng && eng.length > 0).forEach(eng => engineersFromTasks.add(eng));
+          });
+          
+          console.log(`[PERSONNEL REPORT] Engineers found in tasks:`, Array.from(engineersFromTasks));
+          
+          // Створюємо об'єкти інженерів для тих, хто згадується в завданнях
+          usersWithPayment = Array.from(engineersFromTasks).map(engineerName => ({
+            name: engineerName,
+            region: region,
+            id: `temp_${engineerName.replace(/\s+/g, '_')}`,
+            role: 'service' // Призначаємо ролю service для відображення
+          }));
+          
+          console.log(`[PERSONNEL REPORT] Created engineer objects:`, usersWithPayment);
+        }
+        
         // Створюємо табель часу - використовуємо дані з localStorage, якщо є, інакше розраховуємо з завдань
         const engineerHours = {};
         usersWithPayment.forEach(engineer => {
@@ -504,37 +535,6 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
             totalPay: payout
           };
         });
-        
-        // Якщо немає інженерів з роллю service, спробуємо знайти їх в завданнях
-        let usersWithPayment = regionEngineers;
-        if (usersWithPayment.length === 0) {
-          console.log(`[PERSONNEL REPORT] No engineers with 'service' role found for region ${region}, looking in tasks...`);
-          
-          // Збираємо всіх унікальних інженерів з завдань регіону
-          const engineersFromTasks = new Set();
-          regionTasks.forEach(task => {
-            [
-              (task.engineer1 || '').trim(),
-              (task.engineer2 || '').trim(),
-              (task.engineer3 || '').trim(),
-              (task.engineer4 || '').trim(),
-              (task.engineer5 || '').trim(),
-              (task.engineer6 || '').trim()
-            ].filter(eng => eng && eng.length > 0).forEach(eng => engineersFromTasks.add(eng));
-          });
-          
-          console.log(`[PERSONNEL REPORT] Engineers found in tasks:`, Array.from(engineersFromTasks));
-          
-          // Створюємо об'єкти інженерів для тих, хто згадується в завданнях
-          usersWithPayment = Array.from(engineersFromTasks).map(engineerName => ({
-            name: engineerName,
-            region: region,
-            id: `temp_${engineerName.replace(/\s+/g, '_')}`,
-            role: 'service' // Призначаємо ролю service для відображення
-          }));
-          
-          console.log(`[PERSONNEL REPORT] Created engineer objects:`, usersWithPayment);
-        }
         
         const days = Array.from({length: 31}, (_, i) => i + 1);
         
