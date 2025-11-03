@@ -3194,6 +3194,151 @@ app.get('/api/analytics/details', async (req, res) => {
   }
 });
 
+// Endpoint для деталей запланованого доходу
+app.get('/api/analytics/planned-details', async (req, res) => {
+  try {
+    const { year, month, region, company } = req.query;
+    
+    if (!year || !month) {
+      return res.status(400).json({ error: 'Потрібно вказати рік та місяць' });
+    }
+
+    // Отримуємо заявки з фільтрами
+    const taskFilter = {};
+    if (region) taskFilter.serviceRegion = region;
+    if (company) taskFilter.company = company;
+    taskFilter.status = 'Виконано';
+
+    const tasks = await Task.find(taskFilter);
+    
+    const monthNames = [
+      'Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
+      'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'
+    ];
+
+    const workTasks = [];
+    const materialsTasks = [];
+    let totalWorkRevenue = 0;
+    let totalMaterialsRevenue = 0;
+
+    // Обробляємо заявки для запланованого доходу (непідтверджені заявки)
+    tasks.forEach(task => {
+      const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
+      const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
+
+      // Запланований дохід - це заявки, які НЕ підтверджені, але мають workPrice
+      if (task.workPrice && (!isWarehouseApproved || !isAccountantApproved)) {
+        let taskYear, taskMonth;
+        
+        // Парсимо дату заявки
+        if (task.date && task.date.includes('-')) {
+          const parts = task.date.split('-');
+          if (parts.length === 3) {
+            // Формат "2025-07-04"
+            taskYear = parseInt(parts[0]);
+            taskMonth = parseInt(parts[1]);
+          }
+        }
+        
+        // Перевіряємо чи це потрібний місяць
+        if (taskMonth === parseInt(month) && taskYear === parseInt(year)) {
+          const workPrice = parseFloat(task.workPrice) || 0;
+          const baseBonus = workPrice * 0.25;
+
+          // Розраховуємо фактичну премію з урахуванням розподілу між інженерами
+          let actualBonus = 0;
+          const engineer1 = (task.engineer1 || '').trim();
+          const engineer2 = (task.engineer2 || '').trim();
+
+          if (engineer1 && engineer2) {
+            actualBonus = baseBonus; // Два інженери - загальна сума = повна премія
+          } else if (engineer1 || engineer2) {
+            actualBonus = baseBonus; // Один інженер - повна сума
+          }
+
+          const revenue = actualBonus * 3;
+          totalWorkRevenue += revenue;
+
+          workTasks.push({
+            workDate: task.date,
+            engineer1: task.engineer1,
+            engineer2: task.engineer2,
+            client: task.client,
+            workPrice: workPrice,
+            baseBonus: baseBonus,
+            actualBonus: actualBonus,
+            revenue: revenue,
+            warehouseApproved: task.approvedByWarehouse,
+            accountantApproved: task.approvedByAccountant
+          });
+        }
+      }
+
+      // Запланований дохід по матеріалам - непідтверджені заявки
+      if ((!isWarehouseApproved || !isAccountantApproved)) {
+        let taskYear, taskMonth;
+        
+        // Парсимо дату заявки
+        if (task.date && task.date.includes('-')) {
+          const parts = task.date.split('-');
+          if (parts.length === 3) {
+            // Формат "2025-07-04"
+            taskYear = parseInt(parts[0]);
+            taskMonth = parseInt(parts[1]);
+          }
+        }
+        
+        // Перевіряємо чи це потрібний місяць
+        if (taskMonth === parseInt(month) && taskYear === parseInt(year)) {
+          const oilTotal = parseFloat(task.oilTotal) || 0;
+          const filterSum = parseFloat(task.filterSum) || 0;
+          const fuelFilterSum = parseFloat(task.fuelFilterSum) || 0;
+          const airFilterSum = parseFloat(task.airFilterSum) || 0;
+          const antifreezeSum = parseFloat(task.antifreezeSum) || 0;
+          const otherSum = parseFloat(task.otherSum) || 0;
+          
+          const totalMaterials = oilTotal + filterSum + fuelFilterSum + airFilterSum + antifreezeSum + otherSum;
+          
+          if (totalMaterials > 0) {
+            const materialsRevenue = totalMaterials / 4;
+            totalMaterialsRevenue += materialsRevenue;
+
+            materialsTasks.push({
+              workDate: task.date,
+              client: task.client,
+              oilTotal: oilTotal,
+              filtersTotal: filterSum + fuelFilterSum + airFilterSum,
+              antifreezeSum: antifreezeSum,
+              otherSum: otherSum,
+              totalMaterials: totalMaterials,
+              materialsRevenue: materialsRevenue,
+              warehouseApproved: task.approvedByWarehouse,
+              accountantApproved: task.approvedByAccountant
+            });
+          }
+        }
+      }
+    });
+
+    res.json({
+      year: parseInt(year),
+      month: parseInt(month),
+      monthName: monthNames[parseInt(month) - 1],
+      region: region || 'Всі регіони',
+      company: company || 'Всі компанії',
+      workRevenue: totalWorkRevenue,
+      materialsRevenue: totalMaterialsRevenue,
+      totalRevenue: totalWorkRevenue + totalMaterialsRevenue,
+      workTasks: workTasks,
+      materialsTasks: materialsTasks
+    });
+
+  } catch (error) {
+    console.error('Помилка отримання деталей запланованого доходу:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Копіювати витрати з попереднього місяця
 app.post('/api/analytics/copy-previous', async (req, res) => {
   try {
