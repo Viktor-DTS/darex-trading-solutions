@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { analyticsAPI, EXPENSE_CATEGORIES, formatCurrency, formatPercent, getMonthName } from '../utils/analyticsAPI';
 import { regionsAPI } from '../utils/regionsAPI';
+import DetailedReportTab from '../components/DetailedReportTab';
 export default function AnalyticsArea({ user }) {
   const [analytics, setAnalytics] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -109,13 +110,16 @@ export default function AnalyticsArea({ user }) {
   const totals = calculateTotals();
   // Функція для копіювання витрат з попереднього місяця
   const handleCopyPreviousMonth = async () => {
+    if (!filters.region) {
+      alert('Будь ласка, оберіть регіон для копіювання витрат');
+      return;
+    }
     const currentDate = new Date();
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
     try {
       await analyticsAPI.copyPreviousMonth({
         region: filters.region,
-        company: filters.company,
         year,
         month,
         createdBy: user.login
@@ -132,14 +136,33 @@ export default function AnalyticsArea({ user }) {
     setShowExpenseModal(true);
   };
   // Функція для збереження витрат
-  const handleSaveExpenses = async (expenses) => {
+  const handleSaveExpenses = async (data) => {
     try {
+      // data може бути об'єктом з formData та expenses, або тільки expenses (для зворотної сумісності)
+      let region, year, month, expensesData;
+      
+      if (data.expenses !== undefined) {
+        // Новий формат: data містить region, year, month, expenses
+        region = data.region;
+        year = data.year;
+        month = data.month;
+        expensesData = data.expenses;
+      } else {
+        // Старий формат: data це тільки expenses
+        region = editingExpense.region?.split(',')[0]?.trim() || editingExpense.region;
+        year = editingExpense.year;
+        month = editingExpense.month;
+        expensesData = data;
+      }
+      
+      // Якщо region містить кілька значень через кому, беремо перше
+      const regionSingle = region?.split(',')[0]?.trim() || region;
+      
       await analyticsAPI.saveAnalytics({
-        region: editingExpense.region,
-        company: editingExpense.company,
-        year: editingExpense.year,
-        month: editingExpense.month,
-        expenses,
+        region: regionSingle,
+        year,
+        month,
+        expenses: expensesData,
         createdBy: user.login
       });
       alert('Витрати збережено!');
@@ -147,6 +170,7 @@ export default function AnalyticsArea({ user }) {
       setEditingExpense(null);
       loadAnalytics();
     } catch (error) {
+      console.error('Помилка збереження витрат:', error);
       alert('Помилка збереження витрат');
     }
   };
@@ -154,7 +178,6 @@ export default function AnalyticsArea({ user }) {
   const handleAddExpenses = () => {
     setEditingExpense({
       region: filters.region || '',
-      company: filters.company || '',
       year: new Date().getFullYear(),
       month: new Date().getMonth() + 1,
       expenses: {}
@@ -165,10 +188,9 @@ export default function AnalyticsArea({ user }) {
   const handleSaveNewExpenses = async (data) => {
     try {
       // Розділяємо дані на expenses та formData
-      const { region, company, year, month, expenses } = data;
+      const { region, year, month, expenses } = data;
       await analyticsAPI.saveAnalytics({
         region,
-        company,
         year,
         month,
         expenses,
@@ -255,13 +277,33 @@ export default function AnalyticsArea({ user }) {
   // Функція для показу деталей розрахунку
   const handleShowDetails = async (item) => {
     try {
-      const response = await fetch(`/api/analytics/full?details=true&year=${item.year}&month=${item.month}&region=${item.region}&company=${item.company}`);
-      const data = await response.json();
+      const data = await analyticsAPI.getDetails({
+        year: item.year,
+        month: item.month,
+        region: filters.region || '',
+        company: filters.company || ''
+      });
       setDetailsData(data);
       setShowDetailsModal(true);
     } catch (error) {
       console.error('Помилка завантаження деталей:', error);
       alert('Помилка завантаження деталей');
+    }
+  };
+
+  const handleShowPlannedDetails = async (item) => {
+    try {
+      const data = await analyticsAPI.getPlannedDetails({
+        year: item.year,
+        month: item.month,
+        region: filters.region || '',
+        company: filters.company || ''
+      });
+      setDetailsData(data);
+      setShowDetailsModal(true);
+    } catch (error) {
+      console.error('Помилка завантаження деталей запланованого доходу:', error);
+      alert('Помилка завантаження деталей запланованого доходу');
     }
   };
 
@@ -273,13 +315,12 @@ export default function AnalyticsArea({ user }) {
       alert('У вас немає прав для видалення витрат. Зверніться до адміністратора.');
       return;
     }
-    if (!confirm(`Ви впевнені, що хочете видалити витрати за ${getMonthName(item.month)} ${item.year} для ${item.region} - ${item.company}?`)) {
+    if (!confirm(`Ви впевнені, що хочете видалити витрати за ${getMonthName(item.month)} ${item.year} для ${item.region}?`)) {
       return;
     }
     try {
       await analyticsAPI.deleteAnalytics({
         region: item.region,
-        company: item.company,
         year: item.year,
         month: item.month,
         user: user
@@ -460,22 +501,250 @@ export default function AnalyticsArea({ user }) {
   };
   // Компонент для редагування витрат
   const ExpenseModal = ({ open, onClose, expense, onSave, isNew = false }) => {
-    const [expenses, setExpenses] = useState(expense?.expenses || {});
+    const [expenses, setExpenses] = useState({});
+    const [loadingExpenses, setLoadingExpenses] = useState(false);
+    const [initialLoad, setInitialLoad] = useState(true);
     const [formData, setFormData] = useState({
       region: expense?.region || '',
-      company: expense?.company || '',
       year: expense?.year || new Date().getFullYear(),
       month: expense?.month || new Date().getMonth() + 1
     });
+    const [previousFormData, setPreviousFormData] = useState(null);
+    
+    // Завантаження витрат при відкритті модального вікна
     useEffect(() => {
-      setExpenses(expense?.expenses || {});
-      setFormData({
-        region: expense?.region || '',
-        company: expense?.company || '',
-        year: expense?.year || new Date().getFullYear(),
-        month: expense?.month || new Date().getMonth() + 1
-      });
-    }, [expense]);
+      if (open) {
+        // Отримуємо регіон, обробляючи можливі кілька значень через кому
+        const expenseRegion = expense?.region || '';
+        const regionValue = expenseRegion ? expenseRegion.split(',')[0].trim() : '';
+        
+        const initialFormData = {
+          region: regionValue,
+          year: expense?.year || new Date().getFullYear(),
+          month: expense?.month || new Date().getMonth() + 1
+        };
+        
+        setFormData(initialFormData);
+        setPreviousFormData(initialFormData);
+        setInitialLoad(true);
+        
+        // Якщо це редагування (не новий запис) і є регіон, рік та місяць - завантажуємо дані з API
+        if (!isNew && regionValue && initialFormData.year && initialFormData.month) {
+          const loadExpensesFromAPI = async () => {
+            try {
+              setLoadingExpenses(true);
+              const analyticsData = await analyticsAPI.getAnalytics({
+                region: regionValue,
+                year: initialFormData.year,
+                month: initialFormData.month,
+                startYear: initialFormData.year,
+                endYear: initialFormData.year,
+                startMonth: initialFormData.month,
+                endMonth: initialFormData.month
+              });
+              
+              // Знаходимо запис для цього періоду
+              const foundExpense = analyticsData.find(a => 
+                a.region === regionValue && 
+                a.year === initialFormData.year && 
+                a.month === initialFormData.month
+              );
+              
+              if (foundExpense && foundExpense.expenses) {
+                // Спочатку створюємо об'єкт з усіма актуальними категоріями з нульовими значеннями
+                const mergedExpenses = {};
+                Object.keys(customExpenseCategories).forEach(key => {
+                  mergedExpenses[key] = 0;
+                });
+                // Потім заповнюємо значеннями з foundExpense.expenses (якщо вони є)
+                Object.keys(foundExpense.expenses).forEach(key => {
+                  if (customExpenseCategories[key] !== undefined) {
+                    mergedExpenses[key] = foundExpense.expenses[key] || 0;
+                  }
+                });
+                setExpenses(mergedExpenses);
+              } else {
+                // Якщо витрат немає в базі, спочатку пробуємо використати дані з expense
+                if (expense?.expenses && typeof expense.expenses === 'object') {
+                  const mergedExpenses = {};
+                  Object.keys(customExpenseCategories).forEach(key => {
+                    mergedExpenses[key] = 0;
+                  });
+                  Object.keys(expense.expenses).forEach(key => {
+                    if (customExpenseCategories[key] !== undefined) {
+                      mergedExpenses[key] = expense.expenses[key] || 0;
+                    }
+                  });
+                  setExpenses(mergedExpenses);
+                } else {
+                  // Встановлюємо всі витрати в 0
+                  const zeroExpenses = {};
+                  Object.keys(customExpenseCategories).forEach(key => {
+                    zeroExpenses[key] = 0;
+                  });
+                  setExpenses(zeroExpenses);
+                }
+              }
+            } catch (error) {
+              console.error('Помилка завантаження витрат:', error);
+              // При помилці використовуємо дані з expense як резервний варіант
+              if (expense?.expenses && typeof expense.expenses === 'object') {
+                const mergedExpenses = {};
+                Object.keys(customExpenseCategories).forEach(key => {
+                  mergedExpenses[key] = 0;
+                });
+                Object.keys(expense.expenses).forEach(key => {
+                  if (customExpenseCategories[key] !== undefined) {
+                    mergedExpenses[key] = expense.expenses[key] || 0;
+                  }
+                });
+                setExpenses(mergedExpenses);
+              } else {
+                const zeroExpenses = {};
+                Object.keys(customExpenseCategories).forEach(key => {
+                  zeroExpenses[key] = 0;
+                });
+                setExpenses(zeroExpenses);
+              }
+            } finally {
+              setLoadingExpenses(false);
+            }
+          };
+          
+          loadExpensesFromAPI();
+        } else {
+          // Для нових записів або якщо немає даних - встановлюємо нулі
+          if (!regionValue || regionValue === '') {
+            const zeroExpenses = {};
+            Object.keys(customExpenseCategories).forEach(key => {
+              zeroExpenses[key] = 0;
+            });
+            setExpenses(zeroExpenses);
+          } else if (expense?.expenses && typeof expense.expenses === 'object') {
+            // Використовуємо дані з expense як резервний варіант
+            const mergedExpenses = {};
+            Object.keys(customExpenseCategories).forEach(key => {
+              mergedExpenses[key] = 0;
+            });
+            Object.keys(expense.expenses).forEach(key => {
+              if (customExpenseCategories[key] !== undefined) {
+                mergedExpenses[key] = expense.expenses[key] || 0;
+              }
+            });
+            setExpenses(mergedExpenses);
+          } else {
+            const zeroExpenses = {};
+            Object.keys(customExpenseCategories).forEach(key => {
+              zeroExpenses[key] = 0;
+            });
+            setExpenses(zeroExpenses);
+          }
+        }
+      } else {
+        // При закритті скидаємо стан
+        setInitialLoad(true);
+        setPreviousFormData(null);
+        setExpenses({});
+      }
+    }, [expense, open, customExpenseCategories, isNew]); // Додаємо isNew в залежності
+    
+    // Завантаження витрат при зміні регіону, року або місяця
+    useEffect(() => {
+      // Не завантажуємо при першому рендері або якщо модальне вікно закрите
+      if (!open) return;
+      
+      // Не завантажуємо при першому відкритті (коли дані вже є в expense)
+      if (initialLoad) {
+        setInitialLoad(false);
+        return;
+      }
+      
+      // Перевіряємо, чи змінилися значення
+      if (previousFormData && 
+          previousFormData.region === formData.region &&
+          previousFormData.year === formData.year &&
+          previousFormData.month === formData.month) {
+        // Значення не змінилися, не завантажуємо
+        return;
+      }
+      
+      // Не завантажуємо якщо регіон не вибрано
+      if (!formData.region || !formData.year || !formData.month) {
+        // Якщо регіон очищено, встановлюємо всі витрати в 0
+        if (!formData.region) {
+          const zeroExpenses = {};
+          Object.keys(customExpenseCategories).forEach(key => {
+            zeroExpenses[key] = 0;
+          });
+          setExpenses(zeroExpenses);
+        } else {
+          // Якщо тільки рік або місяць не вибрано, очищаємо витрати
+          setExpenses({});
+        }
+        setPreviousFormData({ ...formData });
+        return;
+      }
+      
+      // Завантажуємо витрати при зміні значень
+      const loadExpensesForPeriod = async () => {
+        try {
+          setLoadingExpenses(true);
+          const regionSingle = formData.region.split(',')[0]?.trim() || formData.region;
+          const analyticsData = await analyticsAPI.getAnalytics({
+            region: regionSingle,
+            year: formData.year,
+            month: formData.month,
+            startYear: formData.year,
+            endYear: formData.year,
+            startMonth: formData.month,
+            endMonth: formData.month
+          });
+          
+          // Знаходимо запис для цього періоду
+          const foundExpense = analyticsData.find(a => 
+            a.region === regionSingle && 
+            a.year === formData.year && 
+            a.month === formData.month
+          );
+          
+          if (foundExpense && foundExpense.expenses) {
+            // Спочатку створюємо об'єкт з усіма актуальними категоріями з нульовими значеннями
+            const mergedExpenses = {};
+            Object.keys(customExpenseCategories).forEach(key => {
+              mergedExpenses[key] = 0;
+            });
+            // Потім заповнюємо значеннями з foundExpense.expenses (якщо вони є)
+            Object.keys(foundExpense.expenses).forEach(key => {
+              if (customExpenseCategories[key] !== undefined) {
+                mergedExpenses[key] = foundExpense.expenses[key] || 0;
+              }
+            });
+            setExpenses(mergedExpenses);
+          } else {
+            // Якщо витрат немає, встановлюємо всі витрати в 0
+            const zeroExpenses = {};
+            Object.keys(customExpenseCategories).forEach(key => {
+              zeroExpenses[key] = 0;
+            });
+            setExpenses(zeroExpenses);
+          }
+          setPreviousFormData({ ...formData });
+        } catch (error) {
+          console.error('Помилка завантаження витрат:', error);
+          // При помилці не очищаємо витрати, щоб не втратити дані
+        } finally {
+          setLoadingExpenses(false);
+        }
+      };
+      
+      // Затримка для уникнення занадто частих запитів
+      const timeoutId = setTimeout(() => {
+        loadExpensesForPeriod();
+      }, 300);
+      
+      return () => clearTimeout(timeoutId);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData.region, formData.year, formData.month, open, initialLoad]);
     if (!open) return null;
     return (
       <div style={{
@@ -500,91 +769,84 @@ export default function AnalyticsArea({ user }) {
           overflowY: 'auto'
         }}>
           <h3 style={{color: '#fff', marginBottom: '16px'}}>
-            {isNew ? 'Додавання витрат' : `Редагування витрат: ${expense?.region} - ${expense?.company} - ${getMonthName(expense?.month)} ${expense?.year}`}
+            {isNew ? 'Додавання витрат' : 'Редагування витрат'}
           </h3>
-          {isNew && (
-            <div style={{marginBottom: '16px'}}>
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px'}}>
-                                 <div>
-                   <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Регіон сервісного відділу:</label>
-                   <select
-                     value={formData.region}
-                     onChange={(e) => setFormData(prev => ({...prev, region: e.target.value}))}
-                     style={{
-                       width: '100%',
-                       padding: '8px',
-                       borderRadius: '4px',
-                       border: '1px solid #29506a',
-                       background: '#1a2636',
-                       color: '#fff'
-                     }}
-                   >
-                     <option value="">Оберіть регіон</option>
-                     {uniqueRegions.map(region => (
-                       <option key={region} value={region}>{region}</option>
-                     ))}
-                   </select>
-                 </div>
-                 <div>
-                   <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Компанія виконавець:</label>
-                   <select
-                     value={formData.company}
-                     onChange={(e) => setFormData(prev => ({...prev, company: e.target.value}))}
-                     style={{
-                       width: '100%',
-                       padding: '8px',
-                       borderRadius: '4px',
-                       border: '1px solid #29506a',
-                       background: '#1a2636',
-                       color: '#fff'
-                     }}
-                   >
-                     <option value="">Оберіть компанію</option>
-                     {uniqueCompanies.map(company => (
-                       <option key={company} value={company}>{company}</option>
-                     ))}
-                   </select>
-                 </div>
+          <div style={{marginBottom: '16px'}}>
+            <div style={{marginBottom: '12px'}}>
+              <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>
+                Регіон сервісного відділу:
+                {loadingExpenses && <span style={{color: '#ffa500', marginLeft: '8px'}}>(завантаження...)</span>}
+              </label>
+              <select
+                value={formData.region}
+                onChange={(e) => {
+                  const newRegion = e.target.value;
+                  setFormData(prev => ({...prev, region: newRegion}));
+                  // Якщо регіон очищено, одразу встановлюємо всі витрати в 0
+                  if (!newRegion) {
+                    const zeroExpenses = {};
+                    Object.keys(customExpenseCategories).forEach(key => {
+                      zeroExpenses[key] = 0;
+                    });
+                    setExpenses(zeroExpenses);
+                  }
+                }}
+                disabled={loadingExpenses}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #29506a',
+                  background: loadingExpenses ? '#1a1a1a' : '#1a2636',
+                  color: loadingExpenses ? '#666' : '#fff'
+                }}
+              >
+                <option value="">Оберіть регіон</option>
+                {uniqueRegions.map(region => (
+                  <option key={region} value={region}>{region}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px'}}>
+              <div>
+                <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Рік:</label>
+                <input
+                  type="number"
+                  value={formData.year}
+                  onChange={(e) => setFormData(prev => ({...prev, year: parseInt(e.target.value)}))}
+                  disabled={loadingExpenses}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid #29506a',
+                    background: loadingExpenses ? '#1a1a1a' : '#1a2636',
+                    color: loadingExpenses ? '#666' : '#fff'
+                  }}
+                />
               </div>
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px'}}>
-                <div>
-                  <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Рік:</label>
-                  <input
-                    type="number"
-                    value={formData.year}
-                    onChange={(e) => setFormData(prev => ({...prev, year: parseInt(e.target.value)}))}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '4px',
-                      border: '1px solid #29506a',
-                      background: '#1a2636',
-                      color: '#fff'
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Місяць:</label>
-                  <select
-                    value={formData.month}
-                    onChange={(e) => setFormData(prev => ({...prev, month: parseInt(e.target.value)}))}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '4px',
-                      border: '1px solid #29506a',
-                      background: '#1a2636',
-                      color: '#fff'
-                    }}
-                  >
-                    {Array.from({length: 12}, (_, i) => i + 1).map(month => (
-                      <option key={month} value={month}>{getMonthName(month)}</option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>Місяць:</label>
+                <select
+                  value={formData.month}
+                  onChange={(e) => setFormData(prev => ({...prev, month: parseInt(e.target.value)}))}
+                  disabled={loadingExpenses}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid #29506a',
+                    background: loadingExpenses ? '#1a1a1a' : '#1a2636',
+                    color: loadingExpenses ? '#666' : '#fff'
+                  }}
+                >
+                  {Array.from({length: 12}, (_, i) => i + 1).map(month => (
+                    <option key={month} value={month}>{getMonthName(month)}</option>
+                  ))}
+                </select>
               </div>
             </div>
-          )}
+          </div>
                      <div style={{marginBottom: '16px'}}>
              {Object.entries(customExpenseCategories).map(([key, category]) => (
                <div key={key} style={{marginBottom: '12px'}}>
@@ -634,8 +896,12 @@ export default function AnalyticsArea({ user }) {
                   };
                   onSave(dataToSave);
                 } else {
-                  // Для редагування передаємо тільки expenses
-                  onSave(expenses);
+                  // Для редагування передаємо formData та expenses, щоб можна було змінити регіон/рік/місяць
+                  const dataToSave = {
+                    ...formData,
+                    expenses: expenses
+                  };
+                  onSave(dataToSave);
                 }
               }}
               style={{
@@ -659,14 +925,16 @@ export default function AnalyticsArea({ user }) {
       padding: '24px',
       background: '#22334a',
       borderRadius: '12px',
-      margin: '32px auto',
-      maxWidth: '1400px'
+      margin: '32px 0',
+      width: '100%',
+      maxWidth: '100%',
+      boxSizing: 'border-box'
     }}>
       <h2>Аналітика</h2>
       {/* Фільтри */}
       <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
         <h3 style={{color: '#fff', marginBottom: '12px'}}>Фільтри</h3>
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
+        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px'}}>
                                  <div>
               <label style={{color: '#fff', display: 'block', marginBottom: '4px'}}>
                 Регіон сервісного відділу:
@@ -885,7 +1153,7 @@ export default function AnalyticsArea({ user }) {
       ) : (
         <>
           {activeTab === 'overview' && (
-            <div>
+            <div style={{ width: '100%', maxWidth: '100%' }}>
               {/* Загальні показники */}
               <div style={{
                 display: 'grid',
@@ -973,70 +1241,76 @@ export default function AnalyticsArea({ user }) {
                      (відображаються актуальні назви категорій)
                    </span>
                  </h3>
-                                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
-                    {Object.entries(totals.expenseBreakdown).map(([category, amount]) => {
-                      // Знаходимо актуальну категорію за ключем
-                      const actualCategory = customExpenseCategories[category];
-                      const displayName = actualCategory?.label || category;
-                      const displayColor = actualCategory?.color || '#ccc';
-                      return (
-                        <div key={category} style={{
-                          background: '#22334a',
-                          padding: '12px',
-                          borderRadius: '6px',
-                          borderLeft: `4px solid ${displayColor}`
-                        }}>
-                          <div style={{color: '#fff', fontSize: '14px', marginBottom: '4px'}}>
-                            {displayName}
-                          </div>
-                          <div style={{color: '#00bfff', fontSize: '18px', fontWeight: 'bold'}}>
-                            {formatCurrency(amount)}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
+                   {Object.entries(totals.expenseBreakdown).map(([category, amount]) => {
+                     // Знаходимо актуальну категорію за ключем
+                     const actualCategory = customExpenseCategories[category];
+                     const displayName = actualCategory?.label || category;
+                     const displayColor = actualCategory?.color || '#ccc';
+                     return (
+                       <div key={category} style={{
+                         background: '#22334a',
+                         padding: '12px',
+                         borderRadius: '6px',
+                         borderLeft: `4px solid ${displayColor}`
+                       }}>
+                         <div style={{color: '#fff', fontSize: '14px', marginBottom: '4px'}}>
+                           {displayName}
+                         </div>
+                         <div style={{color: '#00bfff', fontSize: '18px', fontWeight: 'bold'}}>
+                           {formatCurrency(amount)}
+                         </div>
+                       </div>
+                     );
+                   })}
+                 </div>
                </div>
               {/* Графік по місяцях */}
               <div style={{
-                background: '#1a2636',
+                background: '#fff',
                 padding: '20px',
-                borderRadius: '8px'
+                borderRadius: '8px',
+                border: '1px solid #e0e0e0',
+                opacity: 1,
+                position: 'relative',
+                zIndex: 1
               }}>
-                <h3 style={{color: '#fff', marginBottom: '16px'}}>Динаміка по місяцях</h3>
-                <div style={{overflowX: 'auto'}}>
+                <h3 style={{color: '#333', marginBottom: '16px'}}>Динаміка по місяцях</h3>
+                <div style={{overflowX: 'auto', background: '#fff', opacity: 1}}>
                   <table style={{
                     width: '100%',
                     borderCollapse: 'collapse',
-                    color: '#fff'
+                    color: '#333',
+                    background: '#fff',
+                    opacity: 1
                   }}>
                     <thead>
                       <tr>
-                        <th style={{padding: '12px', textAlign: 'left', background: '#22334a', borderBottom: '1px solid #29506a'}}>
+                        <th style={{padding: '12px', textAlign: 'left', background: '#f5f5f5', borderBottom: '1px solid #ddd', color: '#333', opacity: 1}}>
                           Період
                         </th>
-                        <th style={{padding: '12px', textAlign: 'right', background: '#22334a', borderBottom: '1px solid #29506a'}}>
+                        <th style={{padding: '12px', textAlign: 'right', background: '#f5f5f5', borderBottom: '1px solid #ddd', color: '#333', opacity: 1}}>
                           Дохід по виконаним роботам
                         </th>
-                        <th style={{padding: '12px', textAlign: 'right', background: '#22334a', borderBottom: '1px solid #29506a'}}>
+                        <th style={{padding: '12px', textAlign: 'right', background: '#f5f5f5', borderBottom: '1px solid #ddd', color: '#333', opacity: 1}}>
                           Дохід по матеріалам
                         </th>
-                        <th style={{padding: '12px', textAlign: 'right', background: '#22334a', borderBottom: '1px solid #29506a'}}>
+                        <th style={{padding: '12px', textAlign: 'right', background: '#f5f5f5', borderBottom: '1px solid #ddd', color: '#333', opacity: 1}}>
                           Загальний дохід
                         </th>
-                        <th style={{padding: '12px', textAlign: 'right', background: '#22334a', borderBottom: '1px solid #29506a'}}>
+                        <th style={{padding: '12px', textAlign: 'right', background: '#f5f5f5', borderBottom: '1px solid #ddd', color: '#333', opacity: 1}}>
                           Запланований дохід
                         </th>
-                        <th style={{padding: '12px', textAlign: 'right', background: '#22334a', borderBottom: '1px solid #29506a'}}>
+                        <th style={{padding: '12px', textAlign: 'right', background: '#f5f5f5', borderBottom: '1px solid #ddd', color: '#333', opacity: 1}}>
                           Витрати
                         </th>
-                        <th style={{padding: '12px', textAlign: 'right', background: '#22334a', borderBottom: '1px solid #29506a'}}>
+                        <th style={{padding: '12px', textAlign: 'right', background: '#f5f5f5', borderBottom: '1px solid #ddd', color: '#333', opacity: 1}}>
                           Прибуток
                         </th>
-                        <th style={{padding: '12px', textAlign: 'right', background: '#22334a', borderBottom: '1px solid #29506a'}}>
+                        <th style={{padding: '12px', textAlign: 'right', background: '#f5f5f5', borderBottom: '1px solid #ddd', color: '#333', opacity: 1}}>
                           Рентабельність
                         </th>
-                        <th style={{padding: '12px', textAlign: 'center', background: '#22334a', borderBottom: '1px solid #29506a'}}>
+                        <th style={{padding: '12px', textAlign: 'center', background: '#f5f5f5', borderBottom: '1px solid #ddd', color: '#333', opacity: 1}}>
                           Дії
                         </th>
                       </tr>
@@ -1044,40 +1318,41 @@ export default function AnalyticsArea({ user }) {
                     <tbody>
                       {analytics.map((item, index) => (
                         <tr key={index} style={{
-                          background: index % 2 === 0 ? '#22334a' : '#1a2636',
-                          borderBottom: '1px solid #29506a'
+                          background: index % 2 === 0 ? '#fff' : '#f9f9f9',
+                          borderBottom: '1px solid #e0e0e0',
+                          opacity: 1
                         }}>
-                          <td style={{padding: '12px'}}>
+                          <td style={{padding: '12px', color: '#333', background: index % 2 === 0 ? '#fff' : '#f9f9f9', opacity: 1}}>
                             {getMonthName(item.month)} {item.year}
-                            <div style={{fontSize: '12px', color: '#ccc'}}>
-                              {item.region && item.company ? `${item.region} - ${item.company}` : 'Загальні дані'}
+                            <div style={{fontSize: '12px', color: '#666'}}>
+                              {item.region || 'Загальні дані'}
                             </div>
                           </td>
-                          <td style={{padding: '12px', textAlign: 'right', color: '#28a745'}}>
+                          <td style={{padding: '12px', textAlign: 'right', color: '#28a745', opacity: 1, background: index % 2 === 0 ? '#fff' : '#f9f9f9'}}>
                             {formatCurrency(item.workRevenue || 0)}
                           </td>
-                          <td style={{padding: '12px', textAlign: 'right', color: '#28a745'}}>
+                          <td style={{padding: '12px', textAlign: 'right', color: '#28a745', opacity: 1, background: index % 2 === 0 ? '#fff' : '#f9f9f9'}}>
                             {formatCurrency(item.materialsRevenue || 0)}
                           </td>
-                          <td style={{padding: '12px', textAlign: 'right', color: '#28a745', fontWeight: 'bold'}}>
+                          <td style={{padding: '12px', textAlign: 'right', color: '#28a745', fontWeight: 'bold', opacity: 1, background: index % 2 === 0 ? '#fff' : '#f9f9f9'}}>
                             {formatCurrency(item.revenue)}
                           </td>
-                          <td style={{padding: '12px', textAlign: 'right', color: '#17a2b8'}}>
+                          <td style={{padding: '12px', textAlign: 'right', color: '#17a2b8', opacity: 1, background: index % 2 === 0 ? '#fff' : '#f9f9f9'}}>
                             {formatCurrency(item.plannedRevenue || 0)}
-                            <div style={{fontSize: '11px', color: '#ccc'}}>
+                            <div style={{fontSize: '11px', color: '#666', opacity: 1}}>
                               Роботи: {formatCurrency(item.plannedWorkRevenue || 0)} | Матеріали: {formatCurrency(item.plannedMaterialsRevenue || 0)}
                             </div>
                           </td>
-                          <td style={{padding: '12px', textAlign: 'right', color: '#dc3545'}}>
+                          <td style={{padding: '12px', textAlign: 'right', color: '#dc3545', opacity: 1, background: index % 2 === 0 ? '#fff' : '#f9f9f9'}}>
                             {formatCurrency(item.totalExpenses)}
                           </td>
-                          <td style={{padding: '12px', textAlign: 'right', color: item.profit >= 0 ? '#28a745' : '#dc3545'}}>
+                          <td style={{padding: '12px', textAlign: 'right', color: item.profit >= 0 ? '#28a745' : '#dc3545', opacity: 1, background: index % 2 === 0 ? '#fff' : '#f9f9f9'}}>
                             {formatCurrency(item.profit)}
                           </td>
-                          <td style={{padding: '12px', textAlign: 'right', color: item.profitability >= 0 ? '#28a745' : '#dc3545'}}>
+                          <td style={{padding: '12px', textAlign: 'right', color: item.profitability >= 0 ? '#28a745' : '#dc3545', opacity: 1, background: index % 2 === 0 ? '#fff' : '#f9f9f9'}}>
                             {formatPercent(item.profitability)}
                           </td>
-                          <td style={{padding: '12px', textAlign: 'center'}}>
+                          <td style={{padding: '12px', textAlign: 'center', opacity: 1, background: index % 2 === 0 ? '#fff' : '#f9f9f9'}}>
                             <div style={{display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap'}}>
                               <button
                                 onClick={() => handleShowDetails(item)}
@@ -1092,6 +1367,20 @@ export default function AnalyticsArea({ user }) {
                                 }}
                               >
                                 Деталізація
+                              </button>
+                              <button
+                                onClick={() => handleShowPlannedDetails(item)}
+                                style={{
+                                  padding: '4px 8px',
+                                  background: '#17a2b8',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                Деталізація ЗД
                               </button>
                               <button
                                 onClick={() => handleEditExpenses(item)}
@@ -1131,21 +1420,74 @@ export default function AnalyticsArea({ user }) {
                   </table>
                 </div>
               </div>
+
+              {/* Розбивка по регіонах (суми за обраний період) */}
+              <div style={{
+                background: '#fff',
+                padding: '20px',
+                borderRadius: '8px',
+                marginTop: '24px',
+                border: '1px solid #e0e0e0',
+                opacity: 1,
+                position: 'relative',
+                zIndex: 1
+              }}>
+                <h3 style={{color: '#333', marginBottom: '16px'}}>Розбивка по регіонах</h3>
+                {(() => {
+                  // Агрегуємо по регіонах за весь вибір фільтрів
+                  const regionalTotals = {};
+                  analytics.forEach(item => {
+                    const breakdown = item.regionalBreakdown || {};
+                    Object.keys(breakdown).forEach(regionName => {
+                      if (!regionalTotals[regionName]) {
+                        regionalTotals[regionName] = { workRevenue: 0, materialsRevenue: 0 };
+                      }
+                      regionalTotals[regionName].workRevenue += breakdown[regionName].workRevenue || 0;
+                      regionalTotals[regionName].materialsRevenue += breakdown[regionName].materialsRevenue || 0;
+                    });
+                  });
+                  const rows = Object.entries(regionalTotals).sort((a, b) => (b[1].workRevenue + b[1].materialsRevenue) - (a[1].workRevenue + a[1].materialsRevenue));
+                  if (rows.length === 0) {
+                    return <div style={{color: '#666'}}>Немає даних для відображення.</div>;
+                  }
+                  return (
+                    <div style={{overflowX: 'auto', background: '#fff', opacity: 1}}>
+                      <table style={{width: '100%', borderCollapse: 'collapse', color: '#333', background: '#fff', opacity: 1}}>
+                        <thead>
+                          <tr>
+                            <th style={{padding: '12px', textAlign: 'left', background: '#f5f5f5', borderBottom: '1px solid #ddd', color: '#333', opacity: 1}}>Регіон</th>
+                            <th style={{padding: '12px', textAlign: 'right', background: '#f5f5f5', borderBottom: '1px solid #ddd', color: '#333', opacity: 1}}>Дохід робіт</th>
+                            <th style={{padding: '12px', textAlign: 'right', background: '#f5f5f5', borderBottom: '1px solid #ddd', color: '#333', opacity: 1}}>Дохід матеріали</th>
+                            <th style={{padding: '12px', textAlign: 'right', background: '#f5f5f5', borderBottom: '1px solid #ddd', color: '#333', opacity: 1}}>Загальний дохід</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map(([regionName, sums], idx) => (
+                            <tr key={regionName} style={{background: idx % 2 === 0 ? '#fff' : '#f9f9f9', borderBottom: '1px solid #e0e0e0', opacity: 1}}>
+                              <td style={{padding: '12px', color: '#333', opacity: 1, background: idx % 2 === 0 ? '#fff' : '#f9f9f9'}}>{regionName}</td>
+                              <td style={{padding: '12px', textAlign: 'right', color: '#28a745', opacity: 1, background: idx % 2 === 0 ? '#fff' : '#f9f9f9'}}>{formatCurrency(sums.workRevenue)}</td>
+                              <td style={{padding: '12px', textAlign: 'right', color: '#28a745', opacity: 1, background: idx % 2 === 0 ? '#fff' : '#f9f9f9'}}>{formatCurrency(sums.materialsRevenue)}</td>
+                              <td style={{padding: '12px', textAlign: 'right', color: '#28a745', fontWeight: 'bold', opacity: 1, background: idx % 2 === 0 ? '#fff' : '#f9f9f9'}}>{formatCurrency((sums.workRevenue || 0) + (sums.materialsRevenue || 0))}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           )}
                                            {activeTab === 'details' && (
-                        <div>
-                          {/* Детальна звітність тепер доступна як окрема вкладка */}
-                          <div style={{
-                            background: '#1a2636',
-                            padding: '20px',
-                            borderRadius: '8px',
-                            color: '#fff',
-                            textAlign: 'center'
-                          }}>
-                            <h3>Детальна звітність</h3>
-                            <p>Детальна звітність тепер доступна як окрема вкладка "Детальна звітність" в головному меню</p>
-                          </div>
+                        <div style={{ width: '100%', boxSizing: 'border-box' }}>
+                          <DetailedReportTab
+                            filters={filters}
+                            uniqueRegions={uniqueRegions}
+                            uniqueCompanies={uniqueCompanies}
+                            formatCurrency={formatCurrency}
+                            formatPercent={formatPercent}
+                            getMonthName={getMonthName}
+                          />
                         </div>
                       )}
         </>

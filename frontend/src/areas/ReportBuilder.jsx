@@ -77,6 +77,50 @@ export default function ReportBuilder({ user }) {
   const [reportName, setReportName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
+  
+  // Список числових полів для підсумку
+  const numericFields = [
+    'serviceTotal', 'oilPrice', 'oilTotal', 'oilUsed',
+    'filterPrice', 'filterSum', 'filterCount',
+    'fuelFilterPrice', 'fuelFilterSum', 'fuelFilterCount',
+    'airFilterSum',
+    'antifreezePrice', 'antifreezeSum', 'antifreezeL',
+    'otherSum',
+    'workPrice',
+    'perDiem', 'living', 'otherExp',
+    'transportKm', 'transportSum'
+  ];
+  
+  // Функція для перевірки, чи поле є числовим
+  const isNumericField = (fieldName) => {
+    return numericFields.includes(fieldName);
+  };
+  
+  // Функція для розрахунку сум по числових колонках
+  const calculateColumnSums = (data) => {
+    const sums = {};
+    selectedFields.forEach(field => {
+      if (isNumericField(field)) {
+        sums[field] = 0;
+        data.forEach(item => {
+          if (item.group) {
+            // Для групування - додаємо значення з підзадач
+            if (item.tasks) {
+              item.tasks.forEach(task => {
+                const value = parseFloat(task[field]) || 0;
+                sums[field] += value;
+              });
+            }
+          } else {
+            // Звичайний рядок
+            const value = parseFloat(item[field]) || 0;
+            sums[field] += value;
+          }
+        });
+      }
+    });
+    return sums;
+  };
   // Додаємо стани для dropdown фільтрів
   const [regions, setRegions] = useState([]);
   const [users, setUsers] = useState([]);
@@ -507,6 +551,41 @@ export default function ReportBuilder({ user }) {
                 </tr>
               `;
             }).join('')}
+            ${(() => {
+              // Розраховуємо суми для числових колонок
+              const sums = {};
+              selectedFields.forEach(field => {
+                if (numericFields.includes(field)) {
+                  sums[field] = 0;
+                  reportData.forEach(item => {
+                    if (item.group) {
+                      if (item.tasks) {
+                        item.tasks.forEach(task => {
+                          const value = parseFloat(task[field]) || 0;
+                          sums[field] += value;
+                        });
+                      }
+                    } else {
+                      const value = parseFloat(item[field]) || 0;
+                      sums[field] += value;
+                    }
+                  });
+                }
+              });
+              const hasAnySum = Object.keys(sums).length > 0;
+              if (!hasAnySum) return '';
+              return `
+                <tr style="background: #0d1520; font-weight: bold; border-top: 2px solid #00bfff; color: #00bfff;">
+                  <td style="padding: 12px; font-weight: bold;">Підсумок:</td>
+                  ${selectedFields.map(field => {
+                    if (numericFields.includes(field) && sums[field] !== undefined) {
+                      return `<td style="padding: 12px; text-align: right; font-weight: bold;">${Number(sums[field]).toFixed(2)}</td>`;
+                    }
+                    return '<td></td>';
+                  }).join('')}
+                </tr>
+              `;
+            })()}
           </tbody>
         </table>
       </body>
@@ -635,6 +714,44 @@ export default function ReportBuilder({ user }) {
         });
       }
     });
+    
+    // Додаємо підсумковий рядок
+    const columnSums = calculateColumnSums(reportData);
+    const hasAnySum = Object.keys(columnSums).length > 0;
+    if (hasAnySum) {
+      const summaryRow = worksheet.addRow([
+        'Підсумок:',
+        ...selectedFields.map(field => {
+          if (isNumericField(field) && columnSums[field] !== undefined) {
+            return Number(columnSums[field]).toFixed(2);
+          }
+          return '';
+        })
+      ]);
+      summaryRow.eachCell((cell, colNumber) => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF0D1520' } // Темний фон
+        };
+        cell.font = {
+          bold: true,
+          color: { argb: 'FF00BFFF' } // Синій текст
+        };
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: colNumber === 1 ? 'left' : 'right',
+          wrapText: true
+        };
+        cell.border = {
+          top: { style: 'medium', color: { argb: 'FF00BFFF' } },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      });
+    }
+    
     // Автоматично підбираємо ширину колонок
     worksheet.columns.forEach(column => {
       let maxLength = 0;
@@ -1341,6 +1458,29 @@ export default function ReportBuilder({ user }) {
                   );
                 }
               })}
+              {/* Підсумковий рядок */}
+              {reportData.length > 0 && (() => {
+                const columnSums = calculateColumnSums(reportData);
+                const hasAnySum = Object.keys(columnSums).length > 0;
+                if (!hasAnySum) return null;
+                return (
+                  <tr style={{
+                    borderTop: '2px solid #00bfff',
+                    background: '#0d1520',
+                    fontWeight: 'bold',
+                    color: '#00bfff'
+                  }}>
+                    <td style={{padding: '12px', fontWeight: 'bold'}}>Підсумок:</td>
+                    {selectedFields.map(field => (
+                      <td key={field} style={{padding: '12px', fontWeight: 'bold', textAlign: 'right'}}>
+                        {isNumericField(field) && columnSums[field] !== undefined
+                          ? Number(columnSums[field]).toFixed(2)
+                          : ''}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })()}
             </tbody>
           </table>
         )}

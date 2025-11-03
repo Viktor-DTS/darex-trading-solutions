@@ -40,6 +40,7 @@ import { regionsAPI } from './utils/regionsAPI';
 import { backupAPI } from './utils/backupAPI';
 import { activityAPI } from './utils/activityAPI';
 import keepAliveService from './utils/keepAlive.js';
+import { analyticsAPI } from './utils/analyticsAPI';
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
   { value: 'service', label: 'Сервісна служба' },
@@ -3122,28 +3123,17 @@ function RegionalManagerArea({ tab: propTab, user }) {
       // Якщо користувач має множинні регіони (через кому)
       if (user.region.includes(',')) {
         const userRegions = user.region.split(',').map(r => r.trim());
-        console.log('DEBUG filter: filters.serviceRegion =', filters.serviceRegion);
-        console.log('DEBUG filter: t.serviceRegion =', t.serviceRegion);
-        console.log('DEBUG filter: userRegions =', userRegions);
         
         // Якщо вибрано "Всі" або "Загальний" або нічого не вибрано, показуємо всі регіони користувача
         if (filters.serviceRegion === 'Всі' || filters.serviceRegion === 'Загальний' || !filters.serviceRegion || filters.serviceRegion === '') {
-          console.log('DEBUG filter: Showing all user regions');
-          console.log('DEBUG filter: Task region', t.serviceRegion, 'is in user regions?', userRegions.includes(t.serviceRegion));
           if (!userRegions.includes(t.serviceRegion)) {
-            console.log('DEBUG filter: Filtering out task - region not in user regions');
             return false;
           }
-          console.log('DEBUG filter: Task passed region filter');
         } else {
           // Якщо вибрано конкретний регіон
-          console.log('DEBUG filter: Showing specific region');
-          console.log('DEBUG filter: Task region', t.serviceRegion, 'matches filter?', t.serviceRegion === filters.serviceRegion);
           if (t.serviceRegion !== filters.serviceRegion) {
-            console.log('DEBUG filter: Filtering out task - region does not match');
             return false;
           }
-          console.log('DEBUG filter: Task passed region filter');
         }
       } else {
         // Якщо користувач має один регіон
@@ -3153,12 +3143,9 @@ function RegionalManagerArea({ tab: propTab, user }) {
     
     // Обробка фільтра serviceRegion для користувачів з регіоном "Україна"
     if (user?.region === 'Україна' && filters.serviceRegion && filters.serviceRegion !== 'Всі' && filters.serviceRegion !== 'Загальний') {
-      console.log('DEBUG filter: Ukraine user - checking serviceRegion filter:', filters.serviceRegion, 'task region:', t.serviceRegion);
       if (t.serviceRegion !== filters.serviceRegion) {
-        console.log('DEBUG filter: Ukraine user - filtering out task - region does not match');
         return false;
       }
-      console.log('DEBUG filter: Ukraine user - task passed serviceRegion filter');
     }
     
     for (const key in filters) {
@@ -3239,7 +3226,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
             {activeTab === 'debt' ? (
               <TaskTable
                 tasks={filtered.filter(task => {
-                  console.log('[DEBUG] Regional debt tab - task:', task.requestNumber, 'debtStatus:', task.debtStatus, 'paymentType:', task.paymentType, 'approvedByAccountant:', task.approvedByAccountant);
                   // Використовуємо ТОЧНО ТАКУ Ж логіку як у бухгалтера:
                   // Показуємо завдання, які потребують встановлення статусу заборгованості:
                   // 1. Не мають встановленого debtStatus (undefined або порожнє)
@@ -3250,7 +3236,6 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   const needsDebtStatus = !task.debtStatus || task.debtStatus === undefined || task.debtStatus === '';
                   
                   const shouldShow = needsDebtStatus && hasPaymentType && isNotCash;
-                  console.log('[DEBUG] Regional debt filter - shouldShow:', shouldShow, 'needsDebtStatus:', needsDebtStatus, 'hasPaymentType:', hasPaymentType, 'isNotCash:', isNotCash);
                   
                   if (shouldShow) {
                     // Додаємо прапор для вкладки "debt"
@@ -3259,7 +3244,7 @@ function RegionalManagerArea({ tab: propTab, user }) {
                   
                   return shouldShow;
                 })}
-                allTasks={tasks}
+                allTasks={allTasks}
                 onApprove={handleApprove}
                 onEdit={handleEdit}
                 role="regional"
@@ -3869,18 +3854,155 @@ function App() {
   return (
     <>
       <div className='bg-logo'></div>
-      <div style={{ display: 'flex', minHeight: '100vh' }}>
-        <Sidebar role={user.role} onSelect={handleAreaSelect} current={currentArea} accessRules={accessRules} />
-        <div style={{ flex: 1 }}>
-          <h1 style={{marginLeft:24}}>{t('company_name')}</h1>
-          {(user.role === 'regional' || (user.role === 'admin' && currentArea === 'regional')) && false /* <RegionalManagerTabs tab={regionalTab} setTab={setRegionalTab} /> */}
-          <div style={{marginLeft:0,marginRight:'6%'}}>
-            <Area key={`${user.login}-${currentArea}`} user={user} />
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', paddingBottom: '70px' }}>
+        <div style={{ display: 'flex', flex: 1 }}>
+          <Sidebar role={user.role} onSelect={handleAreaSelect} current={currentArea} accessRules={accessRules} />
+          <div style={{ flex: 1 }}>
+            <h1 style={{marginLeft:24}}>{t('company_name')}</h1>
+            {(user.role === 'regional' || (user.role === 'admin' && currentArea === 'regional')) && false /* <RegionalManagerTabs tab={regionalTab} setTab={setRegionalTab} /> */}
+            <div style={{
+              marginLeft: 0,
+              marginRight: currentArea === 'analytics' ? '0%' : '6%',
+              width: currentArea === 'analytics' ? '100%' : 'auto'
+            }}>
+              <Area key={`${user.login}-${currentArea}`} user={user} />
+            </div>
           </div>
         </div>
+        <TasksStatisticsBar user={user} />
       </div>
     </>
   )
+}
+
+// Компонент для відображення статистики заявок в роботі в нижньому барі
+function TasksStatisticsBar({ user }) {
+  const [tasksStatistics, setTasksStatistics] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadStatistics = async () => {
+      try {
+        setLoading(true);
+        const statistics = await analyticsAPI.getTasksStatistics({
+          region: user?.region || ''
+        });
+        setTasksStatistics(statistics);
+      } catch (error) {
+        console.error('Помилка завантаження статистики заявок:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadStatistics();
+    // Оновлюємо статистику кожні 30 секунд
+    const interval = setInterval(loadStatistics, 30000);
+    return () => clearInterval(interval);
+  }, [user?.region]);
+
+  const COLORS = {
+    notInWork: '#9E9E9E',
+    inWork: '#FF9800',
+    pendingWarehouse: '#FFC107',
+    pendingAccountant: '#FF5722',
+    pendingInvoiceRequests: '#9C27B0'
+  };
+
+  // Не приховуємо бар під час завантаження - показуємо "Завантаження..."
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      background: '#1a2636',
+      borderTop: '2px solid #3a4451',
+      padding: '12px 24px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-around',
+      flexWrap: 'wrap',
+      gap: '20px',
+      boxShadow: '0 -2px 8px rgba(0,0,0,0.3)',
+      zIndex: 1000
+    }}>
+      <div style={{ 
+        color: '#fff', 
+        fontSize: '14px', 
+        fontWeight: 600,
+        marginRight: '20px'
+      }}>
+        Заявки в роботі (на сьогоднішній день):
+      </div>
+      {tasksStatistics ? (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ 
+              width: '12px', 
+              height: '12px', 
+              borderRadius: '50%', 
+              background: COLORS.notInWork 
+            }}></div>
+            <span style={{ color: '#aaa', fontSize: '13px' }}>Не взято в роботу:</span>
+            <span style={{ color: COLORS.notInWork, fontSize: '16px', fontWeight: 'bold' }}>
+              {tasksStatistics.notInWork || 0}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ 
+              width: '12px', 
+              height: '12px', 
+              borderRadius: '50%', 
+              background: COLORS.inWork 
+            }}></div>
+            <span style={{ color: '#aaa', fontSize: '13px' }}>Виконується:</span>
+            <span style={{ color: COLORS.inWork, fontSize: '16px', fontWeight: 'bold' }}>
+              {tasksStatistics.inWork || 0}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ 
+              width: '12px', 
+              height: '12px', 
+              borderRadius: '50%', 
+              background: COLORS.pendingWarehouse 
+            }}></div>
+            <span style={{ color: '#aaa', fontSize: '13px' }}>Не підтверджено завскладом:</span>
+            <span style={{ color: COLORS.pendingWarehouse, fontSize: '16px', fontWeight: 'bold' }}>
+              {tasksStatistics.pendingWarehouse || 0}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ 
+              width: '12px', 
+              height: '12px', 
+              borderRadius: '50%', 
+              background: COLORS.pendingAccountant 
+            }}></div>
+            <span style={{ color: '#aaa', fontSize: '13px' }}>Не підтверджено бухгалтером:</span>
+            <span style={{ color: COLORS.pendingAccountant, fontSize: '16px', fontWeight: 'bold' }}>
+              {tasksStatistics.pendingAccountant || 0}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ 
+              width: '12px', 
+              height: '12px', 
+              borderRadius: '50%', 
+              background: COLORS.pendingInvoiceRequests 
+            }}></div>
+            <span style={{ color: '#aaa', fontSize: '13px' }}>Не виконані Заявки на рахунки:</span>
+            <span style={{ color: COLORS.pendingInvoiceRequests, fontSize: '16px', fontWeight: 'bold' }}>
+              {tasksStatistics.pendingInvoiceRequests || 0}
+            </span>
+          </div>
+        </>
+      ) : (
+        <span style={{ color: '#aaa', fontSize: '13px' }}>Завантаження статистики...</span>
+      )}
+    </div>
+  );
 }
 function calcTotal(row) {
   return [row.d1, row.d2, row.d3, row.d4, row.d5].reduce((sum, v) => sum + (isNaN(Number(v)) ? 0 : Number(v)), 0);

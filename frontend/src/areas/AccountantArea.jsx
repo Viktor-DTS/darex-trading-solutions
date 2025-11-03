@@ -1278,17 +1278,19 @@ const AccountantArea = memo(function AccountantArea({ user }) {
     open: false,
     selected: []
   });
-  const filteredInvoiceRequests = allTasksFromAPI.filter(task => {
-    // Показуємо завдання з запитами на рахунки
-    const hasInvoiceRequest = task.invoiceRequestId || task.needInvoice || task.needAct;
-    
-    // Якщо чекбокс "Показати виконані" не активний, приховуємо виконані
-    if (!showCompletedRequests && task.invoiceStatus === 'completed') {
-      return false;
-    }
-    
-    return hasInvoiceRequest;
-  });
+  const filteredInvoiceRequests = useMemo(() => {
+    return allTasksFromAPI.filter(task => {
+      // Показуємо завдання з запитами на рахунки
+      const hasInvoiceRequest = task.invoiceRequestId || task.needInvoice || task.needAct;
+      
+      // Якщо чекбокс "Показати виконані" не активний, приховуємо виконані
+      if (!showCompletedRequests && task.invoiceStatus === 'completed') {
+        return false;
+      }
+      
+      return hasInvoiceRequest;
+    });
+  }, [allTasksFromAPI, showCompletedRequests]);
   
   const tableData = useMemo(() => {
     return activeTab === 'invoiceRequests' ? filteredInvoiceRequests : [];

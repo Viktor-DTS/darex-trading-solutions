@@ -163,6 +163,42 @@ export const analyticsAPI = {
       throw error;
     }
   },
+  // Отримати деталі розрахунку за конкретний місяць
+  async getDetails({ year, month, region = '', company = '' }) {
+    try {
+      const params = new URLSearchParams();
+      if (year) params.append('year', year);
+      if (month) params.append('month', month);
+      if (region !== undefined) params.append('region', region);
+      if (company !== undefined) params.append('company', company);
+      const response = await fetch(`${API_BASE_URL}/analytics/details?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Помилка отримання деталей аналітики:', error);
+      throw error;
+    }
+  },
+  // Отримати деталі запланованого доходу за конкретний місяць
+  async getPlannedDetails({ year, month, region = '', company = '' }) {
+    try {
+      const params = new URLSearchParams();
+      if (year) params.append('year', year);
+      if (month) params.append('month', month);
+      if (region !== undefined) params.append('region', region);
+      if (company !== undefined) params.append('company', company);
+      const response = await fetch(`${API_BASE_URL}/analytics/planned-details?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Помилка отримання деталей запланованого доходу:', error);
+      throw error;
+    }
+  },
   // Отримати категорії витрат
   async getExpenseCategories() {
     try {
@@ -211,6 +247,63 @@ export const analyticsAPI = {
       return await response.json();
     } catch (error) {
       console.error('Помилка очищення старих категорій витрат:', error);
+      throw error;
+    }
+  },
+  // Отримати рейтинг працівників
+  async getEmployeeRating(filters = {}) {
+    try {
+      const params = new URLSearchParams();
+      Object.keys(filters).forEach(key => {
+        if (filters[key] !== undefined && filters[key] !== '') {
+          params.append(key, filters[key]);
+        }
+      });
+      const response = await fetch(`${API_BASE_URL}/analytics/employee-rating?${params}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Помилка отримання рейтингу працівників:', error);
+      throw error;
+    }
+  },
+  // Отримати статистику заявок
+  async getTasksStatistics(filters = {}) {
+    try {
+      const params = new URLSearchParams();
+      Object.keys(filters).forEach(key => {
+        if (filters[key] !== undefined && filters[key] !== '') {
+          params.append(key, filters[key]);
+        }
+      });
+      const response = await fetch(`${API_BASE_URL}/analytics/tasks-statistics?${params}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Помилка отримання статистики заявок:', error);
+      throw error;
+    }
+  },
+  // Отримати дані для графіків динаміки
+  async getDynamicChartData(filters = {}) {
+    try {
+      const params = new URLSearchParams();
+      Object.keys(filters).forEach(key => {
+        if (filters[key] !== undefined && filters[key] !== '') {
+          params.append(key, filters[key]);
+        }
+      });
+      const response = await fetch(`${API_BASE_URL}/analytics/dynamic-chart-data?${params}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Помилка отримання даних для графіків:', error);
       throw error;
     }
   },

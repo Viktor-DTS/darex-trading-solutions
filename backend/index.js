@@ -1050,6 +1050,9 @@ app.get('/api/tasks', async (req, res) => {
         // Додаємо поля needInvoice та needAct з InvoiceRequest
         task.needInvoice = invoiceRequest.needInvoice;
         task.needAct = invoiceRequest.needAct;
+        
+        // Додаємо статус заявки на рахунок (потрібно для фільтрації в панелі)
+        task.invoiceStatus = invoiceRequest.status;
       }
       
       return task;
@@ -1233,6 +1236,9 @@ app.get('/api/tasks/filter', async (req, res) => {
         // Додаємо поля needInvoice та needAct з InvoiceRequest
         task.needInvoice = invoiceRequest.needInvoice;
         task.needAct = invoiceRequest.needAct;
+        
+        // Додаємо статус заявки на рахунок (потрібно для фільтрації в панелі)
+        task.invoiceStatus = invoiceRequest.status;
       }
       
       return task;
@@ -2544,21 +2550,10 @@ app.get('/api/analytics/full', async (req, res) => {
     if (region) taskFilter.serviceRegion = region;
     if (company) taskFilter.company = company;
     
-    if (startYear || endYear || startMonth || endMonth) {
-      taskFilter.date = {};
-      
-      if (startYear && startMonth) {
-        const startDate = new Date(parseInt(startYear), parseInt(startMonth) - 1, 1);
-        taskFilter.date.$gte = startDate.toISOString().split('T')[0];
-      }
-      
-      if (endYear && endMonth) {
-        const endDate = new Date(parseInt(endYear), parseInt(endMonth), 0);
-        taskFilter.date.$lte = endDate.toISOString().split('T')[0];
-      }
-    }
+    // НЕ фільтруємо tasks по даті виконання, оскільки використовуємо creditMonth логіку
+    // Фільтр по періоду буде застосований після розрахунку creditMonth
     
-    // Отримуємо виконані заявки за період (архів виконаних заявок)
+    // Отримуємо виконані заявки (архів виконаних заявок)
     taskFilter.status = 'Виконано';
     const tasks = await Task.find(taskFilter);
     
@@ -2575,10 +2570,9 @@ app.get('/api/analytics/full', async (req, res) => {
     const plannedMaterialsRevenueByMonth = {};
     
     tasks.forEach(task => {
-      // Перевіряємо чи заявка підтверджена всіма
+      // Перевіряємо чи заявка підтверджена (без перевірки RegionalManager, як у детальній звітності)
       const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
       const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
-      const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
       
       // Розраховуємо дохід по роботах та матеріалам
       const workPrice = parseFloat(task.workPrice) || 0;
@@ -2609,26 +2603,41 @@ app.get('/api/analytics/full', async (req, res) => {
       const workRevenue = actualBonus * 3; // Дохід по роботах = фактична премія × 3
       const materialsRevenue = totalMaterials / 4; // Дохід по матеріалам = сума матеріалів ÷ 4
       
-      if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
-        // Підтверджена заявка - додаємо до підтверджених доходів
-        let approvalYear, approvalMonth;
-        
-        // Парсимо bonusApprovalDate з двох можливих форматів
-        if (task.bonusApprovalDate.includes('-')) {
-          const parts = task.bonusApprovalDate.split('-');
-          if (parts.length === 2) {
-            // Формат "08-2025"
-            approvalMonth = parseInt(parts[0]);
-            approvalYear = parseInt(parts[1]);
-          } else if (parts.length === 3) {
-            // Формат "2025-07-04"
-            approvalYear = parseInt(parts[0]);
-            approvalMonth = parseInt(parts[1]);
+      // Дохід по роботах - використовуємо логіку creditMonth (як у детальній звітності)
+        if (task.workPrice && isWarehouseApproved && isAccountantApproved) {
+          let approvalDateStr = task.bonusApprovalDate || task.approvedByAccountantDate || task.date || '';
+          let approvalDate;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(approvalDateStr)) {
+            const [y, m] = approvalDateStr.split('-');
+            approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+          } else if (/^\d{2}-\d{4}$/.test(approvalDateStr)) {
+            const [m, y] = approvalDateStr.split('-');
+            approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+          } else {
+            approvalDate = new Date(approvalDateStr);
           }
-        }
-        
-        if (approvalYear && approvalMonth) {
-          const key = `${approvalYear}-${approvalMonth}`;
+        if (!isNaN(approvalDate.getTime())) {
+          // Логіка: премію за місяць X затверджують у місяці X+1
+          // creditMonth = попередній місяць від затвердження
+          let approvalMonth = approvalDate.getMonth(); // 0-11 (місяць затвердження)
+          let creditYear = approvalDate.getFullYear();
+          let creditMonth;
+          if (approvalMonth === 0) {
+            creditMonth = 12; // Якщо затверджено в січні, премія за грудень попереднього року
+            creditYear -= 1;
+          } else {
+            creditMonth = approvalMonth - 1; // Попередній місяць в 0-11
+          }
+          // creditMonth тепер в 0-11 (окрім 12), конвертуємо в 1-12
+          if (creditMonth !== 12) creditMonth += 1;
+          
+          // Фільтр по періоду
+          if (startYear && creditYear < parseInt(startYear)) return;
+          if (endYear && creditYear > parseInt(endYear)) return;
+          if (startYear && creditYear === parseInt(startYear) && startMonth && creditMonth < parseInt(startMonth)) return;
+          if (endYear && creditYear === parseInt(endYear) && endMonth && creditMonth > parseInt(endMonth)) return;
+          
+          const key = `${creditYear}-${String(creditMonth).padStart(2, '0')}`;
           
           if (!revenueByMonth[key]) {
             revenueByMonth[key] = 0;
@@ -2639,6 +2648,59 @@ app.get('/api/analytics/full', async (req, res) => {
           
           // Додаємо дохід по виконаним роботам
           revenueByMonth[key] += workRevenue;
+          
+          // Збираємо регіони та компанії для цього місяця
+          if (task.serviceRegion) {
+            regionsByMonth[key].add(task.serviceRegion);
+          }
+          if (task.company) {
+            companiesByMonth[key].add(task.company);
+          }
+        }
+      }
+      
+      // Дохід по матеріалам - використовуємо логіку creditMonth (як у детальній звітності)
+        if (isWarehouseApproved && isAccountantApproved) {
+          let approvalDateStr = task.bonusApprovalDate || task.approvedByAccountantDate || task.date || '';
+          let approvalDate;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(approvalDateStr)) {
+            const [y, m] = approvalDateStr.split('-');
+            approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+          } else if (/^\d{2}-\d{4}$/.test(approvalDateStr)) {
+            const [m, y] = approvalDateStr.split('-');
+            approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+          } else {
+            approvalDate = new Date(approvalDateStr);
+          }
+        if (!isNaN(approvalDate.getTime())) {
+          // Логіка: премію за місяць X затверджують у місяці X+1
+          // creditMonth = попередній місяць від затвердження
+          let approvalMonth = approvalDate.getMonth(); // 0-11 (місяць затвердження)
+          let creditYear = approvalDate.getFullYear();
+          let creditMonth;
+          if (approvalMonth === 0) {
+            creditMonth = 12; // Якщо затверджено в січні, премія за грудень попереднього року
+            creditYear -= 1;
+          } else {
+            creditMonth = approvalMonth - 1; // Попередній місяць в 0-11
+          }
+          // creditMonth тепер в 0-11 (окрім 12), конвертуємо в 1-12
+          if (creditMonth !== 12) creditMonth += 1;
+          
+          // Фільтр по періоду
+          if (startYear && creditYear < parseInt(startYear)) return;
+          if (endYear && creditYear > parseInt(endYear)) return;
+          if (startYear && creditYear === parseInt(startYear) && startMonth && creditMonth < parseInt(startMonth)) return;
+          if (endYear && creditYear === parseInt(endYear) && endMonth && creditMonth > parseInt(endMonth)) return;
+          
+          const key = `${creditYear}-${String(creditMonth).padStart(2, '0')}`;
+          
+          if (!revenueByMonth[key]) {
+            revenueByMonth[key] = 0;
+            materialsRevenueByMonth[key] = 0;
+            regionsByMonth[key] = new Set();
+            companiesByMonth[key] = new Set();
+          }
           
           // Додаємо дохід по матеріалам
           materialsRevenueByMonth[key] += materialsRevenue;
@@ -2666,7 +2728,7 @@ app.get('/api/analytics/full', async (req, res) => {
         }
         
         if (taskYear && taskMonth) {
-          const key = `${taskYear}-${taskMonth}`;
+          const key = `${taskYear}-${String(taskMonth).padStart(2, '0')}`;
           
           if (!plannedRevenueByMonth[key]) {
             plannedRevenueByMonth[key] = 0;
@@ -2687,7 +2749,7 @@ app.get('/api/analytics/full', async (req, res) => {
     
     // Додаємо існуючі записи аналітики, групуємо по місяцях
     analytics.forEach(item => {
-      const key = `${item.year}-${item.month}`;
+      const key = `${item.year}-${String(item.month).padStart(2, '0')}`;
       
       if (!monthlyData[key]) {
         monthlyData[key] = {
@@ -2773,7 +2835,7 @@ app.get('/api/analytics/full', async (req, res) => {
       const profitability = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
       
       return {
-        _id: `monthly-${data.year}-${data.month}`,
+        _id: `monthly-${data.year}-${String(data.month).padStart(2, '0')}`,
         region: Array.from(data.regions).join(', '),
         company: Array.from(data.companies).join(', '),
         year: data.year,
@@ -2819,43 +2881,41 @@ app.get('/api/analytics/full', async (req, res) => {
       let totalWorkRevenue = 0;
       let totalMaterialsRevenue = 0;
 
-      // Обробляємо заявки для доходу по роботах
+      // Обробляємо заявки для доходу по роботах та матеріалам - використовуємо логіку creditMonth (як у /api/analytics/full)
       tasks.forEach(task => {
         const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
         const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
-        const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
 
-        if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
-          // Розраховуємо місяць для нарахування премії
-          let bonusApprovalDate = task.bonusApprovalDate;
-          if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
-            const [year, month] = bonusApprovalDate.split('-');
-            bonusApprovalDate = `${month}-${year}`;
-          }
-
-          const workDate = new Date(task.date);
-          const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
-          const approvalMonth = parseInt(approvalMonthStr);
-          const approvalYear = parseInt(approvalYearStr);
-          const workMonth = workDate.getMonth() + 1;
-          const workYear = workDate.getFullYear();
-
-          let bonusMonth, bonusYear;
-          if (workMonth === approvalMonth && workYear === approvalYear) {
-            bonusMonth = workMonth;
-            bonusYear = workYear;
+        // Дохід по роботах - використовуємо логіку creditMonth
+        if (task.workPrice && isWarehouseApproved && isAccountantApproved) {
+          let approvalDateStr = task.bonusApprovalDate || task.approvedByAccountantDate || task.date || '';
+          let approvalDate;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(approvalDateStr)) {
+            const [y, m] = approvalDateStr.split('-');
+            approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+          } else if (/^\d{2}-\d{4}$/.test(approvalDateStr)) {
+            const [m, y] = approvalDateStr.split('-');
+            approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
           } else {
-            if (approvalMonth === 1) {
-              bonusMonth = 12;
-              bonusYear = approvalYear - 1;
-            } else {
-              bonusMonth = approvalMonth - 1;
-              bonusYear = approvalYear;
-            }
+            approvalDate = new Date(approvalDateStr);
           }
+          if (!isNaN(approvalDate.getTime())) {
+            // Логіка: премію за місяць X затверджують у місяці X+1
+            // creditMonth = попередній місяць від затвердження
+            let approvalMonth = approvalDate.getMonth(); // 0-11 (місяць затвердження)
+            let creditYear = approvalDate.getFullYear();
+            let creditMonth;
+            if (approvalMonth === 0) {
+              creditMonth = 12; // Якщо затверджено в січні, премія за грудень попереднього року
+              creditYear -= 1;
+            } else {
+              creditMonth = approvalMonth - 1; // Попередній місяць в 0-11
+            }
+            // creditMonth тепер в 0-11 (окрім 12), конвертуємо в 1-12
+            if (creditMonth !== 12) creditMonth += 1;
 
-          // Перевіряємо чи це потрібний місяць
-          if (bonusMonth === parseInt(month) && bonusYear === parseInt(year)) {
+            // Перевіряємо чи це потрібний місяць
+            if (creditMonth === parseInt(month) && creditYear === parseInt(year)) {
             const workPrice = parseFloat(task.workPrice) || 0;
             const baseBonus = workPrice * 0.25;
             
@@ -2875,7 +2935,7 @@ app.get('/api/analytics/full', async (req, res) => {
 
             workTasks.push({
               workDate: task.date,
-              approvalDate: task.bonusApprovalDate,
+                approvalDate: task.bonusApprovalDate || task.approvedByAccountantDate || task.date,
               engineer1: task.engineer1,
               engineer2: task.engineer2,
               client: task.client,
@@ -2884,16 +2944,40 @@ app.get('/api/analytics/full', async (req, res) => {
               actualBonus: actualBonus,
               revenue: revenue
             });
+            }
           }
         }
 
-        // Обробляємо заявки для доходу по матеріалам
-        if (task.date) {
-          const workDate = new Date(task.date);
-          const workMonth = workDate.getMonth() + 1;
-          const workYear = workDate.getFullYear();
+        // Дохід по матеріалам - використовуємо логіку creditMonth
+        if (isWarehouseApproved && isAccountantApproved) {
+          let approvalDateStr = task.bonusApprovalDate || task.approvedByAccountantDate || task.date || '';
+          let approvalDate;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(approvalDateStr)) {
+            const [y, m] = approvalDateStr.split('-');
+            approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+          } else if (/^\d{2}-\d{4}$/.test(approvalDateStr)) {
+            const [m, y] = approvalDateStr.split('-');
+            approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+          } else {
+            approvalDate = new Date(approvalDateStr);
+          }
+          if (!isNaN(approvalDate.getTime())) {
+            // Логіка: премію за місяць X затверджують у місяці X+1
+            // creditMonth = попередній місяць від затвердження
+            let approvalMonth = approvalDate.getMonth(); // 0-11 (місяць затвердження)
+            let creditYear = approvalDate.getFullYear();
+            let creditMonth;
+            if (approvalMonth === 0) {
+              creditMonth = 12; // Якщо затверджено в січні, премія за грудень попереднього року
+              creditYear -= 1;
+            } else {
+              creditMonth = approvalMonth - 1; // Попередній місяць в 0-11
+            }
+            // creditMonth тепер в 0-11 (окрім 12), конвертуємо в 1-12
+            if (creditMonth !== 12) creditMonth += 1;
 
-          if (workMonth === parseInt(month) && workYear === parseInt(year)) {
+            // Перевіряємо чи це потрібний місяць
+            if (creditMonth === parseInt(month) && creditYear === parseInt(year)) {
             const oilTotal = parseFloat(task.oilTotal) || 0;
             const filterSum = parseFloat(task.filterSum) || 0;
             const fuelFilterSum = parseFloat(task.fuelFilterSum) || 0;
@@ -2915,6 +2999,7 @@ app.get('/api/analytics/full', async (req, res) => {
               totalMaterials: totalMaterials,
               materialsRevenue: materialsRevenue
             });
+            }
           }
         }
       });
@@ -2967,51 +3052,49 @@ app.get('/api/analytics/details', async (req, res) => {
     let totalWorkRevenue = 0;
     let totalMaterialsRevenue = 0;
 
-    // Обробляємо заявки для доходу по роботах
+    // Обробляємо заявки для доходу по роботах та матеріалам - використовуємо логіку creditMonth (як у /api/analytics/full)
     tasks.forEach(task => {
       const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
       const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
-      const isRegionalManagerApproved = task.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === true;
 
-      if (task.bonusApprovalDate && task.workPrice && isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved) {
-        // Розраховуємо місяць для нарахування премії
-        let bonusApprovalDate = task.bonusApprovalDate;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
-          const [year, month] = bonusApprovalDate.split('-');
-          bonusApprovalDate = `${month}-${year}`;
-        }
-
-        const workDate = new Date(task.date);
-        const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
-        const approvalMonth = parseInt(approvalMonthStr);
-        const approvalYear = parseInt(approvalYearStr);
-        const workMonth = workDate.getMonth() + 1;
-        const workYear = workDate.getFullYear();
-
-        let bonusMonth, bonusYear;
-        if (workMonth === approvalMonth && workYear === approvalYear) {
-          bonusMonth = workMonth;
-          bonusYear = workYear;
+      // Дохід по роботах - використовуємо логіку creditMonth
+      if (task.workPrice && isWarehouseApproved && isAccountantApproved) {
+        let approvalDateStr = task.bonusApprovalDate || task.approvedByAccountantDate || task.date || '';
+        let approvalDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(approvalDateStr)) {
+          const [y, m] = approvalDateStr.split('-');
+          approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+        } else if (/^\d{2}-\d{4}$/.test(approvalDateStr)) {
+          const [m, y] = approvalDateStr.split('-');
+          approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
         } else {
-          if (approvalMonth === 1) {
-            bonusMonth = 12;
-            bonusYear = approvalYear - 1;
-          } else {
-            bonusMonth = approvalMonth - 1;
-            bonusYear = approvalYear;
-          }
+          approvalDate = new Date(approvalDateStr);
         }
+        if (!isNaN(approvalDate.getTime())) {
+        // Логіка: премію за місяць X затверджують у місяці X+1
+        // creditMonth = попередній місяць від затвердження
+        let approvalMonth = approvalDate.getMonth(); // 0-11 (місяць затвердження)
+        let creditYear = approvalDate.getFullYear();
+        let creditMonth;
+        if (approvalMonth === 0) {
+          creditMonth = 12; // Якщо затверджено в січні, премія за грудень попереднього року
+          creditYear -= 1;
+        } else {
+          creditMonth = approvalMonth - 1; // Попередній місяць в 0-11
+        }
+          // creditMonth тепер в 0-11 (окрім 12), конвертуємо в 1-12
+        if (creditMonth !== 12) creditMonth += 1;
 
-        // Перевіряємо чи це потрібний місяць
-        if (bonusMonth === parseInt(month) && bonusYear === parseInt(year)) {
+          // Перевіряємо чи це потрібний місяць
+        if (creditMonth === parseInt(month) && creditYear === parseInt(year)) {
           const workPrice = parseFloat(task.workPrice) || 0;
           const baseBonus = workPrice * 0.25;
-          
+
           // Розраховуємо фактичну премію з урахуванням розподілу між інженерами
           let actualBonus = 0;
           const engineer1 = (task.engineer1 || '').trim();
           const engineer2 = (task.engineer2 || '').trim();
-          
+
           if (engineer1 && engineer2) {
             actualBonus = baseBonus; // Два інженери - загальна сума = повна премія
           } else if (engineer1 || engineer2) {
@@ -3023,7 +3106,7 @@ app.get('/api/analytics/details', async (req, res) => {
 
           workTasks.push({
             workDate: task.date,
-            approvalDate: task.bonusApprovalDate,
+              approvalDate: task.bonusApprovalDate || task.approvedByAccountantDate || task.date,
             engineer1: task.engineer1,
             engineer2: task.engineer2,
             client: task.client,
@@ -3032,16 +3115,40 @@ app.get('/api/analytics/details', async (req, res) => {
             actualBonus: actualBonus,
             revenue: revenue
           });
+          }
         }
       }
 
-      // Обробляємо заявки для доходу по матеріалам
-      if (task.date) {
-        const workDate = new Date(task.date);
-        const workMonth = workDate.getMonth() + 1;
-        const workYear = workDate.getFullYear();
+      // Дохід по матеріалам - використовуємо логіку creditMonth
+      if (isWarehouseApproved && isAccountantApproved) {
+        let approvalDateStr = task.bonusApprovalDate || task.approvedByAccountantDate || task.date || '';
+        let approvalDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(approvalDateStr)) {
+          const [y, m] = approvalDateStr.split('-');
+          approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+        } else if (/^\d{2}-\d{4}$/.test(approvalDateStr)) {
+          const [m, y] = approvalDateStr.split('-');
+          approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+        } else {
+          approvalDate = new Date(approvalDateStr);
+        }
+        if (!isNaN(approvalDate.getTime())) {
+        // Логіка: премію за місяць X затверджують у місяці X+1
+        // creditMonth = попередній місяць від затвердження
+        let approvalMonth = approvalDate.getMonth(); // 0-11 (місяць затвердження)
+        let creditYear = approvalDate.getFullYear();
+        let creditMonth;
+        if (approvalMonth === 0) {
+          creditMonth = 12; // Якщо затверджено в січні, премія за грудень попереднього року
+          creditYear -= 1;
+          } else {
+          creditMonth = approvalMonth - 1; // Попередній місяць в 0-11
+        }
+          // creditMonth тепер в 0-11 (окрім 12), конвертуємо в 1-12
+        if (creditMonth !== 12) creditMonth += 1;
 
-        if (workMonth === parseInt(month) && workYear === parseInt(year)) {
+          // Перевіряємо чи це потрібний місяць
+        if (creditMonth === parseInt(month) && creditYear === parseInt(year)) {
           const oilTotal = parseFloat(task.oilTotal) || 0;
           const filterSum = parseFloat(task.filterSum) || 0;
           const fuelFilterSum = parseFloat(task.fuelFilterSum) || 0;
@@ -3063,6 +3170,7 @@ app.get('/api/analytics/details', async (req, res) => {
             totalMaterials: totalMaterials,
             materialsRevenue: materialsRevenue
           });
+          }
         }
       }
     });
@@ -3405,6 +3513,878 @@ app.get('/api/edrpou-equipment-materials/:edrpou/:equipmentType', async (req, re
     res.json(materials);
   } catch (error) {
     console.error('[ERROR] GET /api/edrpou-equipment-materials/:edrpou/:equipmentType - помилка:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для рейтингу працівників по преміях
+app.get('/api/analytics/employee-rating', async (req, res) => {
+  try {
+    const { startDate, endDate, region, startYear, endYear, startMonth, endMonth } = req.query;
+    
+    const taskFilter = {};
+    
+    // Фільтр по регіону
+    if (region && region !== '') {
+      const regionSingle = region.split(',')[0]?.trim() || region;
+      taskFilter.serviceRegion = regionSingle;
+    }
+    
+    // Беремо тільки затверджені заявки з преміями
+    // Спочатку отримуємо всі заявки, потім фільтруємо по даті та затвердженнях
+    taskFilter.status = 'Виконано';
+    taskFilter.workPrice = { $exists: true, $ne: null, $ne: '' };
+    
+    let tasks = await Task.find(taskFilter);
+    console.log(`[DEBUG employee-rating] Знайдено ${tasks.length} заявок зі статусом "Виконано" та workPrice`);
+    
+    // Фільтруємо по затвердженнях
+    const isApproved = (value) => {
+      return value === true || value === 'Підтверджено';
+    };
+    
+    tasks = tasks.filter(task => {
+      return isApproved(task.approvedByWarehouse) && isApproved(task.approvedByAccountant);
+    });
+    console.log(`[DEBUG employee-rating] Після фільтрації по затвердженнях: ${tasks.length} заявок`);
+    
+    // Фільтр по даті затвердження (використовуємо логіку як у таблиці "Таблиця нарахування по персоналу")
+    // Для періоду [targetMonth, endMonthVal] потрібно шукати заявки з creditMonth в цьому діапазоні
+    // creditMonth обчислюється так: якщо workMonth === approvalMonth, то creditMonth = workMonth
+    // Інакше creditMonth = approvalMonth - 1 (попередній місяць від затвердження)
+    if (startYear && startMonth) {
+      const targetYear = parseInt(startYear);
+      const targetMonth = parseInt(startMonth);
+      const endYearVal = parseInt(endYear || startYear);
+      const endMonthVal = parseInt(endMonth || startMonth);
+      
+      console.log(`[DEBUG employee-rating] Фільтр по періоду: ${targetYear}-${targetMonth} до ${endYearVal}-${endMonthVal}`);
+      
+      tasks = tasks.filter(task => {
+        // Отримуємо дату затвердження премії (пріоритет: bonusApprovalDate > approvedByAccountantDate > date)
+        let bonusApprovalDateStr = task.bonusApprovalDate || '';
+        if (!bonusApprovalDateStr && task.approvedByAccountantDate) {
+          const accDate = new Date(task.approvedByAccountantDate);
+          if (!isNaN(accDate.getTime())) {
+            const month = (accDate.getMonth() + 1).toString().padStart(2, '0');
+            const year = accDate.getFullYear();
+            bonusApprovalDateStr = `${month}-${year}`;
+          }
+        }
+        
+        // Конвертуємо bonusApprovalDate з YYYY-MM-DD у MM-YYYY
+        if (bonusApprovalDateStr && /^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDateStr)) {
+          const [year, month] = bonusApprovalDateStr.split('-');
+          bonusApprovalDateStr = `${month}-${year}`;
+        }
+        
+        // Парсимо дату затвердження
+        let approvalDate;
+        if (bonusApprovalDateStr) {
+          if (/^\d{2}-\d{4}$/.test(bonusApprovalDateStr)) {
+            // Формат "MM-YYYY" (наприклад "10-2025")
+            const [m, y] = bonusApprovalDateStr.split('-');
+            approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+          } else {
+            // Спробуємо парсити як звичайну дату
+            approvalDate = new Date(bonusApprovalDateStr);
+          }
+        }
+        
+        // Якщо не вдалося розпарсити дату затвердження, використовуємо дату виконання робіт
+        if (!bonusApprovalDateStr || isNaN(approvalDate.getTime())) {
+          if (task.date) {
+            approvalDate = new Date(task.date);
+          } else {
+            // Якщо немає ні дати затвердження, ні дати робіт, пропускаємо заявку
+            return false;
+          }
+        }
+        
+        // Отримуємо місяць затвердження та місяць виконання робіт
+        const approvalMonth = approvalDate.getMonth() + 1; // 1-12
+        const approvalYear = approvalDate.getFullYear();
+        
+        let workDate;
+        if (task.date) {
+          workDate = new Date(task.date);
+        } else {
+          workDate = approvalDate; // Якщо немає дати робіт, використовуємо дату затвердження
+        }
+        const workMonth = workDate.getMonth() + 1; // 1-12
+        const workYear = workDate.getFullYear();
+        
+        // Логіка як у таблиці: якщо workMonth === approvalMonth && workYear === approvalYear, то creditMonth = workMonth
+        // Інакше creditMonth = approvalMonth - 1 (попередній місяць від затвердження)
+        let creditMonth, creditYear;
+        if (workMonth === approvalMonth && workYear === approvalYear) {
+          // Якщо місяць/рік виконання співпадає з місяцем/роком затвердження
+          creditMonth = workMonth;
+          creditYear = workYear;
+        } else {
+          // Якщо не співпадає - нараховуємо на попередній місяць від дати затвердження
+          if (approvalMonth === 1) {
+            creditMonth = 12;
+            creditYear = approvalYear - 1;
+          } else {
+            creditMonth = approvalMonth - 1;
+            creditYear = approvalYear;
+          }
+        }
+        
+        // Перевіряємо чи потрапляє creditMonth в цільовий період
+        if (creditYear < targetYear || creditYear > endYearVal) {
+          return false;
+        }
+        if (creditYear === targetYear && creditMonth < targetMonth) {
+          return false;
+        }
+        if (creditYear === endYearVal && creditMonth > endMonthVal) {
+          return false;
+        }
+        
+        return true;
+      });
+    } else {
+      console.log(`[DEBUG employee-rating] Період не вказано, показуємо всі заявки`);
+    }
+    
+    console.log(`[DEBUG employee-rating] Знайдено ${tasks.length} заявок після фільтрації`);
+    console.log(`[DEBUG employee-rating] Фільтр по періоду: ${startYear}-${startMonth} до ${endYear || startYear}-${endMonth || startMonth}`);
+    
+    // Підрахунок заявок по місяцях для діагностики
+    const tasksByMonth = {};
+    tasks.forEach(task => {
+      let bonusApprovalDateStr = task.bonusApprovalDate || '';
+      if (bonusApprovalDateStr) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDateStr)) {
+          const [year, month] = bonusApprovalDateStr.split('-');
+          bonusApprovalDateStr = `${month}-${year}`;
+        }
+        
+        let approvalDate;
+        if (/^\d{2}-\d{4}$/.test(bonusApprovalDateStr)) {
+          const [m, y] = bonusApprovalDateStr.split('-');
+          approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+        } else {
+          approvalDate = new Date(bonusApprovalDateStr);
+        }
+        
+        if (!isNaN(approvalDate.getTime())) {
+          const approvalMonth = approvalDate.getMonth() + 1;
+          const approvalYear = approvalDate.getFullYear();
+          let workDate = task.date ? new Date(task.date) : approvalDate;
+          const workMonth = workDate.getMonth() + 1;
+          const workYear = workDate.getFullYear();
+          
+          let creditMonth, creditYear;
+          if (workMonth === approvalMonth && workYear === approvalYear) {
+            creditMonth = workMonth;
+            creditYear = workYear;
+          } else {
+            if (approvalMonth === 1) {
+              creditMonth = 12;
+              creditYear = approvalYear - 1;
+            } else {
+              creditMonth = approvalMonth - 1;
+              creditYear = approvalYear;
+            }
+          }
+          
+          const monthKey = `${creditYear}-${creditMonth}`;
+          if (!tasksByMonth[monthKey]) {
+            tasksByMonth[monthKey] = 0;
+          }
+          tasksByMonth[monthKey]++;
+        }
+      }
+    });
+    console.log(`[DEBUG employee-rating] Розподіл заявок по місяцях:`, tasksByMonth);
+    
+    console.log(`[DEBUG employee-rating] Перші 5 заявок:`, tasks.slice(0, 5).map(t => ({
+      id: t._id,
+      status: t.status,
+      workPrice: t.workPrice,
+      engineer1: t.engineer1,
+      engineer2: t.engineer2,
+      bonusApprovalDate: t.bonusApprovalDate,
+      approvedByWarehouse: t.approvedByWarehouse,
+      approvedByAccountant: t.approvedByAccountant
+    })));
+    
+    // Групуємо по інженерах
+    const employeeStats = {};
+    const processedTaskIds = new Set(); // Для відстеження вже оброблених заявок
+    
+    // Додаємо підрахунок премій по місяцях для діагностики (тільки для Михайлішина В.)
+    const mikhailishinByMonth = {};
+    
+    // Спочатку проходимо по всіх завданнях та збираємо інформацію про них
+    const taskData = [];
+    
+    tasks.forEach(task => {
+      // Перевіряємо, чи не обробляли цю заявку вже
+      if (processedTaskIds.has(task._id.toString())) {
+        console.log(`[DEBUG employee-rating] ПРОПУСКАЄМО дублікат заявки: ${task._id}`);
+        return;
+      }
+      processedTaskIds.add(task._id.toString());
+      
+      let workPrice = parseFloat(task.workPrice) || 0;
+      if (workPrice === 0) return;
+      
+      // Отримуємо всіх інженерів (може бути до 6), перевіряючи, що вони не пусті та унікальні
+      const engineersRaw = [
+        (task.engineer1 || '').trim(),
+        (task.engineer2 || '').trim(),
+        (task.engineer3 || '').trim(),
+        (task.engineer4 || '').trim(),
+        (task.engineer5 || '').trim(),
+        (task.engineer6 || '').trim()
+      ];
+      
+      // Фільтруємо пусті значення та дублікати
+      const engineers = [];
+      const seenEngineers = new Set();
+      
+      for (const engineer of engineersRaw) {
+        if (engineer && engineer.length > 0 && !seenEngineers.has(engineer)) {
+          engineers.push(engineer);
+          seenEngineers.add(engineer);
+        }
+      }
+      
+      if (engineers.length === 0) return;
+      
+      // Розраховуємо премію: workPrice - це вартість робіт для завдання
+      // Премія = 25% від workPrice, ділиться порівну між інженерами
+      // Якщо 1 інженер: bonus = workPrice * 0.25
+      // Якщо 2 інженери: bonus = workPrice * 0.25 / 2 (кожен отримує половину)
+      const workPricePerEngineer = workPrice / engineers.length;
+      const bonusPerEngineer = (workPrice * 0.25) / engineers.length;
+      
+      // Зберігаємо дані завдання
+      taskData.push({
+        taskId: task._id.toString(),
+        workPrice,
+        workPricePerEngineer,
+        bonusPerEngineer,
+        engineers,
+        task
+      });
+    });
+    
+    // Тепер для кожного унікального працівника рахуємо його завдання
+    // Спочатку збираємо всіх унікальних працівників (нормалізуємо імена)
+    const allEngineers = new Set();
+    taskData.forEach(data => {
+      data.engineers.forEach(engineer => {
+        if (engineer && engineer.trim()) {
+          allEngineers.add(engineer.trim());
+        }
+      });
+    });
+    
+    console.log(`[DEBUG employee-rating] Знайдено ${allEngineers.size} унікальних інженерів:`, Array.from(allEngineers).slice(0, 10));
+    console.log(`[DEBUG employee-rating] Всього завдань для обробки: ${taskData.length}`);
+    
+    // Для кожного працівника окремо перевіряємо всі завдання
+    allEngineers.forEach(engineer => {
+      // Інженери в allEngineers вже нормалізовані (trim)
+      const normalizedEngineer = engineer;
+      
+      // Ініціалізуємо статистику працівника
+      if (!employeeStats[normalizedEngineer]) {
+        employeeStats[normalizedEngineer] = {
+          name: normalizedEngineer,
+          totalBonus: 0,
+          tasksCount: 0,
+          totalWorkPrice: 0
+        };
+      }
+      
+      // Проходимо по всіх завданнях і перевіряємо, чи працівник є в полях Інженер 1-6
+      taskData.forEach(data => {
+        const task = data.task;
+        
+        // Перевіряємо всі поля Інженер 1-6 окремо, нормалізуючи кожне значення
+        const engineerFields = [
+          (task.engineer1 || '').trim(),
+          (task.engineer2 || '').trim(),
+          (task.engineer3 || '').trim(),
+          (task.engineer4 || '').trim(),
+          (task.engineer5 || '').trim(),
+          (task.engineer6 || '').trim()
+        ];
+        
+        // Якщо працівник знайдений в будь-якому з полів - додаємо завдання
+        if (engineerFields.includes(normalizedEngineer)) {
+          employeeStats[normalizedEngineer].tasksCount += 1;
+          employeeStats[normalizedEngineer].totalBonus += data.bonusPerEngineer;
+          employeeStats[normalizedEngineer].totalWorkPrice += data.workPricePerEngineer;
+          
+          // Додаткове логування для Михайлішина В.
+          if (normalizedEngineer === 'Михайлішин В.' || normalizedEngineer.includes('Михайлішин')) {
+            console.log(`[DEBUG employee-rating] Михайлішин В. - Заявка ${task._id}: engineer1="${task.engineer1}", engineer2="${task.engineer2}", normalizedEngineer="${normalizedEngineer}", engineerFields=[${engineerFields.map(f => `"${f}"`).join(', ')}], знайдено=${engineerFields.includes(normalizedEngineer)}, tasksCount=${employeeStats[normalizedEngineer].tasksCount}`);
+            
+            // Визначаємо creditMonth для цієї заявки
+            let bonusApprovalDateStr = task.bonusApprovalDate || '';
+            if (!bonusApprovalDateStr && task.approvedByAccountantDate) {
+              const accDate = new Date(task.approvedByAccountantDate);
+              if (!isNaN(accDate.getTime())) {
+                const month = (accDate.getMonth() + 1).toString().padStart(2, '0');
+                const year = accDate.getFullYear();
+                bonusApprovalDateStr = `${month}-${year}`;
+              }
+            }
+            if (bonusApprovalDateStr) {
+              if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDateStr)) {
+                const [year, month] = bonusApprovalDateStr.split('-');
+                bonusApprovalDateStr = `${month}-${year}`;
+              }
+              let approvalDate;
+              if (/^\d{2}-\d{4}$/.test(bonusApprovalDateStr)) {
+                const [m, y] = bonusApprovalDateStr.split('-');
+                approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+              } else {
+                approvalDate = new Date(bonusApprovalDateStr);
+              }
+              if (!isNaN(approvalDate.getTime())) {
+                const approvalMonth = approvalDate.getMonth() + 1;
+                const approvalYear = approvalDate.getFullYear();
+                let workDate = task.date ? new Date(task.date) : approvalDate;
+                const workMonth = workDate.getMonth() + 1;
+                const workYear = workDate.getFullYear();
+                let creditMonth, creditYear;
+                if (workMonth === approvalMonth && workYear === approvalYear) {
+                  creditMonth = workMonth;
+                  creditYear = workYear;
+                } else {
+                  if (approvalMonth === 1) {
+                    creditMonth = 12;
+                    creditYear = approvalYear - 1;
+                  } else {
+                    creditMonth = approvalMonth - 1;
+                    creditYear = approvalYear;
+                  }
+                }
+                const monthKey = `${creditYear}-${creditMonth}`;
+                if (!mikhailishinByMonth[monthKey]) {
+                  mikhailishinByMonth[monthKey] = 0;
+                }
+                mikhailishinByMonth[monthKey] += data.bonusPerEngineer;
+              }
+            }
+          }
+        }
+      });
+    });
+    
+    console.log(`[DEBUG employee-rating] Знайдено ${Object.keys(employeeStats).length} унікальних працівників`);
+    console.log(`[DEBUG employee-rating] Оброблено ${processedTaskIds.size} унікальних заявок`);
+    
+    // Виводимо розподіл премій Михайлішина В. по місяцях
+    if (Object.keys(mikhailishinByMonth).length > 0) {
+      console.log(`[DEBUG employee-rating] Премії Михайлішина В. по місяцях:`, mikhailishinByMonth);
+      const totalByMonth = Object.values(mikhailishinByMonth).reduce((sum, val) => sum + val, 0);
+      console.log(`[DEBUG employee-rating] Сума премій Михайлішина В. по місяцях: ${totalByMonth.toFixed(2)}`);
+    }
+    
+    // Сортуємо по загальній сумі премії
+    const rating = Object.values(employeeStats)
+      .map(emp => ({
+        ...emp,
+        tasksCount: Math.round(emp.tasksCount), // Кількість завдань - це ціле число
+        totalWorkPrice: Math.round(emp.totalWorkPrice * 100) / 100,
+        totalBonus: Math.round(emp.totalBonus * 100) / 100
+      }))
+      .sort((a, b) => b.totalBonus - a.totalBonus);
+    
+    console.log(`[DEBUG employee-rating] Повертаємо рейтинг з ${rating.length} працівниками`);
+    if (rating.length > 0) {
+      console.log(`[DEBUG employee-rating] Всі працівники:`, rating.map(e => ({ 
+        name: e.name, 
+        bonus: e.totalBonus.toFixed(2), 
+        tasks: e.tasksCount.toFixed(2), 
+        workPrice: e.totalWorkPrice.toFixed(2) 
+      })));
+      
+      // Додаткова інформація для Михайлішина В.
+      const mikhailishin = rating.find(e => e.name === 'Михайлішин В.' || e.name.includes('Михайлішин'));
+      if (mikhailishin) {
+        console.log(`[DEBUG employee-rating] Детальна інформація про Михайлішина В.:`, {
+          name: mikhailishin.name,
+          totalBonus: mikhailishin.totalBonus.toFixed(2),
+          tasksCount: mikhailishin.tasksCount,
+          totalWorkPrice: mikhailishin.totalWorkPrice.toFixed(2)
+        });
+      }
+      
+      // Підрахунок завдань для Михайлішина В. вручну для перевірки
+      const mikhailishinTasksCount = taskData.filter(data => {
+        const task = data.task;
+        const engineerFields = [
+          (task.engineer1 || '').trim(),
+          (task.engineer2 || '').trim(),
+          (task.engineer3 || '').trim(),
+          (task.engineer4 || '').trim(),
+          (task.engineer5 || '').trim(),
+          (task.engineer6 || '').trim()
+        ];
+        return engineerFields.some(field => field === 'Михайлішин В.' || field.includes('Михайлішин'));
+      }).length;
+      console.log(`[DEBUG employee-rating] Підрахунок завдань для Михайлішина В. (вручну): ${mikhailishinTasksCount} завдань`);
+      
+      // Додатковий підрахунок для кожного інженера
+      const engineerTasksCounts = {};
+      taskData.forEach(data => {
+        const task = data.task;
+        const engineerFields = [
+          (task.engineer1 || '').trim(),
+          (task.engineer2 || '').trim(),
+          (task.engineer3 || '').trim(),
+          (task.engineer4 || '').trim(),
+          (task.engineer5 || '').trim(),
+          (task.engineer6 || '').trim()
+        ];
+        engineerFields.forEach(eng => {
+          if (eng && eng.trim()) {
+            if (!engineerTasksCounts[eng]) engineerTasksCounts[eng] = 0;
+            engineerTasksCounts[eng]++;
+          }
+        });
+      });
+      console.log(`[DEBUG employee-rating] Підрахунок завдань по інженерах (вручну):`, Object.entries(engineerTasksCounts).slice(0, 5));
+    }
+    
+    res.json(rating);
+  } catch (error) {
+    console.error('Помилка отримання рейтингу працівників:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для статистики заявок в роботі (на сьогоднішній день)
+app.get('/api/analytics/tasks-statistics', async (req, res) => {
+  try {
+    const { region } = req.query;
+    
+    const taskFilter = {};
+    
+    // Фільтр по регіону (як в інших місцях - обробляємо "Україна" та множинні регіони)
+    if (region && region !== '' && region !== 'Україна') {
+      // Якщо регіон містить кому (мультирегіональний користувач)
+      if (region.includes(',')) {
+        const regions = region.split(',').map(r => r.trim());
+        taskFilter.serviceRegion = { $in: regions };
+        console.log('[DEBUG tasks-statistics] Мультирегіональний користувач, регіони:', regions);
+      } else if (region === 'Загальний') {
+        // Для "Загальний" регіону не додаємо фільтр - показуємо всі заявки
+        console.log('[DEBUG tasks-statistics] Регіон "Загальний", не фільтруємо по регіону');
+      } else {
+        taskFilter.serviceRegion = region;
+        console.log('[DEBUG tasks-statistics] Одинарний регіон:', region);
+      }
+    } else {
+      console.log('[DEBUG tasks-statistics] Регіон "Україна" або порожній - показуємо всі заявки');
+    }
+    
+    const tasks = await Task.find(taskFilter).lean();
+    console.log(`[DEBUG tasks-statistics] Знайдено ${tasks.length} завдань для статистики (відфільтровано по регіону)`);
+    
+    // ДЛЯ ПІДРАХУНКУ ЗАЯВОК НА РАХУНКИ: використовуємо ВСІ tasks (як у панелі "Бух рахунки")
+    // Панель використовує allTasksFromAPI, який завантажується через tasksAPI.getAll() - без фільтрації по регіону
+    const allTasksForInvoiceRequests = await Task.find({}).lean();
+    console.log(`[DEBUG tasks-statistics] Знайдено ${allTasksForInvoiceRequests.length} ВСІХ завдань для підрахунку заявок на рахунки`);
+    
+    // ОПТИМІЗАЦІЯ: Завантажуємо дані InvoiceRequest для ВСІХ tasks (для заявок на рахунки)
+    const allTaskIds = allTasksForInvoiceRequests.map(task => task._id.toString());
+    const allInvoiceRequestIds = allTasksForInvoiceRequests
+      .map(task => task.invoiceRequestId)
+      .filter(id => id);
+    
+    const invoiceRequests = await InvoiceRequest.find({
+      $or: [
+        { taskId: { $in: allTaskIds } },
+        { _id: { $in: allInvoiceRequestIds } }
+      ]
+    });
+    
+    // Створюємо мапи для швидкого пошуку
+    const invoiceRequestByTaskId = new Map();
+    const invoiceRequestById = new Map();
+    
+    invoiceRequests.forEach(invoice => {
+      if (invoice.taskId) {
+        invoiceRequestByTaskId.set(invoice.taskId, invoice);
+      }
+      invoiceRequestById.set(invoice._id.toString(), invoice);
+    });
+    
+    // Додаємо дані InvoiceRequest до ВСІХ tasks (для заявок на рахунки)
+    const allTasksWithInvoiceInfo = allTasksForInvoiceRequests.map(task => {
+      let invoiceRequest = null;
+      
+      if (task.invoiceRequestId) {
+        invoiceRequest = invoiceRequestById.get(task.invoiceRequestId);
+      }
+      
+      if (!invoiceRequest) {
+        invoiceRequest = invoiceRequestByTaskId.get(task._id.toString());
+      }
+      
+      // Використовуємо task напряму, оскільки використовується .lean()
+      const taskCopy = { ...task };
+      
+      if (invoiceRequest) {
+        taskCopy.invoiceRequestId = invoiceRequest._id.toString();
+        taskCopy.needInvoice = invoiceRequest.needInvoice;
+        taskCopy.needAct = invoiceRequest.needAct;
+        taskCopy.invoiceStatus = invoiceRequest.status;
+      }
+      
+      return taskCopy;
+    });
+    
+    // Додаємо дані InvoiceRequest до відфільтрованих tasks (для решти статистики)
+    const tasksWithInvoiceInfo = tasks.map(task => {
+      let invoiceRequest = null;
+      
+      if (task.invoiceRequestId) {
+        invoiceRequest = invoiceRequestById.get(task.invoiceRequestId);
+      }
+      
+      if (!invoiceRequest) {
+        invoiceRequest = invoiceRequestByTaskId.get(task._id.toString());
+      }
+      
+      // Використовуємо task напряму, оскільки використовується .lean()
+      const taskCopy = { ...task };
+      
+      if (invoiceRequest) {
+        taskCopy.invoiceRequestId = invoiceRequest._id.toString();
+        taskCopy.needInvoice = invoiceRequest.needInvoice;
+        taskCopy.needAct = invoiceRequest.needAct;
+        taskCopy.invoiceStatus = invoiceRequest.status;
+      }
+      
+      return taskCopy;
+    });
+    
+    // Допоміжні функції для перевірки статусів
+    const isApproved = (value) => {
+      return value === true || value === 'Підтверджено';
+    };
+    
+    const isRejected = (value) => {
+      return value === false || value === 'Відмова';
+    };
+    
+    const statistics = {
+      notInWork: 0,           // Заявки зі статусом "Заявка"
+      inWork: 0,              // Заявки зі статусом "В роботі"
+      pendingWarehouse: 0,    // Заявки "Виконано" але не підтверджено завскладом
+      pendingAccountant: 0,   // Заявки "Виконано", підтверджено завскладом, але не підтверджено бухгалтером
+      pendingInvoiceRequests: 0  // Не виконані заявки на рахунки
+    };
+    
+    // Підрахунок невиконаних заявок на рахунки
+    // Використовуємо ТАКУ Ж логіку як у панелі "Бух рахунки - Заявка на рахунок":
+    // Фільтруємо ВСІ завдання (незалежно від регіону), які мають invoiceRequestId || needInvoice || needAct
+    // і виключаємо ті, де invoiceStatus === 'completed'
+    // Панель використовує allTasksFromAPI (всі tasks без фільтрації по регіону)
+    // УВАГА: showCompletedRequests за замовчуванням false в панелі, тому виключаємо completed
+    const tasksWithInvoiceRequests = allTasksWithInvoiceInfo.filter(task => {
+      // Показуємо завдання з запитами на рахунки
+      const hasInvoiceRequest = task.invoiceRequestId || task.needInvoice || task.needAct;
+      
+      if (!hasInvoiceRequest) return false;
+      
+      // Виключаємо виконані заявки (invoiceStatus === 'completed')
+      // Це відповідає логіці панелі з showCompletedRequests === false
+      if (task.invoiceStatus === 'completed') {
+        return false;
+      }
+      
+      return true;
+    });
+    
+    statistics.pendingInvoiceRequests = tasksWithInvoiceRequests.length;
+    
+    // Детальне логування для діагностики
+    const tasksWithInvoiceRequestId = allTasksWithInvoiceInfo.filter(t => t.invoiceRequestId).length;
+    const tasksWithNeedInvoice = allTasksWithInvoiceInfo.filter(t => t.needInvoice).length;
+    const tasksWithNeedAct = allTasksWithInvoiceInfo.filter(t => t.needAct).length;
+    const tasksCompleted = allTasksWithInvoiceInfo.filter(t => t.invoiceStatus === 'completed').length;
+    const tasksWithAnyInvoiceRequest = allTasksWithInvoiceInfo.filter(t => t.invoiceRequestId || t.needInvoice || t.needAct).length;
+    
+    console.log(`[DEBUG tasks-statistics] Детальна статистика заявок на рахунки:`);
+    console.log(`  - Всього tasks: ${allTasksForInvoiceRequests.length}`);
+    console.log(`  - Tasks з invoiceRequestId: ${tasksWithInvoiceRequestId}`);
+    console.log(`  - Tasks з needInvoice: ${tasksWithNeedInvoice}`);
+    console.log(`  - Tasks з needAct: ${tasksWithNeedAct}`);
+    console.log(`  - Tasks з будь-яким invoice request: ${tasksWithAnyInvoiceRequest}`);
+    console.log(`  - Tasks з invoiceStatus='completed': ${tasksCompleted}`);
+    console.log(`  - Результат (виключено completed): ${statistics.pendingInvoiceRequests}`);
+    
+    tasksWithInvoiceInfo.forEach(task => {
+      // 1. Не взято в роботу (статус "Заявка")
+      if (task.status === 'Заявка') {
+        statistics.notInWork++;
+      }
+      
+      // 2. Виконується сервісними інжнерами (статус "В роботі")
+      if (task.status === 'В роботі') {
+        statistics.inWork++;
+      }
+      
+      // 3. Не підтверджено завскладом (статус "Виконано" і завсклад не підтвердив)
+      // Включаємо всі tasks, де approvedByWarehouse !== 'Підтверджено' (включаючи "Відмова", "На розгляді" та інші)
+      if (task.status === 'Виконано' && !isApproved(task.approvedByWarehouse)) {
+        statistics.pendingWarehouse++;
+      }
+      
+      // 4. Не підтверджено бухгалтером (статус "Виконано", підтверджено завскладом, але не підтверджено бухгалтером)
+      if (task.status === 'Виконано' && 
+          isApproved(task.approvedByWarehouse) &&
+          !isApproved(task.approvedByAccountant) && 
+          !isRejected(task.approvedByAccountant)) {
+        statistics.pendingAccountant++;
+      }
+    });
+    
+    console.log(`[DEBUG tasks-statistics] Статистика для регіону "${region}":`, statistics);
+    
+    res.json(statistics);
+  } catch (error) {
+    console.error('Помилка отримання статистики заявок:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API для динаміки економічних показників за період (для графіків)
+app.get('/api/analytics/dynamic-chart-data', async (req, res) => {
+  try {
+    const { startYear, endYear, startMonth, endMonth, region, company, periodicity = 'month' } = req.query;
+    
+    // Отримуємо дані з analytics та tasks
+    const analyticsFilter = {};
+    if (region && region !== '') {
+      const regionSingle = region.split(',')[0]?.trim() || region;
+      analyticsFilter.region = regionSingle;
+    }
+    if (startYear) analyticsFilter.year = { $gte: parseInt(startYear) };
+    if (endYear) {
+      if (!analyticsFilter.year) analyticsFilter.year = {};
+      analyticsFilter.year.$lte = parseInt(endYear);
+    }
+    if (startMonth) {
+      if (!analyticsFilter.month) analyticsFilter.month = {};
+      analyticsFilter.month.$gte = parseInt(startMonth);
+    }
+    if (endMonth) {
+      if (!analyticsFilter.month) analyticsFilter.month = {};
+      analyticsFilter.month.$lte = parseInt(endMonth);
+    }
+    
+    const analytics = await Analytics.find(analyticsFilter);
+    
+    // Отримуємо доходи з tasks
+    const taskFilter = {};
+    if (region && region !== '') {
+      const regionSingle = region.split(',')[0]?.trim() || region;
+      taskFilter.serviceRegion = regionSingle;
+    }
+    if (company && company !== '') {
+      taskFilter.company = company;
+    }
+    
+    taskFilter.status = 'Виконано';
+    taskFilter.approvedByWarehouse = 'Підтверджено';
+    taskFilter.approvedByAccountant = 'Підтверджено';
+    
+    const tasks = await Task.find(taskFilter);
+    
+    // Групуємо дані по періодах
+    const chartData = {};
+    
+    // Додаємо дані з analytics
+    analytics.forEach(item => {
+      const key = periodicity === 'month' 
+        ? `${item.year}-${String(item.month).padStart(2, '0')}`
+        : `${item.year}-${String(item.month).padStart(2, '0')}-01`;
+      
+      if (!chartData[key]) {
+        chartData[key] = {
+          period: key,
+          year: item.year,
+          month: item.month,
+          revenue: 0,
+          expenses: 0,
+          profit: 0,
+          profitability: 0,
+          workRevenue: 0,
+          materialsRevenue: 0,
+          plannedRevenue: 0
+        };
+      }
+      
+      chartData[key].expenses += item.totalExpenses || 0;
+    });
+    
+    // Додаємо доходи з tasks - використовуємо ТАКУ САМУ логіку як у /api/analytics/full
+    tasks.forEach(task => {
+      const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === true;
+      const isAccountantApproved = task.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === true;
+      
+      // Дохід по роботах - використовуємо логіку creditMonth
+      if (task.workPrice && isWarehouseApproved && isAccountantApproved) {
+        let approvalDateStr = task.bonusApprovalDate || task.approvedByAccountantDate || task.date || '';
+        let approvalDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(approvalDateStr)) {
+          const [y, m] = approvalDateStr.split('-');
+          approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+        } else if (/^\d{2}-\d{4}$/.test(approvalDateStr)) {
+          const [m, y] = approvalDateStr.split('-');
+          approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+        } else {
+          approvalDate = new Date(approvalDateStr);
+        }
+        if (isNaN(approvalDate.getTime())) return;
+        
+        // Логіка: премію за місяць X затверджують у місяці X+1
+        // creditMonth = попередній місяць від затвердження
+        let approvalMonth = approvalDate.getMonth(); // 0-11 (місяць затвердження)
+        let creditYear = approvalDate.getFullYear();
+        let creditMonth;
+        if (approvalMonth === 0) {
+          creditMonth = 12; // Якщо затверджено в січні, премія за грудень попереднього року
+          creditYear -= 1;
+        } else {
+          creditMonth = approvalMonth - 1; // Попередній місяць в 0-11
+        }
+        // creditMonth тепер в 0-11 (окрім 12), конвертуємо в 1-12
+        if (creditMonth !== 12) creditMonth += 1;
+        
+        // Фільтр по періоду
+        if (startYear && creditYear < parseInt(startYear)) return;
+        if (endYear && creditYear > parseInt(endYear)) return;
+        if (startYear && creditYear === parseInt(startYear) && startMonth && creditMonth < parseInt(startMonth)) return;
+        if (endYear && creditYear === parseInt(endYear) && endMonth && creditMonth > parseInt(endMonth)) return;
+        
+        const key = periodicity === 'month'
+          ? `${creditYear}-${String(creditMonth).padStart(2, '0')}`
+          : `${creditYear}-${String(creditMonth).padStart(2, '0')}-01`;
+        
+        if (!chartData[key]) {
+          chartData[key] = {
+            period: key,
+            year: creditYear,
+            month: creditMonth,
+            revenue: 0,
+            expenses: 0,
+            profit: 0,
+            profitability: 0,
+            workRevenue: 0,
+            materialsRevenue: 0,
+            plannedRevenue: 0
+          };
+        }
+        
+        const workPrice = parseFloat(task.workPrice) || 0;
+        const baseBonus = workPrice * 0.25;
+        let actualBonus = 0;
+        const engineer1 = (task.engineer1 || '').trim();
+        const engineer2 = (task.engineer2 || '').trim();
+        if (engineer1 && engineer2) {
+          actualBonus = baseBonus;
+        } else if (engineer1 || engineer2) {
+          actualBonus = baseBonus;
+        }
+        const workRevenue = actualBonus * 3;
+        chartData[key].workRevenue += workRevenue;
+      }
+      
+      // Дохід по матеріалам - використовуємо логіку creditMonth
+      if (isWarehouseApproved && isAccountantApproved) {
+        let approvalDateStr = task.bonusApprovalDate || task.approvedByAccountantDate || task.date || '';
+        let approvalDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(approvalDateStr)) {
+          const [y, m] = approvalDateStr.split('-');
+          approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+        } else if (/^\d{2}-\d{4}$/.test(approvalDateStr)) {
+          const [m, y] = approvalDateStr.split('-');
+          approvalDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+        } else {
+          approvalDate = new Date(approvalDateStr);
+        }
+        if (isNaN(approvalDate.getTime())) return;
+        
+        // Логіка: премію за місяць X затверджують у місяці X+1
+        // creditMonth = попередній місяць від затвердження
+        let approvalMonth = approvalDate.getMonth(); // 0-11 (місяць затвердження)
+        let creditYear = approvalDate.getFullYear();
+        let creditMonth;
+        if (approvalMonth === 0) {
+          creditMonth = 12; // Якщо затверджено в січні, премія за грудень попереднього року
+          creditYear -= 1;
+        } else {
+          creditMonth = approvalMonth - 1; // Попередній місяць в 0-11
+        }
+        // creditMonth тепер в 0-11 (окрім 12), конвертуємо в 1-12
+        if (creditMonth !== 12) creditMonth += 1;
+        
+        // Фільтр по періоду
+        if (startYear && creditYear < parseInt(startYear)) return;
+        if (endYear && creditYear > parseInt(endYear)) return;
+        if (startYear && creditYear === parseInt(startYear) && startMonth && creditMonth < parseInt(startMonth)) return;
+        if (endYear && creditYear === parseInt(endYear) && endMonth && creditMonth > parseInt(endMonth)) return;
+        
+        const key = periodicity === 'month'
+          ? `${creditYear}-${String(creditMonth).padStart(2, '0')}`
+          : `${creditYear}-${String(creditMonth).padStart(2, '0')}-01`;
+        
+        if (!chartData[key]) {
+          chartData[key] = {
+            period: key,
+            year: creditYear,
+            month: creditMonth,
+            revenue: 0,
+            expenses: 0,
+            profit: 0,
+            profitability: 0,
+            workRevenue: 0,
+            materialsRevenue: 0,
+            plannedRevenue: 0
+          };
+        }
+        
+        const oilTotal = parseFloat(task.oilTotal) || 0;
+        const filterSum = parseFloat(task.filterSum) || 0;
+        const fuelFilterSum = parseFloat(task.fuelFilterSum) || 0;
+        const airFilterSum = parseFloat(task.airFilterSum) || 0;
+        const antifreezeSum = parseFloat(task.antifreezeSum) || 0;
+        const otherSum = parseFloat(task.otherSum) || 0;
+        const totalMaterials = oilTotal + filterSum + fuelFilterSum + airFilterSum + antifreezeSum + otherSum;
+        const materialsRevenue = totalMaterials / 4;
+        chartData[key].materialsRevenue += materialsRevenue;
+      }
+    });
+    
+    // Розраховуємо загальні показники
+    const result = Object.values(chartData).map(item => {
+      item.revenue = item.workRevenue + item.materialsRevenue;
+      item.profit = item.revenue - item.expenses;
+      item.profitability = item.revenue > 0 ? (item.profit / item.revenue) * 100 : 0;
+      return item;
+    }).sort((a, b) => {
+      if (a.year !== b.year) return a.year - b.year;
+      return a.month - b.month;
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Помилка отримання динаміки:', error);
     res.status(500).json({ error: error.message });
   }
 });
