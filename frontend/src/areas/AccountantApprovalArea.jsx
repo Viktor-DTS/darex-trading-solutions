@@ -7,7 +7,11 @@ import { columnsSettingsAPI } from '../utils/columnsSettingsAPI';
 import { useLazyData } from '../hooks/useLazyData';
 import { debounce } from '../utils/debounce';
 
-const AccountantApprovalArea = memo(function AccountantApprovalArea({ user }) {
+const AccountantApprovalArea = memo(function AccountantApprovalArea({ user, accessRules, currentArea }) {
+  // Перевіряємо права доступу для поточної області
+  const hasFullAccess = accessRules && accessRules[user?.role] && accessRules[user?.role][currentArea] === 'full';
+  const isReadOnly = accessRules && accessRules[user?.role] && accessRules[user?.role][currentArea] === 'read';
+  
   // Перевіряємо чи користувач завантажений
   if (!user) {
     return (
@@ -258,7 +262,7 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user }) {
   }, [handleFilterDebounced, handleFilterImmediate]);
 
   const handleEdit = async t => {
-    const isReadOnly = t._readOnly;
+    const taskReadOnly = t._readOnly;
     
     // Завантажуємо сві array дані з бази для гарантії актуальності
     try {
@@ -268,8 +272,8 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user }) {
       
       setEditTask(taskData);
       setModalOpen(true);
-      // Передаємо readOnly в ModalTaskForm
-      if (isReadOnly) {
+      // Передаємо readOnly в ModalTaskForm якщо задача має _readOnly або якщо доступ тільки для читання
+      if (taskReadOnly || isReadOnly) {
         // Встановлюємо прапорець для ModalTaskForm
         setEditTask(prev => ({ ...prev, _readOnly: true }));
       }
@@ -280,7 +284,7 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user }) {
       delete taskData._readOnly;
       setEditTask(taskData);
       setModalOpen(true);
-      if (isReadOnly) {
+      if (taskReadOnly || isReadOnly) {
         setEditTask(prev => ({ ...prev, _readOnly: true }));
       }
     }
@@ -890,6 +894,8 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user }) {
         user={user}
         isArchive={activeTab === 'archive'}
         onHistoryClick={openClientReport}
+        accessRules={accessRules}
+        currentArea={currentArea}
         columnsSettings={{
           open: false,
           selected: columnSettings?.visible || allTaskFields.map(f => f.name)

@@ -62,7 +62,11 @@ const initialTask = {
   transportKm: '',
   transportSum: '',
 };
-const AccountantArea = memo(function AccountantArea({ user }) {
+const AccountantArea = memo(function AccountantArea({ user, accessRules, currentArea }) {
+  // Перевіряємо права доступу для поточної області
+  const hasFullAccess = accessRules && accessRules[user?.role] && accessRules[user?.role][currentArea] === 'full';
+  const isReadOnly = accessRules && accessRules[user?.role] && accessRules[user?.role][currentArea] === 'read';
+  
   // Перевіряємо чи користувач завантажений
   if (!user) {
     return (
@@ -849,7 +853,7 @@ const AccountantArea = memo(function AccountantArea({ user }) {
     }
   }, [handleFilterDebounced, handleFilterImmediate]);
   const handleEdit = t => {
-    const isReadOnly = t._readOnly;
+    const taskReadOnly = t._readOnly;
     const taskData = { ...t };
     delete taskData._readOnly; // Видаляємо прапорець з даних завдання
     
@@ -860,8 +864,8 @@ const AccountantArea = memo(function AccountantArea({ user }) {
     
     setEditTask(taskData);
     setModalOpen(true);
-    // Передаємо readOnly в ModalTaskForm
-    if (isReadOnly) {
+    // Передаємо readOnly в ModalTaskForm якщо задача має _readOnly або якщо доступ тільки для читання
+    if (taskReadOnly || isReadOnly) {
       // Встановлюємо прапорець для ModalTaskForm
       setEditTask(prev => ({ ...prev, _readOnly: true }));
     }
@@ -2591,6 +2595,8 @@ const AccountantArea = memo(function AccountantArea({ user }) {
             role="accountant-invoice"
             filters={filters}
             onFilterChange={handleFilter}
+            accessRules={accessRules}
+            currentArea={currentArea}
             columns={invoiceRequestsColumns}
             allColumns={[...allTaskFields.map(f => ({ key: f.name, label: f.label, filter: true })), { key: 'documentType', label: 'Тип документів', filter: true }]}
             approveField="approvedByAccountant"
@@ -2625,6 +2631,8 @@ const AccountantArea = memo(function AccountantArea({ user }) {
         role="accountant-debt"
         filters={filters}
         onFilterChange={handleFilter}
+        accessRules={accessRules}
+        currentArea={currentArea}
         columns={columns}
         allColumns={allTaskFields.map(f => ({ key: f.name, label: f.label }))}
         approveField="approvedByAccountant"
@@ -2696,6 +2704,8 @@ const AccountantArea = memo(function AccountantArea({ user }) {
             role="accountant"
             filters={filters}
             onFilterChange={handleFilter}
+            accessRules={accessRules}
+            currentArea={currentArea}
             columns={columns}
             allColumns={allTaskFields.map(f => ({ key: f.name, label: f.label }))}
             approveField="approvedByAccountant"

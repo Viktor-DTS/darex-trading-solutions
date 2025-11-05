@@ -921,9 +921,13 @@ function AdminSystemParamsArea({ user }) {
     </div>
   );
 }
-function ServiceArea({ user }) {
+function ServiceArea({ user, accessRules, currentArea }) {
   console.log('DEBUG ServiceArea: user =', user);
   console.log('DEBUG ServiceArea: user.region =', user?.region);
+  
+  // Перевіряємо права доступу для поточної області
+  const hasFullAccess = accessRules && accessRules[user?.role] && accessRules[user?.role][currentArea] === 'full';
+  const isReadOnly = accessRules && accessRules[user?.role] && accessRules[user?.role][currentArea] === 'read';
   
   // Перевіряємо чи користувач завантажений
   if (!user) {
@@ -1044,13 +1048,13 @@ function ServiceArea({ user }) {
     }
   };
   const handleEdit = t => {
-    const isReadOnly = t._readOnly;
+    const taskReadOnly = t._readOnly;
     const taskData = { ...t };
     delete taskData._readOnly; // Видаляємо прапорець з даних завдання
     setEditTask(taskData);
     setModalOpen(true);
-    // Передаємо readOnly в ModalTaskForm
-    if (isReadOnly) {
+    // Передаємо readOnly в ModalTaskForm якщо задача має _readOnly або якщо доступ тільки для читання
+    if (taskReadOnly || isReadOnly) {
       // Встановлюємо прапорець для ModalTaskForm
       setEditTask(prev => ({ ...prev, _readOnly: true }));
     }
@@ -1516,7 +1520,7 @@ function ServiceArea({ user }) {
       
       {/* Оптимізований рядок з усіма кнопками */}
       <div style={{display:'flex',gap:8,marginBottom:24,justifyContent:'flex-start',flexWrap:'wrap',alignItems:'center'}}>
-        <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{padding:'10px 20px',background:'#28a745',color:'#fff',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>Додати заявку</button>
+        {hasFullAccess && <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{padding:'10px 20px',background:'#28a745',color:'#fff',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>Додати заявку</button>}
         <button onClick={()=>setActiveTab('notDone')} style={{padding:'10px 16px',background:activeTab==='notDone'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='notDone'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Невиконані заявки ({getTabCount('notDone')})</button>
         <button onClick={()=>setActiveTab('pending')} style={{padding:'10px 16px',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
         <button onClick={()=>setActiveTab('done')} style={{padding:'10px 16px',background:activeTab==='done'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='done'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Архів виконаних заявок ({getTabCount('done')})</button>
@@ -1549,6 +1553,8 @@ function ServiceArea({ user }) {
         user={user}
         isArchive={activeTab === 'done'}
         onHistoryClick={openClientReport}
+        accessRules={accessRules}
+        currentArea={currentArea}
       />
       <ServiceReminderModal
         isOpen={reminderModalOpen}
@@ -1559,9 +1565,13 @@ function ServiceArea({ user }) {
     </div>
   );
 }
-function RegionalManagerArea({ tab: propTab, user }) {
+function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
   console.log('DEBUG RegionalManagerArea: user =', user);
   console.log('DEBUG RegionalManagerArea: user.region =', user?.region);
+  
+  // Перевіряємо права доступу для поточної області
+  const hasFullAccess = accessRules && accessRules[user?.role] && accessRules[user?.role][currentArea] === 'full';
+  const isReadOnly = accessRules && accessRules[user?.role] && accessRules[user?.role][currentArea] === 'read';
   
   // Перевіряємо чи користувач завантажений
   if (!user) {
@@ -3256,6 +3266,8 @@ function RegionalManagerArea({ tab: propTab, user }) {
                 commentField="regionalManagerComment"
                 user={user}
                 isArchive={false}
+                accessRules={accessRules}
+                currentArea={currentArea}
               />
             ) : (
               <TaskTable
@@ -3276,6 +3288,8 @@ function RegionalManagerArea({ tab: propTab, user }) {
                 commentField="regionalManagerComment"
                 user={user}
                 isArchive={activeTab === 'archive'}
+                accessRules={accessRules}
+                currentArea={currentArea}
               />
             )}
         </>
@@ -3865,7 +3879,7 @@ function App() {
               marginRight: currentArea === 'analytics' ? '0%' : '6%',
               width: currentArea === 'analytics' ? '100%' : 'auto'
             }}>
-              <Area key={`${user.login}-${currentArea}`} user={user} />
+              <Area key={`${user.login}-${currentArea}`} user={user} accessRules={accessRules} currentArea={currentArea} />
             </div>
           </div>
         </div>
@@ -4409,13 +4423,13 @@ function AdminEditTasksArea({ user }) {
     });
   }, []);
   const handleEdit = t => {
-    const isReadOnly = t._readOnly;
+    const taskReadOnly = t._readOnly;
     const taskData = { ...t };
     delete taskData._readOnly; // Видаляємо прапорець з даних завдання
     setEditTask(taskData);
     setModalOpen(true);
-    // Передаємо readOnly в ModalTaskForm
-    if (isReadOnly) {
+    // Передаємо readOnly в ModalTaskForm якщо задача має _readOnly або якщо доступ тільки для читання
+    if (taskReadOnly || isReadOnly) {
       // Встановлюємо прапорець для ModalTaskForm
       setEditTask(prev => ({ ...prev, _readOnly: true }));
     }

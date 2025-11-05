@@ -70,6 +70,8 @@ function TaskTableComponent({
   onInvoiceDelete = () => {},
   onActDelete = () => {},
   uploadingFiles = new Set(),
+  accessRules = {},
+  currentArea = null,
 }) {
   // console.log('[LOG] TaskTable received columns:', columns);
   // console.log('[LOG] TaskTable role:', role);
@@ -96,6 +98,10 @@ function TaskTableComponent({
   const [documentUploadModal, setDocumentUploadModal] = useState({ open: false, task: null });
   const [modalKey, setModalKey] = useState(0);
   const [regions, setRegions] = useState([]);
+  
+  // Перевіряємо права доступу для поточної області
+  const hasFullAccess = accessRules && user && accessRules[user.role] && accessRules[user.role][currentArea] === 'full';
+  const isReadOnly = accessRules && user && accessRules[user.role] && accessRules[user.role][currentArea] === 'read';
   
   // Ref для збереження фокусу в фільтрах
   const filterInputRefs = useRef({});
@@ -2530,7 +2536,13 @@ function TaskTableComponent({
                           {/* Кнопки дій для заявки на рахунок */}
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                             <button 
-                              onClick={() => onEdit && onEdit(t)}
+                              onClick={() => {
+                                if (hasFullAccess) {
+                                  onEdit && onEdit(t);
+                                } else {
+                                  onEdit && onEdit({...t, _readOnly: true});
+                                }
+                              }}
                               style={{
                                 background: '#007bff',
                                 color: '#fff',
@@ -2664,17 +2676,31 @@ function TaskTableComponent({
                                   Перевірити та зберегти
                                 </button>
                               ) : (
-                                <button onClick={()=>{
-                                  // Логуємо редагування заявки
-                                  logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
-                                    `Редагування заявки: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
-                                      requestNumber: t.requestNumber,
-                                      client: t.client,
-                                      work: t.work,
-                                      status: t.status
-                                    });
-                                  onEdit && onEdit(t);
-                                }}>Редагувати</button>
+                                hasFullAccess ? (
+                                  <button onClick={()=>{
+                                    // Логуємо редагування заявки
+                                    logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
+                                      `Редагування заявки: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                        requestNumber: t.requestNumber,
+                                        client: t.client,
+                                        work: t.work,
+                                        status: t.status
+                                      });
+                                    onEdit && onEdit(t);
+                                  }}>Редагувати</button>
+                                ) : (
+                                  <button onClick={()=>{
+                                    // Логуємо перегляд інформації заявки (read-only)
+                                    logUserAction(user, EVENT_ACTIONS.VIEW, ENTITY_TYPES.TASK, t.id, 
+                                      `Перегляд інформації заявки: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                        requestNumber: t.requestNumber,
+                                        client: t.client,
+                                        work: t.work,
+                                        status: t.status
+                                      });
+                                    onEdit && onEdit({...t, _readOnly: true});
+                                  }} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
+                                )
                               )}
                               {/* Кнопка видалення - тільки для регіональних керівників та адміністраторів */}
                               {(() => {
@@ -2727,17 +2753,33 @@ function TaskTableComponent({
                             </>
                           )}
                           {(role === 'warehouse' || role === 'accountant' || role === 'buhgalteria' || role === 'regionalManager' || role === 'regional') && !(role === 'regional' && t._debtTab) && (
-                            <button onClick={()=>{
-                              // Логуємо редагування заявки
-                              logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
-                                `Редагування заявки: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
-                                  requestNumber: t.requestNumber,
-                                  client: t.client,
-                                  work: t.work,
-                                  status: t.status
-                                });
-                              onEdit && onEdit(t);
-                            }}>Редагувати</button>
+                            <>
+                              {hasFullAccess ? (
+                                <button onClick={()=>{
+                                  // Логуємо редагування заявки
+                                  logUserAction(user, EVENT_ACTIONS.UPDATE, ENTITY_TYPES.TASK, t.id, 
+                                    `Редагування заявки: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                      requestNumber: t.requestNumber,
+                                      client: t.client,
+                                      work: t.work,
+                                      status: t.status
+                                    });
+                                  onEdit && onEdit(t);
+                                }}>Редагувати</button>
+                              ) : (
+                                <button onClick={()=>{
+                                  // Логуємо перегляд інформації заявки (read-only)
+                                  logUserAction(user, EVENT_ACTIONS.VIEW, ENTITY_TYPES.TASK, t.id, 
+                                    `Перегляд інформації заявки: ${t.requestNumber || 'Без номера'} - ${t.client || 'Без клієнта'}`, {
+                                      requestNumber: t.requestNumber,
+                                      client: t.client,
+                                      work: t.work,
+                                      status: t.status
+                                    });
+                                  onEdit && onEdit({...t, _readOnly: true});
+                                }} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
+                              )}
+                            </>
                           )}
                         </>
                       )}
@@ -2770,7 +2812,7 @@ function TaskTableComponent({
                         }} style={{background:'#43a047',color:'#fff'}}>Інформація</button>
                       )}
                       {/* Кнопки підтвердження для відповідних ролей - в архіві тільки для адміністратора */}
-                      {((role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'buhgalteria' || role === 'regionalManager' || role === 'admin' || role === 'administrator' || user?.role === 'admin' || user?.role === 'administrator') && (!isArchive || user?.role === 'admin' || user?.role === 'administrator')) && !(role === 'regional' && t._debtTab) && onApprove && (
+                      {((role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'buhgalteria' || role === 'regionalManager' || role === 'admin' || role === 'administrator' || user?.role === 'admin' || user?.role === 'administrator') && (!isArchive || user?.role === 'admin' || user?.role === 'administrator')) && !(role === 'regional' && t._debtTab) && onApprove && hasFullAccess && (
                         <>
                           {/* Кнопки підтвердження в другому рядку */}
                           <div style={{marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center'}}>

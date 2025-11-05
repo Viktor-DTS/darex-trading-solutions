@@ -56,9 +56,13 @@ const initialTask = {
   transportKm: '',
   transportSum: '',
 };
-export default function WarehouseArea({ user }) {
+export default function WarehouseArea({ user, accessRules, currentArea }) {
   console.log('DEBUG WarehouseArea: user =', user);
   console.log('DEBUG WarehouseArea: user.region =', user?.region);
+  
+  // Перевіряємо права доступу для поточної області
+  const hasFullAccess = accessRules && accessRules[user?.role] && accessRules[user?.role][currentArea] === 'full';
+  const isReadOnly = accessRules && accessRules[user?.role] && accessRules[user?.role][currentArea] === 'read';
   
   // Перевіряємо чи користувач завантажений
   if (!user) {
@@ -174,13 +178,13 @@ export default function WarehouseArea({ user }) {
     setFilters(newFilters);
   };
   const handleEdit = t => {
-    const isReadOnly = t._readOnly;
+    const taskReadOnly = t._readOnly;
     const taskData = { ...t };
     delete taskData._readOnly; // Видаляємо прапорець з даних завдання
     setEditTask(taskData);
     setModalOpen(true);
-    // Передаємо readOnly в ModalTaskForm
-    if (isReadOnly) {
+    // Передаємо readOnly в ModalTaskForm якщо задача має _readOnly або якщо доступ тільки для читання
+    if (taskReadOnly || isReadOnly) {
       // Встановлюємо прапорець для ModalTaskForm
       setEditTask(prev => ({ ...prev, _readOnly: true }));
     }
@@ -757,6 +761,8 @@ export default function WarehouseArea({ user }) {
         approveField="approvedByWarehouse"
         commentField="warehouseComment"
         dateRange={{ from: filters.dateFrom, to: filters.dateTo }}
+        accessRules={accessRules}
+        currentArea={currentArea}
         setDateRange={r => setFilters(f => ({ ...f, dateFrom: r.from, dateTo: r.to }))}
         user={user}
         isArchive={activeTab === 'archive'}

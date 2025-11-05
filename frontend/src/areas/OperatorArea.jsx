@@ -56,7 +56,11 @@ const initialTask = {
   transportKm: '',
   transportSum: '',
 };
-export default function OperatorArea({ user }) {
+export default function OperatorArea({ user, accessRules, currentArea }) {
+  // Перевіряємо права доступу для поточної області
+  const hasFullAccess = accessRules && accessRules[user?.role] && accessRules[user?.role][currentArea] === 'full';
+  const isReadOnly = accessRules && accessRules[user?.role] && accessRules[user?.role][currentArea] === 'read';
+  
   // Перевіряємо чи користувач завантажений
   if (!user) {
     return (
@@ -142,13 +146,13 @@ export default function OperatorArea({ user }) {
     setFilters(newFilters);
   };
   const handleEdit = t => {
-    const isReadOnly = t._readOnly;
+    const taskReadOnly = t._readOnly;
     const taskData = { ...t };
     delete taskData._readOnly; // Видаляємо прапорець з даних завдання
     setEditTask(taskData);
     setModalOpen(true);
-    // Передаємо readOnly в ModalTaskForm
-    if (isReadOnly) {
+    // Передаємо readOnly в ModalTaskForm якщо задача має _readOnly або якщо доступ тільки для читання
+    if (taskReadOnly || isReadOnly) {
       // Встановлюємо прапорець для ModalTaskForm
       setEditTask(prev => ({ ...prev, _readOnly: true }));
     }
@@ -512,12 +516,14 @@ export default function OperatorArea({ user }) {
         <button onClick={()=>{setActiveTab('inProgress')}} style={{width:220,padding:'10px 0',background:activeTab==='inProgress'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='inProgress'?700:400,cursor:'pointer'}}>Заявки на виконанні ({getTabCount('inProgress')})</button>
         <button onClick={()=>{setActiveTab('archive')}} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
       </div>
-      <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16}}>Додати заявку</button>
+      {hasFullAccess && <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16}}>Додати заявку</button>}
       <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="operator" user={user} readOnly={editTask?._readOnly || false} />
       <TaskTable
         tasks={tableData}
         allTasks={tasks}
         onEdit={handleEdit}
+        accessRules={accessRules}
+        currentArea={currentArea}
         onStatusChange={()=>{}}
         onDelete={handleDelete}
         columns={columns}
