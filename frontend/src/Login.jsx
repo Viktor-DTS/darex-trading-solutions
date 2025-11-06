@@ -94,8 +94,12 @@ export default function Login({ onLogin }) {
     }
   };
   return (
-    <>
+    <div className="login-page">
       <div className='bg-logo'></div>
+      <div className='login-animated-overlay'></div>
+      <div className="login-title-container">
+        <h1 className="login-title">СИСТЕМА ГІДРА</h1>
+      </div>
       <div style={{ maxWidth: 340, margin: '80px auto', background: '#1a2636', padding: 32, borderRadius: 16, color: '#fff', boxShadow: '0 4px 32px #0006', position: 'relative', zIndex: 1 }}>
         <h2>Вхід в систему</h2>
         <form onSubmit={handleSubmit}>
@@ -124,6 +128,6 @@ export default function Login({ onLogin }) {
           </button>
         </form>
       </div>
-    </>
+    </div>
   );
 } 

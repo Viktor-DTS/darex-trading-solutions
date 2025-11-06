@@ -229,12 +229,211 @@ h2 {
   opacity: 0.25;
 }
 
+/* Анімований фон для сторінки входу з гідрою */
+.login-page .bg-logo {
+  background: url('/assets/gidra.jpeg') center center no-repeat;
+  background-size: cover;
+  background-position: center center;
+  background-attachment: fixed;
+  opacity: 0.25;
+  animation: loginBgAnimate 15s ease-in-out infinite;
+}
+
+/* Адаптація для дуже великих екранів (4K та більше) */
+@media (min-width: 2560px) {
+  .login-page .bg-logo {
+    background-size: contain;
+    background-position: center center;
+  }
+}
+
+/* Адаптація для великих екранів (Full HD) */
+@media (min-width: 1920px) and (max-width: 2559px) {
+  .login-page .bg-logo {
+    background-size: cover;
+    background-position: center center;
+  }
+}
+
+/* Адаптація для середніх екранів */
+@media (min-width: 1200px) and (max-width: 1919px) {
+  .login-page .bg-logo {
+    background-size: cover;
+    background-position: center center;
+  }
+}
+
+/* Адаптація для планшетів (landscape) */
+@media (min-width: 769px) and (max-width: 1199px) and (orientation: landscape) {
+  .login-page .bg-logo {
+    background-size: cover;
+    background-position: center 35%;
+  }
+}
+
+/* Адаптація для планшетів (portrait) */
+@media (min-width: 769px) and (max-width: 1199px) and (orientation: portrait) {
+  .login-page .bg-logo {
+    background-size: cover;
+    background-position: center center;
+  }
+}
+
+/* Адаптація для широких екранів (landscape) */
+@media (min-width: 1024px) and (max-height: 768px) {
+  .login-page .bg-logo {
+    background-size: cover;
+    background-position: center 30%;
+  }
+}
+
+/* Адаптація для високих екранів (portrait) */
+@media (max-width: 768px) and (min-height: 1024px) {
+  .login-page .bg-logo {
+    background-size: cover;
+    background-position: center 40%;
+  }
+}
+
+@keyframes loginBgAnimate {
+  0%, 100% {
+    transform: scale(1) translate(0, 0);
+    opacity: 0.25;
+    filter: brightness(1) contrast(1);
+  }
+  25% {
+    transform: scale(1.05) translate(1%, -1%);
+    opacity: 0.3;
+    filter: brightness(1.1) contrast(1.05);
+  }
+  50% {
+    transform: scale(1.08) translate(-1%, 1%);
+    opacity: 0.28;
+    filter: brightness(1.15) contrast(1.1);
+  }
+  75% {
+    transform: scale(1.03) translate(1%, 1%);
+    opacity: 0.32;
+    filter: brightness(1.05) contrast(1.05);
+  }
+}
+
+/* Додатковий overlay для ефекту блискавок/світіння */
+.login-animated-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(0, 191, 255, 0.1) 0%,
+    transparent 50%
+  );
+  animation: loginGlow 4s ease-in-out infinite;
+  opacity: 0.6;
+}
+
+@keyframes loginGlow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.1);
+  }
+}
+
+/* Заголовок "СИСТЕМА ГІДРА" */
+.login-title-container {
+  position: fixed;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  pointer-events: none;
+  text-align: center;
+}
+
+.login-title {
+  font-size: 3.5rem;
+  font-weight: 700;
+  letter-spacing: 8px;
+  color: #fff;
+  text-shadow: 
+    0 0 10px rgba(0, 191, 255, 0.8),
+    0 0 20px rgba(0, 191, 255, 0.6),
+    0 0 30px rgba(0, 191, 255, 0.4),
+    0 0 40px rgba(100, 200, 255, 0.3),
+    2px 2px 4px rgba(0, 0, 0, 0.8);
+  animation: loginTitleGlow 3s ease-in-out infinite;
+  margin: 0;
+  font-family: 'Segoe UI', 'Arial', sans-serif;
+  text-transform: uppercase;
+}
+
+@keyframes loginTitleGlow {
+  0%, 100% {
+    text-shadow: 
+      0 0 10px rgba(0, 191, 255, 0.8),
+      0 0 20px rgba(0, 191, 255, 0.6),
+      0 0 30px rgba(0, 191, 255, 0.4),
+      0 0 40px rgba(100, 200, 255, 0.3),
+      2px 2px 4px rgba(0, 0, 0, 0.8);
+    transform: scale(1);
+  }
+  50% {
+    text-shadow: 
+      0 0 15px rgba(0, 191, 255, 1),
+      0 0 30px rgba(0, 191, 255, 0.8),
+      0 0 45px rgba(0, 191, 255, 0.6),
+      0 0 60px rgba(100, 200, 255, 0.5),
+      2px 2px 4px rgba(0, 0, 0, 0.8);
+    transform: scale(1.02);
+  }
+}
+
 /* Мобільна версія - білий фон замість логотипу */
 @media (max-width: 768px) {
+  .login-title {
+    font-size: 2rem;
+    letter-spacing: 4px;
+    top: 20px;
+  }
   .bg-logo {
     background: #ffffff !important;
     opacity: 1;
     z-index: -1;
+    animation: none;
+  }
+  .login-page .bg-logo {
+    background: #ffffff !important;
+    opacity: 1;
+    animation: none;
+    background-size: cover;
+    background-position: center center;
+  }
+  .login-animated-overlay {
+    display: none;
+  }
+}
+
+/* Додаткова адаптація для дуже маленьких екранів */
+@media (max-width: 480px) {
+  .login-page .bg-logo {
+    background-size: cover;
+    background-position: center 40%;
+    background-attachment: scroll;
+  }
+}
+
+/* Оптимізація для мобільних пристроїв (вимкнення fixed background) */
+@media (max-width: 768px) {
+  .login-page .bg-logo {
+    background-attachment: scroll;
   }
 }
 
