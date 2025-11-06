@@ -1041,6 +1041,34 @@ function TaskTableComponent({
     const hasRequestNumber = task.requestNumber && task.requestNumber.trim() !== '';
     const hasWorkDate = task.date && task.date.trim() !== '';
     const workOrderNumber = hasRequestNumber ? task.requestNumber : '____';
+    
+    // Форматуємо дату для шаблону
+    let formattedDate = { day: '___', month: '________', year: '202____' };
+    if (hasWorkDate) {
+      try {
+        // Парсимо дату - спробуємо різні формати
+        let dateObj;
+        const dateStr = task.date.trim();
+        // Якщо формат YYYY-MM-DD
+        if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          dateObj = new Date(year, month - 1, day);
+        } else {
+          dateObj = new Date(dateStr);
+        }
+        
+        if (!isNaN(dateObj.getTime())) {
+          const day = dateObj.getDate().toString().padStart(2, '0');
+          const months = ['січня', 'лютого', 'березня', 'квітня', 'травня', 'червня', 
+                         'липня', 'серпня', 'вересня', 'жовтня', 'листопада', 'грудня'];
+          const month = months[dateObj.getMonth()];
+          const year = dateObj.getFullYear();
+          formattedDate = { day, month, year };
+        }
+      } catch (e) {
+        console.error('Помилка форматування дати:', e);
+      }
+    }
     const workOrderDate = hasWorkDate ? task.date : '____';
 
     // Формуємо список інженерів
@@ -1058,11 +1086,11 @@ function TaskTableComponent({
     let workOrderHTML = '';
 
     if (company === 'ДТС' || company === 'Дарекс Трейдінг Солюшнс') {
-      // Шаблон для компанії ДТС
-      workOrderHTML = generateDTSTemplate(workOrderData, workOrderNumber, workOrderDate, engineers);
+      // Шаблон для компанії ДТС - передаємо task для доступу до матеріалів
+      workOrderHTML = generateDTSTemplate(workOrderData, workOrderNumber, workOrderDate, formattedDate, engineers, task);
     } else {
       // Шаблон для компанії Дарекс Енерго (за замовчуванням)
-      workOrderHTML = generateDarexEnergyTemplate(workOrderData, workOrderNumber, workOrderDate, engineers);
+      workOrderHTML = generateDarexEnergyTemplate(workOrderData, workOrderNumber, workOrderDate, formattedDate, engineers);
     }
 
     // Відкриваємо нове вікно з нарядом
@@ -1072,7 +1100,7 @@ function TaskTableComponent({
   };
 
   // Функція для генерації шаблону ДТС
-  const generateDTSTemplate = (workOrderData, workOrderNumber, workOrderDate, engineers) => {
+  const generateDTSTemplate = (workOrderData, workOrderNumber, workOrderDate, formattedDate, engineers, task) => {
     return `
       <!DOCTYPE html>
       <html lang="uk">
@@ -1081,387 +1109,220 @@ function TaskTableComponent({
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Наряд ДТС-2</title>
         <style>
+          @page {
+            size: A4;
+            margin: 1.5cm;
+          }
+          
           body {
             font-family: 'Times New Roman', serif;
+            font-size: 11pt;
+            line-height: 1.2;
             margin: 0;
-            padding: 20px;
-            background: white;
-            color: black;
-            line-height: 1.4;
-            font-size: 12px;
+            padding: 0;
+            color: #000;
           }
-          .header {
-            margin-bottom: 20px;
-            border-bottom: 2px solid #000;
-            padding-bottom: 15px;
-          }
-          .qr-code {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 60px;
-            height: 60px;
-            background: #f0f0f0;
-            border: 1px solid #ccc;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 8px;
-          }
+          
           .page {
-            width: 100%;
-            max-width: 800px;
-            margin: 0 auto 30px auto;
-            border: 1px solid #000;
-            padding: 20px;
-            min-height: 1000px;
-            page-break-after: always;
+            width: 21cm;
+            min-height: 29.7cm;
+            margin: 0 auto;
+            padding: 1.5cm;
+            box-sizing: border-box;
+            position: relative;
           }
+          
           .page:last-child {
             page-break-after: avoid;
           }
-          .work-order-title {
+          
+          .header {
+            margin-bottom: 15px;
             text-align: center;
-            font-size: 14px;
-            font-weight: bold;
-            margin-bottom: 20px;
-            border-bottom: 1px solid #000;
-            padding-bottom: 10px;
           }
-          .form-row {
-            margin-bottom: 12px;
+          
+          .header-image {
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 10px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+          }
+          
+          .title {
+            text-align: center;
+            font-size: 14pt;
+            font-weight: bold;
+            margin: 15px 0;
+            text-transform: uppercase;
+          }
+          
+          .field {
+            margin-bottom: 6px;
             display: flex;
-            align-items: flex-start;
+            align-items: center;
+            font-size: 11pt;
           }
-          .form-label {
-            font-weight: bold;
-            min-width: 120px;
-            flex-shrink: 0;
-            font-size: 11px;
+          
+          .field-label {
+            font-weight: normal;
+            min-width: 180px;
+            margin-right: 8px;
           }
-          .form-value {
+          
+          .field-value {
             flex: 1;
-            border-bottom: 1px dotted #000;
-            min-height: 16px;
-            padding-left: 5px;
+            border-bottom: 1px solid #000;
+            min-height: 18px;
+            padding: 1px 3px;
           }
-          .form-value:empty::after {
-            content: "_________________";
-            color: #999;
+          
+          .checkbox-group {
+            display: flex;
+            gap: 15px;
+            margin: 8px 0;
+            flex-wrap: wrap;
           }
-          .section-title {
-            font-weight: bold;
-            margin: 15px 0 8px 0;
-            font-size: 11px;
+          
+          .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 11pt;
           }
+          
+          .checkbox {
+            width: 12px;
+            height: 12px;
+            border: 1px solid #000;
+            display: inline-block;
+          }
+          
           .materials-table {
             width: 100%;
             border-collapse: collapse;
             margin: 10px 0;
-            font-size: 9px;
+            font-size: 9pt;
           }
+          
           .materials-table th,
           .materials-table td {
             border: 1px solid #000;
             padding: 3px;
             text-align: center;
+            vertical-align: middle;
           }
+          
           .materials-table th {
-            background: #f0f0f0;
+            background-color: #f8f8f8;
             font-weight: bold;
-            font-size: 10px;
           }
+          
+          .cost-section {
+            margin: 10px 0;
+          }
+          
+          .cost-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
+            padding: 2px 0;
+            font-size: 11pt;
+          }
+          
           .signature-section {
-            margin-top: 30px;
+            margin-top: 20px;
             display: flex;
             justify-content: space-between;
           }
-          .signature-box {
+          
+          .signature-block {
+            width: 45%;
             text-align: center;
-            width: 150px;
+            font-size: 10pt;
           }
+          
           .signature-line {
             border-bottom: 1px solid #000;
-            height: 25px;
-            margin-bottom: 5px;
+            margin: 15px 0 3px 0;
+            min-height: 18px;
           }
-          .signature-text {
-            font-size: 9px;
-            color: #666;
+          
+          .text-area {
+            border: 1px solid #000;
+            min-height: 50px;
+            padding: 3px;
+            margin: 3px 0;
+            font-size: 11pt;
           }
-          .footer {
-            margin-top: 20px;
+          
+          .text-line {
+            border-bottom: 1px solid #000;
+            min-height: 18px;
+            margin: 3px 0;
+            padding: 1px 3px;
+          }
+          
+          .checkbox-section {
+            margin: 8px 0;
+          }
+          
+          .checkbox-row {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
+            font-size: 10pt;
+          }
+          
+          .checkbox-label {
+            margin-left: 8px;
+          }
+          
+          .total-cost {
+            font-weight: bold;
+            font-size: 12pt;
             text-align: center;
-            font-size: 10px;
-            color: #666;
+            margin: 15px 0;
+            padding: 8px;
+            border: 1px solid #000;
           }
+          
+          .coefficient-note {
+            font-style: italic;
+            font-size: 9pt;
+            margin: 8px 0;
+            line-height: 1.1;
+          }
+          
+          .section-title {
+            font-weight: bold;
+            font-size: 11pt;
+            margin: 10px 0 5px 0;
+          }
+          
+          .two-column {
+            display: flex;
+            gap: 20px;
+          }
+          
+          .column {
+            flex: 1;
+          }
+          
           .no-print {
+            display: block;
             position: fixed;
-            top: 20px;
-            right: 20px;
+            top: 10px;
+            right: 10px;
             z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
           }
-          @media print {
-            body {
-              padding: 0;
-            }
-            .no-print {
-              display: none;
-            }
-            .page {
-              max-width: none;
-              margin: 0;
-              border: none;
-              padding: 20px;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <!-- Верхня секція шапки - перше зображення -->
-          <div style="width: 100%; margin-bottom: 15px;">
-            <img src="/images/Зображення1.png" alt="Шапка компанії" style="width: 100%; height: auto; max-width: 100%;" />
-          </div>
           
-          <!-- Нижня секція шапки - друге зображення -->
-          <div style="width: 100%;">
-            <img src="/images/Зображення2.png" alt="Юридична адреса" style="width: 100%; height: auto; max-width: 100%;" />
-          </div>
-        </div>
-
-        <div class="work-order-container">
-          <div class="work-order-title">
-            Наряд на виконання робіт № ${workOrderNumber} від ${workOrderDate} р.)
-          </div>
-          
-          <div class="form-row">
-            <div class="form-label">ЗАМОВНИК:</div>
-            <div class="form-value">${workOrderData.client}</div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-label">Адреса:</div>
-            <div class="form-value">${workOrderData.address}</div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-label">Найменування обладнання:</div>
-            <div class="form-value">${workOrderData.equipment}</div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-label">Зав. №</div>
-            <div class="form-value">${workOrderData.serialNumber}</div>
-          </div>
-          
-          <div class="section-title">1. Вид робіт (вибрати необхідне) гарантійний ремонт, ремонт, технічне обслуговування, інше.</div>
-          <div class="form-row">
-            <div class="form-value">${workOrderData.workType}</div>
-          </div>
-          
-          <div class="section-title">2. Технічний стан обладнання:</div>
-          <div class="form-row">
-            <div class="form-label">Напрацювання м/г:</div>
-            <div class="form-value">${workOrderData.operatingHours}</div>
-          </div>
-          <div class="form-row">
-            <div class="form-label">Згідно із заявкою:</div>
-            <div class="form-value">${workOrderData.technicalCondition}</div>
-          </div>
-          <div class="form-row">
-            <div class="form-label">Після технічного огляду (проведення робіт/послуг)</div>
-            <div class="form-value"></div>
-          </div>
-          
-          <div class="section-title">3. Перелік виконаних робіт/послуг:</div>
-          <div class="form-row">
-            <div class="form-value">${workOrderData.performedWork}</div>
-          </div>
-          
-          <div class="section-title">4. Результати випробувань: Відновлення роботи дизель генератора з робочими параметрами без навантаження та під час навантаження.</div>
-          <div class="form-row">
-            <div class="form-value"></div>
-          </div>
-          
-          <div class="section-title">5. Розрахункова вартість робіт:</div>
-          <div class="section-title">7.1. ПЕРЕЛІК МАТЕРІАЛІВ ТА ЗАПЧАСТИН, ВИКОРИСТАНИХ ПІД ЧАС РОБІТ</div>
-          <table class="materials-table">
-            <thead>
-              <tr>
-                <th style="width: 8%;">№ п/п</th>
-                <th style="width: 45%;">Найменування</th>
-                <th style="width: 12%;">Одиниця виміру</th>
-                <th style="width: 12%;">Кількість</th>
-                <th style="width: 12%;">Ціна з ПДВ, грн</th>
-                <th style="width: 11%;">Сума з ПДВ, грн</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${(() => {
-                const materials = [];
-                let rowNumber = 1;
-                
-                // Додаємо оливу
-                if (task.oilType && task.oilUsed) {
-                  materials.push({
-                    number: rowNumber++,
-                    name: `Олива ${task.oilType}`,
-                    unit: 'л',
-                    quantity: task.oilUsed,
-                    price: task.oilPrice || 0,
-                    sum: (parseFloat(task.oilUsed) || 0) * (parseFloat(task.oilPrice) || 0)
-                  });
-                }
-                
-                // Додаємо масляний фільтр
-                if (task.filterName && task.filterCount) {
-                  materials.push({
-                    number: rowNumber++,
-                    name: `Масляний фільтр ${task.filterName}`,
-                    unit: 'шт',
-                    quantity: task.filterCount,
-                    price: task.filterPrice || 0,
-                    sum: (parseFloat(task.filterCount) || 0) * (parseFloat(task.filterPrice) || 0)
-                  });
-                }
-                
-                // Додаємо паливний фільтр
-                if (task.fuelFilterName && task.fuelFilterCount) {
-                  materials.push({
-                    number: rowNumber++,
-                    name: `Паливний фільтр ${task.fuelFilterName}`,
-                    unit: 'шт',
-                    quantity: task.fuelFilterCount,
-                    price: task.fuelFilterPrice || 0,
-                    sum: (parseFloat(task.fuelFilterCount) || 0) * (parseFloat(task.fuelFilterPrice) || 0)
-                  });
-                }
-                
-                // Додаємо повітряний фільтр
-                if (task.airFilterName && task.airFilterCount) {
-                  materials.push({
-                    number: rowNumber++,
-                    name: `Повітряний фільтр ${task.airFilterName}`,
-                    unit: 'шт',
-                    quantity: task.airFilterCount,
-                    price: task.airFilterPrice || 0,
-                    sum: (parseFloat(task.airFilterCount) || 0) * (parseFloat(task.airFilterPrice) || 0)
-                  });
-                }
-                
-                // Додаємо антифриз
-                if (task.antifreezeType && task.antifreezeL) {
-                  materials.push({
-                    number: rowNumber++,
-                    name: `Антифриз ${task.antifreezeType}`,
-                    unit: 'л',
-                    quantity: task.antifreezeL,
-                    price: task.antifreezePrice || 0,
-                    sum: (parseFloat(task.antifreezeL) || 0) * (parseFloat(task.antifreezePrice) || 0)
-                  });
-                }
-                
-                // Додаємо інші матеріали
-                if (task.otherMaterials && task.otherSum) {
-                  materials.push({
-                    number: rowNumber++,
-                    name: task.otherMaterials,
-                    unit: 'шт',
-                    quantity: '',
-                    price: '',
-                    sum: task.otherSum
-                  });
-                }
-                
-                // Генеруємо HTML для заповнених рядків
-                const filledRows = materials.map(material => `
-                  <tr style="height: 30px;">
-                    <td style="font-size: 10px;">${material.number}</td>
-                    <td style="font-size: 10px;">${material.name}</td>
-                    <td style="font-size: 10px;">${material.unit}</td>
-                    <td style="font-size: 10px;">${material.quantity}</td>
-                    <td style="font-size: 10px;">${material.price}</td>
-                    <td style="font-size: 10px;">${material.sum}</td>
-                  </tr>
-                `).join('');
-                
-                // Додаємо 5 порожніх рядків з збільшеною висотою
-                const emptyRows = Array(5).fill().map(() => `
-                  <tr style="height: 30px;">
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                `).join('');
-                
-                return filledRows + emptyRows;
-              })()}
-            </tbody>
-          </table>
-          
-          <div class="form-row">
-            <div class="form-label">Загальна вартість матеріалів та запчастин:</div>
-            <div class="form-value"></div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-label">7.2 Вартість дефектації:</div>
-            <div class="form-value">кількість люд/годин ____ ; тариф ____ грн; разом ${workOrderData.defectCost} грн.</div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-label">7.3 Вартість ремонту:</div>
-            <div class="form-value">кількість люд/годин ____ ; тариф: ____ грн; разом ${workOrderData.repairCost} грн.</div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-label">7.4 Виїзд на об'єкт Замовника:</div>
-            <div class="form-value">тариф: по місту ____ грн. Виїзд за місто ____ км ____ грн/км; разом ${workOrderData.travelCost} грн.</div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-label">ЗАГАЛЬНА ВАРТІСТЬ РОБІТ з ПДВ (усього по п.7.1; 7.2; 7.3; 7.4)</div>
-            <div class="form-value">${workOrderData.totalCost} грн.</div>
-          </div>
-        </div>
-        
-        <div class="form-row">
-          <div class="form-label">Сума прописом:</div>
-          <div class="form-value"></div>
-        </div>
-        
-        <div class="form-row">
-          <div class="form-label">Відмітка про оплату (вибрати необхідне), безготівковий розрахунок, на банківську картку, готівкові кошти, інше (зазначити):</div>
-          <div class="form-value">${(() => {
-            const paymentMethod = task.paymentType || '';
-            if (paymentMethod && paymentMethod.trim() !== '' && paymentMethod !== 'не вибрано') {
-              return paymentMethod;
-            }
-            return '';
-          })()}</div>
-        </div>
-        
-        <div class="form-row">
-          <div class="form-label">Рекомендації виконувача робіт:</div>
-          <div class="form-value">${workOrderData.recommendations}</div>
-        </div>
-        
-        <div class="form-row">
-          <div class="form-label">Роботу виконав: (ПІБ), (посада)</div>
-          <div class="form-value">${workOrderData.engineer1}${workOrderData.engineer2 ? ', ' + workOrderData.engineer2 : ''}</div>
-        </div>
-        
-        <div class="form-row">
-          <div class="form-label">Роботу прийняв: (ПІБ), (посада)</div>
-          <div class="form-value"></div>
-        </div>
-
-        <div class="no-print">
-          <button onclick="window.print()" style="
+          .print-button, .save-button {
             background: #4CAF50;
             color: white;
             border: none;
@@ -1469,7 +1330,388 @@ function TaskTableComponent({
             border-radius: 5px;
             cursor: pointer;
             font-size: 14px;
-          ">🖨️ Друкувати</button>
+            margin: 0 5px;
+            transition: background 0.3s;
+          }
+          
+          .print-button:hover, .save-button:hover {
+            background: #45a049;
+          }
+          
+          .save-button {
+            background: #2196F3;
+          }
+          
+          .save-button:hover {
+            background: #1976D2;
+          }
+          
+          @media print {
+            .no-print {
+              display: none !important;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+            }
+            .page {
+              margin: 0;
+              box-shadow: none;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <!-- Перша сторінка -->
+        <div class="page">
+          <div class="header">
+            <!-- Верхня секція шапки - перше зображення -->
+            <div style="width: 100%; margin-bottom: 15px;">
+              <img src="/images/Зображення1.png" alt="Шапка компанії" class="header-image" style="width: 100%; height: auto; max-width: 100%;" />
+            </div>
+            
+            <!-- Нижня секція шапки - друге зображення -->
+            <div style="width: 100%;">
+              <img src="/images/Зображення2.png" alt="Юридична адреса" class="header-image" style="width: 100%; height: auto; max-width: 100%;" />
+            </div>
+          </div>
+          
+          <div class="title">НАРЯД НА ВИКОНАННЯ РОБІТ</div>
+          
+          <div class="field">
+            <span class="field-label">№ наряду:</span>
+            <span class="field-value">${workOrderNumber}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">від «${formattedDate.day}» ${formattedDate.month} ${formattedDate.year} р.):</span>
+            <span class="field-value"></span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">1. Роботи виконує:</span>
+            <span class="field-value">${engineers}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">2. Замовник:</span>
+            <span class="field-value">${workOrderData.client}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">3. Адреса об'єкта:</span>
+            <span class="field-value">${workOrderData.address}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">4. Найменування обладнання:</span>
+            <span class="field-value">${workOrderData.equipment}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">Зав. №:</span>
+            <span class="field-value">${workOrderData.serialNumber}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">5. Тип двигуна:</span>
+            <span class="field-value">${workOrderData.engineModel}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">Зав. №:</span>
+            <span class="field-value">${workOrderData.engineSerial}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">6. Тип панелі керування:</span>
+            <span class="field-value"></span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">7. Вид робіт:</span>
+            <div class="checkbox-group">
+              <div class="checkbox-item">
+                <div class="checkbox"></div>
+                <span>гарантійний ремонт</span>
+              </div>
+              <div class="checkbox-item">
+                <div class="checkbox"></div>
+                <span>ремонт</span>
+              </div>
+              <div class="checkbox-item">
+                <div class="checkbox"></div>
+                <span>технічне обслуговування</span>
+              </div>
+              <div class="checkbox-item">
+                <div class="checkbox"></div>
+                <span>інше</span>
+              </div>
+              <div class="checkbox-item">
+                <div class="checkbox"></div>
+                <span>ПНР</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">8. Технічний стан обладнання перед проведенням робіт:</span>
+            <div class="checkbox-group">
+              <div class="checkbox-item">
+                <div class="checkbox"></div>
+                <span>працездатне</span>
+              </div>
+              <div class="checkbox-item">
+                <div class="checkbox"></div>
+                <span>непрацездатне</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">9. Перелік виконаних робіт/послуг:</span>
+            <span class="field-value"></span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label"></span>
+            <span class="field-value"></span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label"></span>
+            <span class="field-value"></span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">10. Після проведення робіт та випробувань, ДГУ знаходиться в робочому / неробочому стані, в режимі ручне авто, напрацювання становить ____ мотогодин.</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">11. Навантаження: L1 ____, L2 ____, L3 ____, U1 ____, U2 ____, U3 ____, V.</span>
+          </div>
+          
+          <div class="section-title">6.1. ПЕРЕЛІК МАТЕРІАЛІВ ТА ЗАПЧАСТИН, ВИКОРИСТАНИХ ПІД ЧАС РОБІТ:</div>
+          
+          <table class="materials-table">
+            <thead>
+              <tr>
+                <th>№</th>
+                <th>Найменування</th>
+                <th>Один. виміру</th>
+                <th>Кількість</th>
+                <th>Ціна з ПДВ, грн</th>
+                <th>Вартість з ПДВ, грн</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${Array.from({length: 10}, (_, i) => `
+                <tr>
+                  <td>${i + 1}</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div class="field">
+            <span class="field-label">Загальна вартість матеріалів та запчастин:</span>
+            <span class="field-value">____ грн.</span>
+          </div>
+          
+          <div class="section-title">6.2. Вартість ремонту/робіт:</div>
+          
+          <div class="cost-item">
+            <span>Коефіцієнт складності</span>
+            <span>_____</span>
+          </div>
+          
+          <div class="cost-item">
+            <span>Діагностика</span>
+            <span>_____ грн.</span>
+          </div>
+          
+          <div class="cost-item">
+            <span>Вартість технічного обслуговування</span>
+            <span>_____ грн.</span>
+          </div>
+          
+          <div class="cost-item">
+            <span>Вартість ремонту (1людино-година*1200 грн.)</span>
+            <span>_____ грн.</span>
+          </div>
+          
+          <div class="cost-item">
+            <span>Вартість пусконалагоджувальних робіт</span>
+            <span>_____ грн.</span>
+          </div>
+          
+          <div class="cost-item">
+            <span>Загальна вартість з урахуванням коефіцієнта складності</span>
+            <span>_____ грн.</span>
+          </div>
+          
+          <div class="section-title">6.3. Виїзд на об'єкт Замовника: тариф: по місту 600.00 грн.</div>
+          <div class="field">
+            <span class="field-label">Виїзд за місто ____ км * 15,00 грн/км; разом ____ грн.</span>
+          </div>
+          
+          <div class="section-title">6.4. Добові у відрядженні: 600.00 грн. ____ діб ____ люд. разом ____ грн.</div>
+          
+          <div class="section-title">6.5. Проживання: ____ грн. разом ____ грн.</div>
+          
+          <div class="total-cost">
+            ЗАГАЛЬНА ВАРТІСТЬ РОБІТ з ПДВ (усього по пп.6.1-6.5) ____ грн.
+          </div>
+          
+          <div class="field">
+            <span class="field-label">Роботи виконав:</span>
+            <span class="field-value">${engineers}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">Замовник:</span>
+            <span class="field-value">${workOrderData.client}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">Адреса об'єкта:</span>
+            <span class="field-value">${workOrderData.address}</span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">Відмітка про оплату:</span>
+            <span class="field-value"></span>
+          </div>
+          
+          <div class="title" style="font-size: 12pt; margin: 20px 0;">
+            НАСТУПНЕ ТЕХНІЧНЕ ОБСЛУГОВУВАННЯ ПРОВЕСТИ ПРИ НАПРАЦЮВАННІ
+          </div>
+          
+          <div class="field">
+            <span class="field-label">МОТОГОДИН, АБО «___» ___ 20___ РОКУ.</span>
+          </div>
+          
+          <div class="two-column">
+            <div class="column">
+              <div class="field">
+                <span class="field-label">Дата та час початку робіт:</span>
+                <span class="field-value"></span>
+              </div>
+            </div>
+            <div class="column">
+              <div class="field">
+                <span class="field-label">Дата та час закінчення робіт:</span>
+                <span class="field-value"></span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="two-column">
+            <div class="column">
+              <div class="field">
+                <span class="field-label">Авто №:</span>
+                <span class="field-value"></span>
+              </div>
+            </div>
+            <div class="column">
+              <div class="field">
+                <span class="field-label">Переробка, год.:</span>
+                <span class="field-value"></span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">Фото зроблені, не зроблені:</span>
+            <span class="field-value"></span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">Рекомендації виконувача робіт:</span>
+            <span class="field-value"></span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label"></span>
+            <span class="field-value"></span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label"></span>
+            <span class="field-value"></span>
+          </div>
+          
+          <div class="field">
+            <span class="field-label">Коефіцієнт складності робіт:</span>
+          </div>
+          
+          <div class="checkbox-section">
+            <div class="checkbox-row">
+              <div class="checkbox"></div>
+              <span class="checkbox-label">Робота за комфортних умов, доброзичливість замовника - 1.0</span>
+            </div>
+            <div class="checkbox-row">
+              <div class="checkbox"></div>
+              <span class="checkbox-label">Робота на відкритому повітрі, при температурі нижче 0 град, (вище 27) сухо - 1.1</span>
+            </div>
+            <div class="checkbox-row">
+              <div class="checkbox"></div>
+              <span class="checkbox-label">Робота в дощ, сніг, сильний вітер - 1.2</span>
+            </div>
+            <div class="checkbox-row">
+              <div class="checkbox"></div>
+              <span class="checkbox-label">Робота в підвальних приміщеннях, на дахах - 1.3</span>
+            </div>
+            <div class="checkbox-row">
+              <div class="checkbox"></div>
+              <span class="checkbox-label">Робота в агресивному середовищі - 1.4</span>
+            </div>
+            <div class="checkbox-row">
+              <div class="checkbox"></div>
+              <span class="checkbox-label">Робота в нічний час (з 22:00 до 06:00) - 1.5</span>
+            </div>
+            <div class="checkbox-row">
+              <div class="checkbox"></div>
+              <span class="checkbox-label">Робота у вихідні та святкові дні - 1.6</span>
+            </div>
+            <div class="checkbox-row">
+              <div class="checkbox"></div>
+              <span class="checkbox-label">Терміновий виклик - 2.0</span>
+            </div>
+          </div>
+          
+          <div class="coefficient-note">
+            *Коефіцієнт складності робіт це величина, що збільшує вартість робіт через специфічні, що не залежать від виконавця умов і не дозволяють якісно провести роботи без спеціальних навичок, обладнання через погодні умови, і т.д.
+          </div>
+          
+          <div class="coefficient-note">
+            *коефіцієнт може бути сумований.
+          </div>
+          
+          <div class="signature-section">
+            <div class="signature-block">
+              <div><strong>РОБОТУ ПРИЙНЯВ</strong></div>
+              <div>претензій не маю</div>
+              <div class="signature-line">(ПІБ Замовника або його представника)</div>
+              <div class="signature-line">(дата, підпис)</div>
+            </div>
+            
+            <div class="signature-block">
+              <div><strong>РОБОТУ ЗДАВ</strong></div>
+              <div class="signature-line">(ПІБ Виконавця або його представника)</div>
+              <div class="signature-line">(дата, підпис)</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="no-print">
+          <button class="print-button" onclick="printDocument()">🖨️ Друкувати</button>
+          <button class="save-button" onclick="saveDocument()">💾 Зберегти</button>
           <button onclick="window.close()" style="
             background: #f44336;
             color: white;
@@ -1478,16 +1720,47 @@ function TaskTableComponent({
             border-radius: 5px;
             cursor: pointer;
             font-size: 14px;
-            margin-left: 10px;
-          ">✕ Закрити</button>
+            margin-left: 5px;
+            transition: background 0.3s;
+          " onmouseover="this.style.background='#d32f2f'" onmouseout="this.style.background='#f44336'">✕ Закрити</button>
         </div>
+        
+        <script>
+          function printDocument() {
+            window.print();
+          }
+          
+          function saveDocument() {
+            // Створюємо HTML контент для збереження
+            const htmlContent = document.documentElement.outerHTML;
+            
+            // Створюємо Blob з HTML контентом
+            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+            
+            // Створюємо URL для blob
+            const url = URL.createObjectURL(blob);
+            
+            // Створюємо посилання для завантаження
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'Наряд_ДТС_' + new Date().toISOString().slice(0,10) + '.html';
+            
+            // Додаємо посилання до DOM, клікаємо і видаляємо
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Очищуємо URL
+            URL.revokeObjectURL(url);
+          }
+        </script>
       </body>
       </html>
     `;
   };
 
   // Функція для генерації шаблону Дарекс Енерго (2-сторінковий)
-  const generateDarexEnergyTemplate = (workOrderData, workOrderNumber, workOrderDate, engineers) => {
+  const generateDarexEnergyTemplate = (workOrderData, workOrderNumber, workOrderDate, formattedDate, engineers) => {
     return `
       <!DOCTYPE html>
       <html lang="uk">
@@ -1763,8 +2036,8 @@ function TaskTableComponent({
           </div>
           
           <div class="field">
-            <span class="field-label">від «___» ________ 202____ р.):</span>
-            <span class="field-value">${workOrderDate}</span>
+            <span class="field-label">від «${formattedDate.day}» ${formattedDate.month} ${formattedDate.year} р.):</span>
+            <span class="field-value"></span>
           </div>
           
           <div class="field">
