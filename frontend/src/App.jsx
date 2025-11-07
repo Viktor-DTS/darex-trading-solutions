@@ -2675,7 +2675,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                 <tr>
                   <td>${u.name}</td>
                   <td><input type="number" value="${salary}" onchange="console.log('Input changed for user:', '${u.id || u._id}', 'value:', this.value); window.handlePayChange('${u.id || u._id}', 'salary', this.value)" style="width:90px; border: 1px solid #ccc; padding: 4px;" /></td>
-                  <td>${workDaysTotal}</td>
+                  <td>${normalHours}</td>
                   <td>${overtime}</td>
                   <td>${overtimeRate.toFixed(2)}</td>
                   <td>${overtimePay.toFixed(2)}</td>
@@ -3618,7 +3618,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                             <tr key={u.id}>
                               <td>{u.name}</td>
                               <td><input type="number" value={payData[u.id || u._id]?.salary || 25000} onChange={e => {const userId = u.id || u._id; console.log('🔧 RegionalManagerArea salary changed:', u.name, e.target.value); console.log('🔧 User ID:', userId); console.log('🔧 handlePayChange function:', typeof handlePayChange); console.log('🔧 payData before:', payData); console.log('🔧 setPayData function:', typeof setPayData); handlePayChange(userId, 'salary', e.target.value); console.log('🔧 handlePayChange called');}} style={{width:90}} /></td>
-                              <td>{workDaysTotal}</td>
+                              <td>{normalHours}</td>
                               <td>{overtime}</td>
                               <td>{overtimeRate.toFixed(2)}</td>
                               <td>{overtimePay.toFixed(2)}</td>
