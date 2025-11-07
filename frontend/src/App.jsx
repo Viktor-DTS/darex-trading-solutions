@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import './App.css'
 import './i18n'
 import { useTranslation } from 'react-i18next'
@@ -1793,18 +1793,20 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
   // Додаю окремий стан для звіту за період
   const [reportResultByPeriod, setReportResultByPeriod] = useState(null);
   // --- Масив співробітників для табеля ---
-  const filteredUsers = users.filter(u => {
-    // Якщо користувач має роль 'service'
-    if (u.role !== 'service') return false;
-    // Якщо регіон користувача "Україна" - показуємо всіх
-    if (user?.region === 'Україна') return true;
-    // Якщо регіон користувача не "Україна" - показуємо тільки його регіон
-    if (user?.region && user.region !== 'Україна') {
-      return u.region === user.region;
-    }
-    // Якщо регіон користувача не встановлений - показуємо всіх
-    return true;
-  });
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => {
+      // Якщо користувач має роль 'service'
+      if (u.role !== 'service') return false;
+      // Якщо регіон користувача "Україна" - показуємо всіх
+      if (user?.region === 'Україна') return true;
+      // Якщо регіон користувача не "Україна" - показуємо тільки його регіон
+      if (user?.region && user.region !== 'Україна') {
+        return u.region === user.region;
+      }
+      // Якщо регіон користувача не встановлений - показуємо всіх
+      return true;
+    });
+  }, [users, user?.region]);
   // Групуємо користувачів по регіонам для відображення
   const usersByRegion = filteredUsers.reduce((acc, user) => {
     const region = user.region || 'Не вказано';
@@ -2008,10 +2010,56 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     if (saved) return JSON.parse(saved);
     return getDefaultTimesheet();
   });
+  // Перезавантажуємо дані тільки при зміні storageKey (year/month), а не при зміні filteredUsers.length
   useEffect(() => {
     const saved = localStorage.getItem(storageKey);
-    setData(saved ? JSON.parse(saved) : getDefaultTimesheet());
-  }, [storageKey, filteredUsers.length]);
+    if (saved) {
+      const savedData = JSON.parse(saved);
+      // Додаємо нових користувачів з дефолтними значеннями, якщо їх немає в збережених даних
+      const defaultData = getDefaultTimesheet();
+      const mergedData = { ...savedData };
+      filteredUsers.forEach(u => {
+        if (!mergedData[u.id || u._id]) {
+          mergedData[u.id || u._id] = defaultData[u.id || u._id];
+        }
+      });
+      setData(mergedData);
+    } else {
+      setData(getDefaultTimesheet());
+    }
+  }, [storageKey]); // Прибрано filteredUsers.length з залежностей
+  // Додаємо нових користувачів при зміні filteredUsers, не перезаписуючи існуючі дані
+  // Використовуємо useRef для відстеження попереднього списку користувачів
+  const prevFilteredUsersRef = useRef([]);
+  useEffect(() => {
+    // Перевіряємо, чи дійсно змінився список користувачів
+    const currentUserIds = filteredUsers.map(u => u.id || u._id).sort().join(',');
+    const prevUserIds = prevFilteredUsersRef.current.map(u => u.id || u._id).sort().join(',');
+    
+    // Якщо список не змінився, не робимо нічого
+    if (currentUserIds === prevUserIds) {
+      return;
+    }
+    
+    // Оновлюємо ref
+    prevFilteredUsersRef.current = filteredUsers;
+    
+    // Додаємо тільки нових користувачів
+    setData(prev => {
+      const defaultData = getDefaultTimesheet();
+      const mergedData = { ...prev };
+      let hasChanges = false;
+      filteredUsers.forEach(u => {
+        const userId = u.id || u._id;
+        // Додаємо тільки якщо користувача немає в даних
+        if (!mergedData[userId]) {
+          mergedData[userId] = defaultData[userId] || {};
+          hasChanges = true;
+        }
+      });
+      return hasChanges ? mergedData : prev;
+    });
+  }, [filteredUsers]);
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(data));
   }, [data, storageKey]);
