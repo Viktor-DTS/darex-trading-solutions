@@ -288,6 +288,24 @@ const invoiceRequestSchema = new mongoose.Schema({
 
 const InvoiceRequest = mongoose.model('InvoiceRequest', invoiceRequestSchema);
 
+// Модель для timesheet даних (табель часу)
+const timesheetSchema = new mongoose.Schema({
+  userId: { type: String, required: true },
+  year: { type: Number, required: true },
+  month: { type: Number, required: true, min: 1, max: 12 },
+  type: { type: String, enum: ['regular', 'service'], default: 'regular' },
+  data: { type: Map, of: mongoose.Schema.Types.Mixed, default: {} }, // Дані по користувачам: { userId: { 1: 8, 2: 8, ..., total: 176 } }
+  payData: { type: Map, of: mongoose.Schema.Types.Mixed, default: {} }, // Дані про зарплату: { userId: { salary: 25000, bonus: 0 } }
+  summary: { type: mongoose.Schema.Types.Mixed, default: {} }, // Підсумкові дані: { workDays: 22, workHours: 176 }
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+// Індекс для швидкого пошуку
+timesheetSchema.index({ userId: 1, year: 1, month: 1, type: 1 }, { unique: true });
+
+const Timesheet = mongoose.model('Timesheet', timesheetSchema);
+
 // Змінна для режиму fallback
 let FALLBACK_MODE = false;
 
@@ -7013,3 +7031,169 @@ app.get('/api/reports/financial', async (req, res) => {
 });
 
 // Backend endpoint для звіту по персоналу видалено - використовуємо тільки frontend логіку
+
+// === TIMESHEET API ENDPOINTS ===
+// Зберегти timesheet дані
+app.post('/api/timesheet', async (req, res) => {
+  try {
+    const { userId, year, month, type = 'regular', data, payData, summary } = req.body;
+    
+    if (!userId || !year || !month) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Відсутні обов\'язкові поля: userId, year, month' 
+      });
+    }
+    
+    // Перевіряємо чи існує запис
+    let timesheet = await Timesheet.findOne({ userId, year, month, type });
+    
+    if (timesheet) {
+      // Оновлюємо існуючий запис
+      if (data) {
+        // Конвертуємо об'єкт в Map
+        const dataMap = new Map();
+        Object.keys(data).forEach(key => {
+          dataMap.set(key, data[key]);
+        });
+        timesheet.data = dataMap;
+      }
+      if (payData) {
+        const payDataMap = new Map();
+        Object.keys(payData).forEach(key => {
+          payDataMap.set(key, payData[key]);
+        });
+        timesheet.payData = payDataMap;
+      }
+      if (summary) {
+        timesheet.summary = summary;
+      }
+      timesheet.updatedAt = new Date();
+    } else {
+      // Створюємо новий запис
+      const dataMap = new Map();
+      if (data) {
+        Object.keys(data).forEach(key => {
+          dataMap.set(key, data[key]);
+        });
+      }
+      
+      const payDataMap = new Map();
+      if (payData) {
+        Object.keys(payData).forEach(key => {
+          payDataMap.set(key, payData[key]);
+        });
+      }
+      
+      timesheet = new Timesheet({
+        userId,
+        year: parseInt(year),
+        month: parseInt(month),
+        type,
+        data: dataMap,
+        payData: payDataMap,
+        summary: summary || {}
+      });
+    }
+    
+    await timesheet.save();
+    
+    // Конвертуємо Map назад в об'єкт для відповіді
+    const responseData = {};
+    if (timesheet.data) {
+      timesheet.data.forEach((value, key) => {
+        responseData[key] = value;
+      });
+    }
+    
+    const responsePayData = {};
+    if (timesheet.payData) {
+      timesheet.payData.forEach((value, key) => {
+        responsePayData[key] = value;
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      timesheet: {
+        userId: timesheet.userId,
+        year: timesheet.year,
+        month: timesheet.month,
+        type: timesheet.type,
+        data: responseData,
+        payData: responsePayData,
+        summary: timesheet.summary,
+        updatedAt: timesheet.updatedAt
+      }
+    });
+  } catch (error) {
+    console.error('[ERROR] POST /api/timesheet - помилка:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Отримати timesheet дані
+app.get('/api/timesheet', async (req, res) => {
+  try {
+    const { userId, year, month, type = 'regular' } = req.query;
+    
+    if (!userId || !year || !month) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Відсутні обов\'язкові параметри: userId, year, month' 
+      });
+    }
+    
+    const timesheet = await Timesheet.findOne({ 
+      userId, 
+      year: parseInt(year), 
+      month: parseInt(month), 
+      type 
+    });
+    
+    if (!timesheet) {
+      return res.json({ 
+        success: true, 
+        timesheet: null 
+      });
+    }
+    
+    // Конвертуємо Map назад в об'єкт
+    const responseData = {};
+    if (timesheet.data) {
+      timesheet.data.forEach((value, key) => {
+        responseData[key] = value;
+      });
+    }
+    
+    const responsePayData = {};
+    if (timesheet.payData) {
+      timesheet.payData.forEach((value, key) => {
+        responsePayData[key] = value;
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      timesheet: {
+        userId: timesheet.userId,
+        year: timesheet.year,
+        month: timesheet.month,
+        type: timesheet.type,
+        data: responseData,
+        payData: responsePayData,
+        summary: timesheet.summary,
+        updatedAt: timesheet.updatedAt
+      }
+    });
+  } catch (error) {
+    console.error('[ERROR] GET /api/timesheet - помилка:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});

@@ -2004,29 +2004,187 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
       return { ...prev, [userId]: newUserData };
     });
   }
-  // --- Оголошення data/setData для регіонального керівника ---
-  const [data, setData] = useState(() => {
-    const saved = localStorage.getItem(storageKey);
-    if (saved) return JSON.parse(saved);
-    return getDefaultTimesheet();
-  });
-  // Перезавантажуємо дані тільки при зміні storageKey (year/month), а не при зміні filteredUsers.length
-  useEffect(() => {
-    const saved = localStorage.getItem(storageKey);
-    if (saved) {
-      const savedData = JSON.parse(saved);
-      // Додаємо нових користувачів з дефолтними значеннями, якщо їх немає в збережених даних
-      const defaultData = getDefaultTimesheet();
-      const mergedData = { ...savedData };
-      filteredUsers.forEach(u => {
-        if (!mergedData[u.id || u._id]) {
-          mergedData[u.id || u._id] = defaultData[u.id || u._id];
-        }
-      });
-      setData(mergedData);
-    } else {
-      setData(getDefaultTimesheet());
+  // --- Функції для синхронізації з сервером ---
+  const loadTimesheetFromServer = async () => {
+    try {
+      if (!user?.id && !user?._id) {
+        console.log('[TIMESHEET] No user ID, skipping server load');
+        return null;
+      }
+      const userId = user.id || user._id;
+      const response = await fetch(`${API_BASE_URL}/timesheet?userId=${userId}&year=${year}&month=${month}&type=regular`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const result = await response.json();
+      if (result.success && result.timesheet) {
+        console.log('[TIMESHEET] Loaded from server:', result.timesheet);
+        return {
+          data: result.timesheet.data || null,
+          payData: result.timesheet.payData || null,
+          summary: result.timesheet.summary || null
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('[TIMESHEET] Error loading from server:', error);
+      return null;
     }
+  };
+  
+  const saveTimesheetToServer = async (timesheetData, payDataValue, summaryValue) => {
+    try {
+      if (!user?.id && !user?._id) {
+        console.log('[TIMESHEET] No user ID, skipping server save');
+        return false;
+      }
+      const userId = user.id || user._id;
+      const response = await fetch(`${API_BASE_URL}/timesheet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          year,
+          month,
+          type: 'regular',
+          data: timesheetData,
+          payData: payDataValue || {},
+          summary: summaryValue || {}
+        })
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const result = await response.json();
+      if (result.success) {
+        console.log('[TIMESHEET] Saved to server successfully');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('[TIMESHEET] Error saving to server:', error);
+      return false;
+    }
+  };
+  
+  // Стан завантаження даних з сервера
+  const [timesheetLoading, setTimesheetLoading] = useState(true);
+  
+  // --- Автоматичне заповнення: робочі дні = 8, вихідні = 0 ---
+  function getDefaultTimesheet() {
+    const result = {};
+    filteredUsers.forEach(u => {
+      const userData = {};
+      days.forEach(d => {
+        const date = new Date(year, month - 1, d); // JS: month 0-11
+        const dayOfWeek = date.getDay(); // 0=Sunday, 6=Saturday
+        userData[d] = (dayOfWeek === 0 || dayOfWeek === 6) ? 0 : 8;
+      });
+      userData.total = days.reduce((sum, d) => sum + (userData[d] || 0), 0);
+      result[u.id] = userData;
+    });
+    return result;
+  }
+  
+  // --- Підсумковий блок ---
+  // Summary тепер завантажується з сервера, не з localStorage
+  const summaryKey = `timesheetSummary_${year}_${month}`;
+  const [summary, setSummary] = useState(() => {
+    // Кількість робочих днів у місяці
+    let workDays = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, month - 1, d);
+      const dayOfWeek = date.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) workDays++;
+    }
+    return { workDays, workHours: workDays * 8 };
+  });
+  
+  // --- Параметри для кожного співробітника ---
+  // payData тепер завантажується з сервера, не з localStorage
+  const [payData, setPayData] = useState(() => ({}));
+  
+  // --- Оголошення data/setData для регіонального керівника ---
+  const [data, setData] = useState(() => getDefaultTimesheet());
+  
+  // Завантажуємо дані ТІЛЬКИ з сервера при зміні storageKey (year/month)
+  useEffect(() => {
+    const loadData = async () => {
+      setTimesheetLoading(true);
+      try {
+        // Завжди завантажуємо з сервера
+        const serverTimesheet = await loadTimesheetFromServer();
+        if (serverTimesheet) {
+          // Завантажуємо дані по годинах
+          if (serverTimesheet.data) {
+            const defaultData = getDefaultTimesheet();
+            const mergedData = { ...serverTimesheet.data };
+            filteredUsers.forEach(u => {
+              if (!mergedData[u.id || u._id]) {
+                mergedData[u.id || u._id] = defaultData[u.id || u._id];
+              }
+            });
+            setData(mergedData);
+          } else {
+            // Якщо на сервері немає даних, використовуємо дефолтні
+            setData(getDefaultTimesheet());
+          }
+          
+          // Завантажуємо payData
+          if (serverTimesheet.payData) {
+            setPayData(serverTimesheet.payData);
+          } else {
+            setPayData({});
+          }
+          
+          // Завантажуємо summary
+          if (serverTimesheet.summary) {
+            let workDays = 0;
+            for (let d = 1; d <= daysInMonth; d++) {
+              const date = new Date(year, month - 1, d);
+              const dayOfWeek = date.getDay();
+              if (dayOfWeek !== 0 && dayOfWeek !== 6) workDays++;
+            }
+            setSummary({ ...serverTimesheet.summary, workDays, workHours: workDays * 8 });
+          } else {
+            // Дефолтний summary
+            let workDays = 0;
+            for (let d = 1; d <= daysInMonth; d++) {
+              const date = new Date(year, month - 1, d);
+              const dayOfWeek = date.getDay();
+              if (dayOfWeek !== 0 && dayOfWeek !== 6) workDays++;
+            }
+            setSummary({ workDays, workHours: workDays * 8 });
+          }
+        } else {
+          // Якщо сервер не відповідає, використовуємо дефолтні значення
+          setData(getDefaultTimesheet());
+          setPayData({});
+          let workDays = 0;
+          for (let d = 1; d <= daysInMonth; d++) {
+            const date = new Date(year, month - 1, d);
+            const dayOfWeek = date.getDay();
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) workDays++;
+          }
+          setSummary({ workDays, workHours: workDays * 8 });
+        }
+      } catch (error) {
+        console.error('[TIMESHEET] Error loading data:', error);
+        // У випадку помилки використовуємо дефолтні значення
+        setData(getDefaultTimesheet());
+        setPayData({});
+        let workDays = 0;
+        for (let d = 1; d <= daysInMonth; d++) {
+          const date = new Date(year, month - 1, d);
+          const dayOfWeek = date.getDay();
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) workDays++;
+        }
+        setSummary({ workDays, workHours: workDays * 8 });
+      } finally {
+        setTimesheetLoading(false);
+      }
+    };
+    loadData();
   }, [storageKey]); // Прибрано filteredUsers.length з залежностей
   // Додаємо нових користувачів при зміні filteredUsers, не перезаписуючи існуючі дані
   // Використовуємо useRef для відстеження попереднього списку користувачів
@@ -2060,64 +2218,19 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
       return hasChanges ? mergedData : prev;
     });
   }, [filteredUsers]);
+  // Зберігаємо дані ТІЛЬКИ на сервер (без localStorage)
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(data));
-  }, [data, storageKey]);
-  // --- Автоматичне заповнення: робочі дні = 8, вихідні = 0 ---
-  function getDefaultTimesheet() {
-    const result = {};
-    filteredUsers.forEach(u => {
-      const userData = {};
-      days.forEach(d => {
-        const date = new Date(year, month - 1, d); // JS: month 0-11
-        const dayOfWeek = date.getDay(); // 0=Sunday, 6=Saturday
-        userData[d] = (dayOfWeek === 0 || dayOfWeek === 6) ? 0 : 8;
-      });
-      userData.total = days.reduce((sum, d) => sum + (userData[d] || 0), 0);
-      result[u.id] = userData;
-    });
-    return result;
-  }
-  // --- Підсумковий блок ---
-  // Зберігаємо налаштування підсумку по періоду
-  const summaryKey = `timesheetSummary_${year}_${month}`;
-  const [summary, setSummary] = useState(() => {
-    const saved = localStorage.getItem(summaryKey);
-    // Кількість робочих днів у місяці
-    let workDays = 0;
-    for (let d = 1; d <= daysInMonth; d++) {
-      const date = new Date(year, month - 1, d);
-      const dayOfWeek = date.getDay();
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) workDays++;
-    }
-    return saved ? {...JSON.parse(saved), workDays, workHours: workDays * 8} : { workDays, workHours: workDays * 8 };
-  });
-  useEffect(() => {
-    const saved = localStorage.getItem(summaryKey);
-    let workDays = 0;
-    for (let d = 1; d <= daysInMonth; d++) {
-      const date = new Date(year, month - 1, d);
-      const dayOfWeek = date.getDay();
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) workDays++;
-    }
-    setSummary(saved ? {...JSON.parse(saved), workDays, workHours: workDays * 8} : { workDays, workHours: workDays * 8 });
-  }, [summaryKey, daysInMonth, year, month]);
-  useEffect(() => {
-    localStorage.setItem(summaryKey, JSON.stringify(summary));
-  }, [summary, summaryKey]);
-  // --- Параметри для кожного співробітника ---
-  const [payData, setPayData] = useState(() => {
-    const saved = localStorage.getItem(`payData_${year}_${month}`);
-    return saved ? JSON.parse(saved) : {};
-  });
-  useEffect(() => {
-    const saved = localStorage.getItem(`payData_${year}_${month}`);
-    setPayData(saved ? JSON.parse(saved) : {});
-  }, [year, month]);
-  useEffect(() => {
-    console.log('💾 Saving payData to localStorage:', payData);
-    localStorage.setItem(`payData_${year}_${month}`, JSON.stringify(payData));
-  }, [payData, year, month]);
+    // Пропускаємо збереження під час початкового завантаження
+    if (timesheetLoading) return;
+    
+    // Зберігаємо на сервер (з невеликою затримкою для дебаунсу)
+    const saveTimeout = setTimeout(() => {
+      saveTimesheetToServer(data, payData, summary);
+    }, 1000); // Затримка 1 секунда для дебаунсу
+    
+    return () => clearTimeout(saveTimeout);
+  }, [data, storageKey, payData, summary, timesheetLoading]);
+  
   // --- Функція для зміни параметрів виплат ---
   const handlePayChange = (userId, field, value) => {
     console.log('🔧 handlePayChange called:', { userId, field, value });
@@ -2199,7 +2312,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
       handleGenerateReportByPeriod();
     }
   };
-  const handleGenerateReport = () => {
+  const handleGenerateReport = async () => {
     // Використовуємо ту ж логіку фільтрації, що й для основного filteredUsers
     const filteredUsers = users.filter(u => {
       // Якщо користувач має роль 'service'
@@ -2216,11 +2329,32 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     // Використовуємо year та month для звіту, щоб дані співпадали з основною таблицею
     const reportYearForData = year;
     const reportMonthForData = month;
-    const storageKey = `timesheetData_${reportYearForData}_${reportMonthForData}`;
-    const data = JSON.parse(localStorage.getItem(storageKey) || '{}');
-    const summaryKey = `timesheetSummary_${reportYearForData}_${reportMonthForData}`;
-    const summary = JSON.parse(localStorage.getItem(summaryKey) || '{}');
-    const payData = JSON.parse(localStorage.getItem(`payData_${reportYearForData}_${reportMonthForData}`) || '{}');
+    
+    // Завантажуємо дані з сервера
+    let data = {};
+    let summary = {};
+    let payData = {};
+    
+    try {
+      if (user?.id || user?._id) {
+        const userId = user.id || user._id;
+        const response = await fetch(`${API_BASE_URL}/timesheet?userId=${userId}&year=${reportYearForData}&month=${reportMonthForData}&type=regular`);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.timesheet) {
+            data = result.timesheet.data || {};
+            payData = result.timesheet.payData || {};
+            summary = result.timesheet.summary || {};
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[REPORT] Error loading timesheet from server:', error);
+      // Використовуємо поточні дані зі стану як fallback
+      data = data || {};
+      payData = payData || {};
+      summary = summary || {};
+    }
     // Використовуємо завдання з API замість localStorage
     const isApproved = v => v === true || v === 'Підтверджено';
     const monthStr = String(reportMonthForData).padStart(2, '0');
@@ -2928,17 +3062,31 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
         ${regionsContent}
         <script>
           // Функція для оновлення зарплати
-          window.handlePayChange = function(userId, field, value, inputElement) {
+          window.handlePayChange = async function(userId, field, value, inputElement) {
             console.log('handlePayChange called:', { userId, field, value });
             
-            // Оновлюємо localStorage
-            const currentData = JSON.parse(localStorage.getItem('payData_${year}_${month}') || '{}');
-            if (!currentData[userId]) {
-              currentData[userId] = { salary: '', bonus: '' };
+            // Зберігаємо на сервер
+            try {
+              const apiBaseUrl = window.location.hostname === 'localhost' 
+                ? 'http://localhost:3001/api'
+                : 'https://darex-trading-solutions.onrender.com/api';
+              const response = await fetch(\`\${apiBaseUrl}/timesheet\`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: '${user?.id || user?._id}',
+                  year: ${year},
+                  month: ${month},
+                  type: 'regular',
+                  payData: { [userId]: { [field]: value } }
+                })
+              });
+              if (response.ok) {
+                console.log('Updated payData on server');
+              }
+            } catch (error) {
+              console.error('Error saving payData to server:', error);
             }
-            currentData[userId][field] = value;
-            localStorage.setItem('payData_${year}_${month}', JSON.stringify(currentData));
-            console.log('Updated localStorage:', currentData);
             
             // Оновлюємо розрахунки в реальному часі
             const salary = parseFloat(value) || 0;
