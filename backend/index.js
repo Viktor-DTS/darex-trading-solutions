@@ -290,21 +290,46 @@ const InvoiceRequest = mongoose.model('InvoiceRequest', invoiceRequestSchema);
 
 // Модель для timesheet даних (табель часу)
 const timesheetSchema = new mongoose.Schema({
-  userId: { type: String, required: true },
+  region: { type: String, required: true }, // Регіон для якого зберігаються дані
   year: { type: Number, required: true },
   month: { type: Number, required: true, min: 1, max: 12 },
   type: { type: String, enum: ['regular', 'service'], default: 'regular' },
   data: { type: Map, of: mongoose.Schema.Types.Mixed, default: {} }, // Дані по користувачам: { userId: { 1: 8, 2: 8, ..., total: 176 } }
   payData: { type: Map, of: mongoose.Schema.Types.Mixed, default: {} }, // Дані про зарплату: { userId: { salary: 25000, bonus: 0 } }
   summary: { type: mongoose.Schema.Types.Mixed, default: {} }, // Підсумкові дані: { workDays: 22, workHours: 176 }
+  createdBy: { type: String }, // Хто створив/оновив (для логування)
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
 
-// Індекс для швидкого пошуку
-timesheetSchema.index({ userId: 1, year: 1, month: 1, type: 1 }, { unique: true });
+// Індекс для швидкого пошуку - тепер по регіону, а не по userId
+timesheetSchema.index({ region: 1, year: 1, month: 1, type: 1 }, { unique: true });
 
 const Timesheet = mongoose.model('Timesheet', timesheetSchema);
+
+// Видаляємо старий індекс userId після підключення до бази
+mongoose.connection.once('open', async () => {
+  try {
+    // Видаляємо старий індекс userId_1_year_1_month_1_type_1 якщо він існує
+    const indexes = await Timesheet.collection.getIndexes();
+    if (indexes['userId_1_year_1_month_1_type_1']) {
+      console.log('[TIMESHEET] Видаляємо старий індекс userId_1_year_1_month_1_type_1');
+      await Timesheet.collection.dropIndex('userId_1_year_1_month_1_type_1');
+      console.log('[TIMESHEET] Старий індекс видалено');
+    }
+    
+    // Видаляємо старі записи без region (якщо такі є)
+    const deletedOld = await Timesheet.deleteMany({ region: { $exists: false } });
+    if (deletedOld.deletedCount > 0) {
+      console.log(`[TIMESHEET] Видалено ${deletedOld.deletedCount} старих записів без region`);
+    }
+  } catch (error) {
+    // Ігноруємо помилку, якщо індекс не існує
+    if (error.code !== 27 && error.code !== 85) { // 27 = IndexNotFound, 85 = IndexOptionsConflict
+      console.error('[TIMESHEET] Помилка при міграції індексів:', error.message);
+    }
+  }
+});
 
 // Змінна для режиму fallback
 let FALLBACK_MODE = false;
@@ -7036,67 +7061,78 @@ app.get('/api/reports/financial', async (req, res) => {
 // Зберегти timesheet дані
 app.post('/api/timesheet', async (req, res) => {
   try {
-    const { userId, year, month, type = 'regular', data, payData, summary } = req.body;
+    const { region, year, month, type = 'regular', data, payData, summary, createdBy } = req.body;
     
-    if (!userId || !year || !month) {
+    if (!region || !year || !month) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Відсутні обов\'язкові поля: userId, year, month' 
+        error: 'Відсутні обов\'язкові поля: region, year, month' 
       });
     }
     
-    // Перевіряємо чи існує запис
-    let timesheet = await Timesheet.findOne({ userId, year, month, type });
+    // Перевіряємо чи існує запис (тепер по регіону, а не по userId)
+    let timesheet = await Timesheet.findOne({ region, year: parseInt(year), month: parseInt(month), type });
+    
+    console.log('[TIMESHEET POST] Знайдено запис:', timesheet ? 'так' : 'ні', 'для регіону:', region, 'year:', year, 'month:', month);
+    console.log('[TIMESHEET POST] Дані для збереження - data keys:', data ? Object.keys(data).length : 0, 'payData keys:', payData ? Object.keys(payData).length : 0);
     
     if (timesheet) {
       // Оновлюємо існуючий запис
-      if (data) {
+      if (data && typeof data === 'object' && Object.keys(data).length > 0) {
         // Конвертуємо об'єкт в Map
         const dataMap = new Map();
         Object.keys(data).forEach(key => {
           dataMap.set(key, data[key]);
         });
         timesheet.data = dataMap;
+        console.log('[TIMESHEET POST] Оновлено data, ключів:', dataMap.size);
       }
-      if (payData) {
+      if (payData && typeof payData === 'object' && Object.keys(payData).length > 0) {
         const payDataMap = new Map();
         Object.keys(payData).forEach(key => {
           payDataMap.set(key, payData[key]);
         });
         timesheet.payData = payDataMap;
+        console.log('[TIMESHEET POST] Оновлено payData, ключів:', payDataMap.size);
       }
-      if (summary) {
+      if (summary && typeof summary === 'object') {
         timesheet.summary = summary;
       }
       timesheet.updatedAt = new Date();
+      if (createdBy) {
+        timesheet.createdBy = createdBy;
+      }
     } else {
       // Створюємо новий запис
       const dataMap = new Map();
-      if (data) {
+      if (data && typeof data === 'object' && Object.keys(data).length > 0) {
         Object.keys(data).forEach(key => {
           dataMap.set(key, data[key]);
         });
       }
       
       const payDataMap = new Map();
-      if (payData) {
+      if (payData && typeof payData === 'object' && Object.keys(payData).length > 0) {
         Object.keys(payData).forEach(key => {
           payDataMap.set(key, payData[key]);
         });
       }
       
       timesheet = new Timesheet({
-        userId,
+        region,
         year: parseInt(year),
         month: parseInt(month),
         type,
         data: dataMap,
         payData: payDataMap,
-        summary: summary || {}
+        summary: (summary && typeof summary === 'object') ? summary : {},
+        createdBy: createdBy || 'unknown'
       });
+      console.log('[TIMESHEET POST] Створено новий запис для регіону:', region);
     }
     
-    await timesheet.save();
+    const savedTimesheet = await timesheet.save();
+    console.log('[TIMESHEET POST] Запис збережено, ID:', savedTimesheet._id, 'data keys:', savedTimesheet.data ? savedTimesheet.data.size : 0);
     
     // Конвертуємо Map назад в об'єкт для відповіді
     const responseData = {};
@@ -7116,13 +7152,14 @@ app.post('/api/timesheet', async (req, res) => {
     res.json({ 
       success: true, 
       timesheet: {
-        userId: timesheet.userId,
+        region: timesheet.region,
         year: timesheet.year,
         month: timesheet.month,
         type: timesheet.type,
         data: responseData,
         payData: responsePayData,
         summary: timesheet.summary,
+        createdBy: timesheet.createdBy,
         updatedAt: timesheet.updatedAt
       }
     });
@@ -7138,28 +7175,34 @@ app.post('/api/timesheet', async (req, res) => {
 // Отримати timesheet дані
 app.get('/api/timesheet', async (req, res) => {
   try {
-    const { userId, year, month, type = 'regular' } = req.query;
+    const { region, year, month, type = 'regular' } = req.query;
     
-    if (!userId || !year || !month) {
+    if (!region || !year || !month) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Відсутні обов\'язкові параметри: userId, year, month' 
+        error: 'Відсутні обов\'язкові параметри: region, year, month' 
       });
     }
     
     const timesheet = await Timesheet.findOne({ 
-      userId, 
+      region, 
       year: parseInt(year), 
       month: parseInt(month), 
       type 
     });
     
+    console.log('[TIMESHEET GET] Запит для регіону:', region, 'year:', year, 'month:', month);
+    console.log('[TIMESHEET GET] Знайдено запис:', timesheet ? 'так' : 'ні');
+    
     if (!timesheet) {
+      console.log('[TIMESHEET GET] Запис не знайдено, повертаємо null');
       return res.json({ 
         success: true, 
         timesheet: null 
       });
     }
+    
+    console.log('[TIMESHEET GET] Запис знайдено, data keys:', timesheet.data ? timesheet.data.size : 0, 'payData keys:', timesheet.payData ? timesheet.payData.size : 0);
     
     // Конвертуємо Map назад в об'єкт
     const responseData = {};
@@ -7179,13 +7222,14 @@ app.get('/api/timesheet', async (req, res) => {
     res.json({ 
       success: true, 
       timesheet: {
-        userId: timesheet.userId,
+        region: timesheet.region,
         year: timesheet.year,
         month: timesheet.month,
         type: timesheet.type,
         data: responseData,
         payData: responsePayData,
         summary: timesheet.summary,
+        createdBy: timesheet.createdBy,
         updatedAt: timesheet.updatedAt
       }
     });

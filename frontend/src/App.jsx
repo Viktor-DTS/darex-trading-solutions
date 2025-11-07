@@ -807,7 +807,7 @@ function AdminSystemParamsArea({ user }) {
         </thead>
         <tbody>
           {users.map(u => (
-            <tr key={u.id} style={{
+            <tr key={u.id || u._id} style={{
               background: isUserOnline(u.login) ? 'linear-gradient(135deg, #1a4d1a 0%, #2d5a2d 50%, #1a4d1a 100%)' : '#22334a',
               border: isUserOnline(u.login) ? '2px solid #4CAF50' : '1px solid #29506a',
               boxShadow: isUserOnline(u.login) ? '0 0 15px rgba(76, 175, 80, 0.3)' : 'none',
@@ -2005,64 +2005,101 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     });
   }
   // --- Функції для синхронізації з сервером ---
-  const loadTimesheetFromServer = async () => {
+  // Визначаємо регіон для збереження/завантаження даних
+  // Якщо адмін з регіоном "Україна" - зберігаємо дані для кожного регіону окремо
+  // Якщо регіональний керівник - зберігаємо для його регіону
+  const getRegionForTimesheet = (targetRegion) => {
+    // Якщо передано конкретний регіон (для збереження конкретного регіону)
+    if (targetRegion) {
+      return targetRegion;
+    }
+    // Якщо адмін з регіоном "Україна" - використовуємо перший регіон з filteredUsers
+    if (user?.region === 'Україна' && filteredUsers.length > 0) {
+      return filteredUsers[0].region || 'Без регіону';
+    }
+    // Інакше використовуємо регіон користувача
+    return user?.region || 'Без регіону';
+  };
+  
+  const loadTimesheetFromServer = async (targetRegion) => {
     try {
-      if (!user?.id && !user?._id) {
-        console.log('[TIMESHEET] No user ID, skipping server load');
-        return null;
-      }
-      const userId = user.id || user._id;
-      const response = await fetch(`${API_BASE_URL}/timesheet?userId=${userId}&year=${year}&month=${month}&type=regular`);
+      const region = getRegionForTimesheet(targetRegion);
+      console.log('[TIMESHEET] Loading from server for region:', region, 'year:', year, 'month:', month);
+      const response = await fetch(`${API_BASE_URL}/timesheet?region=${encodeURIComponent(region)}&year=${year}&month=${month}&type=regular`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const result = await response.json();
+      console.log('[TIMESHEET] Server response for region:', region, 'success:', result.success, 'has timesheet:', !!result.timesheet);
       if (result.success && result.timesheet) {
-        console.log('[TIMESHEET] Loaded from server:', result.timesheet);
+        const dataKeys = result.timesheet.data ? Object.keys(result.timesheet.data).length : 0;
+        const payDataKeys = result.timesheet.payData ? Object.keys(result.timesheet.payData).length : 0;
+        console.log('[TIMESHEET] Loaded from server for region:', region, 'data keys:', dataKeys, 'payData keys:', payDataKeys);
         return {
           data: result.timesheet.data || null,
           payData: result.timesheet.payData || null,
           summary: result.timesheet.summary || null
         };
       }
+      console.log('[TIMESHEET] No data found for region:', region);
       return null;
     } catch (error) {
-      console.error('[TIMESHEET] Error loading from server:', error);
+      console.error('[TIMESHEET] Error loading from server for region:', targetRegion, error);
       return null;
     }
   };
   
-  const saveTimesheetToServer = async (timesheetData, payDataValue, summaryValue) => {
+  const saveTimesheetToServer = async (timesheetData, payDataValue, summaryValue, targetRegion) => {
     try {
       if (!user?.id && !user?._id) {
         console.log('[TIMESHEET] No user ID, skipping server save');
         return false;
       }
+      const region = getRegionForTimesheet(targetRegion);
       const userId = user.id || user._id;
+      const userName = user.name || user.login || 'unknown';
+      
+      const payload = {
+        region,
+        year,
+        month,
+        type: 'regular',
+        data: timesheetData || {},
+        payData: payDataValue || {},
+        summary: summaryValue || {},
+        createdBy: `${userName} (${userId})`
+      };
+      
+      console.log('[TIMESHEET] Saving to server for region:', region, 'payload:', {
+        region,
+        year,
+        month,
+        dataKeys: Object.keys(timesheetData || {}),
+        payDataKeys: Object.keys(payDataValue || {})
+      });
+      
       const response = await fetch(`${API_BASE_URL}/timesheet`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          year,
-          month,
-          type: 'regular',
-          data: timesheetData,
-          payData: payDataValue || {},
-          summary: summaryValue || {}
-        })
+        body: JSON.stringify(payload)
       });
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('[TIMESHEET] Server error response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
+      
       const result = await response.json();
       if (result.success) {
-        console.log('[TIMESHEET] Saved to server successfully');
+        console.log('[TIMESHEET] Saved to server successfully for region:', region);
         return true;
+      } else {
+        console.error('[TIMESHEET] Server returned success:false:', result);
+        return false;
       }
-      return false;
     } catch (error) {
-      console.error('[TIMESHEET] Error saving to server:', error);
+      console.error('[TIMESHEET] Error saving to server for region:', targetRegion, error);
       return false;
     }
   };
@@ -2108,58 +2145,77 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
   const [data, setData] = useState(() => getDefaultTimesheet());
   
   // Завантажуємо дані ТІЛЬКИ з сервера при зміні storageKey (year/month)
+  // Завантажуємо дані для всіх регіонів, які відображаються
   useEffect(() => {
     const loadData = async () => {
+      // Якщо filteredUsers ще не завантажені, чекаємо
+      if (!filteredUsers || filteredUsers.length === 0) {
+        console.log('[TIMESHEET] filteredUsers порожній, чекаємо...');
+        return;
+      }
+      
+      console.log('[TIMESHEET] Starting data load, storageKey:', storageKey, 'year:', year, 'month:', month, 'filteredUsers:', filteredUsers.length);
       setTimesheetLoading(true);
       try {
-        // Завжди завантажуємо з сервера
-        const serverTimesheet = await loadTimesheetFromServer();
-        if (serverTimesheet) {
-          // Завантажуємо дані по годинах
-          if (serverTimesheet.data) {
-            const defaultData = getDefaultTimesheet();
-            const mergedData = { ...serverTimesheet.data };
-            filteredUsers.forEach(u => {
-              if (!mergedData[u.id || u._id]) {
-                mergedData[u.id || u._id] = defaultData[u.id || u._id];
-              }
-            });
-            setData(mergedData);
-          } else {
-            // Якщо на сервері немає даних, використовуємо дефолтні
-            setData(getDefaultTimesheet());
-          }
-          
-          // Завантажуємо payData
-          if (serverTimesheet.payData) {
-            setPayData(serverTimesheet.payData);
-          } else {
-            setPayData({});
-          }
-          
-          // Завантажуємо summary
-          if (serverTimesheet.summary) {
-            let workDays = 0;
-            for (let d = 1; d <= daysInMonth; d++) {
-              const date = new Date(year, month - 1, d);
-              const dayOfWeek = date.getDay();
-              if (dayOfWeek !== 0 && dayOfWeek !== 6) workDays++;
+        // Визначаємо регіони для завантаження
+        const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
+        const regionsToLoad = user?.region === 'Україна' ? allRegions : [user?.region || 'Без регіону'];
+        console.log('[TIMESHEET] Regions to load:', regionsToLoad);
+        
+        // Завантажуємо дані для кожного регіону та об'єднуємо їх
+        let mergedData = {};
+        let mergedPayData = {};
+        let mergedSummary = {};
+        
+        for (const region of regionsToLoad) {
+          const serverTimesheet = await loadTimesheetFromServer(region);
+          if (serverTimesheet) {
+            if (serverTimesheet.data) {
+              mergedData = { ...mergedData, ...serverTimesheet.data };
+              console.log('[TIMESHEET] Merged data from region:', region, 'total keys:', Object.keys(mergedData).length);
             }
-            setSummary({ ...serverTimesheet.summary, workDays, workHours: workDays * 8 });
-          } else {
-            // Дефолтний summary
-            let workDays = 0;
-            for (let d = 1; d <= daysInMonth; d++) {
-              const date = new Date(year, month - 1, d);
-              const dayOfWeek = date.getDay();
-              if (dayOfWeek !== 0 && dayOfWeek !== 6) workDays++;
+            if (serverTimesheet.payData) {
+              mergedPayData = { ...mergedPayData, ...serverTimesheet.payData };
             }
-            setSummary({ workDays, workHours: workDays * 8 });
+            if (serverTimesheet.summary) {
+              mergedSummary = { ...mergedSummary, ...serverTimesheet.summary };
+            }
           }
+        }
+        
+        console.log('[TIMESHEET] Final merged data keys:', Object.keys(mergedData).length, 'payData keys:', Object.keys(mergedPayData).length);
+        
+        // Якщо є дані з сервера, використовуємо їх
+        if (Object.keys(mergedData).length > 0) {
+          const defaultData = getDefaultTimesheet();
+          const finalData = { ...mergedData };
+          filteredUsers.forEach(u => {
+            if (!finalData[u.id || u._id]) {
+              finalData[u.id || u._id] = defaultData[u.id || u._id];
+            }
+          });
+          console.log('[TIMESHEET] Setting data with', Object.keys(finalData).length, 'users');
+          setData(finalData);
         } else {
-          // Якщо сервер не відповідає, використовуємо дефолтні значення
+          console.log('[TIMESHEET] No data from server, using default');
           setData(getDefaultTimesheet());
+        }
+        
+        if (Object.keys(mergedPayData).length > 0) {
+          setPayData(mergedPayData);
+        } else {
           setPayData({});
+        }
+        
+        if (Object.keys(mergedSummary).length > 0) {
+          let workDays = 0;
+          for (let d = 1; d <= daysInMonth; d++) {
+            const date = new Date(year, month - 1, d);
+            const dayOfWeek = date.getDay();
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) workDays++;
+          }
+          setSummary({ ...mergedSummary, workDays, workHours: workDays * 8 });
+        } else {
           let workDays = 0;
           for (let d = 1; d <= daysInMonth; d++) {
             const date = new Date(year, month - 1, d);
@@ -2170,7 +2226,6 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
         }
       } catch (error) {
         console.error('[TIMESHEET] Error loading data:', error);
-        // У випадку помилки використовуємо дефолтні значення
         setData(getDefaultTimesheet());
         setPayData({});
         let workDays = 0;
@@ -2185,7 +2240,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
       }
     };
     loadData();
-  }, [storageKey]); // Прибрано filteredUsers.length з залежностей
+  }, [storageKey, filteredUsers.length]); // Додано filteredUsers.length, щоб завантажувати після завантаження користувачів
   // Додаємо нових користувачів при зміні filteredUsers, не перезаписуючи існуючі дані
   // Використовуємо useRef для відстеження попереднього списку користувачів
   const prevFilteredUsersRef = useRef([]);
@@ -2219,17 +2274,46 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     });
   }, [filteredUsers]);
   // Зберігаємо дані ТІЛЬКИ на сервер (без localStorage)
+  // Зберігаємо дані для кожного регіону окремо
   useEffect(() => {
     // Пропускаємо збереження під час початкового завантаження
     if (timesheetLoading) return;
     
     // Зберігаємо на сервер (з невеликою затримкою для дебаунсу)
     const saveTimeout = setTimeout(() => {
-      saveTimesheetToServer(data, payData, summary);
+      // Визначаємо регіони для збереження
+      const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
+      const regionsToSave = user?.region === 'Україна' ? allRegions : [user?.region || 'Без регіону'];
+      
+      // Зберігаємо дані для кожного регіону окремо
+      regionsToSave.forEach(region => {
+        // Фільтруємо дані тільки для користувачів цього регіону
+        const regionUsers = filteredUsers.filter(u => (u.region || 'Без регіону') === region);
+        const regionData = {};
+        const regionPayData = {};
+        
+        regionUsers.forEach(u => {
+          const userId = u.id || u._id;
+          if (data[userId]) {
+            regionData[userId] = data[userId];
+          }
+          if (payData[userId]) {
+            regionPayData[userId] = payData[userId];
+          }
+        });
+        
+        // Зберігаємо дані для цього регіону тільки якщо є дані для збереження
+        // (або дані по годинах, або дані по зарплаті)
+        if (Object.keys(regionData).length > 0 || Object.keys(regionPayData).length > 0) {
+          saveTimesheetToServer(regionData, regionPayData, summary, region);
+        } else {
+          console.log('[TIMESHEET] Skipping save for region:', region, '- no data to save');
+        }
+      });
     }, 1000); // Затримка 1 секунда для дебаунсу
     
     return () => clearTimeout(saveTimeout);
-  }, [data, storageKey, payData, summary, timesheetLoading]);
+  }, [data, storageKey, payData, summary, timesheetLoading, filteredUsers, user?.region]);
   
   // --- Функція для зміни параметрів виплат ---
   const handlePayChange = (userId, field, value) => {
@@ -2338,13 +2422,20 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     try {
       if (user?.id || user?._id) {
         const userId = user.id || user._id;
-        const response = await fetch(`${API_BASE_URL}/timesheet?userId=${userId}&year=${reportYearForData}&month=${reportMonthForData}&type=regular`);
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.timesheet) {
-            data = result.timesheet.data || {};
-            payData = result.timesheet.payData || {};
-            summary = result.timesheet.summary || {};
+        // Завантажуємо дані для кожного регіону окремо
+        const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
+        const regionsToLoad = user?.region === 'Україна' ? allRegions : [user?.region || 'Без регіону'];
+        
+        for (const region of regionsToLoad) {
+          const response = await fetch(`${API_BASE_URL}/timesheet?region=${encodeURIComponent(region)}&year=${reportYearForData}&month=${reportMonthForData}&type=regular`);
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.timesheet) {
+              // Об'єднуємо дані з різних регіонів
+              data = { ...data, ...(result.timesheet.data || {}) };
+              payData = { ...payData, ...(result.timesheet.payData || {}) };
+              summary = result.timesheet.summary || summary;
+            }
           }
         }
       }
@@ -2485,7 +2576,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
           });
           const payout = basePay + overtimePay + bonus + engineerBonus + weekendOvertimePay;
           return (
-            <div key={u.id} style={{background:'#f8fafc',border:'2px solid #1976d2',borderRadius:12,margin:'24px 0',padding:'18px 18px 8px 18px',boxShadow:'0 2px 12px #0001'}}>
+            <div key={u.id || u._id} style={{background:'#f8fafc',border:'2px solid #1976d2',borderRadius:12,margin:'24px 0',padding:'18px 18px 8px 18px',boxShadow:'0 2px 12px #0001'}}>
               <div style={{fontWeight:700,fontSize:20,marginBottom:8,color:'#1976d2',letterSpacing:1}}>{u.name}</div>
               <table style={{width:'100%', color:'#222', background:'#fff', borderRadius:8, overflow:'hidden', fontSize:'1rem', marginBottom:details.length>0?16:0}}>
                 <thead>
@@ -3070,15 +3161,18 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
               const apiBaseUrl = window.location.hostname === 'localhost' 
                 ? 'http://localhost:3001/api'
                 : 'https://darex-trading-solutions.onrender.com/api';
+              // Визначаємо регіон користувача, для якого змінюється зарплата
+              const userRegion = '${user?.region || 'Без регіону'}';
               const response = await fetch(\`\${apiBaseUrl}/timesheet\`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  userId: '${user?.id || user?._id}',
+                  region: userRegion,
                   year: ${year},
                   month: ${month},
                   type: 'regular',
-                  payData: { [userId]: { [field]: value } }
+                  payData: { [userId]: { [field]: value } },
+                  createdBy: '${user?.name || user?.login || 'unknown'} (${user?.id || user?._id})'
                 })
               });
               if (response.ok) {
@@ -3656,7 +3750,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                       </thead>
                       <tbody>
                           {filteredUsers.filter(u => (u.region || 'Без регіону') === region).map((u, idx) => (
-                          <tr key={u.id}>
+                          <tr key={u.id || u._id}>
                             <td style={{background:'#ffe600', color:'#222', fontWeight:600}}>{idx+1}</td>
                             <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
                             {days.map(d => {
@@ -3811,7 +3905,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                           });
                           const payout = basePay + overtimePay + bonus + engineerBonus + weekendOvertimePay;
                           return (
-                            <tr key={u.id}>
+                            <tr key={u.id || u._id}>
                               <td>{u.name}</td>
                               <td><input type="number" value={payData[u.id || u._id]?.salary || 25000} onChange={e => {const userId = u.id || u._id; console.log('🔧 RegionalManagerArea salary changed:', u.name, e.target.value); console.log('🔧 User ID:', userId); console.log('🔧 handlePayChange function:', typeof handlePayChange); console.log('🔧 payData before:', payData); console.log('🔧 setPayData function:', typeof setPayData); handlePayChange(userId, 'salary', e.target.value); console.log('🔧 handlePayChange called');}} style={{width:90}} /></td>
                               <td>{normalHours}</td>
@@ -4591,7 +4685,7 @@ function PersonnelTimesheet({ user }) {
             </thead>
             <tbody>
               {serviceUsers.map(u => (
-                <tr key={u.id}>
+                <tr key={u.id || u._id}>
                   <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
                   {days.map(d => {
                     const date = new Date(year, month - 1, d);
@@ -4643,7 +4737,7 @@ function PersonnelTimesheet({ user }) {
                 // Пропорційна виплата
                 const payout = summary.workHours > 0 ? Math.round((salary * total / summary.workHours) + bonus) : 0;
                 return (
-                  <tr key={u.id}>
+                  <tr key={u.id || u._id}>
                     <td>{u.name}</td>
                     <td>{total}</td>
                     <td><input type="number" value={payData[u.id || u._id]?.salary || ''} onChange={e => {const userId = u.id || u._id; handlePayChange(userId, 'salary', e.target.value);}} style={{width:90}} /></td>
