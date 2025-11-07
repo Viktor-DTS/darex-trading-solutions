@@ -4,6 +4,8 @@ import NewDocumentUploadModal from './NewDocumentUploadModal';
 import { columnsSettingsAPI } from '../utils/columnsSettingsAPI';
 import { regionsAPI } from '../utils/regionsAPI';
 import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from '../utils/eventLogAPI';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, PageBreak, SectionType } from 'docx';
+import { saveAs } from 'file-saver';
 
 function ColumnSettings({ allColumns, selected, onChange, onClose, onSave }) {
   return (
@@ -1083,35 +1085,883 @@ function TaskTableComponent({
 
     // Визначаємо компанію та вибираємо відповідний шаблон
     const company = task.company || '';
-    let workOrderHTML = '';
 
+    // Використовуємо HTML шаблони, які вже правильно налаштовані
+    // Word може відкривати HTML файли і зберігати їх як .docx
     if (company === 'ДТС' || company === 'Дарекс Трейдінг Солюшнс') {
-      // Шаблон для компанії ДТС - передаємо task для доступу до матеріалів
-      workOrderHTML = generateDTSTemplate(workOrderData, workOrderNumber, workOrderDate, formattedDate, engineers, task);
+      const htmlContent = generateDTSTemplate(workOrderData, workOrderNumber, workOrderDate, formattedDate, engineers, task);
+      downloadHTMLAsWord(htmlContent, company, workOrderNumber);
     } else {
-      // Шаблон для компанії Дарекс Енерго (за замовчуванням)
-      workOrderHTML = generateDarexEnergyTemplate(workOrderData, workOrderNumber, workOrderDate, formattedDate, engineers);
+      const htmlContent = generateDarexEnergyTemplate(workOrderData, workOrderNumber, workOrderDate, formattedDate, engineers);
+      downloadHTMLAsWord(htmlContent, company, workOrderNumber);
     }
+  };
 
-    // Відкриваємо нове вікно з нарядом
-    const newWindow = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes,resizable=yes');
-    newWindow.document.write(workOrderHTML);
-    newWindow.document.close();
+  // Функція для завантаження HTML як Word документа
+  const downloadHTMLAsWord = async (htmlContent, company, workOrderNumber) => {
+    try {
+      // Конвертуємо зображення в base64 для Word
+      const convertImageToBase64 = async (imagePath) => {
+        try {
+          const response = await fetch(imagePath);
+          const blob = await response.blob();
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch (error) {
+          console.warn('Не вдалося завантажити зображення:', imagePath, error);
+          return null;
+        }
+      };
+
+      // Конвертуємо зображення в base64
+      let htmlWithImages = htmlContent;
+      
+      // Для ДТС шаблону
+      if (company === 'ДТС' || company === 'Дарекс Трейдінг Солюшнс') {
+        const img1Base64 = await convertImageToBase64('/images/Зображення1.png');
+        const img2Base64 = await convertImageToBase64('/images/Зображення2.png');
+        
+        if (img1Base64) {
+          htmlWithImages = htmlWithImages.replace(
+            'src="/images/Зображення1.png"',
+            `src="${img1Base64}"`
+          );
+        }
+        if (img2Base64) {
+          htmlWithImages = htmlWithImages.replace(
+            'src="/images/Зображення2.png"',
+            `src="${img2Base64}"`
+          );
+        }
+      } else {
+        // Для Дарекс Енерго
+        const headerBase64 = await convertImageToBase64('/header.png');
+        if (headerBase64) {
+          htmlWithImages = htmlWithImages.replace(
+            'src="/header.png"',
+            `src="${headerBase64}"`
+          );
+        }
+      }
+      
+      // Видаляємо блок з кнопками (.no-print) з HTML для Word
+      const processedHtml = htmlWithImages.replace(/<div class="no-print">[\s\S]*?<\/div>/gi, '');
+      
+      // Створюємо HTML з правильним MIME типом для Word
+      const htmlBlob = new Blob([processedHtml], { 
+        type: 'application/msword;charset=utf-8' 
+      });
+      
+      // Формуємо назву файлу з розширенням .doc (Word відкриє і зможе зберегти як .docx)
+      const fileName = company === 'ДТС' || company === 'Дарекс Трейдінг Солюшнс' 
+        ? `Наряд_ДТС_${workOrderNumber}_${new Date().toISOString().slice(0,10)}.doc`
+        : `Наряд_Дарекс_Енерго_${workOrderNumber}_${new Date().toISOString().slice(0,10)}.doc`;
+      
+      // Завантажуємо файл
+      saveAs(htmlBlob, fileName);
+      
+      // Відкриваємо в новому вікні для перегляду (з кнопками та base64 зображеннями)
+      const newWindow = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes,resizable=yes');
+      if (newWindow) {
+        // В браузері показуємо HTML з кнопками та base64 зображеннями
+        newWindow.document.write(htmlWithImages);
+        newWindow.document.close();
+      }
+      
+    } catch (error) {
+      console.error('Помилка створення Word документа:', error);
+      alert('Помилка створення документа. Перевірте консоль для деталей.');
+    }
+  };
+
+  // Функція для створення Word документа
+  const createWorkOrderWordDocument = async (workOrderData, workOrderNumber, workOrderDate, formattedDate, engineers, task, company) => {
+    try {
+      const children = [];
+      
+      // Шапка компанії
+      if (company === 'ДТС' || company === 'Дарекс Трейдінг Солюшнс') {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "ТОВ \"ДАРЕКС ТРЕЙДІНГ СОЛЮШНС\"", bold: true, size: 24 })
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 100 }
+          })
+        );
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "СЕРВІСНА СЛУЖБА", bold: true, size: 22, color: "008000" })
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 100 }
+          })
+        );
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "ТОВ «ДАРЕКС ТРЕЙДІНГ СОЛЮШНС»", size: 20 })
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 200 }
+          })
+        );
+      } else {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "ТОВ \"ДАРЕКС ЕНЕРГО\"", bold: true, size: 24 })
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 100 }
+          })
+        );
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "СЕРВІСНА СЛУЖБА", bold: true, size: 22, color: "008000" })
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 200 }
+          })
+        );
+      }
+      
+      // Заголовок
+      children.push(
+        new Paragraph({
+          text: "НАРЯД НА ВИКОНАННЯ РОБІТ",
+          heading: HeadingLevel.HEADING_1,
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 200, after: 200 }
+        })
+      );
+
+      // Номер наряду та дата
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "№ наряду: ", bold: true }),
+            new TextRun({ text: workOrderNumber })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `від «${formattedDate.day}» ${formattedDate.month} ${formattedDate.year} р.):` })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Роботи виконує
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "1. Роботи виконує: ", bold: true }),
+            new TextRun({ text: engineers })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Замовник
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "2. Замовник: ", bold: true }),
+            new TextRun({ text: workOrderData.client })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Адреса
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "3. Адреса об'єкта: ", bold: true }),
+            new TextRun({ text: workOrderData.address })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Обладнання
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "4. Найменування обладнання: ", bold: true }),
+            new TextRun({ text: workOrderData.equipment })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Зав. №: ", bold: true }),
+            new TextRun({ text: workOrderData.serialNumber })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Тип двигуна (якщо є)
+      if (workOrderData.engineModel) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "5. Тип двигуна: ", bold: true }),
+              new TextRun({ text: workOrderData.engineModel })
+            ],
+            spacing: { after: 100 }
+          })
+        );
+      }
+
+      if (workOrderData.engineSerial) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Зав. №: ", bold: true }),
+              new TextRun({ text: workOrderData.engineSerial })
+            ],
+            spacing: { after: 100 }
+          })
+        );
+      }
+
+      // Тип панелі керування
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "6. Тип панелі керування: ", bold: true }),
+            new TextRun({ text: "" })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Вид робіт
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "7. Вид робіт: ", bold: true }),
+            new TextRun({ text: workOrderData.workType })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Технічний стан
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "8. Технічний стан обладнання перед проведенням робіт: ", bold: true })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Перелік виконаних робіт
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "9. Перелік виконаних робіт/послуг: ", bold: true }),
+            new TextRun({ text: workOrderData.performedWork || "" })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          text: "",
+          spacing: { after: 50 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          text: "",
+          spacing: { after: 50 }
+        })
+      );
+
+      // Після проведення робіт
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "10. Після проведення робіт та випробувань, ДГУ знаходиться в робочому / неробочому стані, в режимі ручне авто, напрацювання становить ____ мотогодин." })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Навантаження
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "11. Навантаження: L1 ____, L2 ____, L3 ____, U1 ____, U2 ____, U3 ____, V." })
+          ],
+          spacing: { after: 200 }
+        })
+      );
+
+      // Таблиця матеріалів
+      const materialsRows = [
+        new TableRow({
+          children: [
+            new TableCell({ 
+              children: [new Paragraph({ 
+                children: [new TextRun({ text: "№", bold: true })], 
+                alignment: AlignmentType.CENTER 
+              })], 
+              width: { size: 8, type: WidthType.PERCENTAGE },
+              shading: { fill: "E0E0E0" }
+            }),
+            new TableCell({ 
+              children: [new Paragraph({ 
+                children: [new TextRun({ text: "Найменування", bold: true })] 
+              })], 
+              width: { size: 32, type: WidthType.PERCENTAGE },
+              shading: { fill: "E0E0E0" }
+            }),
+            new TableCell({ 
+              children: [new Paragraph({ 
+                children: [new TextRun({ text: "Один. виміру", bold: true })], 
+                alignment: AlignmentType.CENTER 
+              })], 
+              width: { size: 12, type: WidthType.PERCENTAGE },
+              shading: { fill: "E0E0E0" }
+            }),
+            new TableCell({ 
+              children: [new Paragraph({ 
+                children: [new TextRun({ text: "Кількість", bold: true })], 
+                alignment: AlignmentType.CENTER 
+              })], 
+              width: { size: 12, type: WidthType.PERCENTAGE },
+              shading: { fill: "E0E0E0" }
+            }),
+            new TableCell({ 
+              children: [new Paragraph({ 
+                children: [new TextRun({ text: "Ціна з ПДВ, грн", bold: true })], 
+                alignment: AlignmentType.CENTER 
+              })], 
+              width: { size: 18, type: WidthType.PERCENTAGE },
+              shading: { fill: "E0E0E0" }
+            }),
+            new TableCell({ 
+              children: [new Paragraph({ 
+                children: [new TextRun({ text: "Вартість з ПДВ, грн", bold: true })], 
+                alignment: AlignmentType.CENTER 
+              })], 
+              width: { size: 18, type: WidthType.PERCENTAGE },
+              shading: { fill: "E0E0E0" }
+            })
+          ]
+        })
+      ];
+
+      // Додаємо 8 порожніх рядків
+      for (let i = 1; i <= 8; i++) {
+        materialsRows.push(
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ text: i.toString(), alignment: AlignmentType.CENTER })] }),
+              new TableCell({ children: [new Paragraph({ text: "" })] }),
+              new TableCell({ children: [new Paragraph({ text: "" })] }),
+              new TableCell({ children: [new Paragraph({ text: "" })] }),
+              new TableCell({ children: [new Paragraph({ text: "" })] }),
+              new TableCell({ children: [new Paragraph({ text: "" })] })
+            ]
+          })
+        );
+      }
+
+      children.push(
+        new Paragraph({
+          text: "6.1. ПЕРЕЛІК МАТЕРІАЛІВ ТА ЗАПЧАСТИН, ВИКОРИСТАНИХ ПІД ЧАС РОБІТ:",
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 200, after: 100 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Загальна вартість матеріалів та запчастин: ", bold: true }),
+            new TextRun({ text: "____ грн." })
+          ],
+          spacing: { after: 200 }
+        })
+      );
+
+      children.push(
+        new Table({
+          rows: materialsRows,
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          columnWidths: [500, 3000, 1500, 1500, 2000, 2000]
+        })
+      );
+
+      // Вартість
+      children.push(
+        new Paragraph({
+          text: "6.2. Вартість ремонту/робіт:",
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 200, after: 100 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Коефіцієнт складності: _____" })
+          ],
+          spacing: { after: 50 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Діагностика: _____ грн." })
+          ],
+          spacing: { after: 50 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Вартість технічного обслуговування: _____ грн." })
+          ],
+          spacing: { after: 50 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Вартість ремонту (1людино-година*1200 грн.): _____ грн." })
+          ],
+          spacing: { after: 50 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Вартість пусконалагоджувальних робіт: _____ грн." })
+          ],
+          spacing: { after: 50 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Загальна вартість з урахуванням коефіцієнта складності: _____ грн." })
+          ],
+          spacing: { after: 200 }
+        })
+      );
+
+      // Виїзд
+      children.push(
+        new Paragraph({
+          text: "6.3. Виїзд на об'єкт Замовника: тариф: по місту 600.00 грн.",
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 200, after: 100 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Виїзд за місто ____ км * 15,00 грн/км; разом ____ грн." })
+          ],
+          spacing: { after: 200 }
+        })
+      );
+
+      // Добові
+      children.push(
+        new Paragraph({
+          text: "6.4. Добові у відрядженні: 600.00 грн. ____ діб ____ люд. разом ____ грн.",
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 200, after: 200 }
+        })
+      );
+
+      // Проживання
+      children.push(
+        new Paragraph({
+          text: "6.5. Проживання: ____ грн. разом ____ грн.",
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 200, after: 200 }
+        })
+      );
+
+      // Загальна вартість
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ 
+              text: "ЗАГАЛЬНА ВАРТІСТЬ РОБІТ з ПДВ (усього по пп.6.1-6.5) ____ грн.",
+              bold: true,
+              size: 24
+            })
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 200, after: 200 }
+        })
+      );
+
+      // Роботи виконав
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Роботи виконав: ", bold: true }),
+            new TextRun({ text: engineers })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Замовник повторно
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Замовник: ", bold: true }),
+            new TextRun({ text: workOrderData.client })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Адреса повторно
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Адреса об'єкта: ", bold: true }),
+            new TextRun({ text: workOrderData.address })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Відмітка про оплату
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Відмітка про оплату: ", bold: true }),
+            new TextRun({ text: workOrderData.paymentMethod || "" })
+          ],
+          spacing: { after: 200 }
+        })
+      );
+
+      // Наступне технічне обслуговування
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ 
+              text: "НАСТУПНЕ ТЕХНІЧНЕ ОБСЛУГОВУВАННЯ ПРОВЕСТИ ПРИ НАПРАЦЮВАННІ",
+              bold: true,
+              size: 22
+            })
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 200, after: 100 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "МОТОГОДИН, АБО «___» ___ 20___ РОКУ." })
+          ],
+          spacing: { after: 200 }
+        })
+      );
+
+      // Дата та час робіт
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Дата та час початку робіт: ", bold: true }),
+            new TextRun({ text: "_________________" })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Дата та час закінчення робіт: ", bold: true }),
+            new TextRun({ text: "_________________" })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Авто та переробка
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Авто №: ", bold: true }),
+            new TextRun({ text: "_________________" }),
+            new TextRun({ text: "  Переробка, год.: ", bold: true }),
+            new TextRun({ text: "_________________" })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Фото
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Фото зроблені, не зроблені: ", bold: true }),
+            new TextRun({ text: "_________________" })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      // Рекомендації
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Рекомендації виконувача робіт: ", bold: true }),
+            new TextRun({ text: workOrderData.recommendations || "" })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          text: "",
+          spacing: { after: 50 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          text: "",
+          spacing: { after: 50 }
+        })
+      );
+
+      // Коефіцієнт складності
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Коефіцієнт складності робіт: ", bold: true })
+          ],
+          spacing: { after: 100 }
+        })
+      );
+
+      const complexityFactors = [
+        "Робота за комфортних умов, доброзичливість замовника - 1.0",
+        "Робота на відкритому повітрі, при температурі нижче 0 град, (вище 27) сухо - 1.1",
+        "Робота в дощ, сніг, сильний вітер - 1.2",
+        "Робота в підвальних приміщеннях, на дахах - 1.3",
+        "Робота в агресивному середовищі - 1.4",
+        "Робота в нічний час (з 22:00 до 06:00) - 1.5",
+        "Робота у вихідні та святкові дні - 1.6",
+        "Терміновий виклик - 2.0"
+      ];
+
+      complexityFactors.forEach(factor => {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "☐ " }),
+              new TextRun({ text: factor })
+            ],
+            spacing: { after: 50 }
+          })
+        );
+      });
+
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ 
+              text: "*Коефіцієнт складності робіт це величина, що збільшує вартість робіт через специфічні, що не залежать від виконавця умов і не дозволяють якісно провести роботи без спеціальних навичок, обладнання через погодні умови, і т.д.",
+              italics: true,
+              size: 20
+            })
+          ],
+          spacing: { before: 200, after: 50 }
+        })
+      );
+
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ 
+              text: "*коефіцієнт може бути сумований.",
+              italics: true,
+              size: 20
+            })
+          ],
+          spacing: { after: 200 }
+        })
+      );
+
+      // Підписи в двох колонках
+      const signatureRows = [
+        new TableRow({
+          children: [
+            new TableCell({ 
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({ text: "РОБОТУ ПРИЙНЯВ", bold: true })
+                  ],
+                  alignment: AlignmentType.CENTER
+                }),
+                new Paragraph({
+                  text: "претензій не маю",
+                  alignment: AlignmentType.CENTER,
+                  spacing: { after: 100 }
+                }),
+                new Paragraph({
+                  text: "(ПІБ Замовника або його представника)",
+                  alignment: AlignmentType.CENTER,
+                  spacing: { after: 50 }
+                }),
+                new Paragraph({
+                  text: "(дата, підпис)",
+                  alignment: AlignmentType.CENTER
+                })
+              ],
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              verticalAlign: "top"
+            }),
+            new TableCell({ 
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({ text: "РОБОТУ ЗДАВ", bold: true })
+                  ],
+                  alignment: AlignmentType.CENTER
+                }),
+                new Paragraph({
+                  text: "",
+                  spacing: { after: 100 }
+                }),
+                new Paragraph({
+                  text: "(ПІБ Виконавця або його представника)",
+                  alignment: AlignmentType.CENTER,
+                  spacing: { after: 50 }
+                }),
+                new Paragraph({
+                  text: "(дата, підпис)",
+                  alignment: AlignmentType.CENTER
+                })
+              ],
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              verticalAlign: "top"
+            })
+          ]
+        })
+      ];
+
+      children.push(
+        new Table({
+          rows: signatureRows,
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          columnWidths: [5000, 5000]
+        })
+      );
+
+      // Створюємо документ з правильними налаштуваннями сторінки
+      const doc = new Document({
+        sections: [{
+          properties: {
+            page: {
+              size: {
+                orientation: SectionType.PORTRAIT,
+                width: 12240, // A4 width in TWIP (1/20 point)
+                height: 15840  // A4 height in TWIP
+              },
+              margin: {
+                top: 1440,    // 2.5cm = 1440 TWIP
+                right: 1440,  // 2.5cm
+                bottom: 1440, // 2.5cm
+                left: 1440    // 2.5cm
+              }
+            }
+          },
+          children: children
+        }]
+      });
+
+      // Генеруємо та завантажуємо файл
+      const blob = await Packer.toBlob(doc);
+      const fileName = company === 'ДТС' || company === 'Дарекс Трейдінг Солюшнс' 
+        ? `Наряд_ДТС_${workOrderNumber}_${new Date().toISOString().slice(0,10)}.docx`
+        : `Наряд_Дарекс_Енерго_${workOrderNumber}_${new Date().toISOString().slice(0,10)}.docx`;
+      
+      saveAs(blob, fileName);
+      
+      // Відкриваємо файл автоматично (якщо браузер підтримує)
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      
+    } catch (error) {
+      console.error('Помилка створення Word документа:', error);
+      alert('Помилка створення Word документа. Перевірте консоль для деталей.');
+    }
   };
 
   // Функція для генерації шаблону ДТС
   const generateDTSTemplate = (workOrderData, workOrderNumber, workOrderDate, formattedDate, engineers, task) => {
     return `
       <!DOCTYPE html>
-      <html lang="uk">
+      <html xmlns:o="urn:schemas-microsoft-com:office:office"
+            xmlns:w="urn:schemas-microsoft-com:office:word"
+            xmlns="http://www.w3.org/TR/REC-html40" lang="uk">
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="ProgId" content="Word.Document">
+        <meta name="Generator" content="Microsoft Word">
+        <meta name="Originator" content="Microsoft Word">
         <title>Наряд ДТС-2</title>
+        <!--[if gte mso 9]>
+        <xml>
+          <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>100</w:Zoom>
+            <w:DoNotOptimizeForBrowser/>
+          </w:WordDocument>
+        </xml>
+        <![endif]-->
         <style>
           @page {
             size: A4;
-            margin: 1.5cm;
+            margin: 1.27cm 1.27cm 1.27cm 1.27cm;
+            mso-page-orientation: portrait;
           }
           
           body {
@@ -1121,15 +1971,35 @@ function TaskTableComponent({
             margin: 0;
             padding: 0;
             color: #000;
+            mso-margin-top-alt: 720;
+            mso-margin-bottom-alt: 720;
+            mso-margin-left-alt: 720;
+            mso-margin-right-alt: 720;
           }
           
           .page {
             width: 21cm;
             min-height: 29.7cm;
             margin: 0 auto;
-            padding: 1.5cm;
+            padding: 1.27cm;
             box-sizing: border-box;
             position: relative;
+          }
+          
+          div.Section1 {
+            mso-margin-top-alt: 720;
+            mso-margin-bottom-alt: 720;
+            mso-margin-left-alt: 720;
+            mso-margin-right-alt: 720;
+            page: Section1;
+          }
+          
+          @page Section1 {
+            size: 21.0cm 29.7cm;
+            margin: 1.27cm 1.27cm 1.27cm 1.27cm;
+            mso-header-margin: 1.27cm;
+            mso-footer-margin: 1.27cm;
+            mso-paper-source: 0;
           }
           
           .page:last-child {
@@ -1180,9 +2050,9 @@ function TaskTableComponent({
           
           .checkbox-group {
             display: flex;
-            gap: 15px;
+            gap: 10px;
             margin: 8px 0;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
           }
           
           .checkbox-item {
@@ -1190,6 +2060,22 @@ function TaskTableComponent({
             align-items: center;
             gap: 3px;
             font-size: 11pt;
+            white-space: nowrap;
+          }
+          
+          .checkbox-group-inline {
+            display: inline;
+            font-size: 11pt;
+            margin-left: 10px;
+          }
+          
+          .checkbox-group-inline .checkbox-unicode {
+            margin-right: 3px;
+            margin-left: 10px;
+          }
+          
+          .checkbox-group-inline .checkbox-unicode:first-child {
+            margin-left: 0;
           }
           
           .checkbox {
@@ -1197,6 +2083,14 @@ function TaskTableComponent({
             height: 12px;
             border: 1px solid #000;
             display: inline-block;
+            vertical-align: middle;
+          }
+          
+          .checkbox-unicode {
+            font-size: 14pt;
+            margin-right: 5px;
+            display: inline-block;
+            vertical-align: middle;
           }
           
           .materials-table {
@@ -1204,19 +2098,49 @@ function TaskTableComponent({
             border-collapse: collapse;
             margin: 10px 0;
             font-size: 9pt;
+            table-layout: fixed;
           }
           
           .materials-table th,
           .materials-table td {
             border: 1px solid #000;
-            padding: 3px;
+            padding: 0;
             text-align: center;
             vertical-align: middle;
+            height: 0.5cm;
+            line-height: 0.5cm;
           }
           
           .materials-table th {
             background-color: #f8f8f8;
             font-weight: bold;
+            padding: 0;
+            height: 0.5cm;
+            line-height: 0.5cm;
+          }
+          
+          .materials-table td {
+            padding: 0;
+            height: 0.5cm;
+            line-height: 0.5cm;
+          }
+          
+          .materials-table tr {
+            height: 0.5cm;
+            mso-height-source: userset;
+            mso-height-rule: exactly;
+          }
+          
+          .materials-table tbody tr {
+            height: 0.5cm;
+            mso-height-source: userset;
+            mso-height-rule: exactly;
+          }
+          
+          .materials-table thead tr {
+            height: 0.5cm;
+            mso-height-source: userset;
+            mso-height-rule: exactly;
           }
           
           .cost-section {
@@ -1247,6 +2171,9 @@ function TaskTableComponent({
             border-bottom: 1px solid #000;
             margin: 15px 0 3px 0;
             min-height: 18px;
+            height: 18px;
+            display: block;
+            width: 100%;
           }
           
           .text-area {
@@ -1264,6 +2191,16 @@ function TaskTableComponent({
             padding: 1px 3px;
           }
           
+          .recommendation-line {
+            border-bottom: 1px solid #000;
+            min-height: 20px;
+            height: 20px;
+            margin: 5px 0;
+            padding: 2px 0;
+            width: 100%;
+            display: block;
+          }
+          
           .checkbox-section {
             margin: 8px 0;
           }
@@ -1277,6 +2214,13 @@ function TaskTableComponent({
           
           .checkbox-label {
             margin-left: 8px;
+          }
+          
+          .checkbox-unicode {
+            font-size: 14pt;
+            margin-right: 5px;
+            display: inline-block;
+            vertical-align: middle;
           }
           
           .total-cost {
@@ -1362,7 +2306,40 @@ function TaskTableComponent({
         </style>
       </head>
       <body>
+        <!--[if gte mso 9]>
+        <xml>
+          <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>100</w:Zoom>
+            <w:DoNotOptimizeForBrowser/>
+            <w:ValidateAgainstSchemas/>
+            <w:SaveIfXMLInvalid>false</w:SaveIfXMLInvalid>
+            <w:IgnoreMixedContent>false</w:IgnoreMixedContent>
+            <w:AlwaysShowPlaceholderText>false</w:AlwaysShowPlaceholderText>
+            <w:Compatibility>
+              <w:BreakWrappedTables/>
+              <w:SnapToGridInCell/>
+              <w:WrapTextWithPunct/>
+              <w:UseAsianBreakRules/>
+              <w:DontGrowAutofit/>
+            </w:Compatibility>
+            <w:BrowserLevel>MicrosoftInternetExplorer4</w:BrowserLevel>
+          </w:WordDocument>
+        </xml>
+        <xml>
+          <w:LatentStyles DefLockedState="false" DefUnhideWhenUsed="false"
+            DefSemiHidden="false" DefQFormat="false" DefPriority="99"
+            LatentStyleCount="376">
+          </w:LatentStyles>
+        </xml>
+        <![endif]-->
+        <!--[if gte mso 9]>
+        <xml>
+          <o:shapedefaults v:ext="edit" spidmax="1026"/>
+        </xml>
+        <![endif]-->
         <!-- Перша сторінка -->
+        <div class="Section1">
         <div class="page">
           <div class="header">
             <!-- Верхня секція шапки - перше зображення -->
@@ -1430,42 +2407,21 @@ function TaskTableComponent({
           
           <div class="field">
             <span class="field-label">7. Вид робіт:</span>
-            <div class="checkbox-group">
-              <div class="checkbox-item">
-                <div class="checkbox"></div>
-                <span>гарантійний ремонт</span>
-              </div>
-              <div class="checkbox-item">
-                <div class="checkbox"></div>
-                <span>ремонт</span>
-              </div>
-              <div class="checkbox-item">
-                <div class="checkbox"></div>
-                <span>технічне обслуговування</span>
-              </div>
-              <div class="checkbox-item">
-                <div class="checkbox"></div>
-                <span>інше</span>
-              </div>
-              <div class="checkbox-item">
-                <div class="checkbox"></div>
-                <span>ПНР</span>
-              </div>
-            </div>
+            <span class="checkbox-group-inline">
+              <span class="checkbox-unicode">☐</span> гарантійний ремонт
+              <span class="checkbox-unicode">☐</span> ремонт
+              <span class="checkbox-unicode">☐</span> технічне обслуговування
+              <span class="checkbox-unicode">☐</span> інше
+              <span class="checkbox-unicode">☐</span> ПНР
+            </span>
           </div>
           
           <div class="field">
             <span class="field-label">8. Технічний стан обладнання перед проведенням робіт:</span>
-            <div class="checkbox-group">
-              <div class="checkbox-item">
-                <div class="checkbox"></div>
-                <span>працездатне</span>
-              </div>
-              <div class="checkbox-item">
-                <div class="checkbox"></div>
-                <span>непрацездатне</span>
-              </div>
-            </div>
+            <span class="checkbox-group-inline">
+              <span class="checkbox-unicode">☐</span> працездатне
+              <span class="checkbox-unicode">☐</span> непрацездатне
+            </span>
           </div>
           
           <div class="field">
@@ -1495,24 +2451,24 @@ function TaskTableComponent({
           
           <table class="materials-table">
             <thead>
-              <tr>
-                <th>№</th>
-                <th>Найменування</th>
-                <th>Один. виміру</th>
-                <th>Кількість</th>
-                <th>Ціна з ПДВ, грн</th>
-                <th>Вартість з ПДВ, грн</th>
+              <tr style="height: 0.5cm; mso-height-source: userset; mso-height-rule: exactly;">
+                <th style="height: 0.5cm; mso-height-rule: exactly;">№</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly;">Найменування</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly;">Один. виміру</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly;">Кількість</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly;">Ціна з ПДВ, грн</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly;">Вартість з ПДВ, грн</th>
               </tr>
             </thead>
             <tbody>
-              ${Array.from({length: 10}, (_, i) => `
-                <tr>
-                  <td>${i + 1}</td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
+              ${Array.from({length: 8}, (_, i) => `
+                <tr style="height: 0.5cm; mso-height-source: userset; mso-height-rule: exactly;">
+                  <td style="height: 0.5cm; mso-height-rule: exactly;">${i + 1}</td>
+                  <td style="height: 0.5cm; mso-height-rule: exactly;">&nbsp;</td>
+                  <td style="height: 0.5cm; mso-height-rule: exactly;">&nbsp;</td>
+                  <td style="height: 0.5cm; mso-height-rule: exactly;">&nbsp;</td>
+                  <td style="height: 0.5cm; mso-height-rule: exactly;">&nbsp;</td>
+                  <td style="height: 0.5cm; mso-height-rule: exactly;">&nbsp;</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1568,26 +2524,6 @@ function TaskTableComponent({
             ЗАГАЛЬНА ВАРТІСТЬ РОБІТ з ПДВ (усього по пп.6.1-6.5) ____ грн.
           </div>
           
-          <div class="field">
-            <span class="field-label">Роботи виконав:</span>
-            <span class="field-value">${engineers}</span>
-          </div>
-          
-          <div class="field">
-            <span class="field-label">Замовник:</span>
-            <span class="field-value">${workOrderData.client}</span>
-          </div>
-          
-          <div class="field">
-            <span class="field-label">Адреса об'єкта:</span>
-            <span class="field-value">${workOrderData.address}</span>
-          </div>
-          
-          <div class="field">
-            <span class="field-label">Відмітка про оплату:</span>
-            <span class="field-value"></span>
-          </div>
-          
           <div class="title" style="font-size: 12pt; margin: 20px 0;">
             НАСТУПНЕ ТЕХНІЧНЕ ОБСЛУГОВУВАННЯ ПРОВЕСТИ ПРИ НАПРАЦЮВАННІ
           </div>
@@ -1635,16 +2571,10 @@ function TaskTableComponent({
             <span class="field-label">Рекомендації виконувача робіт:</span>
             <span class="field-value"></span>
           </div>
-          
-          <div class="field">
-            <span class="field-label"></span>
-            <span class="field-value"></span>
-          </div>
-          
-          <div class="field">
-            <span class="field-label"></span>
-            <span class="field-value"></span>
-          </div>
+          <div class="recommendation-line" style="border-bottom: 1px solid #000; min-height: 20px; height: 20px; margin: 5px 0; width: 100%; display: block;">&nbsp;</div>
+          <div class="recommendation-line" style="border-bottom: 1px solid #000; min-height: 20px; height: 20px; margin: 5px 0; width: 100%; display: block;">&nbsp;</div>
+          <div class="recommendation-line" style="border-bottom: 1px solid #000; min-height: 20px; height: 20px; margin: 5px 0; width: 100%; display: block;">&nbsp;</div>
+          <div class="recommendation-line" style="border-bottom: 1px solid #000; min-height: 20px; height: 20px; margin: 5px 0; width: 100%; display: block;">&nbsp;</div>
           
           <div class="field">
             <span class="field-label">Коефіцієнт складності робіт:</span>
@@ -1652,35 +2582,35 @@ function TaskTableComponent({
           
           <div class="checkbox-section">
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Робота за комфортних умов, доброзичливість замовника - 1.0</span>
             </div>
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Робота на відкритому повітрі, при температурі нижче 0 град, (вище 27) сухо - 1.1</span>
             </div>
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Робота в дощ, сніг, сильний вітер - 1.2</span>
             </div>
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Робота в підвальних приміщеннях, на дахах - 1.3</span>
             </div>
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Робота в агресивному середовищі - 1.4</span>
             </div>
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Робота в нічний час (з 22:00 до 06:00) - 1.5</span>
             </div>
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Робота у вихідні та святкові дні - 1.6</span>
             </div>
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Терміновий виклик - 2.0</span>
             </div>
           </div>
@@ -1696,15 +2626,14 @@ function TaskTableComponent({
           <div class="signature-section">
             <div class="signature-block">
               <div><strong>РОБОТУ ПРИЙНЯВ</strong></div>
-              <div>претензій не маю</div>
-              <div class="signature-line">(ПІБ Замовника або його представника)</div>
-              <div class="signature-line">(дата, підпис)</div>
+              <div class="signature-line">&nbsp;</div>
+              <div class="signature-line">&nbsp;</div>
             </div>
             
             <div class="signature-block">
               <div><strong>РОБОТУ ЗДАВ</strong></div>
-              <div class="signature-line">(ПІБ Виконавця або його представника)</div>
-              <div class="signature-line">(дата, підпис)</div>
+              <div class="signature-line">${engineers || '&nbsp;'}</div>
+              <div class="signature-line">&nbsp;</div>
             </div>
           </div>
         </div>
@@ -1754,6 +2683,7 @@ function TaskTableComponent({
             URL.revokeObjectURL(url);
           }
         </script>
+        </div>
       </body>
       </html>
     `;
@@ -1771,7 +2701,8 @@ function TaskTableComponent({
         <style>
           @page {
             size: A4;
-            margin: 1.5cm;
+            margin: 1.27cm 1.27cm 1.27cm 1.27cm;
+            mso-page-orientation: portrait;
           }
           
           body {
@@ -1781,15 +2712,35 @@ function TaskTableComponent({
             margin: 0;
             padding: 0;
             color: #000;
+            mso-margin-top-alt: 720;
+            mso-margin-bottom-alt: 720;
+            mso-margin-left-alt: 720;
+            mso-margin-right-alt: 720;
           }
           
           .page {
             width: 21cm;
             min-height: 29.7cm;
             margin: 0 auto;
-            padding: 1.5cm;
+            padding: 1.27cm;
             box-sizing: border-box;
             position: relative;
+          }
+          
+          div.Section1 {
+            mso-margin-top-alt: 720;
+            mso-margin-bottom-alt: 720;
+            mso-margin-left-alt: 720;
+            mso-margin-right-alt: 720;
+            page: Section1;
+          }
+          
+          @page Section1 {
+            size: 21.0cm 29.7cm;
+            margin: 1.27cm 1.27cm 1.27cm 1.27cm;
+            mso-header-margin: 1.27cm;
+            mso-footer-margin: 1.27cm;
+            mso-paper-source: 0;
           }
           
           .page:last-child {
@@ -1840,9 +2791,9 @@ function TaskTableComponent({
           
           .checkbox-group {
             display: flex;
-            gap: 15px;
+            gap: 10px;
             margin: 8px 0;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
           }
           
           .checkbox-item {
@@ -1850,6 +2801,22 @@ function TaskTableComponent({
             align-items: center;
             gap: 3px;
             font-size: 11pt;
+            white-space: nowrap;
+          }
+          
+          .checkbox-group-inline {
+            display: inline;
+            font-size: 11pt;
+            margin-left: 10px;
+          }
+          
+          .checkbox-group-inline .checkbox-unicode {
+            margin-right: 3px;
+            margin-left: 10px;
+          }
+          
+          .checkbox-group-inline .checkbox-unicode:first-child {
+            margin-left: 0;
           }
           
           .checkbox {
@@ -1857,6 +2824,14 @@ function TaskTableComponent({
             height: 12px;
             border: 1px solid #000;
             display: inline-block;
+            vertical-align: middle;
+          }
+          
+          .checkbox-unicode {
+            font-size: 14pt;
+            margin-right: 5px;
+            display: inline-block;
+            vertical-align: middle;
           }
           
           .materials-table {
@@ -1864,19 +2839,49 @@ function TaskTableComponent({
             border-collapse: collapse;
             margin: 10px 0;
             font-size: 9pt;
+            table-layout: fixed;
           }
           
           .materials-table th,
           .materials-table td {
             border: 1px solid #000;
-            padding: 3px;
+            padding: 0;
             text-align: center;
             vertical-align: middle;
+            height: 0.5cm;
+            line-height: 0.5cm;
           }
           
           .materials-table th {
             background-color: #f8f8f8;
             font-weight: bold;
+            padding: 0;
+            height: 0.5cm;
+            line-height: 0.5cm;
+          }
+          
+          .materials-table td {
+            padding: 0;
+            height: 0.5cm;
+            line-height: 0.5cm;
+          }
+          
+          .materials-table tr {
+            height: 0.5cm;
+            mso-height-source: userset;
+            mso-height-rule: exactly;
+          }
+          
+          .materials-table tbody tr {
+            height: 0.5cm;
+            mso-height-source: userset;
+            mso-height-rule: exactly;
+          }
+          
+          .materials-table thead tr {
+            height: 0.5cm;
+            mso-height-source: userset;
+            mso-height-rule: exactly;
           }
           
           .cost-section {
@@ -1907,6 +2912,9 @@ function TaskTableComponent({
             border-bottom: 1px solid #000;
             margin: 15px 0 3px 0;
             min-height: 18px;
+            height: 18px;
+            display: block;
+            width: 100%;
           }
           
           .text-area {
@@ -1924,6 +2932,16 @@ function TaskTableComponent({
             padding: 1px 3px;
           }
           
+          .recommendation-line {
+            border-bottom: 1px solid #000;
+            min-height: 20px;
+            height: 20px;
+            margin: 5px 0;
+            padding: 2px 0;
+            width: 100%;
+            display: block;
+          }
+          
           .checkbox-section {
             margin: 8px 0;
           }
@@ -1937,6 +2955,13 @@ function TaskTableComponent({
           
           .checkbox-label {
             margin-left: 8px;
+          }
+          
+          .checkbox-unicode {
+            font-size: 14pt;
+            margin-right: 5px;
+            display: inline-block;
+            vertical-align: middle;
           }
           
           .total-cost {
@@ -2022,7 +3047,40 @@ function TaskTableComponent({
         </style>
       </head>
       <body>
+        <!--[if gte mso 9]>
+        <xml>
+          <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>100</w:Zoom>
+            <w:DoNotOptimizeForBrowser/>
+            <w:ValidateAgainstSchemas/>
+            <w:SaveIfXMLInvalid>false</w:SaveIfXMLInvalid>
+            <w:IgnoreMixedContent>false</w:IgnoreMixedContent>
+            <w:AlwaysShowPlaceholderText>false</w:AlwaysShowPlaceholderText>
+            <w:Compatibility>
+              <w:BreakWrappedTables/>
+              <w:SnapToGridInCell/>
+              <w:WrapTextWithPunct/>
+              <w:UseAsianBreakRules/>
+              <w:DontGrowAutofit/>
+            </w:Compatibility>
+            <w:BrowserLevel>MicrosoftInternetExplorer4</w:BrowserLevel>
+          </w:WordDocument>
+        </xml>
+        <xml>
+          <w:LatentStyles DefLockedState="false" DefUnhideWhenUsed="false"
+            DefSemiHidden="false" DefQFormat="false" DefPriority="99"
+            LatentStyleCount="376">
+          </w:LatentStyles>
+        </xml>
+        <![endif]-->
+        <!--[if gte mso 9]>
+        <xml>
+          <o:shapedefaults v:ext="edit" spidmax="1026"/>
+        </xml>
+        <![endif]-->
         <!-- Перша сторінка -->
+        <div class="Section1">
         <div class="page">
           <div class="header">
             <img src="/header.png" alt="Шапка Дарекс Енерго" class="header-image" style="width: 100%; max-width: 680px; height: auto;" />
@@ -2082,42 +3140,21 @@ function TaskTableComponent({
           
           <div class="field">
             <span class="field-label">7. Вид робіт:</span>
-            <div class="checkbox-group">
-              <div class="checkbox-item">
-                <div class="checkbox"></div>
-                <span>гарантійний ремонт</span>
-              </div>
-              <div class="checkbox-item">
-                <div class="checkbox"></div>
-                <span>ремонт</span>
-              </div>
-              <div class="checkbox-item">
-                <div class="checkbox"></div>
-                <span>технічне обслуговування</span>
-              </div>
-              <div class="checkbox-item">
-                <div class="checkbox"></div>
-                <span>інше</span>
-              </div>
-              <div class="checkbox-item">
-                <div class="checkbox"></div>
-                <span>ПНР</span>
-              </div>
-            </div>
+            <span class="checkbox-group-inline">
+              <span class="checkbox-unicode">☐</span> гарантійний ремонт
+              <span class="checkbox-unicode">☐</span> ремонт
+              <span class="checkbox-unicode">☐</span> технічне обслуговування
+              <span class="checkbox-unicode">☐</span> інше
+              <span class="checkbox-unicode">☐</span> ПНР
+            </span>
           </div>
           
           <div class="field">
             <span class="field-label">8. Технічний стан обладнання перед проведенням робіт:</span>
-            <div class="checkbox-group">
-              <div class="checkbox-item">
-                <div class="checkbox"></div>
-                <span>працездатне</span>
-              </div>
-              <div class="checkbox-item">
-                <div class="checkbox"></div>
-                <span>непрацездатне</span>
-              </div>
-            </div>
+            <span class="checkbox-group-inline">
+              <span class="checkbox-unicode">☐</span> працездатне
+              <span class="checkbox-unicode">☐</span> непрацездатне
+            </span>
           </div>
           
           <div class="field">
@@ -2147,24 +3184,24 @@ function TaskTableComponent({
           
           <table class="materials-table">
             <thead>
-              <tr>
-                <th>№</th>
-                <th>Найменування</th>
-                <th>Один. виміру</th>
-                <th>Кількість</th>
-                <th>Ціна з ПДВ, грн</th>
-                <th>Вартість з ПДВ, грн</th>
+              <tr style="height: 0.5cm; mso-height-source: userset; mso-height-rule: exactly;">
+                <th style="height: 0.5cm; mso-height-rule: exactly;">№</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly;">Найменування</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly;">Один. виміру</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly;">Кількість</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly;">Ціна з ПДВ, грн</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly;">Вартість з ПДВ, грн</th>
               </tr>
             </thead>
             <tbody>
-              ${Array.from({length: 10}, (_, i) => `
-                <tr>
-                  <td>${i + 1}</td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
+              ${Array.from({length: 8}, (_, i) => `
+                <tr style="height: 0.5cm; mso-height-source: userset; mso-height-rule: exactly;">
+                  <td style="height: 0.5cm; mso-height-rule: exactly;">${i + 1}</td>
+                  <td style="height: 0.5cm; mso-height-rule: exactly;">&nbsp;</td>
+                  <td style="height: 0.5cm; mso-height-rule: exactly;">&nbsp;</td>
+                  <td style="height: 0.5cm; mso-height-rule: exactly;">&nbsp;</td>
+                  <td style="height: 0.5cm; mso-height-rule: exactly;">&nbsp;</td>
+                  <td style="height: 0.5cm; mso-height-rule: exactly;">&nbsp;</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2220,26 +3257,6 @@ function TaskTableComponent({
             ЗАГАЛЬНА ВАРТІСТЬ РОБІТ з ПДВ (усього по пп.6.1-6.5) ____ грн.
           </div>
           
-          <div class="field">
-            <span class="field-label">Роботи виконав:</span>
-            <span class="field-value">${engineers}</span>
-          </div>
-          
-          <div class="field">
-            <span class="field-label">Замовник:</span>
-            <span class="field-value">${workOrderData.client}</span>
-          </div>
-          
-          <div class="field">
-            <span class="field-label">Адреса об'єкта:</span>
-            <span class="field-value">${workOrderData.address}</span>
-          </div>
-          
-          <div class="field">
-            <span class="field-label">Відмітка про оплату:</span>
-            <span class="field-value"></span>
-          </div>
-          
           <div class="title" style="font-size: 12pt; margin: 20px 0;">
             НАСТУПНЕ ТЕХНІЧНЕ ОБСЛУГОВУВАННЯ ПРОВЕСТИ ПРИ НАПРАЦЮВАННІ
           </div>
@@ -2287,16 +3304,10 @@ function TaskTableComponent({
             <span class="field-label">Рекомендації виконувача робіт:</span>
             <span class="field-value"></span>
           </div>
-          
-          <div class="field">
-            <span class="field-label"></span>
-            <span class="field-value"></span>
-          </div>
-          
-          <div class="field">
-            <span class="field-label"></span>
-            <span class="field-value"></span>
-          </div>
+          <div class="recommendation-line" style="border-bottom: 1px solid #000; min-height: 20px; height: 20px; margin: 5px 0; width: 100%; display: block;">&nbsp;</div>
+          <div class="recommendation-line" style="border-bottom: 1px solid #000; min-height: 20px; height: 20px; margin: 5px 0; width: 100%; display: block;">&nbsp;</div>
+          <div class="recommendation-line" style="border-bottom: 1px solid #000; min-height: 20px; height: 20px; margin: 5px 0; width: 100%; display: block;">&nbsp;</div>
+          <div class="recommendation-line" style="border-bottom: 1px solid #000; min-height: 20px; height: 20px; margin: 5px 0; width: 100%; display: block;">&nbsp;</div>
           
           <div class="field">
             <span class="field-label">Коефіцієнт складності робіт:</span>
@@ -2304,35 +3315,35 @@ function TaskTableComponent({
           
           <div class="checkbox-section">
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Робота за комфортних умов, доброзичливість замовника - 1.0</span>
             </div>
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Робота на відкритому повітрі, при температурі нижче 0 град, (вище 27) сухо - 1.1</span>
             </div>
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Робота в дощ, сніг, сильний вітер - 1.2</span>
             </div>
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Робота в підвальних приміщеннях, на дахах - 1.3</span>
             </div>
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Робота в агресивному середовищі - 1.4</span>
             </div>
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Робота в нічний час (з 22:00 до 06:00) - 1.5</span>
             </div>
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Робота у вихідні та святкові дні - 1.6</span>
             </div>
             <div class="checkbox-row">
-              <div class="checkbox"></div>
+              <span class="checkbox-unicode">☐</span>
               <span class="checkbox-label">Терміновий виклик - 2.0</span>
             </div>
           </div>
@@ -2348,15 +3359,14 @@ function TaskTableComponent({
           <div class="signature-section">
             <div class="signature-block">
               <div><strong>РОБОТУ ПРИЙНЯВ</strong></div>
-              <div>претензій не маю</div>
-              <div class="signature-line">(ПІБ Замовника або його представника)</div>
-              <div class="signature-line">(дата, підпис)</div>
+              <div class="signature-line">&nbsp;</div>
+              <div class="signature-line">&nbsp;</div>
             </div>
             
             <div class="signature-block">
               <div><strong>РОБОТУ ЗДАВ</strong></div>
-              <div class="signature-line">(ПІБ Виконавця або його представника)</div>
-              <div class="signature-line">(дата, підпис)</div>
+              <div class="signature-line">${engineers || '&nbsp;'}</div>
+              <div class="signature-line">&nbsp;</div>
             </div>
           </div>
         </div>
@@ -2406,6 +3416,7 @@ function TaskTableComponent({
             URL.revokeObjectURL(url);
           }
         </script>
+        </div>
       </body>
       </html>
     `;

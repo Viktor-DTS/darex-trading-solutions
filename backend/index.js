@@ -169,20 +169,15 @@ const EventLog = mongoose.model('EventLog', eventLogSchema);
 // Модель для аналітики витрат та доходів
 const analyticsSchema = new mongoose.Schema({
   region: { type: String, required: true }, // Регіон
-  company: { type: String, required: true }, // Компанія
+  company: { type: String, default: '' }, // Компанія (не обов'язкове)
   year: { type: Number, required: true }, // Рік
   month: { type: Number, required: true }, // Місяць (1-12)
   
-  // Статті витрат
+  // Статті витрат (використовуємо Mixed для підтримки динамічних категорій)
   expenses: {
-    salary: { type: Number, default: 0 }, // Зарплата
-    fuel: { type: Number, default: 0 }, // Паливо
-    transport: { type: Number, default: 0 }, // Транспорт
-    materials: { type: Number, default: 0 }, // Матеріали
-    equipment: { type: Number, default: 0 }, // Обладнання
-    office: { type: Number, default: 0 }, // Офісні витрати
-    marketing: { type: Number, default: 0 }, // Маркетинг
-    other: { type: Number, default: 0 } // Інші витрати
+    type: Map,
+    of: Number,
+    default: {}
   },
   
   // Фінансові показники
@@ -2301,7 +2296,30 @@ app.get('/api/analytics', async (req, res) => {
         { $limit: 1000 } // Обмежуємо кількість результатів
       ])
     );
-    res.json(analytics);
+    
+    // Конвертуємо Map expenses в об'єкт для кожного запису
+    const analyticsWithObjectExpenses = analytics.map(item => {
+      if (item.expenses && item.expenses instanceof Map) {
+        const expensesObj = {};
+        item.expenses.forEach((value, key) => {
+          expensesObj[key] = value;
+        });
+        item.expenses = expensesObj;
+      } else if (item.expenses && typeof item.expenses === 'object' && !Array.isArray(item.expenses)) {
+        // Якщо expenses вже об'єкт (з aggregate), залишаємо як є
+        // Але перевіряємо, чи це не Map
+        if (item.expenses.constructor && item.expenses.constructor.name === 'Map') {
+          const expensesObj = {};
+          item.expenses.forEach((value, key) => {
+            expensesObj[key] = value;
+          });
+          item.expenses = expensesObj;
+        }
+      }
+      return item;
+    });
+    
+    res.json(analyticsWithObjectExpenses);
   } catch (error) {
     console.error('Помилка отримання аналітики:', error);
     res.status(500).json({ error: error.message });
@@ -2313,13 +2331,16 @@ app.post('/api/analytics', async (req, res) => {
   try {
     const { region, company, year, month, expenses, createdBy } = req.body;
     
-    // Валідація обов'язкових полів
-    if (!region || !company || !year || !month) {
+    // Валідація обов'язкових полів (company більше не обов'язкове)
+    if (!region || !year || !month) {
       return res.status(400).json({ 
-        error: 'Відсутні обов\'язкові поля: region, company, year, month',
-        received: { region, company, year, month }
+        error: 'Відсутні обов\'язкові поля: region, year, month',
+        received: { region, year, month }
       });
     }
+    
+    // Встановлюємо company в порожній рядок, якщо не передано
+    const companyValue = company || '';
     
     if (!expenses || typeof expenses !== 'object') {
       return res.status(400).json({ 
@@ -2328,34 +2349,49 @@ app.post('/api/analytics', async (req, res) => {
       });
     }
     
-    console.log('Збереження аналітики:', { region, company, year, month, expenses, createdBy });
+    console.log('Збереження аналітики:', { region, company: companyValue, year, month, expenses, createdBy });
     
-    // Перевіряємо чи існує запис для цього періоду
-    let analytics = await Analytics.findOne({ region, company, year: parseInt(year), month: parseInt(month) });
+    // Перевіряємо чи існує запис для цього періоду (без урахування company)
+    let analytics = await Analytics.findOne({ region, company: companyValue, year: parseInt(year), month: parseInt(month) });
+    
+    // Конвертуємо expenses об'єкт в Map для збереження
+    const expensesMap = new Map();
+    Object.keys(expenses).forEach(key => {
+      expensesMap.set(key, parseFloat(expenses[key]) || 0);
+    });
     
     if (analytics) {
       // Оновлюємо існуючий запис
-      analytics.expenses = expenses;
+      analytics.expenses = expensesMap;
       analytics.updatedAt = new Date();
       analytics.updatedBy = createdBy;
     } else {
       // Створюємо новий запис
       analytics = new Analytics({
         region,
-        company,
+        company: companyValue,
         year: parseInt(year),
         month: parseInt(month),
-        expenses,
+        expenses: expensesMap,
         createdBy,
         updatedBy: createdBy
       });
     }
     
     // Розраховуємо загальні витрати
-    analytics.totalExpenses = Object.values(expenses).reduce((sum, value) => sum + (parseFloat(value) || 0), 0);
+    analytics.totalExpenses = Array.from(expensesMap.values()).reduce((sum, value) => sum + (parseFloat(value) || 0), 0);
     
     await analytics.save();
-    res.json({ success: true, analytics });
+    
+    // Конвертуємо Map expenses в об'єкт для повернення
+    const expensesObj = {};
+    analytics.expenses.forEach((value, key) => {
+      expensesObj[key] = value;
+    });
+    const analyticsResponse = analytics.toObject();
+    analyticsResponse.expenses = expensesObj;
+    
+    res.json({ success: true, analytics: analyticsResponse });
   } catch (error) {
     console.error('Помилка збереження аналітики:', error);
     res.status(500).json({ error: error.message });
@@ -2777,8 +2813,19 @@ app.get('/api/analytics/full', async (req, res) => {
       
       // Додаємо витрати
       monthlyData[key].totalExpenses += item.totalExpenses || 0;
-      Object.keys(item.expenses || {}).forEach(category => {
-        monthlyData[key].expenses[category] = (monthlyData[key].expenses[category] || 0) + (item.expenses[category] || 0);
+      
+      // Обробляємо expenses (може бути Map або об'єкт)
+      let expensesObj = {};
+      if (item.expenses instanceof Map) {
+        item.expenses.forEach((value, key) => {
+          expensesObj[key] = value;
+        });
+      } else if (item.expenses && typeof item.expenses === 'object') {
+        expensesObj = item.expenses;
+      }
+      
+      Object.keys(expensesObj).forEach(category => {
+        monthlyData[key].expenses[category] = (monthlyData[key].expenses[category] || 0) + (expensesObj[category] || 0);
       });
       
       // Додаємо регіони та компанії
@@ -4760,14 +4807,27 @@ app.post('/api/expense-categories/cleanup', async (req, res) => {
     
     // Проходимо по всіх записах та очищаємо старі категорії
     for (const record of analyticsRecords) {
-      if (record.expenses && typeof record.expenses === 'object') {
-        const originalExpenses = { ...record.expenses };
-        let hasChanges = false;
+      if (record.expenses) {
+        // Конвертуємо Map в об'єкт для роботи
+        let expensesObj = {};
+        if (record.expenses instanceof Map) {
+          record.expenses.forEach((value, key) => {
+            expensesObj[key] = value;
+          });
+        } else if (typeof record.expenses === 'object') {
+          expensesObj = { ...record.expenses };
+        } else {
+          continue;
+        }
         
-        // Видаляємо категорії, яких немає в поточних налаштуваннях
-        Object.keys(record.expenses).forEach(categoryKey => {
-          if (!validCategoryKeys.includes(categoryKey)) {
-            delete record.expenses[categoryKey];
+        let hasChanges = false;
+        const newExpensesMap = new Map();
+        
+        // Зберігаємо тільки категорії, які є в поточних налаштуваннях
+        Object.keys(expensesObj).forEach(categoryKey => {
+          if (validCategoryKeys.includes(categoryKey)) {
+            newExpensesMap.set(categoryKey, expensesObj[categoryKey] || 0);
+          } else {
             hasChanges = true;
             console.log(`[DEBUG] Видалено стару категорію: ${categoryKey} з запису ${record._id}`);
           }
@@ -4775,6 +4835,7 @@ app.post('/api/expense-categories/cleanup', async (req, res) => {
         
         // Зберігаємо зміни
         if (hasChanges) {
+          record.expenses = newExpensesMap;
           await record.save();
           updatedCount++;
         }

@@ -2165,25 +2165,57 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
       // Якщо регіон користувача не встановлений - показуємо всіх
       return true;
     });
-    const storageKey = `timesheetData_${reportYear}_${reportMonth}`;
+    // Використовуємо year та month для звіту, щоб дані співпадали з основною таблицею
+    const reportYearForData = year;
+    const reportMonthForData = month;
+    const storageKey = `timesheetData_${reportYearForData}_${reportMonthForData}`;
     const data = JSON.parse(localStorage.getItem(storageKey) || '{}');
-    const summaryKey = `timesheetSummary_${reportYear}_${reportMonth}`;
+    const summaryKey = `timesheetSummary_${reportYearForData}_${reportMonthForData}`;
     const summary = JSON.parse(localStorage.getItem(summaryKey) || '{}');
-    const payData = JSON.parse(localStorage.getItem(`payData_${reportYear}_${reportMonth}`) || '{}');
+    const payData = JSON.parse(localStorage.getItem(`payData_${reportYearForData}_${reportMonthForData}`) || '{}');
     // Використовуємо завдання з API замість localStorage
     const isApproved = v => v === true || v === 'Підтверджено';
-    const monthStr = String(reportMonth).padStart(2, '0');
-    const yearStr = String(reportYear);
+    const monthStr = String(reportMonthForData).padStart(2, '0');
+    const yearStr = String(reportYearForData);
     let table = (
       <div>
         {filteredUsers.map(u => {
           const total = data[u.id || u._id]?.total || 0;
           const salary = Number(payData[u.id || u._id]?.salary) || 25000;
           const bonus = Number(payData[u.id || u._id]?.bonus) || 0;
-          const overtime = Math.max(0, total - (summary.workHours || 168));
+          
+          // Розрахунок понаднормових годин - перепрацювання за день (більше 8 годин)
+          let overtime = 0;
+          let weekendHours = 0; // Години на вихідних (субота, неділя)
+          let workDaysTotal = 0; // Години тільки робочих днів (без вихідних)
+          
+          const reportDays = Array.from({length: getDaysInMonth(reportYearForData, reportMonthForData)}, (_, i) => i + 1);
+          reportDays.forEach(d => {
+            const dayHours = parseFloat(data[u.id || u._id]?.[d]) || 0;
+            const date = new Date(reportYearForData, reportMonthForData - 1, d);
+            const dayOfWeek = date.getDay();
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            
+            // Години робочих днів (без вихідних)
+            if (!isWeekend) {
+              workDaysTotal += dayHours;
+            }
+            
+            // Понаднормові години - більше 8 годин за день (тільки робочі дні)
+            if (!isWeekend && dayHours > 8) {
+              overtime += (dayHours - 8);
+            }
+            
+            // Години на вихідних
+            if (isWeekend && dayHours > 0) {
+              weekendHours += dayHours;
+            }
+          });
+          
           const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
           const overtimePay = overtime * overtimeRate;
-          const basePay = Math.round(salary * Math.min(total, summary.workHours || 168) / (summary.workHours || 168));
+          const weekendOvertimePay = weekendHours * overtimeRate;
+          const basePay = Math.round(salary * Math.min(workDaysTotal, summary.workHours || 168) / (summary.workHours || 168));
           let engineerBonus = 0;
           let details = [];
           allTasks.forEach(t => {
@@ -2269,7 +2301,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
               }
             }
           });
-          const payout = basePay + overtimePay + bonus + engineerBonus;
+          const payout = basePay + overtimePay + bonus + engineerBonus + weekendOvertimePay;
           return (
             <div key={u.id} style={{background:'#f8fafc',border:'2px solid #1976d2',borderRadius:12,margin:'24px 0',padding:'18px 18px 8px 18px',boxShadow:'0 2px 12px #0001'}}>
               <div style={{fontWeight:700,fontSize:20,marginBottom:8,color:'#1976d2',letterSpacing:1}}>{u.name}</div>
@@ -2277,24 +2309,28 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                 <thead>
                   <tr style={{background:'#ffe600', color:'#222', fontWeight:700}}>
                     <th>Ставка</th>
-                    <th>Фактично відпрацьовано годин</th>
+                    <th>Відпрацьована ставка, год</th>
                     <th>Понаднормові роботи, год</th>
                     <th>Ціна за год, понаднормові</th>
                     <th>Доплата за понаднормові</th>
                     <th>Відпрацьована ставка, грн</th>
                     <th>Премія за виконання сервісних робіт, грн</th>
+                    <th>Відпрацьовано годин в Сб,Нд</th>
+                    <th>Нарахованно за перепрацювання за Сб,Нд</th>
                     <th>Загальна сума по оплаті за місяць</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr style={{background:'#e3f2fd',fontWeight:600}}>
                     <td>{salary}</td>
-                    <td>{total}</td>
+                    <td>{workDaysTotal}</td>
                     <td>{overtime}</td>
                     <td>{overtimeRate.toFixed(2)}</td>
                     <td>{overtimePay.toFixed(2)}</td>
                     <td>{basePay}</td>
                     <td style={{background:'#ffe066'}}>{engineerBonus.toFixed(2)}</td>
+                    <td>{weekendHours}</td>
+                    <td>{weekendOvertimePay.toFixed(2)}</td>
                     <td style={{background:'#b6ffb6'}}>{payout.toFixed(2)}</td>
                   </tr>
                 </tbody>
@@ -2408,6 +2444,9 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     // Логіка групування по регіонам для звіту
     const allRegions = Array.from(new Set(filteredUsers.map(u => u.region || 'Без регіону')));
     const showRegions = user?.region === 'Україна' ? allRegions : [user?.region || 'Без регіону'];
+    // Використовуємо year та month для звіту, щоб дані співпадали з основною таблицею
+    const reportYearForData = year;
+    const reportMonthForData = month;
     // Генеруємо звіт з групуванням по регіонам
     const generateRegionReport = (region) => {
       const regionUsers = filteredUsers.filter(u => (u.region || 'Без регіону') === region);
@@ -2417,10 +2456,40 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
         const total = data[u.id || u._id]?.total || 0;
         const salary = Number(payData[u.id || u._id]?.salary) || 25000;
         const bonus = Number(payData[u.id || u._id]?.bonus) || 0;
-        const overtime = Math.max(0, total - summary.workHours);
+        
+        // Розрахунок понаднормових годин - перепрацювання за день (більше 8 годин)
+        let overtime = 0;
+        let weekendHours = 0;
+        let workDaysTotal = 0; // Години тільки робочих днів (без вихідних)
+        
+        const reportDays = Array.from({length: getDaysInMonth(reportYearForData, reportMonthForData)}, (_, i) => i + 1);
+        reportDays.forEach(d => {
+          const dayHours = parseFloat(data[u.id || u._id]?.[d]) || 0;
+          const date = new Date(reportYearForData, reportMonthForData - 1, d);
+          const dayOfWeek = date.getDay();
+          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+          
+          // Години робочих днів (без вихідних)
+          if (!isWeekend) {
+            workDaysTotal += dayHours;
+          }
+          
+          // Понаднормові години - більше 8 годин за день (тільки робочі дні)
+          if (!isWeekend && dayHours > 8) {
+            overtime += (dayHours - 8);
+          }
+          
+          if (isWeekend && dayHours > 0) {
+            weekendHours += dayHours;
+          }
+        });
+        
         const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
         const overtimePay = overtime * overtimeRate;
-        const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
+        const weekendOvertimePay = weekendHours * overtimeRate;
+        // Нормативні години робочих днів (без понаднормових) - щоб уникнути подвійної оплати
+        const normalHours = workDaysTotal - overtime;
+        const basePay = Math.round(salary * Math.min(normalHours, summary.workHours) / summary.workHours);
         
         // Розраховуємо премію за виконання сервісних робіт
         let engineerBonus = 0;
@@ -2454,7 +2523,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                 bonusYear = approvalYear;
               }
             }
-            if (bonusMonth === reportMonth && bonusYear === reportYear) {
+            if (bonusMonth === reportMonthForData && bonusYear === reportYearForData) {
               const workPrice = parseFloat(t.workPrice) || 0;
               const bonusVal = workPrice * 0.25;
               // Враховуємо всіх 6 інженерів
@@ -2474,9 +2543,12 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
           }
         });
         
-        const payout = basePay + overtimePay + bonus + engineerBonus;
-        // Включаємо користувачів з будь-якою сумою оплати АБО з премією за сервісні роботи
-        return payout > 0 || engineerBonus > 0;
+        // Перераховуємо basePay з урахуванням мінімальних годин для користувачів з премією
+        const effectiveNormalHours = engineerBonus > 0 && normalHours === 0 ? 1 : normalHours;
+        const adjustedBasePay = Math.round(salary * Math.min(effectiveNormalHours, summary.workHours) / summary.workHours);
+        const payout = adjustedBasePay + overtimePay + bonus + engineerBonus + weekendOvertimePay;
+        // Включаємо користувачів тільки з "Загальна сума по оплаті за місяць" більша за нуль
+        return payout > 0;
       });
       // Формування таблиці нарахувань для регіону
       const accrualTable = `
@@ -2486,12 +2558,14 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
             <tr>
               <th>ПІБ</th>
               <th>Ставка</th>
-              <th>Фактично відпрацьовано годин</th>
+              <th>Відпрацьована ставка, год</th>
               <th>Понаднормові роботи, год</th>
               <th>Ціна за год, понаднормові</th>
               <th>Доплата за понаднормові</th>
               <th>Відпрацьована ставка, грн</th>
               <th>Премія за виконання сервісних робіт, грн</th>
+              <th>Відпрацьовано годин в Сб,Нд</th>
+              <th>Нарахованно за перепрацювання за Сб,Нд</th>
               <th>Загальна сума по оплаті за місяць</th>
             </tr>
           </thead>
@@ -2500,10 +2574,40 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
               const total = data[u.id || u._id]?.total || 0;
               const salary = Number(payData[u.id || u._id]?.salary) || 25000;
               const bonus = Number(payData[u.id || u._id]?.bonus) || 0;
-              const overtime = Math.max(0, total - summary.workHours);
+              
+              // Розрахунок понаднормових годин - перепрацювання за день (більше 8 годин)
+              let overtime = 0;
+              let weekendHours = 0;
+              let workDaysTotal = 0; // Години тільки робочих днів (без вихідних)
+              
+              const reportDays = Array.from({length: getDaysInMonth(reportYearForData, reportMonthForData)}, (_, i) => i + 1);
+              reportDays.forEach(d => {
+                const dayHours = parseFloat(data[u.id || u._id]?.[d]) || 0;
+                const date = new Date(reportYearForData, reportMonthForData - 1, d);
+                const dayOfWeek = date.getDay();
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                
+                // Години робочих днів (без вихідних)
+                if (!isWeekend) {
+                  workDaysTotal += dayHours;
+                }
+                
+                // Понаднормові години - більше 8 годин за день (тільки робочі дні)
+                if (!isWeekend && dayHours > 8) {
+                  overtime += (dayHours - 8);
+                }
+                
+                if (isWeekend && dayHours > 0) {
+                  weekendHours += dayHours;
+                }
+              });
+              
               const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
               const overtimePay = overtime * overtimeRate;
-              const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
+              const weekendOvertimePay = weekendHours * overtimeRate;
+              // Нормативні години робочих днів (без понаднормових) - щоб уникнути подвійної оплати
+              const normalHours = workDaysTotal - overtime;
+              const basePay = Math.round(salary * Math.min(normalHours, summary.workHours) / summary.workHours);
               const tasksForMonth = allTasks.filter(t => {
                 if (
                   t.status !== 'Виконано' ||
@@ -2539,7 +2643,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                     bonusYear = approvalYear;
                   }
                 }
-                return bonusMonth === month && bonusYear === year;
+                return bonusMonth === reportMonthForData && bonusYear === reportYearForData;
               });
               let engineerBonus = 0;
               tasksForMonth.forEach(t => {
@@ -2560,21 +2664,25 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                 }
               });
               // Якщо є премія за сервісні роботи, встановлюємо мінімальні години для відображення
-              const displayTotal = engineerBonus > 0 && total === 0 ? 1 : total;
+              const displayTotal = engineerBonus > 0 && workDaysTotal === 0 ? 1 : workDaysTotal;
               // Перераховуємо basePay з урахуванням мінімальних годин для користувачів з премією
-              const effectiveTotal = engineerBonus > 0 && total === 0 ? 1 : total;
-              const adjustedBasePay = Math.round(salary * Math.min(effectiveTotal, summary.workHours) / summary.workHours);
-              const payout = adjustedBasePay + overtimePay + bonus + engineerBonus;
+              // Використовуємо нормативні години (без понаднормових) для уникнення подвійної оплати
+              // normalHours вже визначено вище
+              const effectiveNormalHours = engineerBonus > 0 && normalHours === 0 ? 1 : normalHours;
+              const adjustedBasePay = Math.round(salary * Math.min(effectiveNormalHours, summary.workHours) / summary.workHours);
+              const payout = adjustedBasePay + overtimePay + bonus + engineerBonus + weekendOvertimePay;
               return `
                 <tr>
                   <td>${u.name}</td>
                   <td><input type="number" value="${salary}" onchange="console.log('Input changed for user:', '${u.id || u._id}', 'value:', this.value); window.handlePayChange('${u.id || u._id}', 'salary', this.value)" style="width:90px; border: 1px solid #ccc; padding: 4px;" /></td>
-                  <td>${displayTotal}</td>
+                  <td>${workDaysTotal}</td>
                   <td>${overtime}</td>
                   <td>${overtimeRate.toFixed(2)}</td>
                   <td>${overtimePay.toFixed(2)}</td>
                   <td>${adjustedBasePay}</td>
                   <td>${engineerBonus.toFixed(2)}</td>
+                  <td>${weekendHours}</td>
+                  <td>${weekendOvertimePay.toFixed(2)}</td>
                   <td>${payout.toFixed(2)}</td>
                 </tr>
               `;
@@ -3394,12 +3502,14 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                         <tr style={{background:'#ffe600', color:'#222', fontWeight:700}}>
                           <th>ПІБ</th>
                           <th>Ставка</th>
-                          <th>Фактично відпрацьовано годин</th>
+                          <th>Відпрацьована ставка, год</th>
                           <th>Понаднормові роботи, год</th>
                           <th>Ціна за год, понаднормові</th>
                           <th>Доплата за понаднормові</th>
                           <th>Відпрацьована ставка, грн</th>
                           <th>Премія за виконання сервісних робіт, грн</th>
+                          <th>Відпрацьовано годин в Сб,Нд</th>
+                          <th>Нарахованно за перепрацювання за Сб,Нд</th>
                           <th>Загальна сума по оплаті за місяць</th>
                         </tr>
                       </thead>
@@ -3408,10 +3518,40 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                           const total = data[u.id || u._id]?.total || 0;
                           const salary = Number(payData[u.id || u._id]?.salary) || 25000;
                           const bonus = Number(payData[u.id || u._id]?.bonus) || 0;
-                          const overtime = Math.max(0, total - summary.workHours);
+                          
+                          // Розрахунок понаднормових годин - перепрацювання за день (більше 8 годин)
+                          let overtime = 0;
+                          let weekendHours = 0; // Години на вихідних (субота, неділя)
+                          let workDaysTotal = 0; // Години тільки робочих днів (без вихідних)
+                          
+                          days.forEach(d => {
+                            const dayHours = parseFloat(data[u.id || u._id]?.[d]) || 0;
+                            const date = new Date(year, month - 1, d);
+                            const dayOfWeek = date.getDay();
+                            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                            
+                            // Години робочих днів (без вихідних)
+                            if (!isWeekend) {
+                              workDaysTotal += dayHours;
+                            }
+                            
+                            // Понаднормові години - більше 8 годин за день (тільки робочі дні)
+                            if (!isWeekend && dayHours > 8) {
+                              overtime += (dayHours - 8);
+                            }
+                            
+                            // Години на вихідних
+                            if (isWeekend && dayHours > 0) {
+                              weekendHours += dayHours;
+                            }
+                          });
+                          
                           const overtimeRate = summary.workHours > 0 ? (salary / summary.workHours) * 2 : 0;
                           const overtimePay = overtime * overtimeRate;
-                          const basePay = Math.round(salary * Math.min(total, summary.workHours) / summary.workHours);
+                          const weekendOvertimePay = weekendHours * overtimeRate;
+                          // Нормативні години робочих днів (без понаднормових) - щоб уникнути подвійної оплати
+                          const normalHours = workDaysTotal - overtime;
+                          const basePay = Math.round(salary * Math.min(normalHours, summary.workHours) / summary.workHours);
                             // Використовуємо завдання з API замість localStorage
                           const isApproved = v => v === true || v === 'Підтверджено';
                           const engineerName = u.name;
@@ -3473,17 +3613,19 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                               }
                             }
                           });
-                          const payout = basePay + overtimePay + bonus + engineerBonus;
+                          const payout = basePay + overtimePay + bonus + engineerBonus + weekendOvertimePay;
                           return (
                             <tr key={u.id}>
                               <td>{u.name}</td>
                               <td><input type="number" value={payData[u.id || u._id]?.salary || 25000} onChange={e => {const userId = u.id || u._id; console.log('🔧 RegionalManagerArea salary changed:', u.name, e.target.value); console.log('🔧 User ID:', userId); console.log('🔧 handlePayChange function:', typeof handlePayChange); console.log('🔧 payData before:', payData); console.log('🔧 setPayData function:', typeof setPayData); handlePayChange(userId, 'salary', e.target.value); console.log('🔧 handlePayChange called');}} style={{width:90}} /></td>
-                              <td>{total}</td>
+                              <td>{workDaysTotal}</td>
                               <td>{overtime}</td>
                               <td>{overtimeRate.toFixed(2)}</td>
                               <td>{overtimePay.toFixed(2)}</td>
                               <td>{basePay}</td>
                               <td style={{fontWeight:600, background:'#ffe066'}}>{engineerBonus.toFixed(2)}</td>
+                              <td>{weekendHours}</td>
+                              <td>{weekendOvertimePay.toFixed(2)}</td>
                               <td style={{fontWeight:700, background:'#b6ffb6'}}>{payout.toFixed(2)}</td>
                             </tr>
                           );

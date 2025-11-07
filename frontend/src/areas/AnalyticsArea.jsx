@@ -888,6 +888,12 @@ export default function AnalyticsArea({ user }) {
             </button>
             <button
               onClick={() => {
+                // Валідація обов'язкових полів
+                if (!formData.region) {
+                  alert('Будь ласка, оберіть регіон');
+                  return;
+                }
+                
                 if (isNew) {
                   // Для нових витрат передаємо formData та expenses окремо
                   const dataToSave = {
