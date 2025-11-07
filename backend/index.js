@@ -6909,8 +6909,8 @@ app.get('/api/reports/financial', async (req, res) => {
                         <td>${task.client || ''}</td>
                         <td>${task.paymentType || ''}</td>
                         <td>${task.invoice || ''}</td>
-                        <td>${task.workPrice || 0}</td>
-                        <td>${task.serviceTotal || 0}</td>
+                        <td>${(parseFloat(task.workPrice) || 0).toFixed(2)}</td>
+                        <td>${(parseFloat(task.serviceTotal) || 0).toFixed(2)}</td>
                         <td>${task.paymentDate || ''}</td>
                       </tr>
                     `).join('')}
@@ -6951,8 +6951,8 @@ app.get('/api/reports/financial', async (req, res) => {
                       <td>${task.client || ''}</td>
                       <td>${task.paymentType || ''}</td>
                       <td>${task.invoice || ''}</td>
-                      <td>${task.workPrice || 0}</td>
-                      <td>${task.serviceTotal || 0}</td>
+                      <td>${(parseFloat(task.workPrice) || 0).toFixed(2)}</td>
+                      <td>${(parseFloat(task.serviceTotal) || 0).toFixed(2)}</td>
                       <td>${task.paymentDate || ''}</td>
                     </tr>
                   `).join('')}
@@ -6985,8 +6985,8 @@ app.get('/api/reports/financial', async (req, res) => {
                       <td>${task.client || ''}</td>
                       <td>${task.paymentType || ''}</td>
                       <td>${task.invoice || ''}</td>
-                      <td>${task.workPrice || 0}</td>
-                      <td>${task.serviceTotal || 0}</td>
+                      <td>${(parseFloat(task.workPrice) || 0).toFixed(2)}</td>
+                      <td>${(parseFloat(task.serviceTotal) || 0).toFixed(2)}</td>
                       <td>${task.paymentDate || ''}</td>
                     </tr>
                   `).join('')}
