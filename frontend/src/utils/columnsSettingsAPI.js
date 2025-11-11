@@ -10,12 +10,19 @@ export const columnsSettingsAPI = {
       if (response.ok) {
         const settings = await response.json();
         return settings;
+      } else if (response.status === 404) {
+        // 404 - це нормально, налаштування ще не збережені, використовуємо стандартні
+        return { visible: [], order: [] };
       } else {
-        console.warn('Налаштування не знайдено, використовуємо стандартні');
+        // Інші помилки (401, 500, тощо) - логуємо
+        console.warn(`Помилка завантаження налаштувань (${response.status}), використовуємо стандартні`);
         return { visible: [], order: [] };
       }
     } catch (error) {
-      console.error('Помилка завантаження налаштувань з сервера:', error);
+      // Тільки логуємо реальні помилки (не 404)
+      if (error.message && !error.message.includes('404')) {
+        console.error('Помилка завантаження налаштувань з сервера:', error);
+      }
       return { visible: [], order: [] };
     }
   },

@@ -2147,13 +2147,11 @@ app.post('/api/auth', async (req, res) => {
 // Отримати налаштування колонок для користувача і області
 app.get('/api/users/:login/columns-settings/:area', async (req, res) => {
   try {
-    console.log('[DEBUG] 📥 Завантаження налаштувань для:', req.params.login, req.params.area);
     const user = await User.findOne({ login: req.params.login });
     if (!user || !user.columnsSettings || !user.columnsSettings[req.params.area]) {
-      console.log('[DEBUG] 📥 Налаштування не знайдено для:', req.params.login, req.params.area);
-      return res.status(404).json({ error: 'Налаштування не знайдено' });
+      // Повертаємо 200 з порожніми налаштуваннями замість 404 (це нормальна ситуація)
+      return res.json({ visible: [], order: [], widths: {} });
     }
-    console.log('[DEBUG] 📥 Знайдені налаштування:', user.columnsSettings[req.params.area]);
     console.log('[DEBUG] 📥 Ширина колонок:', user.columnsSettings[req.params.area].widths);
     res.json(user.columnsSettings[req.params.area]);
   } catch (error) {
