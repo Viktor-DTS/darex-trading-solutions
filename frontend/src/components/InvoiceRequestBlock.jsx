@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import FileViewer from './FileViewer';
+import authenticatedFetch from '../utils/api.js';
 // PDF конвертація тепер виконується на сервері
 
 const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
@@ -46,7 +47,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
         ? 'http://localhost:3001/api'
         : 'https://darex-trading-solutions.onrender.com/api';
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests?taskId=${taskIdentifier}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/invoice-requests?taskId=${taskIdentifier}`);
       if (response.ok) {
         const data = await response.json();
         console.log('DEBUG InvoiceRequestBlock: отримано відповідь', data);
