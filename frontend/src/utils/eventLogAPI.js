@@ -1,14 +1,12 @@
-const API_BASE_URL = 
-  (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : 'https://darex-trading-solutions.onrender.com/api');
+import API_BASE_URL from '../config.js';
+import authenticatedFetch from './api.js';
+
 export const eventLogAPI = {
   // Додати подію до журналу
   async logEvent(eventData) {
     try {
-      const response = await fetch(`${API_BASE_URL}/event-log`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/event-log`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(eventData),
       });
       if (!response.ok) {
@@ -29,7 +27,7 @@ export const eventLogAPI = {
           params.append(key, filters[key]);
         }
       });
-      const response = await fetch(`${API_BASE_URL}/event-log?${params}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/event-log?${params}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -42,7 +40,7 @@ export const eventLogAPI = {
   // Очистити старий журнал
   async cleanupOldEvents() {
     try {
-      const response = await fetch(`${API_BASE_URL}/event-log/cleanup`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/event-log/cleanup`, {
         method: 'DELETE',
       });
       if (!response.ok) {

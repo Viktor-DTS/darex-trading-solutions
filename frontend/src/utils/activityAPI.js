@@ -1,13 +1,12 @@
 import API_BASE_URL from '../config.js';
+import authenticatedFetch from './api.js';
+
 export const activityAPI = {
   // Оновити активність користувача на сервері
   async updateActivity(login) {
     try {
-      const response = await fetch(`${API_BASE_URL}/users/activity`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/users/activity`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ login }),
       });
       if (!response.ok) {
@@ -22,7 +21,7 @@ export const activityAPI = {
   // Отримати список активних користувачів з сервера
   async getActiveUsers() {
     try {
-      const response = await fetch(`${API_BASE_URL}/active-users`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/active-users`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
