@@ -1,10 +1,12 @@
 // Утиліта для роботи з налаштуваннями колонок через API
 import API_BASE_URL from '../config.js';
+import authenticatedFetch from './api.js';
+
 export const columnsSettingsAPI = {
   // Завантажити налаштування колонок для користувача та області
   async loadSettings(userLogin, area) {
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${userLogin}/columns-settings/${area}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/users/${userLogin}/columns-settings/${area}`);
       if (response.ok) {
         const settings = await response.json();
         return settings;
@@ -28,9 +30,8 @@ export const columnsSettingsAPI = {
   async saveSettings(userLogin, area, visible, order, widths = {}) {
     try {
       const requestBody = { area, visible, order, widths };
-      const response = await fetch(`${API_BASE_URL}/users/${userLogin}/columns-settings`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/users/${userLogin}/columns-settings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
       if (response.ok) {
@@ -49,7 +50,7 @@ export const columnsSettingsAPI = {
   // Отримати всіх користувачів
   async getAllUsers() {
     try {
-      const response = await fetch(`${API_BASE_URL}/users`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/users`);
       if (response.ok) {
         return await response.json();
       }
@@ -61,6 +62,7 @@ export const columnsSettingsAPI = {
   // Отримати конкретного користувача
   async getUser(userLogin) {
     try {
+      // GET /api/users/:login - публічний endpoint для перевірки користувача при вході
       const response = await fetch(`${API_BASE_URL}/users/${userLogin}`);
       if (response.ok) {
         return await response.json();
@@ -73,9 +75,8 @@ export const columnsSettingsAPI = {
   // Зберегти/оновити користувача
   async saveUser(userData) {
     try {
-      const response = await fetch(`${API_BASE_URL}/users`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/users`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData)
       });
       if (response.ok) {
@@ -90,7 +91,7 @@ export const columnsSettingsAPI = {
   // Видалити користувача
   async deleteUser(userLogin) {
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${userLogin}`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/users/${userLogin}`, {
         method: 'DELETE'
       });
       if (response.ok) {

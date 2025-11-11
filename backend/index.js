@@ -82,13 +82,24 @@ const JWT_EXPIRES_IN = '24h';
 
 // Middleware для перевірки JWT токена
 function authenticateToken(req, res, next) {
-  // Дозволяємо публічні endpoints (перевіряємо точне співпадіння або початок шляху)
-  const publicPaths = ['/api/auth', '/api/ping', '/api/system-status'];
+  // Оскільки middleware застосовується до '/api', req.path не містить '/api' префікс
+  // Тому перевіряємо без префіксу
+  const publicPaths = [
+    '/auth', 
+    '/ping', 
+    '/system-status'
+  ];
+  
+  // Дозволяємо GET запити до /users/:login для перевірки користувача при вході
+  const isPublicUserCheck = req.method === 'GET' && req.path.match(/^\/users\/[^\/]+$/);
+  
+  // Перевіряємо чи це публічний шлях
   const isPublicPath = publicPaths.some(path => {
-    return req.path === path || req.path.startsWith(path + '/');
+    return req.path === path || req.path.startsWith(path + '/') || req.path.startsWith(path + '?');
   });
   
-  if (isPublicPath) {
+  if (isPublicPath || isPublicUserCheck) {
+    console.log(`[AUTH] Публічний endpoint, пропускаємо автентифікацію: ${req.method} ${req.originalUrl || req.path}`);
     return next();
   }
 

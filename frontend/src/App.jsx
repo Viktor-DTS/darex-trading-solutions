@@ -4138,6 +4138,11 @@ function App() {
   }, [user?.login]);
   // Завантаження правил доступу з API
   useEffect(() => {
+    // Завантажуємо правила доступу тільки після входу користувача
+    if (!user) {
+      return;
+    }
+    
     const loadAccessRules = async () => {
       setLoadingAccessRules(true);
       try {
@@ -4177,7 +4182,7 @@ function App() {
       }
     };
     loadAccessRules();
-  }, []);
+  }, [user]);
   // Функція для оновлення існуючих правил з новою вкладкою
   const updateExistingRules = (existingRules) => {
     const updatedRules = { ...existingRules };
