@@ -9,6 +9,7 @@ import { processFileForUpload } from '../utils/pdfConverter';
 import { useLazyData } from '../hooks/useLazyData';
 import { debounce } from '../utils/debounce';
 import * as XLSX from 'xlsx-js-style';
+import authenticatedFetch from '../utils/api.js';
 const initialTask = {
   id: null,
   status: '',
@@ -262,7 +263,7 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
         ? `${API_BASE_URL}/invoice-requests?showAll=true`
         : `${API_BASE_URL}/invoice-requests`;
         
-      const response = await fetch(url);
+      const response = await authenticatedFetch(url);
       if (response.ok) {
         const result = await response.json();
         setInvoiceRequests(result.data || []);
@@ -287,7 +288,7 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
         ? 'http://localhost:3001/api'
         : 'https://darex-trading-solutions.onrender.com/api';
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/invoice-requests/${requestId}`, {
         method: 'DELETE'
       });
       
@@ -312,9 +313,8 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
         ? 'http://localhost:3001/api'
         : 'https://darex-trading-solutions.onrender.com/api';
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/invoice-requests/${requestId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, comments, rejectionReason })
       });
       
@@ -377,7 +377,7 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
       
       formData.append('invoiceNumber', generatedInvoiceNumber);
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload`, {
         method: 'POST',
         body: formData
       });
@@ -443,7 +443,7 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
         ? 'http://localhost:3001/api'
         : 'https://darex-trading-solutions.onrender.com/api';
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/file`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/invoice-requests/${requestId}/file`, {
         method: 'DELETE'
       });
       
@@ -525,7 +525,7 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
       //   console.log('DEBUG AccountantArea Act: OCR дані відсутні або невдалі:', ocrData);
       // }
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload-act`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/invoice-requests/${requestId}/upload-act`, {
         method: 'POST',
         body: formData
       });
@@ -589,7 +589,7 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
         ? 'http://localhost:3001/api'
         : 'https://darex-trading-solutions.onrender.com/api';
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/download-act`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/invoice-requests/${requestId}/download-act`);
       
       if (response.ok) {
         const result = await response.json();
@@ -616,7 +616,7 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
         ? 'http://localhost:3001/api'
         : 'https://darex-trading-solutions.onrender.com/api';
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests/${requestId}/act-file`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/invoice-requests/${requestId}/act-file`, {
         method: 'DELETE'
       });
       
@@ -1001,7 +1001,7 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
         ? 'http://localhost:3001/api'
         : 'https://darex-trading-solutions.onrender.com/api';
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests/${task.invoiceRequestId}`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/invoice-requests/${task.invoiceRequestId}`, {
         method: 'DELETE'
       });
       

@@ -12,9 +12,13 @@ export async function authenticatedFetch(url, options = {}) {
   
   // Додаємо токен до заголовків, якщо він є
   const headers = {
-    'Content-Type': 'application/json',
     ...options.headers,
   };
+  
+  // Додаємо Content-Type тільки якщо це не FormData (браузер сам встановлює правильний Content-Type для FormData)
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
   
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;

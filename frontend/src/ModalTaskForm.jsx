@@ -11,6 +11,7 @@ import InvoiceRequestModal from './components/InvoiceRequestModal';
 import InvoiceRequestBlock from './components/InvoiceRequestBlock';
 import ContractFileSelector from './components/ContractFileSelector';
 import ClientDataSelectionModal from './components/ClientDataSelectionModal';
+import authenticatedFetch from './utils/api.js';
 // Функція для отримання коду регіону
 const getRegionCode = (region) => {
   const regionMap = {
@@ -245,6 +246,10 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     // Значення за замовчуванням для заборгованості
     if (!('debtStatus' in f)) f.debtStatus = 'Заборгованість'; // За замовчуванням заборгованість
     if (!('debtStatusCheckbox' in f)) f.debtStatusCheckbox = false; // За замовчуванням неактивний
+    // Значення за замовчуванням для внутрішніх робіт
+    if (!('internalWork' in f)) f.internalWork = false; // За замовчуванням неактивний
+    // Значення за замовчуванням для термінової заявки
+    if (!('urgentRequest' in f)) f.urgentRequest = false; // За замовчуванням неактивний
     // Автозаповнення дати
     if (f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
@@ -950,19 +955,26 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     const antifreezeSum = parseNumber(form.antifreezeL) * parseNumber(form.antifreezePrice);
     // Загальна сума послуги береться з форми (ручне введення)
     const serviceTotal = parseNumber(form.serviceTotal);
-    // Вартість робіт розраховується як різниця
-    const workPrice = serviceTotal - (
-      oilTotal +
-      filterSum +
-      fuelFilterSum +
-      airFilterSum +
-      antifreezeSum +
-      parseNumber(form.otherSum) +
-      parseNumber(form.perDiem) +
-      parseNumber(form.living) +
-      parseNumber(form.otherExp) +
-      parseNumber(form.transportSum)
-    );
+    // Вартість робіт розраховується
+    // Якщо чекбокс "Внутрішні роботи" активований, то workPrice = serviceTotal (без витрат)
+    let workPrice;
+    if (form.internalWork) {
+      workPrice = serviceTotal;
+    } else {
+      // Вартість робіт розраховується як різниця
+      workPrice = serviceTotal - (
+        oilTotal +
+        filterSum +
+        fuelFilterSum +
+        airFilterSum +
+        antifreezeSum +
+        parseNumber(form.otherSum) +
+        parseNumber(form.perDiem) +
+        parseNumber(form.living) +
+        parseNumber(form.otherExp) +
+        parseNumber(form.transportSum)
+      );
+    }
     // --- Автоматичне заповнення коментарів при підтвердженні ---
     const finalForm = { ...form };
     // Автоматично заповнюємо коментарі при підтвердженні
@@ -1073,7 +1085,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         ? 'http://localhost:3001/api'
         : 'https://darex-trading-solutions.onrender.com/api';
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests?taskId=${taskId}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/invoice-requests?taskId=${taskId}`);
       
       if (response.ok) {
         const result = await response.json();
@@ -1101,7 +1113,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         ? 'http://localhost:3001/api'
         : 'https://darex-trading-solutions.onrender.com/api';
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests/${invoiceRequestId}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/invoice-requests/${invoiceRequestId}`);
       
       if (response.ok) {
         const result = await response.json();
@@ -1126,9 +1138,8 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         ? 'http://localhost:3001/api'
         : 'https://darex-trading-solutions.onrender.com/api';
       
-      const response = await fetch(`${API_BASE_URL}/invoice-requests`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/invoice-requests`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(invoiceData)
       });
       
@@ -1174,6 +1185,10 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   const calcAntifreezeSum = () => parseNumber(form.antifreezeL) * parseNumber(form.antifreezePrice);
   const calcWorkPrice = () => {
     const serviceTotal = parseNumber(form.serviceTotal);
+    // Якщо чекбокс "Внутрішні роботи" активований, то workPrice = serviceTotal (без витрат)
+    if (form.internalWork) {
+      return serviceTotal;
+    }
     const totalExpenses = 
       calcOilTotal() +
       calcFilterSum() +
@@ -1237,7 +1252,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         <h2 style={{marginTop:0}}>Завдання</h2>
         {error && <div style={{color:'#ff6666',marginBottom:16,fontWeight:600}}>{error}</div>}
         {/* Окремий рядок для номера заявки/наряду */}
-        <div style={{display:'flex',gap:16,marginBottom:24,justifyContent:'center'}}>
+        <div style={{display:'flex',gap:16,marginBottom:24,justifyContent:'center',alignItems:'flex-end'}}>
           <div className="field" style={{flex:1,maxWidth:400}}>
             <label>Номер заявки/наряду</label>
             <input 
@@ -1248,6 +1263,31 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
               readOnly={isReadOnly('requestNumber')} 
             />
           </div>
+          {/* Чекбокс "Термінова заявка" - тільки з панелі оператора */}
+          {mode === 'operator' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0', paddingBottom: '8px' }}>
+              <input 
+                type="checkbox" 
+                name="urgentRequest" 
+                checked={form.urgentRequest || false} 
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setForm({ ...form, urgentRequest: checked });
+                }}
+                style={{ width: 'auto', margin: 0, cursor: 'pointer' }}
+              />
+              <label 
+                htmlFor="urgentRequest"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setForm({ ...form, urgentRequest: !form.urgentRequest });
+                }}
+                style={{ margin: 0, cursor: 'pointer', userSelect: 'none', color: '#fff' }}
+              >
+                Термінова заявка
+              </label>
+            </div>
+          )}
         </div>
         <div style={{display:'flex',gap:16,marginBottom:24}}>
           {mainHeaderRow.map(n => {
@@ -1740,6 +1780,29 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                     </div>
                   );
                 })}
+                {/* Чекбокс "Внутрішні роботи" */}
+                <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input 
+                    type="checkbox" 
+                    name="internalWork" 
+                    checked={form.internalWork || false} 
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setForm({ ...form, internalWork: checked });
+                    }}
+                    style={{ width: 'auto', margin: 0, cursor: 'pointer' }}
+                  />
+                  <label 
+                    htmlFor="internalWork"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setForm({ ...form, internalWork: !form.internalWork });
+                    }}
+                    style={{ color: '#ff0000', margin: 0, cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    Внутрішні роботи
+                  </label>
+                </div>
               </div>
             );
           }

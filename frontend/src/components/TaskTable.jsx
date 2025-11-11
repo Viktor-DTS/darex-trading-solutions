@@ -546,6 +546,16 @@ function TaskTableComponent({
       return '#ff9999'; // Більш насичений червоний колір для відхилених заявок
     }
     
+    // Підсвічування термінових заявок (тільки для статусів "Заявка" та "В роботі")
+    if (t.urgentRequest && (t.status === 'Заявка' || t.status === 'В роботі')) {
+      // Різні кольори для різних статусів термінових заявок
+      if (t.status === 'Заявка') {
+        return '#ff6b6b'; // Яскраво-червоний для термінових заявок зі статусом "Заявка"
+      } else if (t.status === 'В роботі') {
+        return '#ffa500'; // Помаранчевий для термінових заявок зі статусом "В роботі"
+      }
+    }
+    
     const acc = t.approvedByAccountant === true || t.approvedByAccountant === 'Підтверджено';
     const wh = t.approvedByWarehouse === true || t.approvedByWarehouse === 'Підтверджено';
     const reg = t.approvedByRegionalManager === true || t.approvedByRegionalManager === 'Підтверджено';
