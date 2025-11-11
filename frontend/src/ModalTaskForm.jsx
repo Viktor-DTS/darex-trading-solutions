@@ -49,6 +49,12 @@ const generateNextRequestNumber = async (region) => {
   }
 };
 export const fields = [
+  { name: 'autoCreatedAt', label: 'Авт. створення заявки', type: 'datetime-local', readOnly: true },
+  { name: 'autoCompletedAt', label: 'Авт. виконанно', type: 'datetime-local', readOnly: true },
+  { name: 'autoWarehouseApprovedAt', label: 'Авт. затвердження завскладом', type: 'datetime-local', readOnly: true },
+  { name: 'autoAccountantApprovedAt', label: 'Авт. затвердження бухгалтером', type: 'datetime-local', readOnly: true },
+  { name: 'invoiceRequestDate', label: 'Дата заявки на рахунок', type: 'datetime-local', readOnly: true },
+  { name: 'invoiceUploadDate', label: 'Дата завантаження рахунку', type: 'datetime-local', readOnly: true },
   { name: 'status', label: 'Статус заявки', type: 'select', options: ['', 'Заявка', 'В роботі', 'Виконано', 'Заблоковано'] },
   { name: 'requestDate', label: 'Дата заявки', type: 'date' },
   { name: 'date', label: 'Дата проведення робіт', type: 'date' },
@@ -1247,10 +1253,70 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           margin-bottom: 24px;
         }
       `}</style>
-      <form className="modal-task-form" onSubmit={handleSubmit} style={{background:'#1a2636',padding:32,paddingBottom:48,borderRadius:0,width:'90vw',maxWidth:1100,maxHeight:'90vh',color:'#fff',boxShadow:'0 4px 32px #0008',overflowY:'auto',display:'flex',flexDirection:'column',justifyContent:'flex-start',marginTop:48,position:'relative'}} onClick={(e) => e.stopPropagation()}>
+      <form className="modal-task-form" onSubmit={handleSubmit} style={{background:'#1a2636',padding:32,paddingBottom:200,borderRadius:0,width:'90vw',maxWidth:1100,maxHeight:'90vh',color:'#fff',boxShadow:'0 4px 32px #0008',overflowY:'auto',display:'flex',flexDirection:'column',justifyContent:'flex-start',marginTop:48,position:'relative'}} onClick={(e) => e.stopPropagation()}>
         <button type="button" onClick={onClose} style={{position:'absolute',top:40,right:24,fontSize:28,background:'none',border:'none',color:'#fff',cursor:'pointer',zIndex:10}} aria-label="Закрити">×</button>
         <h2 style={{marginTop:0}}>Завдання</h2>
         {error && <div style={{color:'#ff6666',marginBottom:16,fontWeight:600}}>{error}</div>}
+        {/* Рядок з автоматичними датами (перші 4 поля) */}
+        <div style={{display:'flex',gap:16,marginBottom:24}}>
+          {['autoCreatedAt', 'autoCompletedAt', 'autoWarehouseApprovedAt', 'autoAccountantApprovedAt'].map(fieldName => {
+            const f = fields.find(f => f.name === fieldName);
+            if (!f) return null;
+            let value = form[f.name] || '';
+            // Форматуємо дату для datetime-local (YYYY-MM-DDTHH:mm)
+            if (value && typeof value === 'string') {
+              // Якщо дата в форматі ISO, конвертуємо в datetime-local
+              if (value.includes('T')) {
+                value = value.substring(0, 16); // Беремо тільки дату та час без секунд
+              } else if (value.includes(' ')) {
+                // Якщо дата в форматі "YYYY-MM-DD HH:mm:ss", конвертуємо
+                value = value.replace(' ', 'T').substring(0, 16);
+              }
+            }
+            return (
+              <div key={f.name} className="field" style={{flex:1}}>
+                <label>{f.label}</label>
+                <input 
+                  type="datetime-local" 
+                  name={f.name} 
+                  value={value} 
+                  readOnly={true}
+                  style={{background:'#2a3a4a',color:'#ccc',cursor:'not-allowed'}}
+                />
+              </div>
+            );
+          })}
+        </div>
+        {/* Рядок з автоматичними датами (поля для рахунків) */}
+        <div style={{display:'flex',gap:16,marginBottom:24}}>
+          {['invoiceRequestDate', 'invoiceUploadDate'].map(fieldName => {
+            const f = fields.find(f => f.name === fieldName);
+            if (!f) return null;
+            let value = form[f.name] || '';
+            // Форматуємо дату для datetime-local (YYYY-MM-DDTHH:mm)
+            if (value && typeof value === 'string') {
+              // Якщо дата в форматі ISO, конвертуємо в datetime-local
+              if (value.includes('T')) {
+                value = value.substring(0, 16); // Беремо тільки дату та час без секунд
+              } else if (value.includes(' ')) {
+                // Якщо дата в форматі "YYYY-MM-DD HH:mm:ss", конвертуємо
+                value = value.replace(' ', 'T').substring(0, 16);
+              }
+            }
+            return (
+              <div key={f.name} className="field" style={{flex:1}}>
+                <label>{f.label}</label>
+                <input 
+                  type="datetime-local" 
+                  name={f.name} 
+                  value={value} 
+                  readOnly={true}
+                  style={{background:'#2a3a4a',color:'#ccc',cursor:'not-allowed'}}
+                />
+              </div>
+            );
+          })}
+        </div>
         {/* Окремий рядок для номера заявки/наряду */}
         <div style={{display:'flex',gap:16,marginBottom:24,justifyContent:'center',alignItems:'flex-end'}}>
           <div className="field" style={{flex:1,maxWidth:400}}>
@@ -2349,13 +2415,14 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             }}
           />
         )}
-        <div style={{display:'flex',gap:12,marginTop:24}}>
+        <div style={{display:'flex',gap:12,marginTop:24,marginBottom:32}}>
           {!readOnly && <button type="submit" style={{flex:1}}>Зберегти</button>}
           <button type="button" onClick={onClose} style={{flex:1,background:readOnly ? '#00bfff' : '#888',color:'#fff'}}>
             {readOnly ? 'Закрити' : 'Скасувати'}
           </button>
         </div>
-        <div style={{marginTop:48}}></div>
+        {/* Пустий рядок для відступу в кінці форми */}
+        <div style={{height:200}}></div>
       </form>
       
       {/* --- Модальне вікно для опису відмови --- */}

@@ -1555,6 +1555,12 @@ app.post('/api/tasks', async (req, res) => {
     console.log('[DEBUG] POST /api/tasks - дані для збереження (без id):', JSON.stringify(taskData, null, 2));
     console.log('[DEBUG] POST /api/tasks - contractFile:', taskData.contractFile);
     
+    // Автоматично встановлюємо дату створення заявки
+    if (!taskData.autoCreatedAt) {
+      taskData.autoCreatedAt = new Date();
+      console.log('[DEBUG] POST /api/tasks - автоматично встановлено autoCreatedAt:', taskData.autoCreatedAt);
+    }
+    
     const newTask = new Task(taskData);
     console.log('[DEBUG] POST /api/tasks - створено новий Task об\'єкт');
     
@@ -1610,12 +1616,42 @@ app.put('/api/tasks/:id', async (req, res) => {
     const { id, _id, ...updateData } = req.body;
     console.log('[DEBUG] PUT /api/tasks/:id - дані для оновлення (без id та _id):', JSON.stringify(updateData, null, 2));
     
+    // Автоматично встановлюємо дату створення заявки, якщо її ще немає
+    if (!updateData.autoCreatedAt && !task.autoCreatedAt) {
+      updateData.autoCreatedAt = new Date();
+      console.log('[DEBUG] PUT /api/tasks/:id - автоматично встановлено autoCreatedAt:', updateData.autoCreatedAt);
+    }
+    
+    // Автоматично встановлюємо дату виконання, якщо статус змінився на "Виконано"
+    const isCompleted = (updateData.status === 'Виконано' || updateData.status === '????????') && 
+                        task.status !== 'Виконано' && task.status !== '????????';
+    if (isCompleted && !updateData.autoCompletedAt && !task.autoCompletedAt) {
+      updateData.autoCompletedAt = new Date();
+      console.log('[DEBUG] PUT /api/tasks/:id - автоматично встановлено autoCompletedAt:', updateData.autoCompletedAt);
+    }
+    
+    // Автоматично встановлюємо дату затвердження завскладом
+    const isWarehouseApproved = updateData.approvedByWarehouse === 'Підтверджено' && 
+                                 task.approvedByWarehouse !== 'Підтверджено';
+    if (isWarehouseApproved && !updateData.autoWarehouseApprovedAt && !task.autoWarehouseApprovedAt) {
+      updateData.autoWarehouseApprovedAt = new Date();
+      console.log('[DEBUG] PUT /api/tasks/:id - автоматично встановлено autoWarehouseApprovedAt:', updateData.autoWarehouseApprovedAt);
+    }
+    
+    // Автоматично встановлюємо дату затвердження бухгалтером
+    const isAccountantApproved = updateData.approvedByAccountant === 'Підтверджено' && 
+                                  task.approvedByAccountant !== 'Підтверджено';
+    if (isAccountantApproved && !updateData.autoAccountantApprovedAt && !task.autoAccountantApprovedAt) {
+      updateData.autoAccountantApprovedAt = new Date();
+      console.log('[DEBUG] PUT /api/tasks/:id - автоматично встановлено autoAccountantApprovedAt:', updateData.autoAccountantApprovedAt);
+    }
+    
     // Автоматично встановлюємо bonusApprovalDate, якщо заявка підтверджена всіма ролями
-    const isWarehouseApproved = updateData.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === 'Підтверджено';
-    const isAccountantApproved = updateData.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === 'Підтверджено';
+    const isWarehouseApprovedFinal = updateData.approvedByWarehouse === 'Підтверджено' || task.approvedByWarehouse === 'Підтверджено';
+    const isAccountantApprovedFinal = updateData.approvedByAccountant === 'Підтверджено' || task.approvedByAccountant === 'Підтверджено';
     const isRegionalManagerApproved = updateData.approvedByRegionalManager === 'Підтверджено' || task.approvedByRegionalManager === 'Підтверджено';
     
-    if (isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved && (updateData.workPrice || task.workPrice)) {
+    if (isWarehouseApprovedFinal && isAccountantApprovedFinal && isRegionalManagerApproved && (updateData.workPrice || task.workPrice)) {
       // Встановлюємо bonusApprovalDate на поточний місяць, якщо його ще немає
       if (!updateData.bonusApprovalDate && !task.bonusApprovalDate) {
         const now = new Date();
@@ -5220,6 +5256,21 @@ app.post('/api/invoice-requests', async (req, res) => {
     await invoiceRequest.save();
     addLog(`✅ Invoice request created: ${invoiceRequest._id}`, 'success');
     
+    // Автоматично встановлюємо дату заявки на рахунок в заявці
+    try {
+      await Task.findByIdAndUpdate(
+        taskId,
+        { 
+          invoiceRequestDate: new Date(),
+          invoiceRequestId: invoiceRequest._id.toString()
+        },
+        { new: true }
+      );
+      console.log('[DEBUG] POST /api/invoice-requests - автоматично встановлено invoiceRequestDate');
+    } catch (taskUpdateError) {
+      console.error('[ERROR] POST /api/invoice-requests - помилка оновлення заявки:', taskUpdateError);
+    }
+    
     // Відправляємо сповіщення бухгалтерам
     try {
       const telegramService = new TelegramNotificationService();
@@ -5353,9 +5404,20 @@ app.put('/api/invoice-requests/:id', async (req, res) => {
     
     // Оновлюємо статус рахунку в основній заявці
     try {
+      const taskUpdateData = { invoiceStatus: status };
+      
+      // Автоматично встановлюємо дату завантаження рахунку, якщо статус змінився на 'completed' і дати ще немає
+      if (status === 'completed') {
+        const existingTask = await Task.findOne({ invoiceRequestId: req.params.id });
+        if (existingTask && !existingTask.invoiceUploadDate) {
+          taskUpdateData.invoiceUploadDate = new Date();
+          console.log('[DEBUG] PUT /api/invoice-requests/:id - автоматично встановлено invoiceUploadDate');
+        }
+      }
+      
       await Task.findOneAndUpdate(
         { invoiceRequestId: req.params.id },
-        { invoiceStatus: status },
+        taskUpdateData,
         { new: true }
       );
       console.log('[DEBUG] PUT /api/invoice-requests/:id - оновлено invoiceStatus в заявці:', status);
@@ -5472,26 +5534,44 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
     // Оновлюємо статус рахунку в основній заявці
     try {
       // Спочатку шукаємо по invoiceRequestId
+      const taskUpdateData = { 
+        invoiceFile: updatedRequest.invoiceFile,
+        invoiceFileName: updatedRequest.invoiceFileName,
+        invoiceNumber: updatedRequest.invoiceNumber
+      };
+      
+      // Автоматично встановлюємо дату завантаження рахунку, якщо її ще немає
+      const existingTask = await Task.findOne({ invoiceRequestId: req.params.id });
+      if (existingTask && !existingTask.invoiceUploadDate) {
+        taskUpdateData.invoiceUploadDate = new Date();
+        console.log('[DEBUG] POST /api/invoice-requests/:id/upload - автоматично встановлено invoiceUploadDate');
+      }
+      
       let updatedTask = await Task.findOneAndUpdate(
         { invoiceRequestId: req.params.id },
-        { 
-          invoiceFile: updatedRequest.invoiceFile,
-          invoiceFileName: updatedRequest.invoiceFileName,
-          invoiceNumber: updatedRequest.invoiceNumber
-        },
+        taskUpdateData,
         { new: true }
       );
       
       // Якщо не знайшли по invoiceRequestId, шукаємо по taskId
       if (!updatedTask) {
+        const taskUpdateDataByTaskId = { 
+          invoiceFile: updatedRequest.invoiceFile,
+          invoiceFileName: updatedRequest.invoiceFileName,
+          invoiceNumber: updatedRequest.invoiceNumber,
+          invoiceRequestId: req.params.id // Додаємо invoiceRequestId для майбутніх запитів
+        };
+        
+        // Автоматично встановлюємо дату завантаження рахунку, якщо її ще немає
+        const existingTaskByTaskId = await Task.findById(updatedRequest.taskId);
+        if (existingTaskByTaskId && !existingTaskByTaskId.invoiceUploadDate) {
+          taskUpdateDataByTaskId.invoiceUploadDate = new Date();
+          console.log('[DEBUG] POST /api/invoice-requests/:id/upload - автоматично встановлено invoiceUploadDate (по taskId)');
+        }
+        
         updatedTask = await Task.findOneAndUpdate(
           { _id: updatedRequest.taskId },
-          { 
-            invoiceFile: updatedRequest.invoiceFile,
-            invoiceFileName: updatedRequest.invoiceFileName,
-            invoiceNumber: updatedRequest.invoiceNumber,
-            invoiceRequestId: req.params.id // Додаємо invoiceRequestId для майбутніх запитів
-          },
+          taskUpdateDataByTaskId,
           { new: true }
         );
         console.log('[DEBUG] POST /api/invoice-requests/:id/upload - оновлено заявку по taskId:', updatedRequest.taskId);

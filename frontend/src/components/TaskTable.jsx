@@ -548,11 +548,11 @@ function TaskTableComponent({
     
     // Підсвічування термінових заявок (тільки для статусів "Заявка" та "В роботі")
     if (t.urgentRequest && (t.status === 'Заявка' || t.status === 'В роботі')) {
-      // Різні кольори для різних статусів термінових заявок
+      // Блакитний колір для термінових заявок
       if (t.status === 'Заявка') {
-        return '#ff6b6b'; // Яскраво-червоний для термінових заявок зі статусом "Заявка"
+        return '#87ceeb'; // Блакитний для термінових заявок зі статусом "Заявка"
       } else if (t.status === 'В роботі') {
-        return '#ffa500'; // Помаранчевий для термінових заявок зі статусом "В роботі"
+        return '#87ceeb'; // Блакитний для термінових заявок зі статусом "В роботі"
       }
     }
     
@@ -3679,7 +3679,10 @@ function TaskTableComponent({
                         )}
                       </div>
                       {col.filter && (
-                          col.key === 'date' || col.key === 'requestDate' || col.key === 'paymentDate' ? (
+                          col.key === 'date' || col.key === 'requestDate' || col.key === 'paymentDate' || 
+                          col.key === 'autoCreatedAt' || col.key === 'autoCompletedAt' || 
+                          col.key === 'autoWarehouseApprovedAt' || col.key === 'autoAccountantApprovedAt' ||
+                          col.key === 'invoiceRequestDate' || col.key === 'invoiceUploadDate' ? (
                             <div style={{display:'flex',flexDirection:'column',minWidth:120, background:'#fff'}}>
                               <input type="date" name={col.key+"From"} value={localFilters[col.key+"From"] || ''} onChange={handleFilterChange} style={{marginBottom:2, background:'#fff'}} />
                               <input type="date" name={col.key+"To"} value={localFilters[col.key+"To"] || ''} onChange={handleFilterChange} style={{background:'#fff'}} />
