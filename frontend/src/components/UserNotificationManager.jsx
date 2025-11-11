@@ -55,7 +55,7 @@ const UserNotificationManager = ({ user }) => {
       console.log('[DEBUG] Завантаження налаштувань сповіщень...');
       
       // Завантажуємо користувачів з їх налаштуваннями
-      const response = await fetch(`${API_BASE_URL}/users`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/users`);
       if (response.ok) {
         const usersData = await response.json();
         console.log('[DEBUG] Отримано користувачів:', usersData.length);
@@ -104,7 +104,7 @@ const UserNotificationManager = ({ user }) => {
       console.log('[DEBUG] Ініціалізація налаштувань сповіщень...');
       
       // ТИМЧАСОВЕ РІШЕННЯ: Ініціалізуємо налаштування через frontend
-      const response = await fetch(`${API_BASE_URL}/users`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/users`);
       if (response.ok) {
         const usersData = await response.json();
         let initializedCount = 0;
@@ -184,7 +184,7 @@ const UserNotificationManager = ({ user }) => {
       console.log('[DEBUG] Збереження налаштувань сповіщень...');
       
       // Отримуємо поточних користувачів
-      const usersResponse = await fetch(`${API_BASE_URL}/users`);
+      const usersResponse = await authenticatedFetch(`${API_BASE_URL}/users`);
       if (!usersResponse.ok) {
         throw new Error('Помилка завантаження користувачів');
       }
