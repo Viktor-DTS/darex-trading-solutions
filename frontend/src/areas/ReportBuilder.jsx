@@ -12,7 +12,7 @@ export default function ReportBuilder({ user }) {
     requestDate: '', requestDesc: '', serviceRegion: '', address: '', equipmentSerial: '', equipment: '', work: '', date: '', paymentDate: '', approvedByWarehouse: '', approvedByAccountant: '' // , approvedByRegionalManager: ''
   });
   const [approvalFilter, setApprovalFilter] = useState('all'); // 'all', 'approved', 'not_approved'
-  const [groupBy, setGroupBy] = useState('');
+  const [groupBy, setGroupBy] = useState([]); // Масив полів для групування
   const [reportData, setReportData] = useState([]);
   const [selectedFields, setSelectedFields] = useState(['requestDate', 'date', 'paymentDate', 'approvedByWarehouse', 'approvedByAccountant'/*, 'approvedByRegionalManager'*/]); // Початкові поля
   const [availableFields, setAvailableFields] = useState([
@@ -144,13 +144,6 @@ export default function ReportBuilder({ user }) {
         // Завантажуємо користувачів
         const usersData = await usersAPI.getAll();
         setUsers(usersData);
-        // Автоматично встановлюємо регіон користувача якщо він не 'Україна'
-        if (user && user.region && user.region !== 'Україна') {
-          setFilters(prev => ({
-            ...prev,
-            serviceRegion: user.region
-          }));
-        }
       } catch (error) {
         console.error('Помилка завантаження даних для фільтрів:', error);
       }
@@ -262,22 +255,32 @@ export default function ReportBuilder({ user }) {
     }).finally(() => setLoading(false));
   }, []);
   
-  // Автоматично встановлюємо serviceRegion = '' для користувачів з множинними регіонами
+  // Автоматично встановлюємо serviceRegion в залежності від регіону користувача
   useEffect(() => {
     console.log('🔄 ReportBuilder useEffect: user?.region =', user?.region);
     console.log('🔄 ReportBuilder useEffect: filters.serviceRegion =', filters.serviceRegion);
-    console.log('🔄 ReportBuilder useEffect: user.region.includes(",") =', user?.region?.includes(','));
     
-    // Встановлюємо serviceRegion = '' для користувачів з множинними регіонами
-    if (user?.region && user.region.includes(',')) {
+    if (!user?.region) return;
+    
+    // Якщо користувач має множинні регіони (через кому) - встановлюємо serviceRegion = ''
+    if (user.region.includes(',')) {
       console.log('🔄 ReportBuilder Auto-setting serviceRegion to "" for multi-region user');
       setFilters(prev => {
-        const newFilters = { ...prev, serviceRegion: '' };
-        console.log('🔄 ReportBuilder setFilters called with newFilters =', newFilters);
-        console.log('🔄 ReportBuilder setFilters: newFilters.serviceRegion =', newFilters.serviceRegion);
-        return newFilters;
+        // Перевіряємо, чи вже встановлено порожнє значення, щоб уникнути зайвих оновлень
+        if (prev.serviceRegion === '') return prev;
+        return { ...prev, serviceRegion: '' };
+      });
+    } 
+    // Якщо користувач має один регіон (не "Україна") - встановлюємо serviceRegion = user.region
+    else if (user.region !== 'Україна') {
+      console.log('🔄 ReportBuilder Auto-setting serviceRegion to user.region =', user.region);
+      setFilters(prev => {
+        // Перевіряємо, чи вже встановлено правильне значення, щоб уникнути зайвих оновлень
+        if (prev.serviceRegion === user.region) return prev;
+        return { ...prev, serviceRegion: user.region };
       });
     }
+    // Якщо користувач має регіон "Україна" - залишаємо serviceRegion = '' (не змінюємо)
   }, [user?.region]);
   
   // Додатковий useEffect для генерації звіту після встановлення serviceRegion для множинних регіонів
@@ -396,18 +399,52 @@ export default function ReportBuilder({ user }) {
       return true;
     });
     let grouped = filtered;
-    if (groupBy) {
-      const groups = {};
-      filtered.forEach(task => {
-        const key = task[groupBy] || 'Не вказано';
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(task);
-      });
-      grouped = Object.entries(groups).map(([key, tasks]) => ({
-        group: key,
-        tasks,
-        total: Number(tasks.reduce((sum, t) => sum + (parseFloat(t.serviceTotal) || 0), 0).toFixed(2))
-      }));
+    if (groupBy && groupBy.length > 0) {
+      // Функція для рекурсивного групування по кількох полях
+      const groupByFields = (tasks, fields, level = 0) => {
+        if (fields.length === 0) return tasks;
+        
+        const currentField = fields[0];
+        const remainingFields = fields.slice(1);
+        const groups = {};
+        
+        tasks.forEach(task => {
+          const key = task[currentField] || 'Не вказано';
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(task);
+        });
+        
+        return Object.entries(groups).map(([key, groupTasks]) => {
+          const groupedTasks = remainingFields.length > 0 
+            ? groupByFields(groupTasks, remainingFields, level + 1)
+            : groupTasks;
+          
+          // Обчислюємо загальну суму для групи
+          const calculateTotal = (items) => {
+            return items.reduce((sum, item) => {
+              if (item.group !== undefined) {
+                // Якщо це вкладена група, використовуємо її total
+                return sum + (item.total || 0);
+              } else {
+                // Якщо це звичайний task
+                return sum + (parseFloat(item.serviceTotal) || 0);
+              }
+            }, 0);
+          };
+          
+          const total = calculateTotal(groupedTasks);
+          
+          return {
+            group: key,
+            groupField: currentField,
+            groupLevel: level,
+            tasks: groupedTasks,
+            total: Number(total.toFixed(2))
+          };
+        });
+      };
+      
+      grouped = groupByFields(filtered, groupBy);
     }
     setReportData(grouped);
   };
@@ -517,40 +554,61 @@ export default function ReportBuilder({ user }) {
             </tr>
           </thead>
           <tbody>
-            ${reportData.map((item, index) => {
-              if (item.group) {
-                // Групування
-                return `
-                  <tr style="background: #e3f2fd; font-weight: bold;">
-                    <td colspan="${selectedFields.length + 1}">${item.group} - Всього: ${Number(item.total).toFixed(2)}</td>
-                  </tr>
-                  ${item.tasks.map((task, taskIndex) => `
+            ${(() => {
+              let rowCounter = 0;
+              const renderRowHTML = (item, parentIndex = '', level = 0) => {
+                if (item.group !== undefined) {
+                  const groupLabel = availableFields.find(f => f.name === item.groupField)?.label || item.groupField;
+                  const indent = level * 20;
+                  const currentIndex = parentIndex ? `${parentIndex}.${rowCounter}` : `${++rowCounter}`;
+                  const groupColor = level === 0 ? '#0066cc' : level === 1 ? '#008844' : '#cc6600';
+                  
+                  let html = `
+                    <tr style="background: ${level === 0 ? '#e3f2fd' : level === 1 ? '#e8f5e9' : '#fff3e0'}; font-weight: bold; border-bottom: 2px solid ${groupColor};">
+                      <td colspan="${selectedFields.length + 1}" style="padding-left: ${12 + indent}px; color: ${groupColor}; font-size: 15px; font-weight: bold;">${'  '.repeat(level)}${groupLabel}: ${item.group} - Всього: ${Number(item.total).toFixed(2)} грн</td>
+                    </tr>
+                  `;
+                  
+                  item.tasks.forEach((task, taskIndex) => {
+                    if (task.group !== undefined) {
+                      html += renderRowHTML(task, currentIndex, level + 1);
+                    } else {
+                      const taskRowIndex = `${currentIndex}.${taskIndex + 1}`;
+                      html += `
+                        <tr>
+                          <td style="padding-left: ${12 + indent + 20}px;">${taskRowIndex}</td>
+                          ${selectedFields.map(field => {
+                            const value = task[field];
+                            if (field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/) {
+                              return `<td>${formatApprovalStatus(value)}</td>`;
+                            }
+                            return `<td>${value || ''}</td>`;
+                          }).join('')}
+                        </tr>
+                      `;
+                    }
+                  });
+                  
+                  return html;
+                } else {
+                  rowCounter++;
+                  return `
                     <tr>
-                      <td>${index + 1}.${taskIndex + 1}</td>
+                      <td>${rowCounter}</td>
                       ${selectedFields.map(field => {
-                        const value = task[field];
+                        const value = item[field];
                         if (field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/) {
                           return `<td>${formatApprovalStatus(value)}</td>`;
                         }
                         return `<td>${value || ''}</td>`;
                       }).join('')}
                     </tr>
-                  `).join('')}
-                `;
-              }
-              return `
-                <tr>
-                  <td>${index + 1}</td>
-                  ${selectedFields.map(field => {
-                    const value = item[field];
-                    if (field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/) {
-                      return `<td>${formatApprovalStatus(value)}</td>`;
-                    }
-                    return `<td>${value || ''}</td>`;
-                  }).join('')}
-                </tr>
-              `;
-            }).join('')}
+                  `;
+                }
+              };
+              
+              return reportData.map((row) => renderRowHTML(row, '', 0)).join('');
+            })()}
             ${(() => {
               // Розраховуємо суми для числових колонок
               const sums = {};
@@ -646,55 +704,69 @@ export default function ReportBuilder({ user }) {
         wrapText: true
       };
     });
-    // Додаємо дані
-    let rowNumber = 1;
-    reportData.forEach((item, index) => {
-      if (item.group) {
-        // Групування - додаємо рядок групи
-        const groupRow = worksheet.addRow([`${index + 1}`, `${item.group} - Всього: ${Number(item.total).toFixed(2)}`, ...Array(selectedFields.length - 1).fill('')]);
-        groupRow.eachCell((cell) => {
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFE3F2FD' } // Світло-синій
-          };
-          cell.font = { bold: true };
-          cell.alignment = { wrapText: true };
-        });
-        // Додаємо завдання групи
-        item.tasks.forEach((task, taskIndex) => {
-          const dataRow = worksheet.addRow([
-            `${index + 1}.${taskIndex + 1}`,
-            ...selectedFields.map(field => {
-              const value = task[field];
-              if (field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/) {
-                return formatApprovalStatus(value);
-              }
-              return value || '';
-            })
-          ]);
-          // Альтернативні кольори для рядків
-          const bgColor = taskIndex % 2 === 0 ? 'FF22334A' : 'FF1A2636';
-          dataRow.eachCell((cell) => {
+    // Додаємо дані з підтримкою вкладених груп
+    let rowCounter = 0;
+    const addRowToExcel = (item, parentIndex = '', level = 0) => {
+      if (item.group !== undefined) {
+        // Це група
+        const groupLabel = availableFields.find(f => f.name === item.groupField)?.label || item.groupField;
+        const currentIndex = parentIndex ? `${parentIndex}.${rowCounter}` : `${++rowCounter}`;
+        const groupRow = worksheet.addRow([
+          currentIndex,
+          `${'  '.repeat(level)}${groupLabel}: ${item.group} - Всього: ${Number(item.total).toFixed(2)} грн`,
+          ...Array(selectedFields.length - 1).fill('')
+        ]);
+        groupRow.eachCell((cell, colNumber) => {
+          if (colNumber === 1 || colNumber === 2) {
+            const bgColor = level === 0 ? 'FFE3F2FD' : level === 1 ? 'FFE8F5E9' : 'FFFFF3E0';
             cell.fill = {
               type: 'pattern',
               pattern: 'solid',
               fgColor: { argb: bgColor }
             };
-            cell.font = { color: { argb: 'FFFFFFFF' } }; // Білий текст
-            cell.alignment = { wrapText: true };
-            cell.border = {
-              top: { style: 'thin' },
-              left: { style: 'thin' },
-              bottom: { style: 'thin' },
-              right: { style: 'thin' }
-            };
-          });
+            cell.font = { bold: true };
+          }
+          cell.alignment = { wrapText: true };
+          cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' }
+          };
+        });
+        
+        // Додаємо завдання групи
+        item.tasks.forEach((task, taskIndex) => {
+          if (task.group !== undefined) {
+            addRowToExcel(task, currentIndex, level + 1);
+          } else {
+            const taskRowIndex = `${currentIndex}.${taskIndex + 1}`;
+            const dataRow = worksheet.addRow([
+              taskRowIndex,
+              ...selectedFields.map(field => {
+                const value = task[field];
+                if (field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/) {
+                  return formatApprovalStatus(value);
+                }
+                return value || '';
+              })
+            ]);
+            dataRow.eachCell((cell) => {
+              cell.alignment = { wrapText: true };
+              cell.border = {
+                top: { style: 'thin' },
+                left: { style: 'thin' },
+                bottom: { style: 'thin' },
+                right: { style: 'thin' }
+              };
+            });
+          }
         });
       } else {
         // Звичайний рядок
+        rowCounter++;
         const dataRow = worksheet.addRow([
-          `${index + 1}`,
+          `${rowCounter}`,
           ...selectedFields.map(field => {
             const value = item[field];
             if (field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/) {
@@ -713,6 +785,10 @@ export default function ReportBuilder({ user }) {
           };
         });
       }
+    };
+    
+    reportData.forEach((item) => {
+      addRowToExcel(item, '', 0);
     });
     
     // Додаємо підсумковий рядок
@@ -838,7 +914,7 @@ export default function ReportBuilder({ user }) {
       setPaymentDateRangeFilter(reportData.paymentDateRangeFilter);
       setRequestDateRangeFilter(reportData.requestDateRangeFilter);
       setSelectedFields(reportData.selectedFields);
-      setGroupBy(reportData.groupBy);
+      setGroupBy(Array.isArray(reportData.groupBy) ? reportData.groupBy : (reportData.groupBy ? [reportData.groupBy] : []));
       // Логуємо завантаження звіту
       logUserAction(user, EVENT_ACTIONS.LOAD_REPORT, ENTITY_TYPES.REPORT, reportData._id, 
         `Завантажено звіт: ${reportData.name}`, {
@@ -1119,25 +1195,58 @@ export default function ReportBuilder({ user }) {
           ))}
         </div>
       </div>
+      {/* Групування */}
+      <div style={{marginBottom: '16px', padding: '16px', background: '#1a2636', borderRadius: '8px'}}>
+        <h3 style={{color: '#fff', marginBottom: '12px'}}>Групування (можна вибрати кілька полів)</h3>
+        <div style={{display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center'}}>
+          {availableFields.map(field => (
+            <div key={field.name} style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+              <input
+                type="checkbox"
+                checked={groupBy.includes(field.name)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setGroupBy([...groupBy, field.name]);
+                  } else {
+                    setGroupBy(groupBy.filter(f => f !== field.name));
+                  }
+                }}
+                style={{cursor: 'pointer'}}
+              />
+              <label style={{color: '#fff', fontSize: '14px', cursor: 'pointer'}}>{field.label}</label>
+            </div>
+          ))}
+          {groupBy.length > 0 && (
+            <button
+              onClick={() => setGroupBy([])}
+              style={{
+                padding: '6px 12px',
+                background: '#dc3545',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                marginLeft: 'auto'
+              }}
+            >
+              Очистити групування
+            </button>
+          )}
+        </div>
+        {groupBy.length > 0 && (
+          <div style={{marginTop: '8px', color: '#00bfff', fontSize: '12px'}}>
+            Групування: {groupBy.map((field, index) => (
+              <span key={field}>
+                {index > 0 && ' → '}
+                {availableFields.find(f => f.name === field)?.label || field}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
       {/* Кнопки управління */}
       <div style={{display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap'}}>
-        <select
-          value={groupBy}
-          onChange={e => setGroupBy(e.target.value)}
-          style={{
-            padding: '8px 12px',
-            borderRadius: '4px',
-            border: '1px solid #29506a',
-            background: '#1a2636',
-            color: '#fff',
-            fontSize: '14px'
-          }}
-        >
-          <option value="">Групувати за...</option>
-          {availableFields.map(field => (
-            <option key={field.name} value={field.name}>{field.label}</option>
-          ))}
-        </select>
         <button
           onClick={generateReport}
           disabled={loading || tasks.length === 0}
@@ -1408,56 +1517,83 @@ export default function ReportBuilder({ user }) {
               </tr>
             </thead>
             <tbody>
-              {reportData.map((row, index) => {
-                if (row.group) {
-                  // Групування
-                  return (
-                    <React.Fragment key={index}>
-                      <tr style={{
-                        borderBottom: '2px solid #00bfff',
-                        background: '#1a2636',
-                        fontWeight: 'bold'
-                      }}>
-                        <td colSpan={selectedFields.length + 1} style={{padding: '12px', color: '#00bfff'}}>
-                          {row.group} - Всього: {Number(row.total).toFixed(2)}
-                        </td>
-                      </tr>
-                      {row.tasks.map((task, taskIndex) => (
-                        <tr key={`${index}-${taskIndex}`} style={{
-                          borderBottom: '1px solid #29506a',
-                          background: taskIndex % 2 === 0 ? '#22334a' : '#1a2636'
+              {(() => {
+                // Реактивна функція для відображення вкладених груп
+                let rowCounter = 0;
+                const renderRow = (item, parentIndex = '', level = 0) => {
+                  if (item.group !== undefined) {
+                    // Це група
+                    const groupLabel = availableFields.find(f => f.name === item.groupField)?.label || item.groupField;
+                    const indent = level * 20;
+                    const currentIndex = parentIndex ? `${parentIndex}.${rowCounter}` : `${++rowCounter}`;
+                    const groupColor = level === 0 ? '#87ceeb' : level === 1 ? '#90ee90' : '#ffd700';
+                    
+                    return (
+                      <React.Fragment key={`${parentIndex}-${item.group}-${level}`}>
+                        <tr style={{
+                          borderBottom: '2px solid ' + groupColor,
+                          background: '#1a2636',
+                          fontWeight: 'bold'
                         }}>
-                          <td>{index + 1}.{taskIndex + 1}</td>
-                          {selectedFields.map(field => (
-                            <td key={field} style={{padding: '12px'}}>
-                          {field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/ 
-                            ? formatApprovalStatus(task[field]) 
-                            : (task[field] || '')}
-                            </td>
-                          ))}
+                          <td colSpan={selectedFields.length + 1} style={{
+                            padding: '12px',
+                            paddingLeft: `${12 + indent}px`,
+                            color: groupColor,
+                            fontSize: '15px',
+                            textShadow: '0 0 3px rgba(0,0,0,0.5)'
+                          }}>
+                            {'  '.repeat(level)}{groupLabel}: {item.group} - Всього: {Number(item.total).toFixed(2)} грн
+                          </td>
                         </tr>
-                      ))}
-                    </React.Fragment>
-                  );
-                } else {
-                  // Звичайний рядок
-                  return (
-                    <tr key={index} style={{
-                      borderBottom: '1px solid #29506a',
-                      background: index % 2 === 0 ? '#22334a' : '#1a2636'
-                    }}>
-                      <td>{index + 1}</td>
-                      {selectedFields.map(field => (
-                        <td key={field} style={{padding: '12px'}}>
-                          {field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/ 
-                            ? formatApprovalStatus(row[field]) 
-                            : (row[field] || '')}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                }
-              })}
+                        {item.tasks.map((task, taskIndex) => {
+                          if (task.group !== undefined) {
+                            // Вкладена група
+                            return renderRow(task, currentIndex, level + 1);
+                          } else {
+                            // Звичайний task
+                            const taskRowIndex = `${currentIndex}.${taskIndex + 1}`;
+                            return (
+                              <tr key={`${currentIndex}-task-${taskIndex}`} style={{
+                                borderBottom: '1px solid #29506a',
+                                background: taskIndex % 2 === 0 ? '#22334a' : '#1a2636'
+                              }}>
+                                <td style={{paddingLeft: `${12 + indent + 20}px`}}>{taskRowIndex}</td>
+                                {selectedFields.map(field => (
+                                  <td key={field} style={{padding: '12px'}}>
+                                    {field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/ 
+                                      ? formatApprovalStatus(task[field]) 
+                                      : (task[field] || '')}
+                                  </td>
+                                ))}
+                              </tr>
+                            );
+                          }
+                        })}
+                      </React.Fragment>
+                    );
+                  } else {
+                    // Звичайний рядок
+                    rowCounter++;
+                    return (
+                      <tr key={`row-${rowCounter}`} style={{
+                        borderBottom: '1px solid #29506a',
+                        background: rowCounter % 2 === 0 ? '#22334a' : '#1a2636'
+                      }}>
+                        <td>{rowCounter}</td>
+                        {selectedFields.map(field => (
+                          <td key={field} style={{padding: '12px'}}>
+                            {field === 'approvedByWarehouse' || field === 'approvedByAccountant'/* || field === 'approvedByRegionalManager'*/ 
+                              ? formatApprovalStatus(item[field]) 
+                              : (item[field] || '')}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  }
+                };
+                
+                return reportData.map((row, index) => renderRow(row, '', 0));
+              })()}
               {/* Підсумковий рядок */}
               {reportData.length > 0 && (() => {
                 const columnSums = calculateColumnSums(reportData);

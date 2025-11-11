@@ -767,10 +767,10 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user, acce
       <h2>Заявки на затвердження (Бухгалтер)</h2>
       {loading && <div>Завантаження...</div>}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <button onClick={()=>setActiveTab('pending')} style={{width:220,padding:'10px 0',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
-        <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
-        <button onClick={()=>setActiveTab('debt')} style={{width:220,padding:'10px 0',background:activeTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='debt'?700:400,cursor:'pointer'}}>Заборгованість по документам ({debt.length})</button>
-        <button onClick={()=>setReportsModalOpen(true)} style={{width:220,padding:'10px 0',background:'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:400,cursor:'pointer'}}>📊 Бухгалтерські звіти</button>
+        <button onClick={()=>setActiveTab('pending')} style={{width:220,padding:'10px 0',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',fontSize:'1rem'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
+        <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer',fontSize:'1rem'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
+        <button onClick={()=>setActiveTab('debt')} style={{width:220,padding:'10px 0',background:activeTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='debt'?700:400,cursor:'pointer',fontSize:'1rem'}}>Заборгованість по документам ({debt.length})</button>
+        <button onClick={()=>setReportsModalOpen(true)} style={{width:220,padding:'10px 0',background:'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:400,cursor:'pointer',fontSize:'1rem'}}>📊 Бухгалтерські звіти</button>
         <button onClick={() => {
           console.log('[DEBUG] AccountantApprovalArea - кнопка "Оновити дані" натиснута');
           refreshCache();
@@ -782,40 +782,11 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user, acce
           padding:'8px 20px',
           fontWeight:600,
           cursor: loading ? 'not-allowed' : 'pointer',
-          opacity: loading ? 0.6 : 1
+          opacity: loading ? 0.6 : 1,
+          fontSize:'1rem'
         }}>
           {loading ? '⏳ Оновлення...' : '🔄 Оновити дані'}
         </button>
-      </div>
-      <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <label style={{display:'flex',alignItems:'center',gap:4}}>
-          Дата виконаних робіт з:
-          <input type="date" name="dateFrom" value={filters.dateFrom} onChange={handleFilter} />
-          по
-          <input type="date" name="dateTo" value={filters.dateTo} onChange={handleFilter} />
-        </label>
-        <label style={{display:'flex',alignItems:'center',gap:4}}>
-          Дата оплати з:
-          <input type="date" name="paymentDateFrom" value={filters.paymentDateFrom || ''} onChange={handleFilter} />
-          по
-          <input type="date" name="paymentDateTo" value={filters.paymentDateTo || ''} onChange={handleFilter} />
-        </label>
-        <label style={{display:'flex',alignItems:'center',gap:4}}>
-          Регіон:
-          <input type="text" name="region" value={filters.region || ''} onChange={handleFilter} placeholder="Україна або регіон" />
-        </label>
-        <label style={{display:'flex',alignItems:'center',gap:4}}>
-          Статус затвердження:
-          <select 
-            value={approvalFilter} 
-            onChange={(e) => setApprovalFilter(e.target.value)}
-            style={{padding:'4px 8px',borderRadius:'4px',border:'1px solid #ccc'}}
-          >
-            <option value="all">Всі звіти</option>
-            <option value="approved">Тільки затверджені</option>
-            <option value="not_approved">Тільки незатверджені</option>
-          </select>
-        </label>
       </div>
       <ModalTaskForm 
         key={`modal-${editTask?.id || 'new'}`}

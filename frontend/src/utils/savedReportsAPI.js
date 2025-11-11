@@ -1,3 +1,5 @@
+import { authenticatedFetch } from './api.js';
+
 const API_BASE_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:3001/api'
   : 'https://darex-trading-solutions.onrender.com/api';
@@ -5,11 +7,8 @@ export const savedReportsAPI = {
   // Зберегти звіт
   async saveReport(reportData) {
     try {
-      const response = await fetch(`${API_BASE_URL}/saved-reports`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/saved-reports`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(reportData),
       });
       if (!response.ok) {
@@ -24,7 +23,7 @@ export const savedReportsAPI = {
   // Отримати всі збережені звіти користувача
   async getReports(userId) {
     try {
-      const response = await fetch(`${API_BASE_URL}/saved-reports/${userId}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/saved-reports/${userId}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -37,7 +36,7 @@ export const savedReportsAPI = {
   // Видалити збережений звіт
   async deleteReport(reportId) {
     try {
-      const response = await fetch(`${API_BASE_URL}/saved-reports/${reportId}`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/saved-reports/${reportId}`, {
         method: 'DELETE',
       });
       if (!response.ok) {

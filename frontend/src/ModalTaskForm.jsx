@@ -1211,13 +1211,19 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   return (
     <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto'}}>
       <style>{`
+        .modal-task-form {
+          font-size: 0.85rem; /* Зменшуємо базовий розмір шрифту на 15% */
+        }
+        .modal-task-form h2 {
+          font-size: 1.5rem; /* Пропорційно зменшуємо заголовок */
+        }
         .modal-task-form input, .modal-task-form select, .modal-task-form textarea {
           background: #22334a;
           color: #fff;
           border: 1px solid #444;
           border-radius: 4px;
-          padding: 8px;
-          font-size: 1rem;
+          padding: 6px; /* Зменшуємо padding з 8px до 6px */
+          font-size: 0.9rem; /* Зменшуємо розмір шрифту */
         }
         .modal-task-form input[readonly], .modal-task-form input:read-only, .modal-task-form textarea[readonly], .modal-task-form textarea:read-only {
           color: #aaa;
@@ -1225,40 +1231,58 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
         .modal-task-form .group {
           display: flex;
           flex-wrap: wrap;
-          gap: 16px;
-          margin-bottom: 24px;
+          gap: 12px; /* Зменшуємо gap з 16px до 12px */
+          margin-bottom: 18px; /* Зменшуємо margin-bottom з 24px до 18px */
         }
         .modal-task-form .field {
           flex: 1 1 220px;
           min-width: 180px;
           max-width: 340px;
           margin-bottom: 0;
+          display: flex;
+          flex-direction: column; /* Label завжди зверху */
+        }
+        .modal-task-form .field label {
+          display: block !important; /* Завжди зверху */
+          font-size: 0.85rem; /* Зменшуємо розмір label */
+          margin-bottom: 4px;
+          font-weight: 600;
+          width: 100%;
+        }
+        /* Виключаємо checkbox поля з цього правила */
+        .modal-task-form .field input[type="checkbox"] + span {
+          display: inline;
         }
         .modal-task-form .field.textarea {
           flex: 1 1 100%;
           max-width: 100%;
         }
         .modal-task-form .block-detail {
-          margin-bottom: 24px;
+          margin-bottom: 18px; /* Зменшуємо з 24px до 18px */
         }
         .label-above label {
           display: block;
           margin-bottom: 4px;
           font-weight: 600;
+          font-size: 0.85rem; /* Зменшуємо розмір label */
         }
         .modal-task-form .main-header-group {
           display: flex;
           flex-direction: row;
-          gap: 16px;
-          margin-bottom: 24px;
+          gap: 12px; /* Зменшуємо gap з 16px до 12px */
+          margin-bottom: 18px; /* Зменшуємо margin-bottom з 24px до 18px */
+        }
+        .modal-task-form button {
+          font-size: 0.9rem; /* Зменшуємо розмір шрифту кнопок */
+          padding: 8px 16px; /* Зменшуємо padding кнопок */
         }
       `}</style>
-      <form className="modal-task-form" onSubmit={handleSubmit} style={{background:'#1a2636',padding:32,paddingBottom:200,borderRadius:0,width:'90vw',maxWidth:1100,maxHeight:'90vh',color:'#fff',boxShadow:'0 4px 32px #0008',overflowY:'auto',display:'flex',flexDirection:'column',justifyContent:'flex-start',marginTop:48,position:'relative'}} onClick={(e) => e.stopPropagation()}>
-        <button type="button" onClick={onClose} style={{position:'absolute',top:40,right:24,fontSize:28,background:'none',border:'none',color:'#fff',cursor:'pointer',zIndex:10}} aria-label="Закрити">×</button>
+      <form className="modal-task-form" onSubmit={handleSubmit} style={{background:'#1a2636',padding:'24px',paddingBottom:200,borderRadius:0,width:'90vw',maxWidth:1100,maxHeight:'90vh',color:'#fff',boxShadow:'0 4px 32px #0008',overflowY:'auto',display:'flex',flexDirection:'column',justifyContent:'flex-start',marginTop:36,position:'relative'}} onClick={(e) => e.stopPropagation()}>
+        <button type="button" onClick={onClose} style={{position:'absolute',top:30,right:18,fontSize:22,background:'none',border:'none',color:'#fff',cursor:'pointer',zIndex:10}} aria-label="Закрити">×</button>
         <h2 style={{marginTop:0}}>Завдання</h2>
-        {error && <div style={{color:'#ff6666',marginBottom:16,fontWeight:600}}>{error}</div>}
+        {error && <div style={{color:'#ff6666',marginBottom:12,fontWeight:600,fontSize:'0.9rem'}}>{error}</div>}
         {/* Рядок з автоматичними датами (перші 4 поля) */}
-        <div style={{display:'flex',gap:16,marginBottom:24}}>
+        <div style={{display:'flex',gap:12,marginBottom:18}}>
           {['autoCreatedAt', 'autoCompletedAt', 'autoWarehouseApprovedAt', 'autoAccountantApprovedAt'].map(fieldName => {
             const f = fields.find(f => f.name === fieldName);
             if (!f) return null;
@@ -1288,7 +1312,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           })}
         </div>
         {/* Рядок з автоматичними датами (поля для рахунків) */}
-        <div style={{display:'flex',gap:16,marginBottom:24}}>
+        <div style={{display:'flex',gap:12,marginBottom:18}}>
           {['invoiceRequestDate', 'invoiceUploadDate'].map(fieldName => {
             const f = fields.find(f => f.name === fieldName);
             if (!f) return null;
@@ -1318,7 +1342,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           })}
         </div>
         {/* Окремий рядок для номера заявки/наряду */}
-        <div style={{display:'flex',gap:16,marginBottom:24,justifyContent:'center',alignItems:'flex-end'}}>
+        <div style={{display:'flex',gap:12,marginBottom:18,justifyContent:'center',alignItems:'flex-end'}}>
           <div className="field" style={{flex:1,maxWidth:400}}>
             <label>Номер заявки/наряду</label>
             <input 
@@ -1355,7 +1379,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             </div>
           )}
         </div>
-        <div style={{display:'flex',gap:16,marginBottom:24}}>
+        <div style={{display:'flex',gap:12,marginBottom:18}}>
           {mainHeaderRow.map(n => {
             const f = fields.find(f=>f.name===n);
             if (!f) return null;
@@ -2415,7 +2439,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
             }}
           />
         )}
-        <div style={{display:'flex',gap:12,marginTop:24,marginBottom:32}}>
+        <div style={{display:'flex',gap:10,marginTop:18,marginBottom:24}}>
           {!readOnly && <button type="submit" style={{flex:1}}>Зберегти</button>}
           <button type="button" onClick={onClose} style={{flex:1,background:readOnly ? '#00bfff' : '#888',color:'#fff'}}>
             {readOnly ? 'Закрити' : 'Скасувати'}

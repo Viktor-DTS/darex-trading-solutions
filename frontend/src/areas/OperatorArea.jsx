@@ -513,10 +513,10 @@ export default function OperatorArea({ user, accessRules, currentArea }) {
       <h2>Заявки оператора</h2>
       {loading && <div>Завантаження...</div>}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <button onClick={()=>{setActiveTab('inProgress')}} style={{width:220,padding:'10px 0',background:activeTab==='inProgress'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='inProgress'?700:400,cursor:'pointer'}}>Заявки на виконанні ({getTabCount('inProgress')})</button>
-        <button onClick={()=>{setActiveTab('archive')}} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
+        <button onClick={()=>{setActiveTab('inProgress')}} style={{width:220,padding:'10px 0',background:activeTab==='inProgress'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='inProgress'?700:400,cursor:'pointer',fontSize:'1rem'}}>Заявки на виконанні ({getTabCount('inProgress')})</button>
+        <button onClick={()=>{setActiveTab('archive')}} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer',fontSize:'1rem'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
       </div>
-      {hasFullAccess && <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16}}>Додати заявку</button>}
+      {hasFullAccess && <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16,fontSize:'1rem'}}>Додати заявку</button>}
       <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="operator" user={user} readOnly={editTask?._readOnly || false} />
       <TaskTable
         tasks={tableData}

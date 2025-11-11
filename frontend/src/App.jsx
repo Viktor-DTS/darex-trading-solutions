@@ -1521,11 +1521,11 @@ function ServiceArea({ user, accessRules, currentArea }) {
       
       {/* Оптимізований рядок з усіма кнопками */}
       <div style={{display:'flex',gap:8,marginBottom:24,justifyContent:'flex-start',flexWrap:'wrap',alignItems:'center'}}>
-        {hasFullAccess && <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{padding:'10px 20px',background:'#28a745',color:'#fff',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>Додати заявку</button>}
-        <button onClick={()=>setActiveTab('notDone')} style={{padding:'10px 16px',background:activeTab==='notDone'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='notDone'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Невиконані заявки ({getTabCount('notDone')})</button>
-        <button onClick={()=>setActiveTab('pending')} style={{padding:'10px 16px',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
-        <button onClick={()=>setActiveTab('done')} style={{padding:'10px 16px',background:activeTab==='done'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='done'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Архів виконаних заявок ({done.length})</button>
-        <button onClick={()=>setActiveTab('blocked')} style={{padding:'10px 16px',background:activeTab==='blocked'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='blocked'?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>Заблоковані заявки ({getTabCount('blocked')})</button>
+        {hasFullAccess && <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{padding:'10px 20px',background:'#28a745',color:'#fff',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Додати заявку</button>}
+        <button onClick={()=>setActiveTab('notDone')} style={{padding:'10px 16px',background:activeTab==='notDone'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='notDone'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Невиконані заявки ({getTabCount('notDone')})</button>
+        <button onClick={()=>setActiveTab('pending')} style={{padding:'10px 16px',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
+        <button onClick={()=>setActiveTab('done')} style={{padding:'10px 16px',background:activeTab==='done'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='done'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Архів виконаних заявок ({done.length})</button>
+        <button onClick={()=>setActiveTab('blocked')} style={{padding:'10px 16px',background:activeTab==='blocked'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='blocked'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заблоковані заявки ({getTabCount('blocked')})</button>
       </div>
       
       <ModalTaskForm 
@@ -3593,34 +3593,10 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
         <>
             <h2>Завдання для регіонального керівника</h2>
             <div style={{display:'flex',gap:8,marginBottom:16}}>
-              <button onClick={()=>setActiveTab('pending')} style={{width:220,padding:'10px 0',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer'}}>Заявки відхилені ({getTabCount('pending')})</button>
-              <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
-              <button onClick={()=>setActiveTab('debt')} style={{width:220,padding:'10px 0',background:activeTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='debt'?700:400,cursor:'pointer'}}>Заборгованість по документам ({getTabCount('debt')})</button>
-              <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Експорт у Excel</button>
-            </div>
-            <div style={{display:'flex',gap:8,marginBottom:16}}>
-              <label style={{display:'flex',alignItems:'center',gap:4}}>
-                Дата виконаних робіт з:
-                <input type="date" name="dateFrom" value={exportFilters.dateFrom} onChange={(e) => handleExportFilterChange('dateFrom', e.target.value)} />
-                по
-                <input type="date" name="dateTo" value={exportFilters.dateTo} onChange={(e) => handleExportFilterChange('dateTo', e.target.value)} />
-              </label>
-              <label style={{display:'flex',alignItems:'center',gap:4}}>
-                Регіон:
-                <input type="text" name="region" value={exportFilters.region || ''} onChange={(e) => handleExportFilterChange('region', e.target.value)} placeholder="Україна або регіон" />
-              </label>
-              <label style={{display:'flex',alignItems:'center',gap:4}}>
-                Статус затвердження:
-                <select 
-                  value={exportFilters.approvalFilter} 
-                  onChange={(e) => handleExportFilterChange('approvalFilter', e.target.value)}
-                  style={{padding:'4px 8px',borderRadius:'4px',border:'1px solid #ccc'}}
-                >
-                  <option value="all">Всі звіти</option>
-                  <option value="approved">Тільки затверджені</option>
-                  <option value="not_approved">Тільки незатверджені</option>
-                </select>
-              </label>
+              <button onClick={()=>setActiveTab('pending')} style={{width:220,padding:'10px 0',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',fontSize:'1rem'}}>Заявки відхилені ({getTabCount('pending')})</button>
+              <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer',fontSize:'1rem'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
+              <button onClick={()=>setActiveTab('debt')} style={{width:220,padding:'10px 0',background:activeTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='debt'?700:400,cursor:'pointer',fontSize:'1rem'}}>Заборгованість по документам ({getTabCount('debt')})</button>
+              <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer',fontSize:'1rem'}}>Експорт у Excel</button>
             </div>
             <ModalTaskForm 
               open={modalOpen} 

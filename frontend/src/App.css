@@ -40,28 +40,28 @@ body::before {
 }
 
 .logo-block {
-  margin-bottom: 24px;
+  margin-bottom: 20.4px; /* 24px * 0.85 */
 }
 
 h1 {
-  font-size: 2.5rem;
-  margin: 0 0 12px 0;
-  letter-spacing: 2px;
+  font-size: 2.125rem; /* 2.5rem * 0.85 */
+  margin: 0 0 10px 0; /* 12px * 0.85 */
+  letter-spacing: 1.7px; /* 2px * 0.85 */
 }
 
 h2 {
-  font-size: 1.3rem;
+  font-size: 1.105rem; /* 1.3rem * 0.85 */
   font-weight: 400;
-  margin-bottom: 32px;
+  margin-bottom: 27px; /* 32px * 0.85 */
 }
 
 .server-status {
   background: rgba(0, 191, 255, 0.1);
   border: 1px solid #00bfff;
-  border-radius: 8px;
-  padding: 16px 32px;
-  font-size: 1.1rem;
-  margin-top: 16px;
+  border-radius: 6.8px; /* 8px * 0.85 */
+  padding: 13.6px 27.2px; /* 16px * 0.85, 32px * 0.85 */
+  font-size: 0.935rem; /* 1.1rem * 0.85 */
+  margin-top: 13.6px; /* 16px * 0.85 */
 }
 
 .logo {

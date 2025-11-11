@@ -11,6 +11,23 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  
+  /* Глобальне зменшення розмірів для покращення читабельності */
+  font-size: 0.85rem; /* Зменшуємо базовий розмір шрифту на 15% */
+}
+
+/* Глобальне масштабування для покращення читабельності */
+html {
+  font-size: 0.85rem; /* Зменшуємо базовий розмір шрифту на 15% */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Глобальне зменшення розмірів для input, select, textarea */
+input, select, textarea {
+  font-size: 0.9rem !important; /* Зменшуємо розмір шрифту на 10% */
 }
 
 a {
@@ -28,18 +45,19 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  font-size: 0.85rem; /* Зменшуємо розмір шрифту body */
 }
 
 h1 {
-  font-size: 3.2em;
+  font-size: 2.72em; /* 3.2em * 0.85 */
   line-height: 1.1;
 }
 
 button {
-  border-radius: 8px;
+  border-radius: 6.8px; /* 8px * 0.85 */
   border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
+  padding: 0.51em 1.02em; /* 0.6em * 0.85, 1.2em * 0.85 */
+  font-size: 0.9em; /* 1em * 0.9 */
   font-weight: 500;
   font-family: inherit;
   background-color: #1a1a1a;

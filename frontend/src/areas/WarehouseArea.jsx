@@ -735,17 +735,8 @@ export default function WarehouseArea({ user, accessRules, currentArea }) {
       <h2>Завдання для затвердження (Зав. склад)</h2>
       {loading && <div>Завантаження...</div>}
       <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <button onClick={()=>setActiveTab('pending')} style={{width:220,padding:'10px 0',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
-        <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
-      </div>
-      <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <label style={{display:'flex',alignItems:'center',gap:4}}>
-          Дата виконаних робіт з:
-          <input type="date" name="dateFrom" value={filters.dateFrom} onChange={handleFilter} />
-          по
-          <input type="date" name="dateTo" value={filters.dateTo} onChange={handleFilter} />
-        </label>
-        <button onClick={handleFormReport} style={{background:'#00bfff',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer'}}>Сформувати звіт</button>
+        <button onClick={()=>setActiveTab('pending')} style={{width:220,padding:'10px 0',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',fontSize:'1rem'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
+        <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer',fontSize:'1rem'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
       </div>
       <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="warehouse" user={user} readOnly={editTask?._readOnly || false} />
       <TaskTable
