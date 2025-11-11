@@ -1,5 +1,5 @@
 // API для роботи з обладнанням та матеріалами
-import API_BASE_URL from './config.js';
+import API_BASE_URL from '../config.js';
 import authenticatedFetch from './api.js';
 
 // Отримання унікальних типів обладнання
