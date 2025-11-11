@@ -221,7 +221,7 @@ const savedReportSchema = new mongoose.Schema({
   paymentDateRangeFilter: { type: Object, required: true },
   requestDateRangeFilter: { type: Object, required: true },
   selectedFields: { type: [String], required: true },
-  groupBy: { type: String, default: '' },
+  groupBy: { type: [String], default: [] }, // Масив полів для групування
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -2234,6 +2234,9 @@ app.post('/api/saved-reports', async (req, res) => {
   try {
     const { userId, name, date, filters, approvalFilter, dateRangeFilter, paymentDateRangeFilter, requestDateRangeFilter, selectedFields, groupBy } = req.body;
     
+    // Перетворюємо groupBy в масив, якщо він рядок (для сумісності зі старими звітами)
+    const groupByArray = Array.isArray(groupBy) ? groupBy : (groupBy ? [groupBy] : []);
+    
     const savedReport = new SavedReport({
       userId,
       name,
@@ -2244,7 +2247,7 @@ app.post('/api/saved-reports', async (req, res) => {
       paymentDateRangeFilter,
       requestDateRangeFilter,
       selectedFields,
-      groupBy
+      groupBy: groupByArray
     });
     
     await savedReport.save();
