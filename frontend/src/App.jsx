@@ -32,6 +32,7 @@ import NotificationDebugPanel from './components/NotificationDebugPanel';
 import * as XLSX from 'xlsx-js-style';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import API_BASE_URL from './config.js';
+import authenticatedFetch from './utils/api.js';
 import { tasksAPI } from './utils/tasksAPI';
 import { importedTasksAPI } from './utils/importedTasksAPI';
 import { accessRulesAPI } from './utils/accessRulesAPI';
@@ -2025,7 +2026,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     try {
       const region = getRegionForTimesheet(targetRegion);
       console.log('[TIMESHEET] Loading from server for region:', region, 'year:', year, 'month:', month);
-      const response = await fetch(`${API_BASE_URL}/timesheet?region=${encodeURIComponent(region)}&year=${year}&month=${month}&type=regular`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/timesheet?region=${encodeURIComponent(region)}&year=${year}&month=${month}&type=regular`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -2078,9 +2079,8 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
         payDataKeys: Object.keys(payDataValue || {})
       });
       
-      const response = await fetch(`${API_BASE_URL}/timesheet`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/timesheet`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       

@@ -68,6 +68,11 @@ export default function Login({ onLogin }) {
       });
       if (response.ok) {
         const result = await response.json();
+        // Зберігаємо JWT токен
+        if (result.token) {
+          localStorage.setItem('authToken', result.token);
+          console.log('[AUTH] Токен збережено в localStorage');
+        }
         // Додаємо інформацію про режим до об'єкта користувача
         const userWithMode = {
           ...result.user,

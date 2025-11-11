@@ -36,6 +36,7 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const multer = require('multer');
+const jwt = require('jsonwebtoken');
 const cloudinary = require('./config/cloudinary');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
@@ -72,6 +73,72 @@ function trackEndpoint(req, res, next) {
   endpointStats[key].calls++;
   endpointStats[key].lastCall = new Date().toISOString();
   
+  next();
+}
+
+// === СИСТЕМА АВТЕНТИФІКАЦІЇ ===
+const JWT_SECRET = process.env.JWT_SECRET || 'darex-trading-solutions-secret-key-change-in-production-2024';
+const JWT_EXPIRES_IN = '24h';
+
+// Middleware для перевірки JWT токена
+function authenticateToken(req, res, next) {
+  // Дозволяємо публічні endpoints (перевіряємо точне співпадіння або початок шляху)
+  const publicPaths = ['/api/auth', '/api/ping', '/api/system-status'];
+  const isPublicPath = publicPaths.some(path => {
+    return req.path === path || req.path.startsWith(path + '/');
+  });
+  
+  if (isPublicPath) {
+    return next();
+  }
+
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (!token) {
+    console.log(`[AUTH] Запит без токена: ${req.method} ${req.path}`);
+    return res.status(401).json({ error: 'Токен доступу відсутній. Потрібна авторизація.' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      console.log(`[AUTH] Помилка верифікації токена для ${req.method} ${req.path}:`, err.message);
+      return res.status(403).json({ error: 'Невірний або прострочений токен доступу.' });
+    }
+    req.user = user;
+    next();
+  });
+}
+
+// Middleware для перевірки ролі користувача
+function requireRole(...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Користувач не авторизований' });
+    }
+
+    const userRole = req.user.role;
+    if (!allowedRoles.includes(userRole) && userRole !== 'admin') {
+      console.log(`[AUTH] Доступ заборонено. Роль користувача: ${userRole}, потрібні ролі: ${allowedRoles.join(', ')}`);
+      return res.status(403).json({ error: 'Недостатньо прав доступу' });
+    }
+
+    next();
+  };
+}
+
+// Middleware для перевірки адмін прав
+function requireAdmin(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Користувач не авторизований' });
+  }
+
+  const adminRoles = ['admin', 'Адміністратор', 'administrator'];
+  if (!adminRoles.includes(req.user.role)) {
+    console.log(`[AUTH] Адмін доступ заборонено. Роль користувача: ${req.user.role}`);
+    return res.status(403).json({ error: 'Потрібні права адміністратора' });
+  }
+
   next();
 }
 
@@ -760,6 +827,9 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Автоматичне відстеження всіх endpoint'ів
 app.use(trackEndpoint);
 
+// Застосовуємо автентифікацію до всіх API endpoints (крім публічних)
+app.use('/api', authenticateToken);
+
 // Додаємо роут файлів
 app.use('/api/files', filesRouter);
 
@@ -847,7 +917,7 @@ app.get('/api/users/:login', async (req, res) => {
   }
 });
 
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', requireAdmin, async (req, res) => {
   try {
     const userData = req.body;
     addLog(`📝 Updating user: ${userData.login}`, 'info');
@@ -873,7 +943,7 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-app.delete('/api/users/:login', async (req, res) => {
+app.delete('/api/users/:login', requireAdmin, async (req, res) => {
   try {
     const result = await User.deleteOne({ login: req.params.login });
     if (result.deletedCount === 0) {
@@ -894,7 +964,7 @@ app.get('/api/roles', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-app.post('/api/roles', async (req, res) => {
+app.post('/api/roles', requireAdmin, async (req, res) => {
   try {
     await Role.deleteMany({});
     await Role.insertMany(req.body);
@@ -1692,7 +1762,7 @@ app.get('/api/accessRules', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-app.post('/api/accessRules', async (req, res) => {
+app.post('/api/accessRules', requireAdmin, async (req, res) => {
   try {
     console.log('[ACCESS RULES] Отримано для збереження:', JSON.stringify(req.body, null, 2));
     console.log('[ACCESS RULES] Тип даних:', typeof req.body);
@@ -1891,7 +1961,7 @@ app.get('/api/backups', async (req, res) => {
 });
 
 // Створити новий бекап
-app.post('/api/backups', async (req, res) => {
+app.post('/api/backups', requireAdmin, async (req, res) => {
   try {
     console.log('[BACKUP] POST /api/backups - початок створення бекапу');
     const { userId, name, description, data, taskCount, isAuto = false } = req.body;
@@ -1972,7 +2042,7 @@ app.post('/api/backups', async (req, res) => {
 });
 
 // Видалити бекап
-app.delete('/api/backups/:id', async (req, res) => {
+app.delete('/api/backups/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { userId } = req.query;
@@ -2033,8 +2103,27 @@ app.post('/api/auth', async (req, res) => {
     const user = await executeWithRetry(() => User.findOne({ login, password }));
     if (user) {
       const { password: _, ...userWithoutPassword } = user.toObject();
-      res.json({ success: true, user: userWithoutPassword });
+      
+      // Генеруємо JWT токен
+      const token = jwt.sign(
+        { 
+          id: user._id || user.id,
+          login: user.login,
+          role: user.role,
+          name: user.name
+        },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
+      );
+      
+      console.log(`[AUTH] Успішна авторизація: ${user.login}, роль: ${user.role}`);
+      res.json({ 
+        success: true, 
+        user: userWithoutPassword,
+        token: token
+      });
     } else {
+      console.log(`[AUTH] Невдала спроба входу: ${login}`);
       res.status(401).json({ error: 'Невірний логін або пароль' });
     }
   } catch (error) {
@@ -2370,7 +2459,7 @@ app.get('/api/analytics', async (req, res) => {
 });
 
 // Зберегти аналітику
-app.post('/api/analytics', async (req, res) => {
+app.post('/api/analytics', requireAdmin, async (req, res) => {
   try {
     const { region, company, year, month, expenses, createdBy } = req.body;
     
@@ -2442,7 +2531,7 @@ app.post('/api/analytics', async (req, res) => {
 });
 
 // Видалити аналітику
-app.delete('/api/analytics', async (req, res) => {
+app.delete('/api/analytics', requireAdmin, async (req, res) => {
   try {
     const { region, company, year, month, user } = req.body;
     

@@ -1,8 +1,10 @@
 import API_BASE_URL from '../config.js';
+import authenticatedFetch from './api.js';
+
 export const tasksAPI = {
   async getAll() {
     try {
-      const res = await fetch(`${API_BASE_URL}/tasks`);
+      const res = await authenticatedFetch(`${API_BASE_URL}/tasks`);
       if (!res.ok) {
         const errorText = await res.text();
         console.error('[ERROR] tasksAPI.getAll - помилка сервера:', errorText);
@@ -21,9 +23,8 @@ export const tasksAPI = {
       throw new Error('Відсутні дані заявки');
     }
     try {
-      const res = await fetch(`${API_BASE_URL}/tasks`, {
+      const res = await authenticatedFetch(`${API_BASE_URL}/tasks`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(task)
       });
       if (!res.ok) {
@@ -44,9 +45,8 @@ export const tasksAPI = {
       throw new Error('ID заявки не може бути порожнім');
     }
     try {
-      const res = await fetch(`${API_BASE_URL}/tasks/${id}`, {
+      const res = await authenticatedFetch(`${API_BASE_URL}/tasks/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(task)
       });
       if (!res.ok) {
@@ -67,7 +67,7 @@ export const tasksAPI = {
       throw new Error('ID заявки не може бути порожнім');
     }
     try {
-      const res = await fetch(`${API_BASE_URL}/tasks/${id}`, { method: 'DELETE' });
+      const res = await authenticatedFetch(`${API_BASE_URL}/tasks/${id}`, { method: 'DELETE' });
       if (!res.ok) {
         const errorText = await res.text();
         console.error('[ERROR] tasksAPI.remove - помилка сервера:', errorText);
@@ -86,7 +86,7 @@ export const tasksAPI = {
       throw new Error('ID заявки не може бути порожнім');
     }
     try {
-      const res = await fetch(`${API_BASE_URL}/tasks/${id}`);
+      const res = await authenticatedFetch(`${API_BASE_URL}/tasks/${id}`);
       if (!res.ok) {
         const errorText = await res.text();
         console.error('[ERROR] tasksAPI.getById - помилка сервера:', errorText);
@@ -108,7 +108,7 @@ export const tasksAPI = {
       }
       
       console.log(`[tasksAPI] Fetching tasks with status: ${status}, region: ${region}`);
-      const res = await fetch(url);
+      const res = await authenticatedFetch(url);
       if (!res.ok) {
         const errorText = await res.text();
         console.error('[ERROR] tasksAPI.getByStatus - помилка сервера:', errorText);
