@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-// API URL налаштування
-const API_BASE_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:3001/api'
-  : 'https://darex-trading-solutions.onrender.com/api';
+import API_BASE_URL from '../config.js';
+import authenticatedFetch from '../utils/api.js';
 const UserNotificationManager = ({ user }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +31,7 @@ const UserNotificationManager = ({ user }) => {
       console.log('[DEBUG] API_BASE_URL:', API_BASE_URL);
       
       // Отримуємо всіх користувачів
-      const response = await fetch(`${API_BASE_URL}/users`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/users`);
       
       if (response.ok) {
         const usersData = await response.json();
@@ -82,9 +80,8 @@ const UserNotificationManager = ({ user }) => {
             };
             
             // Зберігаємо оновлені налаштування на сервері
-            fetch(`${API_BASE_URL}/users`, {
+            authenticatedFetch(`${API_BASE_URL}/users`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(user)
             }).catch(err => console.error(`[ERROR] Помилка збереження налаштувань для ${user.login}:`, err));
           }
@@ -130,9 +127,8 @@ const UserNotificationManager = ({ user }) => {
             };
             
             try {
-              await fetch(`${API_BASE_URL}/users`, {
+              await authenticatedFetch(`${API_BASE_URL}/users`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updatedUser)
               });
               initializedCount++;
@@ -219,9 +215,8 @@ const UserNotificationManager = ({ user }) => {
         };
         
         // Відправляємо POST запит для оновлення користувача (як в системних параметрах)
-        const response = await fetch(`${API_BASE_URL}/users`, {
+        const response = await authenticatedFetch(`${API_BASE_URL}/users`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updatedUser)
         });
         
@@ -269,9 +264,8 @@ const UserNotificationManager = ({ user }) => {
       setSendingMessage(true);
       console.log('[DEBUG] Відправка системного повідомлення...');
       
-      const response = await fetch(`${API_BASE_URL}/notifications/send-system-message`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/notifications/send-system-message`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: systemMessage,
           notificationType: 'system_notifications'
