@@ -97,6 +97,10 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
   
   // Налаштування колонок
   const [columnSettings, setColumnSettings] = useState({});
+  const [mainColumnsSettings, setMainColumnsSettings] = useState({
+    open: false,
+    selected: []
+  });
   
   // Завантаження налаштувань колонок
   useEffect(() => {
