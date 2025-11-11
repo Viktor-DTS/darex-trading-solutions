@@ -109,10 +109,10 @@ export default function Login({ onLogin }) {
         <h2>Вхід в систему</h2>
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 16 }}>
-            <label>Логін<br /><input value={login} onChange={e => setLogin(e.target.value)} style={{ width: '100%' }} /></label>
+            <label>Логін<br /><input type="text" autoComplete="username" value={login} onChange={e => setLogin(e.target.value)} style={{ width: '100%' }} /></label>
           </div>
           <div style={{ marginBottom: 16 }}>
-            <label>Пароль<br /><input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%' }} /></label>
+            <label>Пароль<br /><input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%' }} /></label>
           </div>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
