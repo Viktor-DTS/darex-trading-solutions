@@ -12,18 +12,21 @@ export const columnsSettingsAPI = {
         return settings;
       } else if (response.status === 404) {
         // 404 - це нормально, налаштування ще не збережені, використовуємо стандартні
-        return { visible: [], order: [] };
+        // Не логуємо помилку, це очікувана ситуація
+        return { visible: [], order: [], widths: {} };
       } else {
-        // Інші помилки (401, 500, тощо) - логуємо
-        console.warn(`Помилка завантаження налаштувань (${response.status}), використовуємо стандартні`);
-        return { visible: [], order: [] };
+        // Інші помилки (401, 500, тощо) - логуємо тільки якщо це не 404
+        if (response.status !== 404) {
+          console.warn(`Помилка завантаження налаштувань (${response.status}), використовуємо стандартні`);
+        }
+        return { visible: [], order: [], widths: {} };
       }
     } catch (error) {
       // Тільки логуємо реальні помилки (не 404)
-      if (error.message && !error.message.includes('404')) {
+      if (error.message && !error.message.includes('404') && !error.message.includes('Not Found')) {
         console.error('Помилка завантаження налаштувань з сервера:', error);
       }
-      return { visible: [], order: [] };
+      return { visible: [], order: [], widths: {} };
     }
   },
   // Завантажити налаштування колонок для користувача та області (alias для loadSettings)
