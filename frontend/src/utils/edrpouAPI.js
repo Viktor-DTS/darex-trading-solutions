@@ -1,12 +1,11 @@
 // API для роботи з ЄДРПОУ та даними клієнтів
-const API_BASE_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:3001' 
-  : 'https://darex-trading-solutions.onrender.com';
+import API_BASE_URL from '../config.js';
+import authenticatedFetch from './api.js';
 
 // Отримання унікальних ЄДРПОУ
 export const getEdrpouList = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/edrpou-list`);
+    const response = await authenticatedFetch(`${API_BASE_URL}/edrpou-list`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -20,7 +19,7 @@ export const getEdrpouList = async () => {
 // Отримання даних клієнта по ЄДРПОУ
 export const getClientData = async (edrpou) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/client-data/${encodeURIComponent(edrpou)}`);
+    const response = await authenticatedFetch(`${API_BASE_URL}/client-data/${encodeURIComponent(edrpou)}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -34,8 +33,8 @@ export const getClientData = async (edrpou) => {
 // Отримання списку файлів договорів
 export const getContractFiles = async () => {
   try {
-    console.log('[DEBUG] getContractFiles - запит до API:', `${API_BASE_URL}/api/contract-files`);
-    const response = await fetch(`${API_BASE_URL}/api/contract-files`);
+    console.log('[DEBUG] getContractFiles - запит до API:', `${API_BASE_URL}/contract-files`);
+    const response = await authenticatedFetch(`${API_BASE_URL}/contract-files`);
     console.log('[DEBUG] getContractFiles - статус відповіді:', response.status);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -51,7 +50,7 @@ export const getContractFiles = async () => {
 
 export const getEdrpouEquipmentTypes = async (edrpou) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/edrpou-equipment-types/${encodeURIComponent(edrpou)}`);
+    const response = await authenticatedFetch(`${API_BASE_URL}/edrpou-equipment-types/${encodeURIComponent(edrpou)}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -64,7 +63,7 @@ export const getEdrpouEquipmentTypes = async (edrpou) => {
 
 export const getEdrpouEquipmentMaterials = async (edrpou, equipmentType) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/edrpou-equipment-materials/${encodeURIComponent(edrpou)}/${encodeURIComponent(equipmentType)}`);
+    const response = await authenticatedFetch(`${API_BASE_URL}/edrpou-equipment-materials/${encodeURIComponent(edrpou)}/${encodeURIComponent(equipmentType)}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
