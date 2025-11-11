@@ -1,6 +1,6 @@
-const API_BASE_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:3001/api'
-  : 'https://darex-trading-solutions.onrender.com/api';
+import API_BASE_URL from '../config.js';
+import authenticatedFetch from './api.js';
+
 export const analyticsAPI = {
   // Отримати аналітику за період
   async getAnalytics(filters = {}) {
@@ -11,7 +11,7 @@ export const analyticsAPI = {
           params.append(key, filters[key]);
         }
       });
-      const response = await fetch(`${API_BASE_URL}/analytics?${params}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/analytics?${params}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -30,7 +30,7 @@ export const analyticsAPI = {
           params.append(key, filters[key]);
         }
       });
-      const response = await fetch(`${API_BASE_URL}/analytics/full?${params}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/analytics/full?${params}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -49,7 +49,7 @@ export const analyticsAPI = {
           params.append(key, filters[key]);
         }
       });
-      const response = await fetch(`${API_BASE_URL}/analytics/planned-revenue?${params}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/analytics/planned-revenue?${params}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -62,11 +62,8 @@ export const analyticsAPI = {
   // Зберегти аналітику
   async saveAnalytics(analyticsData) {
     try {
-      const response = await fetch(`${API_BASE_URL}/analytics`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/analytics`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(analyticsData),
       });
       if (!response.ok) {
@@ -81,11 +78,8 @@ export const analyticsAPI = {
   // Копіювати витрати з попереднього місяця
   async copyPreviousMonth(copyData) {
     try {
-      const response = await fetch(`${API_BASE_URL}/analytics/copy-previous`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/analytics/copy-previous`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(copyData),
       });
       if (!response.ok) {
@@ -100,11 +94,8 @@ export const analyticsAPI = {
     // Видалити аналітику
   async deleteAnalytics(deleteData) {
     try {
-      const response = await fetch(`${API_BASE_URL}/analytics`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/analytics`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(deleteData),
       });
       if (!response.ok) {
@@ -119,7 +110,7 @@ export const analyticsAPI = {
   // Отримати унікальні регіони з заявок
   async getUniqueRegions() {
     try {
-      const response = await fetch(`${API_BASE_URL}/unique-regions`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/unique-regions`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -133,7 +124,7 @@ export const analyticsAPI = {
   // Отримати унікальні компанії з заявок
   async getUniqueCompanies() {
     try {
-      const response = await fetch(`${API_BASE_URL}/unique-companies`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/unique-companies`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -153,7 +144,7 @@ export const analyticsAPI = {
           params.append(key, filters[key]);
         }
       });
-      const response = await fetch(`${API_BASE_URL}/analytics/revenue?${params}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/analytics/revenue?${params}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -171,7 +162,7 @@ export const analyticsAPI = {
       if (month) params.append('month', month);
       if (region !== undefined) params.append('region', region);
       if (company !== undefined) params.append('company', company);
-      const response = await fetch(`${API_BASE_URL}/analytics/details?${params.toString()}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/analytics/details?${params.toString()}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -189,7 +180,7 @@ export const analyticsAPI = {
       if (month) params.append('month', month);
       if (region !== undefined) params.append('region', region);
       if (company !== undefined) params.append('company', company);
-      const response = await fetch(`${API_BASE_URL}/analytics/planned-details?${params.toString()}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/analytics/planned-details?${params.toString()}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -202,7 +193,7 @@ export const analyticsAPI = {
   // Отримати категорії витрат
   async getExpenseCategories() {
     try {
-      const response = await fetch(`${API_BASE_URL}/expense-categories`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/expense-categories`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -215,11 +206,8 @@ export const analyticsAPI = {
   // Зберегти категорії витрат
   async saveExpenseCategories(categories, createdBy) {
     try {
-      const response = await fetch(`${API_BASE_URL}/expense-categories`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/expense-categories`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ categories, createdBy }),
       });
       if (!response.ok) {
@@ -234,11 +222,8 @@ export const analyticsAPI = {
   // Очистити старі категорії витрат
   async cleanupOldCategories(categories, createdBy) {
     try {
-      const response = await fetch(`${API_BASE_URL}/expense-categories/cleanup`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/expense-categories/cleanup`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ categories, createdBy }),
       });
       if (!response.ok) {
@@ -259,7 +244,7 @@ export const analyticsAPI = {
           params.append(key, filters[key]);
         }
       });
-      const response = await fetch(`${API_BASE_URL}/analytics/employee-rating?${params}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/analytics/employee-rating?${params}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -278,7 +263,7 @@ export const analyticsAPI = {
           params.append(key, filters[key]);
         }
       });
-      const response = await fetch(`${API_BASE_URL}/analytics/tasks-statistics?${params}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/analytics/tasks-statistics?${params}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -297,7 +282,7 @@ export const analyticsAPI = {
           params.append(key, filters[key]);
         }
       });
-      const response = await fetch(`${API_BASE_URL}/analytics/dynamic-chart-data?${params}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/analytics/dynamic-chart-data?${params}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
