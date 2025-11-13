@@ -889,8 +889,15 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
   // Функція для збереження налаштувань колонок для вкладки "Заявка на рахунок"
   const handleSaveInvoiceRequestsColumns = async (selectedColumns) => {
     try {
-      await columnsSettingsAPI.saveColumnsSettings(user.login, 'accountant-invoice', selectedColumns);
-      setInvoiceRequestsColumnsSettings({ open: false, selected: selectedColumns });
+      // Перетворюємо об'єкти на ключі, якщо потрібно
+      const columnKeys = selectedColumns.map(col => {
+        if (typeof col === 'object' && col.key) {
+          return col.key;
+        }
+        return col;
+      });
+      await columnsSettingsAPI.saveColumnsSettings(user.login, 'accountant-invoice', columnKeys);
+      setInvoiceRequestsColumnsSettings({ open: false, selected: columnKeys });
       // Debug log removed
     } catch (error) {
       console.error('[ERROR] AccountantArea - помилка збереження налаштувань колонок для invoiceRequests:', error);
@@ -1077,9 +1084,27 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
       try {
         const settings = await columnsSettingsAPI.getColumnsSettings(user.login, 'accountant-invoice');
         if (settings && settings.length > 0) {
-          setInvoiceRequestsColumns(settings);
-          setInvoiceRequestsColumnsSettings(prev => ({ ...prev, selected: settings }));
-          console.log('[DEBUG] AccountantArea - завантажено налаштування колонок для invoiceRequests:', settings.length);
+          // Перетворюємо масив ключів на масив об'єктів з правильними label
+          const columns = settings.map(key => {
+            // Якщо це вже об'єкт з key та label, повертаємо його
+            if (typeof key === 'object' && key.key) {
+              return key;
+            }
+            // Якщо це рядок (ключ), знаходимо відповідне поле
+            const field = allTaskFields.find(f => f.name === key);
+            if (field) {
+              return { key: field.name, label: field.label, filter: true };
+            }
+            // Якщо це спеціальна колонка documentType
+            if (key === 'documentType') {
+              return { key: 'documentType', label: 'Тип документів', filter: true };
+            }
+            // Якщо поле не знайдено, повертаємо з ключем як label (fallback)
+            return { key: key, label: key, filter: true };
+          });
+          setInvoiceRequestsColumns(columns);
+          setInvoiceRequestsColumnsSettings(prev => ({ ...prev, selected: columns.map(c => c.key) }));
+          console.log('[DEBUG] AccountantArea - завантажено налаштування колонок для invoiceRequests:', columns.length);
         } else {
           // Використовуємо всі колонки як в основній вкладці
           const defaultColumns = allTaskFields.map(f => ({ key: f.name, label: f.label, filter: true }));

@@ -165,9 +165,36 @@ function TaskTableComponent({
     return (client) => (allTasks.length ? allTasks : tasks).filter(t => t.client === client);
   }, [allTasks, tasks]);
   
+  // Форматує дату з часом у формат 12.11.2025 12:51
+  function formatDateTime(value) {
+    if (!value) return '';
+    try {
+      const date = new Date(value);
+      if (isNaN(date.getTime())) return value;
+      
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      
+      return `${day}.${month}.${year} ${hours}:${minutes}`;
+    } catch (_) {
+      return value;
+    }
+  }
+  
   // Форматує значення клітинки, щоб уникнути передачі об'єктів у JSX
-  function formatCellValue(value) {
+  function formatCellValue(value, fieldKey) {
     if (value === null || value === undefined) return '';
+    
+    // Поля з датами та часом
+    const dateTimeFields = ['autoCreatedAt', 'autoCompletedAt', 'autoWarehouseApprovedAt', 
+                            'autoAccountantApprovedAt', 'invoiceRequestDate', 'invoiceUploadDate'];
+    if (dateTimeFields.includes(fieldKey)) {
+      return formatDateTime(value);
+    }
+    
     const type = typeof value;
     if (type === 'string' || type === 'number' || type === 'boolean') return value;
     if (Array.isArray(value)) return value.join(', ');
@@ -4203,7 +4230,7 @@ function TaskTableComponent({
                           )}
                         </div>
                       ) :
-                      formatCellValue(t[col.key])
+                      formatCellValue(t[col.key], col.key)
                     }</td>)}
                     <td style={getRowColor(t) ? {color:'#111'} : {}}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
