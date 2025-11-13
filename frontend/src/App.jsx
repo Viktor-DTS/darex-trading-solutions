@@ -3585,7 +3585,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
   });
   return (
     <>
-      <div style={{display:'flex',gap:8,marginBottom:8}}>
+      <div style={{display:'flex',gap:8,marginBottom:8,marginTop:40,paddingLeft:32}}>
         <RegionalManagerTabs tab={tab} setTab={setTab} />
       </div>
     <div style={{padding:32}}>
