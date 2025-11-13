@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import API_BASE_URL from './config.js';
+import { authenticatedFetch } from './utils/api.js';
+
 export default function ReportsList() {
   const [reports, setReports] = useState([]);
   const [selected, setSelected] = useState(null);
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/reports`);
+        const response = await authenticatedFetch(`${API_BASE_URL}/reports`);
         if (response.ok) {
           const data = await response.json();
           setReports(data);

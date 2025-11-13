@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { tasksAPI } from '../utils/tasksAPI';
+import { authenticatedFetch } from '../utils/api.js';
 
 const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
   const [reportFilters, setReportFilters] = useState({
@@ -52,7 +53,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         ? 'http://localhost:3001/api'
         : 'https://darex-trading-solutions.onrender.com/api';
       
-      const response = await fetch(`${API_BASE_URL}/tasks`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/tasks`);
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data) {
@@ -125,14 +126,32 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       console.log('[REPORTS] Frontend - URL параметри:', params.toString());
 
       if (format === 'html') {
-        // Відкриваємо HTML звіт в новій вкладці
-        const htmlUrl = `${API_BASE_URL}/reports/financial?${params}`;
-        console.log('[REPORTS] Frontend - відкриваємо HTML звіт:', htmlUrl);
-        window.open(htmlUrl, '_blank');
+        // Отримуємо HTML звіт через authenticatedFetch
+        console.log('[REPORTS] Frontend - відправляємо запит на HTML:', `${API_BASE_URL}/reports/financial?${params}`);
+        const response = await authenticatedFetch(`${API_BASE_URL}/reports/financial?${params}`);
+        console.log('[REPORTS] Frontend - отримано відповідь:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+        if (response.ok) {
+          const html = await response.text();
+          // Відкриваємо HTML звіт в новій вкладці
+          const win = window.open('', '_blank');
+          if (win) {
+            win.document.write(html);
+            win.document.close();
+          } else {
+            alert('Будь ласка, дозвольте спливаючі вікна для перегляду звіту');
+          }
+        } else {
+          alert('Помилка генерації звіту');
+        }
       } else if (format === 'excel') {
         // Завантажуємо Excel файл
         console.log('[REPORTS] Frontend - відправляємо запит на Excel:', `${API_BASE_URL}/reports/financial?${params}`);
-        const response = await fetch(`${API_BASE_URL}/reports/financial?${params}`);
+        const response = await authenticatedFetch(`${API_BASE_URL}/reports/financial?${params}`);
         console.log('[REPORTS] Frontend - отримано відповідь:', {
           status: response.status,
           statusText: response.statusText,
