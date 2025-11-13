@@ -3839,7 +3839,7 @@ function TaskTableComponent({
                       </div>
                       {/* Контейнер для інформації про відмову та кнопок для regional керівника */}
                       {(() => {
-                        const isRegionalRole = role === 'regional' || user?.role === 'regionalManager' || user?.role === 'regkerivn';
+                        const isRegionalRole = role === 'regional' || user?.role === 'regionalManager' || user?.role === 'regkerivn' || (role === 'regional' && user?.role === 'admin');
                         const hasRejection = isRejected(t.approvedByWarehouse) || isRejected(t.approvedByAccountant);
                         const hasFixHandler = !!onFixRejected;
                         
@@ -3861,6 +3861,15 @@ function TaskTableComponent({
                             role,
                             userRole: user?.role,
                             onFixRejected: typeof onFixRejected
+                          });
+                        }
+                        if (isRegionalRole && hasRejection && hasFixHandler) {
+                          console.log('[DEBUG] TaskTable - Should show fix button:', {
+                            taskId: t.id,
+                            role,
+                            userRole: user?.role,
+                            hasRejection,
+                            hasFixHandler
                           });
                         }
                         
