@@ -48,6 +48,7 @@ function TaskTableComponent({
   tasks = [],
   allTasks = [],
   onApprove,
+  onFixRejected,
   onStatusChange,
   role = 'service',
   filters,
@@ -182,6 +183,11 @@ function TaskTableComponent({
     } catch (_) {
       return value;
     }
+  }
+  
+  // Функція для перевірки відмови
+  function isRejected(value) {
+    return value === false || value === 'Відмова';
   }
   
   // Форматує значення клітинки, щоб уникнути передачі об'єктів у JSX
@@ -3659,6 +3665,11 @@ function TaskTableComponent({
               justify-content: flex-start !important;
             }
             
+            .action-buttons.vertical-buttons {
+              flex-direction: column !important;
+              align-items: flex-start !important;
+            }
+            
             .action-buttons button {
               font-size: 10px !important;
               padding: 4px 6px !important;
@@ -3779,7 +3790,7 @@ function TaskTableComponent({
               <tbody>
                 {sortData(filterTasks(tasks, filters), sortConfig.field, sortConfig.direction).map(t => (
                   <tr key={t.id} className={getRowClass(t)} style={getRowColor(t) ? {background:getRowColor(t)} : {}}>
-                    <td className="action-buttons" style={getRowColor(t) ? {color:'#111'} : {}}>
+                    <td className={`action-buttons ${role === 'regional' && onFixRejected ? 'vertical-buttons' : ''}`} style={getRowColor(t) ? {color:'#111'} : {}}>
                       {/* Індикатор стану рахунку */}
                       <div style={{
                         display: 'flex',
@@ -3811,7 +3822,7 @@ function TaskTableComponent({
                         </div>
                       </div>
                       {/* Перший ряд кнопок */}
-                      <div style={{ display: 'flex', gap: '4px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '4px' }}>
                         <button onClick={()=>{
                         if (onHistoryClick && role === 'materials') {
                           // Для вкладки аналізу матеріалів - відкриваємо звіт по обладнанню
@@ -3826,8 +3837,75 @@ function TaskTableComponent({
                         }
                       }} style={{background:'#00bfff',color:'#fff'}}>Історія проведення робіт</button>
                       </div>
+                      {/* Контейнер для інформації про відмову та кнопок для regional керівника */}
+                      {role === 'regional' && (isRejected(t.approvedByWarehouse) || isRejected(t.approvedByAccountant)) && (
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'row',
+                          gap: '8px',
+                          marginTop: '8px',
+                          marginBottom: '8px',
+                          alignItems: 'flex-start'
+                        }}>
+                          {/* Кнопка "Заявка виправлена" */}
+                          {onFixRejected && (
+                            <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+                              <button 
+                                onClick={() => onFixRejected(t.id)}
+                                style={{
+                                  background: '#28a745',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  padding: '6px 12px',
+                                  fontSize: '12px',
+                                  cursor: 'pointer',
+                                  fontWeight: '600',
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                ✅ Заявка виправлена
+                              </button>
+                            </div>
+                          )}
+                          {/* Інформація про відмову */}
+                          <div style={{
+                            flex: '1',
+                            padding: '8px',
+                            backgroundColor: '#fff3cd',
+                            borderRadius: '4px',
+                            border: '1px solid #ffc107',
+                            fontSize: '11px',
+                            minWidth: '200px'
+                          }}>
+                            <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#856404' }}>
+                              ⚠️ Заявка відхилена:
+                            </div>
+                            {isRejected(t.approvedByWarehouse) && (
+                              <div style={{ color: '#856404', marginBottom: '2px' }}>
+                                Зав. склад: {t.warehouseRejectionDate ? formatDateTime(t.warehouseRejectionDate) : (t.warehouseApprovalDate ? t.warehouseApprovalDate : 'Дата не вказана')} {t.warehouseRejectionUser ? `(${t.warehouseRejectionUser})` : ''}
+                                {t.warehouseComment && (
+                                  <div style={{ fontSize: '10px', marginTop: '2px', fontStyle: 'italic' }}>
+                                    Коментар: {t.warehouseComment}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {isRejected(t.approvedByAccountant) && (
+                              <div style={{ color: '#856404' }}>
+                                Бухгалтер: {t.accountantRejectionDate ? formatDateTime(t.accountantRejectionDate) : 'Дата не вказана'} {t.accountantRejectionUser ? `(${t.accountantRejectionUser})` : ''}
+                                {t.accountantComment && (
+                                  <div style={{ fontSize: '10px', marginTop: '2px', fontStyle: 'italic' }}>
+                                    Коментар: {t.accountantComment}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       {/* Другий ряд кнопок */}
-                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       {/* Спеціальна логіка для вкладки "Заявка на рахунок" */}
                       {showInvoiceActions ? (
                         <>
@@ -3858,7 +3936,7 @@ function TaskTableComponent({
                           </div>
                           
                           {/* Кнопки дій для заявки на рахунок */}
-                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <button 
                               onClick={() => {
                                 if (hasFullAccess) {
@@ -4139,7 +4217,7 @@ function TaskTableComponent({
                       {((role === 'warehouse' || role === 'regional' || role === 'accountant' || role === 'buhgalteria' || role === 'regionalManager' || role === 'admin' || role === 'administrator' || user?.role === 'admin' || user?.role === 'administrator') && (!isArchive || user?.role === 'admin' || user?.role === 'administrator')) && !(role === 'regional' && t._debtTab) && onApprove && hasFullAccess && (
                         <>
                           {/* Кнопки підтвердження в другому рядку */}
-                          <div style={{marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center'}}>
+                          <div style={{marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px'}}>
                             <button onClick={()=>{
                               // Логуємо затвердження заявки
                               logUserAction(user, EVENT_ACTIONS.APPROVE, ENTITY_TYPES.TASK, t.id, 
