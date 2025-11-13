@@ -3838,7 +3838,34 @@ function TaskTableComponent({
                       }} style={{background:'#00bfff',color:'#fff'}}>Історія проведення робіт</button>
                       </div>
                       {/* Контейнер для інформації про відмову та кнопок для regional керівника */}
-                      {role === 'regional' && (isRejected(t.approvedByWarehouse) || isRejected(t.approvedByAccountant)) && (
+                      {(() => {
+                        const isRegionalRole = role === 'regional' || user?.role === 'regionalManager' || user?.role === 'regkerivn';
+                        const hasRejection = isRejected(t.approvedByWarehouse) || isRejected(t.approvedByAccountant);
+                        const hasFixHandler = !!onFixRejected;
+                        
+                        // Дебаг логування
+                        if (isRegionalRole && !hasRejection) {
+                          console.log('[DEBUG] TaskTable - Regional role but no rejection:', {
+                            taskId: t.id,
+                            role,
+                            userRole: user?.role,
+                            approvedByWarehouse: t.approvedByWarehouse,
+                            approvedByAccountant: t.approvedByAccountant,
+                            isWarehouseRejected: isRejected(t.approvedByWarehouse),
+                            isAccountantRejected: isRejected(t.approvedByAccountant)
+                          });
+                        }
+                        if (isRegionalRole && hasRejection && !hasFixHandler) {
+                          console.log('[DEBUG] TaskTable - Regional role with rejection but no handler:', {
+                            taskId: t.id,
+                            role,
+                            userRole: user?.role,
+                            onFixRejected: typeof onFixRejected
+                          });
+                        }
+                        
+                        return isRegionalRole && hasRejection;
+                      })() && (
                         <div style={{
                           display: 'flex',
                           flexDirection: 'row',
