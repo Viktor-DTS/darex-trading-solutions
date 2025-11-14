@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import FileViewer from './FileViewer';
 
 function NewDocumentUploadModal({
   isOpen,
@@ -14,7 +13,6 @@ function NewDocumentUploadModal({
   const [selectedInvoiceFile, setSelectedInvoiceFile] = useState(null);
   const [selectedActFile, setSelectedActFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [fileViewer, setFileViewer] = useState({ open: false, fileUrl: '', fileName: '' });
 
   // Логування даних завдання при відкритті модального вікна
   useEffect(() => {
@@ -212,11 +210,7 @@ function NewDocumentUploadModal({
                       if (fileUrl && fileUrl.includes('cloudinary.com') && fileUrl.includes('.pdf')) {
                         fileUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
                       }
-                      setFileViewer({
-                        open: true,
-                        fileUrl: fileUrl,
-                        fileName: task.invoiceFileName || 'Файл рахунку'
-                      });
+                      window.open(fileUrl, '_blank');
                     }}
                     style={{
                       padding: '8px 15px',
@@ -342,11 +336,7 @@ function NewDocumentUploadModal({
                       if (fileUrl && fileUrl.includes('cloudinary.com') && fileUrl.includes('.pdf')) {
                         fileUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
                       }
-                      setFileViewer({
-                        open: true,
-                        fileUrl: fileUrl,
-                        fileName: task.actFileName || 'Файл акту виконаних робіт'
-                      });
+                      window.open(fileUrl, '_blank');
                     }}
                     style={{
                       padding: '8px 15px',
@@ -487,15 +477,6 @@ function NewDocumentUploadModal({
           )}
         </div>
       </div>
-      
-      {/* FileViewer для перегляду файлів */}
-      {fileViewer.open && (
-        <FileViewer
-          fileUrl={fileViewer.fileUrl}
-          fileName={fileViewer.fileName}
-          onClose={() => setFileViewer({ open: false, fileUrl: '', fileName: '' })}
-        />
-      )}
     </div>
   );
 }
