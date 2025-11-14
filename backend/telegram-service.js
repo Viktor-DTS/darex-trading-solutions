@@ -64,6 +64,7 @@ class TelegramNotificationService {
     switch (type) {
       case 'new_requests':
         return `🔔 <b>Сповіщення про заявку</b>
+📌 <b>Тип сповіщення: Нові заявки</b>
 
 📋 <b>Номер заявки:</b> ${task.requestNumber || task._id || task.id || 'Н/Д'}
 👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || task.engineer1 || 'Система'}
@@ -84,6 +85,7 @@ class TelegramNotificationService {
       
       case 'pending_approval':
         return `🔔 <b>Сповіщення про заявку</b>
+📌 <b>Тип сповіщення: Потребує підтвердження Завсклада</b>
 
 📋 <b>Номер заявки:</b> ${task.requestNumber || task._id || task.id || 'Н/Д'}
 👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || task.engineer1 || 'Система'}
@@ -104,6 +106,7 @@ class TelegramNotificationService {
       
       case 'accountant_approval':
         return `🔔 <b>Сповіщення про заявку</b>
+📌 <b>Тип сповіщення: Затвердження Бухгалтера</b>
 
 📋 <b>Номер заявки:</b> ${task.requestNumber || task._id || task.id || 'Н/Д'}
 👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || task.engineer1 || 'Система'}
@@ -124,6 +127,7 @@ class TelegramNotificationService {
       
       case 'approved_requests':
         return `🔔 <b>Сповіщення про заявку</b>
+📌 <b>Тип сповіщення: Підтверджені заявки</b>
 
 📋 <b>Номер заявки:</b> ${task.requestNumber || task._id || task.id || 'Н/Д'}
 👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || task.engineer1 || 'Система'}
@@ -144,6 +148,7 @@ class TelegramNotificationService {
       
       case 'rejected_requests':
         return `🔔 <b>Сповіщення про заявку</b>
+📌 <b>Тип сповіщення: Відхилені заявки</b>
 
 📋 <b>Номер заявки:</b> ${task.requestNumber || task._id || task.id || 'Н/Д'}
 👤 <b>Хто створив:</b> ${task.createdBy || task.authorName || task.engineer1 || 'Система'}
@@ -163,7 +168,9 @@ class TelegramNotificationService {
 ⚠️ <b>Необхідно виправити зауваження</b>`;
       
       case 'invoice_requested':
-        return `📄 <b>Новий запит на рахунок</b>\n\n` +
+        return `🔔 <b>Сповіщення про заявку</b>\n` +
+               `📌 <b>Тип сповіщення: Запити на рахунки</b>\n\n` +
+               `📄 <b>Новий запит на рахунок</b>\n\n` +
                `🏢 <b>Компанія:</b> ${data.companyName || 'Н/Д'}\n` +
                `🏛️ <b>ЄДРПОУ:</b> ${data.edrpou || 'Н/Д'}\n` +
                `👤 <b>Запитувач:</b> ${data.requesterName || 'Н/Д'}\n` +
@@ -171,7 +178,9 @@ class TelegramNotificationService {
                `⏳ <b>Очікує обробки бухгалтером</b>`;
       
       case 'invoice_completed':
-        return `✅ <b>Рахунок готовий</b>\n\n` +
+        return `🔔 <b>Сповіщення про заявку</b>\n` +
+               `📌 <b>Тип сповіщення: Виконані рахунки</b>\n\n` +
+               `✅ <b>Рахунок готовий</b>\n\n` +
                `🏢 <b>Компанія:</b> ${data.companyName || 'Н/Д'}\n` +
                `📋 <b>ID заявки:</b> ${data.taskId || 'Н/Д'}\n` +
                `👤 <b>Для користувача:</b> ${data.requesterId || 'Н/Д'}\n\n` +

@@ -5952,8 +5952,29 @@ class TelegramNotificationService {
       createdBy = task.createdBy || task.authorName || task.engineer1 || task.author || user.name || user.login || 'Система';
     }
 
+    // Визначаємо назву типу сповіщення
+    let notificationTypeName = '';
+    switch (type) {
+      case 'task_created':
+        notificationTypeName = 'Нові заявки';
+        break;
+      case 'task_completed':
+      case 'task_approval':
+        notificationTypeName = 'Потребує підтвердження Завсклада';
+        break;
+      case 'task_approved':
+        notificationTypeName = 'Підтверджені заявки';
+        break;
+      case 'task_rejected':
+        notificationTypeName = 'Відхилені заявки';
+        break;
+      default:
+        notificationTypeName = 'Оновлення статусу';
+    }
+
     const baseMessage = `
 <b>🔔 Сповіщення про заявку</b>
+📌 <b>Тип сповіщення: ${notificationTypeName}</b>
 
 📋 <b>Номер заявки:</b> ${task.requestNumber || 'Н/Д'}
 👤 <b>Хто створив:</b> ${createdBy}
