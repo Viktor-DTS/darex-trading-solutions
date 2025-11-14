@@ -137,11 +137,15 @@ export default function WarehouseArea({ user, accessRules, currentArea }) {
     const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD формат
     
     // Перевіряємо чи всі підтвердження пройшли для автоматичного заповнення bonusApprovalDate
+    const currentDateTime = new Date().toISOString();
     let next = {
       ...t,
       approvedByWarehouse: approved,
       warehouseApprovalDate: approved === 'Підтверджено' ? currentDate : (approved === 'Відмова' ? '' : t.warehouseApprovalDate),
-      warehouseComment: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.warehouseComment)
+      warehouseComment: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.warehouseComment),
+      // Зберігаємо інформацію про відмову
+      warehouseRejectionDate: approved === 'Відмова' ? currentDateTime : (approved === 'Підтверджено' ? null : t.warehouseRejectionDate),
+      warehouseRejectionUser: approved === 'Відмова' ? (user?.name || user?.login || 'Користувач') : (approved === 'Підтверджено' ? null : t.warehouseRejectionUser)
     };
     let bonusApprovalDate = t.bonusApprovalDate;
     if (

@@ -197,11 +197,15 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user, acce
         return;
       }
       
+      const currentDateTime = new Date().toISOString();
       let next = {
         ...t,
         approvedByAccountant: approved,
         accountantComment: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.accountantComment),
-        accountantComments: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.accountantComments)
+        accountantComments: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.accountantComments),
+        // Зберігаємо інформацію про відмову
+        accountantRejectionDate: approved === 'Відмова' ? currentDateTime : (approved === 'Підтверджено' ? null : t.accountantRejectionDate),
+        accountantRejectionUser: approved === 'Відмова' ? (user?.name || user?.login || 'Користувач') : (approved === 'Підтверджено' ? null : t.accountantRejectionUser)
       };
       
       let bonusApprovalDate = t.bonusApprovalDate;

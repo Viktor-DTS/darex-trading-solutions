@@ -5055,16 +5055,26 @@ app.get('/api/active-users', async (req, res) => {
     const now = new Date();
     const thirtySecondsAgo = new Date(now.getTime() - 30 * 1000);
     
-    console.log('[DEBUG] GET /api/active-users - searching for active users since:', thirtySecondsAgo);
+    console.log('[DEBUG] GET /api/active-users - поточний час:', now);
+    console.log('[DEBUG] GET /api/active-users - шукаємо активних користувачів з:', thirtySecondsAgo);
     
     const activeUsers = await User.find(
       { lastActivity: { $gte: thirtySecondsAgo } },
-      'login name'
+      'login name lastActivity'
     );
     
-    console.log('[DEBUG] GET /api/active-users - found active users:', activeUsers.length);
+    console.log('[DEBUG] GET /api/active-users - знайдено активних користувачів:', activeUsers.length);
+    if (activeUsers.length > 0) {
+      console.log('[DEBUG] GET /api/active-users - активні користувачі:', activeUsers.map(u => ({
+        login: u.login,
+        lastActivity: u.lastActivity
+      })));
+    }
     
-    res.json(activeUsers.map(user => user.login));
+    const logins = activeUsers.map(user => user.login);
+    console.log('[DEBUG] GET /api/active-users - повертаємо логіни:', logins);
+    
+    res.json(logins);
   } catch (error) {
     console.error('[ERROR] GET /api/active-users - помилка:', error);
     res.status(500).json({ error: error.message });
@@ -6254,16 +6264,22 @@ app.post('/api/users/activity', async (req, res) => {
   try {
     const { login } = req.body;
     if (!login) {
+      console.log('[DEBUG] POST /api/users/activity - login відсутній');
       return res.status(400).json({ error: 'Login is required' });
     }
 
+    const now = new Date();
+    console.log('[DEBUG] POST /api/users/activity - оновлюємо активність для:', login, 'час:', now);
+
     // Оновлюємо час останньої активності в базі даних
-    await User.updateOne(
+    const result = await User.updateOne(
       { login: login },
-      { lastActivity: new Date() }
+      { lastActivity: now }
     );
 
-    res.json({ success: true });
+    console.log('[DEBUG] POST /api/users/activity - результат оновлення:', result);
+
+    res.json({ success: true, lastActivity: now });
   } catch (error) {
     console.error('[ERROR] POST /api/users/activity - помилка:', error);
     res.status(500).json({ error: error.message });

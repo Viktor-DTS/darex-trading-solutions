@@ -383,69 +383,51 @@ function AdminSystemParamsArea({ user }) {
   const [onlineUsers, setOnlineUsers] = useState(new Set());
   // Функція для визначення статусу користувача
   const isUserOnline = (userLogin) => {
-    const isOnline = onlineUsers.has(userLogin);
-    console.log('[DEBUG] isUserOnline - перевірка статусу для:', userLogin, 'результат:', isOnline);
-    return isOnline;
+    return onlineUsers.has(userLogin);
   };
   // Функція для оновлення статусу активності користувача
   const updateUserActivity = async (userLogin) => {
-    const now = Date.now();
-    localStorage.setItem(`user_activity_${userLogin}`, now.toString());
-    // Також оновлюємо на сервері
+    // Оновлюємо тільки на сервері
     try {
       await activityAPI.updateActivity(userLogin);
-      console.log('[DEBUG] updateUserActivity - активність оновлена на сервері для:', userLogin);
     } catch (error) {
-      console.error('Помилка оновлення активності на сервері:', error);
+      console.error('[ERROR] updateUserActivity - помилка оновлення активності на сервері:', error);
     }
-  };
-  // Функція для перевірки чи користувач активний (онлайн)
-  const checkUserActivity = (userLogin) => {
-    const lastActivity = localStorage.getItem(`user_activity_${userLogin}`);
-    if (!lastActivity) return false;
-    const lastActivityTime = parseInt(lastActivity);
-    const now = Date.now();
-    const timeDiff = now - lastActivityTime;
-    // Користувач вважається онлайн, якщо активний протягом останніх 30 секунд
-    return timeDiff < 30 * 1000;
   };
   // Функція для отримання списку активних користувачів
   const getActiveUsers = async () => {
     try {
-      // Спочатку пробуємо отримати з сервера
       const serverActiveUsers = await activityAPI.getActiveUsers();
-      if (serverActiveUsers && serverActiveUsers.length > 0) {
-        console.log('[DEBUG] getActiveUsers - сервер повернув активних користувачів:', serverActiveUsers);
+      
+      if (serverActiveUsers && Array.isArray(serverActiveUsers)) {
         return new Set(serverActiveUsers);
+      } else {
+        console.warn('[WARN] getActiveUsers - сервер повернув невалідні дані:', serverActiveUsers);
+        return new Set();
       }
     } catch (error) {
-      console.error('Помилка отримання активних користувачів з сервера:', error);
+      console.error('[ERROR] getActiveUsers - помилка отримання активних користувачів з сервера:', error);
+      return new Set();
     }
-    
-    // Fallback до локальної перевірки (тільки для поточного користувача)
-    const activeUsers = new Set();
-    if (user?.login && checkUserActivity(user.login)) {
-      activeUsers.add(user.login);
-      console.log('[DEBUG] getActiveUsers - fallback до localStorage для поточного користувача:', user.login);
-    }
-    return activeUsers;
   };
   // Відстеження активності поточного користувача
   useEffect(() => {
     if (!user?.login) return;
+    
     // Оновлюємо активність поточного користувача кожні 10 секунд
     const activityInterval = setInterval(() => {
       updateUserActivity(user.login);
     }, 10000);
+    
     // Початкове оновлення активності
     updateUserActivity(user.login);
+    
     return () => clearInterval(activityInterval);
   }, [user?.login]);
   // Автоматичне оновлення статусу користувачів кожні 5 секунд
   useEffect(() => {
     const updateOnlineUsers = async () => {
       const activeUsers = await getActiveUsers();
-      console.log('[DEBUG] updateOnlineUsers - оновлення статусу користувачів:', Array.from(activeUsers));
       setOnlineUsers(activeUsers);
     };
     // Початкове оновлення
@@ -1915,6 +1897,42 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     } catch (error) {
       console.error('[ERROR] handleApprove - помилка підтвердження:', error);
       alert('Помилка підтвердження заявки');
+    }
+  }
+  
+  // --- Функція для виправлення відхилених заявок ---
+  async function handleFixRejected(id) {
+    try {
+      const t = tasks.find(t => t.id === id);
+      if (!t) return;
+      
+      let updates = {};
+      
+      // Перевіряємо, чи є відмова від завскладу
+      if (isRejected(t.approvedByWarehouse)) {
+        updates.approvedByWarehouse = 'На розгляді';
+      }
+      
+      // Перевіряємо, чи є відмова від бухгалтера
+      if (isRejected(t.approvedByAccountant)) {
+        updates.approvedByAccountant = 'На розгляді';
+      }
+      
+      // Якщо немає відмов, не робимо нічого
+      if (Object.keys(updates).length === 0) {
+        return;
+      }
+      
+      const updated = await tasksAPI.update(id, {
+        ...t,
+        ...updates
+      });
+      
+      // Оновлюємо дані через refreshData
+      await refreshData(activeTab);
+    } catch (error) {
+      console.error('[ERROR] handleFixRejected - помилка виправлення заявки:', error);
+      alert('Помилка виправлення заявки');
     }
   }
   // --- Аналогічно для handleApprove адміністратора ---
@@ -3652,6 +3670,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                 }) : activeTab === 'archive' ? filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant)) : activeTab === 'debt' ? filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByWarehouse) && isApproved(t.approvedByAccountant)) : filtered.filter(t => t.status === 'Виконано' && isApproved(t.approvedByRegionalManager))}
                 allTasks={tasks}
                 onApprove={activeTab === 'pending' ? undefined : handleApprove}
+                onFixRejected={activeTab === 'pending' ? handleFixRejected : undefined}
                 onEdit={handleEdit}
                 role="regional"
                 filters={filters}
@@ -5069,7 +5088,7 @@ function AdminArea({ user }) {
         <button onClick={()=>setTab('userNotifications')} style={{padding:'10px 32px',background:tab==='userNotifications'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='userNotifications'?700:400,cursor:'pointer'}}>Управління сповіщеннями</button>
         <button onClick={()=>setTab('debugNotifications')} style={{padding:'10px 32px',background:tab==='debugNotifications'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:tab==='debugNotifications'?700:400,cursor:'pointer'}}>🔧 Дебаг сповіщень</button>
       </div>
-      {tab === 'system' && <AdminSystemParamsArea />}
+      {tab === 'system' && <AdminSystemParamsArea user={user} />}
       {tab === 'edit' && <AdminEditTasksArea user={user} />}
       {tab === 'backup' && <AdminBackupArea user={user} />}
       {tab === 'events' && <EventLogArea user={user} />}
