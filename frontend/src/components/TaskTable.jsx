@@ -4043,10 +4043,23 @@ function TaskTableComponent({
                             
                             <button 
                               onClick={() => {
-                                const hasFiles = t.invoiceFiles && t.invoiceFiles.length > 0;
-                                const filesInfo = hasFiles ? 
-                                  `\n\nПрикріплені файли:\n${t.invoiceFiles.map(f => `- ${f.name}`).join('\n')}` : 
-                                  '\n\nФайли не прикріплені.';
+                                // Перевіряємо наявність файлів в правильних полях
+                                const hasInvoiceFile = t.invoiceFile && t.invoiceFileName;
+                                const hasActFile = t.actFile && t.actFileName;
+                                const hasFiles = hasInvoiceFile || hasActFile;
+                                
+                                let filesInfo = '';
+                                if (hasFiles) {
+                                  filesInfo = '\n\nПрикріплені файли:';
+                                  if (hasInvoiceFile) {
+                                    filesInfo += `\n- Рахунок: ${t.invoiceFileName}`;
+                                  }
+                                  if (hasActFile) {
+                                    filesInfo += `\n- Акт: ${t.actFileName}`;
+                                  }
+                                } else {
+                                  filesInfo = '\n\nФайли не прикріплені.';
+                                }
                                 
                                 if (confirm(`Ви дійсно хочете закрити заявку?\n\nЗаявка: ${t.requestNumber || 'Без номера'}\nКлієнт: ${t.client || 'Без клієнта'}${filesInfo}`)) {
                                   if (onCompleteInvoiceRequest) {
