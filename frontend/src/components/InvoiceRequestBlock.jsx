@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import FileViewer from './FileViewer';
 import authenticatedFetch from '../utils/api.js';
 // PDF конвертація тепер виконується на сервері
 
@@ -9,7 +8,6 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
   const [loading, setLoading] = useState(false);
   const [needInvoice, setNeedInvoice] = useState(true); // За замовчуванням активний
   const [needAct, setNeedAct] = useState(false); // За замовчуванням неактивний
-  const [fileViewer, setFileViewer] = useState({ open: false, fileUrl: '', fileName: '' });
 
   // Логування отриманих даних
   console.log('[DEBUG] InvoiceRequestBlock - отримано task:', {
@@ -170,7 +168,6 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
     e.preventDefault();
     e.stopPropagation();
     const fileUrl = task.invoiceFile || invoiceRequest?.invoiceFile;
-    const fileName = task.invoiceFileName || invoiceRequest?.invoiceFileName;
     
     if (fileUrl) {
       // Для Cloudinary URL додаємо параметри для кращого відображення
@@ -182,11 +179,8 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
         }
       }
       
-      setFileViewer({
-        open: true,
-        fileUrl: finalFileUrl,
-        fileName: fileName || 'Файл рахунку'
-      });
+      // Відкриваємо файл в новій вкладці браузера
+      window.open(finalFileUrl, '_blank');
     }
   };
 
@@ -415,11 +409,8 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
                                 }
                               }
                               
-                              setFileViewer({
-                                open: true,
-                                fileUrl: finalFileUrl,
-                                fileName: fileName || 'Файл акту виконаних робіт'
-                              });
+                              // Відкриваємо файл в новій вкладці браузера
+                              window.open(finalFileUrl, '_blank');
                             }
                           }}
                           style={{
@@ -631,11 +622,8 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
                           fileUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
                         }
                         
-                        setFileViewer({
-                          open: true,
-                          fileUrl: fileUrl,
-                          fileName: task.actFileName || 'Файл акту виконаних робіт'
-                        });
+                        // Відкриваємо файл в новій вкладці браузера
+                        window.open(fileUrl, '_blank');
                       }
                     }}
                     style={{
@@ -947,14 +935,6 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
         </div>
       )}
       
-      {/* FileViewer для перегляду файлів */}
-      {fileViewer.open && (
-        <FileViewer
-          fileUrl={fileViewer.fileUrl}
-          fileName={fileViewer.fileName}
-          onClose={() => setFileViewer({ open: false, fileUrl: '', fileName: '' })}
-        />
-      )}
     </>
   );
 };
