@@ -1561,6 +1561,18 @@ app.post('/api/tasks', async (req, res) => {
       console.log('[DEBUG] POST /api/tasks - автоматично встановлено autoCreatedAt:', taskData.autoCreatedAt);
     }
     
+    // Зберігаємо інформацію про автора заявки
+    const user = req.user || { login: 'system', name: 'Система', role: 'system' };
+    if (!taskData.createdBy && user.name) {
+      taskData.createdBy = user.name;
+    }
+    if (!taskData.authorName && user.name) {
+      taskData.authorName = user.name;
+    }
+    if (!taskData.authorLogin && user.login) {
+      taskData.authorLogin = user.login;
+    }
+    
     const newTask = new Task(taskData);
     console.log('[DEBUG] POST /api/tasks - створено новий Task об\'єкт');
     
@@ -1569,7 +1581,6 @@ app.post('/api/tasks', async (req, res) => {
     
     // Відправляємо Telegram сповіщення про нову заявку
     try {
-      const user = req.user || { login: 'system', name: 'Система', role: 'system' };
       await telegramService.sendTaskNotification('task_created', savedTask, user);
     } catch (notificationError) {
       console.error('[ERROR] POST /api/tasks - помилка відправки сповіщення:', notificationError);
@@ -2164,6 +2175,19 @@ app.post('/api/auth', async (req, res) => {
       );
       
       console.log(`[AUTH] Успішна авторизація: ${user.login}, роль: ${user.role}`);
+      
+      // Оновлюємо активність користувача при вході
+      try {
+        const now = new Date();
+        await User.updateOne(
+          { login: user.login },
+          { lastActivity: now }
+        );
+        console.log(`[AUTH] Активність користувача ${user.login} оновлено при вході:`, now);
+      } catch (activityError) {
+        console.error(`[AUTH] Помилка оновлення активності для ${user.login}:`, activityError);
+      }
+      
       res.json({ 
         success: true, 
         user: userWithoutPassword,
@@ -5053,13 +5077,14 @@ app.get('/api/active-users', async (req, res) => {
     }
     
     const now = new Date();
-    const thirtySecondsAgo = new Date(now.getTime() - 30 * 1000);
+    // Збільшуємо період активності до 5 хвилин (300 секунд)
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
     
     console.log('[DEBUG] GET /api/active-users - поточний час:', now);
-    console.log('[DEBUG] GET /api/active-users - шукаємо активних користувачів з:', thirtySecondsAgo);
+    console.log('[DEBUG] GET /api/active-users - шукаємо активних користувачів з:', fiveMinutesAgo);
     
     const activeUsers = await User.find(
-      { lastActivity: { $gte: thirtySecondsAgo } },
+      { lastActivity: { $gte: fiveMinutesAgo } },
       'login name lastActivity'
     );
     
@@ -5094,12 +5119,13 @@ app.get('/api/users/active', async (req, res) => {
     }
     
     const now = new Date();
-    const thirtySecondsAgo = new Date(now.getTime() - 30 * 1000);
+    // Збільшуємо період активності до 5 хвилин (300 секунд)
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
     
-    console.log('[DEBUG] GET /api/users/active - searching for active users since:', thirtySecondsAgo);
+    console.log('[DEBUG] GET /api/users/active - searching for active users since:', fiveMinutesAgo);
     
     const activeUsers = await User.find(
-      { lastActivity: { $gte: thirtySecondsAgo } },
+      { lastActivity: { $gte: fiveMinutesAgo } },
       'login name'
     );
     
@@ -5915,11 +5941,22 @@ class TelegramNotificationService {
       commentsInfo += `\n👨‍💼 <b>Коментар керівника:</b> ${task.regionalManagerComment}`;
     }
 
+    // Визначаємо, хто створив заявку
+    // Для task_created використовуємо user (той, хто створює)
+    // Для інших типів використовуємо поля з заявки
+    let createdBy = 'Н/Д';
+    if (type === 'task_created') {
+      createdBy = user.name || user.login || 'Система';
+    } else {
+      // Шукаємо інформацію про автора в заявці
+      createdBy = task.createdBy || task.authorName || task.engineer1 || task.author || user.name || user.login || 'Система';
+    }
+
     const baseMessage = `
 <b>🔔 Сповіщення про заявку</b>
 
 📋 <b>Номер заявки:</b> ${task.requestNumber || 'Н/Д'}
-👤 <b>Хто створив:</b> ${user.name || user.login || 'Н/Д'}
+👤 <b>Хто створив:</b> ${createdBy}
 📊 <b>Статус заявки:</b> ${displayStatus}
 📅 <b>Дата заявки:</b> ${task.requestDate || task.date || 'Н/Д'}
 🏢 <b>Компанія виконавець:</b> ${task.company || 'Н/Д'}
@@ -5940,7 +5977,7 @@ class TelegramNotificationService {
       case 'task_approval':
         return baseMessage + '\n🔔 <b>⚠️ ПОТРЕБУЄ ПІДТВЕРДЖЕННЯ</b>\n\n📋 <b>Необхідно перевірити:</b>\n• Правильність виконаних робіт\n• Використані матеріали\n• Вартість послуг';
       case 'task_approved':
-        return baseMessage + '\n✅ <b>✅ ПІДТВЕРДЖЕНО</b>\n\n🎉 <b>Заявка готова до оплати</b>';
+        return baseMessage + '\n✅ <b>✅ ВАША ЗАЯВКА ЗАТВЕРДЖЕНА ТА НАЧИСЛЕНА ПРЕМІЯ ЗА ВИКОНАНУ ЗАЯВКУ</b>\n\n🎉 <b>Заявка готова до оплати</b>';
       case 'task_rejected':
         return baseMessage + '\n❌ <b>❌ ВІДХИЛЕНО</b>\n\n⚠️ <b>Необхідно виправити зауваження</b>';
       default:

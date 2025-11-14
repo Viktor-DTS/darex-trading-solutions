@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import API_BASE_URL from './config.js';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import { logUserAction, EVENT_ACTIONS, ENTITY_TYPES } from './utils/eventLogAPI';
+import { activityAPI } from './utils/activityAPI';
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
   { value: 'service', label: 'Сервісна служба' },
@@ -85,6 +86,13 @@ export default function Login({ onLogin }) {
             role: userWithMode.role,
             isViewMode: isViewMode
           });
+        // Оновлюємо активність користувача при вході
+        try {
+          await activityAPI.updateActivity(userWithMode.login);
+          console.log('[AUTH] Активність користувача оновлено при вході');
+        } catch (error) {
+          console.error('[AUTH] Помилка оновлення активності при вході:', error);
+        }
         console.log('DEBUG Login: User logged in successfully:', userWithMode);
         onLogin(userWithMode);
     } else {
