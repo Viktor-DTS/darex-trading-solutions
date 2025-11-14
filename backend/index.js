@@ -1707,8 +1707,34 @@ app.put('/api/tasks/:id', async (req, res) => {
       } else if (updateData.approvedByWarehouse === 'Підтверджено' || 
                  updateData.approvedByAccountant === 'Підтверджено' || 
                  updateData.approvedByRegionalManager === 'Підтверджено') {
-        console.log('[DEBUG] PUT /api/tasks/:id - відправляємо task_approved сповіщення');
-        await telegramService.sendTaskNotification('task_approved', updatedTask, user);
+        // Перевіряємо, чи всі ролі затвердили заявку
+        const isWarehouseApproved = updatedTask.approvedByWarehouse === 'Підтверджено';
+        const isAccountantApproved = updatedTask.approvedByAccountant === 'Підтверджено';
+        const isRegionalManagerApproved = updatedTask.approvedByRegionalManager === 'Підтверджено';
+        const allApproved = isWarehouseApproved && isAccountantApproved && isRegionalManagerApproved;
+        
+        if (allApproved) {
+          // Всі затвердили - відправляємо сповіщення про підтверджені заявки
+          console.log('[DEBUG] PUT /api/tasks/:id - всі ролі затвердили, відправляємо task_approved сповіщення');
+          await telegramService.sendTaskNotification('task_approved', updatedTask, user);
+        } else if (updateData.approvedByWarehouse === 'Підтверджено' && !isAccountantApproved) {
+          // Затвердив завсклад, але бухгалтер ще не затвердив - відправляємо сповіщення про необхідність підтвердження бухгалтера
+          console.log('[DEBUG] PUT /api/tasks/:id - затвердив завсклад, відправляємо accountant_approval сповіщення');
+          const TelegramNotificationService = require('./telegram-service');
+          const telegramServiceNew = new TelegramNotificationService();
+          await telegramServiceNew.sendNotification('accountant_approval', {
+            task: updatedTask,
+            user: user,
+            authorLogin: user?.login
+          });
+        } else if (updateData.approvedByAccountant === 'Підтверджено' && !isRegionalManagerApproved) {
+          // Затвердив бухгалтер, але регіональний керівник ще не затвердив - можна додати сповіщення для регіонального керівника
+          console.log('[DEBUG] PUT /api/tasks/:id - затвердив бухгалтер, але регіональний керівник ще не затвердив');
+        } else {
+          // Інші випадки - відправляємо загальне сповіщення про підтвердження
+          console.log('[DEBUG] PUT /api/tasks/:id - відправляємо task_approved сповіщення');
+          await telegramService.sendTaskNotification('task_approved', updatedTask, user);
+        }
       } else if (updateData.approvedByWarehouse === 'Відхилено' || 
                  updateData.approvedByAccountant === 'Відхилено' || 
                  updateData.approvedByRegionalManager === 'Відхилено') {

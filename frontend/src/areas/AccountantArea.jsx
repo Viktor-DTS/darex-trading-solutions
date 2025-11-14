@@ -911,8 +911,6 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
   // Функція для завершення завдання в вкладці "Заявка на рахунок"
   const handleCompleteInvoiceRequest = async (taskId) => {
     try {
-      // Debug log removed
-      
       // Знаходимо поточне завдання
       const currentTask = allTasksFromAPI.find(t => t.id === taskId);
       if (!currentTask) {
@@ -921,32 +919,54 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
         return;
       }
       
-      // Оновлюємо тільки статус рахунку, НЕ основний статус заявки
-      const updatedTask = await tasksAPI.update(taskId, { 
-        ...currentTask, // Передаємо всі поточні дані
-        invoiceStatus: 'completed'
-        // НЕ змінюємо status - основний статус заявки залишається під контролем інженерів
+      // Перевіряємо, чи є invoiceRequestId
+      if (!currentTask.invoiceRequestId) {
+        console.error('[ERROR] AccountantArea - invoiceRequestId не знайдено для завдання:', taskId);
+        alert('Помилка: не знайдено ID запиту на рахунок');
+        return;
+      }
+      
+      // Оновлюємо статус в InvoiceRequest через правильний endpoint
+      const API_BASE_URL = window.location.hostname === 'localhost' 
+        ? 'http://localhost:3001/api'
+        : 'https://darex-trading-solutions.onrender.com/api';
+      
+      const response = await authenticatedFetch(`${API_BASE_URL}/invoice-requests/${currentTask.invoiceRequestId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: 'completed'
+        })
       });
       
-      // Debug log removed
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Помилка оновлення статусу запиту на рахунок');
+      }
+      
+      const result = await response.json();
+      console.log('[DEBUG] AccountantArea - статус запиту на рахунок оновлено:', result);
       
       // Оновлюємо локальний стан allTasksFromAPI
       setAllTasksFromAPI(prevTasks => 
-        prevTasks.map(task => task.id === taskId ? updatedTask : task)
+        prevTasks.map(task => 
+          task.id === taskId 
+            ? { ...task, invoiceStatus: 'completed' }
+            : task
+        )
       );
       
       // Оновлюємо дані через useLazyData
       await refreshData(activeTab);
-      
-      // Примусово оновлюємо таблицю
-      // Видалено setTableKey для оптимізації
       
       // Показуємо повідомлення про успіх
       alert('Рахунок успішно завершено!');
       
     } catch (error) {
       console.error('[ERROR] AccountantArea - помилка завершення завдання:', error);
-      alert('Помилка при завершенні завдання. Спробуйте ще раз.');
+      alert(`Помилка при завершенні завдання: ${error.message}`);
     }
   };
   
