@@ -1695,7 +1695,11 @@ app.put('/api/tasks/:id', async (req, res) => {
                          updateData.status === '????????' ||
                          updatedTask.status === '????????';
       
-      if (isCompleted) {
+      // Не відправляємо сповіщення task_completed для заявок на рахунок
+      // Для них є окреме сповіщення invoice_completed
+      const isInvoiceRequest = updatedTask.invoiceRequestId || updatedTask.needInvoice || updatedTask.needAct;
+      
+      if (isCompleted && !isInvoiceRequest) {
         console.log('[DEBUG] PUT /api/tasks/:id - відправляємо task_completed сповіщення');
         console.log('[DEBUG] PUT /api/tasks/:id - updateData.status:', updateData.status);
         console.log('[DEBUG] PUT /api/tasks/:id - updatedTask.status:', updatedTask.status);
@@ -5315,6 +5319,7 @@ app.post('/api/invoice-requests', async (req, res) => {
       const telegramService = new TelegramNotificationService();
       await telegramService.sendNotification('invoice_requested', {
         taskId,
+        requestNumber: task.requestNumber || 'Н/Д',
         requesterName,
         companyName: companyDetails.companyName,
         edrpou: companyDetails.edrpou
@@ -5561,8 +5566,8 @@ app.post('/api/invoice-requests/:id/upload', upload.single('invoiceFile'), async
     const updatedRequest = await InvoiceRequest.findByIdAndUpdate(
       req.params.id,
       { 
-        status: 'completed',
-        completedAt: new Date(),
+        // НЕ змінюємо статус на 'completed' при завантаженні файлу
+        // Статус змінюється тільки при натисканні кнопки "Завершити завдання"
         invoiceFile: req.file.path, // Cloudinary URL
         invoiceFileName: fileName,
         invoiceNumber: req.body.invoiceNumber || ''
@@ -5719,8 +5724,8 @@ app.post('/api/invoice-requests/:id/upload-act', upload.single('actFile'), async
     const updatedRequest = await InvoiceRequest.findByIdAndUpdate(
       req.params.id,
       { 
-        status: 'completed',
-        completedAt: new Date(),
+        // НЕ змінюємо статус на 'completed' при завантаженні файлу
+        // Статус змінюється тільки при натисканні кнопки "Завершити завдання"
         actFile: req.file.path, // Cloudinary URL
         actFileName: fileName
       },
@@ -6069,7 +6074,7 @@ class TelegramNotificationService {
                    `🏢 <b>Компанія:</b> ${data.companyName}\n` +
                    `🏛️ <b>ЄДРПОУ:</b> ${data.edrpou}\n` +
                    `👤 <b>Запитувач:</b> ${data.requesterName}\n` +
-                   `📋 <b>ID заявки:</b> ${data.taskId}\n\n` +
+                   `📋 <b>Номер заявки:</b> ${data.requestNumber || data.taskId || 'Н/Д'}\n\n` +
                    `⏳ <b>Очікує обробки бухгалтером</b>`;
           break;
           

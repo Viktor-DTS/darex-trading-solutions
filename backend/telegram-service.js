@@ -174,7 +174,7 @@ class TelegramNotificationService {
                `🏢 <b>Компанія:</b> ${data.companyName || 'Н/Д'}\n` +
                `🏛️ <b>ЄДРПОУ:</b> ${data.edrpou || 'Н/Д'}\n` +
                `👤 <b>Запитувач:</b> ${data.requesterName || 'Н/Д'}\n` +
-               `📋 <b>ID заявки:</b> ${data.taskId || 'Н/Д'}\n\n` +
+               `📋 <b>Номер заявки:</b> ${data.requestNumber || data.taskId || 'Н/Д'}\n\n` +
                `⏳ <b>Очікує обробки бухгалтером</b>`;
       
       case 'invoice_completed':
