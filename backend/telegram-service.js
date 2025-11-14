@@ -182,7 +182,7 @@ class TelegramNotificationService {
                `📌 <b>Тип сповіщення: Виконані рахунки</b>\n\n` +
                `✅ <b>Рахунок готовий</b>\n\n` +
                `🏢 <b>Компанія:</b> ${data.companyName || 'Н/Д'}\n` +
-               `📋 <b>ID заявки:</b> ${data.taskId || 'Н/Д'}\n` +
+               `📋 <b>Номер заявки:</b> ${data.requestNumber || data.taskId || 'Н/Д'}\n` +
                `👤 <b>Для користувача:</b> ${data.requesterId || 'Н/Д'}\n\n` +
                `📥 <b>Файл рахунку завантажено</b>\n` +
                `💡 <b>Можете завантажити файл в системі</b>`;

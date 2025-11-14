@@ -2126,7 +2126,18 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
                                 Переглянути файл
                               </button>
                               <button 
-                                onClick={() => window.open(request.invoiceFile, '_blank')}
+                                onClick={() => {
+                                  let fileUrl = request.invoiceFile;
+                                  // Для Cloudinary URL додаємо параметри для кращого відображення PDF
+                                  if (fileUrl && fileUrl.includes('cloudinary.com') && fileUrl.includes('.pdf')) {
+                                    fileUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
+                                  }
+                                  setFileViewer({
+                                    open: true,
+                                    fileUrl: fileUrl,
+                                    fileName: request.invoiceFileName || 'Файл рахунку'
+                                  });
+                                }}
                                 style={{
                                   marginRight: '8px',
                                   padding: '4px 8px',
@@ -2138,7 +2149,7 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
                                   fontSize: '12px'
                                 }}
                               >
-                                Завантажити файл
+                                Переглянути файл
                               </button>
                               <button 
                                 onClick={() => deleteInvoiceFile(request._id)}

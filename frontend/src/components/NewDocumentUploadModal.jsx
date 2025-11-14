@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import FileViewer from './FileViewer';
 
 function NewDocumentUploadModal({
   isOpen,
@@ -13,6 +14,7 @@ function NewDocumentUploadModal({
   const [selectedInvoiceFile, setSelectedInvoiceFile] = useState(null);
   const [selectedActFile, setSelectedActFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [fileViewer, setFileViewer] = useState({ open: false, fileUrl: '', fileName: '' });
 
   // Логування даних завдання при відкритті модального вікна
   useEffect(() => {
@@ -204,7 +206,18 @@ function NewDocumentUploadModal({
                 </p>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button
-                    onClick={() => window.open(task.invoiceFile, '_blank')}
+                    onClick={() => {
+                      let fileUrl = task.invoiceFile;
+                      // Для Cloudinary URL додаємо параметри для кращого відображення PDF
+                      if (fileUrl && fileUrl.includes('cloudinary.com') && fileUrl.includes('.pdf')) {
+                        fileUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
+                      }
+                      setFileViewer({
+                        open: true,
+                        fileUrl: fileUrl,
+                        fileName: task.invoiceFileName || 'Файл рахунку'
+                      });
+                    }}
                     style={{
                       padding: '8px 15px',
                       backgroundColor: '#007bff',
@@ -323,7 +336,18 @@ function NewDocumentUploadModal({
                 </p>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button
-                    onClick={() => window.open(task.actFile, '_blank')}
+                    onClick={() => {
+                      let fileUrl = task.actFile;
+                      // Для Cloudinary URL додаємо параметри для кращого відображення PDF
+                      if (fileUrl && fileUrl.includes('cloudinary.com') && fileUrl.includes('.pdf')) {
+                        fileUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
+                      }
+                      setFileViewer({
+                        open: true,
+                        fileUrl: fileUrl,
+                        fileName: task.actFileName || 'Файл акту виконаних робіт'
+                      });
+                    }}
                     style={{
                       padding: '8px 15px',
                       backgroundColor: '#007bff',
@@ -463,6 +487,15 @@ function NewDocumentUploadModal({
           )}
         </div>
       </div>
+      
+      {/* FileViewer для перегляду файлів */}
+      {fileViewer.open && (
+        <FileViewer
+          fileUrl={fileViewer.fileUrl}
+          fileName={fileViewer.fileName}
+          onClose={() => setFileViewer({ open: false, fileUrl: '', fileName: '' })}
+        />
+      )}
     </div>
   );
 }

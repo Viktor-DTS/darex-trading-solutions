@@ -5472,14 +5472,28 @@ app.put('/api/invoice-requests/:id', async (req, res) => {
     // Відправляємо сповіщення користувачу про зміну статусу
     if (status === 'completed') {
       try {
+        console.log('[DEBUG] PUT /api/invoice-requests/:id - початок відправки сповіщення invoice_completed');
+        // Отримуємо заявку для отримання requestNumber
+        const task = await Task.findOne({ invoiceRequestId: req.params.id });
+        console.log('[DEBUG] PUT /api/invoice-requests/:id - знайдено заявку:', task ? 'YES' : 'NO');
+        if (task) {
+          console.log('[DEBUG] PUT /api/invoice-requests/:id - requestNumber:', task.requestNumber);
+        }
+        
         const telegramService = new TelegramNotificationService();
-        await telegramService.sendNotification('invoice_completed', {
+        const notificationData = {
           taskId: request.taskId,
+          requestNumber: task?.requestNumber || request.requestNumber || 'Н/Д',
           requesterId: request.requesterId,
-          companyName: request.companyDetails.companyName
-        });
+          companyName: request.companyDetails?.companyName || 'Н/Д'
+        };
+        console.log('[DEBUG] PUT /api/invoice-requests/:id - дані для сповіщення:', notificationData);
+        
+        const result = await telegramService.sendNotification('invoice_completed', notificationData);
+        console.log('[DEBUG] PUT /api/invoice-requests/:id - результат відправки сповіщення:', result);
       } catch (notificationError) {
-        console.error('Помилка відправки сповіщення:', notificationError);
+        console.error('[ERROR] PUT /api/invoice-requests/:id - помилка відправки сповіщення:', notificationError);
+        console.error('[ERROR] PUT /api/invoice-requests/:id - stack:', notificationError.stack);
       }
     }
     
