@@ -5506,11 +5506,21 @@ app.put('/api/invoice-requests/:id', async (req, res) => {
           console.log('[DEBUG] PUT /api/invoice-requests/:id - requestNumber:', task.requestNumber);
         }
         
+        // Отримуємо ПІБ користувача за логіном
+        let requesterName = request.requesterName || 'Н/Д';
+        if (request.requesterId && !requesterName) {
+          const requesterUser = await User.findOne({ login: request.requesterId });
+          if (requesterUser) {
+            requesterName = requesterUser.name || requesterUser.login || 'Н/Д';
+          }
+        }
+        
         const telegramService = new TelegramNotificationService();
         const notificationData = {
           taskId: request.taskId,
           requestNumber: task?.requestNumber || request.requestNumber || 'Н/Д',
           requesterId: request.requesterId,
+          requesterName: requesterName,
           companyName: request.companyDetails?.companyName || 'Н/Д'
         };
         console.log('[DEBUG] PUT /api/invoice-requests/:id - дані для сповіщення:', notificationData);
@@ -6121,8 +6131,8 @@ class TelegramNotificationService {
         case 'invoice_completed':
           message = `✅ <b>Рахунок готовий</b>\n\n` +
                    `🏢 <b>Компанія:</b> ${data.companyName}\n` +
-                   `📋 <b>ID заявки:</b> ${data.taskId}\n` +
-                   `👤 <b>Для користувача:</b> ${data.requesterId}\n\n` +
+                   `📋 <b>Номер заявки:</b> ${data.requestNumber || data.taskId || 'Н/Д'}\n` +
+                   `👤 <b>Для користувача:</b> ${data.requesterName || data.requesterId || 'Н/Д'}\n\n` +
                    `📥 <b>Файл рахунку завантажено</b>\n` +
                    `💡 <b>Можете завантажити файл в системі</b>`;
           break;
