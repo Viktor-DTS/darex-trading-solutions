@@ -1018,22 +1018,45 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
     }
   };
 
-  // Функція для видалення запиту на рахунок (для вкладки invoiceRequests)
-  const handleDeleteInvoiceRequest = async (taskId) => {
+  // Стан для модального вікна відхилення запиту
+  const [rejectInvoiceModal, setRejectInvoiceModal] = useState({ 
+    open: false, 
+    taskId: null, 
+    task: null,
+    rejectionReason: '' 
+  });
+
+  // Функція для відкриття модального вікна відхилення запиту
+  const handleRejectInvoiceRequest = (taskId) => {
+    const task = allTasksFromAPI.find(t => t.id === taskId);
+    if (!task || !task.invoiceRequestId) {
+      alert('Не знайдено запит на рахунок для цього завдання');
+      return;
+    }
+    setRejectInvoiceModal({ 
+      open: true, 
+      taskId: taskId, 
+      task: task,
+      rejectionReason: '' 
+    });
+  };
+
+  // Функція для збереження причини відхилення та видалення запиту на рахунок
+  const handleSaveRejection = async () => {
+    if (!rejectInvoiceModal.rejectionReason.trim()) {
+      alert('Будь ласка, введіть причину відхилення заявки');
+      return;
+    }
+
     try {
-      console.log('[DEBUG] AccountantArea handleDeleteInvoiceRequest - видалення запиту на рахунок:', taskId);
+      const { taskId, task, rejectionReason } = rejectInvoiceModal;
+      console.log('[DEBUG] AccountantArea handleSaveRejection - відхилення запиту на рахунок:', taskId);
       
-      // Знаходимо завдання, щоб отримати invoiceRequestId
-      const task = allTasksFromAPI.find(t => t.id === taskId);
-      if (!task || !task.invoiceRequestId) {
-        throw new Error('Не знайдено запит на рахунок для цього завдання');
-      }
-      
-      // Видаляємо запит на рахунок через API
       const API_BASE_URL = window.location.hostname === 'localhost' 
         ? 'http://localhost:3001/api'
         : 'https://darex-trading-solutions.onrender.com/api';
       
+      // Видаляємо запит на рахунок через API
       const response = await authenticatedFetch(`${API_BASE_URL}/invoice-requests/${task.invoiceRequestId}`, {
         method: 'DELETE'
       });
@@ -1043,16 +1066,34 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
         throw new Error(error.message || 'Помилка видалення запиту на рахунок');
       }
       
+      // Зберігаємо причину відхилення в Task та очищаємо invoiceRequestId
+      await tasksAPI.update(taskId, {
+        ...task,
+        invoiceRejectionReason: rejectionReason,
+        invoiceRejectionDate: new Date().toISOString(),
+        invoiceRejectionUser: user?.name || user?.login || 'Користувач',
+        invoiceRequestId: null, // Очищаємо invoiceRequestId, щоб завдання не відображалося в таблиці
+        needInvoice: false, // Очищаємо needInvoice
+        needAct: false // Очищаємо needAct
+      });
+      
+      // Закриваємо модальне вікно
+      setRejectInvoiceModal({ open: false, taskId: null, task: null, rejectionReason: '' });
+      
       // Оновлюємо дані
       await refreshData(activeTab);
-      // Видалено setTableKey для оптимізації
       
-      console.log('[DEBUG] AccountantArea handleDeleteInvoiceRequest - запит на рахунок успішно видалено');
-      alert('Запит на рахунок успішно видалено');
+      console.log('[DEBUG] AccountantArea handleSaveRejection - запит на рахунок успішно відхилено та видалено');
+      alert('Запит на рахунок відхилено та видалено. Можна подати повторний запит.');
     } catch (error) {
-      console.error('[ERROR] AccountantArea handleDeleteInvoiceRequest - помилка видалення запиту на рахунок:', error);
-      alert('Помилка видалення запиту на рахунок: ' + error.message);
+      console.error('[ERROR] AccountantArea handleSaveRejection - помилка відхилення запиту на рахунок:', error);
+      alert('Помилка відхилення запиту на рахунок: ' + error.message);
     }
+  };
+
+  // Функція для скасування відхилення
+  const handleCancelRejection = () => {
+    setRejectInvoiceModal({ open: false, taskId: null, task: null, rejectionReason: '' });
   };
 
   // Для вкладки debt використовуємо всі завдання з API (як у регіонального керівника)
@@ -2627,7 +2668,7 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
             dataSyncKey={dataSyncKey}
             onApprove={handleApprove}
             onEdit={handleEdit}
-            onDelete={handleDeleteInvoiceRequest}
+            onDelete={handleRejectInvoiceRequest}
             role="accountant-invoice"
             filters={filters}
             onFilterChange={handleFilter}
@@ -2786,6 +2827,98 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
           user={user}
           readOnly={true}
         />
+      )}
+      
+      {/* Модальне вікно для відхилення запиту на рахунок */}
+      {rejectInvoiceModal.open && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '8px',
+            maxWidth: '600px',
+            width: '90%',
+            maxHeight: '90vh',
+            overflow: 'auto'
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#333' }}>
+              Опис відхилення заявки
+            </h3>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#333' }}>
+                Заявка: {rejectInvoiceModal.task?.requestNumber || 'Без номера'}
+              </label>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#333' }}>
+                Клієнт: {rejectInvoiceModal.task?.client || 'Без клієнта'}
+              </label>
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#333' }}>
+                Причина відхилення заявки *
+              </label>
+              <textarea
+                value={rejectInvoiceModal.rejectionReason}
+                onChange={(e) => setRejectInvoiceModal({ ...rejectInvoiceModal, rejectionReason: e.target.value })}
+                placeholder="Введіть причину відхилення заявки..."
+                rows={6}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  fontFamily: 'inherit',
+                  resize: 'vertical'
+                }}
+                required
+              />
+            </div>
+            
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleCancelRejection}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Скасувати
+              </button>
+              <button
+                onClick={handleSaveRejection}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#dc3545',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Відхилити запит
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       
       {/* Індикатор завантаження для модального вікна */}

@@ -286,6 +286,27 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
                   <strong>Причина відмови:</strong> {invoiceRequest.rejectionReason}
                 </div>
               )}
+              {/* Відображення причини відхилення з Task, якщо запит було видалено */}
+              {task.invoiceRejectionReason && (
+                <div style={{ marginTop: '8px', padding: '10px', backgroundColor: '#fff3cd', borderRadius: '4px', border: '1px solid #ffc107' }}>
+                  <div style={{ fontWeight: '600', color: '#856404', marginBottom: '4px' }}>
+                    ❌ Заявка відхилена бухгалтером
+                  </div>
+                  <div style={{ color: '#856404', marginBottom: '4px' }}>
+                    <strong>Причина відхилення:</strong> {task.invoiceRejectionReason}
+                  </div>
+                  {task.invoiceRejectionDate && (
+                    <div style={{ fontSize: '12px', color: '#856404' }}>
+                      <strong>Дата відхилення:</strong> {new Date(task.invoiceRejectionDate).toLocaleString('uk-UA')}
+                    </div>
+                  )}
+                  {task.invoiceRejectionUser && (
+                    <div style={{ fontSize: '12px', color: '#856404' }}>
+                      <strong>Відхилив:</strong> {task.invoiceRejectionUser}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Файл рахунку */}
@@ -679,14 +700,42 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
               </div>
             )}
             
+            {/* Відображення причини відхилення, якщо запит було відхилено */}
+            {task.invoiceRejectionReason && (
+              <div style={{ marginBottom: '20px', padding: '10px', backgroundColor: '#fff3cd', borderRadius: '4px', border: '1px solid #ffc107' }}>
+                <div style={{ fontWeight: '600', color: '#856404', marginBottom: '4px' }}>
+                  ❌ Заявка відхилена бухгалтером
+                </div>
+                <div style={{ color: '#856404', marginBottom: '4px' }}>
+                  <strong>Причина відхилення:</strong> {task.invoiceRejectionReason}
+                </div>
+                {task.invoiceRejectionDate && (
+                  <div style={{ fontSize: '12px', color: '#856404' }}>
+                    <strong>Дата відхилення:</strong> {new Date(task.invoiceRejectionDate).toLocaleString('uk-UA')}
+                  </div>
+                )}
+                {task.invoiceRejectionUser && (
+                  <div style={{ fontSize: '12px', color: '#856404' }}>
+                    <strong>Відхилив:</strong> {task.invoiceRejectionUser}
+                  </div>
+                )}
+              </div>
+            )}
+            
             <p style={{
               margin: '0 0 20px 0', 
               fontSize: '14px', 
               color: '#6c757d',
               lineHeight: '1.5'
             }}>
-              Заявка виконана. Ви можете подати запит на отримання рахунку від бухгалтера 
-              для клієнта <strong>{task.client || 'не вказано'}</strong> (ЄДРПОУ: {task.edrpou || 'не вказано'}).
+              {task.invoiceRejectionReason 
+                ? 'Заявка відхилена. Ви можете подати повторний запит на отримання рахунку від бухгалтера.'
+                : (
+                  <>
+                    Заявка виконана. Ви можете подати запит на отримання рахунку від бухгалтера 
+                    для клієнта <strong>{task.client || 'не вказано'}</strong> (ЄДРПОУ: {task.edrpou || 'не вказано'}).
+                  </>
+                )}
             </p>
             
             <button 

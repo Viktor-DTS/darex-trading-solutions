@@ -4087,9 +4087,7 @@ function TaskTableComponent({
                             
                             <button 
                               onClick={() => {
-                                if (confirm(`Ви дійсно хочете видалити заявку?\n\nЗаявка: ${t.requestNumber || 'Без номера'}\nКлієнт: ${t.client || 'Без клієнта'}`)) {
-                                  onDelete && onDelete(t.id);
-                                }
+                                onDelete && onDelete(t.id);
                               }}
                               style={{
                                 background: '#dc3545',
@@ -4101,7 +4099,7 @@ function TaskTableComponent({
                                 cursor: 'pointer'
                               }}
                             >
-                              🗑️ Видалити завдання
+                              {role === 'accountant-invoice' ? '❌ Відхилити запит' : '🗑️ Видалити завдання'}
                             </button>
                           </div>
                         </>
