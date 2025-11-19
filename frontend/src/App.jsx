@@ -933,6 +933,8 @@ function ServiceArea({ user, accessRules, currentArea }) {
   const [tableKey, setTableKey] = useState(0);
   const [editTask, setEditTask] = useState(null);
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [showRejectedApprovals, setShowRejectedApprovals] = useState(false);
+  const [showRejectedInvoices, setShowRejectedInvoices] = useState(false);
 
   // Використовуємо хук useLazyData для оптимізації
   const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, getTabCount } = useLazyData(user, 'notDone');
@@ -1097,6 +1099,26 @@ function ServiceArea({ user, accessRules, currentArea }) {
     console.log('DEBUG App filtered: filters type =', typeof filters);
     
     const result = tasks.filter(t => {
+    // Фільтрація за відхиленими заявками (якщо активовані чекбокси)
+    if (showRejectedApprovals || showRejectedInvoices) {
+      const isRejectedApproval = showRejectedApprovals && (
+        t.approvedByWarehouse === 'Відмова' || 
+        t.approvedByAccountant === 'Відмова'
+      );
+      const isRejectedInvoice = showRejectedInvoices && t.invoiceRejectionReason;
+      
+      // Якщо обидва чекбокси активні, показуємо заявки, які відповідають хоча б одній умові (OR)
+      // Якщо тільки один активний, показуємо тільки заявки, які відповідають цій умові
+      if (showRejectedApprovals && showRejectedInvoices) {
+        if (!isRejectedApproval && !isRejectedInvoice) {
+          return false;
+        }
+      } else if (showRejectedApprovals && !isRejectedApproval) {
+        return false;
+      } else if (showRejectedInvoices && !isRejectedInvoice) {
+        return false;
+      }
+    }
     // Перевірка доступу до регіону заявки
     if (user?.region && user.region !== 'Україна') {
       // Якщо користувач має множинні регіони (через кому)
@@ -1189,7 +1211,7 @@ function ServiceArea({ user, accessRules, currentArea }) {
   console.log('DEBUG App filtered: result =', result);
   console.log('DEBUG App filtered: result.length =', result.length);
   return result;
-  }, [tasks, user?.region, filters]);
+  }, [tasks, user?.region, filters, showRejectedApprovals, showRejectedInvoices]);
   
   console.log('DEBUG App: useMemo dependencies - tasks.length =', tasks.length);
   console.log('DEBUG App: useMemo dependencies - user?.region =', user?.region);
@@ -1500,6 +1522,28 @@ function ServiceArea({ user, accessRules, currentArea }) {
         <button onClick={()=>setActiveTab('pending')} style={{padding:'10px 16px',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
         <button onClick={()=>setActiveTab('done')} style={{padding:'10px 16px',background:activeTab==='done'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='done'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Архів виконаних заявок ({done.length})</button>
         <button onClick={()=>setActiveTab('blocked')} style={{padding:'10px 16px',background:activeTab==='blocked'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='blocked'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заблоковані заявки ({getTabCount('blocked')})</button>
+      </div>
+      
+      {/* Чекбокси для фільтрації відхилених заявок */}
+      <div style={{display:'flex',gap:16,marginBottom:16,alignItems:'center',flexWrap:'wrap'}}>
+        <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:'14px',color:'#fff'}}>
+          <input
+            type="checkbox"
+            checked={showRejectedApprovals}
+            onChange={(e) => setShowRejectedApprovals(e.target.checked)}
+            style={{width:18,height:18,cursor:'pointer'}}
+          />
+          <span>Відобразити відхилені заявки на затвердженні</span>
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:'14px',color:'#fff'}}>
+          <input
+            type="checkbox"
+            checked={showRejectedInvoices}
+            onChange={(e) => setShowRejectedInvoices(e.target.checked)}
+            style={{width:18,height:18,cursor:'pointer'}}
+          />
+          <span>Відхилені рахунки</span>
+        </label>
       </div>
       
       <ModalTaskForm 

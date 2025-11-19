@@ -576,6 +576,11 @@ function TaskTableComponent({
 
   // Додаю функцію для визначення кольору рядка
   function getRowColor(t) {
+    // Перевіряємо, чи заявка відхилена по рахунку (найвищий пріоритет)
+    if (t.invoiceRejectionReason) {
+      return '#9370DB'; // Фіолетовий колір для відхилених заявок по рахунку
+    }
+    
     // Перевіряємо, чи хтось відхилив заявку
     if (t.approvedByAccountant === 'Відмова' || t.approvedByWarehouse === 'Відмова' || t.approvedByRegionalManager === 'Відмова') {
       return '#ff9999'; // Більш насичений червоний колір для відхилених заявок
@@ -607,6 +612,11 @@ function TaskTableComponent({
 
   // Функція для визначення CSS класу рядка
   function getRowClass(t) {
+    // Перевіряємо, чи заявка відхилена по рахунку (найвищий пріоритет)
+    if (t.invoiceRejectionReason) {
+      return 'invoice-rejected';
+    }
+    
     // Перевіряємо, чи хтось відхилив заявку
     if (t.approvedByAccountant === 'Відмова' || t.approvedByWarehouse === 'Відмова' || t.approvedByRegionalManager === 'Відмова') {
       return 'rejected';
@@ -3565,6 +3575,13 @@ function TaskTableComponent({
               background: #e3f2fd;
             }
             /* Спеціальні кольори для завдань з різними статусами */
+            .sticky-table tbody tr.invoice-rejected {
+              background: #9370DB !important;
+              color: #fff !important;
+            }
+            .sticky-table tbody tr.invoice-rejected:hover {
+              background: #7B68EE !important;
+            }
             .sticky-table tbody tr.rejected {
               background: #ff9999 !important;
               color: #111 !important;
