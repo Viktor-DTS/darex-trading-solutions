@@ -145,7 +145,9 @@ export default function WarehouseArea({ user, accessRules, currentArea }) {
       warehouseComment: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.warehouseComment),
       // Зберігаємо інформацію про відмову
       warehouseRejectionDate: approved === 'Відмова' ? currentDateTime : (approved === 'Підтверджено' ? null : t.warehouseRejectionDate),
-      warehouseRejectionUser: approved === 'Відмова' ? (user?.name || user?.login || 'Користувач') : (approved === 'Підтверджено' ? null : t.warehouseRejectionUser)
+      warehouseRejectionUser: approved === 'Відмова' ? (user?.name || user?.login || 'Користувач') : (approved === 'Підтверджено' ? null : t.warehouseRejectionUser),
+      // Якщо встановлено відмову, змінюємо статус на "В роботі"
+      status: approved === 'Відмова' ? 'В роботі' : t.status
     };
     let bonusApprovalDate = t.bonusApprovalDate;
     if (

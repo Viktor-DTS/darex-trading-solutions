@@ -991,6 +991,26 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       finalForm.accountantComment = `Погоджено, претензій не маю. ${user?.name || 'Користувач'}`;
       finalForm.accountantComments = `Погоджено, претензій не маю. ${user?.name || 'Користувач'}`;
     }
+    // Якщо статус змінюється на "Виконано" (був не "Виконано", а став "Виконано"),
+    // виключаємо поля підтвердження з об'єкта, щоб backend міг автоматично встановити "На розгляді" для відмов
+    // Це має бути ПЕРЕД логікою "Відмова → В роботі", щоб не перезаписувати статус
+    let dataToSave = { ...finalForm };
+    const initialStatus = initialData.status || '';
+    const isStatusChangedToCompleted = finalForm.status === 'Виконано' && initialStatus !== 'Виконано';
+    
+    if (isStatusChangedToCompleted) {
+      // Виключаємо поля підтвердження тільки коли статус змінюється на "Виконано"
+      // щоб не перезаписувати автоматичні зміни з backend
+      const { approvedByWarehouse, approvedByAccountant, approvedByRegionalManager, ...rest } = dataToSave;
+      dataToSave = rest;
+      console.log('[DEBUG] ModalTaskForm - статус змінено на "Виконано" (було:', initialStatus, '), виключено поля підтвердження для автоматичного оновлення');
+    } else {
+      // Якщо статус НЕ змінюється на "Виконано" і встановлено відмову завсклада або бухгалтера, змінюємо статус на "В роботі"
+      if (form.approvedByWarehouse === 'Відмова' || form.approvedByAccountant === 'Відмова') {
+        dataToSave.status = 'В роботі';
+      }
+    }
+    
     // if (form.approvedByRegionalManager === 'Підтверджено' && !form.regionalManagerComment) {
     //   finalForm.regionalManagerComment = `Погоджено, претензій не маю. ${user?.name || 'Користувач'}`;
     // }
@@ -1055,7 +1075,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     }
 
     onSave({
-      ...finalForm,
+      ...dataToSave,
       contractFile: contractFileUrl || form.contractFile, // Зберігаємо URL або оригінальний файл
       bonusApprovalDate,
       oilTotal,

@@ -1047,18 +1047,10 @@ function ServiceArea({ user, accessRules, currentArea }) {
       const t = tasks.find(t => t.id === id);
       if (!t) return;
       
-      let updated;
-      if (status === 'Виконано') {
-        updated = await tasksAPI.update(id, {
-          ...t,
-          status,
-          approvedByWarehouse: false,
-          approvedByAccountant: false,
-          approvedByRegionalManager: false,
-        });
-      } else {
-        updated = await tasksAPI.update(id, { ...t, status });
-      }
+      // Виключаємо поля підтвердження з об'єкта, щоб не перезаписувати їх
+      // Backend автоматично обробить зміну підтверджень з "Відмова" на "На розгляді" при зміні статусу на "Виконано"
+      const { approvedByWarehouse, approvedByAccountant, approvedByRegionalManager, ...taskWithoutApprovals } = t;
+      const updated = await tasksAPI.update(id, { ...taskWithoutApprovals, status });
       
       // Оновлюємо дані через refreshData
       await refreshData(activeTab);

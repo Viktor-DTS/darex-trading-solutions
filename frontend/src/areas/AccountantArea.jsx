@@ -799,7 +799,9 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
         accountantComments: approved === 'Підтверджено' ? `Погоджено, претензій не маю. ${user?.name || 'Користувач'}` : (comment !== undefined ? comment : t.accountantComments),
         // Зберігаємо інформацію про відмову
         accountantRejectionDate: approved === 'Відмова' ? currentDateTime : (approved === 'Підтверджено' ? null : t.accountantRejectionDate),
-        accountantRejectionUser: approved === 'Відмова' ? (user?.name || user?.login || 'Користувач') : (approved === 'Підтверджено' ? null : t.accountantRejectionUser)
+        accountantRejectionUser: approved === 'Відмова' ? (user?.name || user?.login || 'Користувач') : (approved === 'Підтверджено' ? null : t.accountantRejectionUser),
+        // Якщо встановлено відмову, змінюємо статус на "В роботі"
+        status: approved === 'Відмова' ? 'В роботі' : t.status
       };
       
       let bonusApprovalDate = t.bonusApprovalDate;

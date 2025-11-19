@@ -1636,9 +1636,49 @@ app.put('/api/tasks/:id', async (req, res) => {
     // Автоматично встановлюємо дату виконання, якщо статус змінився на "Виконано"
     const isCompleted = (updateData.status === 'Виконано' || updateData.status === '????????') && 
                         task.status !== 'Виконано' && task.status !== '????????';
+    console.log('[DEBUG] PUT /api/tasks/:id - перевірка isCompleted:', {
+      'updateData.status': updateData.status,
+      'task.status': task.status,
+      'isCompleted': isCompleted
+    });
+    
     if (isCompleted && !updateData.autoCompletedAt && !task.autoCompletedAt) {
       updateData.autoCompletedAt = new Date();
       console.log('[DEBUG] PUT /api/tasks/:id - автоматично встановлено autoCompletedAt:', updateData.autoCompletedAt);
+    }
+    
+    // Якщо статус змінився на "Виконано", перевіряємо підтвердження завсклада та бухгалтера
+    // Якщо в них встановлено "Відмова", змінюємо на "На розгляді"
+    // Це має виконуватися незалежно від того, чи встановлено autoCompletedAt
+    if (isCompleted) {
+      // Перевіряємо значення з бази даних (task), оскільки воно завжди актуальне
+      const currentWarehouseApproval = task.approvedByWarehouse;
+      const currentAccountantApproval = task.approvedByAccountant;
+      
+      // Також перевіряємо значення з updateData, якщо воно передано
+      const updateWarehouseApproval = updateData.approvedByWarehouse;
+      const updateAccountantApproval = updateData.approvedByAccountant;
+      
+      console.log('[DEBUG] PUT /api/tasks/:id - перевірка підтверджень при зміні статусу на "Виконано"');
+      console.log('[DEBUG] PUT /api/tasks/:id - currentWarehouseApproval (з бази):', currentWarehouseApproval);
+      console.log('[DEBUG] PUT /api/tasks/:id - currentAccountantApproval (з бази):', currentAccountantApproval);
+      console.log('[DEBUG] PUT /api/tasks/:id - updateWarehouseApproval (з updateData):', updateWarehouseApproval);
+      console.log('[DEBUG] PUT /api/tasks/:id - updateAccountantApproval (з updateData):', updateAccountantApproval);
+      
+      // Перевіряємо значення з бази даних - якщо там "Відмова" або false, змінюємо на "На розгляді"
+      // Не перевіряємо updateData, оскільки там може бути значення, яке передано з frontend
+      const warehouseIsRejected = currentWarehouseApproval === 'Відмова' || currentWarehouseApproval === false || currentWarehouseApproval === 'Відхилено';
+      const accountantIsRejected = currentAccountantApproval === 'Відмова' || currentAccountantApproval === false || currentAccountantApproval === 'Відхилено';
+      
+      if (warehouseIsRejected) {
+        updateData.approvedByWarehouse = 'На розгляді';
+        console.log('[DEBUG] PUT /api/tasks/:id - ✅ статус змінено на "Виконано", встановлено "На розгляді" для підтвердження завсклада (було:', currentWarehouseApproval, ')');
+      }
+      
+      if (accountantIsRejected) {
+        updateData.approvedByAccountant = 'На розгляді';
+        console.log('[DEBUG] PUT /api/tasks/:id - ✅ статус змінено на "Виконано", встановлено "На розгляді" для підтвердження бухгалтера (було:', currentAccountantApproval, ')');
+      }
     }
     
     // Автоматично встановлюємо дату затвердження завскладом
@@ -1673,12 +1713,23 @@ app.put('/api/tasks/:id', async (req, res) => {
       }
     }
     
+    // Логуємо значення підтверджень перед застосуванням змін
+    console.log('[DEBUG] PUT /api/tasks/:id - значення перед застосуванням змін:');
+    console.log('[DEBUG] PUT /api/tasks/:id - updateData.approvedByWarehouse:', updateData.approvedByWarehouse);
+    console.log('[DEBUG] PUT /api/tasks/:id - updateData.approvedByAccountant:', updateData.approvedByAccountant);
+    console.log('[DEBUG] PUT /api/tasks/:id - task.approvedByWarehouse (з бази):', task.approvedByWarehouse);
+    console.log('[DEBUG] PUT /api/tasks/:id - task.approvedByAccountant (з бази):', task.approvedByAccountant);
+    
     // Оновлюємо поля через set
     task.set(updateData);
     console.log('[DEBUG] PUT /api/tasks/:id - застосовано зміни через set()');
+    console.log('[DEBUG] PUT /api/tasks/:id - task.approvedByWarehouse після set():', task.approvedByWarehouse);
+    console.log('[DEBUG] PUT /api/tasks/:id - task.approvedByAccountant після set():', task.approvedByAccountant);
     
     const updatedTask = await executeWithRetry(() => task.save());
-    console.log('[DEBUG] PUT /api/tasks/:id - завдання збережено успішно:', updatedTask);
+    console.log('[DEBUG] PUT /api/tasks/:id - завдання збережено успішно');
+    console.log('[DEBUG] PUT /api/tasks/:id - updatedTask.approvedByWarehouse:', updatedTask.approvedByWarehouse);
+    console.log('[DEBUG] PUT /api/tasks/:id - updatedTask.approvedByAccountant:', updatedTask.approvedByAccountant);
     
     // Відправляємо Telegram сповіщення про зміну статусу
     try {
