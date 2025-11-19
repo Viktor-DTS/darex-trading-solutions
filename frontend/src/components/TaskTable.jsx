@@ -218,7 +218,9 @@ function TaskTableComponent({
   
   // Персоналізований ключ для кожного користувача
   const userLogin = user?.login || 'default';
-  const area = role; // Використовуємо role як область
+  // Використовуємо currentArea якщо передано (для правильного збереження налаштувань),
+  // інакше використовуємо role як fallback
+  const area = currentArea || role;
   
   const allColumns = columns;
   
@@ -498,7 +500,7 @@ function TaskTableComponent({
     };
     loadUserSettings();
     return () => { isMounted = false; };
-  }, [userLoginRef.current, areaRef.current, defaultKeysRef.current]); // Видалено settingsLoaded з залежностей
+  }, [userLogin, area, columns.length]); // Використовуємо userLogin, area, columns.length замість refs для правильного спрацювання useEffect
   
   // Завантаження регіонів
   useEffect(() => {

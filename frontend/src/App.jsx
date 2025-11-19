@@ -4160,6 +4160,15 @@ function App() {
             setAccessRules(serverRules);
           }
         }
+        
+        // Після завантаження правил доступу, встановлюємо правильну currentArea
+        // Для ролі "regkerivn" встановлюємо "regional", якщо є доступ до цієї області
+        if (user.role === 'regkerivn' && currentArea === 'regkerivn') {
+          const rules = Object.keys(serverRules).length === 0 ? getDefaultAccess(await rolesAPI.getAll()) : serverRules;
+          if (rules[user.role] && rules[user.role]['regional'] && rules[user.role]['regional'] !== 'none') {
+            setCurrentArea('regional');
+          }
+        }
       } catch (error) {
         console.error('Помилка завантаження правил доступу:', error);
         // Використовуємо правила за замовчуванням при помилці
@@ -4171,7 +4180,15 @@ function App() {
           { value: 'accountant', label: 'Бух. рахунки' },
           { value: 'regional', label: 'Регіональний керівник' },
         ];
-        setAccessRules(getDefaultAccess(defaultRoles));
+        const defaultRules = getDefaultAccess(defaultRoles);
+        setAccessRules(defaultRules);
+        
+        // Для ролі "regkerivn" встановлюємо "regional", якщо є доступ до цієї області
+        if (user.role === 'regkerivn' && currentArea === 'regkerivn') {
+          if (defaultRules[user.role] && defaultRules[user.role]['regional'] && defaultRules[user.role]['regional'] !== 'none') {
+            setCurrentArea('regional');
+          }
+        }
       } finally {
         setLoadingAccessRules(false);
       }
