@@ -126,8 +126,8 @@ function TaskTableComponent({
       // Враховуємо масштабування 0.75 - реальна висота viewport більша
       const scaledViewportHeight = viewportHeight / 0.75;
       // Враховуємо висоту інших елементів: чекбокси (~60px), вкладки (~60px), фільтри (~100px), padding та інші елементи (~130px)
-      // Додаємо додатковий відступ для безпеки
-      const reservedHeight = 380;
+      // Зменшуємо reservedHeight для використання всього доступного простору
+      const reservedHeight = 320;
       const calculatedHeight = Math.max(300, scaledViewportHeight - reservedHeight);
       setTableHeight(`${calculatedHeight}px`);
     };
@@ -3557,7 +3557,7 @@ function TaskTableComponent({
           />
         )}
         {/* СПІЛЬНИЙ КОНТЕЙНЕР для фільтрів і таблиці */}
-        <div style={{width:'100%',maxWidth:'100%',margin:'0 auto', background:'#fff', borderRadius:'8px', padding:'16px', position:'relative', zIndex:10, boxSizing:'border-box', overflowX:'hidden'}}>
+        <div style={{width:'100%',maxWidth:'100%',margin:'0 auto', background:'#fff', borderRadius:'8px', padding:'12px', position:'relative', zIndex:10, boxSizing:'border-box', overflowX:'hidden'}}>
           {/* Окремий контейнер для таблиці з sticky-заголовками */}
           <style>{`
             .table-scroll {

@@ -1513,7 +1513,7 @@ function ServiceArea({ user, accessRules, currentArea }) {
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   
   return (
-    <div style={{padding:32, width:'100%', maxWidth:'100%', boxSizing:'border-box', overflowX:'hidden'}}>
+    <div style={{padding:24, width:'100%', maxWidth:'100%', boxSizing:'border-box', overflowX:'hidden'}}>
       {loading && <div>Завантаження...</div>}
       
       {/* Перший рядок: чекбокси, кнопка налаштування колонок та кнопка додавання заявки */}
@@ -4398,7 +4398,7 @@ function App() {
             {(user.role === 'regional' || (user.role === 'admin' && currentArea === 'regional')) && false /* <RegionalManagerTabs tab={regionalTab} setTab={setRegionalTab} /> */}
             <div style={{
               marginLeft: 0,
-              marginRight: currentArea === 'analytics' ? '0%' : '6%',
+              marginRight: currentArea === 'analytics' ? '0%' : '2%',
               width: currentArea === 'analytics' ? '100%' : 'auto',
               maxWidth: '100%',
               boxSizing: 'border-box',
