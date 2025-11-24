@@ -90,6 +90,7 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user, acce
   const [editTask, setEditTask] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [reportsModalOpen, setReportsModalOpen] = useState(false);
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
   
   // Додаткові завдання для чекбокса "Відобразити всі заявки"
   const [additionalTasks, setAdditionalTasks] = useState([]);
@@ -767,14 +768,15 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user, acce
   }));
 
   return (
-    <div style={{padding:32}}>
-      <h2>Заявки на затвердження (Бухгалтер)</h2>
+    <div style={{padding:32, width:'100%', maxWidth:'100%', boxSizing:'border-box', overflowX:'hidden'}}>
       {loading && <div>Завантаження...</div>}
-      <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <button onClick={()=>setActiveTab('pending')} style={{width:220,padding:'10px 0',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',fontSize:'1rem'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
-        <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer',fontSize:'1rem'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
-        <button onClick={()=>setActiveTab('debt')} style={{width:220,padding:'10px 0',background:activeTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='debt'?700:400,cursor:'pointer',fontSize:'1rem'}}>Заборгованість по документам ({debt.length})</button>
-        <button onClick={()=>setReportsModalOpen(true)} style={{width:220,padding:'10px 0',background:'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:400,cursor:'pointer',fontSize:'1rem'}}>📊 Бухгалтерські звіти</button>
+      
+      {/* Перший рядок: вкладки, кнопки та налаштування колонок */}
+      <div style={{display:'flex',gap:16,marginBottom:16,alignItems:'center',flexWrap:'wrap'}}>
+        <button onClick={()=>setActiveTab('pending')} style={{padding:'10px 16px',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заявка на підтвердженні</button>
+        <button onClick={()=>setActiveTab('archive')} style={{padding:'10px 16px',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Архів виконаних заявок</button>
+        <button onClick={()=>setActiveTab('debt')} style={{padding:'10px 16px',background:activeTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='debt'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заборгованість по документам</button>
+        <button onClick={()=>setReportsModalOpen(true)} style={{padding:'10px 16px',background:'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>📊 Бухгалтерські звіти</button>
         <button onClick={() => {
           console.log('[DEBUG] AccountantApprovalArea - кнопка "Оновити дані" натиснута');
           refreshCache();
@@ -787,9 +789,25 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user, acce
           fontWeight:600,
           cursor: loading ? 'not-allowed' : 'pointer',
           opacity: loading ? 0.6 : 1,
-          fontSize:'1rem'
+          fontSize:'1rem',
+          whiteSpace:'nowrap'
         }}>
           {loading ? '⏳ Оновлення...' : '🔄 Оновити дані'}
+        </button>
+        <button 
+          onClick={()=>setShowColumnSettings(true)}
+          style={{
+            background:'#1976d2',
+            color:'#fff',
+            border:'none',
+            padding:'8px 16px',
+            borderRadius:'4px',
+            cursor:'pointer',
+            fontSize:'1rem',
+            whiteSpace:'nowrap'
+          }}
+        >
+          ⚙️ Налаштувати колонки
         </button>
       </div>
       <ModalTaskForm 
@@ -868,6 +886,8 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user, acce
         commentField="accountantComment"
         user={user}
         isArchive={activeTab === 'archive'}
+        showColumnSettings={showColumnSettings}
+        onShowColumnSettings={setShowColumnSettings}
         onHistoryClick={openClientReport}
         accessRules={accessRules}
         currentArea={currentArea}

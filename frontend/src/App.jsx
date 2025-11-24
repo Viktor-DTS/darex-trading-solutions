@@ -1510,21 +1510,13 @@ function ServiceArea({ user, accessRules, currentArea }) {
     newWindow.document.write(reportHTML);
     newWindow.document.close();
   };
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
+  
   return (
-    <div style={{padding:32}}>
-      <h2>Заявки сервісної служби</h2>
+    <div style={{padding:32, width:'100%', maxWidth:'100%', boxSizing:'border-box', overflowX:'hidden'}}>
       {loading && <div>Завантаження...</div>}
       
-      {/* Оптимізований рядок з усіма кнопками */}
-      <div style={{display:'flex',gap:8,marginBottom:24,justifyContent:'flex-start',flexWrap:'wrap',alignItems:'center'}}>
-        {hasFullAccess && <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{padding:'10px 20px',background:'#28a745',color:'#fff',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Додати заявку</button>}
-        <button onClick={()=>setActiveTab('notDone')} style={{padding:'10px 16px',background:activeTab==='notDone'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='notDone'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Невиконані заявки ({getTabCount('notDone')})</button>
-        <button onClick={()=>setActiveTab('pending')} style={{padding:'10px 16px',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
-        <button onClick={()=>setActiveTab('done')} style={{padding:'10px 16px',background:activeTab==='done'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='done'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Архів виконаних заявок ({done.length})</button>
-        <button onClick={()=>setActiveTab('blocked')} style={{padding:'10px 16px',background:activeTab==='blocked'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='blocked'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заблоковані заявки ({getTabCount('blocked')})</button>
-      </div>
-      
-      {/* Чекбокси для фільтрації відхилених заявок */}
+      {/* Перший рядок: чекбокси, кнопка налаштування колонок та кнопка додавання заявки */}
       <div style={{display:'flex',gap:16,marginBottom:16,alignItems:'center',flexWrap:'wrap'}}>
         <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:'14px',color:'#fff'}}>
           <input
@@ -1544,6 +1536,30 @@ function ServiceArea({ user, accessRules, currentArea }) {
           />
           <span>Відхилені рахунки</span>
         </label>
+        <button 
+          onClick={()=>setShowColumnSettings(true)}
+          style={{
+            background:'#1976d2',
+            color:'#fff',
+            border:'none',
+            padding:'8px 16px',
+            borderRadius:'4px',
+            cursor:'pointer',
+            fontSize:'1rem',
+            whiteSpace:'nowrap'
+          }}
+        >
+          ⚙️ Налаштувати колонки
+        </button>
+        {hasFullAccess && <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{padding:'10px 20px',background:'#28a745',color:'#fff',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Додати заявку</button>}
+      </div>
+      
+      {/* Другий рядок: вкладки */}
+      <div style={{display:'flex',gap:8,marginBottom:24,justifyContent:'flex-start',flexWrap:'wrap',alignItems:'center'}}>
+        <button onClick={()=>setActiveTab('notDone')} style={{padding:'10px 16px',background:activeTab==='notDone'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='notDone'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Невиконані заявки</button>
+        <button onClick={()=>setActiveTab('pending')} style={{padding:'10px 16px',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заявка на підтвердженні</button>
+        <button onClick={()=>setActiveTab('done')} style={{padding:'10px 16px',background:activeTab==='done'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='done'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Архів виконаних заявок</button>
+        <button onClick={()=>setActiveTab('blocked')} style={{padding:'10px 16px',background:activeTab==='blocked'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='blocked'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заблоковані заявки</button>
       </div>
       
       <ModalTaskForm 
@@ -1574,6 +1590,8 @@ function ServiceArea({ user, accessRules, currentArea }) {
         onHistoryClick={openClientReport}
         accessRules={accessRules}
         currentArea={currentArea}
+        showColumnSettings={showColumnSettings}
+        onShowColumnSettings={setShowColumnSettings}
       />
       <ServiceReminderModal
         isOpen={reminderModalOpen}
@@ -1612,6 +1630,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
   const [tab, setTab] = useState(propTab || 'tasks');
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
   // taskTab state видалено - тепер використовуємо activeTab з useLazyData
   
   // Використовуємо хук useLazyData для оптимізації
@@ -3642,15 +3661,29 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
       <div style={{display:'flex',gap:8,marginBottom:8,marginTop:40,paddingLeft:32}}>
         <RegionalManagerTabs tab={tab} setTab={setTab} />
       </div>
-    <div style={{padding:32}}>
+    <div style={{padding:32, width:'100%', maxWidth:'100%', boxSizing:'border-box', overflowX:'hidden'}}>
       {tab === 'tasks' && (
         <>
-            <h2>Завдання для регіонального керівника</h2>
-            <div style={{display:'flex',gap:8,marginBottom:16}}>
-              <button onClick={()=>setActiveTab('pending')} style={{width:220,padding:'10px 0',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',fontSize:'1rem'}}>Заявки відхилені ({getTabCount('pending')})</button>
-              <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer',fontSize:'1rem'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
-              <button onClick={()=>setActiveTab('debt')} style={{width:220,padding:'10px 0',background:activeTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='debt'?700:400,cursor:'pointer',fontSize:'1rem'}}>Заборгованість по документам ({getTabCount('debt')})</button>
-              <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer',fontSize:'1rem'}}>Експорт у Excel</button>
+            <div style={{display:'flex',gap:16,marginBottom:16,alignItems:'center',flexWrap:'wrap'}}>
+              <button onClick={()=>setActiveTab('pending')} style={{padding:'10px 16px',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заявки відхилені</button>
+              <button onClick={()=>setActiveTab('archive')} style={{padding:'10px 16px',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Архів виконаних заявок</button>
+              <button onClick={()=>setActiveTab('debt')} style={{padding:'10px 16px',background:activeTab==='debt'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='debt'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заборгованість по документам</button>
+              <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Експорт у Excel</button>
+              <button 
+                onClick={()=>setShowColumnSettings(true)}
+                style={{
+                  background:'#1976d2',
+                  color:'#fff',
+                  border:'none',
+                  padding:'8px 16px',
+                  borderRadius:'4px',
+                  cursor:'pointer',
+                  fontSize:'1rem',
+                  whiteSpace:'nowrap'
+                }}
+              >
+                ⚙️ Налаштувати колонки
+              </button>
             </div>
             <ModalTaskForm 
               open={modalOpen} 
@@ -3696,6 +3729,8 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                 isArchive={false}
                 accessRules={accessRules}
                 currentArea={currentArea}
+                showColumnSettings={showColumnSettings}
+                onShowColumnSettings={setShowColumnSettings}
               />
             ) : (
               <TaskTable
@@ -3719,6 +3754,8 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                 isArchive={activeTab === 'archive'}
                 accessRules={accessRules}
                 currentArea={currentArea}
+                showColumnSettings={showColumnSettings}
+                onShowColumnSettings={setShowColumnSettings}
               />
             )}
         </>
@@ -4356,13 +4393,16 @@ function App() {
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', paddingBottom: '70px' }}>
         <div style={{ display: 'flex', flex: 1 }}>
           <Sidebar role={user.role} onSelect={handleAreaSelect} current={currentArea} accessRules={accessRules} />
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
             <h1 style={{marginLeft:24}}>{t('company_name')}</h1>
             {(user.role === 'regional' || (user.role === 'admin' && currentArea === 'regional')) && false /* <RegionalManagerTabs tab={regionalTab} setTab={setRegionalTab} /> */}
             <div style={{
               marginLeft: 0,
               marginRight: currentArea === 'analytics' ? '0%' : '6%',
-              width: currentArea === 'analytics' ? '100%' : 'auto'
+              width: currentArea === 'analytics' ? '100%' : 'auto',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
+              overflowX: 'hidden'
             }}>
               <Area key={`${user.login}-${currentArea}`} user={user} accessRules={accessRules} currentArea={currentArea} />
             </div>

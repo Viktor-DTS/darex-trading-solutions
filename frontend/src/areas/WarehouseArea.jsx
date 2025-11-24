@@ -96,6 +96,7 @@ export default function WarehouseArea({ user, accessRules, currentArea }) {
   const [filters, setFilters] = useState(allFilterKeys);
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
   // tab state видалено - тепер використовуємо activeTab з useLazyData
   const region = user?.region || '';
   // Додаємо useEffect для оновлення filters при зміні allTaskFields
@@ -737,13 +738,30 @@ export default function WarehouseArea({ user, accessRules, currentArea }) {
     newWindow.document.close();
   };
   return (
-    <div style={{padding:32}}>
-      <h2>Завдання для затвердження (Зав. склад)</h2>
+    <div style={{padding:32, width:'100%', maxWidth:'100%', boxSizing:'border-box', overflowX:'hidden'}}>
       {loading && <div>Завантаження...</div>}
-      <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <button onClick={()=>setActiveTab('pending')} style={{width:220,padding:'10px 0',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',fontSize:'1rem'}}>Заявка на підтвердженні ({getTabCount('pending')})</button>
-        <button onClick={()=>setActiveTab('archive')} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer',fontSize:'1rem'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
+      
+      {/* Перший рядок: вкладки та кнопка налаштування колонок */}
+      <div style={{display:'flex',gap:16,marginBottom:16,alignItems:'center',flexWrap:'wrap'}}>
+        <button onClick={()=>setActiveTab('pending')} style={{padding:'10px 16px',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заявка на підтвердженні</button>
+        <button onClick={()=>setActiveTab('archive')} style={{padding:'10px 16px',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Архів виконаних заявок</button>
+        <button 
+          onClick={()=>setShowColumnSettings(true)}
+          style={{
+            background:'#1976d2',
+            color:'#fff',
+            border:'none',
+            padding:'8px 16px',
+            borderRadius:'4px',
+            cursor:'pointer',
+            fontSize:'1rem',
+            whiteSpace:'nowrap'
+          }}
+        >
+          ⚙️ Налаштувати колонки
+        </button>
       </div>
+      
       <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="warehouse" user={user} readOnly={editTask?._readOnly || false} />
       <TaskTable
         tasks={tableData}
@@ -764,6 +782,8 @@ export default function WarehouseArea({ user, accessRules, currentArea }) {
         user={user}
         isArchive={activeTab === 'archive'}
         onHistoryClick={openClientReport}
+        showColumnSettings={showColumnSettings}
+        onShowColumnSettings={setShowColumnSettings}
       />
     </div>
   );

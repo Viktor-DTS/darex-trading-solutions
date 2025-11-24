@@ -75,6 +75,8 @@ function TaskTableComponent({
   uploadingFiles = new Set(),
   accessRules = {},
   currentArea = null,
+  showColumnSettings: externalShowColumnSettings = undefined,
+  onShowColumnSettings: externalOnShowColumnSettings = undefined,
 }) {
   // console.log('[LOG] TaskTable received columns:', columns);
   // console.log('[LOG] TaskTable role:', role);
@@ -89,7 +91,21 @@ function TaskTableComponent({
   // console.log('[LOG] TaskTable uploadingFiles:', uploadingFiles);
   
   // Всі хуки повинні бути на початку компонента
-  const [showSettings, setShowSettings] = useState(false);
+  const [internalShowSettings, setInternalShowSettings] = useState(false);
+  // Використовуємо зовнішній стан, якщо він переданий, інакше внутрішній
+  // Використовуємо useMemo для правильного оновлення при зміні externalShowColumnSettings
+  const showSettings = useMemo(() => {
+    return externalShowColumnSettings !== undefined ? externalShowColumnSettings : internalShowSettings;
+  }, [externalShowColumnSettings, internalShowSettings]);
+  const setShowSettings = useCallback((value) => {
+    if (externalOnShowColumnSettings !== undefined) {
+      externalOnShowColumnSettings(value);
+    } else {
+      setInternalShowSettings(value);
+    }
+  }, [externalOnShowColumnSettings]);
+  
+  
   const [infoTask, setInfoTask] = useState(null);
   const [showInfo, setShowInfo] = useState(false);
   const [sortField, setSortField] = useState('requestDate');
@@ -101,6 +117,34 @@ function TaskTableComponent({
   const [documentUploadModal, setDocumentUploadModal] = useState({ open: false, task: null });
   const [modalKey, setModalKey] = useState(0);
   const [regions, setRegions] = useState([]);
+  const [tableHeight, setTableHeight] = useState('calc(100vh - 350px)');
+  
+  // Динамічне обчислення висоти таблиці на основі висоти екрана
+  useEffect(() => {
+    const updateTableHeight = () => {
+      const viewportHeight = window.innerHeight;
+      // Враховуємо масштабування 0.75 - реальна висота viewport більша
+      const scaledViewportHeight = viewportHeight / 0.75;
+      // Враховуємо висоту інших елементів: чекбокси (~60px), вкладки (~60px), фільтри (~100px), padding та інші елементи (~130px)
+      // Додаємо додатковий відступ для безпеки
+      const reservedHeight = 380;
+      const calculatedHeight = Math.max(300, scaledViewportHeight - reservedHeight);
+      setTableHeight(`${calculatedHeight}px`);
+    };
+    
+    // Обчислюємо висоту після завантаження DOM
+    const timeoutId = setTimeout(() => {
+      updateTableHeight();
+    }, 100);
+    
+    updateTableHeight();
+    window.addEventListener('resize', updateTableHeight);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', updateTableHeight);
+    };
+  }, []);
   
   // Перевіряємо права доступу для поточної області
   const hasFullAccess = accessRules && user && accessRules[user.role] && accessRules[user.role][currentArea] === 'full';
@@ -3481,39 +3525,45 @@ function TaskTableComponent({
     <>
       {/* Вкладки, фільтри, кнопки — окремий контейнер */}
       <div style={{marginBottom: 24}}>
-        <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:16}}>
-          <button 
-            onClick={()=>setShowSettings(true)}
-            style={{
-              background:'#1976d2',
-              color:'#fff',
-              border:'none',
-              padding:'8px 16px',
-              borderRadius:'4px',
-              cursor:'pointer',
-              fontSize:'1rem'
-            }}
-          >
-            ⚙️ Налаштувати колонки
-          </button>
-        </div>
+        {/* Показуємо кнопку "Налаштувати колонки" тільки якщо не передано зовнішній стан (для ролі service кнопка винесена в App.jsx) */}
+        {externalShowColumnSettings === undefined && (
+          <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:16}}>
+            <button 
+              onClick={()=>setShowSettings(true)}
+              style={{
+                background:'#1976d2',
+                color:'#fff',
+                border:'none',
+                padding:'8px 16px',
+                borderRadius:'4px',
+                cursor:'pointer',
+                fontSize:'1rem'
+              }}
+            >
+              ⚙️ Налаштувати колонки
+            </button>
+          </div>
+        )}
         {showSettings && (
           <ColumnSettings
             allColumns={allColumns}
             selected={selected}
             onChange={setSelected}
-            onClose={()=>setShowSettings(false)}
-            onSave={saveSettings}
+            onClose={() => setShowSettings(false)}
+            onSave={(selectedCols) => {
+              saveSettings(selectedCols);
+              setShowSettings(false);
+            }}
           />
         )}
         {/* СПІЛЬНИЙ КОНТЕЙНЕР для фільтрів і таблиці */}
-        <div style={{width:'97vw',maxWidth:'none',margin:'0 auto', background:'#fff', borderRadius:'8px', padding:'16px', position:'relative', zIndex:10}}>
+        <div style={{width:'100%',maxWidth:'100%',margin:'0 auto', background:'#fff', borderRadius:'8px', padding:'16px', position:'relative', zIndex:10, boxSizing:'border-box', overflowX:'hidden'}}>
           {/* Окремий контейнер для таблиці з sticky-заголовками */}
           <style>{`
             .table-scroll {
-              max-height: 70vh;
-              min-height: 400px;
-              overflow: scroll;
+              /* max-height встановлюється через inline стилі для динамічного обчислення */
+              min-height: 300px;
+              overflow: auto;
               width: 100%;
               background: #fff !important;
               border-radius: 8px;
@@ -3702,7 +3752,22 @@ function TaskTableComponent({
               margin-right: 0 !important;
             }
           `}</style>
-          <div className="table-scroll">
+          <div 
+            className="table-scroll"
+            style={{
+              maxHeight: tableHeight,
+              minHeight: '300px',
+              overflowY: 'auto',
+              overflowX: 'auto',
+              width: '100%',
+              maxWidth: '100%',
+              background: '#fff',
+              borderRadius: '8px',
+              position: 'relative',
+              zIndex: 5,
+              boxSizing: 'border-box'
+            }}
+          >
             <table className="sticky-table">
               <thead>
                 <tr>
@@ -4583,16 +4648,12 @@ const TaskTable = React.memo(TaskTableComponent, (prevProps, nextProps) => {
   const tasksEqual = prevProps.tasks.length === nextProps.tasks.length && 
     prevProps.tasks.every((task, index) => task.id === nextProps.tasks[index]?.id);
   
-  const criticalPropsEqual = userLoginEqual && roleEqual && columnsLengthEqual && filtersEqual && tasksEqual;
+  // Порівнюємо showColumnSettings та onShowColumnSettings для правильного оновлення
+  const showColumnSettingsEqual = prevProps.showColumnSettings === nextProps.showColumnSettings;
+  const onShowColumnSettingsEqual = prevProps.onShowColumnSettings === nextProps.onShowColumnSettings;
   
-  console.log('[DEBUG] TaskTable memo comparison:', {
-    userLoginEqual,
-    roleEqual,
-    columnsLengthEqual,
-    filtersEqual,
-    tasksEqual,
-    shouldUpdate: !criticalPropsEqual
-  });
+  const criticalPropsEqual = userLoginEqual && roleEqual && columnsLengthEqual && filtersEqual && tasksEqual && showColumnSettingsEqual && onShowColumnSettingsEqual;
+  
   
   return criticalPropsEqual;
 });
@@ -4605,7 +4666,9 @@ export default React.memo(TaskTable, (prevProps, nextProps) => {
     prevProps.columns === nextProps.columns &&
     prevProps.role === nextProps.role &&
     prevProps.user === nextProps.user &&
-    prevProps.onFilterChange === nextProps.onFilterChange
+    prevProps.onFilterChange === nextProps.onFilterChange &&
+    prevProps.showColumnSettings === nextProps.showColumnSettings &&
+    prevProps.onShowColumnSettings === nextProps.onShowColumnSettings
   );
   
   // Якщо критичні пропси не змінилися, не перерендерюємо

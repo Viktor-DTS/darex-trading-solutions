@@ -178,6 +178,7 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
   const [taskInfoModalOpen, setTaskInfoModalOpen] = useState(false);
   const [selectedTaskInfo, setSelectedTaskInfo] = useState(null);
   const [showAllInvoices, setShowAllInvoices] = useState(false);
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [tableKey, setTableKey] = useState(0);
   const [fileViewer, setFileViewer] = useState({ open: false, fileUrl: '', fileName: '' });
@@ -1937,7 +1938,7 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
     newWindow.document.close();
   };
   return (
-    <div style={{padding:32}}>
+    <div style={{padding:32, width:'100%', maxWidth:'100%', boxSizing:'border-box', overflowX:'hidden'}}>
       <style>
         {`
           @keyframes spin {
@@ -1946,12 +1947,28 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
           }
         `}
       </style>
-      <h2>Заявки на рахунки (Бух. рахунки)</h2>
       {loading && <div>Завантаження...</div>}
-      <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <button onClick={()=>setActiveTab('invoiceRequests')} style={{width:220,padding:'10px 0',background:activeTab==='invoiceRequests'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='invoiceRequests'?700:400,cursor:'pointer',fontSize:'1rem'}}>📋 Заявка на рахунок ({invoiceRequests.length})</button>
-        <button onClick={()=>setReportsModalOpen(true)} style={{width:220,padding:'10px 0',background:'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:400,cursor:'pointer',fontSize:'1rem'}}>📊 Бухгалтерські звіти</button>
-        <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer',fontSize:'1rem'}}>Експорт у Excel</button>
+      
+      {/* Перший рядок: вкладки, кнопки та налаштування колонок */}
+      <div style={{display:'flex',gap:16,marginBottom:16,alignItems:'center',flexWrap:'wrap'}}>
+        <button onClick={()=>setActiveTab('invoiceRequests')} style={{padding:'10px 16px',background:activeTab==='invoiceRequests'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='invoiceRequests'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>📋 Заявка на рахунок</button>
+        <button onClick={()=>setReportsModalOpen(true)} style={{padding:'10px 16px',background:'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>📊 Бухгалтерські звіти</button>
+        <button onClick={exportFilteredToExcel} style={{background:'#43a047',color:'#fff',border:'none',borderRadius:6,padding:'8px 20px',fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Експорт у Excel</button>
+        <button 
+          onClick={()=>setShowColumnSettings(true)}
+          style={{
+            background:'#1976d2',
+            color:'#fff',
+            border:'none',
+            padding:'8px 16px',
+            borderRadius:'4px',
+            cursor:'pointer',
+            fontSize:'1rem',
+            whiteSpace:'nowrap'
+          }}
+        >
+          ⚙️ Налаштувати колонки
+        </button>
         <button onClick={() => {
           console.log('[DEBUG] AccountantArea - кнопка "Оновити дані" натиснута');
           refreshCache();
@@ -2686,6 +2703,8 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
             onSaveColumns={handleSaveInvoiceRequestsColumns}
             onCompleteInvoiceRequest={handleCompleteInvoiceRequest}
             onInvoiceUpload={uploadInvoiceFile}
+            showColumnSettings={showColumnSettings}
+            onShowColumnSettings={setShowColumnSettings}
             onActUpload={uploadActFile}
             onInvoiceDelete={deleteInvoiceFile}
             onActDelete={deleteActFile}
@@ -2718,6 +2737,8 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
         isArchive={false}
         onHistoryClick={openClientReport}
         onInvoiceUpload={uploadInvoiceFile}
+        showColumnSettings={showColumnSettings}
+        onShowColumnSettings={setShowColumnSettings}
         onActUpload={uploadActFile}
         onInvoiceDelete={deleteInvoiceFile}
         onActDelete={deleteActFile}
@@ -2791,6 +2812,8 @@ const AccountantArea = memo(function AccountantArea({ user, accessRules, current
             isArchive={activeTab === 'archive'}
             onHistoryClick={openClientReport}
             onInvoiceUpload={uploadInvoiceFile}
+            showColumnSettings={showColumnSettings}
+            onShowColumnSettings={setShowColumnSettings}
             onActUpload={uploadActFile}
             onInvoiceDelete={deleteInvoiceFile}
             onActDelete={deleteActFile}

@@ -78,6 +78,7 @@ export default function OperatorArea({ user, accessRules, currentArea }) {
   }
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
   
   // Використовуємо хук useLazyData для оптимізації
   const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, getTabCount } = useLazyData(user, 'inProgress');
@@ -509,14 +510,31 @@ export default function OperatorArea({ user, accessRules, currentArea }) {
     newWindow.document.close();
   };
   return (
-    <div style={{padding:32}}>
-      <h2>Заявки оператора</h2>
+    <div style={{padding:32, width:'100%', maxWidth:'100%', boxSizing:'border-box', overflowX:'hidden'}}>
       {loading && <div>Завантаження...</div>}
-      <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <button onClick={()=>{setActiveTab('inProgress')}} style={{width:220,padding:'10px 0',background:activeTab==='inProgress'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='inProgress'?700:400,cursor:'pointer',fontSize:'1rem'}}>Заявки на виконанні ({getTabCount('inProgress')})</button>
-        <button onClick={()=>{setActiveTab('archive')}} style={{width:220,padding:'10px 0',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer',fontSize:'1rem'}}>Архів виконаних заявок ({getTabCount('archive')})</button>
+      
+      {/* Перший рядок: вкладки, кнопка налаштування колонок та кнопка додавання заявки */}
+      <div style={{display:'flex',gap:16,marginBottom:16,alignItems:'center',flexWrap:'wrap'}}>
+        <button onClick={()=>{setActiveTab('inProgress')}} style={{padding:'10px 16px',background:activeTab==='inProgress'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='inProgress'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заявки на виконанні</button>
+        <button onClick={()=>{setActiveTab('archive')}} style={{padding:'10px 16px',background:activeTab==='archive'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='archive'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Архів виконаних заявок</button>
+        {hasFullAccess && <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{padding:'10px 20px',background:'#28a745',color:'#fff',border:'none',borderRadius:8,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Додати заявку</button>}
+        <button 
+          onClick={()=>setShowColumnSettings(true)}
+          style={{
+            background:'#1976d2',
+            color:'#fff',
+            border:'none',
+            padding:'8px 16px',
+            borderRadius:'4px',
+            cursor:'pointer',
+            fontSize:'1rem',
+            whiteSpace:'nowrap'
+          }}
+        >
+          ⚙️ Налаштувати колонки
+        </button>
       </div>
-      {hasFullAccess && <button onClick={()=>{setEditTask(null);setModalOpen(true);}} style={{marginBottom:16,fontSize:'1rem'}}>Додати заявку</button>}
+      
       <ModalTaskForm open={modalOpen} onClose={()=>{setModalOpen(false);setEditTask(null);}} onSave={handleSave} initialData={editTask || {}} mode="operator" user={user} readOnly={editTask?._readOnly || false} />
       <TaskTable
         tasks={tableData}
@@ -536,6 +554,8 @@ export default function OperatorArea({ user, accessRules, currentArea }) {
         user={user}
         isArchive={activeTab === 'archive'}
         onHistoryClick={openClientReport}
+        showColumnSettings={showColumnSettings}
+        onShowColumnSettings={setShowColumnSettings}
       />
     </div>
   );
