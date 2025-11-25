@@ -3240,6 +3240,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
         <table class="details">
           <thead>
             <tr>
+              <th>№</th>
               <th>Номер заявки</th>
               <th>Дата</th>
               <th>Інженер</th>
@@ -3254,11 +3255,12 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
             </tr>
           </thead>
           <tbody>
-            ${regionTasks.map(t => {
+            ${regionTasks.map((t, index) => {
               const bonus = (parseFloat(t.workPrice) || 0) * 0.25;
               const workPrice = parseFloat(t.workPrice) || 0;
               return `
                 <tr>
+                  <td>${index + 1}</td>
                   <td>${t.requestNumber || ''}</td>
                   <td>${t.date || ''}</td>
                   <td>${[
@@ -3281,7 +3283,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
               `;
             }).join('')}
             <tr style="background-color: #e9ecef; font-weight: bold;">
-              <td colspan="8" style="text-align: right; padding: 8px;">ЗАГАЛЬНА СУМА:</td>
+              <td colspan="9" style="text-align: right; padding: 8px;">ЗАГАЛЬНА СУМА:</td>
               <td style="text-align: center; padding: 8px;">${totalServiceSum.toFixed(2)}</td>
               <td style="text-align: center; padding: 8px;">${totalWorkPrice.toFixed(2)}</td>
               <td style="text-align: center; padding: 8px;">${totalBonus.toFixed(2)}</td>
