@@ -1912,12 +1912,12 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
   // Додаю окремий стан для звіту за період
   const [reportResultByPeriod, setReportResultByPeriod] = useState(null);
   // --- Масив співробітників для табеля ---
+  // Примітка: не виключаємо звільнених тут, оскільки фільтрація буде в звітах на основі чекбокса
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
       // Якщо користувач має роль 'service'
       if (u.role !== 'service') return false;
-      // Виключаємо звільнених користувачів
-      if (u.dismissed) return false;
+      // Не виключаємо звільнених тут - фільтрація буде в звітах на основі чекбокса
       // Якщо регіон користувача "Україна" - показуємо всіх
       if (user?.region === 'Україна') return true;
       // Якщо регіон користувача не "Україна" - показуємо тільки його регіон
@@ -2554,11 +2554,10 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
   };
   const handleGenerateReport = async () => {
     // Використовуємо ту ж логіку фільтрації, що й для основного filteredUsers
+    // Не виключаємо звільнених тут - фільтрація буде після розрахунку загальної суми
     const filteredUsers = users.filter(u => {
       // Якщо користувач має роль 'service'
       if (u.role !== 'service') return false;
-      // Виключаємо звільнених користувачів
-      if (u.dismissed) return false;
       // Якщо регіон користувача "Україна" - показуємо всіх
       if (user?.region === 'Україна') return true;
       // Якщо регіон користувача не "Україна" - показуємо тільки його регіон
@@ -2733,6 +2732,13 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
             }
           });
           const payout = basePay + overtimePay + bonus + engineerBonus + weekendOvertimePay;
+          
+          // Логіка фільтрації: виключаємо звільнених тільки якщо чекбокс не активований
+          const isDismissed = u.dismissed === true || u.dismissed === 'true' || u.dismissed === 1;
+          if (isDismissed && !showDismissed) {
+            return null; // Не показуємо звільнених, якщо чекбокс не активований
+          }
+          
           return (
             <div key={u.id || u._id} style={{background:'#f8fafc',border:'2px solid #1976d2',borderRadius:12,margin:'24px 0',padding:'18px 18px 8px 18px',boxShadow:'0 2px 12px #0001'}}>
               <div style={{fontWeight:700,fontSize:20,marginBottom:8,color:'#1976d2',letterSpacing:1}}>{u.name}</div>
@@ -2859,6 +2865,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
   // Додаю стан для звіту
   const [showTimeReport, setShowTimeReport] = useState(false);
   const [timeReportContent, setTimeReportContent] = useState(null);
+  const [showDismissed, setShowDismissed] = useState(false); // Чекбокс для показу звільнених працівників
   // Функція формування звіту у новому вікні
   const handleFormTimeReport = () => {
     // Додаю детальний вивід задач для діагностики
@@ -2882,10 +2889,18 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     const generateRegionReport = (region) => {
       const regionUsers = filteredUsers.filter(u => (u.region || 'Без регіону') === region);
       
-      // Фільтруємо користувачів з нульовою загальною сумою по оплаті та виключаємо звільнених
+      // Фільтруємо користувачів з нульовою загальною сумою по оплаті
+      // Якщо чекбокс "Показати всіх працівників" не активований, виключаємо звільнених
+      console.log(`[REPORT] generateRegionReport для регіону ${region}, showDismissed=${showDismissed}, regionUsers=${regionUsers.length}`);
       const usersWithPayment = regionUsers.filter(u => {
-        // Виключаємо звільнених користувачів
-        if (u.dismissed) return false;
+        // Перевіряємо, чи користувач звільнений
+        const isDismissed = u.dismissed === true || u.dismissed === 'true' || u.dismissed === 1;
+        console.log(`[REPORT] Користувач ${u.name}: dismissed=${u.dismissed}, isDismissed=${isDismissed}, showDismissed=${showDismissed}`);
+        // Виключаємо звільнених користувачів, якщо чекбокс не активований
+        if (isDismissed && !showDismissed) {
+          console.log(`[REPORT] Виключаємо звільненого користувача ${u.name}`);
+          return false;
+        }
         const total = data[u.id || u._id]?.total || 0;
         const salary = Number(payData[u.id || u._id]?.salary) || 25000;
         const bonus = Number(payData[u.id || u._id]?.bonus) || 0;
@@ -2980,7 +2995,11 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
         const effectiveNormalHours = engineerBonus > 0 && normalHours === 0 ? 1 : normalHours;
         const adjustedBasePay = Math.round(salary * Math.min(effectiveNormalHours, summary.workHours) / summary.workHours);
         const payout = adjustedBasePay + overtimePay + bonus + engineerBonus + weekendOvertimePay;
-        // Включаємо користувачів тільки з "Загальна сума по оплаті за місяць" більша за нуль
+        
+        // Логіка фільтрації:
+        // - Якщо чекбокс активований (showDismissed = true) - показуємо всіх з payout > 0
+        // - Якщо чекбокс не активований (showDismissed = false) - показуємо тільки незвільнених з payout > 0
+        // Звільнені вже відфільтровані вище, якщо чекбокс не активований
         return payout > 0;
       });
       // Формування таблиці нарахувань для регіону
@@ -3874,12 +3893,27 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
               </select>
             </label>
                         </div>
-          <button
-            onClick={handleFormTimeReport}
-            style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer',marginBottom:16}}
-          >
-            Сформувати звіт
-          </button>
+          <div style={{display:'flex', alignItems:'center', gap:16, marginBottom:16}}>
+            <label style={{display:'flex', alignItems:'center', gap:8, color:'#fff', cursor:'pointer'}}>
+              <input 
+                type="checkbox" 
+                checked={showDismissed}
+                onChange={(e) => setShowDismissed(e.target.checked)}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  cursor: 'pointer'
+                }}
+              />
+              <span>Показати всіх працівників (включно зі звільненими)</span>
+            </label>
+            <button
+              onClick={handleFormTimeReport}
+              style={{background:'#1976d2',color:'#fff',border:'none',borderRadius:6,padding:'10px 32px',fontWeight:600,cursor:'pointer'}}
+            >
+              Сформувати звіт
+            </button>
+          </div>
           {showTimeReport && timeReportContent}
           {showRegions.map(region => (
             <div key={region} style={{marginBottom:40}}>
@@ -3904,7 +3938,14 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                         </tr>
                       </thead>
                       <tbody>
-                          {filteredUsers.filter(u => (u.region || 'Без регіону') === region).map((u, idx) => (
+                          {filteredUsers.filter(u => {
+                            const matchesRegion = (u.region || 'Без регіону') === region;
+                            if (!matchesRegion) return false;
+                            // Якщо чекбокс "Показати всіх працівників" не активований, виключаємо звільнених
+                            const isDismissed = u.dismissed === true || u.dismissed === 'true' || u.dismissed === 1;
+                            if (isDismissed && !showDismissed) return false;
+                            return true;
+                          }).map((u, idx) => (
                           <tr key={u.id || u._id}>
                             <td style={{background:'#ffe600', color:'#222', fontWeight:600}}>{idx+1}</td>
                             <td style={{width:160, minWidth:120, maxWidth:220}}>{u.name}</td>
@@ -3959,7 +4000,14 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredUsers.filter(u => (u.region || 'Без регіону') === region).map(u => {
+                        {filteredUsers.filter(u => {
+                          const matchesRegion = (u.region || 'Без регіону') === region;
+                          if (!matchesRegion) return false;
+                          // Якщо чекбокс "Показати всіх працівників" не активований, виключаємо звільнених
+                          const isDismissed = u.dismissed === true || u.dismissed === 'true' || u.dismissed === 1;
+                          if (isDismissed && !showDismissed) return false;
+                          return true;
+                        }).map(u => {
                           const total = data[u.id || u._id]?.total || 0;
                           const salary = Number(payData[u.id || u._id]?.salary) || 25000;
                           const bonus = Number(payData[u.id || u._id]?.bonus) || 0;

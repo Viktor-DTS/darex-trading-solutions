@@ -11,7 +11,8 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
   });
   const [personnelFilters, setPersonnelFilters] = useState({
     month: new Date().getMonth() + 1, // Поточний місяць
-    year: new Date().getFullYear() // Поточний рік
+    year: new Date().getFullYear(), // Поточний рік
+    showDismissed: false // Чекбокс для показу звільнених працівників
   });
   const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -218,8 +219,17 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       console.log('[PERSONNEL REPORT] DEBUG: monthIndex:', monthIndex, 'monthName:', monthName);
       console.log('[PERSONNEL REPORT] Report title:', reportTitle);
       
-      // Отримуємо всіх інженерів (service роль), виключаючи звільнених
-      const allEngineers = users.filter(u => u.role === 'service' && !u.dismissed);
+      // Отримуємо всіх інженерів (service роль)
+      // Якщо чекбокс "Показати всіх працівників" не активований, виключаємо звільнених
+      const allEngineers = users.filter(u => {
+        if (u.role !== 'service') return false;
+        const isDismissed = u.dismissed === true || u.dismissed === 'true' || u.dismissed === 1;
+        // Якщо чекбокс не активований, виключаємо звільнених
+        if (isDismissed && !personnelFilters.showDismissed) {
+          return false;
+        }
+        return true;
+      });
       console.log('[PERSONNEL REPORT] All engineers found:', allEngineers.length);
       console.log('[PERSONNEL REPORT] All users roles:', users.map(u => ({name: u.name, role: u.role})));
       console.log('[PERSONNEL REPORT] Engineers details:', allEngineers.map(e => ({name: e.name, region: e.region, id: e.id || e._id})));
@@ -387,9 +397,17 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         console.log(`[PERSONNEL REPORT] Generating report for region: ${region}`);
         const regionTasks = regionGroups[region] || [];
         const regionTasksForBonuses = regionGroupsForBonuses[region] || [];
-        const regionEngineers = allEngineers.filter(engineer => 
-          (engineer.region === region || engineer.region === 'Україна') && !engineer.dismissed
-        );
+        // Фільтруємо інженерів по регіону
+        // Якщо чекбокс "Показати всіх працівників" не активований, виключаємо звільнених
+        const regionEngineers = allEngineers.filter(engineer => {
+          const matchesRegion = engineer.region === region || engineer.region === 'Україна';
+          const isDismissed = engineer.dismissed === true || engineer.dismissed === 'true' || engineer.dismissed === 1;
+          // Якщо чекбокс не активований, виключаємо звільнених
+          if (isDismissed && !personnelFilters.showDismissed) {
+            return false;
+          }
+          return matchesRegion;
+        });
         console.log(`[PERSONNEL REPORT] Region ${region}: tasks=${regionTasks.length}, tasksForBonuses=${regionTasksForBonuses.length}, engineers=${regionEngineers.length}`);
         console.log(`[PERSONNEL REPORT] Region ${region}: engineers details:`, regionEngineers.map(e => ({name: e.name, region: e.region})));
         console.log(`[PERSONNEL REPORT] Region ${region}: Using monthly tasks for both timesheet and bonuses (like regional manager)`);
@@ -436,12 +454,17 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           
           console.log(`[PERSONNEL REPORT] Engineers found in tasks:`, Array.from(engineersFromTasks));
           
-          // Створюємо об'єкти інженерів для тих, хто згадується в завданнях, виключаючи звільнених
+          // Створюємо об'єкти інженерів для тих, хто згадується в завданнях
+          // Якщо чекбокс "Показати всіх працівників" не активований, виключаємо звільнених
           usersWithPayment = Array.from(engineersFromTasks)
             .filter(engineerName => {
-              // Перевіряємо, чи інженер є в списку users і чи він не звільнений
               const user = users.find(u => (u.name || '').trim() === engineerName);
-              return !user || !user.dismissed;
+              const isDismissed = user?.dismissed === true || user?.dismissed === 'true' || user?.dismissed === 1;
+              // Якщо чекбокс не активований, виключаємо звільнених
+              if (isDismissed && !personnelFilters.showDismissed) {
+                return false;
+              }
+              return true; // Показуємо всіх, якщо чекбокс активований або користувач не звільнений
             })
             .map(engineerName => ({
               name: engineerName,
@@ -1199,6 +1222,23 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
                 <option value={2026}>2026</option>
               </select>
             </div>
+          </div>
+
+          {/* Чекбокс для показу звільнених працівників */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#333' }}>
+              <input 
+                type="checkbox" 
+                checked={personnelFilters.showDismissed || false}
+                onChange={(e) => setPersonnelFilters(prev => ({ ...prev, showDismissed: e.target.checked }))}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  cursor: 'pointer'
+                }}
+              />
+              <span style={{ fontWeight: '500' }}>Показати всіх працівників (включно зі звільненими)</span>
+            </label>
           </div>
 
           {/* Кнопка формування звіту */}
