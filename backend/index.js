@@ -542,6 +542,7 @@ const userSchema = new mongoose.Schema({
   id: Number,
   telegramChatId: String,
   lastActivity: { type: Date, default: Date.now },
+  dismissed: { type: Boolean, default: false },
   notificationSettings: {
     newRequests: { type: Boolean, default: false },
     pendingApproval: { type: Boolean, default: false },
@@ -552,7 +553,7 @@ const userSchema = new mongoose.Schema({
     completedInvoices: { type: Boolean, default: false },
     systemNotifications: { type: Boolean, default: false }
   }
-});
+}, { strict: false }); // Дозволяємо зберігати додаткові поля
 const User = mongoose.model('User', userSchema);
 
 const roleSchema = new mongoose.Schema({
@@ -934,19 +935,29 @@ app.post('/api/users', requireAdmin, async (req, res) => {
     addLog(`📝 Updating user: ${userData.login}`, 'info');
     console.log('[DEBUG] POST /api/users - отримано дані:', JSON.stringify(userData, null, 2));
     
-    let user = await User.findOne({ login: userData.login });
-    if (user) {
-      console.log('[DEBUG] Оновлюємо існуючого користувача:', userData.login);
-      Object.assign(user, userData);
-      await user.save();
-      addLog(`✅ User updated: ${userData.login}`, 'success');
-      console.log('[DEBUG] Користувача оновлено:', userData.login, 'telegramChatId:', user.telegramChatId);
-    } else {
-      console.log('[DEBUG] Створюємо нового користувача:', userData.login);
-      user = new User({ ...userData, id: Date.now() });
-      await user.save();
-      console.log('[DEBUG] Користувача створено:', userData.login, 'telegramChatId:', user.telegramChatId);
+    // Використовуємо findOneAndUpdate для гарантованого збереження всіх полів
+    const updateData = { ...userData };
+    // Переконуємось, що dismissed є булевим значенням
+    if (updateData.dismissed !== undefined) {
+      updateData.dismissed = updateData.dismissed === true || updateData.dismissed === 'true' || updateData.dismissed === 1;
     }
+    
+    console.log('[DEBUG] Оновлюємо користувача:', userData.login);
+    console.log('[DEBUG] Дані для оновлення:', JSON.stringify(updateData, null, 2));
+    console.log('[DEBUG] dismissed значення:', updateData.dismissed, 'тип:', typeof updateData.dismissed);
+    
+    const user = await User.findOneAndUpdate(
+      { login: userData.login },
+      { $set: updateData },
+      { new: true, upsert: true, runValidators: false }
+    );
+    
+    addLog(`✅ User updated: ${userData.login}`, 'success');
+    console.log('[DEBUG] Користувача оновлено:', userData.login, 'dismissed:', user.dismissed);
+    
+    // Перевіряємо, що поле збереглося
+    const savedUser = await User.findOne({ login: userData.login }).lean();
+    console.log('[DEBUG] Перевірка після збереження - dismissed:', savedUser.dismissed, 'тип:', typeof savedUser.dismissed);
     res.json({ success: true, message: 'Користувача збережено' });
   } catch (error) {
     console.error('[ERROR] POST /api/users - помилка:', error);
@@ -6413,7 +6424,13 @@ app.get('/api/users/with-telegram', async (req, res) => {
 app.get('/api/users', async (req, res) => {
   try {
     addLog('📋 Loading users list', 'info');
-    const users = await executeWithRetry(() => User.find({}, 'login password name role region telegramChatId notificationSettings'));
+    const users = await executeWithRetry(() => User.find({}).lean());
+    // Перевіряємо, чи поле dismissed є в даних
+    const usersWithDismissed = users.filter(u => u.dismissed !== undefined);
+    console.log('[DEBUG] GET /api/users - знайдено користувачів з полем dismissed:', usersWithDismissed.length, 'з', users.length);
+    if (users.length > 0) {
+      console.log('[DEBUG] GET /api/users - приклад користувача:', { login: users[0].login, dismissed: users[0].dismissed });
+    }
     addLog(`✅ Found ${users.length} users`, 'success');
     res.json(users);
   } catch (error) {

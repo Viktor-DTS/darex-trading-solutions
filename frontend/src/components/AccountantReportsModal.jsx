@@ -218,8 +218,8 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
       console.log('[PERSONNEL REPORT] DEBUG: monthIndex:', monthIndex, 'monthName:', monthName);
       console.log('[PERSONNEL REPORT] Report title:', reportTitle);
       
-      // Отримуємо всіх інженерів (service роль)
-      const allEngineers = users.filter(u => u.role === 'service');
+      // Отримуємо всіх інженерів (service роль), виключаючи звільнених
+      const allEngineers = users.filter(u => u.role === 'service' && !u.dismissed);
       console.log('[PERSONNEL REPORT] All engineers found:', allEngineers.length);
       console.log('[PERSONNEL REPORT] All users roles:', users.map(u => ({name: u.name, role: u.role})));
       console.log('[PERSONNEL REPORT] Engineers details:', allEngineers.map(e => ({name: e.name, region: e.region, id: e.id || e._id})));
@@ -388,7 +388,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         const regionTasks = regionGroups[region] || [];
         const regionTasksForBonuses = regionGroupsForBonuses[region] || [];
         const regionEngineers = allEngineers.filter(engineer => 
-          engineer.region === region || engineer.region === 'Україна'
+          (engineer.region === region || engineer.region === 'Україна') && !engineer.dismissed
         );
         console.log(`[PERSONNEL REPORT] Region ${region}: tasks=${regionTasks.length}, tasksForBonuses=${regionTasksForBonuses.length}, engineers=${regionEngineers.length}`);
         console.log(`[PERSONNEL REPORT] Region ${region}: engineers details:`, regionEngineers.map(e => ({name: e.name, region: e.region})));
@@ -436,13 +436,19 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           
           console.log(`[PERSONNEL REPORT] Engineers found in tasks:`, Array.from(engineersFromTasks));
           
-          // Створюємо об'єкти інженерів для тих, хто згадується в завданнях
-          usersWithPayment = Array.from(engineersFromTasks).map(engineerName => ({
-            name: engineerName,
-            region: region,
-            id: `temp_${engineerName.replace(/\s+/g, '_')}`,
-            role: 'service' // Призначаємо ролю service для відображення
-          }));
+          // Створюємо об'єкти інженерів для тих, хто згадується в завданнях, виключаючи звільнених
+          usersWithPayment = Array.from(engineersFromTasks)
+            .filter(engineerName => {
+              // Перевіряємо, чи інженер є в списку users і чи він не звільнений
+              const user = users.find(u => (u.name || '').trim() === engineerName);
+              return !user || !user.dismissed;
+            })
+            .map(engineerName => ({
+              name: engineerName,
+              region: region,
+              id: `temp_${engineerName.replace(/\s+/g, '_')}`,
+              role: 'service' // Призначаємо ролю service для відображення
+            }));
           
           console.log(`[PERSONNEL REPORT] Created engineer objects:`, usersWithPayment);
         }

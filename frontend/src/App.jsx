@@ -442,6 +442,11 @@ function AdminSystemParamsArea({ user }) {
       setIsLoading(true);
       try {
         const usersData = await columnsSettingsAPI.getAllUsers();
+        console.log('[DEBUG] Завантажено користувачів:', usersData.length);
+        // Перевіряємо, чи поле dismissed завантажується
+        const usersWithDismissed = usersData.filter(u => u.dismissed !== undefined);
+        console.log('[DEBUG] Користувачі з полем dismissed:', usersWithDismissed.length);
+        console.log('[DEBUG] Приклад користувача:', usersData[0] ? { login: usersData[0].login, dismissed: usersData[0].dismissed } : 'немає користувачів');
         setUsers(usersData);
       } catch (error) {
         console.error('Помилка завантаження користувачів:', error);
@@ -626,7 +631,8 @@ function AdminSystemParamsArea({ user }) {
       role: user.role,
       name: user.name,
       region: user.region,
-      telegramChatId: user.telegramChatId || ''
+      telegramChatId: user.telegramChatId || '',
+      dismissed: user.dismissed || false
     });
   };
   const handleTelegramChange = (userId, telegramChatId) => {
@@ -674,8 +680,8 @@ function AdminSystemParamsArea({ user }) {
         console.log('Пароль успішно збережено для:', user.login);
         // Оновлюємо локальний стан
         setUsers(users.map(u => 
-          u.id === userId 
-            ? { ...u, password } 
+          u.id === userId
+            ? { ...u, password }
             : u
         ));
       } else {
@@ -685,6 +691,62 @@ function AdminSystemParamsArea({ user }) {
     } catch (error) {
       console.error('Помилка збереження пароля:', error);
       alert('Помилка збереження пароля: ' + error.message);
+    }
+  };
+
+  const handleDismissedToggle = async (userId, dismissed) => {
+    try {
+      // Знаходимо користувача
+      const user = users.find(u => (u.id || u._id) === userId);
+      if (!user) {
+        console.error('Користувача не знайдено для ID:', userId);
+        return;
+      }
+      
+      // Оновлюємо локальний стан для миттєвого відображення
+      setUsers(prevUsers => prevUsers.map(u => {
+        const currentId = u.id || u._id;
+        return currentId === userId
+          ? { ...u, dismissed: dismissed }
+          : u;
+      }));
+      
+      // Зберігаємо на сервері
+      const updatedUser = { ...user, dismissed: dismissed };
+      console.log('[DEBUG] Відправляємо дані користувача:', JSON.stringify(updatedUser, null, 2));
+      console.log('[DEBUG] Поле dismissed:', updatedUser.dismissed, 'тип:', typeof updatedUser.dismissed);
+      const success = await columnsSettingsAPI.saveUser(updatedUser);
+      
+      if (success) {
+        console.log('Статус звільнення успішно збережено для:', user.login);
+        // Оновлюємо локальний стан після успішного збереження
+        setUsers(prevUsers => prevUsers.map(u => {
+          const currentId = u.id || u._id;
+          return currentId === userId
+            ? { ...u, dismissed: dismissed }
+            : u;
+        }));
+      } else {
+        console.error('Помилка збереження статусу звільнення для:', user.login);
+        alert('Помилка збереження статусу звільнення');
+        // Відкочуємо зміни при помилці
+        setUsers(prevUsers => prevUsers.map(u => {
+          const currentId = u.id || u._id;
+          return currentId === userId
+            ? { ...u, dismissed: !dismissed }
+            : u;
+        }));
+      }
+    } catch (error) {
+      console.error('Помилка збереження статусу звільнення:', error);
+      alert('Помилка збереження статусу звільнення: ' + error.message);
+      // Відкочуємо зміни при помилці
+      setUsers(prevUsers => prevUsers.map(u => {
+        const currentId = u.id || u._id;
+        return currentId === userId
+          ? { ...u, dismissed: !dismissed }
+          : u;
+      }));
     }
   };
   const handleSaveEdit = async (e) => {
@@ -873,27 +935,46 @@ function AdminSystemParamsArea({ user }) {
                 />
               </td>
               <td>
-                <button onClick={() => handleEdit(u)} style={{
-                  background: isUserOnline(u.login) ? '#2E7D32' : '#4CAF50', 
-                  color: '#fff', 
-                  border: isUserOnline(u.login) ? '2px solid #4CAF50' : 'none', 
-                  borderRadius: 4, 
-                  padding: '4px 12px', 
-                  cursor: 'pointer', 
-                  marginRight: 8,
-                  boxShadow: isUserOnline(u.login) ? '0 0 10px rgba(76, 175, 80, 0.5)' : 'none',
-                  fontWeight: isUserOnline(u.login) ? 'bold' : 'normal'
-                }}>Редагувати</button>
-                <button onClick={() => handleDelete(u.id)} style={{
-                  background: isUserOnline(u.login) ? '#D32F2F' : '#f66', 
-                  color: '#fff', 
-                  border: isUserOnline(u.login) ? '2px solid #f44336' : 'none', 
-                  borderRadius: 4, 
-                  padding: '4px 12px', 
-                  cursor: 'pointer',
-                  boxShadow: isUserOnline(u.login) ? '0 0 10px rgba(244, 67, 54, 0.5)' : 'none',
-                  fontWeight: isUserOnline(u.login) ? 'bold' : 'normal'
-                }}>Видалити</button>
+                <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
+                  <button onClick={() => handleEdit(u)} style={{
+                    background: isUserOnline(u.login) ? '#2E7D32' : '#4CAF50', 
+                    color: '#fff', 
+                    border: isUserOnline(u.login) ? '2px solid #4CAF50' : 'none', 
+                    borderRadius: 4, 
+                    padding: '4px 12px', 
+                    cursor: 'pointer', 
+                    marginRight: 8,
+                    boxShadow: isUserOnline(u.login) ? '0 0 10px rgba(76, 175, 80, 0.5)' : 'none',
+                    fontWeight: isUserOnline(u.login) ? 'bold' : 'normal'
+                  }}>Редагувати</button>
+                  <button onClick={() => handleDelete(u.id)} style={{
+                    background: isUserOnline(u.login) ? '#D32F2F' : '#f66', 
+                    color: '#fff', 
+                    border: isUserOnline(u.login) ? '2px solid #f44336' : 'none', 
+                    borderRadius: 4, 
+                    padding: '4px 12px', 
+                    cursor: 'pointer',
+                    marginRight: 8,
+                    boxShadow: isUserOnline(u.login) ? '0 0 10px rgba(244, 67, 54, 0.5)' : 'none',
+                    fontWeight: isUserOnline(u.login) ? 'bold' : 'normal'
+                  }}>Видалити</button>
+                  <label style={{display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: '#fff', fontSize: '12px'}}>
+                    <input 
+                      type="checkbox" 
+                      checked={u.dismissed || false}
+                      onChange={(e) => {
+                        const userId = u.id || u._id;
+                        handleDismissedToggle(userId, e.target.checked);
+                      }}
+                      style={{
+                        width: '16px',
+                        height: '16px',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <span>Звільнений</span>
+                  </label>
+                </div>
               </td>
             </tr>
           ))}
@@ -1835,6 +1916,8 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     return users.filter(u => {
       // Якщо користувач має роль 'service'
       if (u.role !== 'service') return false;
+      // Виключаємо звільнених користувачів
+      if (u.dismissed) return false;
       // Якщо регіон користувача "Україна" - показуємо всіх
       if (user?.region === 'Україна') return true;
       // Якщо регіон користувача не "Україна" - показуємо тільки його регіон
@@ -2474,6 +2557,8 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     const filteredUsers = users.filter(u => {
       // Якщо користувач має роль 'service'
       if (u.role !== 'service') return false;
+      // Виключаємо звільнених користувачів
+      if (u.dismissed) return false;
       // Якщо регіон користувача "Україна" - показуємо всіх
       if (user?.region === 'Україна') return true;
       // Якщо регіон користувача не "Україна" - показуємо тільки його регіон
@@ -2797,8 +2882,10 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     const generateRegionReport = (region) => {
       const regionUsers = filteredUsers.filter(u => (u.region || 'Без регіону') === region);
       
-      // Фільтруємо користувачів з нульовою загальною сумою по оплаті
+      // Фільтруємо користувачів з нульовою загальною сумою по оплаті та виключаємо звільнених
       const usersWithPayment = regionUsers.filter(u => {
+        // Виключаємо звільнених користувачів
+        if (u.dismissed) return false;
         const total = data[u.id || u._id]?.total || 0;
         const salary = Number(payData[u.id || u._id]?.salary) || 25000;
         const bonus = Number(payData[u.id || u._id]?.bonus) || 0;
