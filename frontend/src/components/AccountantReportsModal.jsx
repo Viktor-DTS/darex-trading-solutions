@@ -591,6 +591,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           <table>
             <thead>
               <tr>
+                <th>№</th>
                 <th>ПІБ</th>
                 ${days.map(d => {
                   const date = new Date(personnelFilters.year, monthNum - 1, d);
@@ -602,8 +603,9 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
               </tr>
             </thead>
             <tbody>
-              ${usersWithPayment.map(engineer => `
+              ${usersWithPayment.map((engineer, index) => `
                 <tr>
+                  <td>${index + 1}</td>
                   <td>${engineer.name}</td>
                   ${days.map(d => {
                     const date = new Date(personnelFilters.year, monthNum - 1, d);
@@ -624,6 +626,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           <table>
             <thead>
               <tr>
+                <th>№</th>
                 <th>ПІБ</th>
                 <th>Ставка</th>
                 <th>Фактично відпрацьовано годин</th>
@@ -636,7 +639,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
               </tr>
             </thead>
             <tbody>
-              ${usersWithPayment.map(engineer => {
+              ${usersWithPayment.map((engineer, index) => {
                 const salaryData = engineerSalaries[engineer.name];
                 // Перевіряємо, чи існують дані про зарплату (якщо інженер не має завдань, salaryData може бути undefined)
                 if (!salaryData) {
@@ -645,6 +648,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
                   const total = 0;
                   return `
                     <tr>
+                      <td>${index + 1}</td>
                       <td>${engineer.name}</td>
                       <td><input type="number" value="${currentSalary}" onchange="window.handlePayChange('${engineer.id || engineer._id}', 'salary', this.value)" style="width:90px; border: 1px solid #ccc; padding: 4px;" /></td>
                       <td>${total}</td>
@@ -660,6 +664,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
                 const currentSalary = Number(payData[engineer.id || engineer._id]?.salary) || 25000;
                 return `
                   <tr>
+                    <td>${index + 1}</td>
                     <td>${engineer.name}</td>
                     <td><input type="number" value="${currentSalary}" onchange="window.handlePayChange('${engineer.id || engineer._id}', 'salary', this.value)" style="width:90px; border: 1px solid #ccc; padding: 4px;" /></td>
                     <td>${salaryData.totalHours}</td>
@@ -695,9 +700,11 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         let totalWorkPrice = 0;
         let totalServiceBonus = 0;
         let totalEngineerBonuses = 0;
+        let requestNumberIndex = 0; // Лічильник для нумерації заявок
         
         // Деталізація виконаних робіт з групуванням по номеру заявки
         const requestNumberSections = Object.keys(tasksByRequestNumber).map(requestNumber => {
+          requestNumberIndex++; // Збільшуємо номер заявки
           const tasksForRequest = tasksByRequestNumber[requestNumber];
           
           // Обчислюємо суми по номеру заявки
@@ -705,6 +712,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           let requestWorkPrice = 0;
           let requestServiceBonus = 0;
           let requestEngineerBonuses = 0;
+          let engineerIndex = 0; // Лічильник для нумерації інженерів в межах заявки
           
           const requestRows = tasksForRequest.map(task => {
             const engineers = [
@@ -731,8 +739,11 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
             
             // Створюємо рядок для кожного інженера окремо
             return engineers.map(engineer => {
+              engineerIndex++; // Збільшуємо номер інженера в межах заявки
+              const rowNumber = engineerIndex === 1 ? requestNumberIndex : `${requestNumberIndex}.${engineerIndex - 1}`;
               return `
                 <tr>
+                  <td>${rowNumber}</td>
                   <td>${bonusApprovalDate}</td>
                   <td>${task.requestNumber || ''}</td>
                   <td>${task.date || ''}</td>
@@ -760,7 +771,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           // Створюємо секцію для номера заявки з підсумками
           return `
             <tr style="background-color: #f0f0f0; font-weight: bold;">
-              <td colspan="9" style="text-align: left; padding-left: 20px;">
+              <td colspan="10" style="text-align: left; padding-left: 20px;">
                 <strong>Номер заявки: ${requestNumber}</strong>
               </td>
               <td style="font-weight: bold;">${requestServiceTotal.toFixed(2)}</td>
@@ -777,6 +788,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           <table class="details">
             <thead>
               <tr>
+                <th>№</th>
                 <th>Дата затвердження премії</th>
                 <th>Номер заявки</th>
                 <th>Дата виконання</th>
@@ -795,7 +807,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
             <tbody>
               ${requestNumberSections}
               <tr style="background-color: #ffe600; font-weight: bold; font-size: 1.1em;">
-                <td colspan="9" style="text-align: left; padding-left: 20px;">
+                <td colspan="10" style="text-align: left; padding-left: 20px;">
                   <strong>ВСЬОГО ПО РЕГІОНУ: ${region}</strong>
                 </td>
                 <td style="font-weight: bold;">${totalServiceTotal.toFixed(2)}</td>
