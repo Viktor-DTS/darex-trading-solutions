@@ -245,18 +245,51 @@ h2 {
   opacity: 0.25;
 }
 
-/* Анімований фон для сторінки входу з гідрою */
-.login-page .bg-logo {
+/* Контейнер сторінки входу - на весь екран */
+.login-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 133.33vw; /* Компенсація для масштабування 0.75 */
+  height: 133.33vh; /* Компенсація для масштабування 0.75 */
+  min-width: 133.33vw;
+  min-height: 133.33vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  z-index: 0;
+}
+
+/* Відео фон для сторінки входу */
+.login-page .bg-video {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 133.33vw; /* Компенсація для масштабування 0.75 */
+  height: 133.33vh; /* Компенсація для масштабування 0.75 */
+  min-width: 133.33vw;
+  min-height: 133.33vh;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 1;
+  filter: none;
+}
+
+/* Прибираємо анімований overlay на сторінці входу */
+.login-page .login-animated-overlay {
+  display: none;
+}
+
+/* Залишаємо стилі для bg-logo для інших випадків (якщо не відео) */
+.login-page .bg-logo:not(.bg-video) {
   background: url('/assets/gidra.jpeg') center center no-repeat;
-  /* Використовуємо contain для збереження пропорцій без спотворення */
-  /* Обмежуємо ширину до 80% для кращого відображення */
   background-size: 80% auto;
   background-position: center center;
   background-attachment: scroll;
   opacity: 0.25;
   animation: loginBgAnimate 15s ease-in-out infinite;
   transform-origin: center center;
-  /* Гарантуємо, що фон завжди покриває весь viewport */
   width: 100vw;
   height: 100vh;
 }

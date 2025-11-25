@@ -108,8 +108,15 @@ export default function Login({ onLogin }) {
   };
   return (
     <div className="login-page">
-      <div className='bg-logo'></div>
-      <div className='login-animated-overlay'></div>
+      <video 
+        className='bg-logo bg-video'
+        autoPlay 
+        loop 
+        muted 
+        playsInline
+      >
+        <source src="/assets/gidraanim2.mp4" type="video/mp4" />
+      </video>
       <div className="login-title-container">
         <h1 className="login-title">СИСТЕМА ГІДРА</h1>
       </div>
