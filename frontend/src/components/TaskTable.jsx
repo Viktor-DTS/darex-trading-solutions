@@ -1135,7 +1135,8 @@ function TaskTableComponent({
       requestNumber: task.requestNumber || '',
       workDate: task.date || '',
       engineModel: task.engineModel || '',
-      engineSerial: task.engineSerial || ''
+      engineSerial: task.engineSerial || '',
+      edrpou: task.edrpou || ''
     };
 
     // Перевіряємо умову для номера наряду
@@ -1383,6 +1384,19 @@ function TaskTableComponent({
           spacing: { after: 100 }
         })
       );
+
+      // ЄДРПОУ (якщо заповнене)
+      if (workOrderData.edrpou) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "ЄДРПОУ: ", bold: true }),
+              new TextRun({ text: workOrderData.edrpou })
+            ],
+            spacing: { after: 100 }
+          })
+        );
+      }
 
       // Адреса
       children.push(
@@ -2474,6 +2488,13 @@ function TaskTableComponent({
             <span class="field-value">${workOrderData.client}</span>
           </div>
           
+          ${workOrderData.edrpou ? `
+          <div class="field">
+            <span class="field-label">ЄДРПОУ:</span>
+            <span class="field-value">${workOrderData.edrpou}</span>
+          </div>
+          ` : ''}
+          
           <div class="field">
             <span class="field-label">3. Адреса об'єкта:</span>
             <span class="field-value">${workOrderData.address}</span>
@@ -3206,6 +3227,13 @@ function TaskTableComponent({
             <span class="field-label">2. Замовник:</span>
             <span class="field-value">${workOrderData.client}</span>
           </div>
+          
+          ${workOrderData.edrpou ? `
+          <div class="field">
+            <span class="field-label">ЄДРПОУ:</span>
+            <span class="field-value">${workOrderData.edrpou}</span>
+          </div>
+          ` : ''}
           
           <div class="field">
             <span class="field-label">3. Адреса об'єкта:</span>
