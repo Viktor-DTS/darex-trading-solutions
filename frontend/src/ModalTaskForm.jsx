@@ -1229,7 +1229,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     return serviceTotal - totalExpenses;
   };
   return (
-    <div style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'#000a',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto'}}>
+    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,width:'100vw',height:'130vh',minHeight:'130vh',background:'#000a',zIndex:1000,display:'flex',alignItems:'stretch',justifyContent:'center',overflowY:'hidden',padding:0,boxSizing:'border-box'}}>
       <style>{`
         .modal-task-form {
           font-size: 0.85rem; /* Зменшуємо базовий розмір шрифту на 15% */
@@ -1297,7 +1297,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           padding: 8px 16px; /* Зменшуємо padding кнопок */
         }
       `}</style>
-      <form className="modal-task-form" onSubmit={handleSubmit} style={{background:'#1a2636',padding:'24px',paddingBottom:200,borderRadius:0,width:'90vw',maxWidth:1100,maxHeight:'90vh',color:'#fff',boxShadow:'0 4px 32px #0008',overflowY:'auto',display:'flex',flexDirection:'column',justifyContent:'flex-start',marginTop:36,position:'relative'}} onClick={(e) => e.stopPropagation()}>
+      <form className="modal-task-form" onSubmit={handleSubmit} style={{background:'#1a2636',padding:'24px',paddingBottom:200,borderRadius:0,width:'90vw',maxWidth:1100,height:'calc(130vh - 60px)',minHeight:'calc(130vh - 60px)',color:'#fff',boxShadow:'0 4px 32px #0008',overflowY:'auto',display:'flex',flexDirection:'column',justifyContent:'flex-start',marginTop:60,position:'relative',boxSizing:'border-box',alignSelf:'stretch'}} onClick={(e) => e.stopPropagation()}>
         <button type="button" onClick={onClose} style={{position:'absolute',top:30,right:18,fontSize:22,background:'none',border:'none',color:'#fff',cursor:'pointer',zIndex:10}} aria-label="Закрити">×</button>
         <h2 style={{marginTop:0}}>Завдання</h2>
         {error && <div style={{color:'#ff6666',marginBottom:12,fontWeight:600,fontSize:'0.9rem'}}>{error}</div>}
