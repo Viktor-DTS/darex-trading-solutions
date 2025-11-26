@@ -3143,14 +3143,16 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
         </table>
       `;
       // Формування таблиці табеля для регіону
+      // Використовуємо правильні дані для табелю часу
+      const reportDays = Array.from({length: getDaysInMonth(reportYearForData, reportMonthForData)}, (_, i) => i + 1);
       const timesheetTable = `
         <h4>Табель часу - Регіон: ${region}</h4>
         <table>
           <thead>
             <tr>
               <th>ПІБ</th>
-              ${days.map(d => {
-                const date = new Date(year, month - 1, d);
+              ${reportDays.map(d => {
+                const date = new Date(reportYearForData, reportMonthForData - 1, d);
                 const dayOfWeek = date.getDay();
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                 return `<th${isWeekend ? ' class="weekend"' : ''}>${d}</th>`;
@@ -3162,8 +3164,8 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
             ${usersWithPayment.map(u => `
               <tr>
                 <td>${u.name}</td>
-                ${days.map(d => {
-                  const date = new Date(year, month - 1, d);
+                ${reportDays.map(d => {
+                  const date = new Date(reportYearForData, reportMonthForData - 1, d);
                   const dayOfWeek = date.getDay();
                   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                   return `<td${isWeekend ? ' class=\"weekend\"' : ''}>${data[u.id || u._id]?.[d] || 0}</td>`;
