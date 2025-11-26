@@ -2,9 +2,13 @@ import API_BASE_URL from '../config.js';
 import authenticatedFetch from './api.js';
 
 export const tasksAPI = {
-  async getAll() {
+  async getAll(limit = null) {
     try {
-      const res = await authenticatedFetch(`${API_BASE_URL}/tasks`);
+      let url = `${API_BASE_URL}/tasks`;
+      if (limit) {
+        url += `?limit=${limit}`;
+      }
+      const res = await authenticatedFetch(url);
       if (!res.ok) {
         const errorText = await res.text();
         console.error('[ERROR] tasksAPI.getAll - помилка сервера:', errorText);
@@ -14,6 +18,24 @@ export const tasksAPI = {
       return data;
     } catch (error) {
       console.error('[ERROR] tasksAPI.getAll - виняток:', error);
+      throw error;
+    }
+  },
+  // Метод для завантаження всіх завдань для звітів (без обмеження)
+  async getAllForReport() {
+    try {
+      // Завантажуємо з великим лімітом (10000) для звітів
+      const res = await authenticatedFetch(`${API_BASE_URL}/tasks?limit=10000`);
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('[ERROR] tasksAPI.getAllForReport - помилка сервера:', errorText);
+        throw new Error('Помилка завантаження заявок для звіту');
+      }
+      const data = await res.json();
+      console.log(`[tasksAPI] Завантажено ${data.length} завдань для звіту`);
+      return data;
+    } catch (error) {
+      console.error('[ERROR] tasksAPI.getAllForReport - виняток:', error);
       throw error;
     }
   },

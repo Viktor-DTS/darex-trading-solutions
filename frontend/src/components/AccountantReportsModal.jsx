@@ -195,8 +195,8 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
     try {
       console.log('[PERSONNEL REPORT] Запит до бази даних для отримання всіх завдань...');
       
-      // ЗАПИТ ДО БАЗИ ДАНИХ: Отримуємо всі завдання з API
-      const allTasksFromDB = await tasksAPI.getAll();
+      // ЗАПИТ ДО БАЗИ ДАНИХ: Отримуємо всі завдання з API (з великим лімітом для звіту)
+      const allTasksFromDB = await tasksAPI.getAllForReport();
       console.log('[PERSONNEL REPORT] Завдання завантажено з БД:', allTasksFromDB.length);
       
       // Переконуємось, що month є числом
@@ -276,10 +276,18 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         }
         taskDate.setHours(0, 0, 0, 0); // Нормалізуємо до початку дня в локальному часі
         
-        // Порівнюємо дати (обидві в локальному часі)
-        const isInRange = taskDate >= startDate && taskDate <= endDate;
+        // Додаткова перевірка: переконуємося, що місяць та рік співпадають
+        const taskMonth = taskDate.getMonth() + 1; // getMonth() повертає 0-11
+        const taskYear = taskDate.getFullYear();
+        const monthMatches = taskMonth === monthNum;
+        const yearMatches = taskYear === personnelFilters.year;
+        
+        // Порівнюємо дати (обидві в локальному часі) та перевіряємо місяць/рік
+        const isInRange = taskDate >= startDate && taskDate <= endDate && monthMatches && yearMatches;
         if (isInRange) {
-          console.log(`[PERSONNEL REPORT] Task date in range: ${t.date} (parsed as ${taskDate.toString()})`);
+          console.log(`[PERSONNEL REPORT] Task date in range: ${t.date} (parsed as ${taskDate.toString()}, month: ${taskMonth}, year: ${taskYear})`);
+        } else {
+          console.log(`[PERSONNEL REPORT] Task date OUT of range: ${t.date} (parsed as ${taskDate.toString()}, month: ${taskMonth}, year: ${taskYear}, expected month: ${monthNum}, expected year: ${personnelFilters.year})`);
         }
         return isInRange;
       });
@@ -385,6 +393,66 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         regionGroupsForBonuses[region].push(task);
       });
       
+      // Групуємо заявки по регіонах для деталізації (як у регіонального керівника - по вибраному місяцю)
+      // Фільтруємо заявки для деталізації по bonusApprovalDate, але використовуємо вибраний місяць, а не наступний
+      const regionGroupsForDetails = {};
+      const approvedTasksForDetails = allTasksFromDB.filter(t => {
+        if (t.status !== 'Виконано') return false;
+        if (!t.date) return false;
+        if (!isApproved(t.approvedByWarehouse) || !isApproved(t.approvedByAccountant)) return false;
+        
+        // Використовуємо ту саму логіку, що й у регіонального керівника
+        let bonusApprovalDate = t.bonusApprovalDate;
+        if (!bonusApprovalDate) {
+          if (t.approvedByAccountantDate) {
+            const approvalDate = new Date(t.approvedByAccountantDate);
+            if (!isNaN(approvalDate.getTime())) {
+              const month = String(approvalDate.getMonth() + 1).padStart(2, '0');
+              const year = approvalDate.getFullYear();
+              bonusApprovalDate = `${month}-${year}`;
+            }
+          } else {
+            return false; // Якщо немає bonusApprovalDate, не показуємо в деталізації
+          }
+        }
+        
+        // Конвертуємо формат дати
+        if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+          const [year, month] = bonusApprovalDate.split('-');
+          bonusApprovalDate = `${month}-${year}`;
+        }
+        
+        const workDate = new Date(t.date);
+        const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+        const approvalMonth = parseInt(approvalMonthStr);
+        const approvalYear = parseInt(approvalYearStr);
+        const workMonth = workDate.getMonth() + 1;
+        const workYear = workDate.getFullYear();
+        let bonusMonth, bonusYear;
+        if (workMonth === approvalMonth && workYear === approvalYear) {
+          bonusMonth = workMonth;
+          bonusYear = workYear;
+        } else {
+          if (approvalMonth === 1) {
+            bonusMonth = 12;
+            bonusYear = approvalYear - 1;
+          } else {
+            bonusMonth = approvalMonth - 1;
+            bonusYear = approvalYear;
+          }
+        }
+        // Використовуємо вибраний місяць, а не наступний (як у регіонального керівника)
+        return bonusMonth === monthNum && bonusYear === personnelFilters.year;
+      });
+      
+      approvedTasksForDetails.forEach(task => {
+        const region = task.serviceRegion || 'Невідомо';
+        if (!regionGroupsForDetails[region]) {
+          regionGroupsForDetails[region] = [];
+        }
+        regionGroupsForDetails[region].push(task);
+      });
+      
       // Логування для діагностики
       console.log(`[PERSONNEL REPORT] Month: ${personnelFilters.month}, Year: ${personnelFilters.year}`);
       console.log(`[PERSONNEL REPORT] Total tasks found: ${monthTasks.length}`);
@@ -397,6 +465,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         console.log(`[PERSONNEL REPORT] Generating report for region: ${region}`);
         const regionTasks = regionGroups[region] || [];
         const regionTasksForBonuses = regionGroupsForBonuses[region] || [];
+        const regionTasksForDetails = regionGroupsForDetails[region] || [];
         // Фільтруємо інженерів по регіону
         // Якщо чекбокс "Показати всіх працівників" не активований, виключаємо звільнених
         const regionEngineers = allEngineers.filter(engineer => {
@@ -506,6 +575,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         usersWithPayment.forEach(engineer => {
           if (engineerHours[engineer.name].total === 0) {
             // Перевіряємо, чи є завдання для цього інженера
+            const normalizedEngineerName = (engineer.name || '').trim();
             const engineerTasks = regionTasks.filter(task => {
               const engineers = [
                 (task.engineer1 || '').trim(),
@@ -515,7 +585,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
                 (task.engineer5 || '').trim(),
                 (task.engineer6 || '').trim()
               ];
-              return engineers.includes(engineer.name);
+              return engineers.includes(normalizedEngineerName);
             });
             
             if (engineerTasks.length > 0) {
@@ -537,7 +607,11 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         
         // Розраховуємо зарплати (логіка як у регіонального керівника)
         const engineerSalaries = {};
+        console.log(`[PERSONNEL REPORT] Region ${region}: Processing ${usersWithPayment.length} engineers for bonus calculation:`, usersWithPayment.map(e => e.name));
         usersWithPayment.forEach(engineer => {
+          // Нормалізуємо ім'я інженера для порівнянь
+          const normalizedEngineerName = (engineer.name || '').trim();
+          
           // Використовуємо реальну суму годин з табелю
           const total = engineerHours[engineer.name]?.total || 0;
           const salary = Number(payData[engineer.id || engineer._id]?.salary) || 25000;
@@ -548,23 +622,131 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
           // Розраховуємо пропорційну ставку (як у регіонального керівника)
           const basePay = Math.round(salary * Math.min(total, workHoursNorm) / workHoursNorm);
           
-          // Розрахунок премії за сервісні роботи (заявки вже відфільтровані за датою затвердження)
+          // Розрахунок премії за сервісні роботи (як у регіонального керівника - по вибраному місяцю)
           let engineerBonus = 0;
-          regionTasksForBonuses.forEach(task => {
-            const workPrice = parseFloat(task.workPrice) || 0;
-            const bonusVal = workPrice * 0.25;
+          // Використовуємо allTasksFromDB з фільтрацією по вибраному місяцю, як у регіонального керівника
+          allTasksFromDB.forEach(task => {
+            // Діагностичне логування для заявки KV-0000080
+            const isDebugTask = task.requestNumber === 'KV-0000080';
             
-            const engineers = [
-              (task.engineer1 || '').trim(),
-              (task.engineer2 || '').trim(),
-              (task.engineer3 || '').trim(),
-              (task.engineer4 || '').trim(),
-              (task.engineer5 || '').trim(),
-              (task.engineer6 || '').trim()
-            ].filter(eng => eng && eng.length > 0);
+            if (task.status !== 'Виконано') {
+              if (isDebugTask) console.log(`[DEBUG BONUS] ${task.requestNumber}: статус не "Виконано": ${task.status}`);
+              return;
+            }
+            if (!task.date) {
+              if (isDebugTask) console.log(`[DEBUG BONUS] ${task.requestNumber}: немає дати`);
+              return;
+            }
+            if (!isApproved(task.approvedByWarehouse)) {
+              if (isDebugTask) console.log(`[DEBUG BONUS] ${task.requestNumber}: не затверджено завскладом: ${task.approvedByWarehouse}`);
+              return;
+            }
+            if (!isApproved(task.approvedByAccountant)) {
+              if (isDebugTask) console.log(`[DEBUG BONUS] ${task.requestNumber}: не затверджено бухгалтером: ${task.approvedByAccountant}`);
+              return;
+            }
+            if (task.serviceRegion !== region) {
+              if (isDebugTask) console.log(`[DEBUG BONUS] ${task.requestNumber}: регіон не співпадає: ${task.serviceRegion} !== ${region}`);
+              return;
+            }
             
-            if (engineers.includes(engineer.name) && engineers.length > 0) {
-              engineerBonus += bonusVal / engineers.length;
+            // Використовуємо ту саму логіку, що й у регіонального керівника
+            let bonusApprovalDate = task.bonusApprovalDate;
+            if (!bonusApprovalDate) {
+              if (task.approvedByAccountantDate) {
+                const approvalDate = new Date(task.approvedByAccountantDate);
+                if (!isNaN(approvalDate.getTime())) {
+                  const month = String(approvalDate.getMonth() + 1).padStart(2, '0');
+                  const year = approvalDate.getFullYear();
+                  bonusApprovalDate = `${month}-${year}`;
+                } else {
+                  if (isDebugTask) console.log(`[DEBUG BONUS] ${task.requestNumber}: невалідна дата затвердження бухгалтером`);
+                  return; // Якщо немає дати затвердження, пропускаємо
+                }
+              } else {
+                if (isDebugTask) console.log(`[DEBUG BONUS] ${task.requestNumber}: немає bonusApprovalDate та approvedByAccountantDate`);
+                return; // Якщо немає bonusApprovalDate, пропускаємо
+              }
+            }
+            
+            // Конвертуємо формат дати
+            if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+              const [year, month] = bonusApprovalDate.split('-');
+              bonusApprovalDate = `${month}-${year}`;
+            }
+            
+            const workDate = new Date(task.date);
+            const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+            const approvalMonth = parseInt(approvalMonthStr);
+            const approvalYear = parseInt(approvalYearStr);
+            const workMonth = workDate.getMonth() + 1;
+            const workYear = workDate.getFullYear();
+            let bonusMonth, bonusYear;
+            if (workMonth === approvalMonth && workYear === approvalYear) {
+              bonusMonth = workMonth;
+              bonusYear = workYear;
+            } else {
+              if (approvalMonth === 1) {
+                bonusMonth = 12;
+                bonusYear = approvalYear - 1;
+              } else {
+                bonusMonth = approvalMonth - 1;
+                bonusYear = approvalYear;
+              }
+            }
+            
+            if (isDebugTask) {
+              console.log(`[DEBUG BONUS] ${task.requestNumber}:`, {
+                date: task.date,
+                bonusApprovalDate: task.bonusApprovalDate,
+                workMonth,
+                approvalMonth,
+                bonusMonth,
+                bonusYear,
+                monthNum,
+                personnelFiltersYear: personnelFilters.year,
+                matches: bonusMonth === monthNum && bonusYear === personnelFilters.year
+              });
+            }
+            
+            // Фільтруємо по вибраному місяцю, як у регіонального керівника
+            if (bonusMonth === monthNum && bonusYear === personnelFilters.year) {
+              const workPrice = parseFloat(task.workPrice) || 0;
+              const bonusVal = workPrice * 0.25;
+              
+              const engineers = [
+                (task.engineer1 || '').trim(),
+                (task.engineer2 || '').trim(),
+                (task.engineer3 || '').trim(),
+                (task.engineer4 || '').trim(),
+                (task.engineer5 || '').trim(),
+                (task.engineer6 || '').trim()
+              ].filter(eng => eng && eng.length > 0);
+              
+              if (isDebugTask) {
+                console.log(`[DEBUG BONUS] ${task.requestNumber}:`, {
+                  engineers,
+                  engineerName: engineer.name,
+                  normalizedEngineerName,
+                  includes: engineers.includes(normalizedEngineerName),
+                  workPrice,
+                  bonusVal,
+                  bonusPerEngineer: bonusVal / engineers.length
+                });
+              }
+              
+              if (engineers.includes(normalizedEngineerName) && engineers.length > 0) {
+                engineerBonus += bonusVal / engineers.length;
+                if (isDebugTask) {
+                  console.log(`[DEBUG BONUS] ${task.requestNumber}: премія додана для ${normalizedEngineerName}, сума: ${bonusVal / engineers.length}`);
+                }
+              } else if (isDebugTask) {
+                console.log(`[DEBUG BONUS] ${task.requestNumber}: інженер ${normalizedEngineerName} не знайдено в списку:`, engineers);
+              }
+            } else {
+              if (isDebugTask) {
+                console.log(`[DEBUG BONUS] ${task.requestNumber}: не співпадає місяць: bonusMonth=${bonusMonth} !== monthNum=${monthNum} або bonusYear=${bonusYear} !== year=${personnelFilters.year}`);
+              }
             }
           });
           
@@ -686,8 +868,9 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
         `;
         
         // Групуємо завдання по номеру заявки для деталізації
+        // Використовуємо regionTasksForDetails (фільтровані по bonusApprovalDate для вибраного місяця), як у регіонального керівника
         const tasksByRequestNumber = {};
-        regionTasksForBonuses.forEach(task => {
+        regionTasksForDetails.forEach(task => {
           const requestNumber = task.requestNumber || 'Без номера';
           if (!tasksByRequestNumber[requestNumber]) {
             tasksByRequestNumber[requestNumber] = [];
@@ -735,7 +918,36 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
             requestServiceBonus += serviceBonus;
             requestEngineerBonuses += bonusPerEngineer * engineers.length;
             
-            const bonusApprovalDate = task.bonusApprovalDate || task.approvedByAccountantDate || task.date || '';
+            // Форматуємо дату затвердження премії для відображення
+            let bonusApprovalDateDisplay = '';
+            if (task.bonusApprovalDate) {
+              // Якщо формат MM-YYYY, залишаємо як є
+              if (/^\d{2}-\d{4}$/.test(task.bonusApprovalDate)) {
+                bonusApprovalDateDisplay = task.bonusApprovalDate;
+              } else if (/^\d{4}-\d{2}-\d{2}$/.test(task.bonusApprovalDate)) {
+                // Якщо формат YYYY-MM-DD, конвертуємо в MM-YYYY
+                const [year, month] = task.bonusApprovalDate.split('-');
+                bonusApprovalDateDisplay = `${month}-${year}`;
+              } else {
+                bonusApprovalDateDisplay = task.bonusApprovalDate;
+              }
+            } else if (task.approvedByAccountantDate) {
+              // Якщо немає bonusApprovalDate, використовуємо approvedByAccountantDate
+              const approvalDate = new Date(task.approvedByAccountantDate);
+              if (!isNaN(approvalDate.getTime())) {
+                const month = String(approvalDate.getMonth() + 1).padStart(2, '0');
+                const year = approvalDate.getFullYear();
+                bonusApprovalDateDisplay = `${month}-${year}`;
+              }
+            } else if (task.date) {
+              // Якщо немає жодної дати затвердження, використовуємо дату виконання
+              const workDate = new Date(task.date);
+              if (!isNaN(workDate.getTime())) {
+                const month = String(workDate.getMonth() + 1).padStart(2, '0');
+                const year = workDate.getFullYear();
+                bonusApprovalDateDisplay = `${month}-${year}`;
+              }
+            }
             
             // Створюємо рядок для кожного інженера окремо
             return engineers.map(engineer => {
@@ -744,7 +956,7 @@ const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
               return `
                 <tr>
                   <td>${rowNumber}</td>
-                  <td>${bonusApprovalDate}</td>
+                  <td>${bonusApprovalDateDisplay}</td>
                   <td>${task.requestNumber || ''}</td>
                   <td>${task.date || ''}</td>
                   <td>${engineer}</td>

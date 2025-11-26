@@ -256,19 +256,15 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     if (!('internalWork' in f)) f.internalWork = false; // За замовчуванням неактивний
     // Значення за замовчуванням для термінової заявки
     if (!('urgentRequest' in f)) f.urgentRequest = false; // За замовчуванням неактивний
-    // Автозаповнення дати
-    if (f.status === 'Виконано' && 
+    // Автозаповнення дати тільки якщо дата відсутня (не перезаписуємо існуючу дату з бази)
+    if (!f.date && f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
         f.approvedByAccountant === 'Підтверджено') {
-      const workDate = f.date;
-      if (workDate && isSameMonthAndYear(workDate, getCurrentDate())) {
-        f.date = getCurrentDate();
-      } else {
-        f.date = getPreviousMonthDate();
-      }
+      // Якщо дати немає, встановлюємо дату попереднього місяця
+      f.date = getPreviousMonthDate();
     }
-    // Автозаповнення reportMonthYear
-    if (f.status === 'Виконано' && 
+    // Автозаповнення reportMonthYear тільки якщо значення відсутнє (не перезаписуємо існуюче значення з бази)
+    if (!f.reportMonthYear && f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
         f.approvedByAccountant === 'Підтверджено') {
       const workDate = f.date;
@@ -284,7 +280,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       } else {
         f.reportMonthYear = '';
       }
-    } else {
+    } else if (!f.reportMonthYear) {
       f.reportMonthYear = '';
     }
     return f;
@@ -382,19 +378,15 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     if ('approvedByWarehouse' in f) f.approvedByWarehouse = toSelectString(f.approvedByWarehouse);
     if ('approvedByAccountant' in f) f.approvedByAccountant = toSelectString(f.approvedByAccountant);
     if ('approvedByRegionalManager' in f) f.approvedByRegionalManager = toSelectString(f.approvedByRegionalManager);
-    // Автозаповнення дати при зміні статусу або підтверджень
-    if (f.status === 'Виконано' && 
+    // Автозаповнення дати тільки якщо дата відсутня (не перезаписуємо існуючу дату з бази)
+    if (!f.date && f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
         f.approvedByAccountant === 'Підтверджено') {
-      const workDate = f.date;
-      if (workDate && isSameMonthAndYear(workDate, getCurrentDate())) {
-        f.date = getCurrentDate();
-      } else {
-        f.date = getPreviousMonthDate();
-      }
+      // Якщо дати немає, встановлюємо дату попереднього місяця
+      f.date = getPreviousMonthDate();
     }
-    // Автозаповнення reportMonthYear
-    if (f.status === 'Виконано' && 
+    // Автозаповнення reportMonthYear тільки якщо значення відсутнє (не перезаписуємо існуюче значення з бази)
+    if (!f.reportMonthYear && f.status === 'Виконано' && 
         f.approvedByWarehouse === 'Підтверджено' && 
         f.approvedByAccountant === 'Підтверджено') {
       const workDate = f.date;
@@ -410,7 +402,7 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       } else {
         f.reportMonthYear = '';
       }
-    } else {
+    } else if (!f.reportMonthYear) {
       f.reportMonthYear = '';
     }
     setForm(f);
@@ -924,8 +916,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
     }
     setError('');
     // --- Автоматичне встановлення bonusApprovalDate ---
+    // Використовуємо значення з форми, якщо воно є, інакше автозаповнюємо
     let bonusApprovalDate = form.bonusApprovalDate;
+    // Автозаповнюємо тільки якщо значення відсутнє
     if (
+      !bonusApprovalDate &&
       form.status === 'Виконано' &&
       form.approvedByWarehouse === 'Підтверджено' &&
       form.approvedByAccountant === 'Підтверджено'
@@ -2134,7 +2129,10 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                   let value = form[f.name] || '';
                   // Автоматичне поле для bonusApprovalDate
                   if (n === 'bonusApprovalDate') {
-                    if (
+                    // Використовуємо значення з бази, якщо воно є, інакше автозаповнюємо
+                    if (form[n]) {
+                      value = form[n];
+                    } else if (
                       form.status === 'Виконано' &&
                       form.approvedByWarehouse === 'Підтверджено' &&
                       form.approvedByAccountant === 'Підтверджено'
@@ -2169,16 +2167,21 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
           if (name === 'bonusApprovalDate') {
             const f = fields.find(f=>f.name===name);
             // Алгоритм автозаповнення дати затвердження премії
+            // Використовуємо значення з бази, якщо воно є, інакше автозаповнюємо
             let autoValue = '';
-            if (
+            if (form[name]) {
+              // Якщо вже є значення з бази, використовуємо його
+              autoValue = form[name];
+            } else if (
               form.status === 'Виконано' &&
               form.approvedByWarehouse === 'Підтверджено' &&
               form.approvedByAccountant === 'Підтверджено'
             ) {
+              // Автозаповнюємо тільки якщо значення немає
               const d = new Date();
               autoValue = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`; // MM-YYYY
             } else {
-              autoValue = form[name] || '';
+              autoValue = '';
             }
             const isAdmin = mode === 'admin' || user?.role === 'administrator';
             // --- Конвертація значення для адміністратора ---

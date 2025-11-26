@@ -1728,7 +1728,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
       if (allTasks.length === 0) {
         setAllTasksLoading(true);
         try {
-          const allTasksData = await tasksAPI.getAll();
+          const allTasksData = await tasksAPI.getAllForReport();
           setAllTasks(allTasksData);
           console.log('[DEBUG] RegionalManagerArea - завантажено всіх завдань:', allTasksData.length);
         } catch (error) {
@@ -1875,8 +1875,8 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     setAllTasksLoading(true);
     console.log('📊 Завантаження всіх даних для звіту по персоналу...');
     
-    // Завантажуємо ВСІ завдання для звіту по персоналу
-    tasksAPI.getAll().then(allTasksData => {
+    // Завантажуємо ВСІ завдання для звіту по персоналу (з великим лімітом)
+    tasksAPI.getAllForReport().then(allTasksData => {
       console.log('📊 Завантажено всіх заявок для звіту:', allTasksData.length);
       setAllTasks(allTasksData); // Зберігаємо для звіту
       setAllTasksLoading(false);
@@ -2889,6 +2889,25 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     const generateRegionReport = (region) => {
       const regionUsers = filteredUsers.filter(u => (u.region || 'Без регіону') === region);
       
+      // Діагностичне логування для заявки KV-0000080
+      const debugTaskInAllTasks = allTasks.find(t => t.requestNumber === 'KV-0000080');
+      if (debugTaskInAllTasks) {
+        console.log(`[DEBUG BONUS App.jsx] Заявка KV-0000080 знайдена в allTasks:`, {
+          _id: debugTaskInAllTasks._id,
+          status: debugTaskInAllTasks.status,
+          serviceRegion: debugTaskInAllTasks.serviceRegion,
+          region: region,
+          date: debugTaskInAllTasks.date,
+          bonusApprovalDate: debugTaskInAllTasks.bonusApprovalDate,
+          approvedByWarehouse: debugTaskInAllTasks.approvedByWarehouse,
+          approvedByAccountant: debugTaskInAllTasks.approvedByAccountant,
+          engineer1: debugTaskInAllTasks.engineer1,
+          engineer2: debugTaskInAllTasks.engineer2
+        });
+      } else {
+        console.log(`[DEBUG BONUS App.jsx] Заявка KV-0000080 НЕ знайдена в allTasks. Всього завдань: ${allTasks.length}`);
+      }
+      
       // Фільтруємо користувачів з нульовою загальною сумою по оплаті
       // Якщо чекбокс "Показати всіх працівників" не активований, виключаємо звільнених
       console.log(`[REPORT] generateRegionReport для регіону ${region}, showDismissed=${showDismissed}, regionUsers=${regionUsers.length}`);
@@ -2941,52 +2960,135 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
         
         // Розраховуємо премію за виконання сервісних робіт
         let engineerBonus = 0;
+        // Нормалізуємо ім'я користувача для порівнянь
+        const normalizedUserName = (u.name || '').trim();
         allTasks.forEach(t => {
-          if (
-            t.status === 'Виконано' &&
-            isApproved(t.approvedByWarehouse) &&
-            isApproved(t.approvedByAccountant)
-          ) {
-            let bonusApprovalDate = t.bonusApprovalDate;
-            if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
-              const [year, month] = bonusApprovalDate.split('-');
+          // Діагностичне логування для заявки KV-0000080
+          const isDebugTask = t.requestNumber === 'KV-0000080';
+          
+          if (isDebugTask) {
+            console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}: Початок обробки для інженера ${normalizedUserName}`, {
+              status: t.status,
+              approvedByWarehouse: t.approvedByWarehouse,
+              approvedByAccountant: t.approvedByAccountant,
+              serviceRegion: t.serviceRegion,
+              region: region,
+              date: t.date,
+              bonusApprovalDate: t.bonusApprovalDate,
+              approvedByAccountantDate: t.approvedByAccountantDate
+            });
+          }
+          
+          if (t.status !== 'Виконано') {
+            if (isDebugTask) console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}: статус не "Виконано": ${t.status}`);
+            return;
+          }
+          if (!isApproved(t.approvedByWarehouse)) {
+            if (isDebugTask) console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}: не затверджено завскладом: ${t.approvedByWarehouse}`);
+            return;
+          }
+          if (!isApproved(t.approvedByAccountant)) {
+            if (isDebugTask) console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}: не затверджено бухгалтером: ${t.approvedByAccountant}`);
+            return;
+          }
+          if (t.serviceRegion !== region) {
+            if (isDebugTask) console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}: регіон не співпадає: ${t.serviceRegion} !== ${region}`);
+            return;
+          }
+          
+          let bonusApprovalDate = t.bonusApprovalDate;
+          if (!bonusApprovalDate && t.approvedByAccountantDate) {
+            const approvalDate = new Date(t.approvedByAccountantDate);
+            if (!isNaN(approvalDate.getTime())) {
+              const month = String(approvalDate.getMonth() + 1).padStart(2, '0');
+              const year = approvalDate.getFullYear();
               bonusApprovalDate = `${month}-${year}`;
-            }
-            const workDate = new Date(t.date);
-            const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
-            const approvalMonth = parseInt(approvalMonthStr);
-            const approvalYear = parseInt(approvalYearStr);
-            const workMonth = workDate.getMonth() + 1;
-            const workYear = workDate.getFullYear();
-            let bonusMonth, bonusYear;
-            if (workMonth === approvalMonth && workYear === approvalYear) {
-              bonusMonth = workMonth;
-              bonusYear = workYear;
+              if (isDebugTask) console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}: bonusApprovalDate отримано з approvedByAccountantDate: ${bonusApprovalDate}`);
             } else {
-              if (approvalMonth === 1) {
-                bonusMonth = 12;
-                bonusYear = approvalYear - 1;
-              } else {
-                bonusMonth = approvalMonth - 1;
-                bonusYear = approvalYear;
-              }
+              if (isDebugTask) console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}: невалідна дата затвердження бухгалтером`);
+              return; // Якщо немає дати затвердження, пропускаємо
             }
-            if (bonusMonth === reportMonthForData && bonusYear === reportYearForData) {
-              const workPrice = parseFloat(t.workPrice) || 0;
-              const bonusVal = workPrice * 0.25;
-              // Враховуємо всіх 6 інженерів
-              const engineers = [
-                (t.engineer1 || '').trim(),
-                (t.engineer2 || '').trim(),
-                (t.engineer3 || '').trim(),
-                (t.engineer4 || '').trim(),
-                (t.engineer5 || '').trim(),
-                (t.engineer6 || '').trim()
-              ].filter(eng => eng && eng.length > 0);
-              
-              if (engineers.includes(u.name) && engineers.length > 0) {
-                engineerBonus += bonusVal / engineers.length;
+          }
+          if (!bonusApprovalDate) {
+            if (isDebugTask) console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}: немає bonusApprovalDate та approvedByAccountantDate`);
+            return; // Якщо немає bonusApprovalDate, пропускаємо
+          }
+          
+          if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+            const [year, month] = bonusApprovalDate.split('-');
+            bonusApprovalDate = `${month}-${year}`;
+            if (isDebugTask) console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}: конвертовано bonusApprovalDate: ${bonusApprovalDate}`);
+          }
+          
+          const workDate = new Date(t.date);
+          const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+          const approvalMonth = parseInt(approvalMonthStr);
+          const approvalYear = parseInt(approvalYearStr);
+          const workMonth = workDate.getMonth() + 1;
+          const workYear = workDate.getFullYear();
+          let bonusMonth, bonusYear;
+          if (workMonth === approvalMonth && workYear === approvalYear) {
+            bonusMonth = workMonth;
+            bonusYear = workYear;
+          } else {
+            if (approvalMonth === 1) {
+              bonusMonth = 12;
+              bonusYear = approvalYear - 1;
+            } else {
+              bonusMonth = approvalMonth - 1;
+              bonusYear = approvalYear;
+            }
+          }
+          
+          if (isDebugTask) {
+            console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}:`, {
+              date: t.date,
+              bonusApprovalDate: t.bonusApprovalDate,
+              workMonth,
+              approvalMonth,
+              bonusMonth,
+              bonusYear,
+              reportMonthForData,
+              reportYearForData,
+              matches: bonusMonth === reportMonthForData && bonusYear === reportYearForData
+            });
+          }
+          
+          if (bonusMonth === reportMonthForData && bonusYear === reportYearForData) {
+            const workPrice = parseFloat(t.workPrice) || 0;
+            const bonusVal = workPrice * 0.25;
+            // Враховуємо всіх 6 інженерів
+            const engineers = [
+              (t.engineer1 || '').trim(),
+              (t.engineer2 || '').trim(),
+              (t.engineer3 || '').trim(),
+              (t.engineer4 || '').trim(),
+              (t.engineer5 || '').trim(),
+              (t.engineer6 || '').trim()
+            ].filter(eng => eng && eng.length > 0);
+            
+            if (isDebugTask) {
+              console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}:`, {
+                engineers,
+                normalizedUserName,
+                includes: engineers.includes(normalizedUserName),
+                workPrice,
+                bonusVal,
+                bonusPerEngineer: bonusVal / engineers.length
+              });
+            }
+            
+            if (engineers.includes(normalizedUserName) && engineers.length > 0) {
+              engineerBonus += bonusVal / engineers.length;
+              if (isDebugTask) {
+                console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}: премія додана для ${normalizedUserName}, сума: ${bonusVal / engineers.length}`);
               }
+            } else if (isDebugTask) {
+              console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}: інженер ${normalizedUserName} не знайдено в списку:`, engineers);
+            }
+          } else {
+            if (isDebugTask) {
+              console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}: не співпадає місяць: bonusMonth=${bonusMonth} !== reportMonthForData=${reportMonthForData} або bonusYear=${bonusYear} !== reportYearForData=${reportYearForData}`);
             }
           }
         });
@@ -3098,6 +3200,8 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                 return bonusMonth === reportMonthForData && bonusYear === reportYearForData;
               });
               let engineerBonus = 0;
+              // Нормалізуємо ім'я користувача для порівнянь
+              const normalizedUserName = (u.name || '').trim();
               tasksForMonth.forEach(t => {
                 const workPrice = parseFloat(t.workPrice) || 0;
                 const bonusVal = workPrice * 0.25;
@@ -3111,7 +3215,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
                   (t.engineer6 || '').trim()
                 ].filter(eng => eng && eng.length > 0);
                 
-                if (engineers.includes(u.name) && engineers.length > 0) {
+                if (engineers.includes(normalizedUserName) && engineers.length > 0) {
                   engineerBonus += bonusVal / engineers.length;
                 }
               });
