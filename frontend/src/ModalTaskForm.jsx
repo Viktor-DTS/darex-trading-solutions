@@ -77,7 +77,7 @@ export const fields = [
   { name: 'engineModel', label: 'Модель двигуна', type: 'text' },
   { name: 'engineSerial', label: 'Зав. № двигуна', type: 'text' },
   { name: 'customerEquipmentNumber', label: 'інвент. № обладнання від замовника', type: 'text' },
-  { name: 'work', label: 'Найменування робіт', type: 'text' },
+  { name: 'work', label: 'Найменування робіт', type: 'select', options: ['', 'ТО', 'ПНР', 'Ремонт в цеху', 'Ремонт на місті', 'Діагностика', 'Діагностика+ремонт', 'Ремонт в цеху (волонтерство)', 'Гарантійний ремонт в цеху', 'Гарантійний ремонт на місті', 'Предпродажна підготовка', 'Продаж ЗІП'] },
   { name: 'engineer1', label: 'Сервісний інженер №1', type: 'text' },
   { name: 'engineer2', label: 'Сервісний інженер №2', type: 'text' },
   { name: 'engineer3', label: 'Сервісний інженер №3', type: 'text' },
@@ -1419,11 +1419,16 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
               );
             }
             if (f.type === 'select') {
+              // Додаємо поточне значення до опцій, якщо його там немає (для зворотної сумісності зі старими даними)
+              const options = [...(f.options || [])];
+              if (value && value.trim() && !options.includes(value)) {
+                options.push(value);
+              }
               return (
                 <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'} style={{flex:1}}>
                   <label>{f.label}</label>
                   <select name={f.name} value={value} onChange={handleChange} disabled={isReadOnly(f.name)}>
-                    {(f.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
                 </div>
               );
@@ -1470,9 +1475,19 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
                       {f.type === 'select' ? (
-                        <select name={f.name} value={form[f.name] || ''} onChange={handleChange} disabled={isReadOnly(f.name)}>
-                          {(f.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                        </select>
+                        (() => {
+                          // Додаємо поточне значення до опцій, якщо його там немає (для зворотної сумісності зі старими даними)
+                          const currentValue = form[f.name] || '';
+                          const options = [...(f.options || [])];
+                          if (currentValue && currentValue.trim() && !options.includes(currentValue)) {
+                            options.push(currentValue);
+                          }
+                          return (
+                            <select name={f.name} value={currentValue} onChange={handleChange} disabled={isReadOnly(f.name)}>
+                              {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                          );
+                        })()
                       ) : (
                         <input type={f.type} name={f.name} value={form[f.name] || ''} onChange={handleChange} readOnly={isReadOnly(f.name)} />
                       )}
@@ -1998,9 +2013,19 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                     <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
                       <label>{f.label}</label>
                       {f.type === 'select' ? (
-                        <select name={f.name} value={form[f.name] || ''} onChange={handleChange} disabled={isReadOnly(f.name)}>
-                          {(f.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                        </select>
+                        (() => {
+                          // Додаємо поточне значення до опцій, якщо його там немає (для зворотної сумісності зі старими даними)
+                          const currentValue = form[f.name] || '';
+                          const options = [...(f.options || [])];
+                          if (currentValue && currentValue.trim() && !options.includes(currentValue)) {
+                            options.push(currentValue);
+                          }
+                          return (
+                            <select name={f.name} value={currentValue} onChange={handleChange} disabled={isReadOnly(f.name)}>
+                              {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                          );
+                        })()
                       ) : (
                         <input type={f.type} name={f.name} value={value} onChange={handleChange} readOnly={isReadOnly(f.name)} />
                       )}
@@ -2292,6 +2317,22 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
                           {availableEngineers.map(u => (
                             <option key={u.id} value={u.name}>{u.name}</option>
                           ))}
+                        </select>
+                      </div>
+                    );
+                  }
+                  // Перевірка для select полів
+                  if (f.type === 'select') {
+                    // Додаємо поточне значення до опцій, якщо його там немає (для зворотної сумісності зі старими даними)
+                    const options = [...(f.options || [])];
+                    if (value && value.trim() && !options.includes(value)) {
+                      options.push(value);
+                    }
+                    return (
+                      <div key={f.name} className={labelAboveFields.includes(f.name) ? 'field label-above' : 'field'}>
+                        <label>{f.label}</label>
+                        <select name={f.name} value={value} onChange={handleChange} disabled={isReadOnly(f.name)}>
+                          {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
                       </div>
                     );
