@@ -1136,7 +1136,8 @@ function TaskTableComponent({
       workDate: task.date || '',
       engineModel: task.engineModel || '',
       engineSerial: task.engineSerial || '',
-      edrpou: task.edrpou || ''
+      edrpou: task.edrpou || '',
+      requestDesc: task.requestDesc || ''
     };
 
     // Перевіряємо умову для номера наряду
@@ -1261,12 +1262,14 @@ function TaskTableComponent({
         ? `Наряд_ДТС_${workOrderNumber}_${new Date().toISOString().slice(0,10)}.doc`
         : `Наряд_Дарекс_Енерго_${workOrderNumber}_${new Date().toISOString().slice(0,10)}.doc`;
       
-      // Завантажуємо файл
-      saveAs(htmlBlob, fileName);
+      // Не завантажуємо файл автоматично - тільки відкриваємо для перегляду
+      // Користувач може завантажити файл через кнопку в формі наряду
       
       // Відкриваємо в новому вікні для перегляду (з кнопками та base64 зображеннями)
       const newWindow = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes,resizable=yes');
       if (newWindow) {
+        // Відкриваємо документ перед записом
+        newWindow.document.open();
         // В браузері показуємо HTML з кнопками та base64 зображеннями
         newWindow.document.write(htmlWithImages);
         newWindow.document.close();
@@ -1362,6 +1365,19 @@ function TaskTableComponent({
           spacing: { after: 100 }
         })
       );
+
+      // Опис заявки (якщо заповнено)
+      if (workOrderData.requestDesc && workOrderData.requestDesc.trim()) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Опис заявки: ", bold: true }),
+              new TextRun({ text: workOrderData.requestDesc })
+            ],
+            spacing: { after: 100 }
+          })
+        );
+      }
 
       // Роботи виконує
       children.push(
@@ -2478,6 +2494,13 @@ function TaskTableComponent({
             <span class="field-value"></span>
           </div>
           
+          ${workOrderData.requestDesc ? `
+          <div class="field">
+            <span class="field-label">Опис заявки:</span>
+            <span class="field-value">${workOrderData.requestDesc}</span>
+          </div>
+          ` : ''}
+          
           <div class="field">
             <span class="field-label">1. Роботи виконує:</span>
             <span class="field-value">${engineers}</span>
@@ -2759,8 +2782,8 @@ function TaskTableComponent({
         </div>
         
         <div class="no-print">
-          <button class="print-button" onclick="printDocument()">🖨️ Друкувати</button>
-          <button class="save-button" onclick="saveDocument()">💾 Зберегти</button>
+          <button class="print-button" onclick="window.printDocument()">🖨️ Друкувати</button>
+          <button class="save-button" onclick="window.saveDocument()">💾 Зберегти</button>
           <button onclick="window.close()" style="
             background: #f44336;
             color: white;
@@ -2775,16 +2798,34 @@ function TaskTableComponent({
         </div>
         
         <script>
-          function printDocument() {
+          window.printDocument = function() {
             window.print();
-          }
+          };
           
-          function saveDocument() {
-            // Створюємо HTML контент для збереження
-            const htmlContent = document.documentElement.outerHTML;
+          window.saveDocument = function() {
+            // Отримуємо номер наряду з HTML - знаходимо елемент після мітки "№ наряду:"
+            let workOrderNumber = '';
+            const fields = document.querySelectorAll('.field');
+            fields.forEach(field => {
+              const label = field.querySelector('.field-label');
+              if (label && label.textContent.includes('№ наряду:')) {
+                const value = field.querySelector('.field-value');
+                if (value) {
+                  workOrderNumber = value.textContent.trim();
+                }
+              }
+            });
+            const workOrderNumberForFile = workOrderNumber || new Date().toISOString().slice(0,10);
             
-            // Створюємо Blob з HTML контентом
-            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+            // Створюємо HTML контент для збереження
+            let htmlContent = document.documentElement.outerHTML;
+            
+            // Видаляємо блок з кнопками (.no-print) з HTML для Word
+            const noPrintRegex = new RegExp('<div class="no-print">[\\s\\S]*?</div>', 'gi');
+            htmlContent = htmlContent.replace(noPrintRegex, '');
+            
+            // Створюємо Blob з HTML контентом як Word документ
+            const blob = new Blob([htmlContent], { type: 'application/msword;charset=utf-8' });
             
             // Створюємо URL для blob
             const url = URL.createObjectURL(blob);
@@ -2792,7 +2833,7 @@ function TaskTableComponent({
             // Створюємо посилання для завантаження
             const link = document.createElement('a');
             link.href = url;
-            link.download = 'Наряд_ДТС_' + new Date().toISOString().slice(0,10) + '.html';
+            link.download = 'Наряд_ДТС_' + workOrderNumberForFile + '_' + new Date().toISOString().slice(0,10) + '.doc';
             
             // Додаємо посилання до DOM, клікаємо і видаляємо
             document.body.appendChild(link);
@@ -2801,7 +2842,7 @@ function TaskTableComponent({
             
             // Очищуємо URL
             URL.revokeObjectURL(url);
-          }
+          };
         </script>
         </div>
       </body>
@@ -3218,6 +3259,13 @@ function TaskTableComponent({
             <span class="field-value"></span>
           </div>
           
+          ${workOrderData.requestDesc ? `
+          <div class="field">
+            <span class="field-label">Опис заявки:</span>
+            <span class="field-value">${workOrderData.requestDesc}</span>
+          </div>
+          ` : ''}
+          
           <div class="field">
             <span class="field-label">1. Роботи виконує:</span>
             <span class="field-value">${engineers}</span>
@@ -3499,8 +3547,8 @@ function TaskTableComponent({
         </div>
         
         <div class="no-print">
-          <button class="print-button" onclick="printDocument()">🖨️ Друкувати</button>
-          <button class="save-button" onclick="saveDocument()">💾 Зберегти</button>
+          <button class="print-button" onclick="window.printDocument()">🖨️ Друкувати</button>
+          <button class="save-button" onclick="window.saveDocument()">💾 Зберегти</button>
           <button onclick="window.close()" style="
             background: #f44336;
             color: white;
@@ -3515,16 +3563,34 @@ function TaskTableComponent({
         </div>
         
         <script>
-          function printDocument() {
+          window.printDocument = function() {
             window.print();
-          }
+          };
           
-          function saveDocument() {
-            // Створюємо HTML контент для збереження
-            const htmlContent = document.documentElement.outerHTML;
+          window.saveDocument = function() {
+            // Отримуємо номер наряду з HTML - знаходимо елемент після мітки "№ наряду:"
+            let workOrderNumber = '';
+            const fields = document.querySelectorAll('.field');
+            fields.forEach(field => {
+              const label = field.querySelector('.field-label');
+              if (label && label.textContent.includes('№ наряду:')) {
+                const value = field.querySelector('.field-value');
+                if (value) {
+                  workOrderNumber = value.textContent.trim();
+                }
+              }
+            });
+            const workOrderNumberForFile = workOrderNumber || new Date().toISOString().slice(0,10);
             
-            // Створюємо Blob з HTML контентом
-            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+            // Створюємо HTML контент для збереження
+            let htmlContent = document.documentElement.outerHTML;
+            
+            // Видаляємо блок з кнопками (.no-print) з HTML для Word
+            const noPrintRegex = new RegExp('<div class="no-print">[\\s\\S]*?</div>', 'gi');
+            htmlContent = htmlContent.replace(noPrintRegex, '');
+            
+            // Створюємо Blob з HTML контентом як Word документ
+            const blob = new Blob([htmlContent], { type: 'application/msword;charset=utf-8' });
             
             // Створюємо URL для blob
             const url = URL.createObjectURL(blob);
@@ -3532,7 +3598,7 @@ function TaskTableComponent({
             // Створюємо посилання для завантаження
             const link = document.createElement('a');
             link.href = url;
-            link.download = 'Наряд_Дарекс_Енерго_' + new Date().toISOString().slice(0,10) + '.html';
+            link.download = 'Наряд_Дарекс_Енерго_' + workOrderNumberForFile + '_' + new Date().toISOString().slice(0,10) + '.doc';
             
             // Додаємо посилання до DOM, клікаємо і видаляємо
             document.body.appendChild(link);
@@ -3541,7 +3607,7 @@ function TaskTableComponent({
             
             // Очищуємо URL
             URL.revokeObjectURL(url);
-          }
+          };
         </script>
         </div>
       </body>
