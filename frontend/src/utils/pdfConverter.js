@@ -199,6 +199,59 @@ async function loadPdfJs() {
 }
 
 /**
+ * Читає перші три рядки тексту з PDF файлу
+ * @param {string} pdfUrl - URL PDF файлу
+ * @returns {Promise<string>} - Перші три рядки тексту, об'єднані символом "|"
+ */
+export async function getPdfFirstThreeLines(pdfUrl) {
+  try {
+    if (!pdfUrl || typeof pdfUrl !== 'string') {
+      console.warn('[PDF] Невалідний URL:', pdfUrl);
+      return '';
+    }
+
+    // Завантажуємо PDF.js
+    const pdfjs = await loadPdfJs();
+    
+    // Завантажуємо PDF файл з URL
+    const loadingTask = pdfjs.getDocument({
+      url: pdfUrl,
+      httpHeaders: {},
+      withCredentials: false
+    });
+    
+    const pdf = await loadingTask.promise;
+    
+    // Отримуємо першу сторінку
+    const firstPage = await pdf.getPage(1);
+    
+    // Отримуємо текст з першої сторінки
+    const textContent = await firstPage.getTextContent();
+    
+    // Витягуємо текст з текстових елементів
+    const textItems = textContent.items.map(item => item.str).filter(str => str.trim() !== '');
+    
+    // Беремо перші три рядки (не порожні)
+    const firstThreeLines = textItems.slice(0, 3);
+    
+    // Об'єднуємо рядки символом "|" для порівняння
+    const key = firstThreeLines.join('|').toLowerCase().trim();
+    
+    console.log('[PDF] Перші три рядки з PDF:', {
+      url: pdfUrl,
+      lines: firstThreeLines,
+      key: key.substring(0, 100) + '...'
+    });
+    
+    return key;
+  } catch (error) {
+    console.error('[PDF] Помилка читання PDF:', error, 'url:', pdfUrl);
+    // У разі помилки повертаємо порожній рядок
+    return '';
+  }
+}
+
+/**
  * Конвертує PDF файл в JPG зображення (тільки перша сторінка)
  * @param {File} pdfFile - PDF файл для конвертації
  * @returns {Promise<File>} - JPG файл

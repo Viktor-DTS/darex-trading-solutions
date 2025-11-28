@@ -44,6 +44,7 @@ import { activityAPI } from './utils/activityAPI';
 import keepAliveService from './utils/keepAlive.js';
 import { analyticsAPI } from './utils/analyticsAPI';
 import { usersAPI } from './utils/usersAPI';
+import { getPdfFirstThreeLines } from './utils/pdfConverter';
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
   { value: 'service', label: 'Сервісна служба' },
@@ -1059,6 +1060,8 @@ function ServiceArea({ user, accessRules, currentArea }) {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
+  const [contractsModalOpen, setContractsModalOpen] = useState(false);
+  const [selectedContract, setSelectedContract] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [editTask, setEditTask] = useState(null);
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
@@ -1067,6 +1070,29 @@ function ServiceArea({ user, accessRules, currentArea }) {
 
   // Використовуємо хук useLazyData для оптимізації
   const { data: tasks, loading, error, activeTab, setActiveTab, refreshData, getTabCount } = useLazyData(user, 'notDone');
+  
+  // Для вкладки "Договори" потрібні всі заявки
+  const [allTasksForContracts, setAllTasksForContracts] = useState([]);
+  const [allTasksLoading, setAllTasksLoading] = useState(false);
+  
+  useEffect(() => {
+    if (activeTab === 'contracts') {
+      const loadAllTasks = async () => {
+        setAllTasksLoading(true);
+        try {
+          console.log('[DEBUG] ServiceArea - завантажуємо всі заявки для вкладки Договори');
+          const allTasksData = await tasksAPI.getAllForReport();
+          setAllTasksForContracts(allTasksData);
+          console.log('[DEBUG] ServiceArea - завантажено всіх заявок для договорів:', allTasksData.length);
+        } catch (error) {
+          console.error('[ERROR] ServiceArea - помилка завантаження всіх завдань для договорів:', error);
+        } finally {
+          setAllTasksLoading(false);
+        }
+      };
+      loadAllTasks();
+    }
+  }, [activeTab]);
   
   // Ініціалізуємо фільтри
   const allFilterKeys = allTaskFields
@@ -1346,7 +1372,18 @@ function ServiceArea({ user, accessRules, currentArea }) {
   console.log('DEBUG App: useMemo dependencies - user?.region =', user?.region);
   console.log('DEBUG App: useMemo dependencies - filters =', filters);
   console.log('DEBUG App: useMemo dependencies - filters.serviceRegion =', filters.serviceRegion);
-  const notDone = useMemo(() => filtered.filter(t => t.status === 'Заявка' || t.status === 'В роботі'), [filtered]);
+  // Сортуємо заявки: спочатку термінові, потім решта
+  const notDone = useMemo(() => {
+    const tasks = filtered.filter(t => t.status === 'Заявка' || t.status === 'В роботі');
+    return tasks.sort((a, b) => {
+      // Термінові заявки завжди перші
+      if (a.urgentRequest && !b.urgentRequest) return -1;
+      if (!a.urgentRequest && b.urgentRequest) return 1;
+      // Якщо обидві термінові або обидві не термінові - сортуємо по статусу
+      const statusOrder = { 'Заявка': 1, 'В роботі': 2 };
+      return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+    });
+  }, [filtered]);
   const pending = useMemo(() => filtered.filter(t => t.status === 'Виконано' && (
     isPending(t.approvedByWarehouse) ||
     isPending(t.approvedByAccountant) ||
@@ -1359,6 +1396,336 @@ function ServiceArea({ user, accessRules, currentArea }) {
     isApproved(t.approvedByAccountant)
   ), [filtered]);
   const blocked = useMemo(() => filtered.filter(t => t.status === 'Заблоковано'), [filtered]);
+  
+  // Функція для витягування назви файлу з URL
+  const extractFileName = useCallback((url) => {
+    if (!url) return '';
+    
+    try {
+      // Якщо це рядок URL
+      const urlString = typeof url === 'string' ? url : (url.url || url.name || String(url));
+      
+      if (!urlString || urlString.trim() === '') return '';
+      
+      // Видаляємо параметри запиту (після ?)
+      const urlWithoutParams = urlString.split('?')[0];
+      
+      // Видаляємо версію Cloudinary (v1234567890)
+      const urlWithoutVersion = urlWithoutParams.replace(/\/v\d+\//, '/');
+      
+      // Витягуємо останню частину шляху (назву файлу)
+      const fileName = urlWithoutVersion.split('/').pop();
+      
+      return fileName || 'contract.pdf';
+    } catch (error) {
+      console.error('[ERROR] extractFileName - помилка:', error, 'url:', url);
+      return '';
+    }
+  }, []);
+
+  // Кеш для зберігання ключів договорів (перші три рядки з PDF)
+  const [contractKeysCache, setContractKeysCache] = useState(new Map());
+  const [contractKeysLoading, setContractKeysLoading] = useState(new Set());
+
+  // Функція для отримання ключа договору з кешу (синхронна)
+  const getContractKeyFromCache = useCallback((contractFileUrl) => {
+    if (!contractFileUrl) return contractFileUrl;
+    // Якщо ключ є в кеші, повертаємо його, інакше використовуємо URL як тимчасовий ключ
+    return contractKeysCache.get(contractFileUrl) || contractFileUrl;
+  }, [contractKeysCache]);
+
+  // Функція для завантаження ключа договору (асинхронна)
+  const loadContractKey = useCallback(async (contractFileUrl) => {
+    if (!contractFileUrl) return;
+    
+    // Перевіряємо кеш
+    if (contractKeysCache.has(contractFileUrl)) {
+      return;
+    }
+
+    // Перевіряємо, чи вже завантажується
+    if (contractKeysLoading.has(contractFileUrl)) {
+      return;
+    }
+
+    // Додаємо до списку завантажуваних
+    setContractKeysLoading(prev => new Set(prev).add(contractFileUrl));
+
+    try {
+      console.log('[DEBUG] loadContractKey - початок читання PDF для:', contractFileUrl.substring(0, 80) + '...');
+      // Читаємо перші три рядки з PDF
+      const pdfKey = await getPdfFirstThreeLines(contractFileUrl);
+      console.log('[DEBUG] loadContractKey - отримано ключ:', pdfKey.substring(0, 100) + '...', 'для URL:', contractFileUrl.substring(0, 80) + '...');
+      
+      // Зберігаємо в кеш
+      setContractKeysCache(prev => {
+        const newMap = new Map(prev);
+        newMap.set(contractFileUrl, pdfKey || contractFileUrl);
+        console.log('[DEBUG] loadContractKey - збережено в кеш, розмір кешу:', newMap.size);
+        return newMap;
+      });
+    } catch (error) {
+      console.error('[ERROR] loadContractKey - помилка:', error, 'url:', contractFileUrl);
+      // У разі помилки використовуємо URL як ключ
+      setContractKeysCache(prev => {
+        const newMap = new Map(prev);
+        newMap.set(contractFileUrl, contractFileUrl);
+        return newMap;
+      });
+    } finally {
+      // Видаляємо зі списку завантажуваних
+      setContractKeysLoading(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(contractFileUrl);
+        return newSet;
+      });
+    }
+  }, [contractKeysCache, contractKeysLoading]);
+
+  // Завантажуємо ключі договорів (перші три рядки з PDF) при зміні завдань
+  useEffect(() => {
+    if (activeTab !== 'contracts' || allTasksForContracts.length === 0) {
+      console.log('[DEBUG] loadContractKeys - пропускаємо, activeTab:', activeTab, 'allTasksForContracts.length:', allTasksForContracts.length);
+      return;
+    }
+
+    console.log('[DEBUG] loadContractKeys - початок завантаження ключів для', allTasksForContracts.length, 'завдань');
+
+    const uniqueUrls = new Set();
+    allTasksForContracts.forEach(task => {
+      const hasContractFile = task.contractFile && 
+        (typeof task.contractFile === 'string' ? task.contractFile.trim() !== '' : !!task.contractFile);
+      const hasEdrpou = task.edrpou && task.edrpou.trim() !== '';
+      
+      if (hasContractFile && hasEdrpou) {
+        const contractFileUrl = typeof task.contractFile === 'string' 
+          ? task.contractFile.trim() 
+          : (task.contractFile?.url || task.contractFile?.name || String(task.contractFile));
+        if (contractFileUrl && !contractKeysCache.has(contractFileUrl)) {
+          uniqueUrls.add(contractFileUrl);
+        }
+      }
+    });
+
+    console.log('[DEBUG] loadContractKeys - знайдено', uniqueUrls.size, 'унікальних URL для завантаження');
+
+    // Завантажуємо ключі для всіх унікальних URL
+    uniqueUrls.forEach(url => {
+      console.log('[DEBUG] loadContractKeys - завантажуємо ключ для:', url.substring(0, 80) + '...');
+      loadContractKey(url);
+    });
+  }, [activeTab, allTasksForContracts, contractKeysCache, loadContractKey]);
+
+  // Логіка для збору даних про договори по ЄДРПОУ
+  const contractsData = useMemo(() => {
+    if (activeTab !== 'contracts') return [];
+    
+    // Використовуємо всі заявки для вкладки договорів
+    const tasksToProcess = activeTab === 'contracts' ? allTasksForContracts : tasks;
+    
+    console.log('[DEBUG] contractsData - початок збору даних, tasksToProcess.length:', tasksToProcess.length);
+    
+    // Збираємо всі заявки з файлом договору та ЄДРПОУ
+    const contractsMap = new Map();
+    let tasksWithContractFile = 0;
+    let tasksWithEdrpou = 0;
+    let tasksWithBoth = 0;
+    
+    tasksToProcess.forEach(task => {
+      // Перевіряємо, чи є файл договору
+      const hasContractFile = task.contractFile && 
+        (typeof task.contractFile === 'string' ? task.contractFile.trim() !== '' : !!task.contractFile);
+      
+      if (hasContractFile) {
+        tasksWithContractFile++;
+        console.log('[DEBUG] contractsData - знайдено заявку з contractFile:', {
+          requestNumber: task.requestNumber,
+          contractFile: task.contractFile,
+          contractFileType: typeof task.contractFile
+        });
+      }
+      
+      // Перевіряємо, чи є ЄДРПОУ
+      const hasEdrpou = task.edrpou && task.edrpou.trim() !== '';
+      
+      if (hasEdrpou) {
+        tasksWithEdrpou++;
+      }
+      
+      // Пропускаємо, якщо немає файлу договору або ЄДРПОУ
+      if (!hasContractFile || !hasEdrpou) {
+        return;
+      }
+      
+      tasksWithBoth++;
+      
+      const edrpou = task.edrpou.trim();
+      const client = task.client || 'Не вказано';
+      
+      // Отримуємо URL файлу договору
+      const contractFileUrl = typeof task.contractFile === 'string' 
+        ? task.contractFile.trim() 
+        : (task.contractFile?.url || task.contractFile?.name || String(task.contractFile));
+      
+      // Витягуємо назву файлу
+      const contractFileName = extractFileName(contractFileUrl);
+      
+      // Отримуємо ключ для групування унікальних договорів (перші три рядки з PDF)
+      // Якщо ключ ще не завантажено, використовуємо URL як тимчасовий ключ
+      const contractKey = getContractKeyFromCache(contractFileUrl);
+      
+      // Створюємо ключ для групування: ЄДРПОУ
+      if (!contractsMap.has(edrpou)) {
+        contractsMap.set(edrpou, {
+          edrpou: edrpou,
+          client: client,
+          contractFiles: new Map(), // Map: contractKey -> { fileName, url, tasks }
+          activeTasksCount: 0,
+          allTasks: []
+        });
+      }
+      
+      const contract = contractsMap.get(edrpou);
+      
+      // Додаємо файл договору до Map (групуємо по ключу з перших трьох рядків PDF)
+      if (contractKey) {
+        // Перевіряємо, чи це URL (тимчасовий ключ) або реальний ключ з PDF
+        const isTemporaryKey = contractKey === contractFileUrl;
+        
+        if (!contract.contractFiles.has(contractKey)) {
+          contract.contractFiles.set(contractKey, {
+            fileName: contractFileName || 'contract.pdf',
+            url: contractFileUrl, // Зберігаємо перший знайдений URL для цього унікального договору
+            tasks: [],
+            urls: new Set([contractFileUrl]), // Зберігаємо всі URL для цього ключа
+            isTemporaryKey: isTemporaryKey // Позначаємо, чи це тимчасовий ключ
+          });
+        } else {
+          // Якщо ключ вже існує, додаємо URL до списку
+          const existingContract = contract.contractFiles.get(contractKey);
+          if (existingContract.urls) {
+            existingContract.urls.add(contractFileUrl);
+          } else {
+            existingContract.urls = new Set([existingContract.url, contractFileUrl]);
+          }
+        }
+        // Додаємо заявку до списку заявок для цього унікального договору
+        contract.contractFiles.get(contractKey).tasks.push(task);
+      }
+      
+      // Підраховуємо активні заявки (статус "Заявка" або "В роботі")
+      if (task.status === 'Заявка' || task.status === 'В роботі') {
+        contract.activeTasksCount++;
+      }
+      
+      // Додаємо заявку до списку
+      contract.allTasks.push(task);
+    });
+    
+    console.log('[DEBUG] contractsData - статистика:', {
+      totalTasks: tasksToProcess.length,
+      tasksWithContractFile,
+      tasksWithEdrpou,
+      tasksWithBoth,
+      contractsMapSize: contractsMap.size
+    });
+    
+    // Конвертуємо Map в масив та об'єднуємо файли з однаковими ключами
+    const result = Array.from(contractsMap.values()).map(contract => {
+      // Об'єднуємо файли з однаковими ключами (якщо ключі завантажені)
+      const mergedFiles = new Map();
+      
+      console.log(`[DEBUG] contractsData - обробка ЄДРПОУ ${contract.edrpou}, файлів: ${contract.contractFiles.size}`);
+      
+      contract.contractFiles.forEach((fileData, key) => {
+        // Перевіряємо, чи є реальний ключ в кеші (навіть якщо це не тимчасовий ключ)
+        let finalKey = key;
+        if (contractKeysCache.has(fileData.url)) {
+          const cachedKey = contractKeysCache.get(fileData.url);
+          if (cachedKey && cachedKey !== fileData.url) {
+            finalKey = cachedKey;
+            console.log(`[DEBUG] contractsData - знайдено реальний ключ для ${fileData.url.substring(0, 50)}: ${cachedKey.substring(0, 50)}`);
+          }
+        }
+        
+        // Якщо файл з таким ключем вже існує, об'єднуємо
+        if (mergedFiles.has(finalKey)) {
+          const existing = mergedFiles.get(finalKey);
+          existing.tasks = [...existing.tasks, ...fileData.tasks];
+          if (fileData.urls) {
+            fileData.urls.forEach(url => existing.urls.add(url));
+          } else {
+            existing.urls.add(fileData.url);
+          }
+          console.log(`[DEBUG] contractsData - об'єднано файл з ключем ${finalKey.substring(0, 50)}, тепер заявок: ${existing.tasks.length}`);
+        } else {
+          // Створюємо новий запис
+          mergedFiles.set(finalKey, {
+            ...fileData,
+            isTemporaryKey: finalKey === fileData.url,
+            urls: fileData.urls || new Set([fileData.url])
+          });
+          console.log(`[DEBUG] contractsData - створено новий запис з ключем ${finalKey.substring(0, 50)}`);
+        }
+      });
+      
+      return {
+        ...contract,
+        contractFiles: Array.from(mergedFiles.values()), // Конвертуємо Map в масив об'єктів
+        contractsCount: mergedFiles.size // Кількість унікальних договорів після об'єднання
+      };
+    });
+    
+    console.log('[DEBUG] contractsData - результат:', result.length, 'договорів');
+    result.forEach(contract => {
+      console.log(`[DEBUG] ЄДРПОУ ${contract.edrpou}: ${contract.contractsCount} унікальних договорів, файли:`, 
+        contract.contractFiles.map(f => ({ 
+          fileName: f.fileName, 
+          url: f.url.substring(0, 50) + '...', 
+          tasksCount: f.tasks.length,
+          isTemporary: f.isTemporaryKey 
+        }))
+      );
+    });
+    
+    return result;
+  }, [tasks, activeTab, allTasksForContracts, extractFileName, getContractKeyFromCache, contractKeysCache]);
+  
+  // Фільтри для договорів
+  const [contractFilters, setContractFilters] = useState({
+    edrpou: '',
+    client: '',
+    activeTasksCount: ''
+  });
+  
+  const filteredContracts = useMemo(() => {
+    const filtered = contractsData.filter(contract => {
+      if (contractFilters.edrpou && !contract.edrpou.toLowerCase().includes(contractFilters.edrpou.toLowerCase())) {
+        return false;
+      }
+      if (contractFilters.client && !contract.client.toLowerCase().includes(contractFilters.client.toLowerCase())) {
+        return false;
+      }
+      if (contractFilters.activeTasksCount) {
+        const filterCount = parseInt(contractFilters.activeTasksCount);
+        if (isNaN(filterCount) || contract.activeTasksCount !== filterCount) {
+          return false;
+        }
+      }
+      return true;
+    });
+    
+    // Сортуємо: спочатку договори з активними заявками (за спаданням), потім решта
+    return filtered.sort((a, b) => {
+      // Якщо обидва мають активні заявки або обидва не мають - сортуємо за кількістю активних заявок (спадання)
+      if ((a.activeTasksCount > 0 && b.activeTasksCount > 0) || (a.activeTasksCount === 0 && b.activeTasksCount === 0)) {
+        return b.activeTasksCount - a.activeTasksCount;
+      }
+      // Якщо один має активні заявки, а інший ні - той що має, йде першим
+      return b.activeTasksCount - a.activeTasksCount;
+    });
+  }, [contractsData, contractFilters]);
+  
   let tableData = notDone;
   if (activeTab === 'pending') tableData = pending;
   if (activeTab === 'done') tableData = done;
@@ -1684,11 +2051,12 @@ function ServiceArea({ user, accessRules, currentArea }) {
       </div>
       
       {/* Другий рядок: вкладки */}
-      <div style={{display:'flex',gap:8,marginBottom:24,justifyContent:'flex-start',flexWrap:'wrap',alignItems:'center'}}>
-        <button onClick={()=>setActiveTab('notDone')} style={{padding:'10px 16px',background:activeTab==='notDone'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='notDone'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Невиконані заявки</button>
-        <button onClick={()=>setActiveTab('pending')} style={{padding:'10px 16px',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заявка на підтвердженні</button>
-        <button onClick={()=>setActiveTab('done')} style={{padding:'10px 16px',background:activeTab==='done'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='done'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Архів виконаних заявок</button>
-        <button onClick={()=>setActiveTab('blocked')} style={{padding:'10px 16px',background:activeTab==='blocked'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='blocked'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem'}}>Заблоковані заявки</button>
+      <div style={{display:'flex',gap:8,marginBottom:24,justifyContent:'flex-start',flexWrap:'nowrap',alignItems:'center',overflowX:'auto'}}>
+        <button onClick={()=>setActiveTab('notDone')} style={{padding:'10px 16px',background:activeTab==='notDone'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='notDone'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem',flexShrink:0}}>Невиконані заявки</button>
+        <button onClick={()=>setActiveTab('pending')} style={{padding:'10px 16px',background:activeTab==='pending'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='pending'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem',flexShrink:0}}>Заявка на підтвердженні</button>
+        <button onClick={()=>setActiveTab('done')} style={{padding:'10px 16px',background:activeTab==='done'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='done'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem',flexShrink:0}}>Архів виконаних заявок</button>
+        <button onClick={()=>setActiveTab('blocked')} style={{padding:'10px 16px',background:activeTab==='blocked'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='blocked'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem',flexShrink:0}}>Заблоковані заявки</button>
+        <button onClick={()=>setActiveTab('contracts')} style={{padding:'10px 16px',background:activeTab==='contracts'?'#00bfff':'#22334a',color:'#fff',border:'none',borderRadius:8,fontWeight:activeTab==='contracts'?700:400,cursor:'pointer',whiteSpace:'nowrap',fontSize:'1rem',flexShrink:0}}>Договори</button>
       </div>
       
       <ModalTaskForm 
@@ -1700,6 +2068,179 @@ function ServiceArea({ user, accessRules, currentArea }) {
         user={user}
         readOnly={editTask?._readOnly || false}
       />
+      {activeTab === 'contracts' ? (
+        <div style={{width:'100%',overflowX:'auto'}}>
+          <style>{`
+            @keyframes rainbow {
+              0% { background-position: 0% 50%; }
+              50% { background-position: 100% 50%; }
+              100% { background-position: 0% 50%; }
+            }
+            .rainbow-cell {
+              background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000);
+              background-size: 400% 400%;
+              animation: rainbow 3s ease infinite;
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+              font-weight: bold;
+              font-size: 1.1em;
+            }
+            .rainbow-bg {
+              background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000);
+              background-size: 400% 400%;
+              animation: rainbow 3s ease infinite;
+              color: white;
+              font-weight: bold;
+              padding: 8px;
+              border-radius: 4px;
+            }
+          `}</style>
+          <table style={{width:'100%',borderCollapse:'collapse',background:'#1a2636',borderRadius:'8px',overflow:'hidden'}}>
+            <thead>
+              <tr style={{background:'#22334a'}}>
+                <th style={{padding:'12px',textAlign:'left',borderBottom:'2px solid #2c5364',position:'sticky',top:0,zIndex:10}}>
+                  <input
+                    type="text"
+                    placeholder="Фільтр ЄДРПОУ"
+                    value={contractFilters.edrpou}
+                    onChange={(e) => setContractFilters({...contractFilters, edrpou: e.target.value})}
+                    style={{width:'100%',padding:'6px',background:'#1a2636',color:'#fff',border:'1px solid #2c5364',borderRadius:'4px'}}
+                  />
+                  <div style={{marginTop:'4px',fontWeight:'bold'}}>ЄДРПОУ</div>
+                </th>
+                <th style={{padding:'12px',textAlign:'left',borderBottom:'2px solid #2c5364',position:'sticky',top:0,zIndex:10}}>
+                  <input
+                    type="text"
+                    placeholder="Фільтр контрагента"
+                    value={contractFilters.client}
+                    onChange={(e) => setContractFilters({...contractFilters, client: e.target.value})}
+                    style={{width:'100%',padding:'6px',background:'#1a2636',color:'#fff',border:'1px solid #2c5364',borderRadius:'4px'}}
+                  />
+                  <div style={{marginTop:'4px',fontWeight:'bold'}}>Назва контрагента</div>
+                </th>
+                <th style={{padding:'12px',textAlign:'center',borderBottom:'2px solid #2c5364',position:'sticky',top:0,zIndex:10}}>
+                  <div style={{marginTop:'24px',fontWeight:'bold'}}>Кількість договорів</div>
+                </th>
+                <th style={{padding:'12px',textAlign:'center',borderBottom:'2px solid #2c5364',position:'sticky',top:0,zIndex:10}}>
+                  <input
+                    type="text"
+                    placeholder="Фільтр кількості"
+                    value={contractFilters.activeTasksCount}
+                    onChange={(e) => setContractFilters({...contractFilters, activeTasksCount: e.target.value})}
+                    style={{width:'100%',padding:'6px',background:'#1a2636',color:'#fff',border:'1px solid #2c5364',borderRadius:'4px'}}
+                  />
+                  <div style={{marginTop:'4px',fontWeight:'bold'}}>Активні заявки</div>
+                </th>
+                <th style={{padding:'12px',textAlign:'left',borderBottom:'2px solid #2c5364',position:'sticky',top:0,zIndex:10}}>
+                  <div style={{marginTop:'24px',fontWeight:'bold'}}>Переглянути договора</div>
+                </th>
+                <th style={{padding:'12px',textAlign:'left',borderBottom:'2px solid #2c5364',position:'sticky',top:0,zIndex:10}}>
+                  <div style={{marginTop:'24px',fontWeight:'bold'}}>Дії</div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredContracts.length === 0 ? (
+                <tr>
+                  <td colSpan="6" style={{padding:'20px',textAlign:'center',color:'#888'}}>
+                    Договори не знайдено
+                  </td>
+                </tr>
+              ) : (
+                filteredContracts.map((contract, index) => {
+                  // Підраховуємо активні заявки для кожного унікального файлу
+                  // Для одного ЄДРПОУ всі файли - це один договір
+                  const contractsWithActiveTasks = Array.from(contract.contractFiles.values()).map(contractFileData => {
+                    // contractFileData це об'єкт { fileName, url, tasks }
+                    const tasksForContract = contractFileData.tasks || [];
+                    const activeTasks = tasksForContract.filter(t => 
+                      t.status === 'Заявка' || t.status === 'В роботі'
+                    );
+                    return {
+                      fileName: contractFileData.fileName,
+                      url: contractFileData.url,
+                      activeTasksCount: activeTasks.length,
+                      allTasksCount: tasksForContract.length
+                    };
+                  });
+                  
+                  return (
+                    <tr key={contract.edrpou} style={{borderBottom:'1px solid #2c5364',background:index % 2 === 0 ? '#1a2636' : '#22334a'}}>
+                      <td style={{padding:'12px'}}>{contract.edrpou}</td>
+                      <td style={{padding:'12px'}}>{contract.client}</td>
+                      <td style={{padding:'12px',textAlign:'center'}}>
+                        <span style={{color:'#fff',fontWeight:'bold'}}>{contract.contractsCount || 1}</span>
+                      </td>
+                      <td style={{padding:'12px',textAlign:'center'}}>
+                        {contract.activeTasksCount > 0 ? (
+                          <div className="rainbow-bg" style={{display:'inline-block',minWidth:'40px'}}>
+                            {contract.activeTasksCount}
+                          </div>
+                        ) : (
+                          <span style={{color:'#888'}}>0</span>
+                        )}
+                      </td>
+                      <td style={{padding:'12px'}}>
+                        <button
+                          onClick={() => {
+                            setSelectedContract({
+                              ...contract,
+                              contractsWithActiveTasks
+                            });
+                            setContractsModalOpen(true);
+                          }}
+                          style={{
+                            padding:'6px 12px',
+                            background:'#28a745',
+                            color:'#fff',
+                            border:'none',
+                            borderRadius:'4px',
+                            cursor:'pointer',
+                            fontSize:'0.9rem'
+                          }}
+                        >
+                          Переглянути договора
+                        </button>
+                      </td>
+                      <td style={{padding:'12px'}}>
+                        <button
+                          onClick={() => {
+                            // Фільтруємо тільки активні заявки (статус "Заявка" або "В роботі")
+                            const activeTasks = contract.allTasks.filter(t => 
+                              t.status === 'Заявка' || t.status === 'В роботі'
+                            );
+                            if (activeTasks.length === 0) {
+                              alert('Немає активних заявок для даного договору');
+                              return;
+                            }
+                            // Відкриваємо модальне вікно з активними заявками по договору
+                            const tasksList = activeTasks.map(t => 
+                              `Заявка ${t.requestNumber || t.taskNumber || 'N/A'}: ${t.status} - ${t.client || 'Без назви'}`
+                            ).join('\n');
+                            alert(`Активні заявки по договору ${contract.edrpou}:\n\n${tasksList}`);
+                          }}
+                          style={{
+                            padding:'6px 12px',
+                            background:'#00bfff',
+                            color:'#fff',
+                            border:'none',
+                            borderRadius:'4px',
+                            cursor:'pointer',
+                            fontSize:'0.9rem'
+                          }}
+                        >
+                          Активні заявки ({contract.activeTasksCount})
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
       <TaskTable
         key={tableKey}
         tasks={tableData}
@@ -1722,12 +2263,192 @@ function ServiceArea({ user, accessRules, currentArea }) {
         showColumnSettings={showColumnSettings}
         onShowColumnSettings={setShowColumnSettings}
       />
+      )}
       <ServiceReminderModal
         isOpen={reminderModalOpen}
         onClose={() => setReminderModalOpen(false)}
         tasks={tasks}
         user={user}
       />
+      
+      {/* Модальне вікно для перегляду договорів */}
+      {contractsModalOpen && selectedContract && (
+        <div style={{
+          position:'fixed',
+          top:0,
+          left:0,
+          right:0,
+          bottom:0,
+          background:'rgba(0,0,0,0.7)',
+          display:'flex',
+          justifyContent:'center',
+          alignItems:'center',
+          zIndex:10000
+        }} onClick={() => setContractsModalOpen(false)}>
+          <div style={{
+            background:'#1a2636',
+            borderRadius:'8px',
+            padding:'24px',
+            maxWidth:'800px',
+            width:'90%',
+            maxHeight:'80vh',
+            overflowY:'auto',
+            border:'2px solid #2c5364'
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'20px'}}>
+              <h2 style={{color:'#fff',margin:0}}>Договори по ЄДРПОУ: {selectedContract.edrpou}</h2>
+              <button
+                onClick={() => setContractsModalOpen(false)}
+                style={{
+                  background:'#dc3545',
+                  color:'#fff',
+                  border:'none',
+                  borderRadius:'4px',
+                  padding:'8px 16px',
+                  cursor:'pointer',
+                  fontSize:'1rem'
+                }}
+              >
+                ✕ Закрити
+              </button>
+            </div>
+            
+            <div style={{marginBottom:'16px',color:'#fff'}}>
+              <strong>Контрагент:</strong> {selectedContract.client}
+            </div>
+            
+            <div style={{marginBottom:'20px'}}>
+              <h3 style={{color:'#fff',marginBottom:'12px'}}>Унікальні договори (групуються по першим трьом рядкам з PDF):</h3>
+              {selectedContract.contractFiles && selectedContract.contractFiles.length > 0 ? (
+                <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
+                  {selectedContract.contractFiles.map((contractFileData, index) => {
+                    const tasksForContract = contractFileData.tasks || [];
+                    const activeTasks = tasksForContract.filter(t => 
+                      t.status === 'Заявка' || t.status === 'В роботі'
+                    );
+                    const allUrls = contractFileData.urls ? Array.from(contractFileData.urls) : [contractFileData.url];
+                    
+                    return (
+                    <div
+                      key={index}
+                      style={{
+                        background:'#22334a',
+                        padding:'16px',
+                        borderRadius:'6px',
+                        border:'1px solid #2c5364'
+                      }}
+                    >
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
+                        <div style={{flex:1}}>
+                          <div style={{color:'#fff',fontWeight:'bold',marginBottom:'4px'}}>
+                            Договір #{index + 1}: {contractFileData.fileName || 'contract.pdf'}
+                            {allUrls.length > 1 && (
+                              <span style={{color:'#888',fontSize:'0.8rem',marginLeft:'8px'}}>
+                                ({allUrls.length} файлів з однаковим вмістом)
+                              </span>
+                            )}
+                          </div>
+                          {allUrls.map((url, urlIndex) => (
+                            <div key={urlIndex} style={{color:'#888',fontSize:'0.85rem',wordBreak:'break-all',marginTop:'4px'}}>
+                              Файл {urlIndex + 1}: {extractFileName(url)} - {url.substring(0, 80)}...
+                            </div>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => {
+                            // Відкриваємо файл договору в новому вікні
+                            const fileUrl = contractFileData.url;
+                            if (fileUrl) {
+                              window.open(fileUrl, '_blank');
+                            }
+                          }}
+                          style={{
+                            padding:'8px 16px',
+                            background:'#00bfff',
+                            color:'#fff',
+                            border:'none',
+                            borderRadius:'4px',
+                            cursor:'pointer',
+                            fontSize:'0.9rem',
+                            marginLeft:'12px',
+                            whiteSpace:'nowrap'
+                          }}
+                        >
+                          Переглянути файл
+                        </button>
+                      </div>
+                      <div style={{display:'flex',flexDirection:'column',gap:'8px',marginTop:'8px'}}>
+                        <div style={{display:'flex',gap:'16px'}}>
+                          <div style={{color:'#fff'}}>
+                            <strong>Всього заявок по цьому договору:</strong> {tasksForContract.length}
+                          </div>
+                          <div style={{color:'#fff'}}>
+                            <strong>Активні заявки по цьому договору:</strong>{' '}
+                            {activeTasks.length > 0 ? (
+                              <span className="rainbow-bg" style={{display:'inline-block',minWidth:'30px',padding:'4px 8px'}}>
+                                {activeTasks.length}
+                              </span>
+                            ) : (
+                              <span style={{color:'#888'}}>0</span>
+                            )}
+                          </div>
+                        </div>
+                        {activeTasks.length > 0 && (
+                          <div style={{color:'#fff',marginTop:'8px'}}>
+                            <strong>Номери активних заявок:</strong>{' '}
+                            <span style={{color:'#00bfff',fontSize:'0.9rem'}}>
+                              {activeTasks.map((task, idx) => (
+                                <span key={task._id || idx}>
+                                  {task.requestNumber || task.taskNumber || 'N/A'}
+                                  {idx < activeTasks.length - 1 ? ', ' : ''}
+                                </span>
+                              ))}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    );
+                  })}
+                  <div style={{
+                    background:'#2c5364',
+                    padding:'16px',
+                    borderRadius:'6px',
+                    border:'1px solid #00bfff',
+                    marginTop:'12px'
+                  }}>
+                    <div style={{color:'#fff',fontWeight:'bold',marginBottom:'8px'}}>
+                      Підсумок по всьому договору:
+                    </div>
+                    <div style={{display:'flex',gap:'16px'}}>
+                      <div style={{color:'#fff'}}>
+                        <strong>Всього унікальних договорів:</strong> {selectedContract.contractFiles.length}
+                      </div>
+                      <div style={{color:'#fff'}}>
+                        <strong>Всього заявок:</strong> {selectedContract.allTasks.length}
+                      </div>
+                      <div style={{color:'#fff'}}>
+                        <strong>Активні заявки:</strong>{' '}
+                        {selectedContract.activeTasksCount > 0 ? (
+                          <span className="rainbow-bg" style={{display:'inline-block',minWidth:'30px',padding:'4px 8px'}}>
+                            {selectedContract.activeTasksCount}
+                          </span>
+                        ) : (
+                          <span style={{color:'#888'}}>0</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{color:'#888',textAlign:'center',padding:'20px'}}>
+                  Файли договору не знайдено
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1773,22 +2494,28 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
   // Завантажуємо всі завдання для вкладки debt (як у бухгалтера)
   useEffect(() => {
     const loadAllTasks = async () => {
-      if (allTasks.length === 0) {
         setAllTasksLoading(true);
         try {
           const allTasksData = await tasksAPI.getAllForReport();
           setAllTasks(allTasksData);
           console.log('[DEBUG] RegionalManagerArea - завантажено всіх завдань:', allTasksData.length);
+          
+          // Перевірка чи є заявка KV-0000245 при завантаженні
+          const taskKV245OnLoad = allTasksData.find(t => t.requestNumber === 'KV-0000245' || t.taskNumber === 'KV-0000245');
+          if (taskKV245OnLoad) {
+            console.log('[DEBUG KV-0000245] RegionalManagerArea - заявка знайдена при завантаженні з API:', taskKV245OnLoad);
+          } else {
+            console.log('[DEBUG KV-0000245] RegionalManagerArea - заявка НЕ знайдена при завантаженні з API');
+          }
         } catch (error) {
           console.error('[ERROR] RegionalManagerArea - помилка завантаження всіх завдань:', error);
         } finally {
           setAllTasksLoading(false);
-        }
       }
     };
     
     loadAllTasks();
-  }, [allTasks.length]);
+  }, []); // Завантажуємо при монтуванні компонента
   
   const allFilterKeys = allTaskFields
     .map(f => f.name)
@@ -3044,7 +3771,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
             return;
           }
           
-          let bonusApprovalDate = t.bonusApprovalDate;
+            let bonusApprovalDate = t.bonusApprovalDate;
           if (!bonusApprovalDate && t.approvedByAccountantDate) {
             const approvalDate = new Date(t.approvedByAccountantDate);
             if (!isNaN(approvalDate.getTime())) {
@@ -3062,31 +3789,31 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
             return; // Якщо немає bonusApprovalDate, пропускаємо
           }
           
-          if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
-            const [year, month] = bonusApprovalDate.split('-');
-            bonusApprovalDate = `${month}-${year}`;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
+              const [year, month] = bonusApprovalDate.split('-');
+              bonusApprovalDate = `${month}-${year}`;
             if (isDebugTask) console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}: конвертовано bonusApprovalDate: ${bonusApprovalDate}`);
-          }
-          
-          const workDate = new Date(t.date);
-          const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
-          const approvalMonth = parseInt(approvalMonthStr);
-          const approvalYear = parseInt(approvalYearStr);
-          const workMonth = workDate.getMonth() + 1;
-          const workYear = workDate.getFullYear();
-          let bonusMonth, bonusYear;
-          if (workMonth === approvalMonth && workYear === approvalYear) {
-            bonusMonth = workMonth;
-            bonusYear = workYear;
-          } else {
-            if (approvalMonth === 1) {
-              bonusMonth = 12;
-              bonusYear = approvalYear - 1;
-            } else {
-              bonusMonth = approvalMonth - 1;
-              bonusYear = approvalYear;
             }
-          }
+          
+            const workDate = new Date(t.date);
+            const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
+            const approvalMonth = parseInt(approvalMonthStr);
+            const approvalYear = parseInt(approvalYearStr);
+            const workMonth = workDate.getMonth() + 1;
+            const workYear = workDate.getFullYear();
+            let bonusMonth, bonusYear;
+            if (workMonth === approvalMonth && workYear === approvalYear) {
+              bonusMonth = workMonth;
+              bonusYear = workYear;
+            } else {
+              if (approvalMonth === 1) {
+                bonusMonth = 12;
+                bonusYear = approvalYear - 1;
+              } else {
+                bonusMonth = approvalMonth - 1;
+                bonusYear = approvalYear;
+              }
+            }
           
           if (isDebugTask) {
             console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}:`, {
@@ -3102,19 +3829,19 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
             });
           }
           
-          if (bonusMonth === reportMonthForData && bonusYear === reportYearForData) {
-            const workPrice = parseFloat(t.workPrice) || 0;
-            const bonusVal = workPrice * 0.25;
-            // Враховуємо всіх 6 інженерів
-            const engineers = [
-              (t.engineer1 || '').trim(),
-              (t.engineer2 || '').trim(),
-              (t.engineer3 || '').trim(),
-              (t.engineer4 || '').trim(),
-              (t.engineer5 || '').trim(),
-              (t.engineer6 || '').trim()
-            ].filter(eng => eng && eng.length > 0);
-            
+            if (bonusMonth === reportMonthForData && bonusYear === reportYearForData) {
+              const workPrice = parseFloat(t.workPrice) || 0;
+              const bonusVal = workPrice * 0.25;
+              // Враховуємо всіх 6 інженерів
+              const engineers = [
+                (t.engineer1 || '').trim(),
+                (t.engineer2 || '').trim(),
+                (t.engineer3 || '').trim(),
+                (t.engineer4 || '').trim(),
+                (t.engineer5 || '').trim(),
+                (t.engineer6 || '').trim()
+              ].filter(eng => eng && eng.length > 0);
+              
             if (isDebugTask) {
               console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}:`, {
                 engineers,
@@ -3127,7 +3854,7 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
             }
             
             if (engineers.includes(normalizedUserName) && engineers.length > 0) {
-              engineerBonus += bonusVal / engineers.length;
+                engineerBonus += bonusVal / engineers.length;
               if (isDebugTask) {
                 console.log(`[DEBUG BONUS App.jsx] ${t.requestNumber}: премія додана для ${normalizedUserName}, сума: ${bonusVal / engineers.length}`);
               }
@@ -3860,6 +4587,15 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
   // Для звіту по персоналу використовуємо всі заявки, для інших вкладок - тільки потрібні
   // Для вкладки debt використовуємо всі завдання (як у бухгалтера)
   const tasksForFiltering = (tab === 'report' || activeTab === 'debt') ? allTasks : tasks;
+  console.log('[DEBUG] RegionalManagerArea debt - tasksForFiltering.length:', tasksForFiltering.length, 'allTasks.length:', allTasks.length, 'activeTab:', activeTab);
+  
+  // Перевірка чи є заявка KV-0000245 в tasksForFiltering
+  const taskKV245InFiltering = tasksForFiltering.find(t => t.requestNumber === 'KV-0000245' || t.taskNumber === 'KV-0000245');
+  if (taskKV245InFiltering) {
+    console.log('[DEBUG KV-0000245] RegionalManagerArea - заявка знайдена в tasksForFiltering:', taskKV245InFiltering);
+  } else {
+    console.log('[DEBUG KV-0000245] RegionalManagerArea - заявка НЕ знайдена в tasksForFiltering');
+  }
   const filtered = tasksForFiltering.filter(t => {
     // Перевірка доступу до регіону заявки
     if (user?.region && user.region !== 'Україна') {
@@ -3918,6 +4654,15 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
     }
     return true;
   });
+  
+  // Перевірка чи є заявка KV-0000245 в filtered
+  const taskKV245InFiltered = filtered.find(t => t.requestNumber === 'KV-0000245' || t.taskNumber === 'KV-0000245');
+  if (taskKV245InFiltered) {
+    console.log('[DEBUG KV-0000245] RegionalManagerArea - заявка знайдена в filtered:', taskKV245InFiltered);
+  } else {
+    console.log('[DEBUG KV-0000245] RegionalManagerArea - заявка НЕ знайдена в filtered (відфільтрована)');
+  }
+  
   return (
     <>
       <div style={{display:'flex',gap:8,marginBottom:8,marginTop:40,paddingLeft:32}}>
@@ -3959,16 +4704,54 @@ function RegionalManagerArea({ tab: propTab, user, accessRules, currentArea }) {
             {activeTab === 'debt' ? (
               <TaskTable
                 tasks={filtered.filter(task => {
+                  // Логування для конкретної заявки KV-0000245
+                  if (task.requestNumber === 'KV-0000245' || task.taskNumber === 'KV-0000245') {
+                    console.log('[DEBUG KV-0000245] RegionalManagerArea - початок фільтрації:', {
+                      requestNumber: task.requestNumber,
+                      taskNumber: task.taskNumber,
+                      paymentType: task.paymentType,
+                      debtStatus: task.debtStatus,
+                      status: task.status,
+                      serviceRegion: task.serviceRegion,
+                      userRegion: user?.region
+                    });
+                  }
+                  
                   // Використовуємо ТОЧНО ТАКУ Ж логіку як у бухгалтера:
                   // Показуємо завдання, які потребують встановлення статусу заборгованості:
-                  // 1. Не мають встановленого debtStatus (undefined або порожнє)
-                  // 2. Мають paymentType (не порожнє)
-                  // 3. paymentType не є 'Готівка'
-                  const hasPaymentType = task.paymentType && task.paymentType.trim() !== '';
+                  // 1. Не мають встановленого debtStatus (undefined або порожнє) АБО мають debtStatus = 'Заборгованість'
+                  // 2. Якщо debtStatus = 'Заборгованість' - показуємо без перевірки paymentType
+                  // 3. Якщо debtStatus не встановлено - мають paymentType (не порожнє) і paymentType не є 'Готівка'
+                  const isDebtStatus = task.debtStatus === 'Заборгованість';
+                  const needsDebtStatus = !task.debtStatus || task.debtStatus === undefined || task.debtStatus === '' || isDebtStatus;
+                  
+                  // Якщо debtStatus = 'Заборгованість', показуємо без перевірки paymentType
+                  if (isDebtStatus) {
+                    if (task.requestNumber === 'KV-0000245' || task.taskNumber === 'KV-0000245') {
+                      console.log('[DEBUG KV-0000245] RegionalManagerArea - показуємо через debtStatus = Заборгованість');
+                    }
+                    task._debtTab = true;
+                    return true;
+                  }
+                  
+                  // Для заявок без debtStatus перевіряємо paymentType
+                  const hasPaymentType = task.paymentType && task.paymentType.trim() !== '' && task.paymentType !== 'не вибрано';
                   const isNotCash = !['Готівка'].includes(task.paymentType);
-                  const needsDebtStatus = !task.debtStatus || task.debtStatus === undefined || task.debtStatus === '';
                   
                   const shouldShow = needsDebtStatus && hasPaymentType && isNotCash;
+                  
+                  // Логування для конкретної заявки KV-0000245
+                  if (task.requestNumber === 'KV-0000245' || task.taskNumber === 'KV-0000245') {
+                    console.log('[DEBUG KV-0000245] RegionalManagerArea - результат фільтрації:', {
+                      hasPaymentType: !!hasPaymentType,
+                      isNotCash,
+                      needsDebtStatus,
+                      shouldShow,
+                      willShow: shouldShow,
+                      inFiltered: true,
+                      reason: !needsDebtStatus ? 'debtStatus вже встановлено' : !hasPaymentType ? 'paymentType порожній' : !isNotCash ? 'paymentType = Готівка' : 'OK'
+                    });
+                  }
                   
                   if (shouldShow) {
                     // Додаємо прапор для вкладки "debt"
@@ -5537,10 +6320,10 @@ function AdminBackupArea({ user }) {
   const handleExportToExcel = async () => {
     try {
       const tasksToExport = await tasksAPI.getAll();
-      if (tasksToExport.length === 0) {
-        alert('Немає завдань для експорту.');
-        return;
-      }
+    if (tasksToExport.length === 0) {
+      alert('Немає завдань для експорту.');
+      return;
+    }
       
       // Збираємо всі унікальні поля з усіх заявок
       const allFieldsSet = new Set();
@@ -5710,7 +6493,7 @@ function AdminBackupArea({ user }) {
         // Продовжуємо експорт навіть якщо timesheet не вдалося завантажити
       }
       
-      // Запускаємо завантаження файлу
+    // Запускаємо завантаження файлу
       const fileName = `export_all_tasks_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSXLib.writeFile(workbook, fileName);
     } catch (error) {

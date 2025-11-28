@@ -722,9 +722,19 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user, acce
     const loadAllTasks = async () => {
       setAllTasksLoading(true);
       try {
-        const allTasksData = await tasksAPI.getAll();
+        console.log('[DEBUG] AccountantApprovalArea - викликаємо tasksAPI.getAllForReport()');
+        const allTasksData = await tasksAPI.getAllForReport();
+        console.log('[DEBUG] AccountantApprovalArea - отримано дані з getAllForReport(), тип:', typeof allTasksData, 'довжина:', Array.isArray(allTasksData) ? allTasksData.length : 'не масив');
         setAllTasksFromAPI(allTasksData);
         console.log('[DEBUG] AccountantApprovalArea - завантажено всіх завдань з API:', allTasksData.length);
+        
+        // Перевірка чи є заявка KV-0000245 при завантаженні
+        const taskKV245OnLoad = allTasksData.find(t => t.requestNumber === 'KV-0000245' || t.taskNumber === 'KV-0000245');
+        if (taskKV245OnLoad) {
+          console.log('[DEBUG KV-0000245] AccountantApprovalArea - заявка знайдена при завантаженні з API:', taskKV245OnLoad);
+        } else {
+          console.log('[DEBUG KV-0000245] AccountantApprovalArea - заявка НЕ знайдена при завантаженні з API');
+        }
       } catch (error) {
         console.error('[ERROR] AccountantApprovalArea - помилка завантаження всіх завдань:', error);
       } finally {
@@ -739,21 +749,70 @@ const AccountantApprovalArea = memo(function AccountantApprovalArea({ user, acce
   const debt = useMemo(() => {
     // Використовуємо всі завдання з API для заборгованості
     return allTasksFromAPI.filter(task => {
-      // Показуємо завдання, які потребують встановлення статусу заборгованості:
-      // 1. Не мають встановленого debtStatus (undefined або порожнє)
-      // 2. Мають paymentType (не порожнє)
-      // 3. paymentType не є 'Готівка'
-      const hasPaymentType = task.paymentType && task.paymentType.trim() !== '';
-      const isNotCash = !['Готівка'].includes(task.paymentType);
-      const needsDebtStatus = !task.debtStatus || task.debtStatus === undefined || task.debtStatus === '';
+      // Логування для конкретної заявки KV-0000245
+      if (task.requestNumber === 'KV-0000245' || task.taskNumber === 'KV-0000245') {
+        console.log('[DEBUG KV-0000245] AccountantApprovalArea - початок фільтрації:', {
+          requestNumber: task.requestNumber,
+          taskNumber: task.taskNumber,
+          paymentType: task.paymentType,
+          debtStatus: task.debtStatus,
+          status: task.status
+        });
+      }
       
-      return needsDebtStatus && hasPaymentType && isNotCash;
+      // Показуємо завдання, які потребують встановлення статусу заборгованості:
+      // 1. Не мають встановленого debtStatus (undefined або порожнє) АБО мають debtStatus = 'Заборгованість'
+      // 2. Якщо debtStatus = 'Заборгованість' - показуємо без перевірки paymentType
+      // 3. Якщо debtStatus не встановлено - мають paymentType (не порожнє) і paymentType не є 'Готівка'
+      const isDebtStatus = task.debtStatus === 'Заборгованість';
+      const needsDebtStatus = !task.debtStatus || task.debtStatus === undefined || task.debtStatus === '' || isDebtStatus;
+      
+      // Якщо debtStatus = 'Заборгованість', показуємо без перевірки paymentType
+      if (isDebtStatus) {
+        return true;
+      }
+      
+      // Для заявок без debtStatus перевіряємо paymentType
+      const hasPaymentType = task.paymentType && task.paymentType.trim() !== '' && task.paymentType !== 'не вибрано';
+      const isNotCash = !['Готівка'].includes(task.paymentType);
+      
+      const result = needsDebtStatus && hasPaymentType && isNotCash;
+      
+      // Логування для конкретної заявки KV-0000245
+      if (task.requestNumber === 'KV-0000245' || task.taskNumber === 'KV-0000245') {
+        console.log('[DEBUG KV-0000245] AccountantApprovalArea - результат фільтрації:', {
+          hasPaymentType: !!hasPaymentType,
+          isNotCash,
+          needsDebtStatus,
+          result,
+          willShow: result,
+          reason: !needsDebtStatus ? 'debtStatus вже встановлено' : !hasPaymentType ? 'paymentType порожній' : !isNotCash ? 'paymentType = Готівка' : 'OK'
+        });
+      }
+      
+      return result;
     });
   }, [allTasksFromAPI]);
   
   // Додаємо логування для діагностики
   console.log('[DEBUG] AccountantApprovalArea debt tab - allTasksFromAPI.length:', allTasksFromAPI.length);
   console.log('[DEBUG] AccountantApprovalArea debt tab - debt.length:', debt.length);
+  
+  // Перевірка чи є заявка KV-0000245 в allTasksFromAPI
+  const taskKV245 = allTasksFromAPI.find(t => t.requestNumber === 'KV-0000245' || t.taskNumber === 'KV-0000245');
+  if (taskKV245) {
+    console.log('[DEBUG KV-0000245] AccountantApprovalArea - заявка знайдена в allTasksFromAPI:', taskKV245);
+  } else {
+    console.log('[DEBUG KV-0000245] AccountantApprovalArea - заявка НЕ знайдена в allTasksFromAPI');
+  }
+  
+  // Перевірка чи є заявка KV-0000245 в debt
+  const debtKV245 = debt.find(t => t.requestNumber === 'KV-0000245' || t.taskNumber === 'KV-0000245');
+  if (debtKV245) {
+    console.log('[DEBUG KV-0000245] AccountantApprovalArea - заявка знайдена в debt:', debtKV245);
+  } else {
+    console.log('[DEBUG KV-0000245] AccountantApprovalArea - заявка НЕ знайдена в debt');
+  }
 
   const tableData = useMemo(() => {
     return activeTab === 'pending' ? pending : 

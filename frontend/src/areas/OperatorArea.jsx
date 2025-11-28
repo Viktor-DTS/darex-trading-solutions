@@ -232,9 +232,16 @@ export default function OperatorArea({ user, accessRules, currentArea }) {
     setLoading(false);
   };
   // Заявки на виконанні (статус "Заявка" та "В роботі")
+  // Сортуємо: спочатку термінові, потім решта
   const inProgress = filtered.filter(t => 
     t.status === 'Заявка' || t.status === 'В роботі'
-  ).sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
+  ).sort((a, b) => {
+    // Термінові заявки завжди перші
+    if (a.urgentRequest && !b.urgentRequest) return -1;
+    if (!a.urgentRequest && b.urgentRequest) return 1;
+    // Якщо обидві термінові або обидві не термінові - сортуємо по статусу
+    return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+  });
   // Архів виконаних заявок (всі інші статуси)
   const archive = filtered.filter(t => 
     t.status !== 'Заявка' && t.status !== 'В роботі'
