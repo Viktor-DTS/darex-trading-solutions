@@ -5753,33 +5753,16 @@ function AdminBackupArea({ user }) {
       // Логуємо перші кілька завдань для перевірки актуальності даних
       if (tasksData.length > 0) {
       }
-      // Оптимізуємо дані - зберігаємо тільки необхідні поля
-      const optimizedTasks = tasksData.map(task => ({
-        id: task.id,
-        taskNumber: task.taskNumber,
-        status: task.status,
-        company: task.company,
-        client: task.client,
-        address: task.address,
-        workDescription: task.workDescription,
-        serviceEngineers: task.serviceEngineers,
-        workPrice: task.workPrice,
-        serviceTotal: task.serviceTotal,
-        paymentType: task.paymentType,
-        paymentDate: task.paymentDate,
-        requestDate: task.requestDate,
-        date: task.date,
-        serviceRegion: task.serviceRegion,
-        approvedByWarehouse: task.approvedByWarehouse,
-        approvedByAccountant: task.approvedByAccountant,
-        approvedByRegionalManager: task.approvedByRegionalManager,
-        warehouseComment: task.warehouseComment,
-        accountantComment: task.accountantComment,
-        regionalManagerComment: task.regionalManagerComment,
-        bonusApprovalDate: task.bonusApprovalDate,
-        accountantComments: task.accountantComments
-      }));
-      const backupData = JSON.stringify(optimizedTasks);
+      // Зберігаємо всі дані завдання для повного бекапу
+      // Виключаємо тільки системні поля MongoDB (_id, __v), якщо вони є
+      const fullTasksData = tasksData.map(task => {
+        const taskCopy = { ...task };
+        // Видаляємо системні поля MongoDB, якщо вони присутні
+        delete taskCopy._id;
+        delete taskCopy.__v;
+        return taskCopy;
+      });
+      const backupData = JSON.stringify(fullTasksData);
       const backupName = `Бекап ${now.toLocaleDateString('uk-UA')} ${now.toLocaleTimeString('uk-UA')}`;
       // Створюємо бекап для локального зберігання
       const localBackup = {
