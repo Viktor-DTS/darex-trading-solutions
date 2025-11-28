@@ -30,6 +30,7 @@ import NotificationSettings from './components/NotificationSettings';
 import UserNotificationManager from './components/UserNotificationManager';
 import NotificationDebugPanel from './components/NotificationDebugPanel';
 import * as XLSX from 'xlsx-js-style';
+import * as XLSXBasic from 'xlsx';
 import { columnsSettingsAPI } from './utils/columnsSettingsAPI';
 import API_BASE_URL from './config.js';
 import authenticatedFetch from './utils/api.js';
@@ -42,6 +43,7 @@ import { backupAPI } from './utils/backupAPI';
 import { activityAPI } from './utils/activityAPI';
 import keepAliveService from './utils/keepAlive.js';
 import { analyticsAPI } from './utils/analyticsAPI';
+import { usersAPI } from './utils/usersAPI';
 const roles = [
   { value: 'admin', label: 'Адміністратор' },
   { value: 'service', label: 'Сервісна служба' },
@@ -5489,25 +5491,235 @@ function AdminBackupArea({ user }) {
   const handleExportToExcel = async () => {
     try {
       const tasksToExport = await tasksAPI.getAll();
-    if (tasksToExport.length === 0) {
-      alert('Немає завдань для експорту.');
-      return;
-    }
-    // Використовуємо українські назви з allTaskFields для заголовків
-    const headers = allTaskFields.map(field => field.label);
-    // Формуємо дані для рядків
-    const data = tasksToExport.map(task => {
-      return allTaskFields.map(field => task[field.name] || '');
-    });
-    // Створюємо робочий аркуш
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Усі завдання');
-    // Запускаємо завантаження файлу
-    XLSX.writeFile(workbook, 'export_all_tasks.xlsx');
+      if (tasksToExport.length === 0) {
+        alert('Немає завдань для експорту.');
+        return;
+      }
+      
+      // Збираємо всі унікальні поля з усіх заявок
+      const allFieldsSet = new Set();
+      tasksToExport.forEach(task => {
+        Object.keys(task).forEach(key => {
+          if (key !== '_id' && key !== '__v') {
+            allFieldsSet.add(key);
+          }
+        });
+      });
+      
+      // Створюємо масив полів з назвами (спочатку поля з allTaskFields, потім інші)
+      const fieldMap = new Map();
+      allTaskFields.forEach(field => {
+        fieldMap.set(field.name, field.label);
+      });
+      
+      // Додаємо додаткові поля, які не в allTaskFields
+      const additionalFields = [];
+      allFieldsSet.forEach(fieldName => {
+        if (!fieldMap.has(fieldName)) {
+          // Створюємо читабельну назву з camelCase
+          const readableName = fieldName
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/^./, str => str.toUpperCase())
+            .trim();
+          additionalFields.push({ name: fieldName, label: readableName });
+        }
+      });
+      
+      // Об'єднуємо всі поля
+      const allFields = [...allTaskFields, ...additionalFields];
+      
+      // Формуємо дані для рядків у форматі об'єктів (для json_to_sheet)
+      const exportData = tasksToExport.map(task => {
+        const row = {};
+        allFields.forEach(field => {
+          const value = task[field.name];
+          // Обробка чекбоксів та булевих значень
+          if (typeof value === 'boolean') {
+            row[field.label || field.name] = value ? 'Так' : 'Ні';
+          }
+          // Обробка null/undefined
+          else if (value === null || value === undefined) {
+            row[field.label || field.name] = '';
+          }
+          // Обробка об'єктів та масивів
+          else if (typeof value === 'object' && !Array.isArray(value)) {
+            row[field.label || field.name] = JSON.stringify(value);
+          }
+          else if (Array.isArray(value)) {
+            row[field.label || field.name] = value.join(', ');
+          }
+          else {
+            row[field.label || field.name] = value;
+          }
+        });
+        return row;
+      });
+      
+      // Створюємо робочий аркуш для заявок
+      // Використовуємо звичайний xlsx, якщо xlsx-js-style не працює
+      const XLSXLib = (XLSX && XLSX.utils) ? XLSX : XLSXBasic;
+      const worksheet = XLSXLib.utils.json_to_sheet(exportData);
+      const workbook = XLSXLib.utils.book_new();
+      XLSXLib.utils.book_append_sheet(workbook, worksheet, 'Усі завдання');
+      
+      // Додаємо вкладку з таблицею часу працівників
+      try {
+        // Отримуємо список користувачів для заміни ID на ПІБ
+        const allUsers = await usersAPI.getAll();
+        const userMap = new Map();
+        allUsers.forEach(user => {
+          // Створюємо мапу: userId -> name або login
+          // Використовуємо той самий формат, що і в timesheet (u.id, як в рядку 2279)
+          const userId = user.id || user._id;
+          const userName = user.name || user.login || String(userId);
+          
+          if (userId) {
+            // Додаємо різні формати ключів для пошуку
+            const userIdStr = String(userId);
+            // Основний ключ - як рядок (як в timesheet)
+            userMap.set(userIdStr, userName);
+            // Також додаємо як число, якщо можливо (для userId типу 1755759611412)
+            if (!isNaN(Number(userIdStr))) {
+              userMap.set(Number(userIdStr), userName);
+            }
+            // Якщо userId - це ObjectId, додаємо також без перетворення
+            if (typeof userId === 'object' && userId.toString) {
+              userMap.set(userId.toString(), userName);
+            }
+          }
+          
+          // Також додаємо login як ключ (на випадок, якщо в timesheet використовується login)
+          if (user.login) {
+            userMap.set(user.login, userName);
+            userMap.set(String(user.login), userName);
+          }
+        });
+        
+        console.log('[EXPORT] Створено мапу користувачів:', userMap.size, 'записів');
+        console.log('[EXPORT] Приклади користувачів (ID -> ПІБ):', Array.from(userMap.entries()).slice(0, 5));
+        
+        const timesheetData = await fetchAllTimesheetData();
+        if (timesheetData && timesheetData.length > 0) {
+          const timesheetRows = [];
+          
+          timesheetData.forEach(ts => {
+            if (ts.data && typeof ts.data === 'object') {
+              Object.keys(ts.data).forEach(userId => {
+                const userData = ts.data[userId];
+                if (userData && typeof userData === 'object') {
+                  // Отримуємо ПІБ користувача за ID
+                  // Спробуємо різні формати пошуку
+                  let userName = userMap.get(String(userId)) || 
+                                 userMap.get(userId);
+                  
+                  // Якщо userId - число, спробуємо як число
+                  if (!userName && !isNaN(Number(userId))) {
+                    userName = userMap.get(Number(userId));
+                  }
+                  
+                  // Якщо все ще не знайдено, шукаємо в усіх ключах
+                  if (!userName) {
+                    for (const [key, value] of userMap.entries()) {
+                      if (String(key) === String(userId) || String(userId) === String(key)) {
+                        userName = value;
+                        break;
+                      }
+                    }
+                  }
+                  
+                  // Якщо не знайдено, залишаємо userId
+                  if (!userName) {
+                    userName = userId;
+                    console.log('[EXPORT] Не знайдено користувача для userId:', userId, 'тип:', typeof userId, 'всі ключі мапи:', Array.from(userMap.keys()).slice(0, 10));
+                  }
+                  
+                  Object.keys(userData).forEach(day => {
+                    if (day !== 'total' && !isNaN(parseInt(day))) {
+                      const hours = userData[day] || 0;
+                      const payInfo = ts.payData && ts.payData[userId] ? ts.payData[userId] : {};
+                      timesheetRows.push({
+                        'Регіон': ts.region || '',
+                        'Рік': ts.year || '',
+                        'Місяць': ts.month || '',
+                        'Працівник': userName,
+                        'День': day,
+                        'Години': hours,
+                        'Зарплата': payInfo.salary || '',
+                        'Премія': payInfo.bonus || ''
+                      });
+                    }
+                  });
+                }
+              });
+            }
+          });
+          
+          if (timesheetRows.length > 0) {
+            const timesheetWorksheet = XLSXLib.utils.json_to_sheet(timesheetRows);
+            XLSXLib.utils.book_append_sheet(workbook, timesheetWorksheet, 'Табель часу працівників');
+          }
+        }
+      } catch (timesheetError) {
+        console.error('Помилка завантаження таблиці часу працівників:', timesheetError);
+        // Продовжуємо експорт навіть якщо timesheet не вдалося завантажити
+      }
+      
+      // Запускаємо завантаження файлу
+      const fileName = `export_all_tasks_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSXLib.writeFile(workbook, fileName);
     } catch (error) {
       console.error('Помилка експорту:', error);
       alert('Помилка при експорті завдань. Спробуйте ще раз.');
+    }
+  };
+  
+  // Функція для отримання всіх даних timesheet
+  const fetchAllTimesheetData = async () => {
+    try {
+      const regions = ['Київський', 'Дніпровський', 'Львівський', 'Хмельницький'];
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth() + 1;
+      
+      // Отримуємо дані за останні 12 місяців
+      const timesheetData = [];
+      
+      for (const region of regions) {
+        for (let monthOffset = 0; monthOffset < 12; monthOffset++) {
+          let year = currentYear;
+          let month = currentMonth - monthOffset;
+          
+          if (month <= 0) {
+            month += 12;
+            year -= 1;
+          }
+          
+          try {
+            const response = await authenticatedFetch(
+              `${API_BASE_URL}/timesheet?region=${encodeURIComponent(region)}&year=${year}&month=${month}&type=regular`
+            );
+            
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.timesheet) {
+                timesheetData.push({
+                  region: result.timesheet.region,
+                  year: result.timesheet.year,
+                  month: result.timesheet.month,
+                  data: result.timesheet.data || {},
+                  payData: result.timesheet.payData || {}
+                });
+              }
+            }
+          } catch (error) {
+            console.error(`Помилка завантаження timesheet для ${region}, ${year}-${month}:`, error);
+          }
+        }
+      }
+      
+      return timesheetData;
+    } catch (error) {
+      console.error('Помилка отримання даних timesheet:', error);
+      return [];
     }
   };
   // --- Функція для перегляду бекапу ---
