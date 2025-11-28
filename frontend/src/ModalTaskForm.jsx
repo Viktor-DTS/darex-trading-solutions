@@ -909,6 +909,11 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       missing.push({ name: 'date', label: 'Дата проведення робіт' });
     }
     
+    // Додаткова перевірка: якщо статус "Виконано", то поле "Вид оплати" обов'язкове і не повинно бути "не вибрано"
+    if (form.status === 'Виконано' && (!form.paymentType || form.paymentType.trim() === '' || form.paymentType === 'не вибрано')) {
+      missing.push({ name: 'paymentType', label: 'Вид оплати' });
+    }
+    
     if (missing.length > 0) {
       setMissingFields(missing.map(f => f.label));
       setShowMissingModal(true);
