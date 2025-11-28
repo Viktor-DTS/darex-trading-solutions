@@ -25,14 +25,61 @@ export const tasksAPI = {
   async getAllForReport() {
     try {
       // Завантажуємо з великим лімітом (10000) для звітів
-      const res = await authenticatedFetch(`${API_BASE_URL}/tasks?limit=10000`);
+      const url = `${API_BASE_URL}/tasks?limit=10000`;
+      console.log('[DEBUG] tasksAPI.getAllForReport - відправляємо запит:', url);
+      const res = await authenticatedFetch(url);
+      console.log('[DEBUG] tasksAPI.getAllForReport - отримано відповідь, status:', res.status, 'ok:', res.ok);
       if (!res.ok) {
         const errorText = await res.text();
         console.error('[ERROR] tasksAPI.getAllForReport - помилка сервера:', errorText);
         throw new Error('Помилка завантаження заявок для звіту');
       }
-      const data = await res.json();
-      console.log(`[tasksAPI] Завантажено ${data.length} завдань для звіту`);
+      let data = await res.json();
+      console.log(`[tasksAPI] Завантажено ${data.length} завдань для звіту (очікувалось до 10000)`);
+      
+      // Якщо отримано рівно 1000 заявок, можливо є обмеження - завантажуємо решту частинами
+      if (data.length === 1000) {
+        console.warn('[WARNING] tasksAPI.getAllForReport - отримано рівно 1000 заявок, завантажуємо решту частинами...');
+        let allTasks = [...data];
+        let skip = 1000;
+        let batchSize = 1000;
+        let hasMore = true;
+        
+        while (hasMore) {
+          try {
+            const batchUrl = `${API_BASE_URL}/tasks?limit=${batchSize}&skip=${skip}`;
+            console.log(`[DEBUG] tasksAPI.getAllForReport - завантажуємо наступну партію: skip=${skip}, limit=${batchSize}`);
+            const batchRes = await authenticatedFetch(batchUrl);
+            
+            if (!batchRes.ok) {
+              console.warn(`[WARNING] tasksAPI.getAllForReport - помилка завантаження партії skip=${skip}, зупиняємо`);
+              break;
+            }
+            
+            const batchData = await batchRes.json();
+            console.log(`[tasksAPI] Завантажено партію: ${batchData.length} завдань (skip=${skip})`);
+            
+            if (batchData.length === 0) {
+              hasMore = false;
+            } else {
+              allTasks = [...allTasks, ...batchData];
+              skip += batchSize;
+              
+              // Якщо отримано менше ніж batchSize, це остання партія
+              if (batchData.length < batchSize) {
+                hasMore = false;
+              }
+            }
+          } catch (batchError) {
+            console.error(`[ERROR] tasksAPI.getAllForReport - помилка завантаження партії skip=${skip}:`, batchError);
+            hasMore = false;
+          }
+        }
+        
+        console.log(`[tasksAPI] Всього завантажено ${allTasks.length} завдань для звіту (з пагінацією)`);
+        return allTasks;
+      }
+      
       return data;
     } catch (error) {
       console.error('[ERROR] tasksAPI.getAllForReport - виняток:', error);

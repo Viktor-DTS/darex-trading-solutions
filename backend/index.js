@@ -1103,16 +1103,31 @@ app.get('/api/tasks', async (req, res) => {
     // Отримуємо параметри запиту
     const { limit = 1000, skip = 0, sort = '-requestDate' } = req.query;
     
+    // Діагностичне логування для перевірки limit
+    console.log('[DEBUG] GET /api/tasks - параметри запиту:', {
+      limit: limit,
+      limitType: typeof limit,
+      limitParsed: parseInt(limit),
+      skip: skip,
+      sort: sort,
+      queryString: req.url
+    });
+    
     // Оптимізований запит з обмеженнями та сортуванням
+    const parsedLimit = parseInt(limit);
+    const parsedSkip = parseInt(skip);
+    
+    console.log('[DEBUG] GET /api/tasks - використовуємо limit:', parsedLimit, 'skip:', parsedSkip);
+    
     const tasks = await executeWithRetry(() => 
       Task.find()
         .sort(sort)
-        .limit(parseInt(limit))
-        .skip(parseInt(skip))
+        .limit(parsedLimit)
+        .skip(parsedSkip)
         .lean() // Використовуємо lean() для кращої продуктивності
     );
     
-    console.log('[DEBUG] GET /api/tasks - знайдено завдань:', tasks.length);
+    console.log('[DEBUG] GET /api/tasks - знайдено завдань:', tasks.length, 'з limit:', parsedLimit);
     
     // ОПТИМІЗАЦІЯ: Отримуємо всі InvoiceRequest за один запит
     const taskIds = tasks.map(task => task._id.toString());
