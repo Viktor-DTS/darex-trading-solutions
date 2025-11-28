@@ -383,9 +383,31 @@ function AdminSystemParamsArea({ user }) {
   const [editUser, setEditUser] = useState(null);
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState(new Set());
+  // Функція для отримання користувачів з активними токенами
+  const getUsersWithTokens = () => {
+    try {
+      const currentUserStr = localStorage.getItem('currentUser');
+      if (currentUserStr) {
+        const currentUser = JSON.parse(currentUserStr);
+        const token = localStorage.getItem('authToken');
+        // Якщо є токен і інформація про користувача, він онлайн
+        if (token && currentUser.login) {
+          return new Set([currentUser.login]);
+        }
+      }
+    } catch (error) {
+      console.error('[ERROR] getUsersWithTokens - помилка отримання користувачів з токенами:', error);
+    }
+    return new Set();
+  };
   // Функція для визначення статусу користувача
   const isUserOnline = (userLogin) => {
-    return onlineUsers.has(userLogin);
+    // Перевіряємо серверний статус
+    const serverOnline = onlineUsers.has(userLogin);
+    // Перевіряємо наявність токену в localStorage
+    const hasToken = getUsersWithTokens().has(userLogin);
+    // Користувач онлайн, якщо є серверний статус АБО активний токен
+    return serverOnline || hasToken;
   };
   // Функція для оновлення статусу активності користувача
   const updateUserActivity = async (userLogin) => {
@@ -426,18 +448,42 @@ function AdminSystemParamsArea({ user }) {
     
     return () => clearInterval(activityInterval);
   }, [user?.login]);
+  // Функція для оновлення статусу користувачів
+  const updateOnlineUsersStatus = useCallback(async () => {
+    const activeUsers = await getActiveUsers();
+    // Об'єднуємо серверних активних користувачів з користувачами, що мають токени
+    const usersWithTokens = getUsersWithTokens();
+    const combinedUsers = new Set([...activeUsers, ...usersWithTokens]);
+    setOnlineUsers(combinedUsers);
+  }, [users, user?.login]);
   // Автоматичне оновлення статусу користувачів кожні 5 секунд
   useEffect(() => {
-    const updateOnlineUsers = async () => {
-      const activeUsers = await getActiveUsers();
-      setOnlineUsers(activeUsers);
-    };
     // Початкове оновлення
-    updateOnlineUsers();
+    updateOnlineUsersStatus();
     // Оновлюємо кожні 5 секунд
-    const statusInterval = setInterval(updateOnlineUsers, 5000);
+    const statusInterval = setInterval(updateOnlineUsersStatus, 5000);
     return () => clearInterval(statusInterval);
-  }, [users, user?.login]); // Додаємо user?.login як залежність
+  }, [updateOnlineUsersStatus]);
+  // Оновлення статусу при зміні токену (через подію storage)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      // Оновлюємо статус при зміні authToken або currentUser
+      if (e.key === 'authToken' || e.key === 'currentUser') {
+        updateOnlineUsersStatus();
+      }
+    };
+    // Слухаємо зміни в localStorage (працює тільки в інших вкладках)
+    window.addEventListener('storage', handleStorageChange);
+    // Також оновлюємо при зміні токену в поточній вкладці
+    // (через перевірку кожні 2 секунди)
+    const tokenCheckInterval = setInterval(() => {
+      updateOnlineUsersStatus();
+    }, 2000);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(tokenCheckInterval);
+    };
+  }, [updateOnlineUsersStatus]);
   // Завантаження користувачів з API
   useEffect(() => {
     const loadUsers = async () => {

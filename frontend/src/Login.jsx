@@ -79,6 +79,12 @@ export default function Login({ onLogin }) {
           ...result.user,
           isViewMode: isViewMode
         };
+        // Зберігаємо інформацію про користувача для логування виходу
+        localStorage.setItem('currentUser', JSON.stringify({
+          login: userWithMode.login,
+          name: userWithMode.name,
+          role: userWithMode.role
+        }));
         // Логуємо успішний вхід в систему
         logUserAction(userWithMode, EVENT_ACTIONS.LOGIN, ENTITY_TYPES.SYSTEM, null, 
           `Успішний вхід в систему: ${userWithMode.name} (${userWithMode.role})`, {
