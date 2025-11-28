@@ -632,12 +632,7 @@ function TaskTableComponent({
     
     // Підсвічування термінових заявок (тільки для статусів "Заявка" та "В роботі")
     if (t.urgentRequest && (t.status === 'Заявка' || t.status === 'В роботі')) {
-      // Блакитний колір для термінових заявок
-      if (t.status === 'Заявка') {
-        return '#87ceeb'; // Блакитний для термінових заявок зі статусом "Заявка"
-      } else if (t.status === 'В роботі') {
-        return '#87ceeb'; // Блакитний для термінових заявок зі статусом "В роботі"
-      }
+      return '#87ceeb'; // Світло-блакитний колір для термінових заявок
     }
     
     const acc = t.approvedByAccountant === true || t.approvedByAccountant === 'Підтверджено';
@@ -656,7 +651,7 @@ function TaskTableComponent({
 
   // Функція для визначення CSS класу рядка
   function getRowClass(t) {
-    // Перевіряємо, чи заявка відхилена по рахунку (найвищий пріоритет)
+    // Перевіряємо, чи заявка відхилена по рахунку
     if (t.invoiceRejectionReason) {
       return 'invoice-rejected';
     }
@@ -1037,7 +1032,16 @@ function TaskTableComponent({
   };
 
   // Створюємо відсортовані завдання після оголошення filterTasks
-  const sortedTasks = [...filterTasks(tasks, filters)].sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
+  // Сортуємо: спочатку термінові, потім решта
+  const sortedTasks = [...filterTasks(tasks, filters)].sort((a, b) => {
+    // Термінові заявки завжди перші (тільки для статусів "Заявка" та "В роботі")
+    const aIsUrgent = a.urgentRequest && (a.status === 'Заявка' || a.status === 'В роботі');
+    const bIsUrgent = b.urgentRequest && (b.status === 'Заявка' || b.status === 'В роботі');
+    if (aIsUrgent && !bIsUrgent) return -1;
+    if (!aIsUrgent && bIsUrgent) return 1;
+    // Якщо обидві термінові або обидві не термінові - сортуємо по статусу
+    return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+  });
 
   // Функція для сортування даних
   const sortData = (data, field, direction) => {
@@ -1557,14 +1561,14 @@ function TaskTableComponent({
                 children: [new TextRun({ text: "№", bold: true })], 
                 alignment: AlignmentType.CENTER 
               })], 
-              width: { size: 8, type: WidthType.PERCENTAGE },
+              width: { size: 4, type: WidthType.PERCENTAGE },
               shading: { fill: "E0E0E0" }
             }),
             new TableCell({ 
               children: [new Paragraph({ 
                 children: [new TextRun({ text: "Найменування", bold: true })] 
               })], 
-              width: { size: 32, type: WidthType.PERCENTAGE },
+              width: { size: 50, type: WidthType.PERCENTAGE },
               shading: { fill: "E0E0E0" }
             }),
             new TableCell({ 
@@ -1572,15 +1576,15 @@ function TaskTableComponent({
                 children: [new TextRun({ text: "Один. виміру", bold: true })], 
                 alignment: AlignmentType.CENTER 
               })], 
-              width: { size: 12, type: WidthType.PERCENTAGE },
+              width: { size: 6, type: WidthType.PERCENTAGE },
               shading: { fill: "E0E0E0" }
             }),
             new TableCell({ 
               children: [new Paragraph({ 
-                children: [new TextRun({ text: "Кількість", bold: true })], 
+                children: [new TextRun({ text: "Кільк.", bold: true })], 
                 alignment: AlignmentType.CENTER 
               })], 
-              width: { size: 12, type: WidthType.PERCENTAGE },
+              width: { size: 6, type: WidthType.PERCENTAGE },
               shading: { fill: "E0E0E0" }
             }),
             new TableCell({ 
@@ -1588,7 +1592,7 @@ function TaskTableComponent({
                 children: [new TextRun({ text: "Ціна з ПДВ, грн", bold: true })], 
                 alignment: AlignmentType.CENTER 
               })], 
-              width: { size: 18, type: WidthType.PERCENTAGE },
+              width: { size: 17, type: WidthType.PERCENTAGE },
               shading: { fill: "E0E0E0" }
             }),
             new TableCell({ 
@@ -1596,7 +1600,7 @@ function TaskTableComponent({
                 children: [new TextRun({ text: "Вартість з ПДВ, грн", bold: true })], 
                 alignment: AlignmentType.CENTER 
               })], 
-              width: { size: 18, type: WidthType.PERCENTAGE },
+              width: { size: 17, type: WidthType.PERCENTAGE },
               shading: { fill: "E0E0E0" }
             })
           ]
@@ -1641,7 +1645,7 @@ function TaskTableComponent({
         new Table({
           rows: materialsRows,
           width: { size: 100, type: WidthType.PERCENTAGE },
-          columnWidths: [500, 3000, 1500, 1500, 2000, 2000]
+          columnWidths: [300, 5000, 600, 600, 1700, 1700]
         })
       );
 
@@ -2240,6 +2244,44 @@ function TaskTableComponent({
             line-height: 0.5cm;
           }
           
+          .materials-table th:nth-child(1),
+          .materials-table td:nth-child(1) {
+            width: 4%;
+            max-width: 4%;
+          }
+          
+          .materials-table th:nth-child(2),
+          .materials-table td:nth-child(2) {
+            width: 50%;
+            max-width: 50%;
+            text-align: left;
+            padding-left: 5px;
+          }
+          
+          .materials-table th:nth-child(3),
+          .materials-table td:nth-child(3) {
+            width: 6%;
+            max-width: 6%;
+          }
+          
+          .materials-table th:nth-child(4),
+          .materials-table td:nth-child(4) {
+            width: 6%;
+            max-width: 6%;
+          }
+          
+          .materials-table th:nth-child(5),
+          .materials-table td:nth-child(5) {
+            width: 17%;
+            max-width: 17%;
+          }
+          
+          .materials-table th:nth-child(6),
+          .materials-table td:nth-child(6) {
+            width: 17%;
+            max-width: 17%;
+          }
+          
           .materials-table th {
             background-color: #f8f8f8;
             font-weight: bold;
@@ -2595,12 +2637,12 @@ function TaskTableComponent({
           <table class="materials-table">
             <thead>
               <tr style="height: 0.5cm; mso-height-source: userset; mso-height-rule: exactly;">
-                <th style="height: 0.5cm; mso-height-rule: exactly;">№</th>
-                <th style="height: 0.5cm; mso-height-rule: exactly;">Найменування</th>
-                <th style="height: 0.5cm; mso-height-rule: exactly;">Один. виміру</th>
-                <th style="height: 0.5cm; mso-height-rule: exactly;">Кількість</th>
-                <th style="height: 0.5cm; mso-height-rule: exactly;">Ціна з ПДВ, грн</th>
-                <th style="height: 0.5cm; mso-height-rule: exactly;">Вартість з ПДВ, грн</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly; width: 4%;">№</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly; width: 50%;">Найменування</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly; width: 6%;">Один. виміру</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly; width: 6%;">Кільк.</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly; width: 17%;">Ціна з ПДВ, грн</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly; width: 17%;">Вартість з ПДВ, грн</th>
               </tr>
             </thead>
             <tbody>
@@ -3013,6 +3055,44 @@ function TaskTableComponent({
             line-height: 0.5cm;
           }
           
+          .materials-table th:nth-child(1),
+          .materials-table td:nth-child(1) {
+            width: 4%;
+            max-width: 4%;
+          }
+          
+          .materials-table th:nth-child(2),
+          .materials-table td:nth-child(2) {
+            width: 50%;
+            max-width: 50%;
+            text-align: left;
+            padding-left: 5px;
+          }
+          
+          .materials-table th:nth-child(3),
+          .materials-table td:nth-child(3) {
+            width: 6%;
+            max-width: 6%;
+          }
+          
+          .materials-table th:nth-child(4),
+          .materials-table td:nth-child(4) {
+            width: 6%;
+            max-width: 6%;
+          }
+          
+          .materials-table th:nth-child(5),
+          .materials-table td:nth-child(5) {
+            width: 17%;
+            max-width: 17%;
+          }
+          
+          .materials-table th:nth-child(6),
+          .materials-table td:nth-child(6) {
+            width: 17%;
+            max-width: 17%;
+          }
+          
           .materials-table th {
             background-color: #f8f8f8;
             font-weight: bold;
@@ -3360,12 +3440,12 @@ function TaskTableComponent({
           <table class="materials-table">
             <thead>
               <tr style="height: 0.5cm; mso-height-source: userset; mso-height-rule: exactly;">
-                <th style="height: 0.5cm; mso-height-rule: exactly;">№</th>
-                <th style="height: 0.5cm; mso-height-rule: exactly;">Найменування</th>
-                <th style="height: 0.5cm; mso-height-rule: exactly;">Один. виміру</th>
-                <th style="height: 0.5cm; mso-height-rule: exactly;">Кількість</th>
-                <th style="height: 0.5cm; mso-height-rule: exactly;">Ціна з ПДВ, грн</th>
-                <th style="height: 0.5cm; mso-height-rule: exactly;">Вартість з ПДВ, грн</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly; width: 4%;">№</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly; width: 50%;">Найменування</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly; width: 6%;">Один. виміру</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly; width: 6%;">Кільк.</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly; width: 17%;">Ціна з ПДВ, грн</th>
+                <th style="height: 0.5cm; mso-height-rule: exactly; width: 17%;">Вартість з ПДВ, грн</th>
               </tr>
             </thead>
             <tbody>
@@ -3966,8 +4046,13 @@ function TaskTableComponent({
                 </tr>
               </thead>
               <tbody>
-                {sortData(filterTasks(tasks, filters), sortConfig.field, sortConfig.direction).map(t => (
-                  <tr key={t.id} className={getRowClass(t)} style={getRowColor(t) ? {background:getRowColor(t)} : {}}>
+                {sortData(filterTasks(tasks, filters), sortConfig.field, sortConfig.direction).map(t => {
+                  const rowClass = getRowClass(t);
+                  const rowColor = getRowColor(t);
+                  const rowStyle = rowColor ? {background:rowColor} : undefined;
+                  
+                  return (
+                  <tr key={t.id} className={rowClass} style={rowStyle}>
                     <td className={`action-buttons ${role === 'regional' && onFixRejected ? 'vertical-buttons' : ''}`} style={getRowColor(t) ? {color:'#111'} : {}}>
                       {/* Індикатор стану рахунку */}
                       <div style={{
@@ -4479,12 +4564,13 @@ function TaskTableComponent({
                       )}
                       </div>
                     </td>
-                    {visibleColumns.map(col => <td key={col.key} className="td-auto-height" style={{
-                      ...(getRowColor(t) ? {color:'#111'} : {}),
-                      width: columnWidths[col.key] || 120,
-                      minWidth: columnWidths[col.key] || 120,
-                      maxWidth: columnWidths[col.key] || 120
-                    }}>{
+                    {visibleColumns.map(col => (
+                      <td key={col.key} className="td-auto-height" style={{
+                        ...(getRowColor(t) ? {color:'#111'} : {}),
+                        width: columnWidths[col.key] || 120,
+                        minWidth: columnWidths[col.key] || 120,
+                        maxWidth: columnWidths[col.key] || 120
+                      }}>{
                       col.key === 'approvedByWarehouse' ? (t.approvedByWarehouse === 'Підтверджено' ? 'Підтверджено' : t.approvedByWarehouse === 'Відмова' ? 'Відмова' : 'На розгляді') :
                       col.key === 'approvedByAccountant' ? (t.approvedByAccountant === 'Підтверджено' ? 'Підтверджено' : t.approvedByAccountant === 'Відмова' ? 'Відмова' : 'На розгляді') :
                       col.key === 'approvedByRegionalManager' ? (t.approvedByRegionalManager === 'Підтверджено' ? 'Підтверджено' : t.approvedByRegionalManager === 'Відмова' ? 'Відхилено' : 'На розгляді') :
@@ -4534,7 +4620,9 @@ function TaskTableComponent({
                         </div>
                       ) :
                       formatCellValue(t[col.key], col.key)
-                    }</td>)}
+                    }
+                      </td>
+                    ))}
                     <td style={getRowColor(t) ? {color:'#111'} : {}}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <span>{t.status}</span>
@@ -4594,7 +4682,8 @@ function TaskTableComponent({
                       </td>
                     )}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
