@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { getClientData, getEdrpouEquipmentTypes, getEdrpouEquipmentMaterials } from '../utils/edrpouAPI';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { getClientData, getEdrpouEquipmentTypes, getEdrpouEquipmentMaterials, getContractFiles } from '../utils/edrpouAPI';
+import { getPdfFirstThreeLines } from '../utils/pdfConverter';
 
 const ClientDataSelectionModal = ({ 
   open, 
@@ -14,6 +15,9 @@ const ClientDataSelectionModal = ({
   const [materials, setMaterials] = useState(null);
   const [selectedEquipmentType, setSelectedEquipmentType] = useState('');
   const [materialsLoading, setMaterialsLoading] = useState(false);
+  const [contractFiles, setContractFiles] = useState([]);
+  const [contractKeysCache, setContractKeysCache] = useState(new Map());
+  const [contractKeysLoading, setContractKeysLoading] = useState(new Set());
   const [selectedData, setSelectedData] = useState({
     client: { enabled: false, value: '' },
     address: { enabled: false, value: '' },
@@ -33,13 +37,75 @@ const ClientDataSelectionModal = ({
     }
   });
 
+  // Синхронна функція для отримання ключа з кешу
+  const getContractKeyFromCache = useCallback((contractFileUrl) => {
+    if (!contractFileUrl) return contractFileUrl;
+    return contractKeysCache.get(contractFileUrl) || contractFileUrl;
+  }, [contractKeysCache]);
+
+  // Асинхронна функція для завантаження ключа PDF
+  const loadContractKey = useCallback(async (contractFileUrl) => {
+    if (!contractFileUrl) return;
+    
+    if (contractKeysCache.has(contractFileUrl)) {
+      return contractKeysCache.get(contractFileUrl);
+    }
+    
+    if (contractKeysLoading.has(contractFileUrl)) {
+      return;
+    }
+    
+    setContractKeysLoading(prev => new Set(prev).add(contractFileUrl));
+    
+    try {
+      const pdfKey = await getPdfFirstThreeLines(contractFileUrl);
+      setContractKeysCache(prev => {
+        const newMap = new Map(prev);
+        newMap.set(contractFileUrl, pdfKey || contractFileUrl);
+        return newMap;
+      });
+      return pdfKey || contractFileUrl;
+    } catch (error) {
+      console.error('[ERROR] ClientDataSelectionModal loadContractKey - помилка:', error);
+      setContractKeysCache(prev => {
+        const newMap = new Map(prev);
+        newMap.set(contractFileUrl, contractFileUrl);
+        return newMap;
+      });
+      return contractFileUrl;
+    } finally {
+      setContractKeysLoading(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(contractFileUrl);
+        return newSet;
+      });
+    }
+  }, [contractKeysCache, contractKeysLoading]);
+
   // Завантаження даних клієнта при відкритті модального вікна
   useEffect(() => {
     if (open && edrpou) {
       loadClientData();
       loadEquipmentTypes();
+      loadContractFiles();
     }
   }, [open, edrpou]);
+
+  // Завантаження ключів для всіх унікальних URL
+  useEffect(() => {
+    if (!open || contractFiles.length === 0) return;
+    
+    const uniqueUrls = new Set();
+    contractFiles.forEach(file => {
+      if (file.url && !contractKeysCache.has(file.url) && !contractKeysLoading.has(file.url)) {
+        uniqueUrls.add(file.url);
+      }
+    });
+    
+    uniqueUrls.forEach(url => {
+      loadContractKey(url);
+    });
+  }, [open, contractFiles, contractKeysCache, contractKeysLoading, loadContractKey]);
 
   // Завантаження матеріалів при зміні типу обладнання
   useEffect(() => {
@@ -47,6 +113,19 @@ const ClientDataSelectionModal = ({
       loadMaterials(selectedEquipmentType);
     }
   }, [selectedEquipmentType, edrpou]);
+
+  const loadContractFiles = async () => {
+    if (!edrpou) return;
+    try {
+      const files = await getContractFiles();
+      // Фільтруємо файли по ЄДРПОУ
+      const filteredFiles = files.filter(file => file.edrpou === edrpou);
+      console.log('[DEBUG] ClientDataSelectionModal - завантажено файлів договорів для ЄДРПОУ', edrpou, ':', filteredFiles.length);
+      setContractFiles(filteredFiles);
+    } catch (error) {
+      console.error('Помилка завантаження файлів договорів:', error);
+    }
+  };
 
   const loadClientData = async () => {
     if (!edrpou) return;
@@ -75,12 +154,7 @@ const ClientDataSelectionModal = ({
           value: data.invoiceRecipientDetails
         };
       }
-      if (data.contractFile) {
-        autoSelected.contractFile = { 
-          enabled: true, 
-          value: data.contractFile
-        };
-      }
+      // Не встановлюємо contractFile автоматично, оскільки тепер є список унікальних договорів
       setSelectedData(autoSelected);
     } catch (error) {
       console.error('Помилка завантаження даних клієнта:', error);
@@ -115,12 +189,60 @@ const ClientDataSelectionModal = ({
     }
   };
 
+  // Групуємо файли за унікальним PDF контентом
+  const uniqueContracts = useMemo(() => {
+    if (contractFiles.length === 0) return [];
+    
+    const contractsMap = new Map();
+    
+    contractFiles.forEach(file => {
+      if (!file.url) return;
+      
+      const contractKey = getContractKeyFromCache(file.url);
+      
+      if (!contractsMap.has(contractKey)) {
+        contractsMap.set(contractKey, {
+          key: contractKey,
+          fileName: file.fileName,
+          url: file.url,
+          urls: new Set([file.url]),
+          client: file.client,
+          edrpou: file.edrpou,
+          createdAt: file.createdAt,
+          files: [file]
+        });
+      } else {
+        const existing = contractsMap.get(contractKey);
+        existing.urls.add(file.url);
+        existing.files.push(file);
+        if (new Date(file.createdAt) > new Date(existing.createdAt)) {
+          existing.createdAt = file.createdAt;
+        }
+      }
+    });
+    
+    return Array.from(contractsMap.values()).map(contract => ({
+      ...contract,
+      urls: Array.from(contract.urls)
+    }));
+  }, [contractFiles, getContractKeyFromCache]);
+
   const handleDataChange = (field, enabled, value) => {
     setSelectedData(prev => ({
       ...prev,
       [field]: {
         enabled,
         value: enabled ? value : prev[field].value
+      }
+    }));
+  };
+
+  const handleContractFileSelect = (contractUrl) => {
+    setSelectedData(prev => ({
+      ...prev,
+      contractFile: {
+        enabled: prev.contractFile.enabled,
+        value: contractUrl
       }
     }));
   };
@@ -372,67 +494,131 @@ const ClientDataSelectionModal = ({
                     <input
                       type="checkbox"
                       checked={selectedData.contractFile.enabled}
-                      onChange={(e) => handleDataChange('contractFile', e.target.checked, clientData.contractFile)}
+                      onChange={(e) => handleDataChange('contractFile', e.target.checked, selectedData.contractFile.value)}
                     />
                     Файл договору
                   </label>
                 </div>
-                {selectedData.contractFile.enabled && clientData.contractFile && (
+                {selectedData.contractFile.enabled && (
                   <div className="data-fields">
                     <div className="field-group">
-                      <label>Файл договору:</label>
-                      <div style={{ 
-                        padding: '8px 12px',
-                        backgroundColor: '#e8f5e8',
-                        border: '1px solid #4caf50',
-                        borderRadius: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}>
-                        <span style={{ color: '#2e7d32' }}>
-                          📄 {clientData.contractFile.split('/').pop() || 'contract.pdf'}
-                        </span>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                            type="button"
-                            onClick={() => window.open(clientData.contractFile, '_blank')}
-                            style={{
-                              background: '#2196f3',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              padding: '4px 8px',
-                              cursor: 'pointer',
-                              fontSize: '12px'
-                            }}
-                          >
-                            👁️ Переглянути
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const link = document.createElement('a');
-                              link.href = clientData.contractFile;
-                              link.download = clientData.contractFile.split('/').pop() || 'contract.pdf';
-                              document.body.appendChild(link);
-                              link.click();
-                              document.body.removeChild(link);
-                            }}
-                            style={{
-                              background: '#4caf50',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              padding: '4px 8px',
-                              cursor: 'pointer',
-                              fontSize: '12px'
-                            }}
-                          >
-                            ⬇️ Завантажити
-                          </button>
+                      <label>Виберіть унікальний договір:</label>
+                      {uniqueContracts.length === 0 ? (
+                        <div style={{ color: '#666', fontStyle: 'italic', padding: '8px' }}>
+                          Немає доступних договорів для цього ЄДРПОУ
                         </div>
-                      </div>
+                      ) : (
+                        <div style={{ 
+                          maxHeight: '300px', 
+                          overflowY: 'auto',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          padding: '8px'
+                        }}>
+                          {uniqueContracts.map((contract, index) => {
+                            const isSelected = selectedData.contractFile.value === contract.url;
+                            const isLoading = contractKeysLoading.has(contract.url);
+                            
+                            return (
+                              <div
+                                key={contract.key || index}
+                                style={{
+                                  padding: '10px',
+                                  marginBottom: '8px',
+                                  border: isSelected ? '2px solid #2196f3' : '1px solid #ddd',
+                                  borderRadius: '4px',
+                                  backgroundColor: isSelected ? '#e3f2fd' : '#fff',
+                                  cursor: 'pointer',
+                                  opacity: isLoading ? 0.6 : 1
+                                }}
+                                onClick={() => handleContractFileSelect(contract.url)}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                                  <input
+                                    type="radio"
+                                    checked={isSelected}
+                                    onChange={() => handleContractFileSelect(contract.url)}
+                                    style={{ marginRight: '8px' }}
+                                  />
+                                  <span style={{ color: 'red', fontWeight: 'bold', marginRight: '8px' }}>
+                                    Вибрати договір
+                                  </span>
+                                  <span style={{ fontWeight: 'bold', color: '#333' }}>
+                                    📄 {contract.fileName}
+                                  </span>
+                                  {contract.urls && contract.urls.length > 1 && (
+                                    <span style={{ 
+                                      marginLeft: '8px', 
+                                      fontSize: '11px', 
+                                      color: '#666',
+                                      fontStyle: 'italic'
+                                    }}>
+                                      ({contract.urls.length} файлів)
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#666', marginLeft: '24px' }}>
+                                  Завантажено: {new Date(contract.createdAt).toLocaleDateString('uk-UA')}
+                                </div>
+                                {contract.urls && contract.urls.length > 1 && (
+                                  <div style={{ 
+                                    fontSize: '10px', 
+                                    color: '#999', 
+                                    marginTop: '4px',
+                                    marginLeft: '24px',
+                                    fontStyle: 'italic'
+                                  }}>
+                                    Унікальний договір (об'єднано {contract.urls.length} файлів з однаковим контентом)
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', gap: '8px', marginTop: '8px', marginLeft: '24px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      window.open(contract.url, '_blank');
+                                    }}
+                                    style={{
+                                      background: '#2196f3',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      padding: '4px 8px',
+                                      cursor: 'pointer',
+                                      fontSize: '11px'
+                                    }}
+                                  >
+                                    👁️ Переглянути
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const link = document.createElement('a');
+                                      link.href = contract.url;
+                                      link.download = contract.fileName;
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                    }}
+                                    style={{
+                                      background: '#4caf50',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      padding: '4px 8px',
+                                      cursor: 'pointer',
+                                      fontSize: '11px'
+                                    }}
+                                  >
+                                    ⬇️ Завантажити
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
