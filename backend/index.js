@@ -1653,6 +1653,19 @@ app.put('/api/tasks/:id', async (req, res) => {
     const { id, _id, ...updateData } = req.body;
     console.log('[DEBUG] PUT /api/tasks/:id - дані для оновлення (без id та _id):', JSON.stringify(updateData, null, 2));
     
+    // Зберігаємо існуючий номер заявки/наряду - він не повинен змінюватися під час редагування
+    // Якщо в updateData немає requestNumber або він порожній, зберігаємо існуючий з бази
+    if (task.requestNumber && (!updateData.requestNumber || updateData.requestNumber.trim() === '')) {
+      updateData.requestNumber = task.requestNumber;
+      console.log('[DEBUG] PUT /api/tasks/:id - збережено існуючий номер заявки:', task.requestNumber);
+    }
+    // Якщо в updateData є requestNumber, але він відрізняється від існуючого, зберігаємо існуючий
+    // (номер заявки призначається тільки при створенні і не повинен змінюватися)
+    if (task.requestNumber && updateData.requestNumber && updateData.requestNumber !== task.requestNumber) {
+      console.log('[WARNING] PUT /api/tasks/:id - спроба змінити номер заявки з', task.requestNumber, 'на', updateData.requestNumber, '- зберігаємо оригінальний');
+      updateData.requestNumber = task.requestNumber;
+    }
+    
     // Автоматично встановлюємо дату створення заявки, якщо її ще немає
     if (!updateData.autoCreatedAt && !task.autoCreatedAt) {
       updateData.autoCreatedAt = new Date();

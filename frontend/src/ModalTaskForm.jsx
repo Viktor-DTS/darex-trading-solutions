@@ -26,21 +26,35 @@ const getRegionCode = (region) => {
 // Функція для генерації наступного номера заявки
 const generateNextRequestNumber = async (region) => {
   try {
-    const allTasks = await tasksAPI.getAll();
+    // Використовуємо getAllForReport() щоб отримати ВСІ заявки без обмежень
+    // Це критично важливо для правильної генерації номера
+    const allTasks = await tasksAPI.getAllForReport();
     const regionCode = getRegionCode(region);
     const pattern = new RegExp(`^${regionCode}-(\\d+)$`);
+    
     // Знаходимо всі номери заявок для цього регіону
     const regionNumbers = allTasks
       .map(task => task.requestNumber)
       .filter(number => number && pattern.test(number))
       .map(number => parseInt(number.match(pattern)[1]))
       .sort((a, b) => a - b);
+    
+    console.log('[DEBUG] generateNextRequestNumber:', {
+      region,
+      regionCode,
+      totalTasks: allTasks.length,
+      allRequestNumbers: allTasks.map(t => t.requestNumber).filter(n => n && pattern.test(n)).slice(0, 10), // Показуємо перші 10 для діагностики
+      regionNumbers: regionNumbers,
+      maxNumber: regionNumbers.length > 0 ? Math.max(...regionNumbers) : 0
+    });
+    
     // Знаходимо наступний номер
     let nextNumber = 1;
     if (regionNumbers.length > 0) {
       nextNumber = Math.max(...regionNumbers) + 1;
     }
     const result = `${regionCode}-${String(nextNumber).padStart(7, '0')}`;
+    console.log('[DEBUG] generateNextRequestNumber - згенеровано:', result);
     return result;
   } catch (error) {
     console.error('Помилка при генерації номера заявки:', error);
@@ -455,19 +469,37 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
   // useEffect для автоматичного заповнення номера заявки
   useEffect(() => {
     const autoFillRequestNumber = async () => {
-      // Тільки для нових завдань (коли немає ID) і якщо номер заявки порожній
-      if (!initialData.id && !form.requestNumber && form.serviceRegion) {
+      // Тільки для нових завдань (коли немає ID або _id) і якщо номер заявки порожній
+      // Перевіряємо що це нова заявка (немає id та _id) і що номер ще не встановлено
+      const isNewTask = !initialData.id && !initialData._id;
+      // Перевіряємо що номер заявки порожній (undefined, null, або порожній рядок)
+      const formRequestNumber = form.requestNumber || '';
+      const initialRequestNumber = initialData.requestNumber || '';
+      const hasNoRequestNumber = formRequestNumber.trim() === '' && initialRequestNumber.trim() === '';
+      
+      console.log('[DEBUG] ModalTaskForm - автозаповнення номера заявки:', {
+        isNewTask,
+        hasNoRequestNumber,
+        serviceRegion: form.serviceRegion,
+        formRequestNumber,
+        initialRequestNumber,
+        initialDataId: initialData.id,
+        initialData_id: initialData._id
+      });
+      
+      if (isNewTask && hasNoRequestNumber && form.serviceRegion) {
         try {
+          console.log('[DEBUG] ModalTaskForm - генеруємо новий номер заявки для регіону:', form.serviceRegion);
           const nextNumber = await generateNextRequestNumber(form.serviceRegion);
+          console.log('[DEBUG] ModalTaskForm - згенеровано номер заявки:', nextNumber);
           setForm(prev => ({ ...prev, requestNumber: nextNumber }));
         } catch (error) {
           console.error('Помилка при автозаповненні номера заявки:', error);
         }
-      } else {
       }
     };
     autoFillRequestNumber();
-  }, [form.serviceRegion, initialData.id, form.requestNumber]);
+  }, [form.serviceRegion, form.requestNumber, initialData.id, initialData._id, initialData.requestNumber]);
   useEffect(() => {
     // Підставляти регіон лише якщо створюється нова заявка (form.serviceRegion порожнє і initialData.serviceRegion порожнє)
     if (
@@ -1074,6 +1106,14 @@ export default function ModalTaskForm({ open, onClose, onSave, initialData = {},
       contractFileUrl = form.contractFile.url || form.contractFile;
     }
 
+    console.log('[DEBUG] ModalTaskForm - збереження заявки:', {
+      requestNumber: dataToSave.requestNumber,
+      serviceRegion: dataToSave.serviceRegion,
+      id: dataToSave.id,
+      _id: dataToSave._id,
+      isNewTask: !dataToSave.id && !dataToSave._id
+    });
+    
     onSave({
       ...dataToSave,
       contractFile: contractFileUrl || form.contractFile, // Зберігаємо URL або оригінальний файл
