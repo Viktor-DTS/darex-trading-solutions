@@ -1,0 +1,20 @@
+# Restore/backup directories
+restore-24112025/
+restore-*/
+
+# Large video files
+*.mp4
+*.avi
+*.mov
+
+# Large image files
+*.jpeg
+*.jpg
+*.png
+
+# MongoDB restore files
+*.wt
+*.wt.*
+
+# Other large files
+*.0000000171
