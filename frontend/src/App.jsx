@@ -6616,6 +6616,22 @@ function AdminBackupArea({ user }) {
         // Продовжуємо з локальним збереженням навіть якщо сервер недоступний
       }
       // Зберігаємо локально
+      // Спочатку перевіряємо розмір нового бекапу
+      const newBackupSize = new Blob([backupData]).size / (1024 * 1024);
+      
+      // Якщо новий бекап занадто великий (>2MB), не зберігаємо його локально
+      if (newBackupSize > 2) {
+        console.warn('[BACKUP] Новий бекап занадто великий для локального збереження:', newBackupSize.toFixed(2), 'MB');
+        setLastAutoBackup(now);
+        localStorage.setItem('lastAutoBackup', now.toISOString());
+        if (serverSuccess) {
+          alert('Бекап успішно створено на сервері. Локальне збереження пропущено через великий розмір даних.');
+        } else {
+          alert('Бекап створено, але не вдалося зберегти локально через великий розмір даних. Рекомендується зберегти на сервері.');
+        }
+        return;
+      }
+      
       let newBackups = [...backups, localBackup];
       if (newBackups.length > 10) {
         newBackups = newBackups.slice(newBackups.length - 10);
@@ -6625,6 +6641,12 @@ function AdminBackupArea({ user }) {
       const sizeInMB = new Blob([backupString]).size / (1024 * 1024);
       if (sizeInMB > 4) { // Якщо більше 4MB, зберігаємо тільки 5 останніх
         newBackups = newBackups.slice(-5);
+      }
+      // Додаткова перевірка: якщо розмір все ще занадто великий, зберігаємо тільки 1 останній бекап
+      const finalBackupString = JSON.stringify(newBackups);
+      const finalSizeInMB = new Blob([finalBackupString]).size / (1024 * 1024);
+      if (finalSizeInMB > 4) {
+        newBackups = newBackups.slice(-1);
       }
     setBackups(newBackups);
       try {
@@ -6639,11 +6661,29 @@ function AdminBackupArea({ user }) {
         }
       } catch (storageError) {
         console.error('[BACKUP] Помилка збереження в localStorage:', storageError);
-        // Якщо localStorage переповнений, зберігаємо тільки 3 останні бекапи
-        const minimalBackups = newBackups.slice(-3);
-        localStorage.setItem('backups', JSON.stringify(minimalBackups));
-        setBackups(minimalBackups);
-        alert('Бекап створено на сервері, але локально збережено тільки 3 останні бекапи через обмеження браузера');
+        // Якщо localStorage переповнений, спробуємо зберегти тільки метадані без даних
+        try {
+          const minimalBackups = newBackups.map(b => ({
+            id: b.id,
+            date: b.date,
+            data: null // Не зберігаємо дані, тільки метадані
+          })).slice(-3);
+          localStorage.setItem('backups', JSON.stringify(minimalBackups));
+          setBackups(minimalBackups);
+          if (serverSuccess) {
+            alert('Бекап успішно створено на сервері. Локально збережено тільки метадані через обмеження браузера.');
+          } else {
+            alert('Бекап створено, але не вдалося зберегти локально через обмеження браузера. Спробуйте зберегти на сервері.');
+          }
+        } catch (secondError) {
+          // Якщо навіть метадані не вдалося зберегти, просто не зберігаємо локально
+          console.error('[BACKUP] Помилка збереження навіть мінімальних даних:', secondError);
+          if (serverSuccess) {
+            alert('Бекап успішно створено на сервері. Локальне збереження недоступне через обмеження браузера.');
+          } else {
+            alert('Не вдалося зберегти бекап локально через обмеження браузера. Рекомендується зберегти на сервері.');
+          }
+        }
       }
     } catch (error) {
       console.error('[BACKUP] Помилка створення бекапу:', error);
