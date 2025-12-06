@@ -184,18 +184,42 @@ function App() {
               } else {
                 setCurrentPanel(defaultPanel);
               }
-            } else {
-              // Токен невалідний - очищаємо localStorage
+            } else if (response.status === 401) {
+              // Токен невалідний (401) - очищаємо localStorage
               localStorage.removeItem('token');
               localStorage.removeItem('user');
               localStorage.removeItem('currentPanel');
+            } else {
+              // Інша помилка (не 401) - використовуємо збережені дані
+              // Можливо, тимчасові проблеми з сервером
+              console.warn('Помилка перевірки токену (не 401), використовуємо збережені дані:', response.status);
+              setUser(userData);
+              
+              const savedPanel = localStorage.getItem('currentPanel');
+              const defaultPanel = getDefaultPanelForRole(userData.role, rules);
+              const availablePanels = getAvailablePanelsForRole(userData.role, rules).map(p => p.id);
+              
+              if (savedPanel && availablePanels.includes(savedPanel)) {
+                setCurrentPanel(savedPanel);
+              } else {
+                setCurrentPanel(defaultPanel);
+              }
             }
           } catch (error) {
-            // Помилка перевірки - очищаємо localStorage
-            console.error('Помилка перевірки токену:', error);
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            localStorage.removeItem('currentPanel');
+            // Помилка мережі або інша помилка - використовуємо збережені дані
+            // Не очищаємо токен, оскільки це може бути тимчасовою проблемою
+            console.warn('Помилка перевірки токену (мережа), використовуємо збережені дані:', error);
+            setUser(userData);
+            
+            const savedPanel = localStorage.getItem('currentPanel');
+            const defaultPanel = getDefaultPanelForRole(userData.role, rules);
+            const availablePanels = getAvailablePanelsForRole(userData.role, rules).map(p => p.id);
+            
+            if (savedPanel && availablePanels.includes(savedPanel)) {
+              setCurrentPanel(savedPanel);
+            } else {
+              setCurrentPanel(defaultPanel);
+            }
           }
         } else {
           // Немає даних користувача - очищаємо токен
