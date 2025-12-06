@@ -619,9 +619,10 @@ app.get('/api/tasks/statistics', async (req, res) => {
         approvedByAccountant: { $nin: ['Підтверджено', true] }
       }),
       
-      // Не виконані заявки на рахунки (InvoiceRequest з status не "completed")
+      // Не виконані заявки на рахунки (InvoiceRequest зі статусом 'pending' або 'processing')
+      // Відповідає логіці панелі "Бух рахунки" за замовчуванням (без чекбокса "Показати всі")
       InvoiceRequest.countDocuments({ 
-        status: { $nin: ['completed'] }
+        status: { $in: ['pending', 'processing'] }
       })
     ]);
     
