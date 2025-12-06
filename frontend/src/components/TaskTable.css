@@ -1,0 +1,637 @@
+.task-table-container {
+  width: 100%;
+  height: 100%;
+  background: var(--surface);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-table-toolbar {
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0; /* Не стискається */
+}
+
+.search-box {
+  flex: 1;
+  max-width: 350px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 12px;
+  background: var(--surface-dark);
+  color: var(--text-primary);
+}
+
+.search-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.toolbar-info {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.task-table-wrapper {
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0; /* Важливо для flex */
+  height: 0; /* Додатково для правильного flex */
+  position: relative;
+}
+
+.task-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  table-layout: fixed; /* Фіксована ширина колонок */
+}
+
+.task-table thead {
+  position: sticky;
+  top: 0;
+  background: var(--surface-dark);
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.task-table th {
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border);
+  background: var(--surface-dark);
+  user-select: none;
+  font-size: 11px;
+}
+
+.task-table th.sortable {
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.task-table th.sortable:hover {
+  background: var(--surface);
+}
+
+.th-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.sort-indicator {
+  color: var(--primary);
+  font-size: 10px;
+}
+
+.task-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  overflow: visible; /* Дозволяємо контенту відображатися навіть з градієнтом */
+  white-space: normal; /* Дозволяємо переносу тексту */
+  word-wrap: break-word; /* Переносимо довгі слова */
+  font-size: 12px;
+}
+
+.task-table tbody tr {
+  transition: background 0.2s;
+  background: var(--surface);
+}
+
+.task-table tbody tr:nth-child(even) {
+  background: rgba(51, 65, 85, 0.5);
+}
+
+.task-table tbody tr {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.task-table tbody tr:hover {
+  background: rgba(96, 165, 250, 0.15);
+}
+
+/* Відхилені заявки - більш насичений червоний колір */
+.task-table tbody tr.rejected {
+  background: #ff4444 !important;
+  color: white !important;
+  font-weight: 600 !important;
+}
+
+.task-table tbody tr.rejected:hover {
+  background: #ff2222 !important;
+}
+
+/* Відхилені рахунки - фіолетовий колір */
+.task-table tbody tr.invoice-rejected {
+  background: #9370DB !important;
+  color: #fff !important;
+}
+
+.task-table tbody tr.invoice-rejected:hover {
+  background: #7B68EE !important;
+}
+
+/* Відхилені бухгалтером (для панелі Бух на затвердженні) - насичений червоний */
+.task-table tbody tr.accountant-rejected {
+  background: #dc3545 !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+
+.task-table tbody tr.accountant-rejected:hover {
+  background: #c82333 !important;
+}
+
+/* Термінові заявки - градієнт веселки (як в оригінальному проекті) */
+/* Застосовуємо градієнт безпосередньо до клітинок для правильного відображення контенту */
+.task-table tbody tr.urgent-request {
+  transition: none !important;
+}
+
+.task-table tbody tr.urgent-request td {
+  position: relative;
+  background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000) !important;
+  background-size: 400% 100% !important;
+  background-position: 0% 50% !important;
+  animation: rainbow-move 3s ease infinite !important;
+  color: white !important;
+  font-weight: bold !important;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
+  overflow: visible !important; /* Дозволяємо контенту відображатися */
+}
+
+.task-table tbody tr.urgent-request:hover td {
+  animation: rainbow-move 1.5s ease infinite !important;
+}
+
+.task-table tbody tr.urgent-request:nth-child(even) td {
+  background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000) !important;
+  background-size: 400% 100% !important;
+  background-position: 0% 50% !important;
+  animation: rainbow-move 3s ease infinite !important;
+}
+
+@keyframes rainbow-move {
+  0% { 
+    background-position: 0% 50%; 
+  }
+  50% { 
+    background-position: 100% 50%; 
+  }
+  100% { 
+    background-position: 0% 50%; 
+  }
+}
+
+.task-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px;
+  color: var(--text-secondary);
+}
+
+.task-table-loading,
+.task-table-error {
+  padding: 48px;
+  text-align: center;
+}
+
+.task-table-loading .spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.task-table-error p {
+  color: var(--error);
+  margin-bottom: 16px;
+}
+
+/* Градієнтні індикатори для числових значень (як на скріншоті) */
+.gradient-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: var(--gradient-pink-purple);
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* Зелені кнопки для дій */
+.action-btn-green {
+  background: var(--success);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn-green:hover {
+  background: #059669;
+}
+
+/* Світло-блакитні кнопки */
+.action-btn-blue {
+  background: var(--primary);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn-blue:hover {
+  background: var(--primary-light);
+}
+
+/* Скроллбар для таблиці */
+.task-table-wrapper::-webkit-scrollbar {
+  height: 14px;
+  width: 14px;
+}
+
+.task-table-wrapper::-webkit-scrollbar-track {
+  background: var(--surface-dark);
+  border-radius: 7px;
+}
+
+.task-table-wrapper::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+  border-radius: 7px;
+  border: 2px solid var(--surface-dark);
+}
+
+.task-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+}
+
+.task-table-wrapper::-webkit-scrollbar-corner {
+  background: var(--surface-dark);
+}
+
+/* Колонка Дії */
+.actions-cell {
+  text-align: center;
+  padding: 3px 6px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.btn-work-order {
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-work-order:hover {
+  background: linear-gradient(135deg, #45a049 0%, #3d8b40 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.4);
+}
+
+.btn-work-order:active {
+  transform: translateY(0);
+}
+
+/* Кнопка завантаження документів (для бух.рахунки) */
+.btn-upload-docs {
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-upload-docs:hover {
+  background: linear-gradient(135deg, #138496 0%, #0f6674 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(23, 162, 184, 0.4);
+}
+
+.btn-upload-docs:active {
+  transform: translateY(0);
+}
+
+/* Кнопка відхилення запиту на рахунок */
+.btn-reject-invoice {
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-reject-invoice:hover {
+  background: linear-gradient(135deg, #c82333 0%, #a71d2a 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+}
+
+.btn-reject-invoice:active {
+  transform: translateY(0);
+}
+
+/* Компактна інформація для бух.рахунки */
+.invoice-info-compact {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.invoice-info-compact .docs-row {
+  display: flex;
+  gap: 2px;
+}
+
+.invoice-info-compact .doc-badge {
+  font-size: 12px;
+  cursor: help;
+}
+
+.invoice-info-compact .doc-invoice {
+  color: #28a745;
+}
+
+.invoice-info-compact .doc-act {
+  color: #17a2b8;
+}
+
+.invoice-info-compact .doc-none {
+  color: #dc3545;
+}
+
+.invoice-info-compact .status-badge-compact {
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 9px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+/* Контейнер кнопок для бух.рахунки */
+.invoice-action-buttons {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.invoice-action-buttons .btn-upload-docs,
+.invoice-action-buttons .btn-reject-invoice {
+  font-size: 9px;
+  padding: 3px 6px;
+}
+
+/* Кнопка видалення */
+.btn-delete-task {
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-delete-task:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}
+
+.btn-delete-task:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-delete-task:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Кнопки підтвердження */
+.btn-approve {
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-approve:hover {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.4);
+}
+
+.btn-approve:active {
+  transform: translateY(0);
+}
+
+.btn-reject {
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-reject:hover {
+  background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.4);
+}
+
+.btn-reject:active {
+  transform: translateY(0);
+}
+
+/* ===== Toolbar Actions ===== */
+.toolbar-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.btn-toggle-filters {
+  padding: 5px 10px;
+  background: var(--surface-dark);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-toggle-filters:hover {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
+.btn-toggle-filters.active {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border-color: #3b82f6;
+}
+
+.btn-clear-filters {
+  padding: 5px 10px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-clear-filters:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-1px);
+}
+
+/* ===== Filter Row ===== */
+.filter-row {
+  background: var(--surface-dark);
+}
+
+.filter-row th {
+  padding: 4px 6px !important;
+  background: var(--surface-dark);
+  border-bottom: 2px solid var(--border);
+}
+
+.filter-cell {
+  vertical-align: middle;
+}
+
+.filter-input {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 10px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--text-primary);
+  transition: border-color 0.2s ease;
+}
+
+.filter-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.filter-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+.filter-select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+
+.filter-date-range {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filter-date {
+  font-size: 11px;
+  padding: 4px 6px;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .toolbar-actions {
+    flex-wrap: wrap;
+  }
+  
+  .filter-input {
+    font-size: 11px;
+    padding: 4px 6px;
+  }
+}

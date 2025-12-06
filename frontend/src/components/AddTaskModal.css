@@ -1,0 +1,932 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 12px;
+}
+
+.modal-content {
+  background: var(--surface);
+  border-radius: 10px;
+  width: 100%;
+  max-width: 850px;
+  max-height: 92vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background: var(--surface-dark);
+  color: var(--text-primary);
+}
+
+.task-form {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-error {
+  background: var(--error);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 5px;
+  margin-bottom: 10px;
+  font-size: 11px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.form-row.four-cols {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.form-row.three-cols {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-group label {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-dark);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.form-group input:read-only {
+  background: var(--surface);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 45px;
+}
+
+.checkbox-group {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-weight: normal;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+/* Обов'язкові поля */
+.required {
+  color: #ff6b6b;
+  font-weight: bold;
+}
+
+/* Термінова заявка */
+.urgent-label {
+  color: #ff6b6b;
+  font-weight: 600;
+}
+
+.urgent-label.disabled {
+  color: #666;
+  opacity: 0.6;
+}
+
+/* Поля з авторозрахунком */
+.form-group.calculated .calculated-field {
+  background: var(--surface);
+  color: #00ff88;
+  font-weight: 600;
+  cursor: not-allowed;
+  border-color: #00ff88;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+}
+
+.btn-secondary {
+  padding: 6px 14px;
+  background: var(--surface-dark);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: var(--surface);
+}
+
+.btn-primary {
+  padding: 6px 14px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-light);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Секції форми */
+.form-section {
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--surface-dark);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+}
+
+.section-header:hover {
+  background: var(--surface);
+}
+
+.section-header h3 {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.section-toggle {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.section-content {
+  padding: 10px;
+  background: var(--surface);
+}
+
+.subsection {
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.subsection:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.subsection h4 {
+  margin: 0 0 8px 0;
+  font-size: 11px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Блок заборгованості по документам */
+.debt-status-group {
+  margin-top: 15px;
+  padding: 12px 15px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.debt-status-group > label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: 600;
+  color: #333;
+}
+
+.debt-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.debt-controls select {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  min-width: 200px;
+}
+
+.checkbox-label-debt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.checkbox-label-debt input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #28a745;
+  cursor: pointer;
+}
+
+.debt-checkbox-text {
+  font-size: 14px;
+  color: #333;
+}
+
+.debt-hint {
+  margin: 10px 0 0 0;
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
+}
+
+/* Режим тільки заборгованість - всі поля заблоковані крім debtStatus */
+.debt-only-mode .form-group input:not([name="debtStatusCheckbox"]),
+.debt-only-mode .form-group select:not([name="debtStatus"]),
+.debt-only-mode .form-group textarea {
+  pointer-events: none;
+  background: #f8f9fa;
+  color: #000 !important; /* Чорний текст для читабельності */
+  opacity: 1 !important;
+  -webkit-text-fill-color: #000 !important;
+}
+
+/* Лейбли теж чорні */
+.debt-only-mode .form-group label {
+  color: #000 !important;
+}
+
+/* Секції з видимим контентом */
+.debt-only-mode .section-content {
+  opacity: 1;
+}
+
+.debt-only-mode .debt-status-group {
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
+  border-color: #ffc107;
+}
+
+.debt-only-mode .debt-status-group select,
+.debt-only-mode .debt-status-group input[type="checkbox"] {
+  pointer-events: auto !important;
+  opacity: 1 !important;
+  background: white !important;
+  color: #000 !important;
+}
+
+.debt-mode-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+  color: white;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-left: 12px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.readonly-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #607d8b 0%, #455a64 100%);
+  color: white;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-left: 12px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+/* Режим тільки для читання - всі поля заблоковані */
+.read-only-mode .form-group input,
+.read-only-mode .form-group select,
+.read-only-mode .form-group textarea {
+  pointer-events: none;
+  background: #f8f9fa;
+  color: #000 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #000 !important;
+}
+
+.read-only-mode .form-group label {
+  color: #000 !important;
+}
+
+.read-only-mode .section-content {
+  opacity: 1;
+}
+
+/* Приховуємо кнопку збереження в режимі тільки для читання */
+.read-only-mode .modal-footer .btn-save {
+  display: none;
+}
+
+/* Блок файлу договору */
+.contract-file-block {
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--surface-dark);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.contract-file-block label {
+  display: block;
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.contract-file-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.contract-file-uploaded {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid #10b981;
+  border-radius: 4px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.contract-file-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.contract-file-icon {
+  font-size: 18px;
+}
+
+.contract-file-name {
+  color: #10b981;
+  font-weight: 500;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.contract-file-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-contract-view,
+.btn-contract-remove {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  transition: all 0.2s ease;
+}
+
+.btn-contract-view {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-contract-view:hover {
+  background: var(--primary-hover);
+}
+
+.btn-contract-remove {
+  background: #ef4444;
+  color: white;
+}
+
+.btn-contract-remove:hover {
+  background: #dc2626;
+}
+
+.contract-file-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 2px dashed var(--border);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.btn-contract-upload {
+  padding: 8px 16px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-contract-upload:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-contract-upload:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.contract-file-hint {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.contract-upload-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-contract-select {
+  padding: 8px 16px;
+  background: var(--surface-dark);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-contract-select:hover {
+  background: var(--border);
+}
+
+/* Модальне вікно вибору договору */
+.contract-selector-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.contract-selector-modal {
+  background: var(--surface);
+  border-radius: 10px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.contract-selector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.contract-selector-header h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.contract-selector-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.contract-selector-close:hover {
+  color: var(--text-primary);
+}
+
+.contract-selector-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.contract-selector-loading,
+.contract-selector-empty {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 24px 14px;
+  font-size: 11px;
+}
+
+.contract-selector-loading p {
+  margin-bottom: 10px;
+}
+
+.contract-progress {
+  max-width: 240px;
+  margin: 0 auto;
+}
+
+.contract-progress-text {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.contract-progress-bar {
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.contract-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), #10b981);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.contract-selector-empty p {
+  margin-bottom: 10px;
+}
+
+.contract-files-count {
+  margin-left: 6px;
+  font-size: 9px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.btn-show-all-contracts {
+  padding: 6px 14px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s ease;
+}
+
+.btn-show-all-contracts:hover {
+  background: var(--primary-hover);
+}
+
+.contract-selector-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.contract-selector-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.contract-selector-item:hover {
+  background: var(--border);
+  border-color: var(--primary);
+}
+
+.contract-selector-icon {
+  font-size: 18px;
+}
+
+.contract-selector-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.contract-selector-filename {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contract-selector-client {
+  color: var(--text-secondary);
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.contract-selector-preview {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 3px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.contract-selector-preview:hover {
+  background: var(--primary-hover);
+}
+
+/* Адаптивність */
+@media (max-width: 992px) {
+  .form-row.four-cols {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .form-row,
+  .form-row.four-cols,
+  .form-row.three-cols {
+    grid-template-columns: 1fr;
+  }
+  
+  .modal-content {
+    max-width: 100%;
+    margin: 10px;
+  }
+}
+
+/* ========== Autocomplete Dropdown ========== */
+.autocomplete-wrapper {
+  position: relative;
+}
+
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  margin-top: 3px;
+}
+
+.autocomplete-hint {
+  padding: 6px 10px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.1) 100%);
+  color: var(--text-secondary);
+  font-size: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.autocomplete-item {
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 11px;
+  transition: background 0.15s ease;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-item:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(37, 99, 235, 0.15) 100%);
+}
+
+.autocomplete-more {
+  padding: 5px 10px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-style: italic;
+  background: var(--surface-dark);
+  border-top: 1px solid var(--border);
+}
+
+/* Scrollbar для autocomplete */
+.autocomplete-dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-track {
+  background: var(--surface-dark);
+  border-radius: 3px;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Блок інформації про відмову */
+.rejection-info-block {
+  background: linear-gradient(135deg, #2d1a1a 0%, #1a1a2d 100%);
+  border: 2px solid #dc3545;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.rejection-header-alert {
+  color: #ff4444;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 12px;
+  text-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+  animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.rejection-details-block {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 8px;
+}
+
+.rejection-details-block + .rejection-details-block {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.rejection-who {
+  color: #ff6b6b;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.rejection-who strong {
+  color: #ff4444;
+}
+
+.rejection-reason-text {
+  color: #ffc107;
+  font-size: 13px;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: rgba(255, 193, 7, 0.1);
+  border-left: 3px solid #ffc107;
+  border-radius: 0 4px 4px 0;
+}
+
+.rejection-reason-text strong {
+  color: #ffca2c;
+}
+
+.rejection-action {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.rejection-action strong {
+  color: #4ade80;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.rejection-action ol {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text-secondary);
+}
+
+.rejection-action ol li {
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.rejection-action ol li:last-child {
+  color: #4ade80;
+  font-weight: 500;
+}

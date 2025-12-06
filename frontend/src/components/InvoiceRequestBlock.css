@@ -1,0 +1,351 @@
+/* InvoiceRequestBlock Styles */
+.invoice-request-block {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--surface-dark);
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.invoice-request-title {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.invoice-loading {
+  text-align: center;
+  padding: 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.invoice-request-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Status Badge */
+.invoice-status {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.invoice-status-pending {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.invoice-status-processing {
+  background: rgba(23, 162, 184, 0.2);
+  color: #17a2b8;
+}
+
+.invoice-status-completed {
+  background: rgba(40, 167, 69, 0.2);
+  color: #28a745;
+}
+
+.invoice-status-rejected {
+  background: rgba(220, 53, 69, 0.2);
+  color: #dc3545;
+}
+
+.invoice-info {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.invoice-info div {
+  margin-bottom: 4px;
+}
+
+.invoice-rejection {
+  color: #dc3545 !important;
+  margin-top: 8px;
+}
+
+/* File Block */
+.invoice-file-block {
+  padding: 10px;
+  background: rgba(40, 167, 69, 0.1);
+  border-radius: 4px;
+  border: 1px solid rgba(40, 167, 69, 0.3);
+}
+
+.invoice-file-block.act-file {
+  background: rgba(23, 162, 184, 0.1);
+  border-color: rgba(23, 162, 184, 0.3);
+}
+
+.invoice-file-info {
+  font-size: 11px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.invoice-file-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-view, .btn-download {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-view {
+  background: #17a2b8;
+  color: white;
+}
+
+.btn-view:hover {
+  background: #138496;
+}
+
+.btn-download {
+  background: #28a745;
+  color: white;
+}
+
+.btn-download:hover {
+  background: #218838;
+}
+
+/* Request Empty State */
+.invoice-request-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.invoice-request-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.btn-request {
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  align-self: flex-start;
+}
+
+.btn-request:hover {
+  background: linear-gradient(135deg, #218838 0%, #1aa179 100%);
+  transform: translateY(-1px);
+}
+
+.btn-request-again {
+  padding: 10px 16px;
+  background: #17a2b8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-request-again:hover {
+  background: #138496;
+}
+
+/* Modal */
+.invoice-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.invoice-modal {
+  background: var(--surface);
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 450px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+}
+
+.invoice-modal h3 {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.invoice-modal .form-group {
+  margin-bottom: 12px;
+}
+
+.invoice-modal .form-group label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.invoice-modal .form-group input,
+.invoice-modal .form-group textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--surface-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+
+.invoice-modal .form-group input:focus,
+.invoice-modal .form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.invoice-checkboxes {
+  padding: 12px;
+  background: var(--surface-dark);
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.btn-cancel {
+  padding: 8px 16px;
+  background: var(--surface-dark);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-cancel:hover {
+  background: var(--surface);
+}
+
+.btn-submit {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-submit:hover {
+  background: linear-gradient(135deg, #218838 0%, #1aa179 100%);
+}
+
+/* Scrollbar */
+.invoice-modal::-webkit-scrollbar {
+  width: 6px;
+}
+
+.invoice-modal::-webkit-scrollbar-track {
+  background: var(--surface-dark);
+}
+
+.invoice-modal::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+/* Блок відхилення запиту */
+.invoice-rejection-block {
+  padding: 12px;
+  background: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  border-radius: 6px;
+  margin-top: 8px;
+}
+
+.rejection-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: #dc3545;
+  margin-bottom: 10px;
+}
+
+.rejection-details {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.rejection-details > div {
+  margin-bottom: 4px;
+}
+
+.rejection-reason {
+  color: #dc3545 !important;
+  padding: 8px;
+  background: rgba(220, 53, 69, 0.1);
+  border-radius: 4px;
+  margin-bottom: 8px !important;
+}
+
+.rejection-by,
+.rejection-date {
+  color: var(--text-secondary);
+}
+
+.rejection-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 10px 0 0 0;
+  font-style: italic;
+}

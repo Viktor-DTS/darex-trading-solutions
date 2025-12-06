@@ -1,0 +1,502 @@
+.report-builder {
+  padding: 20px;
+  padding-bottom: 60px;
+  background: #0d1520;
+  height: calc(100vh - 44px - 24px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  color: #fff;
+}
+
+.report-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #888;
+  font-size: 16px;
+}
+
+/* Заголовок */
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #1a2636, #22334a);
+  border-radius: 12px;
+}
+
+.report-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #fff;
+}
+
+.report-stats {
+  display: flex;
+  gap: 24px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 16px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 8px;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: bold;
+  color: #4fc3f7;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #888;
+}
+
+/* Вкладки */
+.report-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.tab-btn {
+  padding: 10px 20px;
+  background: #1a2636;
+  color: #888;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  background: #22334a;
+  color: #fff;
+}
+
+.tab-btn.active {
+  background: #1976d2;
+  color: #fff;
+}
+
+/* Шаблони */
+.templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.template-card {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  background: #1a2636;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+
+.template-card:hover {
+  background: #22334a;
+  border-color: #1976d2;
+  transform: translateY(-2px);
+}
+
+.template-icon {
+  font-size: 32px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(25, 118, 210, 0.2);
+  border-radius: 12px;
+}
+
+.template-info h4 {
+  margin: 0 0 4px 0;
+  color: #fff;
+  font-size: 14px;
+}
+
+.template-info p {
+  margin: 0;
+  color: #888;
+  font-size: 12px;
+}
+
+/* Збережені звіти */
+.saved-reports {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.no-saved {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+}
+
+.saved-report-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #1a2636;
+  border-radius: 8px;
+}
+
+.saved-info h4 {
+  margin: 0;
+  color: #fff;
+  font-size: 14px;
+}
+
+.saved-info p {
+  margin: 4px 0 0 0;
+  color: #666;
+  font-size: 11px;
+}
+
+.saved-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.saved-actions button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  background: #1976d2;
+  color: #fff;
+}
+
+.saved-actions button.delete {
+  background: #d32f2f;
+}
+
+/* Фільтри */
+.report-filters {
+  background: #1a2636;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.report-filters h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #4fc3f7;
+}
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filter-group label {
+  font-size: 11px;
+  color: #888;
+}
+
+.filter-group input,
+.filter-group select {
+  padding: 8px 10px;
+  background: #0d1520;
+  border: 1px solid #2a3f54;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+}
+
+.filter-group input:focus,
+.filter-group select:focus {
+  outline: none;
+  border-color: #1976d2;
+}
+
+/* Поля звіту */
+.report-fields {
+  background: #1a2636;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.report-fields h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #4fc3f7;
+}
+
+.fields-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.field-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #0d1520;
+  border: 1px solid #2a3f54;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.field-checkbox:hover {
+  border-color: #1976d2;
+}
+
+.field-checkbox.selected {
+  background: rgba(25, 118, 210, 0.2);
+  border-color: #1976d2;
+  color: #4fc3f7;
+}
+
+.field-checkbox input {
+  display: none;
+}
+
+/* Опції */
+.report-options {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.option-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.option-group label {
+  font-size: 12px;
+  color: #888;
+}
+
+.option-group select {
+  padding: 8px 12px;
+  background: #1a2636;
+  border: 1px solid #2a3f54;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+}
+
+/* Кнопки дій */
+.report-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.report-actions button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: #1976d2;
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: #1565c0;
+}
+
+.btn-secondary {
+  background: #22334a;
+  color: #fff;
+}
+
+.btn-secondary:hover {
+  background: #2a3f54;
+}
+
+.btn-save {
+  background: #388e3c;
+  color: #fff;
+}
+
+.btn-save:hover {
+  background: #2e7d32;
+}
+
+/* Попередній перегляд */
+.report-preview {
+  background: #1a2636;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.report-preview h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #4fc3f7;
+}
+
+.preview-table-wrapper {
+  overflow-x: auto;
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.preview-table th {
+  background: #0d1520;
+  padding: 10px 8px;
+  text-align: left;
+  font-weight: 600;
+  color: #4fc3f7;
+  border-bottom: 2px solid #1976d2;
+  white-space: nowrap;
+}
+
+.preview-table td {
+  padding: 8px;
+  border-bottom: 1px solid #2a3f54;
+}
+
+.preview-table tr:hover {
+  background: rgba(25, 118, 210, 0.1);
+}
+
+.preview-table .group-row {
+  background: #22334a;
+  font-weight: 600;
+}
+
+.preview-table .group-row td {
+  color: #4fc3f7;
+  padding: 10px 8px;
+}
+
+.preview-more {
+  text-align: center;
+  padding: 12px;
+  color: #666;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* Модальне вікно */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.save-modal {
+  background: #1a2636;
+  padding: 24px;
+  border-radius: 12px;
+  min-width: 400px;
+  border: 2px solid #1976d2;
+}
+
+.save-modal h3 {
+  margin: 0 0 16px 0;
+  color: #fff;
+}
+
+.save-modal input {
+  width: 100%;
+  padding: 12px;
+  background: #0d1520;
+  border: 1px solid #2a3f54;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.modal-actions button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  background: #22334a;
+  color: #fff;
+}
+
+.modal-actions button.btn-primary {
+  background: #1976d2;
+}
+
+/* Адаптивність */
+@media (max-width: 768px) {
+  .report-header {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+  
+  .report-stats {
+    justify-content: center;
+  }
+  
+  .report-tabs {
+    flex-wrap: wrap;
+  }
+  
+  .filters-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .report-options {
+    flex-direction: column;
+  }
+  
+  .report-actions {
+    flex-wrap: wrap;
+  }
+}

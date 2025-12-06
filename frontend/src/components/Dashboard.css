@@ -1,0 +1,477 @@
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--background);
+}
+
+/* Dashboard без header - займає весь простір */
+.dashboard.no-header {
+  min-height: auto;
+}
+
+.dashboard.no-header .dashboard-main {
+  height: 100%;
+}
+
+/* Header */
+.dashboard-header {
+  background: linear-gradient(135deg, var(--surface-dark) 0%, var(--surface) 100%);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.header-content {
+  max-width: 100%;
+  padding: 8px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dashboard-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-name {
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 4px 10px;
+  background: var(--surface-dark);
+  border-radius: 5px;
+}
+
+.logout-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  padding: 5px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.logout-btn:hover {
+  background: var(--error);
+  color: white;
+  border-color: var(--error);
+}
+
+/* Main Layout - Sidebar + Table */
+.dashboard-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 210px;
+  min-width: 210px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  padding-bottom: 28px; /* Враховуємо панель статистики */
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.sidebar-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  padding-left: 4px;
+}
+
+/* Sidebar Buttons */
+.sidebar-btn {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+}
+
+.sidebar-btn.btn-add {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.sidebar-btn.btn-add:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.sidebar-btn.btn-reports {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  font-weight: 600;
+}
+
+.sidebar-btn.btn-reports:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.sidebar-btn.btn-settings {
+  background: var(--surface-dark);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.sidebar-btn.btn-settings:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+/* Sidebar Navigation */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sidebar-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.sidebar-tab:hover {
+  background: var(--surface-dark);
+  color: var(--text-primary);
+}
+
+.sidebar-tab.active {
+  background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
+  color: white;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(96, 165, 250, 0.3);
+}
+
+.sidebar-tab .tab-icon {
+  font-size: 14px;
+}
+
+.sidebar-tab .tab-label {
+  flex: 1;
+}
+
+.sidebar-tab .tab-count {
+  background: var(--surface-dark);
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+
+.sidebar-tab.active .tab-count {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+/* Sidebar Filters */
+.sidebar-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--surface-dark);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sidebar-checkbox:hover {
+  background: var(--border);
+}
+
+.sidebar-checkbox input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  cursor: pointer;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+
+.sidebar-checkbox .checkbox-text {
+  font-size: 11px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+/* Sidebar Settings */
+.sidebar-settings {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* Table Area */
+.table-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--background);
+}
+
+/* Remove old styles */
+.dashboard-content,
+.action-bar,
+.action-bar-left,
+.action-bar-right,
+.tabs-container,
+.table-container {
+  display: none;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 220px;
+    min-width: 220px;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-main {
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    width: 100%;
+    min-width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 12px;
+    gap: 8px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  
+  .sidebar-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  
+  .sidebar-section-title {
+    display: none;
+  }
+  
+  .sidebar-tab {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  
+  .sidebar-filters {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  
+  .sidebar-checkbox {
+    flex: 1;
+    min-width: 200px;
+  }
+  
+  .sidebar-settings {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+}
+
+/* Модальне вікно відхилення */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.reject-modal {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 400px;
+  max-width: 500px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.reject-modal h3 {
+  margin: 0 0 20px 0;
+  color: var(--text-primary);
+  font-size: 18px;
+}
+
+.reject-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.reject-form label {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.reject-form textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-dark);
+  color: var(--text-primary);
+  font-size: 14px;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.reject-form textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.return-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 8px 0;
+}
+
+.return-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.return-option:hover {
+  border-color: var(--primary);
+  background: var(--surface-dark);
+}
+
+.return-option input[type="radio"] {
+  display: none;
+}
+
+.return-option input[type="radio"]:checked + span {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.return-option input[type="radio"]:checked ~ small {
+  color: var(--text-primary);
+}
+
+.return-option span {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.return-option small {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.btn-cancel {
+  padding: 10px 20px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+  background: var(--surface-dark);
+  color: var(--text-primary);
+}
+
+.btn-reject-confirm {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  background: #dc3545;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-reject-confirm:hover {
+  background: #c82333;
+}
+
+.btn-reject-confirm:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}

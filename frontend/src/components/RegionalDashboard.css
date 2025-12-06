@@ -1,0 +1,599 @@
+.regional-dashboard {
+  padding: 16px;
+  padding-bottom: 32px; /* Враховуємо панель статистики */
+  height: calc(100vh - 44px - 24px); /* Верхня панель + панель статистики */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Вкладки регіонального керівника */
+.regional-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.regional-tabs .tab-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #2a3f54;
+  color: #aaa;
+}
+
+.regional-tabs .tab-btn.active {
+  background: #00bfff;
+  color: white;
+}
+
+.regional-tabs .tab-btn:hover:not(.active) {
+  background: #3a4f64;
+  color: #fff;
+}
+
+/* Секція заборгованості */
+.debt-section {
+  background: #1e2d3d;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.debt-section h3 {
+  color: #fff;
+  margin: 0 0 10px 0;
+  font-size: 18px;
+}
+
+.debt-description {
+  color: #aaa;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+
+.no-debt-tasks {
+  text-align: center;
+  padding: 40px;
+  background: #152030;
+  border-radius: 8px;
+  color: #4caf50;
+  font-size: 16px;
+}
+
+/* Таблиця заборгованості */
+.debt-table-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  background: #152030;
+}
+
+.debt-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1000px;
+}
+
+.debt-table th {
+  background: #1976d2;
+  color: white;
+  padding: 12px 10px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.debt-table td {
+  padding: 10px;
+  border-bottom: 1px solid #2a3f54;
+  color: #e0e0e0;
+  font-size: 13px;
+}
+
+.debt-table tbody tr:hover {
+  background: #2a3f54;
+}
+
+.debt-table tbody tr.clickable-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.debt-table tbody tr.clickable-row:hover {
+  background: #1976d2;
+}
+
+.debt-table tbody tr.clickable-row:hover td {
+  color: #fff;
+}
+
+.debt-table .address-cell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debt-table .amount-cell {
+  text-align: right;
+  font-family: monospace;
+  color: #4caf50;
+}
+
+.btn-view-task {
+  padding: 6px 12px;
+  background: #1976d2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.btn-view-task:hover {
+  background: #1565c0;
+}
+
+/* Заголовок секції заборгованості */
+.debt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.debt-stats {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.debt-stats .stat-item {
+  background: #2a3f54;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #aaa;
+}
+
+.btn-clear-filters {
+  padding: 6px 14px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.2s;
+}
+
+.btn-clear-filters:hover {
+  background: #c82333;
+}
+
+/* Рядок фільтрів */
+.debt-table .filter-row th {
+  background: #1a2a3a;
+  padding: 6px;
+}
+
+.debt-table .filter-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #3a4f64;
+  border-radius: 4px;
+  background: #152030;
+  color: #e0e0e0;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.debt-table .filter-input:focus {
+  outline: none;
+  border-color: #1976d2;
+  background: #1e2d3d;
+}
+
+.debt-table .filter-input::placeholder {
+  color: #666;
+}
+
+.debt-table .no-results {
+  text-align: center;
+  padding: 30px;
+  color: #888;
+  font-style: italic;
+}
+
+/* Головні вкладки */
+.main-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.main-tab {
+  padding: 12px 28px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+
+.main-tab.active {
+  background: var(--primary);
+  color: white;
+}
+
+.main-tab:hover:not(.active) {
+  background: var(--surface-light);
+}
+
+/* Панель керування */
+.panel-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+
+.tab.active {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-settings {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.btn-settings:hover {
+  background: var(--surface-light);
+}
+
+/* Звіт по персоналу */
+.personnel-report {
+  padding-bottom: 40px;
+}
+
+.personnel-report h3 {
+  color: var(--primary);
+  margin-bottom: 20px;
+  font-size: 20px;
+}
+
+.report-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.date-selectors {
+  display: flex;
+  gap: 16px;
+}
+
+.date-selectors label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.date-selectors select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.btn-form-report {
+  padding: 10px 24px;
+  background: #1976d2;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-form-report:hover {
+  background: #1565c0;
+}
+
+.save-status {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.save-status.saving {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.save-status.saved {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+}
+
+.save-status.error {
+  background: rgba(244, 67, 54, 0.2);
+  color: #f44336;
+}
+
+/* Блок підсумків */
+.summary-info {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.summary-item {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.summary-item.work-days {
+  background: #ffe600;
+  color: #222;
+}
+
+.summary-item.work-hours {
+  background: #b6ffb6;
+  color: #222;
+}
+
+/* Секція регіону */
+.region-section {
+  margin-bottom: 40px;
+  background: rgba(34, 51, 74, 0.85);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.region-title {
+  color: #ffe600;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+/* Таблиця табеля */
+.timesheet-wrapper {
+  overflow-x: auto;
+  margin-bottom: 24px;
+}
+
+.timesheet-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.timesheet-table th,
+.timesheet-table td {
+  border: 1px solid var(--border);
+  padding: 4px;
+  text-align: center;
+}
+
+.timesheet-table th {
+  background: #ffe600;
+  color: #222;
+  font-weight: 600;
+}
+
+.timesheet-table th.weekend {
+  background: #ff4d4d;
+  color: white;
+}
+
+.timesheet-table td.weekend {
+  background: rgba(255, 77, 77, 0.2);
+}
+
+.timesheet-table .col-num {
+  width: 40px;
+  background: #ffe600;
+  color: #222;
+  font-weight: 600;
+}
+
+.timesheet-table .col-name {
+  width: 160px;
+  min-width: 120px;
+  max-width: 220px;
+  text-align: left;
+  padding-left: 8px;
+  color: var(--text-primary);
+}
+
+.timesheet-table .col-day {
+  width: 32px;
+  min-width: 28px;
+}
+
+.timesheet-table .col-total {
+  width: 70px;
+  background: #b6ffb6;
+  color: #222;
+  font-weight: 600;
+}
+
+.timesheet-table input {
+  width: 100%;
+  padding: 4px;
+  border: none;
+  text-align: center;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.timesheet-table input:focus {
+  outline: 2px solid var(--primary);
+  background: var(--surface);
+}
+
+/* Видалення стрілок в input type number */
+.timesheet-table input[type="number"]::-webkit-outer-spin-button,
+.timesheet-table input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.timesheet-table input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Таблиця нарахувань */
+.pay-table-wrapper {
+  overflow-x: auto;
+}
+
+.pay-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pay-table th,
+.pay-table td {
+  border: 1px solid #ddd;
+  padding: 8px 6px;
+  text-align: center;
+  color: #222;
+}
+
+.pay-table th {
+  background: #ffe600;
+  color: #222;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pay-table td:first-child {
+  text-align: left;
+  padding-left: 12px;
+}
+
+.pay-table .bonus-col {
+  background: #ffe066;
+  font-weight: 600;
+}
+
+.pay-table .total-col {
+  background: #b6ffb6;
+  font-weight: 700;
+}
+
+.pay-table .salary-input {
+  width: 90px;
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.pay-table .salary-input:focus {
+  outline: 2px solid var(--primary);
+  border-color: var(--primary);
+}
+
+/* Завантаження */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+/* Адаптивність */
+@media (max-width: 768px) {
+  .main-tabs {
+    flex-direction: column;
+  }
+  
+  .main-tab {
+    width: 100%;
+  }
+  
+  .report-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .date-selectors {
+    flex-direction: column;
+  }
+}

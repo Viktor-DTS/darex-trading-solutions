@@ -1,86 +1,167 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  
-  /* Глобальне зменшення розмірів для покращення читабельності */
-  font-size: 0.85rem; /* Зменшуємо базовий розмір шрифту на 15% */
-}
-
-/* Глобальне масштабування для покращення читабельності */
-html {
-  font-size: 0.85rem; /* Зменшуємо базовий розмір шрифту на 15% */
-}
-
 * {
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
 }
 
-/* Глобальне зменшення розмірів для input, select, textarea */
-input, select, textarea {
-  font-size: 0.9rem !important; /* Зменшуємо розмір шрифту на 10% */
+:root {
+  /* Темна тема як в оригіналі */
+  --primary: #60a5fa; /* Світло-блакитний для активних елементів */
+  --primary-dark: #3b82f6;
+  --primary-light: #93c5fd;
+  --secondary: #8b5cf6;
+  --success: #10b981; /* Зелений для кнопок дій */
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --background: #1e293b; /* Темно-синій основний фон */
+  --surface: #334155; /* Трохи світліший для карток */
+  --surface-dark: #0f172a; /* Темніший для header/footer */
+  --text-primary: #ffffff; /* Білий текст */
+  --text-secondary: #cbd5e1; /* Світло-сірий для другорядного тексту */
+  --border: #475569; /* Сірий для границь */
+  --shadow: rgba(0, 0, 0, 0.3);
+  --gradient-pink-purple: linear-gradient(135deg, #ec4899 0%, #a855f7 100%);
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Забороняємо скролл на рівні body */
 }
 
 body {
-  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--background);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+#root {
+  height: 100vh;
+  overflow: hidden;
   display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-  font-size: 0.85rem; /* Зменшуємо розмір шрифту body */
+  flex-direction: column;
 }
 
-h1 {
-  font-size: 2.72em; /* 3.2em * 0.85 */
-  line-height: 1.1;
-}
-
+/* Кнопки в темній темі */
 button {
-  border-radius: 6.8px; /* 8px * 0.85 */
-  border: 1px solid transparent;
-  padding: 0.51em 1.02em; /* 0.6em * 0.85, 1.2em * 0.85 */
-  font-size: 0.9em; /* 1em * 0.9 */
-  font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  background: var(--primary);
+  color: white;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+button:hover {
+  background: var(--primary-light);
+  opacity: 0.9;
+}
+
+button:active {
+  opacity: 0.8;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Зелені кнопки для дій */
+button.btn-success {
+  background: var(--success);
+}
+
+button.btn-success:hover {
+  background: #059669;
+}
+
+/* Input в темній темі */
+input, select, textarea {
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+}
+
+input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+/* Чекбокси та радіо кнопки в темній темі */
+input[type="checkbox"],
+input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+label {
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+/* Сучасні картки */
+.card {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px var(--shadow);
+  border: 1px solid var(--border);
+}
+
+/* Анімації */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
-  a:hover {
-    color: #747bff;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
-  button {
-    background-color: #f9f9f9;
-  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease;
+}
+
+/* Скроллбар в темній темі */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
 }

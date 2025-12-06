@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { processFileForUpload } from '../utils/pdfConverter';
-import { openGalleryInNewWindow } from '../utils/galleryWindow';
+import API_BASE_URL from '../config';
 import './FileUpload.css';
+
 const FileUpload = ({ taskId, onFilesUploaded }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [description, setDescription] = useState('');
@@ -9,51 +9,52 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const API_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:3001'
-    : 'https://darex-trading-solutions.onrender.com';
+
   // Завантаження існуючих файлів
   useEffect(() => {
     if (taskId) {
       loadFiles();
+    } else {
+      setLoading(false);
     }
   }, [taskId]);
+
   const handleFileSelect = (event) => {
     const files = Array.from(event.target.files);
     setSelectedFiles(files);
     setError('');
   };
+
   const handleUpload = async () => {
     if (selectedFiles.length === 0) {
       setError('Виберіть файли для завантаження');
       return;
     }
+
+    if (!taskId) {
+      setError('Спочатку збережіть заявку');
+      return;
+    }
+
     setUploading(true);
     setError('');
+
     try {
-      // Конвертуємо PDF файли в JPG якщо потрібно
-      const processedFiles = [];
-      for (let i = 0; i < selectedFiles.length; i++) {
-        try {
-          const { file: processedFile, ocrData } = await processFileForUpload(selectedFiles[i]);
-          console.log('DEBUG FileUpload PDF Converter: Оброблений файл:', processedFile.name, processedFile.type);
-          console.log('DEBUG FileUpload PDF Converter: OCR дані:', ocrData);
-          processedFiles.push(processedFile);
-        } catch (error) {
-          console.error('DEBUG FileUpload PDF Converter: Помилка обробки файлу:', error);
-          processedFiles.push(selectedFiles[i]); // Використовуємо оригінальний файл якщо обробка не вдалася
-        }
-      }
-      
       const formData = new FormData();
-      processedFiles.forEach(file => {
+      selectedFiles.forEach(file => {
         formData.append('files', file);
       });
       formData.append('description', description);
-      const response = await fetch(`${API_URL}/api/files/upload/${taskId}`, {
+
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/files/upload/${taskId}`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
         body: formData
       });
+
       if (response.ok) {
         const result = await response.json();
         // Очищаємо форму
@@ -76,44 +77,203 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       setUploading(false);
     }
   };
+
   const handleViewFile = (file, event) => {
-    // Запобігаємо закриття форми
     event.preventDefault();
     event.stopPropagation();
     
-    // Перевіряємо чи це зображення
     const isImage = file.mimetype && file.mimetype.startsWith('image/');
     
     if (isImage) {
-      // Знаходимо індекс зображення в масиві всіх зображень
+      // Відкриваємо зображення в новому вікні з галереєю
       const imageFiles = uploadedFiles.filter(f => f.mimetype && f.mimetype.startsWith('image/'));
       const imageIndex = imageFiles.findIndex(f => f.id === file.id);
-      
-      if (imageIndex !== -1) {
-        // Відкриваємо галерею в новому вікні
-        openGalleryInNewWindow(uploadedFiles, imageIndex);
-      }
+      openGalleryInNewWindow(imageFiles, imageIndex >= 0 ? imageIndex : 0);
     } else {
       // Для не-зображень відкриваємо в новій вкладці
-      const newWindow = window.open(file.cloudinaryUrl, '_blank');
-      if (newWindow) {
-        newWindow.focus();
-      }
-      setTimeout(() => {
-        window.focus();
-      }, 100);
+      window.open(file.cloudinaryUrl, '_blank');
     }
   };
+
+  const openGalleryInNewWindow = (files, startIndex = 0) => {
+    const imageFiles = files.filter(f => f.mimetype && f.mimetype.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+
+    const galleryWindow = window.open('', '_blank', 'width=1200,height=800');
+    if (!galleryWindow) return;
+
+    const imagesData = imageFiles.map(f => ({
+      url: f.cloudinaryUrl,
+      name: f.originalName,
+      description: f.description || ''
+    }));
+
+    galleryWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Галерея зображень</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            background: #1a1a2e; 
+            color: white; 
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+          }
+          .header {
+            background: #16213e;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .header h2 { font-size: 18px; }
+          .nav-buttons { display: flex; gap: 10px; }
+          .nav-btn {
+            background: #0f3460;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+          }
+          .nav-btn:hover { background: #1a4f7a; }
+          .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+          .main-image {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+          }
+          .main-image img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+          }
+          .image-info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-align: center;
+          }
+          .thumbnails {
+            background: #16213e;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            justify-content: center;
+          }
+          .thumb {
+            width: 80px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 5px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+          }
+          .thumb:hover { border-color: #4CAF50; }
+          .thumb.active { border-color: #4CAF50; }
+          .counter {
+            font-size: 14px;
+            color: #aaa;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>🖼️ Галерея зображень</h2>
+          <div class="nav-buttons">
+            <button class="nav-btn" onclick="prevImage()">⬅️ Попереднє</button>
+            <span class="counter" id="counter">1 / ${imageFiles.length}</span>
+            <button class="nav-btn" onclick="nextImage()">Наступне ➡️</button>
+            <button class="nav-btn" onclick="downloadImage()">⬇️ Завантажити</button>
+            <button class="nav-btn" onclick="window.close()">✕ Закрити</button>
+          </div>
+        </div>
+        <div class="main-image">
+          <img id="mainImg" src="${imagesData[startIndex].url}" alt="${imagesData[startIndex].name}" />
+          <div class="image-info">
+            <div id="imgName">${imagesData[startIndex].name}</div>
+            <div id="imgDesc">${imagesData[startIndex].description}</div>
+          </div>
+        </div>
+        <div class="thumbnails" id="thumbnails">
+          ${imagesData.map((img, i) => `
+            <img class="thumb ${i === startIndex ? 'active' : ''}" 
+                 src="${img.url}" 
+                 onclick="showImage(${i})" 
+                 alt="${img.name}" />
+          `).join('')}
+        </div>
+        <script>
+          const images = ${JSON.stringify(imagesData)};
+          let currentIndex = ${startIndex};
+          
+          function showImage(index) {
+            currentIndex = index;
+            document.getElementById('mainImg').src = images[index].url;
+            document.getElementById('imgName').textContent = images[index].name;
+            document.getElementById('imgDesc').textContent = images[index].description || '';
+            document.getElementById('counter').textContent = (index + 1) + ' / ' + images.length;
+            document.querySelectorAll('.thumb').forEach((t, i) => {
+              t.classList.toggle('active', i === index);
+            });
+          }
+          
+          function prevImage() {
+            showImage((currentIndex - 1 + images.length) % images.length);
+          }
+          
+          function nextImage() {
+            showImage((currentIndex + 1) % images.length);
+          }
+          
+          function downloadImage() {
+            const link = document.createElement('a');
+            link.href = images[currentIndex].url;
+            link.download = images[currentIndex].name;
+            link.click();
+          }
+          
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') prevImage();
+            if (e.key === 'ArrowRight') nextImage();
+            if (e.key === 'Escape') window.close();
+          });
+        </script>
+      </body>
+      </html>
+    `);
+    galleryWindow.document.close();
+  };
+
   const handleDeleteFile = async (fileId) => {
     if (!window.confirm('Ви впевнені, що хочете видалити цей файл?')) {
       return;
     }
+    
     try {
-      const response = await fetch(`${API_URL}/api/files/${fileId}`, {
-        method: 'DELETE'
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/files/${fileId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
+      
       if (response.ok) {
-        // Перезавантажуємо список файлів
         await loadFiles();
       } else {
         setError('Помилка видалення файлу');
@@ -123,6 +283,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       setError('Помилка видалення файлу');
     }
   };
+
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -130,10 +291,13 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString('uk-UA');
   };
+
   const getFileIcon = (mimetype) => {
+    if (!mimetype) return '📎';
     if (mimetype.startsWith('image/')) return '🖼️';
     if (mimetype.includes('pdf')) return '📄';
     if (mimetype.includes('word') || mimetype.includes('document')) return '📝';
@@ -141,10 +305,23 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
     if (mimetype.includes('text')) return '📄';
     return '📎';
   };
+
   const loadFiles = async () => {
+    if (!taskId) {
+      setUploadedFiles([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/files/task/${taskId}`);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/files/task/${taskId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
       if (response.ok) {
         const files = await response.json();
         setUploadedFiles(files);
@@ -157,30 +334,34 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       setLoading(false);
     }
   };
+
+  const imageCount = uploadedFiles.filter(f => f.mimetype && f.mimetype.startsWith('image/')).length;
+
   return (
     <div className="file-upload-container">
-      <h3>Файли виконаних робіт</h3>
+      <h3>📁 Файли виконаних робіт</h3>
+      
       {/* Завантаження нових файлів */}
       <div className="upload-section">
-        <h4>Завантажити нові файли</h4>
-        <div className="upload-methods">
-          {/* Вибрати файли */}
-          <div className="file-input-container">
-            <input
-              type="file"
-              multiple
-              onChange={handleFileSelect}
-              accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-              className="file-input"
-            />
-            <div className="file-input-label">
-              {selectedFiles.length > 0 
-                ? `Вибрано ${selectedFiles.length} файлів`
-                : 'Вибрати файли'
-              }
-            </div>
-          </div>
+        <h4>📤 Завантажити нові файли</h4>
+        
+        <div className="file-input-container">
+          <input
+            type="file"
+            multiple
+            onChange={handleFileSelect}
+            accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+            className="file-input"
+            id="file-upload-input"
+          />
+          <label htmlFor="file-upload-input" className="file-input-label">
+            {selectedFiles.length > 0 
+              ? `Вибрано ${selectedFiles.length} файлів`
+              : '📂 Вибрати файли'
+            }
+          </label>
         </div>
+        
         {selectedFiles.length > 0 && (
           <div className="selected-files">
             <h5>Вибрані файли:</h5>
@@ -193,6 +374,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
             </ul>
           </div>
         )}
+        
         <div className="description-input">
           <label>Опис файлу (для всіх):</label>
           <input
@@ -203,38 +385,48 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
             className="description-field"
           />
         </div>
+        
         <button
           onClick={handleUpload}
-          disabled={uploading || selectedFiles.length === 0}
+          disabled={uploading || selectedFiles.length === 0 || !taskId}
           className="upload-button"
         >
-          {uploading ? 'Завантаження...' : 'Завантажити файли'}
+          {uploading ? '⏳ Завантаження...' : '📤 Завантажити файли'}
         </button>
-        {error && <div className="error-message">{error}</div>}
+        
+        {!taskId && (
+          <div className="warning-message">
+            ⚠️ Щоб завантажити файли, спочатку збережіть заявку
+          </div>
+        )}
+        
+        {error && <div className="error-message">❌ {error}</div>}
       </div>
+      
       {/* Завантажені файли */}
       <div className="uploaded-files-section">
         <div className="files-section-header">
-          <h4>Завантажені файли</h4>
-          {uploadedFiles.filter(f => f.mimetype && f.mimetype.startsWith('image/')).length > 0 && (
+          <h4>📋 Завантажені файли</h4>
+          {imageCount > 0 && (
             <button
               type="button"
               className="gallery-button"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 openGalleryInNewWindow(uploadedFiles, 0);
               }}
-              title="Відкрити галерею зображень в новому вікні"
+              title="Відкрити галерею зображень"
             >
-              🖼️ Галерея ({uploadedFiles.filter(f => f.mimetype && f.mimetype.startsWith('image/')).length})
+              🖼️ Галерея ({imageCount})
             </button>
           )}
         </div>
+        
         {loading ? (
-          <div className="loading">Завантаження файлів...</div>
+          <div className="loading">⏳ Завантаження файлів...</div>
         ) : uploadedFiles.length === 0 ? (
-          <div className="no-files">Файлів ще немає</div>
+          <div className="no-files">📭 Файлів ще немає</div>
         ) : (
           <div className="files-list">
             {uploadedFiles.map((file) => (
@@ -245,14 +437,8 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                     <div className="file-name">
                       <a 
                         href={file.cloudinaryUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
                         className="file-link"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          handleViewFile(file, event);
-                        }}
+                        onClick={(e) => handleViewFile(file, e)}
                       >
                         {file.originalName}
                       </a>
@@ -266,7 +452,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                 <div className="file-actions">
                   <button
                     type="button"
-                    onClick={(event) => handleViewFile(file, event)}
+                    onClick={(e) => handleViewFile(file, e)}
                     className="view-button"
                     title="Переглянути файл"
                   >
@@ -274,9 +460,9 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                   </button>
                   <button
                     type="button"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       const link = document.createElement('a');
                       link.href = file.cloudinaryUrl;
                       link.download = file.originalName;
@@ -289,39 +475,41 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                   >
                     ⬇️
                   </button>
+                  {file.mimetype && file.mimetype.startsWith('image/') && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const printWindow = window.open('', '_blank');
+                        printWindow.document.write(`
+                          <html>
+                            <head>
+                              <title>Друк - ${file.originalName}</title>
+                              <style>
+                                body { margin: 0; padding: 20px; text-align: center; }
+                                img { max-width: 100%; max-height: 100vh; }
+                              </style>
+                            </head>
+                            <body>
+                              <img src="${file.cloudinaryUrl}" alt="${file.originalName}" />
+                            </body>
+                          </html>
+                        `);
+                        printWindow.document.close();
+                        printWindow.print();
+                      }}
+                      className="print-button"
+                      title="Друк"
+                    >
+                      🖨️
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      const printWindow = window.open('', '_blank');
-                      printWindow.document.write(`
-                        <html>
-                          <head>
-                            <title>Друк - ${file.originalName}</title>
-                            <style>
-                              body { margin: 0; padding: 20px; text-align: center; }
-                              img { max-width: 100%; max-height: 100vh; }
-                            </style>
-                          </head>
-                          <body>
-                            <img src="${file.cloudinaryUrl}" alt="${file.originalName}" />
-                          </body>
-                        </html>
-                      `);
-                      printWindow.document.close();
-                      printWindow.print();
-                    }}
-                    className="print-button"
-                    title="Друк"
-                  >
-                    🖨️
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       handleDeleteFile(file.id);
                     }}
                     className="delete-button"
@@ -338,4 +526,5 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
     </div>
   );
 };
-export default FileUpload; 
+
+export default FileUpload;

@@ -1,0 +1,28 @@
+.tasks-statistics-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #0a0f16;
+  border-top: 1px solid #1a2636;
+  padding: 4px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  z-index: 999;
+  height: 22px;
+  box-sizing: border-box;
+  font-size: 11px;
+  color: #ff4444;
+}
+
+.statistics-loading {
+  color: #555;
+}
+
+@media (max-width: 900px) {
+  .tasks-statistics-bar {
+    font-size: 10px;
+  }
+}

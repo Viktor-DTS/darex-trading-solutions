@@ -1,75 +1,116 @@
-// API для роботи з ЄДРПОУ та даними клієнтів
+// API для роботи з ЄДРПОУ та автозаповненням
 import API_BASE_URL from '../config.js';
-import authenticatedFetch from './api.js';
 
 // Отримання унікальних ЄДРПОУ
 export const getEdrpouList = async () => {
   try {
-    const response = await authenticatedFetch(`${API_BASE_URL}/edrpou-list`);
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/edrpou-list`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     return await response.json();
   } catch (error) {
     console.error('Помилка отримання списку ЄДРПОУ:', error);
-    throw error;
+    return [];
   }
 };
 
 // Отримання даних клієнта по ЄДРПОУ
 export const getClientData = async (edrpou) => {
   try {
-    const response = await authenticatedFetch(`${API_BASE_URL}/client-data/${encodeURIComponent(edrpou)}`);
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/client-data/${encodeURIComponent(edrpou)}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     return await response.json();
   } catch (error) {
     console.error('Помилка отримання даних клієнта:', error);
-    throw error;
+    return { client: '', address: '', contractFile: null, invoiceRecipientDetails: '' };
   }
 };
 
-// Отримання списку файлів договорів
-export const getContractFiles = async () => {
-  try {
-    console.log('[DEBUG] getContractFiles - запит до API:', `${API_BASE_URL}/contract-files`);
-    const response = await authenticatedFetch(`${API_BASE_URL}/contract-files`);
-    console.log('[DEBUG] getContractFiles - статус відповіді:', response.status);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json();
-    console.log('[DEBUG] getContractFiles - отримані дані:', data);
-    return data;
-  } catch (error) {
-    console.error('Помилка отримання списку файлів договорів:', error);
-    throw error;
-  }
-};
-
+// Отримання типів обладнання по ЄДРПОУ
 export const getEdrpouEquipmentTypes = async (edrpou) => {
   try {
-    const response = await authenticatedFetch(`${API_BASE_URL}/edrpou-equipment-types/${encodeURIComponent(edrpou)}`);
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/edrpou-equipment-types/${encodeURIComponent(edrpou)}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     return await response.json();
   } catch (error) {
     console.error('Помилка отримання типів обладнання для ЄДРПОУ:', error);
-    throw error;
+    return [];
   }
 };
 
+// Отримання матеріалів по ЄДРПОУ та типу обладнання
 export const getEdrpouEquipmentMaterials = async (edrpou, equipmentType) => {
   try {
-    const response = await authenticatedFetch(`${API_BASE_URL}/edrpou-equipment-materials/${encodeURIComponent(edrpou)}/${encodeURIComponent(equipmentType)}`);
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/edrpou-equipment-materials/${encodeURIComponent(edrpou)}/${encodeURIComponent(equipmentType)}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     return await response.json();
   } catch (error) {
     console.error('Помилка отримання матеріалів для ЄДРПОУ та типу обладнання:', error);
-    throw error;
+    return {};
+  }
+};
+
+// Отримання унікальних типів обладнання
+export const getEquipmentTypes = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/equipment-types`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка отримання типів обладнання:', error);
+    return [];
+  }
+};
+
+// Отримання даних по типу обладнання
+export const getEquipmentData = async (equipmentType) => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/equipment-data/${encodeURIComponent(equipmentType)}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка отримання даних обладнання:', error);
+    return {};
   }
 };

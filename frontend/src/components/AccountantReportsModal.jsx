@@ -1,1517 +1,765 @@
-import React, { useState, useEffect } from 'react';
-import { tasksAPI } from '../utils/tasksAPI';
-import { authenticatedFetch } from '../utils/api.js';
+import React, { useState, useEffect, useMemo } from 'react';
+import API_BASE_URL from '../config';
+import './AccountantReportsModal.css';
 
-const AccountantReportsModal = ({ isOpen, onClose, user, tasks, users }) => {
-  const [reportFilters, setReportFilters] = useState({
-    dateFrom: '',
-    dateTo: '',
-    region: '',
-    detailed: false
-  });
-  const [personnelFilters, setPersonnelFilters] = useState({
-    month: new Date().getMonth() + 1, // Поточний місяць
-    year: new Date().getFullYear(), // Поточний рік
-    showDismissed: false // Чекбокс для показу звільнених працівників
-  });
-  const [regions, setRegions] = useState([]);
+function AccountantReportsModal({ isOpen, onClose, user }) {
+  const [activeReport, setActiveReport] = useState('financial');
   const [loading, setLoading] = useState(false);
-  const [activeReport, setActiveReport] = useState('financial'); // 'financial' або 'personnel'
+  const [tasks, setTasks] = useState([]);
+  const [regions, setRegions] = useState([]);
   
-  // Стан для зберігання даних про зарплати
-  const [payData, setPayData] = useState(() => {
-    const saved = localStorage.getItem(`payData_${personnelFilters.year}_${personnelFilters.month}`);
-    return saved ? JSON.parse(saved) : {};
+  // Фільтри фінансового звіту
+  const [financialFilters, setFinancialFilters] = useState({
+    dateFrom: new Date().toISOString().split('T')[0],
+    dateTo: new Date().toISOString().split('T')[0],
+    region: '',
+    detailed: false,
+    groupBy: 'region', // 'region', 'client', 'equipment'
+    onlyApproved: true // Тільки підтверджені заявки
+  });
+  
+  // Фільтри аналітики
+  const [analyticsFilters, setAnalyticsFilters] = useState({
+    period: 'month', // 'week', 'month', 'quarter', 'year'
+    year: new Date().getFullYear(),
+    month: new Date().getMonth() + 1
   });
 
+  // Завантаження даних
   useEffect(() => {
     if (isOpen) {
-      loadRegions();
-      // Встановлюємо поточну дату як за замовчуванням
-      const today = new Date().toISOString().split('T')[0];
-      setReportFilters(prev => ({
-        ...prev,
-        dateFrom: today,
-        dateTo: today
-      }));
+      loadData();
     }
   }, [isOpen]);
 
-  // Оновлення payData при зміні місяця/року
-  useEffect(() => {
-    const saved = localStorage.getItem(`payData_${personnelFilters.year}_${personnelFilters.month}`);
-    setPayData(saved ? JSON.parse(saved) : {});
-  }, [personnelFilters.year, personnelFilters.month]);
-
-  // Збереження payData в localStorage
-  useEffect(() => {
-    localStorage.setItem(`payData_${personnelFilters.year}_${personnelFilters.month}`, JSON.stringify(payData));
-  }, [payData, personnelFilters.year, personnelFilters.month]);
-
-  const loadRegions = async () => {
+  const loadData = async () => {
     try {
-      const API_BASE_URL = window.location.hostname === 'localhost' 
-        ? 'http://localhost:3001/api'
-        : 'https://darex-trading-solutions.onrender.com/api';
-      
-      const response = await authenticatedFetch(`${API_BASE_URL}/tasks`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.data) {
-          // Отримуємо унікальні регіони
-          const uniqueRegions = [...new Set(data.data.map(task => task.serviceRegion).filter(Boolean))];
-          console.log('DEBUG: Завантажено регіонів:', uniqueRegions);
-          setRegions(uniqueRegions);
-        } else {
-          console.log('DEBUG: Немає даних в відповіді:', data);
-          // Якщо немає даних, встановлюємо стандартні регіони
-          setRegions(['Київський', 'Дніпровський', 'Львівський', 'Харківський', 'Одеський']);
-        }
-      } else {
-        console.error('Помилка HTTP при завантаженні регіонів:', response.status);
-        // Якщо помилка, встановлюємо стандартні регіони
-        setRegions(['Київський', 'Дніпровський', 'Львівський', 'Харківський', 'Одеський']);
+      const token = localStorage.getItem('token');
+      const [tasksRes, regionsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/tasks/filter?status=Виконано`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch(`${API_BASE_URL}/regions`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ]);
+
+      if (tasksRes.ok) {
+        const data = await tasksRes.json();
+        setTasks(data);
+      }
+      if (regionsRes.ok) {
+        const data = await regionsRes.json();
+        // Регіони можуть приходити як масив об'єктів {name} або масив рядків
+        const regionNames = data.map(r => typeof r === 'object' ? r.name : r);
+        setRegions(regionNames);
       }
     } catch (error) {
-      console.error('Помилка завантаження регіонів:', error);
-      // Якщо помилка, встановлюємо стандартні регіони
-      setRegions(['Київський', 'Дніпровський', 'Львівський', 'Харківський', 'Одеський']);
+      console.error('Помилка завантаження даних:', error);
     }
   };
 
-  const handleFilterChange = (field, value) => {
-    setReportFilters(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  // Допоміжна функція перевірки затвердження
+  const isApproved = (value) => value === true || value === 'Підтверджено';
 
-  // Функція для зміни параметрів виплат
-  const handlePayChange = (userId, field, value) => {
-    setPayData(prev => {
-      const userPay = prev[userId] || { salary: '', bonus: '' };
-      const newUserPay = { ...userPay, [field]: value };
-      return { ...prev, [userId]: newUserPay };
+  // Фільтровані завдання
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(t => {
+      // Фільтр по статусу затвердження
+      if (financialFilters.onlyApproved) {
+        // Тільки підтверджені: Виконано + завсклад + бухгалтер
+        if (t.status !== 'Виконано') return false;
+        if (!isApproved(t.approvedByWarehouse)) return false;
+        if (!isApproved(t.approvedByAccountant)) return false;
+      }
+      
+      // Фільтр по даті
+      if (financialFilters.dateFrom && t.date) {
+        const taskDate = new Date(t.date);
+        const fromDate = new Date(financialFilters.dateFrom);
+        if (taskDate < fromDate) return false;
+      }
+      if (financialFilters.dateTo && t.date) {
+        const taskDate = new Date(t.date);
+        const toDate = new Date(financialFilters.dateTo);
+        toDate.setHours(23, 59, 59);
+        if (taskDate > toDate) return false;
+      }
+      // Фільтр по регіону
+      if (financialFilters.region && t.serviceRegion !== financialFilters.region) {
+        return false;
+      }
+      return true;
     });
-  };
+  }, [tasks, financialFilters]);
 
-  const generateReport = async (format) => {
-    if (!reportFilters.dateFrom || !reportFilters.dateTo) {
-      alert('Будь ласка, вкажіть період для звіту');
-      return;
-    }
+  // Статистика
+  const statistics = useMemo(() => {
+    const stats = {
+      totalTasks: filteredTasks.length,
+      totalServiceAmount: 0,
+      totalWorkPrice: 0,
+      totalMaterials: 0,
+      byRegion: {},
+      byClient: {},
+      byEquipment: {}
+    };
 
-    setLoading(true);
-    try {
-      const API_BASE_URL = window.location.hostname === 'localhost' 
-        ? 'http://localhost:3001/api'
-        : 'https://darex-trading-solutions.onrender.com/api';
-      
-      console.log('[REPORTS] Frontend - параметри перед відправкою:', {
-        dateFrom: reportFilters.dateFrom,
-        dateTo: reportFilters.dateTo,
-        region: reportFilters.region,
-        detailed: reportFilters.detailed,
-        detailedType: typeof reportFilters.detailed,
-        format: format
-      });
-      
-      const params = new URLSearchParams({
-        dateFrom: reportFilters.dateFrom,
-        dateTo: reportFilters.dateTo,
-        region: reportFilters.region,
-        detailed: reportFilters.detailed ? reportFilters.detailed.toString() : 'false',
-        format: format
-      });
-      
-      console.log('[REPORTS] Frontend - URL параметри:', params.toString());
+    filteredTasks.forEach(t => {
+      const serviceTotal = parseFloat(t.serviceTotal) || 0;
+      const workPrice = parseFloat(t.workPrice) || 0;
+      const materials = serviceTotal - workPrice;
 
-      if (format === 'html') {
-        // Отримуємо HTML звіт через authenticatedFetch
-        console.log('[REPORTS] Frontend - відправляємо запит на HTML:', `${API_BASE_URL}/reports/financial?${params}`);
-        const response = await authenticatedFetch(`${API_BASE_URL}/reports/financial?${params}`);
-        console.log('[REPORTS] Frontend - отримано відповідь:', {
-          status: response.status,
-          statusText: response.statusText,
-          ok: response.ok,
-          headers: Object.fromEntries(response.headers.entries())
-        });
-        if (response.ok) {
-          const html = await response.text();
-          // Відкриваємо HTML звіт в новій вкладці
-          const win = window.open('', '_blank');
-          if (win) {
-            win.document.write(html);
-            win.document.close();
-          } else {
-            alert('Будь ласка, дозвольте спливаючі вікна для перегляду звіту');
-          }
-        } else {
-          alert('Помилка генерації звіту');
-        }
-      } else if (format === 'excel') {
-        // Завантажуємо Excel файл
-        console.log('[REPORTS] Frontend - відправляємо запит на Excel:', `${API_BASE_URL}/reports/financial?${params}`);
-        const response = await authenticatedFetch(`${API_BASE_URL}/reports/financial?${params}`);
-        console.log('[REPORTS] Frontend - отримано відповідь:', {
-          status: response.status,
-          statusText: response.statusText,
-          ok: response.ok,
-          headers: Object.fromEntries(response.headers.entries())
-        });
-        if (response.ok) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `financial_report_${reportFilters.dateFrom}_${reportFilters.dateTo}.xlsx`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-        } else {
-          alert('Помилка генерації звіту');
-        }
+      stats.totalServiceAmount += serviceTotal;
+      stats.totalWorkPrice += workPrice;
+      stats.totalMaterials += materials;
+
+      // По регіонах
+      const region = t.serviceRegion || 'Не вказано';
+      if (!stats.byRegion[region]) {
+        stats.byRegion[region] = { count: 0, amount: 0 };
       }
-    } catch (error) {
-      console.error('Помилка генерації звіту:', error);
-      alert('Помилка генерації звіту');
-    } finally {
-      setLoading(false);
-    }
-  };
+      stats.byRegion[region].count++;
+      stats.byRegion[region].amount += serviceTotal;
 
-  const generatePersonnelReport = async () => {
-    console.log('[PERSONNEL REPORT] Starting generation...');
-    console.log('[PERSONNEL REPORT] Filters:', personnelFilters);
+      // По клієнтах
+      const client = t.client || 'Не вказано';
+      if (!stats.byClient[client]) {
+        stats.byClient[client] = { count: 0, amount: 0 };
+      }
+      stats.byClient[client].count++;
+      stats.byClient[client].amount += serviceTotal;
+
+      // По обладнанню
+      const equipment = t.equipment || 'Не вказано';
+      if (!stats.byEquipment[equipment]) {
+        stats.byEquipment[equipment] = { count: 0, amount: 0 };
+      }
+      stats.byEquipment[equipment].count++;
+      stats.byEquipment[equipment].amount += serviceTotal;
+    });
+
+    return stats;
+  }, [filteredTasks]);
+
+  // Генерація HTML звіту
+  const generateHTMLReport = () => {
+    setLoading(true);
     
-    if (!personnelFilters.month || !personnelFilters.year) {
-      console.log('[PERSONNEL REPORT] Missing month or year');
-      alert('Будь ласка, вкажіть місяць та рік для звіту');
-      return;
+    const dateRange = `${financialFilters.dateFrom} - ${financialFilters.dateTo}`;
+    const regionTitle = financialFilters.region || 'Всі регіони';
+    const approvalStatus = financialFilters.onlyApproved 
+      ? '✅ Тільки підтверджені' 
+      : '📋 Всі виконані';
+    
+    // Групування по вибраному полю
+    let groupedData = {};
+    let groupTitle = '';
+    
+    switch (financialFilters.groupBy) {
+      case 'client':
+        groupedData = statistics.byClient;
+        groupTitle = 'Замовник';
+        break;
+      case 'equipment':
+        groupedData = statistics.byEquipment;
+        groupTitle = 'Обладнання';
+        break;
+      default:
+        groupedData = statistics.byRegion;
+        groupTitle = 'Регіон';
     }
 
-    setLoading(true);
-    try {
-      console.log('[PERSONNEL REPORT] Запит до бази даних для отримання всіх завдань...');
+    // Детальні дані для деталізації
+    const detailedRows = financialFilters.detailed ? filteredTasks.map((t, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${t.date || ''}</td>
+        <td>${t.requestNumber || ''}</td>
+        <td>${t.serviceRegion || ''}</td>
+        <td>${t.client || ''}</td>
+        <td>${t.equipment || ''}</td>
+        <td class="work-name">${t.work || ''}</td>
+        <td>${[t.engineer1, t.engineer2].filter(Boolean).join(', ')}</td>
+        <td class="amount">${(parseFloat(t.workPrice) || 0).toFixed(2)}</td>
+        <td class="amount">${((parseFloat(t.serviceTotal) || 0) - (parseFloat(t.workPrice) || 0)).toFixed(2)}</td>
+        <td class="amount total">${(parseFloat(t.serviceTotal) || 0).toFixed(2)}</td>
+      </tr>
+    `).join('') : '';
+
+    const html = `
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Фінансовий звіт - ${dateRange}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: white;
+      padding: 30px 40px;
+    }
+    .header h1 {
+      margin: 0 0 10px 0;
+      font-size: 28px;
+      font-weight: 600;
+    }
+    .header .subtitle {
+      opacity: 0.8;
+      font-size: 16px;
+    }
+    .header .date-range {
+      display: inline-block;
+      background: rgba(255,255,255,0.1);
+      padding: 8px 16px;
+      border-radius: 20px;
+      margin-top: 15px;
+      font-size: 14px;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      padding: 30px 40px;
+      background: #f8f9fa;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+      text-align: center;
+    }
+    .stat-card .icon {
+      font-size: 36px;
+      margin-bottom: 10px;
+    }
+    .stat-card .value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1a1a2e;
+    }
+    .stat-card .label {
+      font-size: 13px;
+      color: #666;
+      margin-top: 5px;
+    }
+    .stat-card.highlight {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .stat-card.highlight .value,
+    .stat-card.highlight .label {
+      color: white;
+    }
+    .content {
+      padding: 30px 40px;
+    }
+    .section-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin: 30px 0 20px 0;
+      padding-bottom: 10px;
+      border-bottom: 3px solid #667eea;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+      font-size: 13px;
+    }
+    th {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: white;
+      padding: 14px 12px;
+      text-align: left;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+    }
+    tr:hover td {
+      background: #f8f9fa;
+    }
+    .amount {
+      text-align: right;
+      font-family: 'Consolas', monospace;
+      font-weight: 500;
+    }
+    .total {
+      font-weight: 700;
+      color: #667eea;
+    }
+    .work-name {
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .summary-row {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+      color: white !important;
+      font-weight: 700;
+    }
+    .summary-row td {
+      border-bottom: none;
+      color: white;
+    }
+    .print-btn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 25px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(102,126,234,0.4);
+      z-index: 100;
+    }
+    .print-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102,126,234,0.5);
+    }
+    @media print {
+      body { background: white; padding: 0; }
+      .container { box-shadow: none; }
+      .print-btn { display: none; }
+    }
+    .chart-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 30px;
+      margin-top: 20px;
+    }
+    .chart-card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
+    .chart-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 15px;
+    }
+    .bar-chart .bar-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .bar-chart .bar-label {
+      width: 120px;
+      font-size: 12px;
+      color: #666;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .bar-chart .bar-track {
+      flex: 1;
+      height: 24px;
+      background: #f0f0f0;
+      border-radius: 12px;
+      overflow: hidden;
+      margin: 0 10px;
+    }
+    .bar-chart .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      border-radius: 12px;
+      transition: width 0.5s ease;
+    }
+    .bar-chart .bar-value {
+      width: 80px;
+      text-align: right;
+      font-size: 12px;
+      font-weight: 600;
+      color: #1a1a2e;
+    }
+  </style>
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">🖨️ Друкувати</button>
+  
+  <div class="container">
+    <div class="header">
+      <h1>📊 Фінансовий звіт</h1>
+      <div class="subtitle">Регіон: ${regionTitle} | ${approvalStatus}</div>
+      <div class="date-range">📅 ${dateRange}</div>
+    </div>
+    
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="icon">📋</div>
+        <div class="value">${statistics.totalTasks}</div>
+        <div class="label">Всього заявок</div>
+      </div>
+      <div class="stat-card">
+        <div class="icon">🔧</div>
+        <div class="value">${statistics.totalWorkPrice.toFixed(0)}</div>
+        <div class="label">Вартість робіт, грн</div>
+      </div>
+      <div class="stat-card">
+        <div class="icon">📦</div>
+        <div class="value">${statistics.totalMaterials.toFixed(0)}</div>
+        <div class="label">Матеріали, грн</div>
+      </div>
+      <div class="stat-card highlight">
+        <div class="icon">💰</div>
+        <div class="value">${statistics.totalServiceAmount.toFixed(0)}</div>
+        <div class="label">Загальна сума, грн</div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <h2 class="section-title">📈 Розподіл по ${groupTitle.toLowerCase()}х</h2>
       
-      // ЗАПИТ ДО БАЗИ ДАНИХ: Отримуємо всі завдання з API (з великим лімітом для звіту)
-      const allTasksFromDB = await tasksAPI.getAllForReport();
-      console.log('[PERSONNEL REPORT] Завдання завантажено з БД:', allTasksFromDB.length);
-      
-      // Переконуємось, що month є числом
-      // Важливо: personnelFilters.month має бути числом 1-12 від користувача
-      let monthNum = personnelFilters.month;
-      if (typeof monthNum === 'string') {
-        monthNum = parseInt(monthNum, 10);
-      }
-      monthNum = Number(monthNum); // Гарантуємо, що це число
-      
-      console.log('[PERSONNEL REPORT] DEBUG: Raw month from filter:', personnelFilters.month, 'Type:', typeof personnelFilters.month);
-      console.log('[PERSONNEL REPORT] DEBUG: Converted monthNum:', monthNum, 'Type:', typeof monthNum);
-      
-      const months = [
-        'Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'
-      ];
-      const monthIndex = monthNum - 1;
-      const monthName = months[monthIndex] || months[0];
-      const reportTitle = `Звіт по табелю часу та виконаних робіт за ${monthName} ${personnelFilters.year}`;
-      console.log('[PERSONNEL REPORT] DEBUG: monthIndex:', monthIndex, 'monthName:', monthName);
-      console.log('[PERSONNEL REPORT] Report title:', reportTitle);
-      
-      // Отримуємо всіх інженерів (service роль)
-      // Якщо чекбокс "Показати всіх працівників" не активований, виключаємо звільнених
-      const allEngineers = users.filter(u => {
-        if (u.role !== 'service') return false;
-        const isDismissed = u.dismissed === true || u.dismissed === 'true' || u.dismissed === 1;
-        // Якщо чекбокс не активований, виключаємо звільнених
-        if (isDismissed && !personnelFilters.showDismissed) {
-          return false;
-        }
-        return true;
-      });
-      console.log('[PERSONNEL REPORT] All engineers found:', allEngineers.length);
-      console.log('[PERSONNEL REPORT] All users roles:', users.map(u => ({name: u.name, role: u.role})));
-      console.log('[PERSONNEL REPORT] Engineers details:', allEngineers.map(e => ({name: e.name, region: e.region, id: e.id || e._id})));
-      
-      // Отримуємо заявки за вказаний місяць/рік
-      // Важливо: monthNum - це число 1-12 від користувача, але Date() використовує місяці 0-11
-      // Створюємо дати в локальному часовому поясі
-      const startDate = new Date(personnelFilters.year, monthNum - 1, 1);
-      startDate.setHours(0, 0, 0, 0); // Початок дня (локальний час)
-      
-      // Останній день вибраного місяця
-      const endDate = new Date(personnelFilters.year, monthNum, 0); // День 0 = останній день попереднього місяця
-      endDate.setHours(23, 59, 59, 999); // Кінець дня (локальний час)
-      
-      console.log('[PERSONNEL REPORT] Selected month:', monthNum, '(', monthName, ')');
-      console.log('[PERSONNEL REPORT] Date range (local):', startDate.toString(), 'to', endDate.toString());
-      
-      // Розраховуємо кількість робочих днів та норму годин
-      const daysInMonth = new Date(personnelFilters.year, monthNum, 0).getDate();
-      let workDays = 0;
-      for (let d = 1; d <= daysInMonth; d++) {
-        const date = new Date(personnelFilters.year, monthNum - 1, d);
-        const dayOfWeek = date.getDay();
-        if (dayOfWeek !== 0 && dayOfWeek !== 6) workDays++;
-      }
-      const workHoursNorm = workDays * 8;
-      
-      // Отримуємо табель з localStorage (якщо є)
-      const storageKey = `timesheetData_${personnelFilters.year}_${monthNum}`;
-      const serviceStorageKey = `serviceTimesheetData_${personnelFilters.year}_${monthNum}`;
-      const timesheetDataFromStorage = JSON.parse(localStorage.getItem(storageKey) || '{}');
-      const serviceTimesheetDataFromStorage = JSON.parse(localStorage.getItem(serviceStorageKey) || '{}');
-      
-      const monthTasks = allTasksFromDB.filter(t => {
-        if (t.status !== 'Виконано') return false;
-        if (!t.date) return false;
-        
-        // Парсимо дату завдання та нормалізуємо до початку дня в локальному часі
-        let taskDate = new Date(t.date);
-        // Якщо дата прийшла як рядок типу "YYYY-MM-DD", парсимо її правильно
-        if (typeof t.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.date)) {
-          const [year, month, day] = t.date.split('-').map(Number);
-          taskDate = new Date(year, month - 1, day);
-        }
-        taskDate.setHours(0, 0, 0, 0); // Нормалізуємо до початку дня в локальному часі
-        
-        // Додаткова перевірка: переконуємося, що місяць та рік співпадають
-        const taskMonth = taskDate.getMonth() + 1; // getMonth() повертає 0-11
-        const taskYear = taskDate.getFullYear();
-        const monthMatches = taskMonth === monthNum;
-        const yearMatches = taskYear === personnelFilters.year;
-        
-        // Порівнюємо дати (обидві в локальному часі) та перевіряємо місяць/рік
-        const isInRange = taskDate >= startDate && taskDate <= endDate && monthMatches && yearMatches;
-        if (isInRange) {
-          console.log(`[PERSONNEL REPORT] Task date in range: ${t.date} (parsed as ${taskDate.toString()}, month: ${taskMonth}, year: ${taskYear})`);
-        } else {
-          console.log(`[PERSONNEL REPORT] Task date OUT of range: ${t.date} (parsed as ${taskDate.toString()}, month: ${taskMonth}, year: ${taskYear}, expected month: ${monthNum}, expected year: ${personnelFilters.year})`);
-        }
-        return isInRange;
-      });
-      console.log('[PERSONNEL REPORT] Month tasks found:', monthTasks.length);
-      
-      // ДЛЯ ПРЕМІЙ: Беремо заявки тільки за ВИБРАНИЙ МІСЯЦЬ з перевіркою дати затвердження
-      // Важливо: премії нараховуються за попередній місяць, тобто якщо вибрано Жовтень,
-      // то премії за Жовтень були затверджені в Листопаді. Тому додаємо +1 до місяця
-      let approvalMonth = monthNum + 1; // Місяць затвердження (наступний місяць)
-      let approvalYear = personnelFilters.year;
-      if (approvalMonth > 12) {
-        approvalMonth = 1;
-        approvalYear = personnelFilters.year + 1;
-      }
-      
-      console.log('[PERSONNEL REPORT] Selected month:', monthNum, '(', monthName, ')');
-      console.log('[PERSONNEL REPORT] Looking for bonuses approved in:', approvalMonth, '(', months[approvalMonth - 1], ')', approvalYear);
-      
-      const allTasksForBonuses = allTasksFromDB.filter(t => {
-        if (t.status !== 'Виконано') return false;
-        if (!t.date) return false;
-        
-        // Перевіряємо дату затвердження премії
-        let bonusMonth = approvalMonth;
-        let bonusYear = approvalYear;
-        
-        if (t.bonusApprovalDate) {
-          let bonusDate;
-          // Обробляємо різні формати дат
-          if (/^\d{4}-\d{2}-\d{2}$/.test(t.bonusApprovalDate)) {
-            // Формат YYYY-MM-DD
-            const [year, month] = t.bonusApprovalDate.split('-');
-            bonusDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-          } else if (/^\d{2}-\d{4}$/.test(t.bonusApprovalDate)) {
-            // Формат MM-YYYY
-            const [month, year] = t.bonusApprovalDate.split('-');
-            bonusDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-          } else {
-            // Спробуємо стандартний парсинг
-            bonusDate = new Date(t.bonusApprovalDate);
-          }
-          
-          if (!isNaN(bonusDate.getTime())) {
-            bonusMonth = bonusDate.getMonth() + 1;
-            bonusYear = bonusDate.getFullYear();
-          }
-        } else if (t.approvedByAccountantDate) {
-          const approvalDate = new Date(t.approvedByAccountantDate);
-          if (!isNaN(approvalDate.getTime())) {
-            bonusMonth = approvalDate.getMonth() + 1;
-            bonusYear = approvalDate.getFullYear();
-          }
-        } else {
-          // Якщо немає bonusApprovalDate та approvedByAccountantDate, 
-          // використовуємо дату виконання робіт як запасний варіант
-          const workDate = new Date(t.date);
-          if (!isNaN(workDate.getTime())) {
-            bonusMonth = workDate.getMonth() + 1;
-            bonusYear = workDate.getFullYear();
-          }
-        }
-        
-        // Нараховуємо премію тільки якщо дата затвердження відповідає наступному місяцю від вибраного
-        // (бо премії за місяць X затверджуються в місяці X+1)
-        return bonusMonth === approvalMonth && bonusYear === approvalYear;
-      });
-      console.log('[PERSONNEL REPORT] Tasks for bonuses (with approval date check) found:', allTasksForBonuses.length);
-      
-      
-      // Функція для перевірки затвердження
-      const isApproved = (value) => value === true || value === 'Підтверджено';
-      
-      // Фільтруємо заявки з затвердженням (для табелю часу - тільки за місяць)
-      const approvedTasks = monthTasks.filter(task => 
-        isApproved(task.approvedByWarehouse) && 
-        isApproved(task.approvedByAccountant)
-      );
-      
-      // Фільтруємо заявки з затвердженням (для премій - за весь рік)
-      const approvedTasksForBonuses = allTasksForBonuses.filter(task => 
-        isApproved(task.approvedByWarehouse) && 
-        isApproved(task.approvedByAccountant)
-      );
-      
-      
-      // Групуємо заявки по регіонах (для табелю часу - тільки за місяць)
-      const regionGroups = {};
-      approvedTasks.forEach(task => {
-        const region = task.serviceRegion || 'Невідомо';
-        if (!regionGroups[region]) {
-          regionGroups[region] = [];
-        }
-        regionGroups[region].push(task);
-      });
-      
-      // Групуємо заявки по регіонах (для премій - за весь рік)
-      const regionGroupsForBonuses = {};
-      approvedTasksForBonuses.forEach(task => {
-        const region = task.serviceRegion || 'Невідомо';
-        if (!regionGroupsForBonuses[region]) {
-          regionGroupsForBonuses[region] = [];
-        }
-        regionGroupsForBonuses[region].push(task);
-      });
-      
-      // Групуємо заявки по регіонах для деталізації (як у регіонального керівника - по вибраному місяцю)
-      // Фільтруємо заявки для деталізації по bonusApprovalDate, але використовуємо вибраний місяць, а не наступний
-      const regionGroupsForDetails = {};
-      const approvedTasksForDetails = allTasksFromDB.filter(t => {
-        if (t.status !== 'Виконано') return false;
-        if (!t.date) return false;
-        if (!isApproved(t.approvedByWarehouse) || !isApproved(t.approvedByAccountant)) return false;
-        
-        // Використовуємо ту саму логіку, що й у регіонального керівника
-        let bonusApprovalDate = t.bonusApprovalDate;
-        if (!bonusApprovalDate) {
-          if (t.approvedByAccountantDate) {
-            const approvalDate = new Date(t.approvedByAccountantDate);
-            if (!isNaN(approvalDate.getTime())) {
-              const month = String(approvalDate.getMonth() + 1).padStart(2, '0');
-              const year = approvalDate.getFullYear();
-              bonusApprovalDate = `${month}-${year}`;
-            }
-          } else {
-            return false; // Якщо немає bonusApprovalDate, не показуємо в деталізації
-          }
-        }
-        
-        // Конвертуємо формат дати
-        if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
-          const [year, month] = bonusApprovalDate.split('-');
-          bonusApprovalDate = `${month}-${year}`;
-        }
-        
-        const workDate = new Date(t.date);
-        const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
-        const approvalMonth = parseInt(approvalMonthStr);
-        const approvalYear = parseInt(approvalYearStr);
-        const workMonth = workDate.getMonth() + 1;
-        const workYear = workDate.getFullYear();
-        let bonusMonth, bonusYear;
-        if (workMonth === approvalMonth && workYear === approvalYear) {
-          bonusMonth = workMonth;
-          bonusYear = workYear;
-        } else {
-          if (approvalMonth === 1) {
-            bonusMonth = 12;
-            bonusYear = approvalYear - 1;
-          } else {
-            bonusMonth = approvalMonth - 1;
-            bonusYear = approvalYear;
-          }
-        }
-        // Використовуємо вибраний місяць, а не наступний (як у регіонального керівника)
-        return bonusMonth === monthNum && bonusYear === personnelFilters.year;
-      });
-      
-      approvedTasksForDetails.forEach(task => {
-        const region = task.serviceRegion || 'Невідомо';
-        if (!regionGroupsForDetails[region]) {
-          regionGroupsForDetails[region] = [];
-        }
-        regionGroupsForDetails[region].push(task);
-      });
-      
-      // Логування для діагностики
-      console.log(`[PERSONNEL REPORT] Month: ${personnelFilters.month}, Year: ${personnelFilters.year}`);
-      console.log(`[PERSONNEL REPORT] Total tasks found: ${monthTasks.length}`);
-      console.log(`[PERSONNEL REPORT] Approved tasks: ${approvedTasks.length}`);
-      console.log(`[PERSONNEL REPORT] Engineers found: ${allEngineers.length}`);
-      console.log(`[PERSONNEL REPORT] Regions: ${Object.keys(regionGroups).join(', ')}`);
-      
-      // Генеруємо звіт з групуванням по регіонам
-      const generateRegionReport = (region) => {
-        console.log(`[PERSONNEL REPORT] Generating report for region: ${region}`);
-        const regionTasks = regionGroups[region] || [];
-        const regionTasksForBonuses = regionGroupsForBonuses[region] || [];
-        const regionTasksForDetails = regionGroupsForDetails[region] || [];
-        // Фільтруємо інженерів по регіону
-        // Якщо чекбокс "Показати всіх працівників" не активований, виключаємо звільнених
-        const regionEngineers = allEngineers.filter(engineer => {
-          const matchesRegion = engineer.region === region || engineer.region === 'Україна';
-          const isDismissed = engineer.dismissed === true || engineer.dismissed === 'true' || engineer.dismissed === 1;
-          // Якщо чекбокс не активований, виключаємо звільнених
-          if (isDismissed && !personnelFilters.showDismissed) {
-            return false;
-          }
-          return matchesRegion;
-        });
-        console.log(`[PERSONNEL REPORT] Region ${region}: tasks=${regionTasks.length}, tasksForBonuses=${regionTasksForBonuses.length}, engineers=${regionEngineers.length}`);
-        console.log(`[PERSONNEL REPORT] Region ${region}: engineers details:`, regionEngineers.map(e => ({name: e.name, region: e.region})));
-        console.log(`[PERSONNEL REPORT] Region ${region}: Using monthly tasks for both timesheet and bonuses (like regional manager)`);
-        console.log(`[PERSONNEL REPORT] Region ${region}: Tasks for bonuses dates:`, regionTasksForBonuses.map(t => ({date: t.date, bonusApprovalDate: t.bonusApprovalDate, approvedByAccountantDate: t.approvedByAccountantDate})));
-        console.log(`[PERSONNEL REPORT] Region ${region}: Engineers in tasks:`, regionTasks.map(t => ({
-          requestNumber: t.requestNumber,
-          engineers: [
-            (t.engineer1 || '').trim(),
-            (t.engineer2 || '').trim(),
-            (t.engineer3 || '').trim(),
-            (t.engineer4 || '').trim(),
-            (t.engineer5 || '').trim(),
-            (t.engineer6 || '').trim()
-          ].filter(eng => eng && eng.length > 0)
-        })));
-        
-        // Розраховуємо кількість робочих днів та норму годин для конкретного місяця (як у регіонального керівника)
-        const daysInMonth = new Date(personnelFilters.year, monthNum, 0).getDate();
-        let workDays = 0;
-        for (let d = 1; d <= daysInMonth; d++) {
-          const date = new Date(personnelFilters.year, monthNum - 1, d);
-          const dayOfWeek = date.getDay();
-          if (dayOfWeek !== 0 && dayOfWeek !== 6) workDays++;
-        }
-        const workHoursNorm = workDays * 8; // Норма робочих годин на місяць (робочі дні * 8 годин)
-        
-        // Якщо немає інженерів з роллю service, спробуємо знайти їх в завданнях
-        let usersWithPayment = regionEngineers;
-        if (usersWithPayment.length === 0) {
-          console.log(`[PERSONNEL REPORT] No engineers with 'service' role found for region ${region}, looking in tasks...`);
-          
-          // Збираємо всіх унікальних інженерів з завдань регіону
-          const engineersFromTasks = new Set();
-          regionTasks.forEach(task => {
-            [
-              (task.engineer1 || '').trim(),
-              (task.engineer2 || '').trim(),
-              (task.engineer3 || '').trim(),
-              (task.engineer4 || '').trim(),
-              (task.engineer5 || '').trim(),
-              (task.engineer6 || '').trim()
-            ].filter(eng => eng && eng.length > 0).forEach(eng => engineersFromTasks.add(eng));
-          });
-          
-          console.log(`[PERSONNEL REPORT] Engineers found in tasks:`, Array.from(engineersFromTasks));
-          
-          // Створюємо об'єкти інженерів для тих, хто згадується в завданнях
-          // Якщо чекбокс "Показати всіх працівників" не активований, виключаємо звільнених
-          usersWithPayment = Array.from(engineersFromTasks)
-            .filter(engineerName => {
-              const user = users.find(u => (u.name || '').trim() === engineerName);
-              const isDismissed = user?.dismissed === true || user?.dismissed === 'true' || user?.dismissed === 1;
-              // Якщо чекбокс не активований, виключаємо звільнених
-              if (isDismissed && !personnelFilters.showDismissed) {
-                return false;
-              }
-              return true; // Показуємо всіх, якщо чекбокс активований або користувач не звільнений
-            })
-            .map(engineerName => ({
-              name: engineerName,
-              region: region,
-              id: `temp_${engineerName.replace(/\s+/g, '_')}`,
-              role: 'service' // Призначаємо ролю service для відображення
-            }));
-          
-          console.log(`[PERSONNEL REPORT] Created engineer objects:`, usersWithPayment);
-        }
-        
-        // Створюємо табель часу - використовуємо дані з localStorage, якщо є, інакше розраховуємо з завдань
-        const engineerHours = {};
-        usersWithPayment.forEach(engineer => {
-          engineerHours[engineer.name] = {};
-          const engineerId = engineer.id || engineer._id;
-          
-          // Перевіряємо, чи є дані в localStorage (спочатку serviceTimesheetData, потім timesheetData)
-          const serviceData = serviceTimesheetDataFromStorage[engineerId];
-          const regularData = timesheetDataFromStorage[engineerId];
-          const userTimesheetData = serviceData || regularData;
-          
-          if (userTimesheetData && userTimesheetData.total) {
-            // Використовуємо дані з localStorage
-            for (let day = 1; day <= daysInMonth; day++) {
-              engineerHours[engineer.name][day] = Number(userTimesheetData[day]) || 0;
-            }
-            engineerHours[engineer.name].total = Number(userTimesheetData.total) || 0;
-          } else {
-            // Якщо немає даних в localStorage, розраховуємо з завдань
-            for (let day = 1; day <= daysInMonth; day++) {
-              engineerHours[engineer.name][day] = 0;
-            }
-            engineerHours[engineer.name].total = 0;
-          }
-        });
-        
-        // Якщо дані не були взяті з localStorage, розраховуємо години з завдань
-        usersWithPayment.forEach(engineer => {
-          if (engineerHours[engineer.name].total === 0) {
-            // Перевіряємо, чи є завдання для цього інженера
-            const normalizedEngineerName = (engineer.name || '').trim();
-            const engineerTasks = regionTasks.filter(task => {
-              const engineers = [
-                (task.engineer1 || '').trim(),
-                (task.engineer2 || '').trim(),
-                (task.engineer3 || '').trim(),
-                (task.engineer4 || '').trim(),
-                (task.engineer5 || '').trim(),
-                (task.engineer6 || '').trim()
-              ];
-              return engineers.includes(normalizedEngineerName);
-            });
-            
-            if (engineerTasks.length > 0) {
-              // СТАБІЛЬНА МОДЕЛЬ (як у регіонального керівника):
-              // якщо інженер має хоча б одне завдання в місяці, ставимо 8 годин у ВСІ робочі дні місяця
-              for (let d = 1; d <= daysInMonth; d++) {
-                const date = new Date(personnelFilters.year, monthNum - 1, d);
-                const dayOfWeek = date.getDay();
-                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                engineerHours[engineer.name][d] = isWeekend ? 0 : 8;
-              }
-              // Перераховуємо загальні години
-              engineerHours[engineer.name].total = Object.values(engineerHours[engineer.name])
-                .filter(val => typeof val === 'number' && val !== engineerHours[engineer.name].total)
-                .reduce((sum, hours) => sum + hours, 0);
-            }
-          }
-        });
-        
-        // Розраховуємо зарплати (логіка як у регіонального керівника)
-        const engineerSalaries = {};
-        console.log(`[PERSONNEL REPORT] Region ${region}: Processing ${usersWithPayment.length} engineers for bonus calculation:`, usersWithPayment.map(e => e.name));
-        usersWithPayment.forEach(engineer => {
-          // Нормалізуємо ім'я інженера для порівнянь
-          const normalizedEngineerName = (engineer.name || '').trim();
-          
-          // Використовуємо реальну суму годин з табелю
-          const total = engineerHours[engineer.name]?.total || 0;
-          const salary = Number(payData[engineer.id || engineer._id]?.salary) || 25000;
-          const bonus = Number(payData[engineer.id || engineer._id]?.bonus) || 0;
-          const overtime = Math.max(0, total - workHoursNorm);
-          const overtimeRate = workHoursNorm > 0 ? (salary / workHoursNorm) * 2 : 0; // 2x як у регіонального керівника
-          const overtimePay = overtime * overtimeRate;
-          // Розраховуємо пропорційну ставку (як у регіонального керівника)
-          const basePay = Math.round(salary * Math.min(total, workHoursNorm) / workHoursNorm);
-          
-          // Розрахунок премії за сервісні роботи (як у регіонального керівника - по вибраному місяцю)
-          let engineerBonus = 0;
-          // Використовуємо allTasksFromDB з фільтрацією по вибраному місяцю, як у регіонального керівника
-          allTasksFromDB.forEach(task => {
-            // Діагностичне логування для заявки KV-0000080
-            const isDebugTask = task.requestNumber === 'KV-0000080';
-            
-            if (task.status !== 'Виконано') {
-              if (isDebugTask) console.log(`[DEBUG BONUS] ${task.requestNumber}: статус не "Виконано": ${task.status}`);
-              return;
-            }
-            if (!task.date) {
-              if (isDebugTask) console.log(`[DEBUG BONUS] ${task.requestNumber}: немає дати`);
-              return;
-            }
-            if (!isApproved(task.approvedByWarehouse)) {
-              if (isDebugTask) console.log(`[DEBUG BONUS] ${task.requestNumber}: не затверджено завскладом: ${task.approvedByWarehouse}`);
-              return;
-            }
-            if (!isApproved(task.approvedByAccountant)) {
-              if (isDebugTask) console.log(`[DEBUG BONUS] ${task.requestNumber}: не затверджено бухгалтером: ${task.approvedByAccountant}`);
-              return;
-            }
-            if (task.serviceRegion !== region) {
-              if (isDebugTask) console.log(`[DEBUG BONUS] ${task.requestNumber}: регіон не співпадає: ${task.serviceRegion} !== ${region}`);
-              return;
-            }
-            
-            // Використовуємо ту саму логіку, що й у регіонального керівника
-            let bonusApprovalDate = task.bonusApprovalDate;
-            if (!bonusApprovalDate) {
-              if (task.approvedByAccountantDate) {
-                const approvalDate = new Date(task.approvedByAccountantDate);
-                if (!isNaN(approvalDate.getTime())) {
-                  const month = String(approvalDate.getMonth() + 1).padStart(2, '0');
-                  const year = approvalDate.getFullYear();
-                  bonusApprovalDate = `${month}-${year}`;
-                } else {
-                  if (isDebugTask) console.log(`[DEBUG BONUS] ${task.requestNumber}: невалідна дата затвердження бухгалтером`);
-                  return; // Якщо немає дати затвердження, пропускаємо
-                }
-              } else {
-                if (isDebugTask) console.log(`[DEBUG BONUS] ${task.requestNumber}: немає bonusApprovalDate та approvedByAccountantDate`);
-                return; // Якщо немає bonusApprovalDate, пропускаємо
-              }
-            }
-            
-            // Конвертуємо формат дати
-            if (/^\d{4}-\d{2}-\d{2}$/.test(bonusApprovalDate)) {
-              const [year, month] = bonusApprovalDate.split('-');
-              bonusApprovalDate = `${month}-${year}`;
-            }
-            
-            const workDate = new Date(task.date);
-            const [approvalMonthStr, approvalYearStr] = bonusApprovalDate.split('-');
-            const approvalMonth = parseInt(approvalMonthStr);
-            const approvalYear = parseInt(approvalYearStr);
-            const workMonth = workDate.getMonth() + 1;
-            const workYear = workDate.getFullYear();
-            let bonusMonth, bonusYear;
-            if (workMonth === approvalMonth && workYear === approvalYear) {
-              bonusMonth = workMonth;
-              bonusYear = workYear;
-            } else {
-              if (approvalMonth === 1) {
-                bonusMonth = 12;
-                bonusYear = approvalYear - 1;
-              } else {
-                bonusMonth = approvalMonth - 1;
-                bonusYear = approvalYear;
-              }
-            }
-            
-            if (isDebugTask) {
-              console.log(`[DEBUG BONUS] ${task.requestNumber}:`, {
-                date: task.date,
-                bonusApprovalDate: task.bonusApprovalDate,
-                workMonth,
-                approvalMonth,
-                bonusMonth,
-                bonusYear,
-                monthNum,
-                personnelFiltersYear: personnelFilters.year,
-                matches: bonusMonth === monthNum && bonusYear === personnelFilters.year
-              });
-            }
-            
-            // Фільтруємо по вибраному місяцю, як у регіонального керівника
-            if (bonusMonth === monthNum && bonusYear === personnelFilters.year) {
-              const workPrice = parseFloat(task.workPrice) || 0;
-              const bonusVal = workPrice * 0.25;
-              
-              const engineers = [
-                (task.engineer1 || '').trim(),
-                (task.engineer2 || '').trim(),
-                (task.engineer3 || '').trim(),
-                (task.engineer4 || '').trim(),
-                (task.engineer5 || '').trim(),
-                (task.engineer6 || '').trim()
-              ].filter(eng => eng && eng.length > 0);
-              
-              if (isDebugTask) {
-                console.log(`[DEBUG BONUS] ${task.requestNumber}:`, {
-                  engineers,
-                  engineerName: engineer.name,
-                  normalizedEngineerName,
-                  includes: engineers.includes(normalizedEngineerName),
-                  workPrice,
-                  bonusVal,
-                  bonusPerEngineer: bonusVal / engineers.length
-                });
-              }
-              
-              if (engineers.includes(normalizedEngineerName) && engineers.length > 0) {
-                engineerBonus += bonusVal / engineers.length;
-                if (isDebugTask) {
-                  console.log(`[DEBUG BONUS] ${task.requestNumber}: премія додана для ${normalizedEngineerName}, сума: ${bonusVal / engineers.length}`);
-                }
-              } else if (isDebugTask) {
-                console.log(`[DEBUG BONUS] ${task.requestNumber}: інженер ${normalizedEngineerName} не знайдено в списку:`, engineers);
-              }
-            } else {
-              if (isDebugTask) {
-                console.log(`[DEBUG BONUS] ${task.requestNumber}: не співпадає місяць: bonusMonth=${bonusMonth} !== monthNum=${monthNum} або bonusYear=${bonusYear} !== year=${personnelFilters.year}`);
-              }
-            }
-          });
-          
-          const payout = basePay + overtimePay + bonus + engineerBonus;
-          
-          engineerSalaries[engineer.name] = {
-            baseRate: salary,
-            totalHours: total,
-            overtimeHours: overtime,
-            hourlyRate: workHoursNorm > 0 ? salary / workHoursNorm : 0,
-            overtimeRate: overtimeRate,
-            overtimePay: overtimePay,
-            workedRate: basePay,
-            serviceBonus: engineerBonus,
-            totalPay: payout
-          };
-        });
-        
-        const days = Array.from({length: 31}, (_, i) => i + 1);
-        
-        // Табель часу
-        const timesheetTable = `
-          <h4>Табель часу - Регіон: ${region}</h4>
-          <table>
-            <thead>
+      <table>
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>${groupTitle}</th>
+            <th style="text-align:center">Кількість заявок</th>
+            <th style="text-align:right">Сума, грн</th>
+            <th style="text-align:right">% від загального</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${Object.entries(groupedData)
+            .sort((a, b) => b[1].amount - a[1].amount)
+            .map(([name, data], index) => `
               <tr>
-                <th>№</th>
-                <th>ПІБ</th>
-                ${days.map(d => {
-                  const date = new Date(personnelFilters.year, monthNum - 1, d);
-                  const dayOfWeek = date.getDay();
-                  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                  return `<th${isWeekend ? ' class="weekend"' : ''}>${d}</th>`;
-                }).join('')}
-                <th>Всього годин</th>
+                <td>${index + 1}</td>
+                <td>${name}</td>
+                <td style="text-align:center">${data.count}</td>
+                <td class="amount">${data.amount.toFixed(2)}</td>
+                <td class="amount">${((data.amount / statistics.totalServiceAmount) * 100).toFixed(1)}%</td>
               </tr>
-            </thead>
-            <tbody>
-              ${usersWithPayment.map((engineer, index) => `
-                <tr>
-                  <td>${index + 1}</td>
-                  <td>${engineer.name}</td>
-                  ${days.map(d => {
-                    const date = new Date(personnelFilters.year, monthNum - 1, d);
-                    const dayOfWeek = date.getDay();
-                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                    return `<td${isWeekend ? ' class="weekend"' : ''}>${engineerHours[engineer.name][d] || 0}</td>`;
-                  }).join('')}
-                  <td>${engineerHours[engineer.name].total || 0}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        `;
-        
-        // Таблиця нарахування
-        const accrualTable = `
-          <h4>Таблиця нарахування по персоналу - Регіон: ${region}</h4>
-          <table>
-            <thead>
-              <tr>
-                <th>№</th>
-                <th>ПІБ</th>
-                <th>Ставка</th>
-                <th>Фактично відпрацьовано годин</th>
-                <th>Понаднормові роботи, год</th>
-                <th>Ціна за год, понаднормові</th>
-                <th>Доплата за понаднормові</th>
-                <th>Відпрацьована ставка, грн</th>
-                <th>Премія за виконання сервісних робіт, грн</th>
-                <th>Загальна сума по оплаті за місяць</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${usersWithPayment.map((engineer, index) => {
-                const salaryData = engineerSalaries[engineer.name];
-                // Перевіряємо, чи існують дані про зарплату (якщо інженер не має завдань, salaryData може бути undefined)
-                if (!salaryData) {
-                  // Якщо немає даних, створюємо порожні значення
-                  const currentSalary = Number(payData[engineer.id || engineer._id]?.salary) || 25000;
-                  const total = 0;
-                  return `
-                    <tr>
-                      <td>${index + 1}</td>
-                      <td>${engineer.name}</td>
-                      <td><input type="number" value="${currentSalary}" onchange="window.handlePayChange('${engineer.id || engineer._id}', 'salary', this.value)" style="width:90px; border: 1px solid #ccc; padding: 4px;" /></td>
-                      <td>${total}</td>
-                      <td>0</td>
-                      <td>${workHoursNorm > 0 ? ((currentSalary / workHoursNorm) * 2).toFixed(2) : '0.00'}</td>
-                      <td>0.00</td>
-                      <td>0</td>
-                      <td>0.00</td>
-                      <td>0.00</td>
-                    </tr>
-                  `;
-                }
-                const currentSalary = Number(payData[engineer.id || engineer._id]?.salary) || 25000;
+            `).join('')}
+          <tr class="summary-row">
+            <td colspan="2"><strong>ВСЬОГО</strong></td>
+            <td style="text-align:center"><strong>${statistics.totalTasks}</strong></td>
+            <td class="amount"><strong>${statistics.totalServiceAmount.toFixed(2)}</strong></td>
+            <td class="amount"><strong>100%</strong></td>
+          </tr>
+        </tbody>
+      </table>
+      
+      ${financialFilters.detailed ? `
+        <h2 class="section-title">📝 Деталізація по заявках</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>№</th>
+              <th>Дата</th>
+              <th>№ заявки</th>
+              <th>Регіон</th>
+              <th>Замовник</th>
+              <th>Обладнання</th>
+              <th>Роботи</th>
+              <th>Інженери</th>
+              <th>Роботи, грн</th>
+              <th>Матеріали, грн</th>
+              <th>Всього, грн</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${detailedRows}
+            <tr class="summary-row">
+              <td colspan="8"><strong>ПІДСУМОК</strong></td>
+              <td class="amount"><strong>${statistics.totalWorkPrice.toFixed(2)}</strong></td>
+              <td class="amount"><strong>${statistics.totalMaterials.toFixed(2)}</strong></td>
+              <td class="amount"><strong>${statistics.totalServiceAmount.toFixed(2)}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      ` : ''}
+      
+      <div class="chart-container">
+        <div class="chart-card">
+          <div class="chart-title">🏢 Топ-5 по сумі (${groupTitle})</div>
+          <div class="bar-chart">
+            ${Object.entries(groupedData)
+              .sort((a, b) => b[1].amount - a[1].amount)
+              .slice(0, 5)
+              .map(([name, data]) => {
+                const maxAmount = Math.max(...Object.values(groupedData).map(d => d.amount));
+                const width = (data.amount / maxAmount) * 100;
                 return `
-                  <tr>
-                    <td>${index + 1}</td>
-                    <td>${engineer.name}</td>
-                    <td><input type="number" value="${currentSalary}" onchange="window.handlePayChange('${engineer.id || engineer._id}', 'salary', this.value)" style="width:90px; border: 1px solid #ccc; padding: 4px;" /></td>
-                    <td>${salaryData.totalHours}</td>
-                    <td>${salaryData.overtimeHours}</td>
-                    <td>${salaryData.overtimeRate.toFixed(2)}</td>
-                    <td>${salaryData.overtimePay.toFixed(2)}</td>
-                    <td>${salaryData.workedRate}</td>
-                    <td>${salaryData.serviceBonus.toFixed(2)}</td>
-                    <td>${salaryData.totalPay.toFixed(2)}</td>
-                  </tr>
+                  <div class="bar-item">
+                    <div class="bar-label" title="${name}">${name}</div>
+                    <div class="bar-track">
+                      <div class="bar-fill" style="width: ${width}%"></div>
+                    </div>
+                    <div class="bar-value">${data.amount.toFixed(0)} грн</div>
+                  </div>
                 `;
               }).join('')}
-            </tbody>
-          </table>
-          <div style="margin-top: 16px; font-size: 14px; color: #666;">
-            <p><strong>Кількість робочих днів у місяці:</strong> ${workDays}</p>
-            <p><strong>Норма робочих годин у місяці:</strong> ${workHoursNorm}</p>
           </div>
-        `;
+        </div>
         
-        // Групуємо завдання по номеру заявки для деталізації
-        // Використовуємо regionTasksForDetails (фільтровані по bonusApprovalDate для вибраного місяця), як у регіонального керівника
-        const tasksByRequestNumber = {};
-        regionTasksForDetails.forEach(task => {
-          const requestNumber = task.requestNumber || 'Без номера';
-          if (!tasksByRequestNumber[requestNumber]) {
-            tasksByRequestNumber[requestNumber] = [];
-          }
-          tasksByRequestNumber[requestNumber].push(task);
-        });
-        
-        // Обчислюємо загальні суми по регіону
-        let totalServiceTotal = 0;
-        let totalWorkPrice = 0;
-        let totalServiceBonus = 0;
-        let totalEngineerBonuses = 0;
-        let requestNumberIndex = 0; // Лічильник для нумерації заявок
-        
-        // Деталізація виконаних робіт з групуванням по номеру заявки
-        const requestNumberSections = Object.keys(tasksByRequestNumber).map(requestNumber => {
-          requestNumberIndex++; // Збільшуємо номер заявки
-          const tasksForRequest = tasksByRequestNumber[requestNumber];
-          
-          // Обчислюємо суми по номеру заявки
-          let requestServiceTotal = 0;
-          let requestWorkPrice = 0;
-          let requestServiceBonus = 0;
-          let requestEngineerBonuses = 0;
-          let engineerIndex = 0; // Лічильник для нумерації інженерів в межах заявки
-          
-          const requestRows = tasksForRequest.map(task => {
-            const engineers = [
-              (task.engineer1 || '').trim(),
-              (task.engineer2 || '').trim(),
-              (task.engineer3 || '').trim(),
-              (task.engineer4 || '').trim(),
-              (task.engineer5 || '').trim(),
-              (task.engineer6 || '').trim()
-            ].filter(eng => eng && eng.length > 0);
-            
-            const workPrice = parseFloat(task.workPrice) || 0;
-            const serviceBonus = workPrice * 0.25;
-            const bonusPerEngineer = engineers.length > 0 ? serviceBonus / engineers.length : 0;
-            const serviceTotal = parseFloat(task.serviceTotal) || 0;
-            
-            // Додаємо до сум
-            requestServiceTotal += serviceTotal;
-            requestWorkPrice += workPrice;
-            requestServiceBonus += serviceBonus;
-            requestEngineerBonuses += bonusPerEngineer * engineers.length;
-            
-            // Форматуємо дату затвердження премії для відображення
-            let bonusApprovalDateDisplay = '';
-            if (task.bonusApprovalDate) {
-              // Якщо формат MM-YYYY, залишаємо як є
-              if (/^\d{2}-\d{4}$/.test(task.bonusApprovalDate)) {
-                bonusApprovalDateDisplay = task.bonusApprovalDate;
-              } else if (/^\d{4}-\d{2}-\d{2}$/.test(task.bonusApprovalDate)) {
-                // Якщо формат YYYY-MM-DD, конвертуємо в MM-YYYY
-                const [year, month] = task.bonusApprovalDate.split('-');
-                bonusApprovalDateDisplay = `${month}-${year}`;
-              } else {
-                bonusApprovalDateDisplay = task.bonusApprovalDate;
-              }
-            } else if (task.approvedByAccountantDate) {
-              // Якщо немає bonusApprovalDate, використовуємо approvedByAccountantDate
-              const approvalDate = new Date(task.approvedByAccountantDate);
-              if (!isNaN(approvalDate.getTime())) {
-                const month = String(approvalDate.getMonth() + 1).padStart(2, '0');
-                const year = approvalDate.getFullYear();
-                bonusApprovalDateDisplay = `${month}-${year}`;
-              }
-            } else if (task.date) {
-              // Якщо немає жодної дати затвердження, використовуємо дату виконання
-              const workDate = new Date(task.date);
-              if (!isNaN(workDate.getTime())) {
-                const month = String(workDate.getMonth() + 1).padStart(2, '0');
-                const year = workDate.getFullYear();
-                bonusApprovalDateDisplay = `${month}-${year}`;
-              }
-            }
-            
-            // Створюємо рядок для кожного інженера окремо
-            return engineers.map(engineer => {
-              engineerIndex++; // Збільшуємо номер інженера в межах заявки
-              const rowNumber = engineerIndex === 1 ? requestNumberIndex : `${requestNumberIndex}.${engineerIndex - 1}`;
-              return `
-                <tr>
-                  <td>${rowNumber}</td>
-                  <td>${bonusApprovalDateDisplay}</td>
-                  <td>${task.requestNumber || ''}</td>
-                  <td>${task.date || ''}</td>
-                  <td>${engineer}</td>
-                  <td>${task.client || ''}</td>
-                  <td>${task.address || ''}</td>
-                  <td>${task.equipment || ''}</td>
-                  <td>${task.work || ''}</td>
-                  <td>${task.company || ''}</td>
-                  <td>${serviceTotal.toFixed(2)}</td>
-                  <td>${workPrice.toFixed(2)}</td>
-                  <td>${serviceBonus.toFixed(2)}</td>
-                  <td style="font-weight:600;">${bonusPerEngineer.toFixed(2)}</td>
-                </tr>
-              `;
-            }).join('');
-          }).join('');
-          
-          // Додаємо до загальних сум регіону
-          totalServiceTotal += requestServiceTotal;
-          totalWorkPrice += requestWorkPrice;
-          totalServiceBonus += requestServiceBonus;
-          totalEngineerBonuses += requestEngineerBonuses;
-          
-          // Створюємо секцію для номера заявки з підсумками
-          return `
-            <tr style="background-color: #f0f0f0; font-weight: bold;">
-              <td colspan="10" style="text-align: left; padding-left: 20px;">
-                <strong>Номер заявки: ${requestNumber}</strong>
-              </td>
-              <td style="font-weight: bold;">${requestServiceTotal.toFixed(2)}</td>
-              <td style="font-weight: bold;">${requestWorkPrice.toFixed(2)}</td>
-              <td style="font-weight: bold;">${requestServiceBonus.toFixed(2)}</td>
-              <td style="font-weight: bold;">${requestEngineerBonuses.toFixed(2)}</td>
-            </tr>
-            ${requestRows}
-          `;
-        }).join('');
-        
-        const workDetailsTable = `
-          <h4>Деталізація виконаних робіт - Регіон: ${region}</h4>
-          <table class="details">
-            <thead>
-              <tr>
-                <th>№</th>
-                <th>Дата затвердження премії</th>
-                <th>Номер заявки</th>
-                <th>Дата виконання</th>
-                <th>Інженер</th>
-                <th>Клієнт</th>
-                <th>Адреса</th>
-                <th>Обладнання</th>
-                <th><b>Найменування робіт</b></th>
-                <th>Компанія виконавець</th>
-                <th>Загальна сума з матеріалами</th>
-                <th>Вартість робіт</th>
-                <th>Загальна премія за послугу</th>
-                <th>Премія інженера</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${requestNumberSections}
-              <tr style="background-color: #ffe600; font-weight: bold; font-size: 1.1em;">
-                <td colspan="10" style="text-align: left; padding-left: 20px;">
-                  <strong>ВСЬОГО ПО РЕГІОНУ: ${region}</strong>
-                </td>
-                <td style="font-weight: bold;">${totalServiceTotal.toFixed(2)}</td>
-                <td style="font-weight: bold;">${totalWorkPrice.toFixed(2)}</td>
-                <td style="font-weight: bold;">${totalServiceBonus.toFixed(2)}</td>
-                <td style="font-weight: bold;">${totalEngineerBonuses.toFixed(2)}</td>
-              </tr>
-            </tbody>
-          </table>
-        `;
-        
-        return {
-          timesheetTable,
-          accrualTable,
-          workDetailsTable
-        };
-      };
-      
-      // Генеруємо HTML для кожного регіону
-      const regionsContent = Object.keys(regionGroups).map(region => {
-        const regionReport = generateRegionReport(region);
-        return `
-          <div style="margin-bottom: 40px; page-break-after: always;">
-            <h3 style="color: #1976d2; border-bottom: 2px solid #1976d2; padding-bottom: 10px;">Регіон: ${region}</h3>
-            ${regionReport.timesheetTable}
-            ${regionReport.accrualTable}
-            ${regionReport.workDetailsTable}
+        <div class="chart-card">
+          <div class="chart-title">📊 Топ-5 по кількості заявок (${groupTitle})</div>
+          <div class="bar-chart">
+            ${Object.entries(groupedData)
+              .sort((a, b) => b[1].count - a[1].count)
+              .slice(0, 5)
+              .map(([name, data]) => {
+                const maxCount = Math.max(...Object.values(groupedData).map(d => d.count));
+                const width = (data.count / maxCount) * 100;
+                return `
+                  <div class="bar-item">
+                    <div class="bar-label" title="${name}">${name}</div>
+                    <div class="bar-track">
+                      <div class="bar-fill" style="width: ${width}%"></div>
+                    </div>
+                    <div class="bar-value">${data.count} шт</div>
+                  </div>
+                `;
+              }).join('')}
           </div>
-        `;
-      }).join('');
-      
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>${reportTitle}</title>
-          <style>
-            body { font-family: Arial, sans-serif; background: #f8fafc; color: #222; padding: 24px; }
-            h2 { color: #1976d2; }
-            h3 { color: #1976d2; margin-top: 30px; }
-            h4 { color: #1976d2; margin-top: 20px; }
-            table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
-            th, td { border: 1px solid #000; padding: 6px 10px; text-align: center; }
-            th { background: #ffe600; color: #222; }
-            .details th { background: #e0e0e0; }
-            .weekend { background: #e0e0e0 !important; color: #222 !important; }
-            @media print {
-              .page-break { page-break-after: always; }
-            }
-          </style>
-        </head>
-        <body>
-          <h2>${reportTitle}</h2>
-          ${regionsContent}
-          <script>
-            // Функція для оновлення зарплати
-            window.handlePayChange = function(userId, field, value) {
-              // Оновлюємо localStorage
-              const currentData = JSON.parse(localStorage.getItem('payData_${personnelFilters.year}_${personnelFilters.month}') || '{}');
-              if (!currentData[userId]) {
-                currentData[userId] = { salary: '', bonus: '' };
-              }
-              currentData[userId][field] = value;
-              localStorage.setItem('payData_${personnelFilters.year}_${personnelFilters.month}', JSON.stringify(currentData));
-              
-              // Оновлюємо розрахунки в реальному часі
-              const salary = parseFloat(value) || 0;
-              const workHours = 176;
-              const overtimeRate = workHours > 0 ? (salary / workHours) * 1.5 : 0;
-              
-              // Знаходимо рядок з цим input
-              const input = event.target;
-              const row = input.closest('tr');
-              const cells = row.querySelectorAll('td');
-              
-              // Оновлюємо ціну за годину понаднормові (колонка 5)
-              if (cells[4]) cells[4].textContent = overtimeRate.toFixed(2);
-              // Оновлюємо відпрацьовану ставку (колонка 7)
-              if (cells[6]) cells[6].textContent = salary;
-              // Оновлюємо загальну суму (ставка + премія) (колонка 9)
-              const serviceBonus = parseFloat(cells[7].textContent) || 0;
-              if (cells[8]) cells[8].textContent = (salary + serviceBonus).toFixed(2);
-            };
-          </script>
-        </body>
-        </html>
-      `;
-      
-      const win = window.open('', '_blank');
-      if (!win) {
-        alert('Будь ласка, дозвольте спливаючі вікна для перегляду звіту');
-        return;
-      }
-      win.document.write(html);
-      win.document.close();
-      
-    } catch (error) {
-      console.error('[PERSONNEL REPORT] Error generating report:', error);
-      console.error('[PERSONNEL REPORT] Error stack:', error.stack);
-      console.error('[PERSONNEL REPORT] Error details:', {
-        message: error.message,
-        name: error.name,
-        filters: personnelFilters,
-        tasksCount: tasks.length,
-        usersCount: users.length
-      });
-      alert(`Помилка генерації звіту по персоналу: ${error.message}`);
-    } finally {
-      setLoading(false);
-      console.log('[PERSONNEL REPORT] Generation completed');
-    }
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <p style="text-align: center; color: rgba(255,255,255,0.6); margin-top: 20px; font-size: 12px;">
+    Звіт сформовано: ${new Date().toLocaleString('uk-UA')} | Користувач: ${user?.name || user?.login}
+  </p>
+</body>
+</html>
+    `;
+
+    const newWindow = window.open('', '_blank');
+    newWindow.document.write(html);
+    newWindow.document.close();
+    setLoading(false);
   };
 
   if (!isOpen) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000
-    }}>
-      <div style={{
-        backgroundColor: '#fff',
-        borderRadius: '12px',
-        padding: '24px',
-        width: '90%',
-        maxWidth: '800px',
-        maxHeight: '90vh',
-        overflow: 'auto',
-        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)'
-      }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '24px',
-          borderBottom: '2px solid #f0f0f0',
-          paddingBottom: '16px'
-        }}>
-          <h2 style={{ margin: 0, color: '#333', fontSize: '24px', fontWeight: '600' }}>
-            📊 Бухгалтерські звіти
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '24px',
-              cursor: 'pointer',
-              color: '#666',
-              padding: '4px',
-              borderRadius: '4px'
-            }}
-          >
-            ×
-          </button>
+    <div className="reports-modal-overlay" onClick={onClose}>
+      <div className="reports-modal" onClick={e => e.stopPropagation()}>
+        <div className="reports-modal-header">
+          <h2>📊 Бухгалтерські звіти</h2>
+          <button className="close-btn" onClick={onClose}>×</button>
         </div>
 
-        {/* Перемикач звітів */}
-        <div style={{
-          display: 'flex',
-          gap: '12px',
-          marginBottom: '24px',
-          borderBottom: '1px solid #e0e0e0',
-          paddingBottom: '16px'
-        }}>
-          <button
+        <div className="reports-tabs">
+          <button 
+            className={`report-tab ${activeReport === 'financial' ? 'active' : ''}`}
             onClick={() => setActiveReport('financial')}
-            style={{
-              padding: '12px 24px',
-              backgroundColor: activeReport === 'financial' ? '#007bff' : '#f8f9fa',
-              color: activeReport === 'financial' ? 'white' : '#333',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '600',
-              transition: 'all 0.2s'
-            }}
           >
             💰 Фінансовий звіт
           </button>
-          <button
-            onClick={() => setActiveReport('personnel')}
-            style={{
-              padding: '12px 24px',
-              backgroundColor: activeReport === 'personnel' ? '#007bff' : '#f8f9fa',
-              color: activeReport === 'personnel' ? 'white' : '#333',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '600',
-              transition: 'all 0.2s'
-            }}
+          <button 
+            className={`report-tab ${activeReport === 'analytics' ? 'active' : ''}`}
+            onClick={() => setActiveReport('analytics')}
           >
-            👥 Табель персоналу
+            📈 Аналітика
           </button>
         </div>
 
-        {/* Фінансовий звіт */}
-        {activeReport === 'financial' && (
-        <div style={{
-          backgroundColor: '#f8f9fa',
-          borderRadius: '8px',
-          padding: '20px',
-          marginBottom: '20px',
-          border: '1px solid #e9ecef'
-        }}>
-          <h3 style={{ 
-            margin: '0 0 16px 0', 
-            color: '#333', 
-            fontSize: '18px',
-            fontWeight: '600',
-            borderBottom: '2px solid #007bff',
-            paddingBottom: '8px'
-          }}>
-            Загальний звіт по руху фінансів
-          </h3>
+        <div className="reports-content">
+          {activeReport === 'financial' && (
+            <div className="report-section">
+              <h3>Загальний звіт по руху фінансів</h3>
+              
+              <div className="filters-grid">
+                <div className="filter-group">
+                  <label>📅 Період з:</label>
+                  <input
+                    type="date"
+                    value={financialFilters.dateFrom}
+                    onChange={e => setFinancialFilters({...financialFilters, dateFrom: e.target.value})}
+                  />
+                </div>
+                <div className="filter-group">
+                  <label>📅 Період по:</label>
+                  <input
+                    type="date"
+                    value={financialFilters.dateTo}
+                    onChange={e => setFinancialFilters({...financialFilters, dateTo: e.target.value})}
+                  />
+                </div>
+                <div className="filter-group">
+                  <label>🌍 Регіон:</label>
+                  <select
+                    value={financialFilters.region}
+                    onChange={e => setFinancialFilters({...financialFilters, region: e.target.value})}
+                  >
+                    <option value="">Всі регіони</option>
+                    {regions.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="filter-group">
+                  <label>📊 Групувати по:</label>
+                  <select
+                    value={financialFilters.groupBy}
+                    onChange={e => setFinancialFilters({...financialFilters, groupBy: e.target.value})}
+                  >
+                    <option value="region">Регіонам</option>
+                    <option value="client">Замовникам</option>
+                    <option value="equipment">Обладнанню</option>
+                  </select>
+                </div>
+              </div>
 
-          {/* Фільтри */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#333' }}>
-                Дата виконаних робіт з:
-              </label>
-              <input
-                type="date"
-                value={reportFilters.dateFrom}
-                onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #ddd',
-                  borderRadius: '6px',
-                  fontSize: '14px'
-                }}
-              />
+              <div className="checkbox-filters-row">
+                <label className="checkbox-filter">
+                  <input
+                    type="checkbox"
+                    checked={financialFilters.onlyApproved}
+                    onChange={e => setFinancialFilters({...financialFilters, onlyApproved: e.target.checked})}
+                  />
+                  <span>✅ Тільки підтверджені (завсклад + бухгалтер)</span>
+                </label>
+                
+                <label className="checkbox-filter">
+                  <input
+                    type="checkbox"
+                    checked={financialFilters.detailed}
+                    onChange={e => setFinancialFilters({...financialFilters, detailed: e.target.checked})}
+                  />
+                  <span>📝 Деталізація по заявках</span>
+                </label>
+              </div>
+
+              {/* Preview статистика */}
+              <div className="preview-stats">
+                <div className="stat-item">
+                  <span className="stat-icon">📋</span>
+                  <span className="stat-value">{statistics.totalTasks}</span>
+                  <span className="stat-label">Заявок</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-icon">🔧</span>
+                  <span className="stat-value">{statistics.totalWorkPrice.toFixed(0)}</span>
+                  <span className="stat-label">Роботи, грн</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-icon">📦</span>
+                  <span className="stat-value">{statistics.totalMaterials.toFixed(0)}</span>
+                  <span className="stat-label">Матеріали, грн</span>
+                </div>
+                <div className="stat-item highlight">
+                  <span className="stat-icon">💰</span>
+                  <span className="stat-value">{statistics.totalServiceAmount.toFixed(0)}</span>
+                  <span className="stat-label">Всього, грн</span>
+                </div>
+              </div>
+
+              <div className="report-actions">
+                <button 
+                  className="btn-generate"
+                  onClick={generateHTMLReport}
+                  disabled={loading}
+                >
+                  {loading ? '⏳ Формування...' : '📄 Сформувати HTML звіт'}
+                </button>
+              </div>
             </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#333' }}>
-                Дата виконаних робіт по:
-              </label>
-              <input
-                type="date"
-                value={reportFilters.dateTo}
-                onChange={(e) => handleFilterChange('dateTo', e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #ddd',
-                  borderRadius: '6px',
-                  fontSize: '14px'
-                }}
-              />
+          )}
+
+          {activeReport === 'analytics' && (
+            <div className="report-section">
+              <h3>Аналітичний дашборд</h3>
+              
+              <div className="analytics-preview">
+                <div className="analytics-card">
+                  <h4>🏆 Топ-5 регіонів по сумі</h4>
+                  <div className="mini-chart">
+                    {Object.entries(statistics.byRegion)
+                      .sort((a, b) => b[1].amount - a[1].amount)
+                      .slice(0, 5)
+                      .map(([name, data], index) => (
+                        <div key={name} className="mini-bar">
+                          <span className="rank">#{index + 1}</span>
+                          <span className="name">{name}</span>
+                          <span className="value">{data.amount.toFixed(0)} грн</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                <div className="analytics-card">
+                  <h4>👥 Топ-5 замовників</h4>
+                  <div className="mini-chart">
+                    {Object.entries(statistics.byClient)
+                      .sort((a, b) => b[1].amount - a[1].amount)
+                      .slice(0, 5)
+                      .map(([name, data], index) => (
+                        <div key={name} className="mini-bar">
+                          <span className="rank">#{index + 1}</span>
+                          <span className="name" title={name}>{name.length > 20 ? name.substring(0, 20) + '...' : name}</span>
+                          <span className="value">{data.amount.toFixed(0)} грн</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                <div className="analytics-card wide">
+                  <h4>📊 Розподіл доходів</h4>
+                  <div className="pie-legend">
+                    <div className="pie-item">
+                      <span className="color-dot work"></span>
+                      <span className="pie-label">Роботи:</span>
+                      <span className="pie-value">{statistics.totalWorkPrice.toFixed(0)} грн ({((statistics.totalWorkPrice / statistics.totalServiceAmount) * 100 || 0).toFixed(1)}%)</span>
+                    </div>
+                    <div className="pie-item">
+                      <span className="color-dot materials"></span>
+                      <span className="pie-label">Матеріали:</span>
+                      <span className="pie-value">{statistics.totalMaterials.toFixed(0)} грн ({((statistics.totalMaterials / statistics.totalServiceAmount) * 100 || 0).toFixed(1)}%)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="report-actions">
+                <button 
+                  className="btn-generate"
+                  onClick={generateHTMLReport}
+                  disabled={loading}
+                >
+                  {loading ? '⏳ Формування...' : '📊 Сформувати аналітичний звіт'}
+                </button>
+              </div>
             </div>
-          </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#333' }}>
-              Регіон:
-            </label>
-            <select
-              value={reportFilters.region}
-              onChange={(e) => handleFilterChange('region', e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                border: '1px solid #ddd',
-                borderRadius: '6px',
-                fontSize: '14px',
-                backgroundColor: '#fff'
-              }}
-            >
-              <option value="">Всі регіони</option>
-              {regions.map(region => (
-                <option key={region} value={region}>{region}</option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={reportFilters.detailed}
-                onChange={(e) => handleFilterChange('detailed', e.target.checked)}
-                style={{ transform: 'scale(1.2)' }}
-              />
-              <span style={{ fontWeight: '500', color: '#333' }}>
-                Деталізація по звіту
-              </span>
-            </label>
-          </div>
-
-          {/* Кнопки формування звіту */}
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={() => generateReport('html')}
-              disabled={loading}
-              style={{
-                padding: '12px 24px',
-                backgroundColor: '#007bff',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                fontWeight: '600',
-                opacity: loading ? 0.6 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              {loading ? '⏳' : '📄'} Формування звіту в HTML
-            </button>
-            <button
-              onClick={() => generateReport('excel')}
-              disabled={loading}
-              style={{
-                padding: '12px 24px',
-                backgroundColor: '#28a745',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                fontWeight: '600',
-                opacity: loading ? 0.6 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              {loading ? '⏳' : '📊'} Експорт Excel
-            </button>
-          </div>
-        </div>
-        )}
-
-        {/* Звіт по персоналу */}
-        {activeReport === 'personnel' && (
-        <div style={{
-          backgroundColor: '#f8f9fa',
-          borderRadius: '8px',
-          padding: '20px',
-          marginBottom: '20px',
-          border: '1px solid #e9ecef'
-        }}>
-          <h3 style={{ 
-            margin: '0 0 16px 0', 
-            color: '#333', 
-            fontSize: '18px',
-            fontWeight: '600',
-            borderBottom: '2px solid #007bff',
-            paddingBottom: '8px'
-          }}>
-            Табель персоналу
-          </h3>
-
-          {/* Фільтри для персоналу */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#333' }}>
-                Місяць:
-              </label>
-              <select
-                value={personnelFilters.month}
-                onChange={(e) => {
-                const monthValue = parseInt(e.target.value, 10);
-                console.log('[PERSONNEL REPORT] Select changed - value:', e.target.value, 'parsed:', monthValue);
-                setPersonnelFilters(prev => ({ ...prev, month: monthValue }));
-              }}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #ddd',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  backgroundColor: '#fff'
-                }}
-              >
-                <option value={1}>Січень</option>
-                <option value={2}>Лютий</option>
-                <option value={3}>Березень</option>
-                <option value={4}>Квітень</option>
-                <option value={5}>Травень</option>
-                <option value={6}>Червень</option>
-                <option value={7}>Липень</option>
-                <option value={8}>Серпень</option>
-                <option value={9}>Вересень</option>
-                <option value={10}>Жовтень</option>
-                <option value={11}>Листопад</option>
-                <option value={12}>Грудень</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#333' }}>
-                Рік:
-              </label>
-              <select
-                value={personnelFilters.year}
-                onChange={(e) => setPersonnelFilters(prev => ({ ...prev, year: parseInt(e.target.value) }))}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #ddd',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  backgroundColor: '#fff'
-                }}
-              >
-                <option value={2023}>2023</option>
-                <option value={2024}>2024</option>
-                <option value={2025}>2025</option>
-                <option value={2026}>2026</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Чекбокс для показу звільнених працівників */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#333' }}>
-              <input 
-                type="checkbox" 
-                checked={personnelFilters.showDismissed || false}
-                onChange={(e) => setPersonnelFilters(prev => ({ ...prev, showDismissed: e.target.checked }))}
-                style={{
-                  width: '18px',
-                  height: '18px',
-                  cursor: 'pointer'
-                }}
-              />
-              <span style={{ fontWeight: '500' }}>Показати всіх працівників (включно зі звільненими)</span>
-            </label>
-          </div>
-
-          {/* Кнопка формування звіту */}
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={generatePersonnelReport}
-              disabled={loading}
-              style={{
-                padding: '12px 24px',
-                backgroundColor: '#007bff',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                fontWeight: '600',
-                opacity: loading ? 0.6 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              {loading ? '⏳' : '📄'} Сформувати звіт
-            </button>
-          </div>
-        </div>
-        )}
-
-        {/* Кнопка закриття */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
-          <button
-            onClick={onClose}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-          >
-            Закрити
-          </button>
+          )}
         </div>
       </div>
     </div>
   );
-};
+}
 
 export default AccountantReportsModal;

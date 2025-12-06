@@ -1,0 +1,424 @@
+.contracts-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface);
+}
+
+/* Прогрес завантаження PDF ключів */
+.pdf-loading-progress {
+  padding: 12px 24px;
+  background: var(--surface-dark);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pdf-loading-progress span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--success));
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.contracts-loading,
+.contracts-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 48px;
+}
+
+.contracts-loading .spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.contracts-error p {
+  color: var(--error);
+}
+
+/* Таблиця */
+.contracts-table-wrapper {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.contracts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.contracts-table thead {
+  position: sticky;
+  top: 0;
+  background: var(--surface-dark);
+  z-index: 10;
+}
+
+.contracts-table th {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+  vertical-align: top;
+}
+
+.contracts-table th.center {
+  text-align: center;
+}
+
+.th-filter {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.th-filter::placeholder {
+  color: var(--text-secondary);
+}
+
+.th-filter:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.th-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-top: 4px;
+}
+
+.contracts-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.contracts-table td.center {
+  text-align: center;
+}
+
+.contracts-table tbody tr {
+  transition: background 0.15s;
+}
+
+.contracts-table tbody tr:nth-child(even) {
+  background: rgba(51, 65, 85, 0.3);
+}
+
+.contracts-table tbody tr:hover {
+  background: rgba(96, 165, 250, 0.1);
+}
+
+.contracts-table tbody tr.has-active {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.contracts-table tbody tr.has-active:hover {
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px !important;
+  color: var(--text-secondary);
+}
+
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 40px;
+}
+
+.badge-active {
+  background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000);
+  background-size: 400% 100%;
+  animation: rainbow-move 3s ease infinite;
+  color: white;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes rainbow-move {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.badge-empty {
+  background: var(--surface-dark);
+  color: var(--text-secondary);
+}
+
+.sum-badge {
+  color: #10b981;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.contracts-count-badge {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Кнопки */
+.btn-view-contracts {
+  padding: 8px 14px;
+  background: var(--success);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-view-contracts:hover:not(:disabled) {
+  background: #059669;
+}
+
+.btn-view-contracts:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-active-tasks {
+  padding: 8px 14px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-active-tasks:hover:not(:disabled) {
+  background: #3b82f6;
+}
+
+.btn-active-tasks:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Модальне вікно */
+.contract-modal {
+  max-width: 900px;
+  max-height: 80vh;
+}
+
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.contract-info-row {
+  color: var(--text-primary);
+  margin-bottom: 20px;
+  font-size: 15px;
+}
+
+.modal-body h3 {
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
+/* Список файлів договорів */
+.contract-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.contract-file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: var(--surface-dark);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.contract-file-info {
+  flex: 1;
+}
+
+.contract-file-name {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.contract-file-name .files-count {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+  margin-left: 8px;
+}
+
+.contract-file-stats {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.contract-file-stats .active-count {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.active-tasks-numbers {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.active-tasks-numbers strong {
+  color: var(--text-primary);
+}
+
+.active-tasks-numbers .numbers-list {
+  color: #00bfff;
+  font-size: 13px;
+}
+
+.btn-open-file {
+  padding: 10px 16px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+  white-space: nowrap;
+  margin-left: 16px;
+}
+
+.btn-open-file:hover {
+  background: #3b82f6;
+}
+
+.no-contracts {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 24px;
+  background: var(--surface-dark);
+  border-radius: 8px;
+}
+
+/* Підсумок */
+.contract-summary {
+  display: flex;
+  gap: 24px;
+  padding: 16px;
+  background: var(--surface-dark);
+  border-radius: 8px;
+  margin-top: 16px;
+}
+
+.contract-summary div {
+  color: var(--text-primary);
+}
+
+/* Міні-таблиця */
+.mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 16px;
+}
+
+.mini-table th {
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--surface-dark);
+  border-bottom: 1px solid var(--border);
+}
+
+.mini-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.mini-table tbody tr.active-task {
+  background: rgba(16, 185, 129, 0.15);
+}
+
+.mini-table tbody tr:hover {
+  background: rgba(96, 165, 250, 0.1);
+}
+
+/* Статус badges */
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.status-заявка {
+  background: #fbbf24;
+  color: #1a1a1a;
+}
+
+.status-badge.status-в-роботі {
+  background: #3b82f6;
+  color: white;
+}
+
+.status-badge.status-виконано {
+  background: #10b981;
+  color: white;
+}
+
+.status-badge.status-заблоковано {
+  background: #ef4444;
+  color: white;
+}
