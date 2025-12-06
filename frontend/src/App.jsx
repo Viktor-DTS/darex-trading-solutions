@@ -159,18 +159,47 @@ function App() {
       const token = localStorage.getItem('token');
       if (token) {
         const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Перевіряємо валідність токену через API
         if (userData.login) {
-          setUser(userData);
-          // Встановлюємо панель за замовчуванням або збережену
-          const savedPanel = localStorage.getItem('currentPanel');
-          const defaultPanel = getDefaultPanelForRole(userData.role, rules);
-          const availablePanels = getAvailablePanelsForRole(userData.role, rules).map(p => p.id);
-          
-          if (savedPanel && availablePanels.includes(savedPanel)) {
-            setCurrentPanel(savedPanel);
-          } else {
-            setCurrentPanel(defaultPanel);
+          try {
+            const response = await fetch(`${API_BASE_URL}/users/${userData.login}`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            // Якщо токен валідний - відновлюємо сесію
+            if (response.ok) {
+              const updatedUser = await response.json();
+              setUser(updatedUser);
+              
+              // Встановлюємо панель за замовчуванням або збережену
+              const savedPanel = localStorage.getItem('currentPanel');
+              const defaultPanel = getDefaultPanelForRole(updatedUser.role, rules);
+              const availablePanels = getAvailablePanelsForRole(updatedUser.role, rules).map(p => p.id);
+              
+              if (savedPanel && availablePanels.includes(savedPanel)) {
+                setCurrentPanel(savedPanel);
+              } else {
+                setCurrentPanel(defaultPanel);
+              }
+            } else {
+              // Токен невалідний - очищаємо localStorage
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              localStorage.removeItem('currentPanel');
+            }
+          } catch (error) {
+            // Помилка перевірки - очищаємо localStorage
+            console.error('Помилка перевірки токену:', error);
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('currentPanel');
           }
+        } else {
+          // Немає даних користувача - очищаємо токен
+          localStorage.removeItem('token');
         }
       }
       setLoading(false);
