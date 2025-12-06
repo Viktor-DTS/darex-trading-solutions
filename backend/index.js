@@ -82,7 +82,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'newservicegidra-secret-key-2024';
 // ============================================
 
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'],
+  origin: [
+    'http://localhost:5173', 
+    'http://localhost:3000', 
+    'http://localhost:5174',
+    'https://darex-trading-solutions-f.onrender.com' // Render frontend
+  ],
   credentials: true
 }));
 
