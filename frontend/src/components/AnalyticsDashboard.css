@@ -101,7 +101,7 @@
 /* KPI Grid */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -126,6 +126,11 @@
 .kpi-card.purple { background: linear-gradient(135deg, #9C27B0, #6A1B9A); }
 .kpi-card.orange { background: linear-gradient(135deg, #FF5722, #BF360C); }
 .kpi-card.teal { background: linear-gradient(135deg, #009688, #00695C); }
+.kpi-card.cyan { background: linear-gradient(135deg, #00BCD4, #00838F); }
+.kpi-card.pink { background: linear-gradient(135deg, #E91E63, #AD1457); }
+.kpi-card.red { background: linear-gradient(135deg, #F44336, #C62828); }
+.kpi-card.yellow { background: linear-gradient(135deg, #FFC107, #F57C00); }
+.kpi-card.indigo { background: linear-gradient(135deg, #3F51B5, #283593); }
 
 .kpi-icon {
   font-size: 36px;
@@ -153,6 +158,13 @@
   font-size: 13px;
   color: rgba(255,255,255,0.8);
   margin-top: 4px;
+}
+
+.kpi-change {
+  font-size: 11px;
+  margin-top: 4px;
+  font-weight: 600;
+  opacity: 0.9;
 }
 
 /* Charts */

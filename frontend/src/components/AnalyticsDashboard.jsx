@@ -190,7 +190,9 @@ export default function AnalyticsDashboard({ user }) {
   // Фільтри
   const [filters, setFilters] = useState({
     year: new Date().getFullYear(),
-    region: ''
+    month: '',
+    region: '',
+    period: 'year' // year, month, quarter
   });
 
   // Завантаження даних
@@ -232,8 +234,21 @@ export default function AnalyticsDashboard({ user }) {
       
       const taskDate = task.date || task.requestDate;
       if (taskDate) {
-        const taskYear = new Date(taskDate).getFullYear();
+        const date = new Date(taskDate);
+        const taskYear = date.getFullYear();
+        const taskMonth = date.getMonth() + 1;
+        const taskQuarter = Math.floor(taskMonth / 3) + 1;
+        
         if (taskYear !== filters.year) return false;
+        
+        if (filters.period === 'month' && filters.month && taskMonth !== parseInt(filters.month)) {
+          return false;
+        }
+        
+        if (filters.period === 'quarter') {
+          const currentQuarter = Math.floor((new Date().getMonth() + 1) / 3) + 1;
+          if (taskQuarter !== currentQuarter) return false;
+        }
       }
       
       if (user?.region && user.region !== 'Україна' && task.serviceRegion !== user.region) {
@@ -249,6 +264,12 @@ export default function AnalyticsDashboard({ user }) {
     const completed = filteredTasks.filter(t => t.status === 'Виконано');
     const totalRevenue = completed.reduce((sum, t) => sum + (parseFloat(t.serviceTotal) || 0), 0);
     const totalWorkPrice = completed.reduce((sum, t) => sum + (parseFloat(t.workPrice) || 0), 0);
+    const totalMaterials = completed.reduce((sum, t) => {
+      const materials = (parseFloat(t.oilTotal) || 0) + (parseFloat(t.filterSum) || 0) + 
+                       (parseFloat(t.fuelFilterSum) || 0) + (parseFloat(t.airFilterSum) || 0) +
+                       (parseFloat(t.antifreezeSum) || 0) + (parseFloat(t.otherSum) || 0);
+      return sum + materials;
+    }, 0);
     const avgTaskValue = completed.length > 0 ? totalRevenue / completed.length : 0;
     
     const approvedByAll = completed.filter(t => 
@@ -259,14 +280,59 @@ export default function AnalyticsDashboard({ user }) {
       ? (completed.length / filteredTasks.length) * 100 
       : 0;
 
+    // Середній час виконання (від створення до виконання)
+    let avgCompletionTime = 0;
+    if (completed.length > 0) {
+      const times = completed
+        .filter(t => t.autoCreatedAt && t.autoCompletedAt)
+        .map(t => {
+          const created = new Date(t.autoCreatedAt);
+          const completed = new Date(t.autoCompletedAt);
+          return (completed - created) / (1000 * 60 * 60 * 24); // дні
+        });
+      if (times.length > 0) {
+        avgCompletionTime = times.reduce((a, b) => a + b, 0) / times.length;
+      }
+    }
+
+    // Швидкість підтвердження (від виконання до підтвердження)
+    let avgApprovalTime = 0;
+    const approvedTasks = completed.filter(t => 
+      t.autoCompletedAt && t.autoAccountantApprovedAt
+    );
+    if (approvedTasks.length > 0) {
+      const times = approvedTasks.map(t => {
+        const completed = new Date(t.autoCompletedAt);
+        const approved = new Date(t.autoAccountantApprovedAt);
+        return (approved - completed) / (1000 * 60 * 60 * 24); // дні
+      });
+      if (times.length > 0) {
+        avgApprovalTime = times.reduce((a, b) => a + b, 0) / times.length;
+      }
+    }
+
+    // Відхилені заявки
+    const rejectedTasks = filteredTasks.filter(t => 
+      t.approvedByWarehouse === 'Відмова' || t.approvedByAccountant === 'Відмова'
+    ).length;
+
+    // Термінові заявки
+    const urgentTasks = filteredTasks.filter(t => t.urgentRequest === true).length;
+
     return {
       totalTasks: filteredTasks.length,
       completedTasks: completed.length,
       totalRevenue,
       totalWorkPrice,
+      totalMaterials,
       avgTaskValue,
       approvedByAll,
-      conversionRate
+      conversionRate,
+      avgCompletionTime: avgCompletionTime.toFixed(1),
+      avgApprovalTime: avgApprovalTime.toFixed(1),
+      rejectedTasks,
+      urgentTasks,
+      pendingTasks: filteredTasks.filter(t => t.status === 'В роботі' || t.status === 'Заявка').length
     };
   }, [filteredTasks]);
 
@@ -392,6 +458,96 @@ export default function AnalyticsDashboard({ user }) {
     return Object.values(types);
   }, [filteredTasks]);
 
+  // Статистика по типах робіт
+  const workTypeData = useMemo(() => {
+    const works = {};
+    
+    filteredTasks.filter(t => t.status === 'Виконано').forEach(task => {
+      const work = task.work || 'Не вказано';
+      if (!works[work]) {
+        works[work] = { name: work, tasks: 0, revenue: 0, avgTime: 0, times: [] };
+      }
+      works[work].tasks++;
+      works[work].revenue += parseFloat(task.serviceTotal) || 0;
+      
+      if (task.autoCreatedAt && task.autoCompletedAt) {
+        const created = new Date(task.autoCreatedAt);
+        const completed = new Date(task.autoCompletedAt);
+        const days = (completed - created) / (1000 * 60 * 60 * 24);
+        works[work].times.push(days);
+      }
+    });
+    
+    return Object.values(works).map(w => ({
+      ...w,
+      avgTime: w.times.length > 0 ? (w.times.reduce((a, b) => a + b, 0) / w.times.length).toFixed(1) : 0
+    })).sort((a, b) => b.tasks - a.tasks);
+  }, [filteredTasks]);
+
+  // Статистика по обладнанню
+  const equipmentData = useMemo(() => {
+    const equipment = {};
+    
+    filteredTasks.filter(t => t.status === 'Виконано').forEach(task => {
+      const eq = task.equipment || 'Не вказано';
+      if (!equipment[eq]) {
+        equipment[eq] = { name: eq, tasks: 0, revenue: 0, avgCost: 0 };
+      }
+      equipment[eq].tasks++;
+      equipment[eq].revenue += parseFloat(task.serviceTotal) || 0;
+    });
+    
+    return Object.values(equipment)
+      .map(eq => ({
+        ...eq,
+        avgCost: eq.tasks > 0 ? eq.revenue / eq.tasks : 0
+      }))
+      .sort((a, b) => b.tasks - a.tasks)
+      .slice(0, 15);
+  }, [filteredTasks]);
+
+  // Порівняльна аналітика (попередній період)
+  const comparisonData = useMemo(() => {
+    const currentYear = filters.year;
+    const prevYear = currentYear - 1;
+    
+    const currentPeriod = filteredTasks.filter(t => {
+      const date = t.date || t.requestDate;
+      if (!date) return false;
+      const year = new Date(date).getFullYear();
+      return year === currentYear;
+    });
+    
+    const prevPeriod = tasks.filter(t => {
+      const date = t.date || t.requestDate;
+      if (!date) return false;
+      const year = new Date(date).getFullYear();
+      return year === prevYear;
+    });
+    
+    const currentCompleted = currentPeriod.filter(t => t.status === 'Виконано');
+    const prevCompleted = prevPeriod.filter(t => t.status === 'Виконано');
+    
+    const currentRevenue = currentCompleted.reduce((sum, t) => sum + (parseFloat(t.serviceTotal) || 0), 0);
+    const prevRevenue = prevCompleted.reduce((sum, t) => sum + (parseFloat(t.serviceTotal) || 0), 0);
+    
+    const revenueChange = prevRevenue > 0 ? ((currentRevenue - prevRevenue) / prevRevenue * 100) : 0;
+    const tasksChange = prevPeriod.length > 0 ? ((currentPeriod.length - prevPeriod.length) / prevPeriod.length * 100) : 0;
+    
+    return {
+      currentYear,
+      prevYear,
+      currentTasks: currentPeriod.length,
+      prevTasks: prevPeriod.length,
+      tasksChange: tasksChange.toFixed(1),
+      currentRevenue,
+      prevRevenue,
+      revenueChange: revenueChange.toFixed(1),
+      currentCompleted: currentCompleted.length,
+      prevCompleted: prevCompleted.length
+    };
+  }, [filteredTasks, filters.year, tasks]);
+
   if (loading) {
     return <div className="analytics-loading">⏳ Завантаження аналітики...</div>;
   }
@@ -403,6 +559,14 @@ export default function AnalyticsDashboard({ user }) {
         <h2>📈 Аналітика та статистика</h2>
         <div className="header-filters">
           <select 
+            value={filters.period} 
+            onChange={e => setFilters(prev => ({ ...prev, period: e.target.value }))}
+          >
+            <option value="year">Рік</option>
+            <option value="quarter">Квартал</option>
+            <option value="month">Місяць</option>
+          </select>
+          <select 
             value={filters.year} 
             onChange={e => setFilters(prev => ({ ...prev, year: parseInt(e.target.value) }))}
           >
@@ -410,6 +574,17 @@ export default function AnalyticsDashboard({ user }) {
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
+          {filters.period === 'month' && (
+            <select 
+              value={filters.month} 
+              onChange={e => setFilters(prev => ({ ...prev, month: e.target.value }))}
+            >
+              <option value="">Всі місяці</option>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
+                <option key={m} value={m}>{getMonthName(m)}</option>
+              ))}
+            </select>
+          )}
           <select 
             value={filters.region} 
             onChange={e => setFilters(prev => ({ ...prev, region: e.target.value }))}
@@ -455,6 +630,24 @@ export default function AnalyticsDashboard({ user }) {
           onClick={() => setActiveTab('clients')}
         >
           🏢 Клієнти
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'performance' ? 'active' : ''}`}
+          onClick={() => setActiveTab('performance')}
+        >
+          ⚡ Продуктивність
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'equipment' ? 'active' : ''}`}
+          onClick={() => setActiveTab('equipment')}
+        >
+          🔧 Обладнання
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'comparison' ? 'active' : ''}`}
+          onClick={() => setActiveTab('comparison')}
+        >
+          📊 Порівняння
         </button>
       </div>
 
@@ -503,6 +696,41 @@ export default function AnalyticsDashboard({ user }) {
               <div className="kpi-info">
                 <div className="kpi-value">{kpiData.approvedByAll}</div>
                 <div className="kpi-label">Підтверджено</div>
+              </div>
+            </div>
+            <div className="kpi-card cyan">
+              <div className="kpi-icon">⏱️</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{kpiData.avgCompletionTime}</div>
+                <div className="kpi-label">Сер. час виконання (дні)</div>
+              </div>
+            </div>
+            <div className="kpi-card pink">
+              <div className="kpi-icon">⚡</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{kpiData.avgApprovalTime}</div>
+                <div className="kpi-label">Сер. час підтвердження (дні)</div>
+              </div>
+            </div>
+            <div className="kpi-card red">
+              <div className="kpi-icon">❌</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{kpiData.rejectedTasks}</div>
+                <div className="kpi-label">Відхилено</div>
+              </div>
+            </div>
+            <div className="kpi-card yellow">
+              <div className="kpi-icon">🚨</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{kpiData.urgentTasks}</div>
+                <div className="kpi-label">Термінові</div>
+              </div>
+            </div>
+            <div className="kpi-card indigo">
+              <div className="kpi-icon">📦</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{formatCurrency(kpiData.totalMaterials)}</div>
+                <div className="kpi-label">Матеріали</div>
               </div>
             </div>
           </div>
@@ -642,6 +870,166 @@ export default function AnalyticsDashboard({ user }) {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ПРОДУКТИВНІСТЬ */}
+      {activeTab === 'performance' && (
+        <div className="tab-content">
+          <div className="charts-row">
+            <div className="chart-card">
+              <h3>⏱️ Середній час виконання по типах робіт</h3>
+              <SimpleBarChart 
+                data={workTypeData.slice(0, 10)} 
+                dataKey="avgTime" 
+                nameKey="name" 
+                horizontal={true}
+                showValues={true}
+              />
+            </div>
+            <div className="chart-card">
+              <h3>📊 Кількість заявок по типах робіт</h3>
+              <SimplePieChart data={workTypeData.slice(0, 8)} dataKey="tasks" nameKey="name" />
+            </div>
+          </div>
+          
+          <div className="data-table-card">
+            <h3>📋 Детальна статистика по типах робіт</h3>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>№</th>
+                  <th>Тип робіт</th>
+                  <th>Виконано</th>
+                  <th>Дохід</th>
+                  <th>Сер. чек</th>
+                  <th>Сер. час (дні)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {workTypeData.map((work, i) => (
+                  <tr key={work.name}>
+                    <td>{i + 1}</td>
+                    <td>{work.name}</td>
+                    <td>{work.tasks}</td>
+                    <td>{formatCurrency(work.revenue)}</td>
+                    <td>{formatCurrency(work.tasks > 0 ? work.revenue / work.tasks : 0)}</td>
+                    <td>{work.avgTime}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ОБЛАДНАННЯ */}
+      {activeTab === 'equipment' && (
+        <div className="tab-content">
+          <div className="chart-card full-width">
+            <h3>🔧 Топ-15 типів обладнання по кількості заявок</h3>
+            <SimpleBarChart data={equipmentData} dataKey="tasks" nameKey="name" horizontal={true} />
+          </div>
+          
+          <div className="chart-card full-width">
+            <h3>💰 Дохід по типах обладнання</h3>
+            <SimpleBarChart data={equipmentData} dataKey="revenue" nameKey="name" horizontal={true} />
+          </div>
+
+          <div className="data-table-card">
+            <h3>📋 Детальна статистика по обладнанню</h3>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>№</th>
+                  <th>Тип обладнання</th>
+                  <th>Заявок</th>
+                  <th>Дохід</th>
+                  <th>Сер. вартість</th>
+                </tr>
+              </thead>
+              <tbody>
+                {equipmentData.map((eq, i) => (
+                  <tr key={eq.name}>
+                    <td>{i + 1}</td>
+                    <td>{eq.name}</td>
+                    <td>{eq.tasks}</td>
+                    <td>{formatCurrency(eq.revenue)}</td>
+                    <td>{formatCurrency(eq.avgCost)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ПОРІВНЯННЯ */}
+      {activeTab === 'comparison' && (
+        <div className="tab-content">
+          <div className="kpi-grid">
+            <div className="kpi-card blue">
+              <div className="kpi-icon">📊</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{comparisonData.currentTasks}</div>
+                <div className="kpi-label">Заявок {comparisonData.currentYear}</div>
+                <div className="kpi-change" style={{ 
+                  color: parseFloat(comparisonData.tasksChange) >= 0 ? '#4CAF50' : '#f44336' 
+                }}>
+                  {parseFloat(comparisonData.tasksChange) >= 0 ? '↑' : '↓'} {Math.abs(parseFloat(comparisonData.tasksChange))}% vs {comparisonData.prevYear}
+                </div>
+              </div>
+            </div>
+            <div className="kpi-card gold">
+              <div className="kpi-icon">💰</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{formatCurrency(comparisonData.currentRevenue)}</div>
+                <div className="kpi-label">Дохід {comparisonData.currentYear}</div>
+                <div className="kpi-change" style={{ 
+                  color: parseFloat(comparisonData.revenueChange) >= 0 ? '#4CAF50' : '#f44336' 
+                }}>
+                  {parseFloat(comparisonData.revenueChange) >= 0 ? '↑' : '↓'} {Math.abs(parseFloat(comparisonData.revenueChange))}% vs {comparisonData.prevYear}
+                </div>
+              </div>
+            </div>
+            <div className="kpi-card green">
+              <div className="kpi-icon">✅</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{comparisonData.currentCompleted}</div>
+                <div className="kpi-label">Виконано {comparisonData.currentYear}</div>
+                <div className="kpi-change" style={{ 
+                  color: comparisonData.currentCompleted >= comparisonData.prevCompleted ? '#4CAF50' : '#f44336' 
+                }}>
+                  {comparisonData.currentCompleted >= comparisonData.prevCompleted ? '↑' : '↓'} {comparisonData.prevCompleted} в {comparisonData.prevYear}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="charts-row">
+            <div className="chart-card">
+              <h3>📊 Порівняння заявок</h3>
+              <SimpleBarChart 
+                data={[
+                  { name: `${comparisonData.prevYear}`, value: comparisonData.prevTasks },
+                  { name: `${comparisonData.currentYear}`, value: comparisonData.currentTasks }
+                ]} 
+                dataKey="value" 
+                nameKey="name" 
+              />
+            </div>
+            <div className="chart-card">
+              <h3>💰 Порівняння доходу</h3>
+              <SimpleBarChart 
+                data={[
+                  { name: `${comparisonData.prevYear}`, value: comparisonData.prevRevenue },
+                  { name: `${comparisonData.currentYear}`, value: comparisonData.currentRevenue }
+                ]} 
+                dataKey="value" 
+                nameKey="name" 
+              />
+            </div>
           </div>
         </div>
       )}
