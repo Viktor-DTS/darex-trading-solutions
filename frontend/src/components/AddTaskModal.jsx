@@ -1622,6 +1622,36 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             {showSections.equipment && (
               <div className="section-content">
                 <div className="form-row">
+                  <div className="form-group">
+                    <label>Дата проведення робіт {formData.status === 'Виконано' && <span className="required">*</span>}</label>
+                    <input type="date" name="date" value={formData.date} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Найменування робіт {panelType === 'operator' && <span className="required">*</span>}</label>
+                    <select name="work" value={formData.work} onChange={handleChange} required={panelType === 'operator'}>
+                      <option value="">Виберіть...</option>
+                      <option value="ТО">ТО</option>
+                      <option value="ПНР">ПНР</option>
+                      <option value="Ремонт в цеху">Ремонт в цеху</option>
+                      <option value="Ремонт на місті">Ремонт на місті</option>
+                      <option value="Діагностика">Діагностика</option>
+                      <option value="Діагностика+ремонт">Діагностика+ремонт</option>
+                      <option value="Ремонт в цеху (волонтерство)">Ремонт в цеху (волонтерство)</option>
+                      <option value="Гарантійний ремонт в цеху">Гарантійний ремонт в цеху</option>
+                      <option value="Гарантійний ремонт на місті">Гарантійний ремонт на місті</option>
+                      <option value="Предпродажна підготовка">Предпродажна підготовка</option>
+                      <option value="Продаж ЗІП">Продаж ЗІП</option>
+                      <option value="Перекомутація">Перекомутація</option>
+                      <option value="Внутрішні роботи (завантаження)">Внутрішні роботи (завантаження)</option>
+                      <option value="Внутрішні роботи (розвантаження)">Внутрішні роботи (розвантаження)</option>
+                      {/* Додаємо поточне значення до опцій, якщо його там немає (для сумісності зі старими даними) */}
+                      {formData.work && !['', 'ТО', 'ПНР', 'Ремонт в цеху', 'Ремонт на місті', 'Діагностика', 'Діагностика+ремонт', 'Ремонт в цеху (волонтерство)', 'Гарантійний ремонт в цеху', 'Гарантійний ремонт на місті', 'Предпродажна підготовка', 'Продаж ЗІП', 'Перекомутація', 'Внутрішні роботи (завантаження)', 'Внутрішні роботи (розвантаження)'].includes(formData.work) && (
+                        <option value={formData.work}>{formData.work}</option>
+                      )}
+                    </select>
+                  </div>
+                </div>
+                <div className="form-row">
                   <div className="form-group autocomplete-wrapper">
                     <label>Тип обладнання</label>
                     <input 
@@ -1817,36 +1847,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             </div>
             {showSections.work && (
               <div className="section-content">
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Дата проведення робіт {formData.status === 'Виконано' && <span className="required">*</span>}</label>
-                    <input type="date" name="date" value={formData.date} onChange={handleChange} />
-                  </div>
-                  <div className="form-group">
-                    <label>Найменування робіт {panelType === 'operator' && <span className="required">*</span>}</label>
-                    <select name="work" value={formData.work} onChange={handleChange} required={panelType === 'operator'}>
-                      <option value="">Виберіть...</option>
-                      <option value="ТО">ТО</option>
-                      <option value="ПНР">ПНР</option>
-                      <option value="Ремонт в цеху">Ремонт в цеху</option>
-                      <option value="Ремонт на місті">Ремонт на місті</option>
-                      <option value="Діагностика">Діагностика</option>
-                      <option value="Діагностика+ремонт">Діагностика+ремонт</option>
-                      <option value="Ремонт в цеху (волонтерство)">Ремонт в цеху (волонтерство)</option>
-                      <option value="Гарантійний ремонт в цеху">Гарантійний ремонт в цеху</option>
-                      <option value="Гарантійний ремонт на місті">Гарантійний ремонт на місті</option>
-                      <option value="Предпродажна підготовка">Предпродажна підготовка</option>
-                      <option value="Продаж ЗІП">Продаж ЗІП</option>
-                      <option value="Перекомутація">Перекомутація</option>
-                      <option value="Внутрішні роботи (завантаження)">Внутрішні роботи (завантаження)</option>
-                      <option value="Внутрішні роботи (розвантаження)">Внутрішні роботи (розвантаження)</option>
-                      {/* Додаємо поточне значення до опцій, якщо його там немає (для сумісності зі старими даними) */}
-                      {formData.work && !['', 'ТО', 'ПНР', 'Ремонт в цеху', 'Ремонт на місті', 'Діагностика', 'Діагностика+ремонт', 'Ремонт в цеху (волонтерство)', 'Гарантійний ремонт в цеху', 'Гарантійний ремонт на місті', 'Предпродажна підготовка', 'Продаж ЗІП', 'Перекомутація', 'Внутрішні роботи (завантаження)', 'Внутрішні роботи (розвантаження)'].includes(formData.work) && (
-                        <option value={formData.work}>{formData.work}</option>
-                      )}
-                    </select>
-                  </div>
-                </div>
                 <div className="form-row">
                   <div className="form-group">
                     <label>Сервісний інженер №1</label>
