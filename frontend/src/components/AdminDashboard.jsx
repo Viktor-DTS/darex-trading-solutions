@@ -1105,8 +1105,6 @@ function AdminDashboard({ user }) {
         'Authorization': `Bearer ${token}`
       };
       
-      let imported = { tasks: 0, users: 0 };
-      
       // Імпортуємо права доступу
       if (importData.data.accessRules) {
         await fetch(`${API_BASE_URL}/accessRules`, {
