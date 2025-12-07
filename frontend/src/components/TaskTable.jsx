@@ -245,6 +245,34 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       });
       
       if (response.ok) {
+        // Логування події
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'delete',
+              entityType: 'task',
+              entityId: taskId,
+              description: `Видалення заявки ${taskNumber}`,
+              details: {
+                requestNumber: taskNumber,
+                status: task.status,
+                client: task.client
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         // Видаляємо заявку з локального стану
         setTasks(prev => prev.filter(t => (t._id || t.id) !== taskId));
         console.log('[DEBUG] Заявку успішно видалено:', taskId);

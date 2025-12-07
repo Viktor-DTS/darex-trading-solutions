@@ -103,6 +103,36 @@ function WarehouseDashboard({ user }) {
       });
 
       if (response.ok) {
+        // Логування події
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: approved === 'Підтверджено' ? 'approve' : 'reject',
+              entityType: 'task',
+              entityId: taskId,
+              description: approved === 'Підтверджено' 
+                ? `Підтвердження заявки ${task.requestNumber || taskId} завскладом`
+                : `Відмова заявки ${task.requestNumber || taskId} завскладом: ${comment || 'без коментаря'}`,
+              details: {
+                field: 'approvedByWarehouse',
+                oldValue: task.approvedByWarehouse || 'На розгляді',
+                newValue: approved
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         // Перезавантажуємо список
         await loadTasks();
         

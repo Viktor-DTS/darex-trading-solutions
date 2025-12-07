@@ -980,9 +980,13 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       
       // Відправляємо лог
       try {
+        const token = localStorage.getItem('token');
         await fetch(`${API_BASE_URL}/event-log`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify(logEventData)
         });
       } catch (logErr) {
@@ -1039,6 +1043,37 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
       if (response.ok) {
         const savedTask = await response.json();
+        
+        // Логування події
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'reject',
+              entityType: 'task',
+              entityId: taskId,
+              description: `Відмова заявки ${initialData?.requestNumber || taskId} бухгалтером: ${accountantRejectModal.comment}`,
+              details: {
+                field: 'approvedByAccountant',
+                oldValue: initialData?.approvedByAccountant || 'На розгляді',
+                newValue: 'Відмова',
+                comment: accountantRejectModal.comment,
+                returnTo: accountantRejectModal.returnTo
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         setAccountantRejectModal({ open: false, comment: '', returnTo: 'service' });
         if (onSave) onSave(savedTask);
         onClose();

@@ -108,6 +108,34 @@ function AccountantApprovalDashboard({ user }) {
       });
 
       if (response.ok) {
+        // Логування події
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'approve',
+              entityType: 'task',
+              entityId: taskId,
+              description: `Підтвердження заявки ${task.requestNumber || taskId} бухгалтером`,
+              details: {
+                field: 'approvedByAccountant',
+                oldValue: task.approvedByAccountant || 'На розгляді',
+                newValue: 'Підтверджено'
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         await loadTasks();
       } else {
         alert('Помилка оновлення заявки');
@@ -154,6 +182,36 @@ function AccountantApprovalDashboard({ user }) {
       });
 
       if (response.ok) {
+        // Логування події
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'reject',
+              entityType: 'task',
+              entityId: rejectModal.taskId,
+              description: `Відмова заявки ${task.requestNumber || rejectModal.taskId} бухгалтером: ${rejectModal.comment}`,
+              details: {
+                field: 'approvedByAccountant',
+                oldValue: task.approvedByAccountant || 'На розгляді',
+                newValue: 'Відмова',
+                comment: rejectModal.comment,
+                returnTo: rejectModal.returnTo
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         setRejectModal({ open: false, taskId: null, comment: '', returnTo: 'service' });
         await loadTasks();
       } else {
