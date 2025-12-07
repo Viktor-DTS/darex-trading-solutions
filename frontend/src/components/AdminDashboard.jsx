@@ -153,6 +153,39 @@ function AdminDashboard({ user }) {
       });
       
       if (res.ok) {
+        const savedUser = await res.json();
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Логування події
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: editingUser ? 'update' : 'create',
+              entityType: 'user',
+              entityId: savedUser._id || savedUser.id || editingUser?._id || editingUser?.id,
+              description: editingUser 
+                ? `Редагування користувача ${userForm.name || userForm.login}`
+                : `Створення користувача ${userForm.name || userForm.login}`,
+              details: {
+                login: userForm.login,
+                name: userForm.name,
+                role: userForm.role,
+                region: userForm.region
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         loadData();
         resetUserForm();
         alert(editingUser ? 'Користувача оновлено!' : 'Користувача додано!');
@@ -189,6 +222,35 @@ function AdminDashboard({ user }) {
       });
       
       if (res.ok) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Логування події
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'delete',
+              entityType: 'user',
+              entityId: u._id || u.id,
+              description: `Видалення користувача ${u.name || u.login}`,
+              details: {
+                login: u.login,
+                name: u.name,
+                role: u.role
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         loadData();
         alert('Користувача видалено!');
       } else {
@@ -212,6 +274,37 @@ function AdminDashboard({ user }) {
       });
       
       if (res.ok) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Логування події
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'update',
+              entityType: 'user',
+              entityId: u._id || u.id,
+              description: !u.dismissed 
+                ? `Звільнення користувача ${u.name || u.login}`
+                : `Відновлення користувача ${u.name || u.login}`,
+              details: {
+                field: 'dismissed',
+                oldValue: u.dismissed,
+                newValue: !u.dismissed
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         loadData();
       }
     } catch (error) {
@@ -255,6 +348,33 @@ function AdminDashboard({ user }) {
       });
       
       if (res.ok) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Логування події
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'create',
+              entityType: 'region',
+              entityId: newRegion.trim(),
+              description: `Додавання регіону ${newRegion.trim()}`,
+              details: {
+                region: newRegion.trim()
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         setRegions(updatedRegions);
         setNewRegion('');
       }
@@ -286,6 +406,33 @@ function AdminDashboard({ user }) {
       });
       
       if (res.ok) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Логування події
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'delete',
+              entityType: 'region',
+              entityId: regionName,
+              description: `Видалення регіону ${regionName}`,
+              details: {
+                region: regionName
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         setRegions(updatedRegions);
       }
     } catch (error) {
@@ -322,6 +469,34 @@ function AdminDashboard({ user }) {
       });
       
       if (res.ok) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Логування події
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'create',
+              entityType: 'role',
+              entityId: roleValue,
+              description: `Додавання ролі ${roleLabel} (${roleValue})`,
+              details: {
+                role: roleValue,
+                label: roleLabel
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         setRoles(updatedRoles);
         setNewRole({ value: '', label: '' });
       }
@@ -356,6 +531,33 @@ function AdminDashboard({ user }) {
       });
       
       if (res.ok) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Логування події
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'delete',
+              entityType: 'role',
+              entityId: roleValue,
+              description: `Видалення ролі ${roleValue}`,
+              details: {
+                role: roleValue
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         setRoles(updatedRoles);
       }
     } catch (error) {
@@ -617,6 +819,33 @@ function AdminDashboard({ user }) {
       });
       
       if (res.ok) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Логування події
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'update',
+              entityType: 'accessRules',
+              entityId: 'system',
+              description: 'Зміна правил доступу до панелей',
+              details: {
+                rules: accessRules
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         alert('✅ Права доступу збережено!\n\nКористувачі побачать зміни після перезаходу в систему.');
       } else {
         alert('❌ Помилка збереження');
@@ -720,6 +949,34 @@ function AdminDashboard({ user }) {
         }
       };
       
+      // Логування події
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      try {
+        await fetch(`${API_BASE_URL}/event-log`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            userId: currentUser._id || currentUser.id,
+            userName: currentUser.name || currentUser.login,
+            userRole: currentUser.role,
+            action: 'export',
+            entityType: 'backup',
+            entityId: 'json',
+            description: 'Експорт резервної копії JSON (всі дані)',
+            details: {
+              type: 'json',
+              tasksCount: exportData.data.tasks?.length || 0,
+              usersCount: exportData.data.users?.length || 0
+            }
+          })
+        });
+      } catch (logErr) {
+        console.error('Помилка логування:', logErr);
+      }
+      
       // Створюємо файл для завантаження
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -780,6 +1037,33 @@ function AdminDashboard({ user }) {
       });
       
       // Завантажуємо
+      // Логування події
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      try {
+        await fetch(`${API_BASE_URL}/event-log`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            userId: currentUser._id || currentUser.id,
+            userName: currentUser.name || currentUser.login,
+            userRole: currentUser.role,
+            action: 'export',
+            entityType: 'backup',
+            entityId: 'csv',
+            description: `Експорт заявок у форматі CSV (${tasks.length} заявок)`,
+            details: {
+              type: 'csv',
+              tasksCount: tasks.length
+            }
+          })
+        });
+      } catch (logErr) {
+        console.error('Помилка логування:', logErr);
+      }
+      
       const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -839,6 +1123,47 @@ function AdminDashboard({ user }) {
           headers,
           body: JSON.stringify(importData.data.roles)
         });
+      }
+      
+      // Підрахунок імпортованих даних
+      const imported = {
+        tasks: importData.data.tasks?.length || 0,
+        users: importData.data.users?.length || 0,
+        regions: importData.data.regions?.length || 0,
+        roles: importData.data.roles?.length || 0
+      };
+      
+      // Логування події
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      try {
+        await fetch(`${API_BASE_URL}/event-log`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            userId: currentUser._id || currentUser.id,
+            userName: currentUser.name || currentUser.login,
+            userRole: currentUser.role,
+            action: 'import',
+            entityType: 'backup',
+            entityId: 'json',
+            description: `Імпорт резервної копії JSON: ${imported.tasks} заявок, ${imported.users} користувачів`,
+            details: {
+              type: 'json',
+              tasksCount: imported.tasks,
+              usersCount: imported.users,
+              regionsCount: imported.regions,
+              rolesCount: imported.roles,
+              version: importData.version || 'unknown',
+              exportedBy: importData.exportedBy || 'unknown',
+              exportDate: importData.exportDate || 'unknown'
+            }
+          })
+        });
+      } catch (logErr) {
+        console.error('Помилка логування:', logErr);
       }
       
       alert(`✅ Імпорт завершено!\n\nДата бекапу: ${importData.exportDate}\nЕкспортував: ${importData.exportedBy}`);

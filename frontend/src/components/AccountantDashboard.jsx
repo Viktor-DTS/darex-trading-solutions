@@ -68,6 +68,34 @@ function AccountantDashboard({ user }) {
       });
       
       if (response.ok) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Логування події
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'update',
+              entityType: 'invoice',
+              entityId: requestId,
+              description: `Завантаження файлу рахунку для заявки ${selectedRequest.requestNumber || requestId}${invoiceNumber ? ` (№${invoiceNumber})` : ''}`,
+              details: {
+                invoiceNumber: invoiceNumber || '',
+                requestNumber: selectedRequest.requestNumber || ''
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         alert('✅ Файл рахунку завантажено!');
         handleCloseUploadModal();
         window.location.reload();
@@ -101,6 +129,33 @@ function AccountantDashboard({ user }) {
       });
       
       if (response.ok) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Логування події
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'update',
+              entityType: 'invoice',
+              entityId: requestId,
+              description: `Завантаження файлу акту для заявки ${selectedRequest.requestNumber || requestId}`,
+              details: {
+                requestNumber: selectedRequest.requestNumber || ''
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         alert('✅ Файл акту завантажено!');
         handleCloseUploadModal();
         window.location.reload();
@@ -211,6 +266,34 @@ function AccountantDashboard({ user }) {
       });
       
       if (response.ok) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Логування події
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'approve',
+              entityType: 'invoice',
+              entityId: requestId,
+              description: `Підтвердження виконання заявки на рахунок ${selectedRequest.requestNumber || requestId}`,
+              details: {
+                requestNumber: selectedRequest.requestNumber || '',
+                invoiceNumber: selectedRequest.invoiceNumber || ''
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         alert('✅ Заявку на рахунок підтверджено!');
         handleCloseUploadModal();
         window.location.reload();
@@ -270,6 +353,34 @@ function AccountantDashboard({ user }) {
       });
       
       if (updateResponse.ok) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Логування події
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'reject',
+              entityType: 'invoice',
+              entityId: taskId,
+              description: `Відхилення запиту на рахунок для заявки ${task.requestNumber || taskId}: ${reason}`,
+              details: {
+                requestNumber: task.requestNumber || '',
+                reason: reason
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         alert('✅ Запит на рахунок відхилено та видалено. Можна подати повторний запит.');
         window.location.reload();
       } else {
@@ -302,6 +413,35 @@ function AccountantDashboard({ user }) {
       });
       
       if (response.ok) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Логування події
+        try {
+          await fetch(`${API_BASE_URL}/event-log`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: currentUser._id || currentUser.id,
+              userName: currentUser.name || currentUser.login,
+              userRole: currentUser.role,
+              action: 'update',
+              entityType: 'invoice',
+              entityId: requestId,
+              description: `Повернення заявки на рахунок ${selectedRequest.requestNumber || requestId} в роботу`,
+              details: {
+                requestNumber: selectedRequest.requestNumber || '',
+                oldStatus: 'completed',
+                newStatus: 'processing'
+              }
+            })
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
         alert('✅ Заявку повернено в роботу!');
         handleCloseUploadModal();
         window.location.reload();
