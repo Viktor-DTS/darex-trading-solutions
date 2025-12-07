@@ -1501,29 +1501,48 @@ app.post('/api/event-log', express.text({ type: '*/*' }), async (req, res) => {
       try {
         data = JSON.parse(data);
       } catch (e) {
+        console.error('[ERROR] POST /api/event-log - Invalid JSON:', e);
         return res.status(400).json({ error: 'Invalid JSON' });
       }
     }
+    
     const { userId, userName, userRole, action, entityType, entityId, description, details } = data;
     
-    const eventLog = new EventLog({
-      userId,
-      userName,
-      userRole,
+    console.log('[DEBUG] POST /api/event-log - отримано подію:', {
       action,
       entityType,
       entityId,
-      description,
-      details,
-      ipAddress: req.ip || req.connection?.remoteAddress
+      userName,
+      description: description?.substring(0, 50)
     });
     
-    await eventLog.save();
+    // Перевірка обов'язкових полів
+    if (!action || !entityType) {
+      console.error('[ERROR] POST /api/event-log - відсутні обов\'язкові поля:', { action, entityType });
+      return res.status(400).json({ error: 'Missing required fields: action, entityType' });
+    }
+    
+    const eventLog = new EventLog({
+      userId: userId || 'unknown',
+      userName: userName || 'Unknown User',
+      userRole: userRole || 'unknown',
+      action,
+      entityType,
+      entityId: entityId || '',
+      description: description || '',
+      details: details || {},
+      ipAddress: req.ip || req.connection?.remoteAddress || 'unknown'
+    });
+    
+    const savedLog = await eventLog.save();
+    console.log('[DEBUG] POST /api/event-log - лог збережено:', savedLog._id, savedLog.action);
+    
     logPerformance('POST /api/event-log', startTime);
-    res.json({ success: true, id: eventLog._id });
+    res.json({ success: true, id: savedLog._id });
   } catch (error) {
     logPerformance('POST /api/event-log', startTime);
     console.error('[ERROR] POST /api/event-log:', error);
+    console.error('[ERROR] Stack:', error.stack);
     res.status(500).json({ error: error.message });
   }
 });

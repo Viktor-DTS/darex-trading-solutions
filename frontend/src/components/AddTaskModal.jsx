@@ -924,6 +924,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       
       // Логування події
       const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const requestNumber = savedTask.requestNumber || taskData.requestNumber || savedTask._id || savedTask.id || taskId || 'Невідомий номер';
       const logEventData = {
         userId: currentUser._id || currentUser.id,
         userName: currentUser.name || currentUser.login,
@@ -932,10 +933,17 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         entityType: 'task',
         entityId: savedTask._id || savedTask.id || taskId,
         description: taskId 
-          ? `Редагування заявки ${savedTask.requestNumber || taskId}` 
-          : `Створення заявки ${savedTask.requestNumber}`,
-        details: {}
+          ? `Редагування заявки ${requestNumber}` 
+          : `Створення заявки ${requestNumber}`,
+        details: {
+          requestNumber: requestNumber,
+          client: taskData.client || '',
+          address: taskData.address || '',
+          status: taskData.status || ''
+        }
       };
+      
+      console.log('[DEBUG] Логування події:', logEventData);
       
       // Якщо це редагування - знаходимо що змінилося
       if (taskId && initialData) {
@@ -981,7 +989,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       // Відправляємо лог
       try {
         const token = localStorage.getItem('token');
-        await fetch(`${API_BASE_URL}/event-log`, {
+        const logResponse = await fetch(`${API_BASE_URL}/event-log`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -989,8 +997,16 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           },
           body: JSON.stringify(logEventData)
         });
+        
+        if (logResponse.ok) {
+          const logResult = await logResponse.json();
+          console.log('[DEBUG] Лог успішно збережено:', logResult);
+        } else {
+          const errorText = await logResponse.text();
+          console.error('[ERROR] Помилка збереження логу:', logResponse.status, errorText);
+        }
       } catch (logErr) {
-        console.error('Помилка логування:', logErr);
+        console.error('[ERROR] Помилка логування:', logErr);
       }
       
       if (onSave) {
