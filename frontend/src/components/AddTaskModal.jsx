@@ -1184,7 +1184,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           )}
 
           {/* Основна інформація */}
-          <div className="form-section">
+          <div className="form-section section-basic">
             <div className="section-header" onClick={() => toggleSection('basic')}>
               <h3>Основна інформація</h3>
               <span className="section-toggle">{showSections.basic ? '▼' : '▶'}</span>
@@ -1313,7 +1313,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           </div>
 
           {/* Клієнт та адреса */}
-          <div className="form-section">
+          <div className="form-section section-client">
             <div className="section-header" onClick={() => toggleSection('client')}>
               <h3>Клієнт та адреса</h3>
               <span className="section-toggle">{showSections.client ? '▼' : '▶'}</span>
@@ -1613,10 +1613,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
           </div>
 
-          {/* Обладнання та матеріали */}
-          <div className="form-section">
+          {/* Роботи, обладнання та матеріали */}
+          <div className="form-section section-equipment">
             <div className="section-header" onClick={() => toggleSection('equipment')}>
-              <h3>Обладнання та матеріали</h3>
+              <h3>Роботи, обладнання та матеріали</h3>
               <span className="section-toggle">{showSections.equipment ? '▼' : '▶'}</span>
             </div>
             {showSections.equipment && (
@@ -1839,10 +1839,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
           </div>
 
-          {/* Роботи та інженери */}
-          <div className="form-section">
+          {/* Інженери */}
+          <div className="form-section section-engineers">
             <div className="section-header" onClick={() => toggleSection('work')}>
-              <h3>Роботи та інженери</h3>
+              <h3>Інженери</h3>
               <span className="section-toggle">{showSections.work ? '▼' : '▶'}</span>
             </div>
             {showSections.work && (
@@ -1912,7 +1912,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           </div>
 
           {/* Витрати та транспорт */}
-          <div className="form-section">
+          <div className="form-section section-expenses">
             <div className="section-header" onClick={() => toggleSection('expenses')}>
               <h3>Витрати та транспорт</h3>
               <span className="section-toggle">{showSections.expenses ? '▼' : '▶'}</span>
@@ -1952,7 +1952,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           </div>
 
           {/* Підтвердження завскладом та бухгалтером */}
-          <div className="form-section">
+          <div className="form-section section-approval">
             <div className="section-header" onClick={() => toggleSection('other')}>
               <h3>Підтвердження завскладом та бухгалтером</h3>
               <span className="section-toggle">{showSections.other ? '▼' : '▶'}</span>

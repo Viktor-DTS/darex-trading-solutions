@@ -264,6 +264,94 @@
   background: var(--surface);
 }
 
+/* Кольорове виділення секцій */
+.section-basic .section-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.section-basic .section-header h3 {
+  color: white;
+}
+
+.section-basic .section-header:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+.section-client .section-header {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.section-client .section-header h3 {
+  color: white;
+}
+
+.section-client .section-header:hover {
+  background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+}
+
+.section-equipment .section-header {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+}
+
+.section-equipment .section-header h3 {
+  color: white;
+}
+
+.section-equipment .section-header:hover {
+  background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+}
+
+.section-engineers .section-header {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  color: white;
+}
+
+.section-engineers .section-header h3 {
+  color: white;
+}
+
+.section-engineers .section-header:hover {
+  background: linear-gradient(135deg, #38f9d7 0%, #43e97b 100%);
+}
+
+.section-expenses .section-header {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  color: white;
+}
+
+.section-expenses .section-header h3 {
+  color: white;
+}
+
+.section-expenses .section-header:hover {
+  background: linear-gradient(135deg, #fee140 0%, #fa709a 100%);
+}
+
+.section-approval .section-header {
+  background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+  color: white;
+}
+
+.section-approval .section-header h3 {
+  color: white;
+}
+
+.section-approval .section-header:hover {
+  background: linear-gradient(135deg, #330867 0%, #30cfd0 100%);
+}
+
+.section-basic .section-toggle,
+.section-client .section-toggle,
+.section-equipment .section-toggle,
+.section-engineers .section-toggle,
+.section-expenses .section-toggle,
+.section-approval .section-toggle {
+  color: rgba(255, 255, 255, 0.9);
+}
+
 .subsection {
   margin-bottom: 14px;
   padding-bottom: 10px;
