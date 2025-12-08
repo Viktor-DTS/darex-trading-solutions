@@ -239,13 +239,9 @@ function AccountantDashboard({ user }) {
   const handleConfirmInvoice = async () => {
     if (!selectedRequest?.invoiceRequestId && !selectedRequest?._id) return;
     
-    // Перевіряємо чи є завантажений файл
+    // Перевіряємо чи є завантажений файл рахунку
     if (!selectedRequest.invoiceFile && selectedRequest.needInvoice !== false) {
       alert('❌ Спочатку завантажте файл рахунку!');
-      return;
-    }
-    if (!selectedRequest.actFile && selectedRequest.needAct) {
-      alert('❌ Спочатку завантажте файл акту!');
       return;
     }
     
@@ -712,8 +708,7 @@ function AccountantDashboard({ user }) {
                   className="btn-confirm"
                   onClick={handleConfirmInvoice}
                   disabled={uploadingId === 'confirm' || 
-                    (!selectedRequest.invoiceFile && selectedRequest.needInvoice !== false) ||
-                    (!selectedRequest.actFile && selectedRequest.needAct)}
+                    (!selectedRequest.invoiceFile && selectedRequest.needInvoice !== false)}
                 >
                   {uploadingId === 'confirm' ? '⏳ Підтвердження...' : '✅ Підтвердити виконання'}
                 </button>
