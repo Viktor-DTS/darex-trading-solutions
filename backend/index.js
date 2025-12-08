@@ -756,8 +756,8 @@ app.get('/api/tasks/filter', async (req, res) => {
           matchStage.approvedByAccountant = 'Підтверджено';
           break;
         case 'accountantInvoiceRequests':
-          // Заявки на рахунок - фільтрація буде застосована після $lookup
-          // Тут просто не додаємо обмежень, щоб потім фільтрувати по invoiceStatus
+          // Заявки на рахунок - показуємо заявки зі статусами "Заявка", "В роботі", "Виконано"
+          matchStage.status = { $in: ['Заявка', 'В роботі', 'Виконано'] };
           break;
         case 'accountantPending':
           // На підтвердженні бухгалтером: Виконано, підтверджено завскладом, не підтверджено бухгалтером
@@ -856,7 +856,7 @@ app.get('/api/tasks/filter', async (req, res) => {
       }
     ];
     
-    // Додаткова фільтрація для accountantInvoiceRequests по статусу InvoiceRequest
+    // Додаткова фільтрація для accountantInvoiceRequests
     if (status === 'accountantInvoiceRequests') {
       const showAllInvoices = req.query.showAllInvoices === 'true';
       if (showAllInvoices) {
@@ -877,11 +877,14 @@ app.get('/api/tasks/filter', async (req, res) => {
           }
         });
       } else {
-        // Показуємо активні запити: 'pending', 'processing' (не completed)
-        // Примітка: rejected запити видаляються, тому їх немає в списку
+        // Показуємо заявки зі статусами "Заявка", "В роботі", "Виконано", які мають invoiceRequestId або invoiceStatus
+        // Незалежно від статусу підтвердження завскладу
         pipeline.push({
           $match: {
-            invoiceStatus: { $in: ['pending', 'processing'] }
+            $or: [
+              { invoiceStatus: { $exists: true, $ne: null } },
+              { invoiceRequestId: { $exists: true, $ne: null } }
+            ]
           }
         });
       }
