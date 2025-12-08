@@ -50,13 +50,27 @@
   min-height: 0; /* Важливо для flex */
   height: 0; /* Додатково для правильного flex */
   position: relative;
+  width: 100%;
+}
+
+/* Зробити горизонтальний скрол більш помітним */
+.task-table-wrapper::-webkit-scrollbar {
+  height: 16px !important;
+}
+
+.task-table-wrapper::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+  border-radius: 8px;
+  border: 2px solid var(--surface-dark);
+  min-height: 16px;
 }
 
 .task-table {
   width: 100%;
+  min-width: max-content; /* Мінімальна ширина = контент для горизонтального скролу */
   border-collapse: collapse;
   font-size: 12px;
-  table-layout: fixed; /* Фіксована ширина колонок */
+  table-layout: auto; /* Автоматична ширина для горизонтального скролу */
 }
 
 .task-table thead {

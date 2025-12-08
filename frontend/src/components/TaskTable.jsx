@@ -813,17 +813,17 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
               {/* Колонка Дії - перша (трохи ширша для панелей з інформацією про рахунки) */}
               <th style={{ 
                 width: (status === 'accountantInvoiceRequests' || 
-                       status === 'service' || 
-                       status === 'operator' || 
-                       status === 'warehouse' || 
-                       status === 'accountantApproval' || 
-                       status === 'regional') ? '130px' : '70px', 
+                       columnsArea === 'service' || 
+                       columnsArea === 'operator' || 
+                       columnsArea === 'warehouse' || 
+                       columnsArea === 'accountant-approval' || 
+                       columnsArea === 'regional') ? '130px' : '70px', 
                 minWidth: (status === 'accountantInvoiceRequests' || 
-                          status === 'service' || 
-                          status === 'operator' || 
-                          status === 'warehouse' || 
-                          status === 'accountantApproval' || 
-                          status === 'regional') ? '130px' : '70px' 
+                          columnsArea === 'service' || 
+                          columnsArea === 'operator' || 
+                          columnsArea === 'warehouse' || 
+                          columnsArea === 'accountant-approval' || 
+                          columnsArea === 'regional') ? '130px' : '70px' 
               }} rowSpan={showFilters ? 2 : 1}>
                 <div className="th-content">Дії</div>
               </th>
@@ -889,11 +889,11 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                     <td className="actions-cell">
                       {/* Інформація про рахунок для панелей: бух.рахунки, сервісна служба, оператор, зав.склад, бух на затвердженні, регіональний керівник */}
                       {(status === 'accountantInvoiceRequests' || 
-                        status === 'service' || 
-                        status === 'operator' || 
-                        status === 'warehouse' || 
-                        status === 'accountantApproval' || 
-                        status === 'regional') && (
+                        columnsArea === 'service' || 
+                        columnsArea === 'operator' || 
+                        columnsArea === 'warehouse' || 
+                        columnsArea === 'accountant-approval' || 
+                        columnsArea === 'regional') && (
                         <div className="invoice-info-compact">
                           {/* Тип документів - показуємо тільки для бух.рахунки */}
                           {status === 'accountantInvoiceRequests' && (
@@ -904,13 +904,18 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                             </div>
                           )}
                           {/* Статус рахунку - показуємо для всіх панелей */}
-                          <div 
-                            className="status-badge-compact"
-                            style={{ backgroundColor: getInvoiceStatus(task).color }}
-                            title={`Статус рахунку: ${getInvoiceStatus(task).label}`}
-                          >
-                            {getInvoiceStatus(task).label}
-                          </div>
+                          {(() => {
+                            const invoiceStatus = getInvoiceStatus(task);
+                            return (
+                              <div 
+                                className="status-badge-compact"
+                                style={{ backgroundColor: invoiceStatus.color }}
+                                title={`Статус рахунку: ${invoiceStatus.label}`}
+                              >
+                                {invoiceStatus.label}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                       
