@@ -97,7 +97,7 @@
 }
 
 .form-group label {
-  color: var(--text-primary);
+  color: #333333;
   font-weight: 500;
   font-size: 11px;
 }
@@ -683,7 +683,7 @@
 }
 
 .accountant-mode .form-group label {
-  color: #ffffff !important;
+  color: #000000 !important;
 }
 
 /* Збільшуємо кількість колонок для оптимізації простору */
