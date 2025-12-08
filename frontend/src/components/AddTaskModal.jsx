@@ -2178,6 +2178,14 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       <input type="text" value={formatNumber(calculations.workPrice)} readOnly className="calculated-field" />
                     </div>
                   </>
+                ) : (
+                  <>
+                    {/* Вартість робіт для звичайного режиму */}
+                    <div className="form-group calculated">
+                      <label>Вартість робіт, грн (авторозрахунок)</label>
+                      <input type="text" value={formatNumber(calculations.workPrice)} readOnly className="calculated-field" />
+                    </div>
+                  </>
                 )}
               </div>
             )}
