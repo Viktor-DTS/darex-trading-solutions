@@ -586,6 +586,7 @@ function AdminDashboard({ user }) {
             placeholder="Пароль *"
             value={userForm.password}
             onChange={handleUserFormChange}
+            autoComplete="new-password"
           />
           <input
             name="name"

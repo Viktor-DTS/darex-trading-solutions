@@ -1315,6 +1315,58 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+// Створення нового користувача
+app.post('/api/users', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const userData = req.body;
+    
+    // Перевірка наявності обов'язкових полів
+    if (!userData.login || !userData.password || !userData.name || !userData.role) {
+      return res.status(400).json({ error: 'Обов\'язкові поля: login, password, name, role' });
+    }
+    
+    // Перевірка чи користувач з таким логіном вже існує
+    const existingUser = await User.findOne({ login: userData.login });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Користувач з таким логіном вже існує' });
+    }
+    
+    // Створюємо нового користувача
+    const newUser = new User({
+      login: userData.login,
+      password: userData.password, // В продакшені потрібно хешувати пароль
+      name: userData.name,
+      role: userData.role,
+      region: userData.region || '',
+      telegramChatId: userData.telegramChatId || '',
+      dismissed: userData.dismissed || false,
+      id: userData.id || Date.now(),
+      columnsSettings: userData.columnsSettings || {},
+      notificationSettings: userData.notificationSettings || {
+        newRequests: false,
+        pendingApproval: false,
+        accountantApproval: false,
+        approvedRequests: false,
+        rejectedRequests: false,
+        invoiceRequests: false,
+        completedInvoices: false,
+        systemNotifications: false
+      },
+      lastActivity: new Date()
+    });
+    
+    const savedUser = await newUser.save();
+    
+    logPerformance('POST /api/users', startTime);
+    res.status(201).json(savedUser);
+  } catch (error) {
+    logPerformance('POST /api/users', startTime);
+    console.error('[ERROR] POST /api/users:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Оновлення користувача по ID
 app.put('/api/users/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();
