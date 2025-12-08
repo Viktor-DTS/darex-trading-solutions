@@ -810,10 +810,20 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
           <thead>
             {/* Рядок заголовків */}
             <tr>
-              {/* Колонка Дії - перша (трохи ширша для бух.рахунки) */}
+              {/* Колонка Дії - перша (трохи ширша для панелей з інформацією про рахунки) */}
               <th style={{ 
-                width: status === 'accountantInvoiceRequests' ? '130px' : '70px', 
-                minWidth: status === 'accountantInvoiceRequests' ? '130px' : '70px' 
+                width: (status === 'accountantInvoiceRequests' || 
+                       status === 'service' || 
+                       status === 'operator' || 
+                       status === 'warehouse' || 
+                       status === 'accountantApproval' || 
+                       status === 'regional') ? '130px' : '70px', 
+                minWidth: (status === 'accountantInvoiceRequests' || 
+                          status === 'service' || 
+                          status === 'operator' || 
+                          status === 'warehouse' || 
+                          status === 'accountantApproval' || 
+                          status === 'regional') ? '130px' : '70px' 
               }} rowSpan={showFilters ? 2 : 1}>
                 <div className="th-content">Дії</div>
               </th>
@@ -877,20 +887,27 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                   >
                     {/* Комірка Дії - перша */}
                     <td className="actions-cell">
-                      {/* Інформація для панелі бух.рахунки - компактна версія */}
-                      {status === 'accountantInvoiceRequests' && (
+                      {/* Інформація про рахунок для панелей: бух.рахунки, сервісна служба, оператор, зав.склад, бух на затвердженні, регіональний керівник */}
+                      {(status === 'accountantInvoiceRequests' || 
+                        status === 'service' || 
+                        status === 'operator' || 
+                        status === 'warehouse' || 
+                        status === 'accountantApproval' || 
+                        status === 'regional') && (
                         <div className="invoice-info-compact">
-                          {/* Тип документів - в один рядок */}
-                          <div className="docs-row">
-                            {task.needInvoice && <span className="doc-badge doc-invoice" title="Потрібен рахунок">📄</span>}
-                            {task.needAct && <span className="doc-badge doc-act" title="Потрібен акт">📋</span>}
-                            {!task.needInvoice && !task.needAct && <span className="doc-badge doc-none" title="Не вказано">⚠️</span>}
-                          </div>
-                          {/* Статус рахунку */}
+                          {/* Тип документів - показуємо тільки для бух.рахунки */}
+                          {status === 'accountantInvoiceRequests' && (
+                            <div className="docs-row">
+                              {task.needInvoice && <span className="doc-badge doc-invoice" title="Потрібен рахунок">📄</span>}
+                              {task.needAct && <span className="doc-badge doc-act" title="Потрібен акт">📋</span>}
+                              {!task.needInvoice && !task.needAct && <span className="doc-badge doc-none" title="Не вказано">⚠️</span>}
+                            </div>
+                          )}
+                          {/* Статус рахунку - показуємо для всіх панелей */}
                           <div 
                             className="status-badge-compact"
                             style={{ backgroundColor: getInvoiceStatus(task).color }}
-                            title={`Статус: ${getInvoiceStatus(task).label}`}
+                            title={`Статус рахунку: ${getInvoiceStatus(task).label}`}
                           >
                             {getInvoiceStatus(task).label}
                           </div>
