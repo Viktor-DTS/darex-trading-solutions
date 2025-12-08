@@ -593,6 +593,10 @@
 }
 
 /* Спеціальні рядки для accountant-mode */
+.accountant-mode .form-row.seven-cols {
+  grid-template-columns: repeat(7, 1fr);
+}
+
 .accountant-mode .form-row.six-cols {
   grid-template-columns: repeat(6, 1fr);
 }
@@ -605,6 +609,7 @@
   grid-template-columns: 2fr 1fr;
 }
 
+.accountant-mode .form-row.seven-cols .form-group,
 .accountant-mode .form-row.six-cols .form-group,
 .accountant-mode .form-row.five-cols .form-group,
 .accountant-mode .form-row.two-cols .form-group {

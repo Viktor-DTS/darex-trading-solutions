@@ -1431,7 +1431,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         <input type="text" name="address" value={formData.address} onChange={handleChange} />
                       </div>
                     </div>
-                    <div className="form-row four-cols">
+                    <div className="form-row three-cols">
                       <div className="form-group">
                         <label>Номер рахунку</label>
                         <input type="text" name="invoice" value={formData.invoice} onChange={handleChange} />
@@ -1449,10 +1449,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                           <option value="На карту">На карту</option>
                           <option value="Інше">Інше</option>
                         </select>
-                      </div>
-                      <div className="form-group">
-                        <label>Загальна сума послуги, грн</label>
-                        <input type="text" name="serviceTotal" value={formData.serviceTotal} onChange={handleChange} placeholder="0.00" />
                       </div>
                     </div>
                   </>
@@ -1521,10 +1517,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                           <option value="На карту">На карту</option>
                           <option value="Інше">Інше</option>
                         </select>
-                      </div>
-                      <div className="form-group">
-                        <label>Загальна сума послуги, грн</label>
-                        <input type="text" name="serviceTotal" value={formData.serviceTotal} onChange={handleChange} placeholder="0.00" />
                       </div>
                     </div>
                   </>
@@ -2337,7 +2329,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             {showSections.expenses && (
               <div className="section-content">
                 {isAccountantMode ? (
-                  <div className="form-row six-cols">
+                  <div className="form-row seven-cols">
                     <div className="form-group">
                       <label>Добові, грн</label>
                       <input type="text" name="perDiem" value={formData.perDiem} onChange={handleChange} placeholder="0" />
@@ -2361,6 +2353,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     <div className="form-group">
                       <label>Транспорт, грн</label>
                       <input type="text" name="transportSum" value={formData.transportSum} onChange={handleChange} placeholder="0" />
+                    </div>
+                    <div className="form-group">
+                      <label>Загальна сума послуги, грн</label>
+                      <input type="text" name="serviceTotal" value={formData.serviceTotal} onChange={handleChange} placeholder="0.00" />
                     </div>
                   </div>
                 ) : (
@@ -2391,6 +2387,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       <div className="form-group">
                         <label>Загальна вартість тр. витрат, грн</label>
                         <input type="text" name="transportSum" value={formData.transportSum} onChange={handleChange} placeholder="0" />
+                      </div>
+                      <div className="form-group">
+                        <label>Загальна сума послуги, грн</label>
+                        <input type="text" name="serviceTotal" value={formData.serviceTotal} onChange={handleChange} placeholder="0.00" />
                       </div>
                     </div>
                   </>
