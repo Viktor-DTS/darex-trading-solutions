@@ -510,6 +510,177 @@
   display: none;
 }
 
+/* ========== РЕЖИМ ОПТИМІЗАЦІЇ ДЛЯ БУХГАЛТЕРІВ ========== */
+.accountant-mode {
+  max-width: 95vw;
+  max-height: 95vh;
+}
+
+.accountant-mode .task-form {
+  padding: 8px;
+  gap: 6px;
+}
+
+/* Прибираємо заголовки секцій повністю в режимі бухгалтера */
+.accountant-mode .section-header {
+  display: none !important;
+}
+
+.accountant-mode .section-content {
+  padding: 6px 8px;
+  border-top: none;
+}
+
+.accountant-mode .form-section {
+  margin-bottom: 6px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+}
+
+.accountant-mode .form-section:last-child {
+  border-bottom: none;
+}
+
+/* Зменшуємо відступи в формах */
+.accountant-mode .form-row {
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.accountant-mode .form-group {
+  gap: 2px;
+}
+
+.accountant-mode .form-group label {
+  font-size: 10px;
+  margin-bottom: 2px;
+}
+
+.accountant-mode .form-group input,
+.accountant-mode .form-group select,
+.accountant-mode .form-group textarea {
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+.accountant-mode .form-group textarea {
+  min-height: 35px;
+  resize: vertical;
+}
+
+/* Більше колонок для оптимізації простору */
+.accountant-mode .form-row {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.accountant-mode .form-row.four-cols {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.accountant-mode .form-row.three-cols {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* Білий шрифт для всіх полів, крім номера рахунку */
+.accountant-mode .form-group input:not([name="invoice"]),
+.accountant-mode .form-group select:not([name="invoice"]),
+.accountant-mode .form-group textarea {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.accountant-mode .form-group label {
+  color: #ffffff !important;
+}
+
+/* Номер рахунку залишаємо звичайним кольором */
+.accountant-mode .form-group input[name="invoice"] {
+  color: var(--text-primary) !important;
+  -webkit-text-fill-color: var(--text-primary) !important;
+  background: var(--surface-dark) !important;
+  font-weight: 600;
+}
+
+.accountant-mode .form-group label[for="invoice"],
+.accountant-mode .form-group:has(input[name="invoice"]) label {
+  color: var(--text-primary) !important;
+}
+
+/* Компактні чекбокси */
+.accountant-mode .checkbox-group {
+  margin: 2px 0;
+}
+
+/* Компактні кнопки */
+.accountant-mode .modal-footer {
+  padding: 8px;
+  margin-top: 8px;
+}
+
+.accountant-mode .btn-primary,
+.accountant-mode .btn-secondary {
+  padding: 6px 12px;
+  font-size: 11px;
+}
+
+
+.accountant-mode .form-group textarea {
+  min-height: 35px;
+  resize: vertical;
+}
+
+/* Білий шрифт для всіх полів, крім номера рахунку */
+.accountant-mode .form-group input:not([name="invoice"]),
+.accountant-mode .form-group select:not([name="invoice"]),
+.accountant-mode .form-group textarea {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.accountant-mode .form-group input[name="invoice"] {
+  color: var(--text-primary) !important;
+  -webkit-text-fill-color: var(--text-primary) !important;
+  background: var(--surface-dark) !important;
+}
+
+.accountant-mode .form-group label {
+  color: #ffffff !important;
+}
+
+/* Збільшуємо кількість колонок для оптимізації простору */
+.accountant-mode .form-row {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.accountant-mode .form-row.four-cols {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.accountant-mode .form-row.three-cols {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* Компактні секції */
+.accountant-mode .section-header {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.accountant-mode .section-header h3 {
+  font-size: 12px;
+  margin: 0;
+}
+
+/* Компактні чекбокси */
+.accountant-mode .checkbox-group {
+  margin: 2px 0;
+}
+
+.accountant-mode .checkbox-group label {
+  font-size: 10px;
+}
+
 /* Блок файлу договору */
 .contract-file-block {
   margin-top: 10px;

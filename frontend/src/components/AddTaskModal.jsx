@@ -200,15 +200,18 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const [error, setError] = useState(null);
   const [regions, setRegions] = useState([]);
   const [users, setUsers] = useState([]);
+  // Режим оптимізації для панелей бухгалтерів
+  const isAccountantMode = panelType === 'accountant';
+  
   const [showSections, setShowSections] = useState({
-    basic: true,
-    client: true,
-    equipment: true,
-    work: false,
-    materials: false,
-    expenses: false,
-    other: false,
-    files: true
+    basic: isAccountantMode ? true : true,
+    client: isAccountantMode ? true : true,
+    equipment: isAccountantMode ? true : true,
+    work: isAccountantMode ? true : false,
+    materials: isAccountantMode ? true : false,
+    expenses: isAccountantMode ? true : false,
+    other: isAccountantMode ? true : false,
+    files: isAccountantMode ? true : true
   });
   
   // Стан для файлу договору
@@ -754,6 +757,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   };
 
   const toggleSection = (section) => {
+    // В режимі бухгалтера не дозволяємо згортати секції
+    if (isAccountantMode) {
+      return;
+    }
     setShowSections(prev => ({
       ...prev,
       [section]: !prev[section]
@@ -1118,7 +1125,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className={`modal-content ${isDebtOnlyMode ? 'debt-only-mode' : ''} ${isReadOnly ? 'read-only-mode' : ''}`} onClick={(e) => e.stopPropagation()}>
+      <div className={`modal-content ${isDebtOnlyMode ? 'debt-only-mode' : ''} ${isReadOnly ? 'read-only-mode' : ''} ${isAccountantMode ? 'accountant-mode' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>
             {isNewTask ? 'Додати нову заявку' : isReadOnly ? 'Перегляд заявки' : 'Редагувати заявку'}
@@ -1201,10 +1208,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
           {/* Основна інформація */}
           <div className="form-section section-basic">
-            <div className="section-header" onClick={() => toggleSection('basic')}>
-              <h3>Основна інформація</h3>
-              <span className="section-toggle">{showSections.basic ? '▼' : '▶'}</span>
-            </div>
+            {!isAccountantMode && (
+              <div className="section-header" onClick={() => toggleSection('basic')}>
+                <h3>Основна інформація</h3>
+                <span className="section-toggle">{showSections.basic ? '▼' : '▶'}</span>
+              </div>
+            )}
             {showSections.basic && (
               <div className="section-content">
                 <div className="form-row four-cols">
@@ -1330,10 +1339,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
           {/* Клієнт та адреса */}
           <div className="form-section section-client">
-            <div className="section-header" onClick={() => toggleSection('client')}>
-              <h3>Клієнт та адреса</h3>
-              <span className="section-toggle">{showSections.client ? '▼' : '▶'}</span>
-            </div>
+            {!isAccountantMode && (
+              <div className="section-header" onClick={() => toggleSection('client')}>
+                <h3>Клієнт та адреса</h3>
+                <span className="section-toggle">{showSections.client ? '▼' : '▶'}</span>
+              </div>
+            )}
             {showSections.client && (
               <div className="section-content">
                 <div className="form-row">
@@ -1631,10 +1642,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
           {/* Роботи, обладнання та матеріали */}
           <div className="form-section section-equipment">
-            <div className="section-header" onClick={() => toggleSection('equipment')}>
-              <h3>Роботи, обладнання та матеріали</h3>
-              <span className="section-toggle">{showSections.equipment ? '▼' : '▶'}</span>
-            </div>
+            {!isAccountantMode && (
+              <div className="section-header" onClick={() => toggleSection('equipment')}>
+                <h3>Роботи, обладнання та матеріали</h3>
+                <span className="section-toggle">{showSections.equipment ? '▼' : '▶'}</span>
+              </div>
+            )}
             {showSections.equipment && (
               <div className="section-content">
                 <div className="form-row">
@@ -1857,10 +1870,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
           {/* Інженери */}
           <div className="form-section section-engineers">
-            <div className="section-header" onClick={() => toggleSection('work')}>
-              <h3>Інженери</h3>
-              <span className="section-toggle">{showSections.work ? '▼' : '▶'}</span>
-            </div>
+            {!isAccountantMode && (
+              <div className="section-header" onClick={() => toggleSection('work')}>
+                <h3>Інженери</h3>
+                <span className="section-toggle">{showSections.work ? '▼' : '▶'}</span>
+              </div>
+            )}
             {showSections.work && (
               <div className="section-content">
                 <div className="form-row">
@@ -1929,10 +1944,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
           {/* Витрати та транспорт */}
           <div className="form-section section-expenses">
-            <div className="section-header" onClick={() => toggleSection('expenses')}>
-              <h3>Витрати та транспорт</h3>
-              <span className="section-toggle">{showSections.expenses ? '▼' : '▶'}</span>
-            </div>
+            {!isAccountantMode && (
+              <div className="section-header" onClick={() => toggleSection('expenses')}>
+                <h3>Витрати та транспорт</h3>
+                <span className="section-toggle">{showSections.expenses ? '▼' : '▶'}</span>
+              </div>
+            )}
             {showSections.expenses && (
               <div className="section-content">
                 <div className="form-row three-cols">
@@ -1969,10 +1986,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
           {/* Підтвердження завскладом та бухгалтером */}
           <div className="form-section section-approval">
-            <div className="section-header" onClick={() => toggleSection('other')}>
-              <h3>Підтвердження завскладом та бухгалтером</h3>
-              <span className="section-toggle">{showSections.other ? '▼' : '▶'}</span>
-            </div>
+            {!isAccountantMode && (
+              <div className="section-header" onClick={() => toggleSection('other')}>
+                <h3>Підтвердження завскладом та бухгалтером</h3>
+                <span className="section-toggle">{showSections.other ? '▼' : '▶'}</span>
+              </div>
+            )}
             {showSections.other && (
               <div className="section-content">
                 <div className="form-row">
@@ -2148,10 +2167,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
             {/* Секція файлів виконаних робіт */}
             <div className="form-section">
-              <div className="section-header" onClick={() => toggleSection('files')}>
-                <h3>📁 Файли виконаних робіт</h3>
-                <span className="section-toggle">{showSections.files ? '▼' : '▶'}</span>
-              </div>
+              {!isAccountantMode && (
+                <div className="section-header" onClick={() => toggleSection('files')}>
+                  <h3>📁 Файли виконаних робіт</h3>
+                  <span className="section-toggle">{showSections.files ? '▼' : '▶'}</span>
+                </div>
+              )}
               {showSections.files && (
                 <div className="section-content">
                   <FileUpload 
