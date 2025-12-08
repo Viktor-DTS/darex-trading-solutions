@@ -2152,7 +2152,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         </div>
                       </div>
                     ) : (
-                    {isAccountantMode ? (
+                      isAccountantMode ? (
                       <div className="form-row two-cols">
                         <div className="form-group" style={{flex: 2}}>
                           <label>Інші матеріали: Опис</label>
