@@ -2177,7 +2177,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                           </div>
                         </div>
                       </div>
-                    )}
+                    )
                     )}
 
                     {/* Вартість робіт */}
