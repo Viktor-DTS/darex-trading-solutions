@@ -811,6 +811,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       if (!formData.paymentType || formData.paymentType === 'не вибрано') {
         missingFields.push('Вид оплати');
       }
+      // Для сервісної служби - обов'язкове поле "Сервісний інженер №1"
+      if (panelType === 'service' && !formData.engineer1) {
+        missingFields.push('Сервісний інженер №1');
+      }
     }
     
     // Для панелі оператора - обов'язкові поля
@@ -2253,8 +2257,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                   <>
                     <div className="form-row">
                       <div className="form-group">
-                        <label>Сервісний інженер №1</label>
-                        <select name="engineer1" value={formData.engineer1} onChange={handleChange}>
+                        <label>Сервісний інженер №1 {formData.status === 'Виконано' && panelType === 'service' && <span className="required">*</span>}</label>
+                        <select name="engineer1" value={formData.engineer1} onChange={handleChange} required={formData.status === 'Виконано' && panelType === 'service'}>
                           <option value="">Виберіть...</option>
                           {serviceEngineers.map(eng => (
                             <option key={eng.login} value={eng.name}>{eng.name}</option>
