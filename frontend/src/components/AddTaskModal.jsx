@@ -399,7 +399,19 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const serviceEngineers = useMemo(() => {
     return users.filter(u => {
       if (u.role !== 'service') return false;
+      if (u.dismissed === true || u.dismissed === 'true') return false; // Прибираємо звільнених
+      
+      // Якщо регіон не вибрано або "Україна" - показуємо всіх інженерів
       if (!formData.serviceRegion || formData.serviceRegion === 'Україна') return true;
+      
+      // Перевіряємо збіг регіону
+      // Якщо у інженера мультирегіон (містить кому) - перевіряємо чи входить вибраний регіон
+      if (u.region && u.region.includes(',')) {
+        const engineerRegions = u.region.split(',').map(r => r.trim());
+        return engineerRegions.includes(formData.serviceRegion);
+      }
+      
+      // Звичайна перевірка регіону
       return u.region === formData.serviceRegion;
     });
   }, [users, formData.serviceRegion]);
@@ -1112,7 +1124,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     }
   };
 
-  const isRegionReadOnly = user?.region && user.region !== 'Україна';
+  // Регіон заблокований тільки для користувачів з одним конкретним регіоном (не "Україна" і не мультирегіон)
+  // Мультирегіонні користувачі (з регіоном "Україна" або admin/administrator) можуть вибирати регіон
+  const isRegionReadOnly = user?.region && 
+                           user.region !== 'Україна' && 
+                           !['admin', 'administrator'].includes(user?.role) &&
+                           !user?.region.includes(','); // Якщо регіон містить кому - це мультирегіон
 
   if (!open) return null;
 
