@@ -1292,7 +1292,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       onChange={handleChange}
                       placeholder={isNewTask ? "Буде згенеровано автоматично після вибору регіону" : ""}
                       readOnly={!isNewTask}
-                      style={!isNewTask ? { backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' } : {}}
+                      style={!isNewTask ? { backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed', color: '#ff0000', fontWeight: 'bold' } : { color: '#ff0000', fontWeight: 'bold' }}
                     />
                   </div>
                   <div className="form-group">
