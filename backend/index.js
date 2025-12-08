@@ -861,9 +861,19 @@ app.get('/api/tasks/filter', async (req, res) => {
       const showAllInvoices = req.query.showAllInvoices === 'true';
       if (showAllInvoices) {
         // Показуємо всі Tasks які мають InvoiceRequest (будь-який статус)
+        // або заявки, які не підтверджені завскладом (мають запит на рахунок, але warehouseApproved !== true)
         pipeline.push({
           $match: {
-            invoiceStatus: { $exists: true, $ne: null }
+            $or: [
+              { invoiceStatus: { $exists: true, $ne: null } },
+              { 
+                invoiceRequestId: { $exists: true, $ne: null },
+                $or: [
+                  { warehouseApproved: { $ne: true } },
+                  { warehouseApprovedAt: { $exists: false } }
+                ]
+              }
+            ]
           }
         });
       } else {

@@ -96,9 +96,17 @@ function AccountantDashboard({ user }) {
           console.error('Помилка логування:', logErr);
         }
         
+        // Отримуємо оновлені дані заявки
+        const updatedTaskResponse = await fetch(`${API_BASE_URL}/tasks/${selectedRequest._id || selectedRequest.taskId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (updatedTaskResponse.ok) {
+          const updatedTask = await updatedTaskResponse.json();
+          setSelectedRequest(updatedTask);
+        }
+        
         alert('✅ Файл рахунку завантажено!');
-        handleCloseUploadModal();
-        window.location.reload();
       } else {
         const error = await response.json();
         alert(`❌ Помилка: ${error.message}`);
@@ -156,9 +164,17 @@ function AccountantDashboard({ user }) {
           console.error('Помилка логування:', logErr);
         }
         
+        // Отримуємо оновлені дані заявки
+        const updatedTaskResponse = await fetch(`${API_BASE_URL}/tasks/${selectedRequest._id || selectedRequest.taskId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (updatedTaskResponse.ok) {
+          const updatedTask = await updatedTaskResponse.json();
+          setSelectedRequest(updatedTask);
+        }
+        
         alert('✅ Файл акту завантажено!');
-        handleCloseUploadModal();
-        window.location.reload();
       } else {
         const error = await response.json();
         alert(`❌ Помилка: ${error.message}`);
