@@ -756,8 +756,8 @@ app.get('/api/tasks/filter', async (req, res) => {
           matchStage.approvedByAccountant = 'Підтверджено';
           break;
         case 'accountantInvoiceRequests':
-          // Заявки на рахунок - показуємо заявки зі статусами "Заявка", "В роботі", "Виконано"
-          matchStage.status = { $in: ['Заявка', 'В роботі', 'Виконано'] };
+          // Заявки на рахунок - фільтрація буде застосована після $lookup
+          // Тут просто не додаємо обмежень, щоб потім фільтрувати по invoiceStatus
           break;
         case 'accountantPending':
           // На підтвердженні бухгалтером: Виконано, підтверджено завскладом, не підтверджено бухгалтером
@@ -856,14 +856,16 @@ app.get('/api/tasks/filter', async (req, res) => {
       }
     ];
     
-    // Додаткова фільтрація для accountantInvoiceRequests
+    // Додаткова фільтрація для accountantInvoiceRequests по статусу InvoiceRequest
     if (status === 'accountantInvoiceRequests') {
       const showAllInvoices = req.query.showAllInvoices === 'true';
       if (showAllInvoices) {
         // Показуємо всі Tasks які мають InvoiceRequest (будь-який статус)
         // або заявки, які не підтверджені завскладом (мають запит на рахунок, але warehouseApproved !== true)
+        // Зі статусами "Заявка", "В роботі", "Виконано", незалежно від статусу підтвердження завскладу
         pipeline.push({
           $match: {
+            status: { $in: ['Заявка', 'В роботі', 'Виконано'] },
             $or: [
               { invoiceStatus: { $exists: true, $ne: null } },
               { 
@@ -877,14 +879,11 @@ app.get('/api/tasks/filter', async (req, res) => {
           }
         });
       } else {
-        // Показуємо заявки зі статусами "Заявка", "В роботі", "Виконано", які мають invoiceRequestId або invoiceStatus
-        // Незалежно від статусу підтвердження завскладу
+        // Показуємо активні запити: 'pending', 'processing' (не completed)
+        // Примітка: rejected запити видаляються, тому їх немає в списку
         pipeline.push({
           $match: {
-            $or: [
-              { invoiceStatus: { $exists: true, $ne: null } },
-              { invoiceRequestId: { $exists: true, $ne: null } }
-            ]
+            invoiceStatus: { $in: ['pending', 'processing'] }
           }
         });
       }
