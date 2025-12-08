@@ -51,18 +51,34 @@
   height: 0; /* Додатково для правильного flex */
   position: relative;
   width: 100%;
+  margin-bottom: 26px; /* Відступ для статистичного поля знизу (22px висота + 4px відступ) */
+  padding-bottom: 0;
 }
 
 /* Зробити горизонтальний скрол більш помітним */
 .task-table-wrapper::-webkit-scrollbar {
-  height: 16px !important;
+  height: 18px !important;
+  z-index: 1000; /* Вище за статистичне поле (z-index: 999) */
+}
+
+.task-table-wrapper::-webkit-scrollbar-track {
+  background: var(--surface-dark);
+  border-radius: 9px;
 }
 
 .task-table-wrapper::-webkit-scrollbar-thumb {
   background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
-  border-radius: 8px;
+  border-radius: 9px;
   border: 2px solid var(--surface-dark);
-  min-height: 16px;
+  min-height: 18px;
+}
+
+.task-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+}
+
+.task-table-wrapper::-webkit-scrollbar-corner {
+  background: var(--surface-dark);
 }
 
 .task-table {

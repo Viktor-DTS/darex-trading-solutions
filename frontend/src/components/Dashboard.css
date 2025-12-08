@@ -260,6 +260,7 @@
   flex-direction: column;
   overflow: hidden;
   background: var(--background);
+  padding-bottom: 0; /* Не додаємо padding тут, щоб не конфліктувати з TaskTable */
 }
 
 /* Remove old styles */
