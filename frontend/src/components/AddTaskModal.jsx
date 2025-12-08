@@ -1226,10 +1226,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           {/* Основна інформація */}
           <div className="form-section section-basic">
             {!isAccountantMode && (
-              <div className="section-header" onClick={() => toggleSection('basic')}>
-                <h3>Основна інформація</h3>
-                <span className="section-toggle">{showSections.basic ? '▼' : '▶'}</span>
-              </div>
+            <div className="section-header" onClick={() => toggleSection('basic')}>
+              <h3>Основна інформація</h3>
+              <span className="section-toggle">{showSections.basic ? '▼' : '▶'}</span>
+            </div>
             )}
             {showSections.basic && (
               <div className="section-content">
@@ -1278,7 +1278,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     </select>
                   </div>
                 </div>
-                <div className="form-row three-cols">
+                <div className={`form-row ${isAccountantMode ? 'four-cols' : 'three-cols'}`}>
                   <div className="form-group">
                     <label>Номер заявки/наряду {isNewTask && '(автогенерація)'}</label>
                     <input 
@@ -1311,23 +1311,45 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       placeholder="ПІБ контактної особи"
                     />
                   </div>
+                  {isAccountantMode && (
+                    <div className="form-group">
+                      <label>Тел. контактної особи</label>
+                      <input 
+                        type="tel" 
+                        name="contactPhone" 
+                        value={formData.contactPhone || ''} 
+                        onChange={handleChange}
+                        placeholder="+380..."
+                      />
+                    </div>
+                  )}
                 </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Тел. контактної особи</label>
-                    <input 
-                      type="tel" 
-                      name="contactPhone" 
-                      value={formData.contactPhone || ''} 
-                      onChange={handleChange}
-                      placeholder="+380..."
-                    />
+                {!isAccountantMode && (
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Тел. контактної особи</label>
+                      <input 
+                        type="tel" 
+                        name="contactPhone" 
+                        value={formData.contactPhone || ''} 
+                        onChange={handleChange}
+                        placeholder="+380..."
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Опис заявки <span className="required">*</span></label>
+                      <textarea name="requestDesc" value={formData.requestDesc} onChange={handleChange} rows="3" required />
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label>Опис заявки <span className="required">*</span></label>
-                    <textarea name="requestDesc" value={formData.requestDesc} onChange={handleChange} rows="3" required />
+                )}
+                {isAccountantMode && (
+                  <div className="form-row">
+                    <div className="form-group" style={{ gridColumn: 'span 4' }}>
+                      <label>Опис заявки <span className="required">*</span></label>
+                      <textarea name="requestDesc" value={formData.requestDesc} onChange={handleChange} rows="2" required />
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="form-row">
                   <div className="form-group checkbox-group">
                     <label>
@@ -1357,82 +1379,156 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           {/* Клієнт та адреса */}
           <div className="form-section section-client">
             {!isAccountantMode && (
-              <div className="section-header" onClick={() => toggleSection('client')}>
-                <h3>Клієнт та адреса</h3>
-                <span className="section-toggle">{showSections.client ? '▼' : '▶'}</span>
-              </div>
+            <div className="section-header" onClick={() => toggleSection('client')}>
+              <h3>Клієнт та адреса</h3>
+              <span className="section-toggle">{showSections.client ? '▼' : '▶'}</span>
+            </div>
             )}
             {showSections.client && (
               <div className="section-content">
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Замовник <span className="required">*</span></label>
-                    <input type="text" name="client" value={formData.client} onChange={handleChange} required />
-                  </div>
-                  <div className="form-group autocomplete-wrapper">
-                    <label>ЄДРПОУ</label>
-                    <input 
-                      type="text" 
-                      name="edrpou" 
-                      value={formData.edrpou} 
-                      onChange={handleChange}
-                      placeholder="Введіть ЄДРПОУ..."
-                      autoComplete="off"
-                    />
-                    {/* Dropdown з автодоповненням для ЄДРПОУ */}
-                    {showEdrpouDropdown && filteredEdrpouList.length > 0 && (
-                      <div className="autocomplete-dropdown">
-                        <div className="autocomplete-hint">
-                          💡 Виберіть ЄДРПОУ для автозаповнення даних клієнта
-                        </div>
-                        {filteredEdrpouList.slice(0, 10).map((edrpou, index) => (
-                          <div
-                            key={index}
-                            className="autocomplete-item"
-                            onClick={() => handleEdrpouSelect(edrpou)}
-                          >
-                            {edrpou}
-                          </div>
-                        ))}
-                        {filteredEdrpouList.length > 10 && (
-                          <div className="autocomplete-more">
-                            ... та ще {filteredEdrpouList.length - 10}
+                {isAccountantMode ? (
+                  <>
+                    <div className="form-row three-cols">
+                      <div className="form-group">
+                        <label>Замовник <span className="required">*</span></label>
+                        <input type="text" name="client" value={formData.client} onChange={handleChange} required />
+                      </div>
+                      <div className="form-group autocomplete-wrapper">
+                        <label>ЄДРПОУ</label>
+                        <input 
+                          type="text" 
+                          name="edrpou" 
+                          value={formData.edrpou} 
+                          onChange={handleChange}
+                          placeholder="Введіть ЄДРПОУ..."
+                          autoComplete="off"
+                        />
+                        {/* Dropdown з автодоповненням для ЄДРПОУ */}
+                        {showEdrpouDropdown && filteredEdrpouList.length > 0 && (
+                          <div className="autocomplete-dropdown">
+                            <div className="autocomplete-hint">
+                              💡 Виберіть ЄДРПОУ для автозаповнення даних клієнта
+                            </div>
+                            {filteredEdrpouList.slice(0, 10).map((edrpou, index) => (
+                              <div
+                                key={index}
+                                className="autocomplete-item"
+                                onClick={() => handleEdrpouSelect(edrpou)}
+                              >
+                                {edrpou}
+                              </div>
+                            ))}
+                            {filteredEdrpouList.length > 10 && (
+                              <div className="autocomplete-more">
+                                ... та ще {filteredEdrpouList.length - 10}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label>Адреса</label>
-                  <textarea name="address" value={formData.address} onChange={handleChange} rows="2" />
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Номер рахунку</label>
-                    <input type="text" name="invoice" value={formData.invoice} onChange={handleChange} />
-                  </div>
-                  <div className="form-group">
-                    <label>Дата оплати</label>
-                    <input type="date" name="paymentDate" value={formData.paymentDate} onChange={handleChange} />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Вид оплати {formData.status === 'Виконано' && <span className="required">*</span>}</label>
-                    <select name="paymentType" value={formData.paymentType} onChange={handleChange}>
-                      <option value="не вибрано">не вибрано</option>
-                      <option value="Безготівка">Безготівка</option>
-                      <option value="Готівка">Готівка</option>
-                      <option value="На карту">На карту</option>
-                      <option value="Інше">Інше</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Загальна сума послуги, грн</label>
-                    <input type="text" name="serviceTotal" value={formData.serviceTotal} onChange={handleChange} placeholder="0.00" />
-                  </div>
-                </div>
+                      <div className="form-group">
+                        <label>Адреса</label>
+                        <input type="text" name="address" value={formData.address} onChange={handleChange} />
+                      </div>
+                    </div>
+                    <div className="form-row four-cols">
+                      <div className="form-group">
+                        <label>Номер рахунку</label>
+                        <input type="text" name="invoice" value={formData.invoice} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Дата оплати</label>
+                        <input type="date" name="paymentDate" value={formData.paymentDate} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Вид оплати {formData.status === 'Виконано' && <span className="required">*</span>}</label>
+                        <select name="paymentType" value={formData.paymentType} onChange={handleChange}>
+                          <option value="не вибрано">не вибрано</option>
+                          <option value="Безготівка">Безготівка</option>
+                          <option value="Готівка">Готівка</option>
+                          <option value="На карту">На карту</option>
+                          <option value="Інше">Інше</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Загальна сума послуги, грн</label>
+                        <input type="text" name="serviceTotal" value={formData.serviceTotal} onChange={handleChange} placeholder="0.00" />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Замовник <span className="required">*</span></label>
+                        <input type="text" name="client" value={formData.client} onChange={handleChange} required />
+                      </div>
+                      <div className="form-group autocomplete-wrapper">
+                        <label>ЄДРПОУ</label>
+                        <input 
+                          type="text" 
+                          name="edrpou" 
+                          value={formData.edrpou} 
+                          onChange={handleChange}
+                          placeholder="Введіть ЄДРПОУ..."
+                          autoComplete="off"
+                        />
+                        {/* Dropdown з автодоповненням для ЄДРПОУ */}
+                        {showEdrpouDropdown && filteredEdrpouList.length > 0 && (
+                          <div className="autocomplete-dropdown">
+                            <div className="autocomplete-hint">
+                              💡 Виберіть ЄДРПОУ для автозаповнення даних клієнта
+                            </div>
+                            {filteredEdrpouList.slice(0, 10).map((edrpou, index) => (
+                              <div
+                                key={index}
+                                className="autocomplete-item"
+                                onClick={() => handleEdrpouSelect(edrpou)}
+                              >
+                                {edrpou}
+                              </div>
+                            ))}
+                            {filteredEdrpouList.length > 10 && (
+                              <div className="autocomplete-more">
+                                ... та ще {filteredEdrpouList.length - 10}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label>Адреса</label>
+                      <textarea name="address" value={formData.address} onChange={handleChange} rows="2" />
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Номер рахунку</label>
+                        <input type="text" name="invoice" value={formData.invoice} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Дата оплати</label>
+                        <input type="date" name="paymentDate" value={formData.paymentDate} onChange={handleChange} />
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Вид оплати {formData.status === 'Виконано' && <span className="required">*</span>}</label>
+                        <select name="paymentType" value={formData.paymentType} onChange={handleChange}>
+                          <option value="не вибрано">не вибрано</option>
+                          <option value="Безготівка">Безготівка</option>
+                          <option value="Готівка">Готівка</option>
+                          <option value="На карту">На карту</option>
+                          <option value="Інше">Інше</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Загальна сума послуги, грн</label>
+                        <input type="text" name="serviceTotal" value={formData.serviceTotal} onChange={handleChange} placeholder="0.00" />
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div className="form-group">
                   <label>Реквізити отримувача рахунку в паперовому вигляді</label>
                   <textarea name="invoiceRecipientDetails" value={formData.invoiceRecipientDetails} onChange={handleChange} rows="2" />
@@ -1660,98 +1756,280 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           {/* Роботи, обладнання та матеріали */}
           <div className="form-section section-equipment">
             {!isAccountantMode && (
-              <div className="section-header" onClick={() => toggleSection('equipment')}>
+            <div className="section-header" onClick={() => toggleSection('equipment')}>
                 <h3>Роботи, обладнання та матеріали</h3>
-                <span className="section-toggle">{showSections.equipment ? '▼' : '▶'}</span>
-              </div>
+              <span className="section-toggle">{showSections.equipment ? '▼' : '▶'}</span>
+            </div>
             )}
             {showSections.equipment && (
               <div className="section-content">
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Дата проведення робіт {formData.status === 'Виконано' && <span className="required">*</span>}</label>
-                    <input type="date" name="date" value={formData.date} onChange={handleChange} />
-                  </div>
-                  <div className="form-group">
-                    <label>Найменування робіт {panelType === 'operator' && <span className="required">*</span>}</label>
-                    <select name="work" value={formData.work} onChange={handleChange} required={panelType === 'operator'}>
-                      <option value="">Виберіть...</option>
-                      <option value="ТО">ТО</option>
-                      <option value="ПНР">ПНР</option>
-                      <option value="Ремонт в цеху">Ремонт в цеху</option>
-                      <option value="Ремонт на місті">Ремонт на місті</option>
-                      <option value="Діагностика">Діагностика</option>
-                      <option value="Діагностика+ремонт">Діагностика+ремонт</option>
-                      <option value="Ремонт в цеху (волонтерство)">Ремонт в цеху (волонтерство)</option>
-                      <option value="Гарантійний ремонт в цеху">Гарантійний ремонт в цеху</option>
-                      <option value="Гарантійний ремонт на місті">Гарантійний ремонт на місті</option>
-                      <option value="Предпродажна підготовка">Предпродажна підготовка</option>
-                      <option value="Продаж ЗІП">Продаж ЗІП</option>
-                      <option value="Перекомутація">Перекомутація</option>
-                      <option value="Внутрішні роботи (завантаження)">Внутрішні роботи (завантаження)</option>
-                      <option value="Внутрішні роботи (розвантаження)">Внутрішні роботи (розвантаження)</option>
-                      {/* Додаємо поточне значення до опцій, якщо його там немає (для сумісності зі старими даними) */}
-                      {formData.work && !['', 'ТО', 'ПНР', 'Ремонт в цеху', 'Ремонт на місті', 'Діагностика', 'Діагностика+ремонт', 'Ремонт в цеху (волонтерство)', 'Гарантійний ремонт в цеху', 'Гарантійний ремонт на місті', 'Предпродажна підготовка', 'Продаж ЗІП', 'Перекомутація', 'Внутрішні роботи (завантаження)', 'Внутрішні роботи (розвантаження)'].includes(formData.work) && (
-                        <option value={formData.work}>{formData.work}</option>
-                      )}
-                    </select>
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group autocomplete-wrapper">
-                    <label>Тип обладнання</label>
-                    <input 
-                      type="text" 
-                      name="equipment" 
-                      value={formData.equipment} 
-                      onChange={handleChange}
-                      placeholder="Введіть тип обладнання..."
-                      autoComplete="off"
-                    />
-                    {/* Dropdown з автодоповненням для типу обладнання */}
-                    {showEquipmentDropdown && filteredEquipmentTypes.length > 0 && (
-                      <div className="autocomplete-dropdown">
-                        <div className="autocomplete-hint">
-                          💡 Виберіть тип для автозаповнення матеріалів
-                        </div>
-                        {filteredEquipmentTypes.slice(0, 10).map((type, index) => (
-                          <div
-                            key={index}
-                            className="autocomplete-item"
-                            onClick={() => handleEquipmentSelect(type)}
-                          >
-                            {type}
-                          </div>
-                        ))}
-                        {filteredEquipmentTypes.length > 10 && (
-                          <div className="autocomplete-more">
-                            ... та ще {filteredEquipmentTypes.length - 10}
+                {isAccountantMode ? (
+                  <>
+                    <div className="form-row six-cols">
+                      <div className="form-group">
+                        <label>Дата проведення робіт {formData.status === 'Виконано' && <span className="required">*</span>}</label>
+                        <input type="date" name="date" value={formData.date} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Найменування робіт {panelType === 'operator' && <span className="required">*</span>}</label>
+                        <select name="work" value={formData.work} onChange={handleChange} required={panelType === 'operator'}>
+                          <option value="">Виберіть...</option>
+                          <option value="ТО">ТО</option>
+                          <option value="ПНР">ПНР</option>
+                          <option value="Ремонт в цеху">Ремонт в цеху</option>
+                          <option value="Ремонт на місті">Ремонт на місті</option>
+                          <option value="Діагностика">Діагностика</option>
+                          <option value="Діагностика+ремонт">Діагностика+ремонт</option>
+                          <option value="Ремонт в цеху (волонтерство)">Ремонт в цеху (волонтерство)</option>
+                          <option value="Гарантійний ремонт в цеху">Гарантійний ремонт в цеху</option>
+                          <option value="Гарантійний ремонт на місті">Гарантійний ремонт на місті</option>
+                          <option value="Предпродажна підготовка">Предпродажна підготовка</option>
+                          <option value="Продаж ЗІП">Продаж ЗІП</option>
+                          <option value="Перекомутація">Перекомутація</option>
+                          <option value="Внутрішні роботи (завантаження)">Внутрішні роботи (завантаження)</option>
+                          <option value="Внутрішні роботи (розвантаження)">Внутрішні роботи (розвантаження)</option>
+                          {/* Додаємо поточне значення до опцій, якщо його там немає (для сумісності зі старими даними) */}
+                          {formData.work && !['', 'ТО', 'ПНР', 'Ремонт в цеху', 'Ремонт на місті', 'Діагностика', 'Діагностика+ремонт', 'Ремонт в цеху (волонтерство)', 'Гарантійний ремонт в цеху', 'Гарантійний ремонт на місті', 'Предпродажна підготовка', 'Продаж ЗІП', 'Перекомутація', 'Внутрішні роботи (завантаження)', 'Внутрішні роботи (розвантаження)'].includes(formData.work) && (
+                            <option value={formData.work}>{formData.work}</option>
+                          )}
+                        </select>
+                      </div>
+                      <div className="form-group autocomplete-wrapper">
+                        <label>Тип обладнання</label>
+                        <input 
+                          type="text" 
+                          name="equipment" 
+                          value={formData.equipment} 
+                          onChange={handleChange}
+                          placeholder="Введіть тип обладнання..."
+                          autoComplete="off"
+                        />
+                        {/* Dropdown з автодоповненням для типу обладнання */}
+                        {showEquipmentDropdown && filteredEquipmentTypes.length > 0 && (
+                          <div className="autocomplete-dropdown">
+                            <div className="autocomplete-hint">
+                              💡 Виберіть тип для автозаповнення матеріалів
+                            </div>
+                            {filteredEquipmentTypes.slice(0, 10).map((type, index) => (
+                              <div
+                                key={index}
+                                className="autocomplete-item"
+                                onClick={() => handleEquipmentSelect(type)}
+                              >
+                                {type}
+                              </div>
+                            ))}
+                            {filteredEquipmentTypes.length > 10 && (
+                              <div className="autocomplete-more">
+                                ... та ще {filteredEquipmentTypes.length - 10}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                  <div className="form-group">
-                    <label>Заводський номер обладнання</label>
-                    <input type="text" name="equipmentSerial" value={formData.equipmentSerial} onChange={handleChange} />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Модель двигуна</label>
-                    <input type="text" name="engineModel" value={formData.engineModel} onChange={handleChange} />
-                  </div>
-                  <div className="form-group">
-                    <label>Зав. № двигуна</label>
-                    <input type="text" name="engineSerial" value={formData.engineSerial} onChange={handleChange} />
-                  </div>
-                </div>
+                      <div className="form-group">
+                        <label>Заводський номер обладнання</label>
+                        <input type="text" name="equipmentSerial" value={formData.equipmentSerial} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Модель двигуна</label>
+                        <input type="text" name="engineModel" value={formData.engineModel} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Зав. № двигуна</label>
+                        <input type="text" name="engineSerial" value={formData.engineSerial} onChange={handleChange} />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Дата проведення робіт {formData.status === 'Виконано' && <span className="required">*</span>}</label>
+                        <input type="date" name="date" value={formData.date} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Найменування робіт {panelType === 'operator' && <span className="required">*</span>}</label>
+                        <select name="work" value={formData.work} onChange={handleChange} required={panelType === 'operator'}>
+                          <option value="">Виберіть...</option>
+                          <option value="ТО">ТО</option>
+                          <option value="ПНР">ПНР</option>
+                          <option value="Ремонт в цеху">Ремонт в цеху</option>
+                          <option value="Ремонт на місті">Ремонт на місті</option>
+                          <option value="Діагностика">Діагностика</option>
+                          <option value="Діагностика+ремонт">Діагностика+ремонт</option>
+                          <option value="Ремонт в цеху (волонтерство)">Ремонт в цеху (волонтерство)</option>
+                          <option value="Гарантійний ремонт в цеху">Гарантійний ремонт в цеху</option>
+                          <option value="Гарантійний ремонт на місті">Гарантійний ремонт на місті</option>
+                          <option value="Предпродажна підготовка">Предпродажна підготовка</option>
+                          <option value="Продаж ЗІП">Продаж ЗІП</option>
+                          <option value="Перекомутація">Перекомутація</option>
+                          <option value="Внутрішні роботи (завантаження)">Внутрішні роботи (завантаження)</option>
+                          <option value="Внутрішні роботи (розвантаження)">Внутрішні роботи (розвантаження)</option>
+                          {/* Додаємо поточне значення до опцій, якщо його там немає (для сумісності зі старими даними) */}
+                          {formData.work && !['', 'ТО', 'ПНР', 'Ремонт в цеху', 'Ремонт на місті', 'Діагностика', 'Діагностика+ремонт', 'Ремонт в цеху (волонтерство)', 'Гарантійний ремонт в цеху', 'Гарантійний ремонт на місті', 'Предпродажна підготовка', 'Продаж ЗІП', 'Перекомутація', 'Внутрішні роботи (завантаження)', 'Внутрішні роботи (розвантаження)'].includes(formData.work) && (
+                            <option value={formData.work}>{formData.work}</option>
+                          )}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group autocomplete-wrapper">
+                        <label>Тип обладнання</label>
+                        <input 
+                          type="text" 
+                          name="equipment" 
+                          value={formData.equipment} 
+                          onChange={handleChange}
+                          placeholder="Введіть тип обладнання..."
+                          autoComplete="off"
+                        />
+                        {/* Dropdown з автодоповненням для типу обладнання */}
+                        {showEquipmentDropdown && filteredEquipmentTypes.length > 0 && (
+                          <div className="autocomplete-dropdown">
+                            <div className="autocomplete-hint">
+                              💡 Виберіть тип для автозаповнення матеріалів
+                            </div>
+                            {filteredEquipmentTypes.slice(0, 10).map((type, index) => (
+                              <div
+                                key={index}
+                                className="autocomplete-item"
+                                onClick={() => handleEquipmentSelect(type)}
+                              >
+                                {type}
+                              </div>
+                            ))}
+                            {filteredEquipmentTypes.length > 10 && (
+                              <div className="autocomplete-more">
+                                ... та ще {filteredEquipmentTypes.length - 10}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="form-group">
+                        <label>Заводський номер обладнання</label>
+                        <input type="text" name="equipmentSerial" value={formData.equipmentSerial} onChange={handleChange} />
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Модель двигуна</label>
+                        <input type="text" name="engineModel" value={formData.engineModel} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Зав. № двигуна</label>
+                        <input type="text" name="engineSerial" value={formData.engineSerial} onChange={handleChange} />
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div className="form-group">
                   <label>Інвент. № обладнання від замовника</label>
                   <input type="text" name="customerEquipmentNumber" value={formData.customerEquipmentNumber} onChange={handleChange} />
                 </div>
 
                 {/* Матеріали */}
+                {isAccountantMode ? (
+                  <>
+                    {/* Олива */}
+                    <div className="form-row five-cols">
+                      <div className="form-group">
+                        <label>Олива: Тип</label>
+                        <input type="text" name="oilType" value={formData.oilType} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Використано, л</label>
+                        <input type="text" name="oilUsed" value={formData.oilUsed} onChange={handleChange} placeholder="0" />
+                      </div>
+                      <div className="form-group">
+                        <label>Ціна за 1 л, грн</label>
+                        <input type="text" name="oilPrice" value={formData.oilPrice} onChange={handleChange} placeholder="0" />
+                      </div>
+                      <div className="form-group calculated">
+                        <label>Сума, грн</label>
+                        <input type="text" value={formatNumber(calculations.oilTotal)} readOnly className="calculated-field" />
+                      </div>
+                    </div>
+                    {/* Масляний фільтр */}
+                    <div className="form-row five-cols">
+                      <div className="form-group">
+                        <label>Масл. фільтр: Назва</label>
+                        <input type="text" name="filterName" value={formData.filterName} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Штук</label>
+                        <input type="text" name="filterCount" value={formData.filterCount} onChange={handleChange} placeholder="0" />
+                      </div>
+                      <div className="form-group">
+                        <label>Ціна одного, грн</label>
+                        <input type="text" name="filterPrice" value={formData.filterPrice} onChange={handleChange} placeholder="0" />
+                      </div>
+                      <div className="form-group calculated">
+                        <label>Сума, грн</label>
+                        <input type="text" value={formatNumber(calculations.filterSum)} readOnly className="calculated-field" />
+                      </div>
+                    </div>
+                    {/* Паливний фільтр */}
+                    <div className="form-row five-cols">
+                      <div className="form-group">
+                        <label>Палив. фільтр: Назва</label>
+                        <input type="text" name="fuelFilterName" value={formData.fuelFilterName} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Штук</label>
+                        <input type="text" name="fuelFilterCount" value={formData.fuelFilterCount} onChange={handleChange} placeholder="0" />
+                      </div>
+                      <div className="form-group">
+                        <label>Ціна одного, грн</label>
+                        <input type="text" name="fuelFilterPrice" value={formData.fuelFilterPrice} onChange={handleChange} placeholder="0" />
+                      </div>
+                      <div className="form-group calculated">
+                        <label>Сума, грн</label>
+                        <input type="text" value={formatNumber(calculations.fuelFilterSum)} readOnly className="calculated-field" />
+                      </div>
+                    </div>
+                    {/* Повітряний фільтр */}
+                    <div className="form-row five-cols">
+                      <div className="form-group">
+                        <label>Повітр. фільтр: Назва</label>
+                        <input type="text" name="airFilterName" value={formData.airFilterName} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Штук</label>
+                        <input type="text" name="airFilterCount" value={formData.airFilterCount} onChange={handleChange} placeholder="0" />
+                      </div>
+                      <div className="form-group">
+                        <label>Ціна одного, грн</label>
+                        <input type="text" name="airFilterPrice" value={formData.airFilterPrice} onChange={handleChange} placeholder="0" />
+                      </div>
+                      <div className="form-group calculated">
+                        <label>Сума, грн</label>
+                        <input type="text" value={formatNumber(calculations.airFilterSum)} readOnly className="calculated-field" />
+                      </div>
+                    </div>
+                    {/* Антифриз */}
+                    <div className="form-row five-cols">
+                      <div className="form-group">
+                        <label>Антифриз: Тип</label>
+                        <input type="text" name="antifreezeType" value={formData.antifreezeType} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Літри</label>
+                        <input type="text" name="antifreezeL" value={formData.antifreezeL} onChange={handleChange} placeholder="0" />
+                      </div>
+                      <div className="form-group">
+                        <label>Ціна, грн</label>
+                        <input type="text" name="antifreezePrice" value={formData.antifreezePrice} onChange={handleChange} placeholder="0" />
+                      </div>
+                      <div className="form-group calculated">
+                        <label>Сума, грн</label>
+                        <input type="text" value={formatNumber(calculations.antifreezeSum)} readOnly className="calculated-field" />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
                 <div className="subsection">
                   <h4>Олива</h4>
                   <div className="form-row four-cols">
@@ -1840,47 +2118,75 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                   </div>
                 </div>
 
-                <div className="subsection">
-                  <h4>Антифриз</h4>
-                  <div className="form-row four-cols">
-                    <div className="form-group">
-                      <label>Тип</label>
-                      <input type="text" name="antifreezeType" value={formData.antifreezeType} onChange={handleChange} />
+                    <div className="subsection">
+                      <h4>Антифриз</h4>
+                      <div className="form-row four-cols">
+                        <div className="form-group">
+                          <label>Тип</label>
+                          <input type="text" name="antifreezeType" value={formData.antifreezeType} onChange={handleChange} />
+                        </div>
+                        <div className="form-group">
+                          <label>Літри</label>
+                          <input type="text" name="antifreezeL" value={formData.antifreezeL} onChange={handleChange} placeholder="0" />
+                        </div>
+                        <div className="form-group">
+                          <label>Ціна, грн</label>
+                          <input type="text" name="antifreezePrice" value={formData.antifreezePrice} onChange={handleChange} placeholder="0" />
+                        </div>
+                        <div className="form-group calculated">
+                          <label>Сума, грн</label>
+                          <input type="text" value={formatNumber(calculations.antifreezeSum)} readOnly className="calculated-field" />
+                        </div>
+                      </div>
                     </div>
-                    <div className="form-group">
-                      <label>Літри</label>
-                      <input type="text" name="antifreezeL" value={formData.antifreezeL} onChange={handleChange} placeholder="0" />
-                    </div>
-                    <div className="form-group">
-                      <label>Ціна, грн</label>
-                      <input type="text" name="antifreezePrice" value={formData.antifreezePrice} onChange={handleChange} placeholder="0" />
-                    </div>
+
+                    {isAccountantMode ? (
+                      <div className="form-row two-cols">
+                        <div className="form-group" style={{flex: 2}}>
+                          <label>Інші матеріали: Опис</label>
+                          <input type="text" name="otherMaterials" value={formData.otherMaterials} onChange={handleChange} />
+                        </div>
+                        <div className="form-group">
+                          <label>Загальна ціна, грн</label>
+                          <input type="text" name="otherSum" value={formData.otherSum} onChange={handleChange} placeholder="0" />
+                        </div>
+                      </div>
+                    ) : (
+                    {isAccountantMode ? (
+                      <div className="form-row two-cols">
+                        <div className="form-group" style={{flex: 2}}>
+                          <label>Інші матеріали: Опис</label>
+                          <input type="text" name="otherMaterials" value={formData.otherMaterials} onChange={handleChange} />
+                        </div>
+                        <div className="form-group">
+                          <label>Загальна ціна, грн</label>
+                          <input type="text" name="otherSum" value={formData.otherSum} onChange={handleChange} placeholder="0" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="subsection">
+                        <h4>Інші матеріали</h4>
+                        <div className="form-row">
+                          <div className="form-group" style={{flex: 2}}>
+                            <label>Опис інших матеріалів</label>
+                            <input type="text" name="otherMaterials" value={formData.otherMaterials} onChange={handleChange} />
+                          </div>
+                          <div className="form-group">
+                            <label>Загальна ціна, грн</label>
+                            <input type="text" name="otherSum" value={formData.otherSum} onChange={handleChange} placeholder="0" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    )}
+
+                    {/* Вартість робіт */}
                     <div className="form-group calculated">
-                      <label>Сума, грн</label>
-                      <input type="text" value={formatNumber(calculations.antifreezeSum)} readOnly className="calculated-field" />
+                      <label>Вартість робіт, грн (авторозрахунок)</label>
+                      <input type="text" value={formatNumber(calculations.workPrice)} readOnly className="calculated-field" />
                     </div>
-                  </div>
-                </div>
-
-                <div className="subsection">
-                  <h4>Інші матеріали</h4>
-                  <div className="form-row">
-                    <div className="form-group" style={{flex: 2}}>
-                      <label>Опис інших матеріалів</label>
-                      <input type="text" name="otherMaterials" value={formData.otherMaterials} onChange={handleChange} />
-                    </div>
-                    <div className="form-group">
-                      <label>Загальна ціна, грн</label>
-                      <input type="text" name="otherSum" value={formData.otherSum} onChange={handleChange} placeholder="0" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Вартість робіт */}
-                <div className="form-group calculated">
-                  <label>Вартість робіт, грн (авторозрахунок)</label>
-                  <input type="text" value={formatNumber(calculations.workPrice)} readOnly className="calculated-field" />
-                </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -1888,73 +2194,134 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           {/* Інженери */}
           <div className="form-section section-engineers">
             {!isAccountantMode && (
-              <div className="section-header" onClick={() => toggleSection('work')}>
+            <div className="section-header" onClick={() => toggleSection('work')}>
                 <h3>Інженери</h3>
-                <span className="section-toggle">{showSections.work ? '▼' : '▶'}</span>
-              </div>
+              <span className="section-toggle">{showSections.work ? '▼' : '▶'}</span>
+            </div>
             )}
             {showSections.work && (
               <div className="section-content">
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Сервісний інженер №1</label>
-                    <select name="engineer1" value={formData.engineer1} onChange={handleChange}>
-                      <option value="">Виберіть...</option>
-                      {serviceEngineers.map(eng => (
-                        <option key={eng.login} value={eng.name}>{eng.name}</option>
-                      ))}
-                    </select>
+                {isAccountantMode ? (
+                  <div className="form-row six-cols">
+                    <div className="form-group">
+                      <label>Інж. №1</label>
+                      <select name="engineer1" value={formData.engineer1} onChange={handleChange}>
+                        <option value="">...</option>
+                        {serviceEngineers.map(eng => (
+                          <option key={eng.login} value={eng.name}>{eng.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Інж. №2</label>
+                      <select name="engineer2" value={formData.engineer2} onChange={handleChange}>
+                        <option value="">...</option>
+                        {serviceEngineers.map(eng => (
+                          <option key={eng.login} value={eng.name}>{eng.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Інж. №3</label>
+                      <select name="engineer3" value={formData.engineer3} onChange={handleChange}>
+                        <option value="">...</option>
+                        {serviceEngineers.map(eng => (
+                          <option key={eng.login} value={eng.name}>{eng.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Інж. №4</label>
+                      <select name="engineer4" value={formData.engineer4} onChange={handleChange}>
+                        <option value="">...</option>
+                        {serviceEngineers.map(eng => (
+                          <option key={eng.login} value={eng.name}>{eng.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Інж. №5</label>
+                      <select name="engineer5" value={formData.engineer5} onChange={handleChange}>
+                        <option value="">...</option>
+                        {serviceEngineers.map(eng => (
+                          <option key={eng.login} value={eng.name}>{eng.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Інж. №6</label>
+                      <select name="engineer6" value={formData.engineer6} onChange={handleChange}>
+                        <option value="">...</option>
+                        {serviceEngineers.map(eng => (
+                          <option key={eng.login} value={eng.name}>{eng.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label>Сервісний інженер №2</label>
-                    <select name="engineer2" value={formData.engineer2} onChange={handleChange}>
-                      <option value="">Виберіть...</option>
-                      {serviceEngineers.map(eng => (
-                        <option key={eng.login} value={eng.name}>{eng.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Сервісний інженер №3</label>
-                    <select name="engineer3" value={formData.engineer3} onChange={handleChange}>
-                      <option value="">Виберіть...</option>
-                      {serviceEngineers.map(eng => (
-                        <option key={eng.login} value={eng.name}>{eng.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Сервісний інженер №4</label>
-                    <select name="engineer4" value={formData.engineer4} onChange={handleChange}>
-                      <option value="">Виберіть...</option>
-                      {serviceEngineers.map(eng => (
-                        <option key={eng.login} value={eng.name}>{eng.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Сервісний інженер №5</label>
-                    <select name="engineer5" value={formData.engineer5} onChange={handleChange}>
-                      <option value="">Виберіть...</option>
-                      {serviceEngineers.map(eng => (
-                        <option key={eng.login} value={eng.name}>{eng.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Сервісний інженер №6</label>
-                    <select name="engineer6" value={formData.engineer6} onChange={handleChange}>
-                      <option value="">Виберіть...</option>
-                      {serviceEngineers.map(eng => (
-                        <option key={eng.login} value={eng.name}>{eng.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Сервісний інженер №1</label>
+                        <select name="engineer1" value={formData.engineer1} onChange={handleChange}>
+                          <option value="">Виберіть...</option>
+                          {serviceEngineers.map(eng => (
+                            <option key={eng.login} value={eng.name}>{eng.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Сервісний інженер №2</label>
+                        <select name="engineer2" value={formData.engineer2} onChange={handleChange}>
+                          <option value="">Виберіть...</option>
+                          {serviceEngineers.map(eng => (
+                            <option key={eng.login} value={eng.name}>{eng.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Сервісний інженер №3</label>
+                        <select name="engineer3" value={formData.engineer3} onChange={handleChange}>
+                          <option value="">Виберіть...</option>
+                          {serviceEngineers.map(eng => (
+                            <option key={eng.login} value={eng.name}>{eng.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Сервісний інженер №4</label>
+                        <select name="engineer4" value={formData.engineer4} onChange={handleChange}>
+                          <option value="">Виберіть...</option>
+                          {serviceEngineers.map(eng => (
+                            <option key={eng.login} value={eng.name}>{eng.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Сервісний інженер №5</label>
+                        <select name="engineer5" value={formData.engineer5} onChange={handleChange}>
+                          <option value="">Виберіть...</option>
+                          {serviceEngineers.map(eng => (
+                            <option key={eng.login} value={eng.name}>{eng.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Сервісний інженер №6</label>
+                        <select name="engineer6" value={formData.engineer6} onChange={handleChange}>
+                          <option value="">Виберіть...</option>
+                          {serviceEngineers.map(eng => (
+                            <option key={eng.login} value={eng.name}>{eng.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -1962,41 +2329,72 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           {/* Витрати та транспорт */}
           <div className="form-section section-expenses">
             {!isAccountantMode && (
-              <div className="section-header" onClick={() => toggleSection('expenses')}>
-                <h3>Витрати та транспорт</h3>
-                <span className="section-toggle">{showSections.expenses ? '▼' : '▶'}</span>
-              </div>
+            <div className="section-header" onClick={() => toggleSection('expenses')}>
+              <h3>Витрати та транспорт</h3>
+              <span className="section-toggle">{showSections.expenses ? '▼' : '▶'}</span>
+            </div>
             )}
             {showSections.expenses && (
               <div className="section-content">
-                <div className="form-row three-cols">
-                  <div className="form-group">
-                    <label>Добові, грн</label>
-                    <input type="text" name="perDiem" value={formData.perDiem} onChange={handleChange} placeholder="0" />
+                {isAccountantMode ? (
+                  <div className="form-row six-cols">
+                    <div className="form-group">
+                      <label>Добові, грн</label>
+                      <input type="text" name="perDiem" value={formData.perDiem} onChange={handleChange} placeholder="0" />
+                    </div>
+                    <div className="form-group">
+                      <label>Проживання, грн</label>
+                      <input type="text" name="living" value={formData.living} onChange={handleChange} placeholder="0" />
+                    </div>
+                    <div className="form-group">
+                      <label>Інші витрати, грн</label>
+                      <input type="text" name="otherExp" value={formData.otherExp} onChange={handleChange} placeholder="0" />
+                    </div>
+                    <div className="form-group">
+                      <label>Держномер</label>
+                      <input type="text" name="carNumber" value={formData.carNumber} onChange={handleChange} />
+                    </div>
+                    <div className="form-group">
+                      <label>Транспорт, км</label>
+                      <input type="text" name="transportKm" value={formData.transportKm} onChange={handleChange} placeholder="0" />
+                    </div>
+                    <div className="form-group">
+                      <label>Транспорт, грн</label>
+                      <input type="text" name="transportSum" value={formData.transportSum} onChange={handleChange} placeholder="0" />
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label>Проживання, грн</label>
-                    <input type="text" name="living" value={formData.living} onChange={handleChange} placeholder="0" />
-                  </div>
-                  <div className="form-group">
-                    <label>Інші витрати, грн</label>
-                    <input type="text" name="otherExp" value={formData.otherExp} onChange={handleChange} placeholder="0" />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Держномер автотранспорту</label>
-                    <input type="text" name="carNumber" value={formData.carNumber} onChange={handleChange} />
-                  </div>
-                  <div className="form-group">
-                    <label>Транспортні витрати, км</label>
-                    <input type="text" name="transportKm" value={formData.transportKm} onChange={handleChange} placeholder="0" />
-                  </div>
-                  <div className="form-group">
-                    <label>Загальна вартість тр. витрат, грн</label>
-                    <input type="text" name="transportSum" value={formData.transportSum} onChange={handleChange} placeholder="0" />
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="form-row three-cols">
+                      <div className="form-group">
+                        <label>Добові, грн</label>
+                        <input type="text" name="perDiem" value={formData.perDiem} onChange={handleChange} placeholder="0" />
+                      </div>
+                      <div className="form-group">
+                        <label>Проживання, грн</label>
+                        <input type="text" name="living" value={formData.living} onChange={handleChange} placeholder="0" />
+                      </div>
+                      <div className="form-group">
+                        <label>Інші витрати, грн</label>
+                        <input type="text" name="otherExp" value={formData.otherExp} onChange={handleChange} placeholder="0" />
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Держномер автотранспорту</label>
+                        <input type="text" name="carNumber" value={formData.carNumber} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Транспортні витрати, км</label>
+                        <input type="text" name="transportKm" value={formData.transportKm} onChange={handleChange} placeholder="0" />
+                      </div>
+                      <div className="form-group">
+                        <label>Загальна вартість тр. витрат, грн</label>
+                        <input type="text" name="transportSum" value={formData.transportSum} onChange={handleChange} placeholder="0" />
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -2004,10 +2402,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           {/* Підтвердження завскладом та бухгалтером */}
           <div className="form-section section-approval">
             {!isAccountantMode && (
-              <div className="section-header" onClick={() => toggleSection('other')}>
-                <h3>Підтвердження завскладом та бухгалтером</h3>
-                <span className="section-toggle">{showSections.other ? '▼' : '▶'}</span>
-              </div>
+            <div className="section-header" onClick={() => toggleSection('other')}>
+              <h3>Підтвердження завскладом та бухгалтером</h3>
+              <span className="section-toggle">{showSections.other ? '▼' : '▶'}</span>
+            </div>
             )}
             {showSections.other && (
               <div className="section-content">
@@ -2185,10 +2583,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             {/* Секція файлів виконаних робіт */}
             <div className="form-section">
               {!isAccountantMode && (
-                <div className="section-header" onClick={() => toggleSection('files')}>
-                  <h3>📁 Файли виконаних робіт</h3>
-                  <span className="section-toggle">{showSections.files ? '▼' : '▶'}</span>
-                </div>
+              <div className="section-header" onClick={() => toggleSection('files')}>
+                <h3>📁 Файли виконаних робіт</h3>
+                <span className="section-toggle">{showSections.files ? '▼' : '▶'}</span>
+              </div>
               )}
               {showSections.files && (
                 <div className="section-content">

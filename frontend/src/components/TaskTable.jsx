@@ -897,23 +897,23 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                         <div className="invoice-info-compact">
                           {/* Тип документів - показуємо тільки для бух.рахунки */}
                           {status === 'accountantInvoiceRequests' && (
-                            <div className="docs-row">
-                              {task.needInvoice && <span className="doc-badge doc-invoice" title="Потрібен рахунок">📄</span>}
-                              {task.needAct && <span className="doc-badge doc-act" title="Потрібен акт">📋</span>}
-                              {!task.needInvoice && !task.needAct && <span className="doc-badge doc-none" title="Не вказано">⚠️</span>}
-                            </div>
+                          <div className="docs-row">
+                            {task.needInvoice && <span className="doc-badge doc-invoice" title="Потрібен рахунок">📄</span>}
+                            {task.needAct && <span className="doc-badge doc-act" title="Потрібен акт">📋</span>}
+                            {!task.needInvoice && !task.needAct && <span className="doc-badge doc-none" title="Не вказано">⚠️</span>}
+                          </div>
                           )}
                           {/* Статус рахунку - показуємо для всіх панелей */}
                           {(() => {
                             const invoiceStatus = getInvoiceStatus(task);
                             return (
-                              <div 
-                                className="status-badge-compact"
+                          <div 
+                            className="status-badge-compact"
                                 style={{ backgroundColor: invoiceStatus.color }}
                                 title={`Статус рахунку: ${invoiceStatus.label}`}
-                              >
+                          >
                                 {invoiceStatus.label}
-                              </div>
+                          </div>
                             );
                           })()}
                         </div>

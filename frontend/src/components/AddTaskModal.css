@@ -516,9 +516,18 @@
   max-height: 95vh;
 }
 
+.accountant-mode .modal-content {
+  background: #f5f5f5 !important; /* Світлий фон як в оригінальному проекті */
+}
+
 .accountant-mode .task-form {
   padding: 8px;
   gap: 6px;
+  background: #f5f5f5;
+}
+
+.accountant-mode .section-content {
+  background: #f5f5f5;
 }
 
 /* Прибираємо заголовки секцій повністю в режимі бухгалтера */
@@ -571,7 +580,7 @@
 
 /* Більше колонок для оптимізації простору */
 .accountant-mode .form-row {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr); /* За замовчуванням 4 колонки */
 }
 
 .accountant-mode .form-row.four-cols {
@@ -582,16 +591,45 @@
   grid-template-columns: repeat(3, 1fr);
 }
 
-/* Білий шрифт для всіх полів, крім номера рахунку */
+/* Спеціальні рядки для accountant-mode */
+.accountant-mode .form-row.six-cols {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.accountant-mode .form-row.five-cols {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.accountant-mode .form-row.two-cols {
+  grid-template-columns: 2fr 1fr;
+}
+
+.accountant-mode .form-row.six-cols .form-group,
+.accountant-mode .form-row.five-cols .form-group,
+.accountant-mode .form-row.two-cols .form-group {
+  min-width: 0; /* Дозволяємо стискання */
+}
+
+/* Прибираємо заголовки підсекцій матеріалів для бухгалтерів */
+.accountant-mode .subsection h4 {
+  display: none;
+}
+
+.accountant-mode .subsection {
+  margin-bottom: 4px;
+}
+
+/* Чорний шрифт для всіх полів на світлому фоні, крім номера рахунку */
 .accountant-mode .form-group input:not([name="invoice"]),
 .accountant-mode .form-group select:not([name="invoice"]),
 .accountant-mode .form-group textarea {
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  background: #ffffff !important;
 }
 
 .accountant-mode .form-group label {
-  color: #ffffff !important;
+  color: #000000 !important;
 }
 
 /* Номер рахунку залишаємо звичайним кольором */
