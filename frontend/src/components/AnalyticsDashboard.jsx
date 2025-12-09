@@ -185,6 +185,7 @@ export default function AnalyticsDashboard({ user }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [regions, setRegions] = useState([]);
+  const [users, setUsers] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
   
   // Фільтри
@@ -206,9 +207,10 @@ export default function AnalyticsDashboard({ user }) {
       const token = localStorage.getItem('token');
       const headers = { 'Authorization': `Bearer ${token}` };
       
-      const [tasksRes, regionsRes] = await Promise.all([
+      const [tasksRes, regionsRes, usersRes] = await Promise.all([
         fetch(`${API_BASE_URL}/tasks/filter?showAll=true`, { headers }),
-        fetch(`${API_BASE_URL}/regions`, { headers })
+        fetch(`${API_BASE_URL}/regions`, { headers }),
+        fetch(`${API_BASE_URL}/users`, { headers })
       ]);
       
       if (tasksRes.ok) {
@@ -219,6 +221,13 @@ export default function AnalyticsDashboard({ user }) {
       if (regionsRes.ok) {
         const data = await regionsRes.json();
         setRegions(data.map(r => r.name || r));
+      }
+      
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        // Фільтруємо тільки активних користувачів (не звільнених)
+        const activeUsers = usersData.filter(u => !u.dismissed);
+        setUsers(activeUsers);
       }
     } catch (error) {
       console.error('Помилка завантаження:', error);
@@ -550,6 +559,32 @@ export default function AnalyticsDashboard({ user }) {
 
   // Генерація рекомендацій
   const recommendations = useMemo(() => {
+    // Функція для перевірки, чи інженер активний (не звільнений)
+    const isEngineerActive = (engineerName) => {
+      if (!engineerName || !users.length) return true; // Якщо немає даних, припускаємо активний
+      
+      // Перевіряємо по login (якщо engineerName - це login)
+      const userByLogin = users.find(u => u.login === engineerName);
+      if (userByLogin) return !userByLogin.dismissed;
+      
+      // Перевіряємо по імені (якщо engineerName - це ім'я)
+      const userByName = users.find(u => {
+        const userName = (u.name || '').toLowerCase().trim();
+        const engineerNameLower = engineerName.toLowerCase().trim();
+        // Точне співпадіння або часткове
+        return userName === engineerNameLower || 
+               userName.includes(engineerNameLower) ||
+               engineerNameLower.includes(userName);
+      });
+      
+      // Якщо знайдено користувача, перевіряємо статус
+      if (userByName) return !userByName.dismissed;
+      
+      // Якщо не знайдено в списку користувачів, припускаємо активний
+      // (може бути зовнішній інженер або старий запис)
+      return true;
+    };
+
     const recs = [];
     
     // 1. Аналіз конверсії
@@ -632,7 +667,10 @@ export default function AnalyticsDashboard({ user }) {
     // 5. Аналіз інженерів - найменш продуктивні
     if (engineerData.length > 3) {
       const avgTasks = engineerData.reduce((sum, e) => sum + e.tasks, 0) / engineerData.length;
-      const lowPerformers = engineerData.filter(e => e.tasks < avgTasks * 0.6);
+      
+      // Фільтруємо тільки активних інженерів (виключаємо звільнених)
+      const activeEngineers = engineerData.filter(e => isEngineerActive(e.name));
+      const lowPerformers = activeEngineers.filter(e => e.tasks < avgTasks * 0.6);
       
       if (lowPerformers.length > 0) {
         recs.push({
@@ -766,7 +804,7 @@ export default function AnalyticsDashboard({ user }) {
     // Сортування за пріоритетом
     const priorityOrder = { high: 3, medium: 2, low: 1 };
     return recs.sort((a, b) => priorityOrder[b.priority] - priorityOrder[a.priority]);
-  }, [kpiData, filteredTasks, regionData, engineerData, workTypeData, topClients, monthlyData]);
+  }, [kpiData, filteredTasks, regionData, engineerData, workTypeData, topClients, monthlyData, users]);
 
   if (loading) {
     return <div className="analytics-loading">⏳ Завантаження аналітики...</div>;
