@@ -209,7 +209,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     equipment: isAccountantMode ? true : true,
     work: isAccountantMode ? true : false,
     materials: isAccountantMode ? true : false,
-    expenses: isAccountantMode ? true : false,
+    expenses: isAccountantMode ? true : true, // Розгорнута для всіх панелей
     other: isAccountantMode ? true : false,
     files: isAccountantMode ? true : true
   });
@@ -1768,6 +1768,14 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
             {showSections.equipment && (
               <div className="section-content">
+                {/* Загальна сума послуги - на початку секції */}
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Загальна сума послуги, грн</label>
+                    <input type="text" name="serviceTotal" value={formData.serviceTotal} onChange={handleChange} placeholder="0.00" />
+                  </div>
+                </div>
+                
                 {isAccountantMode ? (
                   <>
                     <div className="form-row six-cols">
@@ -2366,10 +2374,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       <label>Транспорт, грн</label>
                       <input type="text" name="transportSum" value={formData.transportSum} onChange={handleChange} placeholder="0" />
                     </div>
-                    <div className="form-group">
-                      <label>Загальна сума послуги, грн</label>
-                      <input type="text" name="serviceTotal" value={formData.serviceTotal} onChange={handleChange} placeholder="0.00" />
-                    </div>
                   </div>
                 ) : (
                   <>
@@ -2399,10 +2403,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       <div className="form-group">
                         <label>Загальна вартість тр. витрат, грн</label>
                         <input type="text" name="transportSum" value={formData.transportSum} onChange={handleChange} placeholder="0" />
-                      </div>
-                      <div className="form-group">
-                        <label>Загальна сума послуги, грн</label>
-                        <input type="text" name="serviceTotal" value={formData.serviceTotal} onChange={handleChange} placeholder="0.00" />
                       </div>
                     </div>
                   </>
