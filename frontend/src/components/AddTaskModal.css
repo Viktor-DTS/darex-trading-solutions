@@ -1234,3 +1234,116 @@
   color: #4ade80;
   font-weight: 500;
 }
+
+/* Модальне вікно з не заповненими полями */
+.missing-fields-modal {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 0;
+  min-width: 400px;
+  max-width: 500px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+}
+
+.missing-fields-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.missing-fields-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.missing-fields-header .modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.missing-fields-header .modal-close:hover {
+  background: var(--surface-dark);
+  color: var(--text-primary);
+}
+
+.missing-fields-content {
+  padding: 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.missing-fields-message {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+.missing-fields-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.missing-fields-list li {
+  color: #ffc107;
+  font-size: 14px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 193, 7, 0.2);
+  line-height: 1.5;
+}
+
+.missing-fields-list li:last-child {
+  border-bottom: none;
+}
+
+.missing-fields-modal .modal-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+}
+
+.missing-fields-modal .btn-primary {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 6px;
+  background: var(--primary);
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.missing-fields-modal .btn-primary:hover {
+  background: var(--primary-dark, #2563eb);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}

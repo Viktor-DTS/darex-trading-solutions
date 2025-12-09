@@ -246,6 +246,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     returnTo: 'service' // 'service' або 'warehouse'
   });
 
+  // Стан для модального вікна з не заповненими полями
+  const [missingFieldsModal, setMissingFieldsModal] = useState({
+    open: false,
+    fields: []
+  });
+
   // Завантаження регіонів та користувачів
   useEffect(() => {
     if (open) {
@@ -828,7 +834,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     }
     
     if (missingFields.length > 0) {
-      setError(`Заповніть обов'язкові поля: ${missingFields.join(', ')}`);
+      setMissingFieldsModal({
+        open: true,
+        fields: missingFields
+      });
       setLoading(false);
       return;
     }
@@ -2689,6 +2698,42 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                   {loading ? 'Збереження...' : 'Відхилити заявку'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модальне вікно з не заповненими полями */}
+      {missingFieldsModal.open && (
+        <div className="modal-overlay" onClick={() => setMissingFieldsModal({ open: false, fields: [] })}>
+          <div className="missing-fields-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="missing-fields-header">
+              <h3>⚠️ Не заповнені обов'язкові поля</h3>
+              <button 
+                className="modal-close" 
+                onClick={() => setMissingFieldsModal({ open: false, fields: [] })}
+              >
+                ×
+              </button>
+            </div>
+            <div className="missing-fields-content">
+              <p className="missing-fields-message">
+                Будь ласка, заповніть наступні обов'язкові поля перед збереженням:
+              </p>
+              <ul className="missing-fields-list">
+                {missingFieldsModal.fields.map((field, index) => (
+                  <li key={index}>• {field}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="modal-buttons">
+              <button 
+                type="button"
+                className="btn-primary"
+                onClick={() => setMissingFieldsModal({ open: false, fields: [] })}
+              >
+                Зрозуміло
+              </button>
             </div>
           </div>
         </div>
