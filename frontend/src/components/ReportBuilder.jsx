@@ -421,7 +421,7 @@ export default function ReportBuilder({ user }) {
 
   // Форматування значення
   const formatValue = (value, type) => {
-    if (value === null || value === undefined) return '-';
+    if (value === null || value === undefined || value === '') return '-';
     
     if (type === 'number') {
       return Number(value).toLocaleString('uk-UA', { minimumFractionDigits: 2 });
@@ -431,6 +431,54 @@ export default function ReportBuilder({ user }) {
       if (value === 'Відмова' || value === false) return '❌ Відмова';
       return '⏳ На розгляді';
     }
+    
+    // Форматування дат
+    if (type === 'date') {
+      try {
+        const date = new Date(value);
+        if (isNaN(date.getTime())) return String(value);
+        
+        // Перевіряємо чи є час в значенні (ISO формат з часом)
+        const hasTime = String(value).includes('T') || String(value).includes(' ');
+        if (hasTime) {
+          // Формат: ДД.ММ.РРРР ГГ:ХХ
+          const day = String(date.getDate()).padStart(2, '0');
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const year = date.getFullYear();
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          return `${day}.${month}.${year} ${hours}:${minutes}`;
+        } else {
+          // Формат: ДД.ММ.РРРР
+          const day = String(date.getDate()).padStart(2, '0');
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const year = date.getFullYear();
+          return `${day}.${month}.${year}`;
+        }
+      } catch {
+        return String(value);
+      }
+    }
+    
+    // Автоматичне визначення дат з часом (ISO формат)
+    const stringValue = String(value);
+    if (stringValue.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/) || 
+        stringValue.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/)) {
+      try {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          const day = String(date.getDate()).padStart(2, '0');
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const year = date.getFullYear();
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          return `${day}.${month}.${year} ${hours}:${minutes}`;
+        }
+      } catch {
+        // Якщо не вдалося розпарсити, повертаємо як є
+      }
+    }
+    
     return String(value);
   };
 
