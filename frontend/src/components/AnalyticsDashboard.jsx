@@ -656,77 +656,77 @@ export default function AnalyticsDashboard({ user }) {
         <div className="tab-content">
           {/* KPI картки */}
           <div className="kpi-grid">
-            <div className="kpi-card blue">
+            <div className="kpi-card blue" title="Загальна кількість заявок з урахуванням обраних фільтрів (рік, регіон)">
               <div className="kpi-icon">📋</div>
               <div className="kpi-info">
                 <div className="kpi-value">{kpiData.totalTasks}</div>
                 <div className="kpi-label">Всього заявок</div>
               </div>
             </div>
-            <div className="kpi-card green">
+            <div className="kpi-card green" title="Кількість заявок зі статусом 'Виконано'">
               <div className="kpi-icon">✅</div>
               <div className="kpi-info">
                 <div className="kpi-value">{kpiData.completedTasks}</div>
                 <div className="kpi-label">Виконано</div>
               </div>
             </div>
-            <div className="kpi-card gold">
+            <div className="kpi-card gold" title="Сума всіх виконаних заявок. Розраховується як сума поля 'Загальна сума послуги' (serviceTotal) для всіх заявок зі статусом 'Виконано'">
               <div className="kpi-icon">💰</div>
               <div className="kpi-info">
                 <div className="kpi-value">{formatCurrency(kpiData.totalRevenue)}</div>
                 <div className="kpi-label">Загальний дохід</div>
               </div>
             </div>
-            <div className="kpi-card purple">
+            <div className="kpi-card purple" title="Відсоток виконаних заявок від загальної кількості. Формула: (Виконано / Всього заявок) × 100%">
               <div className="kpi-icon">📊</div>
               <div className="kpi-info">
                 <div className="kpi-value">{kpiData.conversionRate.toFixed(1)}%</div>
                 <div className="kpi-label">Конверсія</div>
               </div>
             </div>
-            <div className="kpi-card orange">
+            <div className="kpi-card orange" title="Середня вартість однієї виконаної заявки. Формула: Загальний дохід / Кількість виконаних заявок">
               <div className="kpi-icon">⭐</div>
               <div className="kpi-info">
                 <div className="kpi-value">{formatCurrency(kpiData.avgTaskValue)}</div>
                 <div className="kpi-label">Середній чек</div>
               </div>
             </div>
-            <div className="kpi-card teal">
+            <div className="kpi-card teal" title="Кількість заявок, які підтверджені і завскладом, і бухгалтером (обидва мають статус 'Підтверджено')">
               <div className="kpi-icon">🔒</div>
               <div className="kpi-info">
                 <div className="kpi-value">{kpiData.approvedByAll}</div>
                 <div className="kpi-label">Підтверджено</div>
               </div>
             </div>
-            <div className="kpi-card cyan">
+            <div className="kpi-card cyan" title="Середній час від створення заявки до її виконання. Розраховується як середнє значення різниці між датою створення (autoCreatedAt) та датою виконання (autoCompletedAt) для всіх виконаних заявок. Результат у днях">
               <div className="kpi-icon">⏱️</div>
               <div className="kpi-info">
                 <div className="kpi-value">{kpiData.avgCompletionTime}</div>
                 <div className="kpi-label">Сер. час виконання (дні)</div>
               </div>
             </div>
-            <div className="kpi-card pink">
+            <div className="kpi-card pink" title="Середній час від виконання заявки до її підтвердження бухгалтером. Розраховується як середнє значення різниці між датою виконання (autoCompletedAt) та датою підтвердження бухгалтером (autoAccountantApprovedAt). Результат у днях">
               <div className="kpi-icon">⚡</div>
               <div className="kpi-info">
                 <div className="kpi-value">{kpiData.avgApprovalTime}</div>
                 <div className="kpi-label">Сер. час підтвердження (дні)</div>
               </div>
             </div>
-            <div className="kpi-card red">
+            <div className="kpi-card red" title="Кількість заявок, які були відхилені завскладом або бухгалтером (статус 'Відмова' в одному з полів підтвердження)">
               <div className="kpi-icon">❌</div>
               <div className="kpi-info">
                 <div className="kpi-value">{kpiData.rejectedTasks}</div>
                 <div className="kpi-label">Відхилено</div>
               </div>
             </div>
-            <div className="kpi-card yellow">
+            <div className="kpi-card yellow" title="Кількість заявок, позначених як термінові (поле urgentRequest = true)">
               <div className="kpi-icon">🚨</div>
               <div className="kpi-info">
                 <div className="kpi-value">{kpiData.urgentTasks}</div>
                 <div className="kpi-label">Термінові</div>
               </div>
             </div>
-            <div className="kpi-card indigo">
+            <div className="kpi-card indigo" title="Загальна сума витрат на матеріали для всіх виконаних заявок. Включає: оливу (oilTotal), масляні фільтри (filterSum), паливні фільтри (fuelFilterSum), повітряні фільтри (airFilterSum), антифриз (antifreezeSum) та інші матеріали (otherSum)">
               <div className="kpi-icon">📦</div>
               <div className="kpi-info">
                 <div className="kpi-value">{formatCurrency(kpiData.totalMaterials)}</div>
