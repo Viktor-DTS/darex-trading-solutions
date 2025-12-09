@@ -737,11 +737,11 @@ export default function AnalyticsDashboard({ user }) {
 
           {/* Графіки */}
           <div className="charts-row">
-            <div className="chart-card">
+            <div className="chart-card" title="Візуалізація розподілу заявок за статусами. Показує кількість заявок для кожного статусу (Заявка, В роботі, Виконано, Заблоковано)">
               <h3>📊 Розподіл по статусах</h3>
               <SimplePieChart data={statusData} dataKey="value" nameKey="name" />
             </div>
-            <div className="chart-card">
+            <div className="chart-card" title="Візуалізація розподілу доходу за типами оплати. Показує загальний дохід для кожного типу оплати (готівка, безготівка, картка тощо)">
               <h3>💳 Типи оплати</h3>
               <SimplePieChart data={paymentTypeData} dataKey="revenue" nameKey="name" />
             </div>
@@ -752,7 +752,7 @@ export default function AnalyticsDashboard({ user }) {
       {/* ТРЕНДИ */}
       {activeTab === 'trends' && (
         <div className="tab-content">
-          <div className="chart-card full-width">
+          <div className="chart-card full-width" title="Лінійний графік, що показує динаміку зміни доходу та вартості робіт по місяцях обраного року. Зелена лінія - загальний дохід (сума всіх виконаних заявок), синя лінія - вартість робіт">
             <h3>📈 Динаміка доходу по місяцях</h3>
             <SimpleLineChart 
               data={monthlyData} 
@@ -764,12 +764,12 @@ export default function AnalyticsDashboard({ user }) {
             />
           </div>
           
-          <div className="chart-card full-width">
+          <div className="chart-card full-width" title="Стовпчастий графік, що показує загальну кількість заявок (всіх статусів) по кожному місяцю обраного року">
             <h3>📊 Заявки по місяцях</h3>
             <SimpleBarChart data={monthlyData} dataKey="tasks" nameKey="month" color="#8884d8" />
           </div>
           
-          <div className="chart-card full-width">
+          <div className="chart-card full-width" title="Стовпчастий графік, що показує кількість виконаних заявок (статус 'Виконано') по кожному місяцю обраного року">
             <h3>✅ Виконані заявки по місяцях</h3>
             <SimpleBarChart data={monthlyData} dataKey="completed" nameKey="month" color="#4CAF50" />
           </div>
@@ -779,17 +779,17 @@ export default function AnalyticsDashboard({ user }) {
       {/* РЕГІОНИ */}
       {activeTab === 'regions' && (
         <div className="tab-content">
-          <div className="chart-card full-width">
+          <div className="chart-card full-width" title="Горизонтальний стовпчастий графік, що показує загальний дохід від виконаних заявок для кожного регіону. Дані відсортовані за величиною доходу">
             <h3>🌍 Дохід по регіонах</h3>
             <SimpleBarChart data={regionData} dataKey="revenue" nameKey="name" horizontal={true} />
           </div>
           
           <div className="charts-row">
-            <div className="chart-card">
+            <div className="chart-card" title="Кругова діаграма, що показує розподіл загальної кількості заявок (всіх статусів) між регіонами. Відображає відсоток заявок для кожного регіону">
               <h3>📊 Заявки по регіонах</h3>
               <SimplePieChart data={regionData} dataKey="tasks" nameKey="name" />
             </div>
-            <div className="chart-card">
+            <div className="chart-card" title="Кругова діаграма, що показує розподіл загального доходу від виконаних заявок між регіонами. Відображає відсоток доходу для кожного регіону з доходом більше нуля">
               <h3>💰 Розподіл доходу</h3>
               <SimplePieChart data={regionData.filter(r => r.revenue > 0)} dataKey="revenue" nameKey="name" />
             </div>
@@ -800,17 +800,17 @@ export default function AnalyticsDashboard({ user }) {
       {/* КОМАНДА */}
       {activeTab === 'team' && (
         <div className="tab-content">
-          <div className="chart-card full-width">
+          <div className="chart-card full-width" title="Горизонтальний стовпчастий графік, що показує топ-10 інженерів за кількістю виконаних завдань. Для заявок з двома інженерами кожен отримує 0.5 завдання">
             <h3>👥 Топ-10 інженерів по кількості завдань</h3>
             <SimpleBarChart data={engineerData} dataKey="tasks" nameKey="name" horizontal={true} />
           </div>
           
-          <div className="chart-card full-width">
+          <div className="chart-card full-width" title="Горизонтальний стовпчастий графік, що показує дохід, згенерований кожним інженером. Для заявок з двома інженерами дохід ділиться порівну між ними">
             <h3>💰 Дохід по інженерах</h3>
             <SimpleBarChart data={engineerData} dataKey="revenue" nameKey="name" horizontal={true} />
           </div>
 
-          <div className="data-table-card">
+          <div className="data-table-card" title="Детальна таблиця зі статистикою по кожному інженеру: кількість виконаних завдань, загальний дохід та середній чек (дохід поділений на кількість завдань)">
             <h3>📋 Детальна статистика інженерів</h3>
             <table className="data-table">
               <thead>
@@ -841,12 +841,12 @@ export default function AnalyticsDashboard({ user }) {
       {/* КЛІЄНТИ */}
       {activeTab === 'clients' && (
         <div className="tab-content">
-          <div className="chart-card full-width">
+          <div className="chart-card full-width" title="Горизонтальний стовпчастий графік, що показує топ-10 клієнтів за загальним доходом від виконаних заявок. Дані відсортовані за величиною доходу">
             <h3>🏢 Топ-10 клієнтів по доходу</h3>
             <SimpleBarChart data={topClients} dataKey="revenue" nameKey="name" horizontal={true} />
           </div>
 
-          <div className="data-table-card">
+          <div className="data-table-card" title="Детальна таблиця зі статистикою по кожному клієнту: загальна кількість заявок, загальний дохід від виконаних заявок та середній чек (дохід поділений на кількість заявок)">
             <h3>📋 Детальна статистика клієнтів</h3>
             <table className="data-table">
               <thead>
@@ -878,7 +878,7 @@ export default function AnalyticsDashboard({ user }) {
       {activeTab === 'performance' && (
         <div className="tab-content">
           <div className="charts-row">
-            <div className="chart-card">
+            <div className="chart-card" title="Горизонтальний стовпчастий графік, що показує середній час виконання (в днях) для топ-10 типів робіт. Час розраховується як середнє значення різниці між датою створення та датою виконання заявок">
               <h3>⏱️ Середній час виконання по типах робіт</h3>
               <SimpleBarChart 
                 data={workTypeData.slice(0, 10)} 
@@ -888,13 +888,13 @@ export default function AnalyticsDashboard({ user }) {
                 showValues={true}
               />
             </div>
-            <div className="chart-card">
+            <div className="chart-card" title="Кругова діаграма, що показує розподіл кількості виконаних заявок між топ-8 типами робіт. Відображає відсоток заявок для кожного типу робіт">
               <h3>📊 Кількість заявок по типах робіт</h3>
               <SimplePieChart data={workTypeData.slice(0, 8)} dataKey="tasks" nameKey="name" />
             </div>
           </div>
           
-          <div className="data-table-card">
+          <div className="data-table-card" title="Детальна таблиця зі статистикою по кожному типу робіт: кількість виконаних заявок, загальний дохід, середній чек та середній час виконання в днях">
             <h3>📋 Детальна статистика по типах робіт</h3>
             <table className="data-table">
               <thead>
@@ -927,17 +927,17 @@ export default function AnalyticsDashboard({ user }) {
       {/* ОБЛАДНАННЯ */}
       {activeTab === 'equipment' && (
         <div className="tab-content">
-          <div className="chart-card full-width">
+          <div className="chart-card full-width" title="Горизонтальний стовпчастий графік, що показує топ-15 типів обладнання за кількістю виконаних заявок. Дані відсортовані за кількістю заявок">
             <h3>🔧 Топ-15 типів обладнання по кількості заявок</h3>
             <SimpleBarChart data={equipmentData} dataKey="tasks" nameKey="name" horizontal={true} />
           </div>
           
-          <div className="chart-card full-width">
+          <div className="chart-card full-width" title="Горизонтальний стовпчастий графік, що показує загальний дохід від виконаних заявок для кожного типу обладнання">
             <h3>💰 Дохід по типах обладнання</h3>
             <SimpleBarChart data={equipmentData} dataKey="revenue" nameKey="name" horizontal={true} />
           </div>
 
-          <div className="data-table-card">
+          <div className="data-table-card" title="Детальна таблиця зі статистикою по кожному типу обладнання: кількість виконаних заявок, загальний дохід та середня вартість однієї заявки (дохід поділений на кількість заявок)">
             <h3>📋 Детальна статистика по обладнанню</h3>
             <table className="data-table">
               <thead>
@@ -969,7 +969,7 @@ export default function AnalyticsDashboard({ user }) {
       {activeTab === 'comparison' && (
         <div className="tab-content">
           <div className="kpi-grid">
-            <div className="kpi-card blue">
+            <div className="kpi-card blue" title="Кількість заявок (всіх статусів) за поточний рік порівняно з попереднім роком. Відображає відсоток зміни (↑ зростання, ↓ зниження)">
               <div className="kpi-icon">📊</div>
               <div className="kpi-info">
                 <div className="kpi-value">{comparisonData.currentTasks}</div>
@@ -981,7 +981,7 @@ export default function AnalyticsDashboard({ user }) {
                 </div>
               </div>
             </div>
-            <div className="kpi-card gold">
+            <div className="kpi-card gold" title="Загальний дохід від виконаних заявок за поточний рік порівняно з попереднім роком. Відображає відсоток зміни доходу (↑ зростання, ↓ зниження)">
               <div className="kpi-icon">💰</div>
               <div className="kpi-info">
                 <div className="kpi-value">{formatCurrency(comparisonData.currentRevenue)}</div>
@@ -993,7 +993,7 @@ export default function AnalyticsDashboard({ user }) {
                 </div>
               </div>
             </div>
-            <div className="kpi-card green">
+            <div className="kpi-card green" title="Кількість виконаних заявок (статус 'Виконано') за поточний рік порівняно з попереднім роком. Показує абсолютну різницю">
               <div className="kpi-icon">✅</div>
               <div className="kpi-info">
                 <div className="kpi-value">{comparisonData.currentCompleted}</div>
@@ -1008,7 +1008,7 @@ export default function AnalyticsDashboard({ user }) {
           </div>
 
           <div className="charts-row">
-            <div className="chart-card">
+            <div className="chart-card" title="Стовпчастий графік, що порівнює загальну кількість заявок (всіх статусів) між поточним та попереднім роком">
               <h3>📊 Порівняння заявок</h3>
               <SimpleBarChart 
                 data={[
@@ -1019,7 +1019,7 @@ export default function AnalyticsDashboard({ user }) {
                 nameKey="name" 
               />
             </div>
-            <div className="chart-card">
+            <div className="chart-card" title="Стовпчастий графік, що порівнює загальний дохід від виконаних заявок між поточним та попереднім роком">
               <h3>💰 Порівняння доходу</h3>
               <SimpleBarChart 
                 data={[
