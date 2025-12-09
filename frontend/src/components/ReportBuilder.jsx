@@ -2,30 +2,128 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import API_BASE_URL from '../config.js';
 import './ReportBuilder.css';
 
-// Доступні поля для звіту
+// Доступні поля для звіту (всі поля з TaskTable)
 const AVAILABLE_FIELDS = [
-  { key: 'requestNumber', label: 'Номер заявки', type: 'text' },
+  // Основна інформація
+  { key: 'requestNumber', label: '№ Заявки', type: 'text' },
   { key: 'requestDate', label: 'Дата заявки', type: 'date' },
-  { key: 'date', label: 'Дата виконання', type: 'date' },
-  { key: 'status', label: 'Статус', type: 'select' },
-  { key: 'client', label: 'Замовник', type: 'text' },
-  { key: 'edrpou', label: 'ЄДРПОУ', type: 'text' },
-  { key: 'address', label: 'Адреса', type: 'text' },
-  { key: 'serviceRegion', label: 'Регіон', type: 'select' },
-  { key: 'equipment', label: 'Обладнання', type: 'text' },
-  { key: 'work', label: 'Найменування робіт', type: 'text' },
-  { key: 'engineer1', label: 'Інженер 1', type: 'select' },
-  { key: 'engineer2', label: 'Інженер 2', type: 'select' },
+  { key: 'status', label: 'Статус заявки', type: 'select' },
   { key: 'company', label: 'Компанія виконавець', type: 'select' },
-  { key: 'paymentType', label: 'Тип оплати', type: 'select' },
-  { key: 'serviceTotal', label: 'Сума послуг', type: 'number' },
-  { key: 'workPrice', label: 'Вартість робіт', type: 'number' },
-  { key: 'oilTotal', label: 'Сума оливи', type: 'number' },
-  { key: 'filterSum', label: 'Сума фільтрів', type: 'number' },
-  { key: 'transportSum', label: 'Транспортні витрати', type: 'number' },
-  { key: 'approvedByWarehouse', label: 'Підтвердження складу', type: 'approval' },
-  { key: 'approvedByAccountant', label: 'Підтвердження бухгалтера', type: 'approval' },
+  { key: 'serviceRegion', label: 'Регіон сервісного відділу', type: 'select' },
+  
+  // Клієнт та адреса
+  { key: 'edrpou', label: 'ЄДРПОУ', type: 'text' },
+  { key: 'client', label: 'Замовник', type: 'text' },
+  { key: 'address', label: 'Адреса', type: 'text' },
+  { key: 'requestDesc', label: 'Опис заявки', type: 'text' },
+  { key: 'plannedDate', label: 'Запланована дата робіт', type: 'date' },
+  { key: 'contactPerson', label: 'Контактна особа', type: 'text' },
+  { key: 'contactPhone', label: 'Тел. контактної особи', type: 'text' },
+  
+  // Обладнання
+  { key: 'equipment', label: 'Тип обладнання', type: 'text' },
+  { key: 'equipmentSerial', label: 'Заводський номер обладнання', type: 'text' },
+  { key: 'engineModel', label: 'Модель двигуна', type: 'text' },
+  { key: 'engineSerial', label: 'Зав. № двигуна', type: 'text' },
+  { key: 'customerEquipmentNumber', label: 'інвент. № обладнання від замовника', type: 'text' },
+  
+  // Роботи та інженери
+  { key: 'work', label: 'Найменування робіт', type: 'text' },
+  { key: 'date', label: 'Дата проведення робіт', type: 'date' },
+  { key: 'engineer1', label: 'Сервісний інженер №1', type: 'select' },
+  { key: 'engineer2', label: 'Сервісний інженер №2', type: 'select' },
+  { key: 'engineer3', label: 'Сервісний інженер №3', type: 'select' },
+  { key: 'engineer4', label: 'Сервісний інженер №4', type: 'select' },
+  { key: 'engineer5', label: 'Сервісний інженер №5', type: 'select' },
+  { key: 'engineer6', label: 'Сервісний інженер №6', type: 'select' },
+  
+  // Фінанси
+  { key: 'serviceTotal', label: 'Загальна сума послуги', type: 'number' },
+  { key: 'workPrice', label: 'Вартість робіт, грн', type: 'number' },
+  { key: 'paymentType', label: 'Вид оплати', type: 'select' },
+  { key: 'paymentDate', label: 'Дата оплати', type: 'date' },
   { key: 'invoice', label: 'Номер рахунку', type: 'text' },
+  { key: 'invoiceRecipientDetails', label: 'Реквізити отримувача рахунку', type: 'text' },
+  
+  // Оливи
+  { key: 'oilType', label: 'Тип оливи', type: 'text' },
+  { key: 'oilUsed', label: 'Використано оливи, л', type: 'number' },
+  { key: 'oilPrice', label: 'Ціна оливи за 1 л, грн', type: 'number' },
+  { key: 'oilTotal', label: 'Загальна сума за оливу, грн', type: 'number' },
+  
+  // Фільтри масляні
+  { key: 'filterName', label: 'Фільтр масл. назва', type: 'text' },
+  { key: 'filterCount', label: 'Фільтр масл. штук', type: 'number' },
+  { key: 'filterPrice', label: 'Ціна одного масляного фільтра', type: 'number' },
+  { key: 'filterSum', label: 'Загальна сума за фільтри масляні', type: 'number' },
+  
+  // Фільтри паливні
+  { key: 'fuelFilterName', label: 'Фільтр палив. назва', type: 'text' },
+  { key: 'fuelFilterCount', label: 'Фільтр палив. штук', type: 'number' },
+  { key: 'fuelFilterPrice', label: 'Ціна одного паливного фільтра', type: 'number' },
+  { key: 'fuelFilterSum', label: 'Загальна сума за паливні фільтри', type: 'number' },
+  
+  // Фільтри повітряні
+  { key: 'airFilterName', label: 'Фільтр повітряний назва', type: 'text' },
+  { key: 'airFilterCount', label: 'Фільтр повітряний штук', type: 'number' },
+  { key: 'airFilterPrice', label: 'Ціна одного повітряного фільтра', type: 'number' },
+  { key: 'airFilterSum', label: 'Загальна сума за повітряні фільтри', type: 'number' },
+  
+  // Антифриз
+  { key: 'antifreezeType', label: 'Антифриз тип', type: 'text' },
+  { key: 'antifreezeL', label: 'Антифриз, л', type: 'number' },
+  { key: 'antifreezePrice', label: 'Ціна антифризу', type: 'number' },
+  { key: 'antifreezeSum', label: 'Загальна сума за антифриз', type: 'number' },
+  
+  // Інші матеріали
+  { key: 'otherMaterials', label: 'Опис інших матеріалів', type: 'text' },
+  { key: 'otherSum', label: 'Загальна ціна інших матеріалів', type: 'number' },
+  
+  // Транспорт
+  { key: 'carNumber', label: 'Держномер автотранспорту', type: 'text' },
+  { key: 'transportKm', label: 'Транспортні витрати, км', type: 'number' },
+  { key: 'transportSum', label: 'Загальна вартість тр. витрат', type: 'number' },
+  
+  // Витрати
+  { key: 'perDiem', label: 'Добові, грн', type: 'number' },
+  { key: 'living', label: 'Проживання, грн', type: 'number' },
+  { key: 'otherExp', label: 'Інші витрати, грн', type: 'number' },
+  { key: 'serviceBonus', label: 'Премія за виконання сервісних робіт, грн', type: 'number' },
+  
+  // Підтвердження зав. складу
+  { key: 'approvedByWarehouse', label: 'Підтвердження зав. складу', type: 'approval' },
+  { key: 'warehouseApprovalDate', label: 'Дата підтвердження зав. складу', type: 'date' },
+  { key: 'warehouseComment', label: 'Опис відмови (зав. склад)', type: 'text' },
+  
+  // Підтвердження бухгалтера
+  { key: 'approvedByAccountant', label: 'Підтвердження бухгалтера', type: 'approval' },
+  { key: 'accountantComment', label: 'Опис відмови (бухгалтер)', type: 'text' },
+  { key: 'accountantComments', label: 'Коментарії бухгалтера', type: 'text' },
+  
+  // Підтвердження регіонального керівника
+  { key: 'approvedByRegionalManager', label: 'Підтвердження регіонального керівника', type: 'approval' },
+  { key: 'regionalManagerComment', label: 'Опис відмови (регіональний керівник)', type: 'text' },
+  
+  // Інші поля
+  { key: 'comments', label: 'Коментарі', type: 'text' },
+  { key: 'approvalDate', label: 'Дата затвердження', type: 'date' },
+  { key: 'bonusApprovalDate', label: 'Дата затвердження премії', type: 'date' },
+  { key: 'reportMonthYear', label: 'Місяць/рік для звіту', type: 'text' },
+  { key: 'blockDetail', label: 'Детальний опис блокування заявки', type: 'text' },
+  
+  // Чекбокси (як текст)
+  { key: 'needInvoice', label: 'Потрібен рахунок', type: 'text' },
+  { key: 'needAct', label: 'Потрібен акт виконаних робіт', type: 'text' },
+  { key: 'debtStatus', label: 'Заборгованість по Акти виконаних робіт', type: 'text' },
+  { key: 'debtStatusCheckbox', label: 'Документи в наявності', type: 'text' },
+  
+  // Автоматичні дати
+  { key: 'autoCreatedAt', label: 'Авт. створення заявки', type: 'date' },
+  { key: 'autoCompletedAt', label: 'Авт. виконанно', type: 'date' },
+  { key: 'autoWarehouseApprovedAt', label: 'Авт. затвердження завскладом', type: 'date' },
+  { key: 'autoAccountantApprovedAt', label: 'Авт. затвердження бухгалтером', type: 'date' },
+  { key: 'invoiceRequestDate', label: 'Дата заявки на рахунок', type: 'date' },
+  { key: 'invoiceUploadDate', label: 'Дата завантаження рахунку', type: 'date' },
 ];
 
 // Готові шаблони звітів
@@ -89,6 +187,7 @@ export default function ReportBuilder({ user }) {
   
   // Стан конструктора
   const [selectedFields, setSelectedFields] = useState(['requestNumber', 'date', 'client', 'serviceTotal']);
+  const [fieldOrder, setFieldOrder] = useState(['requestNumber', 'date', 'client', 'serviceTotal']); // Порядок відображення колонок
   const [groupBy, setGroupBy] = useState(null);
   const [sortBy, setSortBy] = useState('date');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -97,9 +196,19 @@ export default function ReportBuilder({ user }) {
   const [filters, setFilters] = useState({
     dateFrom: '',
     dateTo: '',
+    requestDateFrom: '',
+    requestDateTo: '',
     status: '',
     serviceRegion: '',
-    approvalStatus: 'all' // all, approved, pending, rejected
+    company: '',
+    client: '',
+    engineer1: '',
+    engineer2: '',
+    paymentType: '',
+    approvalStatus: 'all', // all, approved, pending, rejected
+    approvedByWarehouse: '',
+    approvedByAccountant: '',
+    approvedByRegionalManager: ''
   });
   
   // Активна вкладка
@@ -151,9 +260,13 @@ export default function ReportBuilder({ user }) {
   // Фільтрація даних
   const filteredData = useMemo(() => {
     return tasks.filter(task => {
-      // Фільтр по датах
-      if (filters.dateFrom && task.date < filters.dateFrom) return false;
-      if (filters.dateTo && task.date > filters.dateTo) return false;
+      // Фільтр по датах виконання
+      if (filters.dateFrom && task.date && task.date < filters.dateFrom) return false;
+      if (filters.dateTo && task.date && task.date > filters.dateTo) return false;
+      
+      // Фільтр по датах заявки
+      if (filters.requestDateFrom && task.requestDate && task.requestDate < filters.requestDateFrom) return false;
+      if (filters.requestDateTo && task.requestDate && task.requestDate > filters.requestDateTo) return false;
       
       // Фільтр по статусу
       if (filters.status && task.status !== filters.status) return false;
@@ -161,7 +274,31 @@ export default function ReportBuilder({ user }) {
       // Фільтр по регіону
       if (filters.serviceRegion && task.serviceRegion !== filters.serviceRegion) return false;
       
-      // Фільтр по затвердженню
+      // Фільтр по компанії
+      if (filters.company && task.company !== filters.company) return false;
+      
+      // Фільтр по замовнику
+      if (filters.client && task.client && !task.client.toLowerCase().includes(filters.client.toLowerCase())) return false;
+      
+      // Фільтр по інженеру 1
+      if (filters.engineer1 && task.engineer1 !== filters.engineer1) return false;
+      
+      // Фільтр по інженеру 2
+      if (filters.engineer2 && task.engineer2 !== filters.engineer2) return false;
+      
+      // Фільтр по типу оплати
+      if (filters.paymentType && task.paymentType !== filters.paymentType) return false;
+      
+      // Фільтр по затвердженню складу
+      if (filters.approvedByWarehouse && task.approvedByWarehouse !== filters.approvedByWarehouse) return false;
+      
+      // Фільтр по затвердженню бухгалтера
+      if (filters.approvedByAccountant && task.approvedByAccountant !== filters.approvedByAccountant) return false;
+      
+      // Фільтр по затвердженню регіонального керівника
+      if (filters.approvedByRegionalManager && task.approvedByRegionalManager !== filters.approvedByRegionalManager) return false;
+      
+      // Фільтр по затвердженню (загальний)
       if (filters.approvalStatus !== 'all') {
         const isWarehouseApproved = task.approvedByWarehouse === 'Підтверджено';
         const isAccountantApproved = task.approvedByAccountant === 'Підтверджено';
@@ -232,6 +369,7 @@ export default function ReportBuilder({ user }) {
   // Застосування шаблону
   const applyTemplate = (template) => {
     setSelectedFields(template.fields);
+    setFieldOrder(template.fields);
     setGroupBy(template.groupBy);
     setFilters(prev => ({ ...prev, ...template.filters }));
     setActiveTab('builder');
@@ -239,11 +377,46 @@ export default function ReportBuilder({ user }) {
 
   // Переключення поля
   const toggleField = (fieldKey) => {
-    setSelectedFields(prev => 
-      prev.includes(fieldKey) 
+    setSelectedFields(prev => {
+      const newFields = prev.includes(fieldKey) 
         ? prev.filter(f => f !== fieldKey)
-        : [...prev, fieldKey]
-    );
+        : [...prev, fieldKey];
+      
+      // Оновлюємо порядок колонок
+      setFieldOrder(prevOrder => {
+        if (prev.includes(fieldKey)) {
+          // Видаляємо з порядку
+          return prevOrder.filter(f => f !== fieldKey);
+        } else {
+          // Додаємо в кінець порядку
+          return [...prevOrder, fieldKey];
+        }
+      });
+      
+      return newFields;
+    });
+  };
+
+  // Зміна порядку колонок (вверх)
+  const moveFieldUp = (fieldKey) => {
+    setFieldOrder(prev => {
+      const index = prev.indexOf(fieldKey);
+      if (index <= 0) return prev;
+      const newOrder = [...prev];
+      [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+      return newOrder;
+    });
+  };
+
+  // Зміна порядку колонок (вниз)
+  const moveFieldDown = (fieldKey) => {
+    setFieldOrder(prev => {
+      const index = prev.indexOf(fieldKey);
+      if (index < 0 || index >= prev.length - 1) return prev;
+      const newOrder = [...prev];
+      [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+      return newOrder;
+    });
   };
 
   // Форматування значення
@@ -269,9 +442,16 @@ export default function ReportBuilder({ user }) {
     newWindow.document.close();
   };
 
+  // Отримання полів у правильному порядку
+  const getOrderedFields = () => {
+    const ordered = fieldOrder.filter(f => selectedFields.includes(f));
+    const unordered = selectedFields.filter(f => !fieldOrder.includes(f));
+    return [...ordered, ...unordered].map(key => AVAILABLE_FIELDS.find(f => f.key === key)).filter(Boolean);
+  };
+
   // Генерація HTML звіту
   const generateHTMLReport = () => {
-    const selectedFieldsData = AVAILABLE_FIELDS.filter(f => selectedFields.includes(f.key));
+    const selectedFieldsData = getOrderedFields();
     
     return `
       <!DOCTYPE html>
@@ -357,7 +537,7 @@ export default function ReportBuilder({ user }) {
 
   // Експорт в CSV
   const exportToCSV = () => {
-    const selectedFieldsData = AVAILABLE_FIELDS.filter(f => selectedFields.includes(f.key));
+    const selectedFieldsData = getOrderedFields();
     const headers = ['№', ...selectedFieldsData.map(f => f.label)].join(';');
     
     const rows = filteredData.map((task, i) => 
@@ -381,6 +561,7 @@ export default function ReportBuilder({ user }) {
       name: reportName,
       date: new Date().toISOString(),
       selectedFields,
+      fieldOrder: fieldOrder.filter(f => selectedFields.includes(f)),
       groupBy,
       sortBy,
       sortOrder,
@@ -404,6 +585,7 @@ export default function ReportBuilder({ user }) {
   // Застосування збереженого звіту
   const loadSavedReport = (report) => {
     setSelectedFields(report.selectedFields);
+    setFieldOrder(report.fieldOrder || report.selectedFields);
     setGroupBy(report.groupBy);
     setSortBy(report.sortBy);
     setSortOrder(report.sortOrder);
@@ -504,7 +686,7 @@ export default function ReportBuilder({ user }) {
             <h3>🔍 Фільтри</h3>
             <div className="filters-grid">
               <div className="filter-group">
-                <label>Період з:</label>
+                <label>Дата виконання з:</label>
                 <input 
                   type="date" 
                   value={filters.dateFrom}
@@ -512,11 +694,27 @@ export default function ReportBuilder({ user }) {
                 />
               </div>
               <div className="filter-group">
-                <label>Період по:</label>
+                <label>Дата виконання по:</label>
                 <input 
                   type="date" 
                   value={filters.dateTo}
                   onChange={e => setFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+                />
+              </div>
+              <div className="filter-group">
+                <label>Дата заявки з:</label>
+                <input 
+                  type="date" 
+                  value={filters.requestDateFrom}
+                  onChange={e => setFilters(prev => ({ ...prev, requestDateFrom: e.target.value }))}
+                />
+              </div>
+              <div className="filter-group">
+                <label>Дата заявки по:</label>
+                <input 
+                  type="date" 
+                  value={filters.requestDateTo}
+                  onChange={e => setFilters(prev => ({ ...prev, requestDateTo: e.target.value }))}
                 />
               </div>
               <div className="filter-group">
@@ -546,7 +744,101 @@ export default function ReportBuilder({ user }) {
                 </select>
               </div>
               <div className="filter-group">
-                <label>Затвердження:</label>
+                <label>Компанія:</label>
+                <select 
+                  value={filters.company}
+                  onChange={e => setFilters(prev => ({ ...prev, company: e.target.value }))}
+                >
+                  <option value="">Всі</option>
+                  <option value="ДТС">ДТС</option>
+                  <option value="Дарекс Енерго">Дарекс Енерго</option>
+                  <option value="інша">інша</option>
+                </select>
+              </div>
+              <div className="filter-group">
+                <label>Замовник:</label>
+                <input 
+                  type="text" 
+                  value={filters.client}
+                  onChange={e => setFilters(prev => ({ ...prev, client: e.target.value }))}
+                  placeholder="Пошук по замовнику..."
+                />
+              </div>
+              <div className="filter-group">
+                <label>Інженер 1:</label>
+                <select 
+                  value={filters.engineer1}
+                  onChange={e => setFilters(prev => ({ ...prev, engineer1: e.target.value }))}
+                >
+                  <option value="">Всі</option>
+                  {users.filter(u => u.role === 'service' || u.role === 'operator').map(u => (
+                    <option key={u._id || u.id} value={u.name || u.login}>{u.name || u.login}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="filter-group">
+                <label>Інженер 2:</label>
+                <select 
+                  value={filters.engineer2}
+                  onChange={e => setFilters(prev => ({ ...prev, engineer2: e.target.value }))}
+                >
+                  <option value="">Всі</option>
+                  {users.filter(u => u.role === 'service' || u.role === 'operator').map(u => (
+                    <option key={u._id || u.id} value={u.name || u.login}>{u.name || u.login}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="filter-group">
+                <label>Тип оплати:</label>
+                <select 
+                  value={filters.paymentType}
+                  onChange={e => setFilters(prev => ({ ...prev, paymentType: e.target.value }))}
+                >
+                  <option value="">Всі</option>
+                  <option value="Безготівка">Безготівка</option>
+                  <option value="Готівка">Готівка</option>
+                  <option value="На карту">На карту</option>
+                  <option value="Інше">Інше</option>
+                </select>
+              </div>
+              <div className="filter-group">
+                <label>Підтвердження складу:</label>
+                <select 
+                  value={filters.approvedByWarehouse}
+                  onChange={e => setFilters(prev => ({ ...prev, approvedByWarehouse: e.target.value }))}
+                >
+                  <option value="">Всі</option>
+                  <option value="На розгляді">На розгляді</option>
+                  <option value="Підтверджено">Підтверджено</option>
+                  <option value="Відмова">Відмова</option>
+                </select>
+              </div>
+              <div className="filter-group">
+                <label>Підтвердження бухгалтера:</label>
+                <select 
+                  value={filters.approvedByAccountant}
+                  onChange={e => setFilters(prev => ({ ...prev, approvedByAccountant: e.target.value }))}
+                >
+                  <option value="">Всі</option>
+                  <option value="На розгляді">На розгляді</option>
+                  <option value="Підтверджено">Підтверджено</option>
+                  <option value="Відмова">Відмова</option>
+                </select>
+              </div>
+              <div className="filter-group">
+                <label>Підтвердження рег. керівника:</label>
+                <select 
+                  value={filters.approvedByRegionalManager}
+                  onChange={e => setFilters(prev => ({ ...prev, approvedByRegionalManager: e.target.value }))}
+                >
+                  <option value="">Всі</option>
+                  <option value="На розгляді">На розгляді</option>
+                  <option value="Підтверджено">Підтверджено</option>
+                  <option value="Відмова">Відмова</option>
+                </select>
+              </div>
+              <div className="filter-group">
+                <label>Затвердження (загальне):</label>
                 <select 
                   value={filters.approvalStatus}
                   onChange={e => setFilters(prev => ({ ...prev, approvalStatus: e.target.value }))}
@@ -575,6 +867,43 @@ export default function ReportBuilder({ user }) {
                 </label>
               ))}
             </div>
+            
+            {/* Порядок відображення колонок */}
+            {selectedFields.length > 0 && (
+              <div className="field-order-section">
+                <h4>📐 Порядок відображення колонок</h4>
+                <div className="field-order-list">
+                  {fieldOrder.filter(f => selectedFields.includes(f)).map((fieldKey, index) => {
+                    const field = AVAILABLE_FIELDS.find(f => f.key === fieldKey);
+                    if (!field) return null;
+                    const isFirst = index === 0;
+                    const isLast = index === fieldOrder.filter(f => selectedFields.includes(f)).length - 1;
+                    
+                    return (
+                      <div key={fieldKey} className="field-order-item">
+                        <button 
+                          className="order-btn" 
+                          onClick={() => moveFieldUp(fieldKey)}
+                          disabled={isFirst}
+                          title="Перемістити вверх"
+                        >
+                          ↑
+                        </button>
+                        <button 
+                          className="order-btn" 
+                          onClick={() => moveFieldDown(fieldKey)}
+                          disabled={isLast}
+                          title="Перемістити вниз"
+                        >
+                          ↓
+                        </button>
+                        <span className="field-order-label">{field.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Групування та сортування */}
@@ -626,7 +955,7 @@ export default function ReportBuilder({ user }) {
                 <thead>
                   <tr>
                     <th>№</th>
-                    {AVAILABLE_FIELDS.filter(f => selectedFields.includes(f.key)).map(f => (
+                    {getOrderedFields().map(f => (
                       <th key={f.key}>{f.label}</th>
                     ))}
                   </tr>
@@ -643,7 +972,7 @@ export default function ReportBuilder({ user }) {
                         {item.items.slice(0, 3).map((task, ti) => (
                           <tr key={task._id || ti}>
                             <td>{i + 1}.{ti + 1}</td>
-                            {AVAILABLE_FIELDS.filter(f => selectedFields.includes(f.key)).map(f => (
+                            {getOrderedFields().map(f => (
                               <td key={f.key}>{formatValue(task[f.key], f.type)}</td>
                             ))}
                           </tr>
@@ -652,7 +981,7 @@ export default function ReportBuilder({ user }) {
                     ) : (
                       <tr key={item._id || i}>
                         <td>{i + 1}</td>
-                        {AVAILABLE_FIELDS.filter(f => selectedFields.includes(f.key)).map(f => (
+                        {getOrderedFields().map(f => (
                           <td key={f.key}>{formatValue(item[f.key], f.type)}</td>
                         ))}
                       </tr>
