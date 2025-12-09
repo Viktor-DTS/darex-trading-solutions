@@ -141,24 +141,101 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   const [error, setError] = useState(null);
   const [sortField, setSortField] = useState('requestDate');
   const [sortDirection, setSortDirection] = useState('desc');
-  const [filter, setFilter] = useState('');
+  
+  // Зберігаємо фільтри в localStorage з ключем на основі columnsArea
+  const filtersStorageKey = useMemo(() => `taskTable_filters_${columnsArea}`, [columnsArea]);
+  const filterStorageKey = useMemo(() => `taskTable_filter_${columnsArea}`, [columnsArea]);
+  
+  // Завантажуємо збережені фільтри при ініціалізації
+  const [columnFilters, setColumnFilters] = useState(() => {
+    try {
+      const key = `taskTable_filters_${columnsArea}`;
+      const saved = localStorage.getItem(key);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  
+  // Завантажуємо збережений глобальний фільтр при ініціалізації
+  const [filter, setFilter] = useState(() => {
+    try {
+      const key = `taskTable_filter_${columnsArea}`;
+      const savedFilter = localStorage.getItem(key);
+      return savedFilter || '';
+    } catch {
+      return '';
+    }
+  });
+  
   const [columnSettings, setColumnSettings] = useState({ visible: [], order: [], widths: {} });
   const [deletingTaskId, setDeletingTaskId] = useState(null);
-  const [columnFilters, setColumnFilters] = useState({});
+  
   const [showFilters, setShowFilters] = useState(true);
+
+  // Зберігаємо фільтри в localStorage при зміні
+  useEffect(() => {
+    try {
+      localStorage.setItem(filtersStorageKey, JSON.stringify(columnFilters));
+    } catch (error) {
+      console.error('Помилка збереження фільтрів:', error);
+    }
+  }, [columnFilters, filtersStorageKey]);
+  
+  // Зберігаємо глобальний фільтр в localStorage при зміні
+  useEffect(() => {
+    try {
+      localStorage.setItem(filterStorageKey, filter);
+    } catch (error) {
+      console.error('Помилка збереження глобального фільтра:', error);
+    }
+  }, [filter, filterStorageKey]);
+  
+  // Оновлюємо фільтри при зміні columnsArea (коли користувач переходить між панелями)
+  useEffect(() => {
+    try {
+      const newFiltersKey = `taskTable_filters_${columnsArea}`;
+      const newFilterKey = `taskTable_filter_${columnsArea}`;
+      const savedFilters = localStorage.getItem(newFiltersKey);
+      const savedFilter = localStorage.getItem(newFilterKey);
+      
+      if (savedFilters) {
+        setColumnFilters(JSON.parse(savedFilters));
+      } else {
+        setColumnFilters({});
+      }
+      
+      if (savedFilter) {
+        setFilter(savedFilter);
+      } else {
+        setFilter('');
+      }
+    } catch (error) {
+      console.error('Помилка завантаження фільтрів при зміні панелі:', error);
+    }
+  }, [columnsArea]);
 
   // Обробник зміни фільтра колонки
   const handleColumnFilterChange = (columnKey, value) => {
-    setColumnFilters(prev => ({
-      ...prev,
-      [columnKey]: value
-    }));
+    setColumnFilters(prev => {
+      const newFilters = {
+        ...prev,
+        [columnKey]: value
+      };
+      return newFilters;
+    });
   };
 
   // Очистити всі фільтри
   const clearAllFilters = () => {
     setColumnFilters({});
     setFilter('');
+    try {
+      localStorage.removeItem(filtersStorageKey);
+      localStorage.removeItem(filterStorageKey);
+    } catch (error) {
+      console.error('Помилка видалення фільтрів:', error);
+    }
   };
 
   // Перевірка чи є активні фільтри

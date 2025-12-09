@@ -14,6 +14,7 @@ function AccountantApprovalDashboard({ user }) {
   const [editingTask, setEditingTask] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0); // Ключ для оновлення таблиці
   
   // Стан для модального вікна відхилення
   const [rejectModal, setRejectModal] = useState({
@@ -137,6 +138,7 @@ function AccountantApprovalDashboard({ user }) {
         }
         
         await loadTasks();
+        setRefreshKey(prev => prev + 1);
       } else {
         alert('Помилка оновлення заявки');
       }
@@ -214,6 +216,7 @@ function AccountantApprovalDashboard({ user }) {
         
         setRejectModal({ open: false, taskId: null, comment: '', returnTo: 'service' });
         await loadTasks();
+        setRefreshKey(prev => prev + 1);
       } else {
         alert('Помилка оновлення заявки');
       }
@@ -284,6 +287,7 @@ function AccountantApprovalDashboard({ user }) {
             <div className="loading-indicator">Завантаження...</div>
           ) : (
             <TaskTable 
+              key={refreshKey}
               user={user} 
               status={
                 activeTab === 'pending' ? 'accountantPending' :
@@ -323,6 +327,7 @@ function AccountantApprovalDashboard({ user }) {
           onSave={(savedTask) => {
             handleCloseModal();
             loadTasks();
+            setRefreshKey(prev => prev + 1);
           }}
         />
       )}

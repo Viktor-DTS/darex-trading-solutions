@@ -17,6 +17,7 @@ function AccountantDashboard({ user }) {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showAllInvoices, setShowAllInvoices] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // Ключ для оновлення таблиці
   const invoiceFileRef = useRef(null);
   const actFileRef = useRef(null);
 
@@ -107,6 +108,7 @@ function AccountantDashboard({ user }) {
         }
         
         alert('✅ Файл рахунку завантажено!');
+        setRefreshKey(prev => prev + 1);
       } else {
         const error = await response.json();
         alert(`❌ Помилка: ${error.message}`);
@@ -175,6 +177,7 @@ function AccountantDashboard({ user }) {
         }
         
         alert('✅ Файл акту завантажено!');
+        setRefreshKey(prev => prev + 1);
       } else {
         const error = await response.json();
         alert(`❌ Помилка: ${error.message}`);
@@ -206,7 +209,7 @@ function AccountantDashboard({ user }) {
       if (response.ok) {
         alert('✅ Файл рахунку видалено!');
         handleCloseUploadModal();
-        window.location.reload();
+        setRefreshKey(prev => prev + 1);
       } else {
         const error = await response.json();
         alert(`❌ Помилка: ${error.message}`);
@@ -238,7 +241,7 @@ function AccountantDashboard({ user }) {
       if (response.ok) {
         alert('✅ Файл акту видалено!');
         handleCloseUploadModal();
-        window.location.reload();
+        setRefreshKey(prev => prev + 1);
       } else {
         const error = await response.json();
         alert(`❌ Помилка: ${error.message}`);
@@ -308,7 +311,7 @@ function AccountantDashboard({ user }) {
         
         alert('✅ Заявку на рахунок підтверджено!');
         handleCloseUploadModal();
-        window.location.reload();
+        setRefreshKey(prev => prev + 1);
       } else {
         const error = await response.json();
         alert(`❌ Помилка: ${error.message}`);
@@ -394,7 +397,7 @@ function AccountantDashboard({ user }) {
         }
         
         alert('✅ Запит на рахунок відхилено та видалено. Можна подати повторний запит.');
-        window.location.reload();
+        setRefreshKey(prev => prev + 1);
       } else {
         const error = await updateResponse.json();
         alert(`❌ Помилка оновлення заявки: ${error.message}`);
@@ -456,7 +459,7 @@ function AccountantDashboard({ user }) {
         
         alert('✅ Заявку повернено в роботу!');
         handleCloseUploadModal();
-        window.location.reload();
+        setRefreshKey(prev => prev + 1);
       } else {
         const error = await response.json();
         alert(`❌ Помилка: ${error.message}`);
@@ -525,6 +528,7 @@ function AccountantDashboard({ user }) {
             <div className="loading-indicator">Завантаження...</div>
           ) : (
             <TaskTable 
+              key={refreshKey}
               user={user} 
               status="accountantInvoiceRequests"
               onColumnSettingsClick={() => setShowColumnSettings(true)}
@@ -559,7 +563,7 @@ function AccountantDashboard({ user }) {
           panelType="accountant"
           onSave={(savedTask) => {
             handleCloseModal();
-            window.location.reload();
+            setRefreshKey(prev => prev + 1);
           }}
         />
       )}
