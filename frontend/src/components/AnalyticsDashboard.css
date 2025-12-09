@@ -502,3 +502,280 @@
     width: 100px;
   }
 }
+
+/* Рекомендації */
+.recommendations-header {
+  margin-bottom: 2rem;
+  text-align: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #1a2636, #22334a);
+  border-radius: 16px;
+}
+
+.recommendations-header h3 {
+  color: #fff;
+  margin: 0 0 0.5rem 0;
+  font-size: 20px;
+}
+
+.recommendations-header p {
+  color: #888;
+  font-size: 14px;
+  margin: 0;
+}
+
+.no-recommendations {
+  text-align: center;
+  padding: 3rem;
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(46, 125, 50, 0.1));
+  border-radius: 12px;
+  border: 2px solid rgba(76, 175, 80, 0.3);
+}
+
+.success-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.no-recommendations h4 {
+  color: #4caf50;
+  margin: 0 0 0.5rem 0;
+  font-size: 18px;
+}
+
+.no-recommendations p {
+  color: #888;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.recommendations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.recommendation-card {
+  background: #1a2636;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  border-left: 4px solid #2196F3;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.recommendation-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4);
+}
+
+.recommendation-card.priority-high {
+  border-left-color: #f44336;
+}
+
+.recommendation-card.priority-medium {
+  border-left-color: #ff9800;
+}
+
+.recommendation-card.priority-low {
+  border-left-color: #4caf50;
+}
+
+.recommendation-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #2a3f54;
+}
+
+.rec-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.rec-title-section {
+  flex: 1;
+}
+
+.rec-title-section h4 {
+  margin: 0 0 0.5rem 0;
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.rec-category {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.category-загальні {
+  background: rgba(25, 118, 210, 0.2);
+  color: #64b5f6;
+}
+
+.category-регіони {
+  background: rgba(76, 175, 80, 0.2);
+  color: #81c784;
+}
+
+.category-команда {
+  background: rgba(255, 152, 0, 0.2);
+  color: #ffb74d;
+}
+
+.category-продуктивність {
+  background: rgba(156, 39, 176, 0.2);
+  color: #ba68c8;
+}
+
+.category-клієнти {
+  background: rgba(0, 121, 107, 0.2);
+  color: #4db6ac;
+}
+
+.category-процеси {
+  background: rgba(194, 24, 91, 0.2);
+  color: #f06292;
+}
+
+.category-якість {
+  background: rgba(255, 143, 0, 0.2);
+  color: #ffb74d;
+}
+
+.category-витрати {
+  background: rgba(3, 169, 244, 0.2);
+  color: #4fc3f7;
+}
+
+.category-прогноз {
+  background: rgba(85, 139, 47, 0.2);
+  color: #9ccc65;
+}
+
+.priority-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.priority-badge.priority-high {
+  background: rgba(244, 67, 54, 0.2);
+  color: #ef5350;
+}
+
+.priority-badge.priority-medium {
+  background: rgba(255, 152, 0, 0.2);
+  color: #ffa726;
+}
+
+.priority-badge.priority-low {
+  background: rgba(76, 175, 80, 0.2);
+  color: #66bb6a;
+}
+
+.recommendation-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.rec-description {
+  color: #e0e0e0;
+  line-height: 1.6;
+  margin: 0;
+  font-size: 14px;
+}
+
+.rec-action,
+.rec-impact {
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border-left: 3px solid #2196F3;
+}
+
+.rec-action strong,
+.rec-impact strong {
+  display: block;
+  color: #4fc3f7;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.rec-action p,
+.rec-impact p {
+  margin: 0;
+  color: #e0e0e0;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+.rec-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.metric-item {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.metric-label {
+  font-size: 0.75rem;
+  color: #888;
+  margin-bottom: 0.25rem;
+}
+
+.metric-value {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.metric-value.current {
+  color: #e0e0e0;
+}
+
+.metric-value.target {
+  color: #4fc3f7;
+}
+
+.metric-value.improvement {
+  color: #4caf50;
+}
+
+@media (max-width: 768px) {
+  .recommendations-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .rec-metrics {
+    grid-template-columns: 1fr;
+  }
+  
+  .recommendation-header {
+    flex-direction: column;
+  }
+  
+  .priority-badge {
+    align-self: flex-start;
+  }
+}

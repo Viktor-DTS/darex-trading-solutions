@@ -548,6 +548,226 @@ export default function AnalyticsDashboard({ user }) {
     };
   }, [filteredTasks, filters.year, tasks]);
 
+  // Генерація рекомендацій
+  const recommendations = useMemo(() => {
+    const recs = [];
+    
+    // 1. Аналіз конверсії
+    if (kpiData.conversionRate < 70 && filteredTasks.length > 10) {
+      recs.push({
+        category: 'Загальні',
+        priority: 'high',
+        icon: '📉',
+        title: 'Низька конверсія заявок',
+        description: `Конверсія становить ${kpiData.conversionRate.toFixed(1)}%, що нижче рекомендованого рівня 70%`,
+        action: 'Проаналізуйте причини незавершених заявок та впровадьте систему контролю якості',
+        impact: 'Потенційне збільшення доходу на ' + formatCurrency(kpiData.totalRevenue * 0.3),
+        metrics: {
+          current: `${kpiData.conversionRate.toFixed(1)}%`,
+          target: '70%+',
+          improvement: `+${(70 - kpiData.conversionRate).toFixed(1)}%`
+        }
+      });
+    }
+
+    // 2. Аналіз часу виконання
+    if (parseFloat(kpiData.avgCompletionTime) > 7) {
+      recs.push({
+        category: 'Продуктивність',
+        priority: 'high',
+        icon: '⏱️',
+        title: 'Тривалий час виконання заявок',
+        description: `Середній час виконання становить ${kpiData.avgCompletionTime} днів, що перевищує оптимальний рівень`,
+        action: 'Оптимізуйте процеси обробки заявок, впровадьте пріоритизацію термінових заявок',
+        impact: 'Зменшення часу виконання на 20% може збільшити кількість оброблених заявок',
+        metrics: {
+          current: `${kpiData.avgCompletionTime} днів`,
+          target: '< 5 днів',
+          improvement: `-${(parseFloat(kpiData.avgCompletionTime) - 5).toFixed(1)} днів`
+        }
+      });
+    }
+
+    // 3. Аналіз часу підтвердження
+    if (parseFloat(kpiData.avgApprovalTime) > 3) {
+      recs.push({
+        category: 'Процеси',
+        priority: 'medium',
+        icon: '⚡',
+        title: 'Повільне підтвердження заявок',
+        description: `Середній час підтвердження становить ${kpiData.avgApprovalTime} днів після виконання`,
+        action: 'Автоматизуйте процес підтвердження, впровадьте систему нагадувань для бухгалтерії',
+        impact: 'Прискорення обігу коштів та покращення cash flow',
+        metrics: {
+          current: `${kpiData.avgApprovalTime} днів`,
+          target: '< 2 дні',
+          improvement: `-${(parseFloat(kpiData.avgApprovalTime) - 2).toFixed(1)} днів`
+        }
+      });
+    }
+
+    // 4. Аналіз регіонів - найслабший регіон
+    if (regionData.length > 1) {
+      const weakestRegion = regionData[regionData.length - 1];
+      const avgRevenue = regionData.reduce((sum, r) => sum + r.revenue, 0) / regionData.length;
+      
+      if (weakestRegion.revenue < avgRevenue * 0.5 && weakestRegion.revenue > 0) {
+        recs.push({
+          category: 'Регіони',
+          priority: 'high',
+          icon: '🌍',
+          title: `Потенціал для покращення: ${weakestRegion.name}`,
+          description: `Регіон має дохід ${formatCurrency(weakestRegion.revenue)}, що значно нижче середнього`,
+          action: `Проведіть аналіз причин низької продуктивності в регіоні ${weakestRegion.name}, розгляньте додаткову підтримку або навчання`,
+          impact: `Потенційне збільшення доходу на ${formatCurrency(avgRevenue - weakestRegion.revenue)} при вирівнюванні показників`,
+          metrics: {
+            current: formatCurrency(weakestRegion.revenue),
+            target: formatCurrency(avgRevenue),
+            improvement: `+${((avgRevenue - weakestRegion.revenue) / weakestRegion.revenue * 100).toFixed(0)}%`
+          }
+        });
+      }
+    }
+
+    // 5. Аналіз інженерів - найменш продуктивні
+    if (engineerData.length > 3) {
+      const avgTasks = engineerData.reduce((sum, e) => sum + e.tasks, 0) / engineerData.length;
+      const lowPerformers = engineerData.filter(e => e.tasks < avgTasks * 0.6);
+      
+      if (lowPerformers.length > 0) {
+        recs.push({
+          category: 'Команда',
+          priority: 'medium',
+          icon: '👥',
+          title: 'Інженери потребують підтримки',
+          description: `${lowPerformers.length} інженер(ів) мають продуктивність нижче середньої`,
+          action: `Організуйте навчання або менторинг для: ${lowPerformers.slice(0, 3).map(e => e.name).join(', ')}`,
+          impact: 'Підвищення продуктивності команди та збільшення загального доходу',
+          metrics: {
+            current: `${lowPerformers.length} інженерів`,
+            target: 'Середня продуктивність',
+            improvement: `+${((avgTasks - (lowPerformers[0]?.tasks || 0)) / (lowPerformers[0]?.tasks || 1) * 100).toFixed(0)}%`
+          }
+        });
+      }
+    }
+
+    // 6. Аналіз типів робіт - найдовші
+    if (workTypeData.length > 0) {
+      const longestWork = workTypeData
+        .filter(w => parseFloat(w.avgTime) > 10)
+        .sort((a, b) => parseFloat(b.avgTime) - parseFloat(a.avgTime))[0];
+      
+      if (longestWork) {
+        recs.push({
+          category: 'Продуктивність',
+          priority: 'medium',
+          icon: '🔧',
+          title: `Оптимізація типу робіт: ${longestWork.name}`,
+          description: `Середній час виконання "${longestWork.name}" становить ${longestWork.avgTime} днів`,
+          action: 'Проаналізуйте процес виконання цього типу робіт, виявіть вузькі місця та оптимізуйте',
+          impact: `Зменшення часу на ${(parseFloat(longestWork.avgTime) - 5).toFixed(1)} днів може збільшити пропускну здатність`,
+          metrics: {
+            current: `${longestWork.avgTime} днів`,
+            target: '< 5 днів',
+            improvement: `-${(parseFloat(longestWork.avgTime) - 5).toFixed(1)} днів`
+          }
+        });
+      }
+    }
+
+    // 7. Аналіз клієнтів - можливості для зростання
+    if (topClients.length > 0) {
+      const topClient = topClients[0];
+      const avgClientRevenue = topClients.reduce((sum, c) => sum + c.revenue, 0) / topClients.length;
+      
+      if (topClient.revenue > avgClientRevenue * 2) {
+        recs.push({
+          category: 'Клієнти',
+          priority: 'low',
+          icon: '🏢',
+          title: 'Розширення роботи з ключовими клієнтами',
+          description: `Клієнт "${topClient.name}" генерує ${formatCurrency(topClient.revenue)} - значно більше середнього`,
+          action: `Розробіть індивідуальну програму лояльності для "${topClient.name}", запропонуйте додаткові послуги`,
+          impact: `Потенційне збільшення доходу від ключового клієнта на 15-20%`,
+          metrics: {
+            current: formatCurrency(topClient.revenue),
+            target: formatCurrency(topClient.revenue * 1.2),
+            improvement: '+20%'
+          }
+        });
+      }
+    }
+
+    // 8. Аналіз відхилених заявок
+    if (kpiData.rejectedTasks > 0) {
+      const rejectionRate = (kpiData.rejectedTasks / filteredTasks.length) * 100;
+      if (rejectionRate > 5) {
+        recs.push({
+          category: 'Якість',
+          priority: 'high',
+          icon: '❌',
+          title: 'Висока кількість відхилених заявок',
+          description: `${kpiData.rejectedTasks} заявок було відхилено (${rejectionRate.toFixed(1)}% від загальної кількості)`,
+          action: 'Проведіть аналіз причин відхилення, впровадьте систему перевірки перед відправкою на затвердження',
+          impact: 'Зменшення відхилень може зберегти дохід та покращити репутацію',
+          metrics: {
+            current: `${rejectionRate.toFixed(1)}%`,
+            target: '< 3%',
+            improvement: `-${(rejectionRate - 3).toFixed(1)}%`
+          }
+        });
+      }
+    }
+
+    // 9. Аналіз матеріалів - оптимізація витрат
+    const materialsToRevenueRatio = kpiData.totalMaterials / (kpiData.totalRevenue || 1);
+    if (materialsToRevenueRatio > 0.4) {
+      recs.push({
+        category: 'Витрати',
+        priority: 'medium',
+        icon: '📦',
+        title: 'Високі витрати на матеріали',
+        description: `Витрати на матеріали становлять ${(materialsToRevenueRatio * 100).toFixed(1)}% від доходу`,
+        action: 'Оптимізуйте закупівлю матеріалів, розгляньте оптові закупівлі або альтернативні постачальники',
+        impact: `Зменшення витрат на 10% може зберегти ${formatCurrency(kpiData.totalMaterials * 0.1)}`,
+        metrics: {
+          current: `${(materialsToRevenueRatio * 100).toFixed(1)}%`,
+          target: '< 35%',
+          improvement: `-${((materialsToRevenueRatio - 0.35) * 100).toFixed(1)}%`
+        }
+      });
+    }
+
+    // 10. Прогноз та цілі
+    if (monthlyData.length > 0) {
+      const last3Months = monthlyData.slice(-3);
+      const avgLast3Revenue = last3Months.reduce((sum, m) => sum + m.revenue, 0) / 3;
+      const projectedYearRevenue = avgLast3Revenue * 12;
+      
+      if (projectedYearRevenue > kpiData.totalRevenue * 1.1) {
+        recs.push({
+          category: 'Прогноз',
+          priority: 'low',
+          icon: '📈',
+          title: 'Позитивна динаміка доходу',
+          description: `За останні 3 місяці середній дохід становить ${formatCurrency(avgLast3Revenue)}/міс`,
+          action: 'Підтримайте поточну динаміку, розгляньте можливість розширення команди для обробки зростаючого навантаження',
+          impact: `Прогнозований річний дохід: ${formatCurrency(projectedYearRevenue)}`,
+          metrics: {
+            current: formatCurrency(kpiData.totalRevenue),
+            target: formatCurrency(projectedYearRevenue),
+            improvement: `+${((projectedYearRevenue - kpiData.totalRevenue) / kpiData.totalRevenue * 100).toFixed(0)}%`
+          }
+        });
+      }
+    }
+
+    // Сортування за пріоритетом
+    const priorityOrder = { high: 3, medium: 2, low: 1 };
+    return recs.sort((a, b) => priorityOrder[b.priority] - priorityOrder[a.priority]);
+  }, [kpiData, filteredTasks, regionData, engineerData, workTypeData, topClients, monthlyData]);
+
   if (loading) {
     return <div className="analytics-loading">⏳ Завантаження аналітики...</div>;
   }
@@ -648,6 +868,12 @@ export default function AnalyticsDashboard({ user }) {
           onClick={() => setActiveTab('comparison')}
         >
           📊 Порівняння
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'recommendations' ? 'active' : ''}`}
+          onClick={() => setActiveTab('recommendations')}
+        >
+          💡 Рекомендації
         </button>
       </div>
 
@@ -1031,6 +1257,72 @@ export default function AnalyticsDashboard({ user }) {
               />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* РЕКОМЕНДАЦІЇ */}
+      {activeTab === 'recommendations' && (
+        <div className="tab-content">
+          <div className="recommendations-header">
+            <h3>💡 Інтелектуальні рекомендації для покращення показників</h3>
+            <p>На основі аналізу ваших даних система пропонує наступні рекомендації:</p>
+          </div>
+
+          {recommendations.length === 0 ? (
+            <div className="no-recommendations">
+              <div className="success-icon">✅</div>
+              <h4>Відмінні показники!</h4>
+              <p>Всі ключові метрики знаходяться в оптимальному діапазоні. Продовжуйте підтримувати високий рівень продуктивності.</p>
+            </div>
+          ) : (
+            <div className="recommendations-grid">
+              {recommendations.map((rec, index) => (
+                <div key={index} className={`recommendation-card priority-${rec.priority}`}>
+                  <div className="recommendation-header">
+                    <span className="rec-icon">{rec.icon}</span>
+                    <div className="rec-title-section">
+                      <h4>{rec.title}</h4>
+                      <span className={`rec-category category-${rec.category.toLowerCase().replace(/\s+/g, '-')}`}>
+                        {rec.category}
+                      </span>
+                    </div>
+                    <span className={`priority-badge priority-${rec.priority}`}>
+                      {rec.priority === 'high' ? '🔴 Високий' : rec.priority === 'medium' ? '🟡 Середній' : '🟢 Низький'}
+                    </span>
+                  </div>
+                  
+                  <div className="recommendation-body">
+                    <p className="rec-description">{rec.description}</p>
+                    
+                    <div className="rec-action">
+                      <strong>Рекомендована дія:</strong>
+                      <p>{rec.action}</p>
+                    </div>
+                    
+                    <div className="rec-impact">
+                      <strong>Потенційний ефект:</strong>
+                      <p>{rec.impact}</p>
+                    </div>
+                    
+                    <div className="rec-metrics">
+                      <div className="metric-item">
+                        <span className="metric-label">Поточне значення:</span>
+                        <span className="metric-value current">{rec.metrics.current}</span>
+                      </div>
+                      <div className="metric-item">
+                        <span className="metric-label">Цільове значення:</span>
+                        <span className="metric-value target">{rec.metrics.target}</span>
+                      </div>
+                      <div className="metric-item">
+                        <span className="metric-label">Потенційне покращення:</span>
+                        <span className="metric-value improvement">{rec.metrics.improvement}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
