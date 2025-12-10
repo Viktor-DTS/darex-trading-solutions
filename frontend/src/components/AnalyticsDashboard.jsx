@@ -557,6 +557,86 @@ export default function AnalyticsDashboard({ user }) {
     };
   }, [filteredTasks, filters.year, tasks]);
 
+  // Функція для генерації tooltip текстів для метрик
+  const getMetricTooltip = (metricType, rec) => {
+    const { title, category, metrics } = rec;
+    
+    // Визначаємо тип показника на основі title та category
+    const isPercentage = metrics.current.includes('%') || metrics.target.includes('%');
+    const isCurrency = metrics.current.includes('₴') || metrics.current.includes('грн') || 
+                       metrics.target.includes('₴') || metrics.target.includes('грн');
+    const isDays = metrics.current.includes('днів') || metrics.current.includes('день');
+    const isCount = !isPercentage && !isCurrency && !isDays && !isNaN(parseFloat(metrics.current));
+    
+    if (metricType === 'current') {
+      if (title.includes('конверсія')) {
+        return 'Поточне значення конверсії заявок = (Кількість виконаних заявок / Загальна кількість заявок) × 100%';
+      } else if (title.includes('час виконання') || title.includes('час підтвердження')) {
+        return 'Поточне значення = Середній час від створення заявки до її завершення/підтвердження (в днях)';
+      } else if (title.includes('регіон') || title.includes('Регіон')) {
+        return 'Поточне значення = Загальний дохід від виконаних заявок у цьому регіоні за вибраний період';
+      } else if (title.includes('Інженери') || title.includes('інженер')) {
+        return 'Поточне значення = Кількість інженерів, продуктивність яких нижче середньої';
+      } else if (title.includes('тип робіт') || title.includes('Оптимізація')) {
+        return 'Поточне значення = Середній час виконання заявок цього типу робіт (в днях)';
+      } else if (title.includes('клієнт') || title.includes('Клієнти')) {
+        return 'Поточне значення = Загальний дохід від виконаних заявок цього клієнта за вибраний період';
+      } else if (title.includes('відхилен') || title.includes('Висока кількість')) {
+        return 'Поточне значення = (Кількість відхилених заявок / Загальна кількість заявок) × 100%';
+      } else if (title.includes('матеріал') || title.includes('витрати')) {
+        return 'Поточне значення = (Загальна вартість матеріалів / Загальний дохід) × 100%';
+      } else if (title.includes('динаміка') || title.includes('Прогноз')) {
+        return 'Поточне значення = Загальний дохід за вибраний період';
+      }
+      return 'Поточне значення показника на основі аналізу даних за вибраний період';
+    } else if (metricType === 'target') {
+      if (title.includes('конверсія')) {
+        return 'Цільове значення = Рекомендований рівень конверсії 70% або вище для оптимальної ефективності';
+      } else if (title.includes('час виконання')) {
+        return 'Цільове значення = Оптимальний час виконання заявок менше 5 днів';
+      } else if (title.includes('час підтвердження')) {
+        return 'Цільове значення = Оптимальний час підтвердження заявок менше 2 днів';
+      } else if (title.includes('регіон') || title.includes('Регіон')) {
+        return 'Цільове значення = Середній дохід по всіх регіонах (ціль - вирівняти показники)';
+      } else if (title.includes('Інженери') || title.includes('інженер')) {
+        return 'Цільове значення = Досягнення середньої продуктивності всіма інженерами';
+      } else if (title.includes('тип робіт') || title.includes('Оптимізація')) {
+        return 'Цільове значення = Оптимальний час виконання менше 5 днів';
+      } else if (title.includes('клієнт') || title.includes('Клієнти')) {
+        return 'Цільове значення = Прогнозований дохід при збільшенні на 20%';
+      } else if (title.includes('відхилен') || title.includes('Висока кількість')) {
+        return 'Цільове значення = Рекомендований рівень відхилень менше 3%';
+      } else if (title.includes('матеріал') || title.includes('витрати')) {
+        return 'Цільове значення = Рекомендоване співвідношення витрат на матеріали менше 35% від доходу';
+      } else if (title.includes('динаміка') || title.includes('Прогноз')) {
+        return 'Цільове значення = Прогнозований річний дохід на основі середнього доходу за останні 3 місяці × 12';
+      }
+      return 'Цільове значення показника для оптимальної ефективності';
+    } else if (metricType === 'improvement') {
+      if (title.includes('конверсія')) {
+        return 'Потенційне покращення = Різниця між цільовим (70%) та поточним значенням конверсії';
+      } else if (title.includes('час виконання') || title.includes('час підтвердження')) {
+        return 'Потенційне покращення = Зменшення часу виконання/підтвердження до цільового значення';
+      } else if (title.includes('регіон') || title.includes('Регіон')) {
+        return 'Потенційне покращення = Відсоток збільшення доходу при вирівнюванні показників до середнього';
+      } else if (title.includes('Інженери') || title.includes('інженер')) {
+        return 'Потенційне покращення = Відсоток збільшення продуктивності при досягненні середнього рівня';
+      } else if (title.includes('тип робіт') || title.includes('Оптимізація')) {
+        return 'Потенційне покращення = Зменшення часу виконання до цільового значення';
+      } else if (title.includes('клієнт') || title.includes('Клієнти')) {
+        return 'Потенційне покращення = Прогнозоване збільшення доходу на 20%';
+      } else if (title.includes('відхилен') || title.includes('Висока кількість')) {
+        return 'Потенційне покращення = Зменшення відсотка відхилень до цільового рівня';
+      } else if (title.includes('матеріал') || title.includes('витрати')) {
+        return 'Потенційне покращення = Зменшення відсотка витрат на матеріали до цільового рівня';
+      } else if (title.includes('динаміка') || title.includes('Прогноз')) {
+        return 'Потенційне покращення = Відсоток збільшення доходу при підтримці поточної динаміки';
+      }
+      return 'Потенційне покращення показника при досягненні цільового значення';
+    }
+    return '';
+  };
+
   // Генерація рекомендацій
   const recommendations = useMemo(() => {
     // Функція для перевірки, чи інженер активний (не звільнений)
@@ -1345,15 +1425,30 @@ export default function AnalyticsDashboard({ user }) {
                     <div className="rec-metrics">
                       <div className="metric-item">
                         <span className="metric-label">Поточне значення:</span>
-                        <span className="metric-value current">{rec.metrics.current}</span>
+                        <span 
+                          className="metric-value current" 
+                          title={getMetricTooltip('current', rec)}
+                        >
+                          {rec.metrics.current}
+                        </span>
                       </div>
                       <div className="metric-item">
                         <span className="metric-label">Цільове значення:</span>
-                        <span className="metric-value target">{rec.metrics.target}</span>
+                        <span 
+                          className="metric-value target" 
+                          title={getMetricTooltip('target', rec)}
+                        >
+                          {rec.metrics.target}
+                        </span>
                       </div>
                       <div className="metric-item">
                         <span className="metric-label">Потенційне покращення:</span>
-                        <span className="metric-value improvement">{rec.metrics.improvement}</span>
+                        <span 
+                          className="metric-value improvement" 
+                          title={getMetricTooltip('improvement', rec)}
+                        >
+                          {rec.metrics.improvement}
+                        </span>
                       </div>
                     </div>
                   </div>
