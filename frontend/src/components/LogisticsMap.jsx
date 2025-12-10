@@ -58,7 +58,7 @@ const setCachedCoordinates = (address, lat, lng) => {
 };
 
 // Збереження координат в базу даних
-const saveCoordinatesToDatabase = async (taskId, lat, lng) => {
+const saveCoordinatesToDatabase = async (taskId, lat, lng, isApproximate = false) => {
   try {
     const token = localStorage.getItem('token');
     const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/coordinates`, {
@@ -67,7 +67,7 @@ const saveCoordinatesToDatabase = async (taskId, lat, lng) => {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ lat, lng })
+      body: JSON.stringify({ lat, lng, isApproximate })
     });
     
     if (!response.ok) {
@@ -81,6 +81,93 @@ const saveCoordinatesToDatabase = async (taskId, lat, lng) => {
   }
 };
 
+// Функція для нормалізації адреси (додавання пробілів після крапок)
+const normalizeAddress = (address) => {
+  // Додаємо пробіли після крапок перед скороченнями (м., вул., просп., бул., пл., пров., пер., шосе тощо)
+  // Замінюємо "м.Дніпро" на "м. Дніпро", "вул.Свердлова" на "вул. Свердлова" тощо
+  return address
+    .replace(/([а-яА-ЯіІїЇєЄ]\.)([А-Яа-ЯіІїЇєЄ])/g, '$1 $2') // Після крапки перед великою літерою
+    .replace(/([а-яА-ЯіІїЇєЄ]\.)([а-яіїє])/g, '$1 $2') // Після крапки перед малою літерою
+    .replace(/\s+/g, ' ') // Замінюємо множинні пробіли на один
+    .trim();
+};
+
+// Функція для видалення номера будинку з адреси
+const removeHouseNumber = (address) => {
+  // Видаляємо останній номер будинку (наприклад, "25", "2Б", "34-А")
+  // Регулярний вираз для пошуку номерів будинків в кінці адреси
+  return address.replace(/,\s*[0-9]+[А-Яа-яA-Za-z]?(-[0-9]+[А-Яа-яA-Za-z]?)?\s*$/, '').trim();
+};
+
+// Функція геокодування з fallback
+const geocodeAddress = async (address) => {
+  try {
+    // Нормалізуємо адресу (додаємо пробіли після крапок)
+    const normalizedAddress = normalizeAddress(address);
+    
+    // Спочатку шукаємо повну адресу
+    const fullAddress = `${normalizedAddress}, Україна`;
+    const encodedFullAddress = encodeURIComponent(fullAddress);
+    
+    let response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodedFullAddress}&limit=1`,
+      {
+        headers: {
+          'User-Agent': 'DTS-Service-App'
+        }
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.length > 0) {
+        return {
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon),
+          isApproximate: false,
+          found: true
+        };
+      }
+    }
+
+    // Якщо не знайдено повну адресу, спробуємо без номера будинку
+    const addressWithoutNumber = removeHouseNumber(normalizedAddress);
+    if (addressWithoutNumber !== normalizedAddress && addressWithoutNumber.length > 0) {
+      // Затримка перед другим запитом
+      await new Promise(resolve => setTimeout(resolve, 1100));
+      
+      const simplifiedAddress = `${addressWithoutNumber}, Україна`;
+      const encodedSimplified = encodeURIComponent(simplifiedAddress);
+      
+      response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodedSimplified}&limit=1`,
+        {
+          headers: {
+            'User-Agent': 'DTS-Service-App'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.length > 0) {
+          return {
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon),
+            isApproximate: true, // Позначаємо як приблизне
+            found: true
+          };
+        }
+      }
+    }
+
+    return { found: false };
+  } catch (err) {
+    console.error(`Помилка геокодування адреси "${address}":`, err);
+    return { found: false, error: err.message };
+  }
+};
+
 function LogisticsMap({ user, onTaskClick }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -90,6 +177,10 @@ function LogisticsMap({ user, onTaskClick }) {
   const [geocodingProgress, setGeocodingProgress] = useState({ current: 0, total: 0 });
   const [showFailedTasks, setShowFailedTasks] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [isRegeocoding, setIsRegeocoding] = useState(false);
+  
+  // Перевірка, чи користувач є адміністратором
+  const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
 
   // Завантаження заявок
   useEffect(() => {
@@ -168,6 +259,7 @@ function LogisticsMap({ user, onTaskClick }) {
             ...task,
             lat: parseFloat(task.lat),
             lng: parseFloat(task.lng),
+            isApproximate: task.isApproximate || false, // Зберігаємо прапорець приблизності з бази
             geocoded: true,
             fromDatabase: true
           });
@@ -213,49 +305,33 @@ function LogisticsMap({ user, onTaskClick }) {
       for (let i = 0; i < toGeocode.length; i++) {
         const task = toGeocode[i];
         try {
-          // Використовуємо Nominatim API (OpenStreetMap)
-          const encodedAddress = encodeURIComponent(`${task.address}, Україна`);
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`,
-            {
-              headers: {
-                'User-Agent': 'DTS-Service-App' // Nominatim вимагає User-Agent
-              }
-            }
-          );
+          // Використовуємо функцію з fallback логікою
+          const result = await geocodeAddress(task.address);
 
-          if (response.ok) {
-            const data = await response.json();
-            if (data.length > 0) {
-              const lat = parseFloat(data[0].lat);
-              const lng = parseFloat(data[0].lon);
-              
-              // Зберігаємо в базу даних
-              if (task._id) {
-                await saveCoordinatesToDatabase(task._id, lat, lng);
-              }
-              
-              // Також зберігаємо в localStorage як fallback
-              setCachedCoordinates(task.address, lat, lng);
-              
-              geocoded.push({
-                ...task,
-                lat,
-                lng,
-                geocoded: true,
-                fromDatabase: false
-              });
-            } else {
-              // Якщо не знайдено, додаємо до списку невдалих
-              failed.push({
-                ...task,
-                reason: 'Адресу не знайдено на карті'
-              });
+          if (result.found) {
+            const { lat, lng, isApproximate } = result;
+            
+            // Зберігаємо в базу даних
+            if (task._id) {
+              await saveCoordinatesToDatabase(task._id, lat, lng, isApproximate);
             }
+            
+            // Також зберігаємо в localStorage як fallback
+            setCachedCoordinates(task.address, lat, lng);
+            
+            geocoded.push({
+              ...task,
+              lat,
+              lng,
+              isApproximate: isApproximate || false,
+              geocoded: true,
+              fromDatabase: false
+            });
           } else {
+            // Якщо не знайдено навіть приблизно, додаємо до списку невдалих
             failed.push({
               ...task,
-              reason: 'Помилка запиту до сервісу геокодування'
+              reason: result.error || 'Адресу не знайдено на карті'
             });
           }
 
@@ -287,6 +363,75 @@ function LogisticsMap({ user, onTaskClick }) {
       geocodeAddresses();
     }
   }, [tasks]);
+
+  // Функція для перегеокодування всіх заявок
+  const handleRegeocodeAll = async () => {
+    if (!isAdmin) return;
+    
+    if (!confirm('Ви впевнені, що хочете перепровірити геокодування для всіх заявок? Це може зайняти деякий час.')) {
+      return;
+    }
+
+    setIsRegeocoding(true);
+    setGeocodingProgress({ current: 0, total: tasks.length });
+    
+    const geocoded = [];
+    const failed = [];
+
+    // Геокодуємо всі заявки, навіть ті, що вже мають координати
+    for (let i = 0; i < tasks.length; i++) {
+      const task = tasks[i];
+      try {
+        const result = await geocodeAddress(task.address);
+
+        if (result.found) {
+          const { lat, lng, isApproximate } = result;
+          
+          // Зберігаємо в базу даних (оновлюємо координати)
+          if (task._id) {
+            await saveCoordinatesToDatabase(task._id, lat, lng, isApproximate);
+          }
+          
+          // Оновлюємо localStorage
+          setCachedCoordinates(task.address, lat, lng);
+          
+          geocoded.push({
+            ...task,
+            lat,
+            lng,
+            isApproximate: isApproximate || false,
+            geocoded: true,
+            fromDatabase: false
+          });
+        } else {
+          failed.push({
+            ...task,
+            reason: result.error || 'Адресу не знайдено на карті'
+          });
+        }
+
+        setGeocodingProgress({ current: i + 1, total: tasks.length });
+        setGeocodedTasks([...geocoded]);
+        
+        // Затримка між запитами
+        if (i < tasks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1100));
+        }
+      } catch (err) {
+        console.error(`Помилка перегеокодування адреси "${task.address}":`, err);
+        failed.push({
+          ...task,
+          reason: `Помилка: ${err.message}`
+        });
+      }
+    }
+
+    setGeocodedTasks(geocoded);
+    setFailedGeocodingTasks(failed);
+    setIsRegeocoding(false);
+    
+    alert(`Перегеокодування завершено. Успішно: ${geocoded.length}, Невдало: ${failed.length}`);
+  };
 
   // Обчислення центру карти
   const mapCenter = useMemo(() => {
@@ -340,10 +485,20 @@ function LogisticsMap({ user, onTaskClick }) {
             <span className="stat-dot" style={{ backgroundColor: statusColors['В роботі'] }}></span>
             В роботі: {geocodedTasks.filter(t => t.status === 'В роботі').length}
           </span>
-          {isGeocoding && geocodingProgress.total > 0 && (
+          {(isGeocoding || isRegeocoding) && geocodingProgress.total > 0 && (
             <span className="geocoding-progress">
-              Геокодування: {geocodingProgress.current} / {geocodingProgress.total}
+              {isRegeocoding ? 'Перегеокодування' : 'Геокодування'}: {geocodingProgress.current} / {geocodingProgress.total}
             </span>
+          )}
+          {isAdmin && (
+            <button 
+              className="regeocode-btn"
+              onClick={handleRegeocodeAll}
+              disabled={isRegeocoding || isGeocoding}
+              title="Перепровірити геокодування для всіх заявок"
+            >
+              🔄 Перепровірити геоточки
+            </button>
           )}
         </div>
       </div>
@@ -426,6 +581,14 @@ function LogisticsMap({ user, onTaskClick }) {
                 <Popup>
                   <div className="map-popup">
                     <h4>{task.client || 'Без назви'}</h4>
+                    {task.isApproximate && (
+                      <div className="approximate-warning">
+                        <span className="warning-icon">⚠️</span>
+                        <span className="warning-text">
+                          Місце розташування приблизне. Дивіться точну адресу в заявці.
+                        </span>
+                      </div>
+                    )}
                     <p><strong>Адреса:</strong> {task.address}</p>
                     <p><strong>Статус:</strong> 
                       <span className={`status-badge status-${task.status.toLowerCase().replace(' ', '-')}`}>

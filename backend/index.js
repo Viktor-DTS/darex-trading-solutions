@@ -1171,20 +1171,27 @@ app.put('/api/tasks/:id/coordinates', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
     const { id } = req.params;
-    const { lat, lng } = req.body;
+    const { lat, lng, isApproximate } = req.body;
     
     if (!lat || !lng) {
       logPerformance('PUT /api/tasks/:id/coordinates', startTime);
       return res.status(400).json({ error: 'Lat та lng обов\'язкові' });
     }
     
+    const updateData = {
+      lat: parseFloat(lat), 
+      lng: parseFloat(lng),
+      geocodedAt: new Date() // Додаємо час геокодування
+    };
+    
+    // Додаємо isApproximate, якщо вказано
+    if (isApproximate !== undefined) {
+      updateData.isApproximate = Boolean(isApproximate);
+    }
+    
     const task = await Task.findByIdAndUpdate(
       id,
-      { 
-        lat: parseFloat(lat), 
-        lng: parseFloat(lng),
-        geocodedAt: new Date() // Додаємо час геокодування
-      },
+      updateData,
       { new: true }
     );
     
