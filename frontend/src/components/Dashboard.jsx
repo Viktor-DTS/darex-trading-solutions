@@ -33,6 +33,11 @@ function Dashboard({ user, panelType = 'service' }) {
     setEditingTask(null);
   };
 
+  const handleLogisticsTaskClick = (task) => {
+    setEditingTask(task);
+    setShowAddTaskModal(true);
+  };
+
   const tabs = [
     { id: 'notDone', label: 'Невиконані заявки', icon: '📋' },
     { id: 'pending', label: 'Очікують підтвердження', icon: '⏳' },
@@ -109,7 +114,7 @@ function Dashboard({ user, panelType = 'service' }) {
           {activeTab === 'contracts' ? (
             <ContractsTable user={user} />
           ) : activeTab === 'logistics' ? (
-            <LogisticsMap user={user} />
+            <LogisticsMap user={user} onTaskClick={handleLogisticsTaskClick} />
           ) : (
             <TaskTable 
               user={user} 

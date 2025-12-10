@@ -183,12 +183,22 @@
   font-weight: 600;
   color: #856404;
   border-bottom: 2px solid #ffc107;
+  background: rgba(255, 193, 7, 0.2);
 }
 
 .failed-tasks-table td {
   padding: 0.75rem;
   border-bottom: 1px solid rgba(255, 193, 7, 0.2);
-  color: var(--text-primary);
+  color: #000 !important; /* Чорний колір тексту */
+}
+
+.failed-tasks-table .failed-task-row {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.failed-tasks-table .failed-task-row:hover {
+  background: rgba(255, 193, 7, 0.15) !important;
 }
 
 .failed-tasks-table tbody tr:hover {
@@ -198,11 +208,12 @@
 .failed-tasks-table .address-cell {
   max-width: 300px;
   word-wrap: break-word;
+  color: #000 !important; /* Чорний колір для адреси */
 }
 
 .failed-tasks-table .reason-cell {
   font-size: 0.8rem;
-  color: var(--text-secondary);
+  color: #333 !important; /* Темно-сірий замість світлого */
   font-style: italic;
 }
 
