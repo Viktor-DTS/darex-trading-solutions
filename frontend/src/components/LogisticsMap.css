@@ -1,0 +1,237 @@
+.logistics-map-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--background);
+}
+
+.logistics-map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: var(--card-background);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.logistics-map-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--text-primary);
+}
+
+.map-stats {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.stat-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.geocoding-progress {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.logistics-map-wrapper {
+  flex: 1;
+  position: relative;
+  min-height: 600px;
+}
+
+.logistics-map-loading,
+.logistics-map-error,
+.logistics-map-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 400px;
+  color: var(--text-secondary);
+}
+
+.loading-spinner {
+  font-size: 3rem;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.map-popup {
+  min-width: 200px;
+}
+
+.map-popup h4 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.map-popup p {
+  margin: 0.25rem 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.map-popup .status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+.status-badge.status-заявка {
+  background: rgba(33, 150, 243, 0.2);
+  color: #2196F3;
+}
+
+.status-badge.status-в-роботі {
+  background: rgba(255, 152, 0, 0.2);
+  color: #FF9800;
+}
+
+/* Стилі для кастомних маркерів */
+.custom-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Інформаційне поле про невдалі геокодування */
+.failed-geocoding-alert {
+  margin: 1rem 1.5rem;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.alert-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.alert-header:hover {
+  background-color: rgba(255, 193, 7, 0.1);
+}
+
+.alert-icon {
+  font-size: 1.25rem;
+}
+
+.alert-text {
+  flex: 1;
+  font-weight: 600;
+  color: #856404;
+  font-size: 0.95rem;
+}
+
+.alert-toggle {
+  font-size: 0.75rem;
+  color: #856404;
+  transition: transform 0.2s;
+}
+
+.failed-tasks-list {
+  padding: 0 1.5rem 1rem 1.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.failed-tasks-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.failed-tasks-table thead {
+  background: rgba(255, 193, 7, 0.2);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.failed-tasks-table th {
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: #856404;
+  border-bottom: 2px solid #ffc107;
+}
+
+.failed-tasks-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid rgba(255, 193, 7, 0.2);
+  color: var(--text-primary);
+}
+
+.failed-tasks-table tbody tr:hover {
+  background: rgba(255, 193, 7, 0.05);
+}
+
+.failed-tasks-table .address-cell {
+  max-width: 300px;
+  word-wrap: break-word;
+}
+
+.failed-tasks-table .reason-cell {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Адаптивність */
+@media (max-width: 768px) {
+  .logistics-map-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .map-stats {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+
+  .failed-tasks-list {
+    overflow-x: auto;
+  }
+
+  .failed-tasks-table {
+    min-width: 600px;
+  }
+
+  .failed-tasks-table th,
+  .failed-tasks-table td {
+    padding: 0.5rem;
+    font-size: 0.8rem;
+  }
+}
+

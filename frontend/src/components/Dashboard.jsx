@@ -3,6 +3,7 @@ import TaskTable from './TaskTable';
 import ContractsTable from './ContractsTable';
 import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
+import LogisticsMap from './LogisticsMap';
 import './Dashboard.css';
 
 function Dashboard({ user, panelType = 'service' }) {
@@ -37,7 +38,8 @@ function Dashboard({ user, panelType = 'service' }) {
     { id: 'pending', label: 'Очікують підтвердження', icon: '⏳' },
     { id: 'done', label: 'Заявки на підтвердженні у завсклада та бухгалтера', icon: '✅' },
     { id: 'blocked', label: 'Заблоковані', icon: '🚫' },
-    { id: 'contracts', label: 'Договори', icon: '📄' }
+    { id: 'contracts', label: 'Договори', icon: '📄' },
+    { id: 'logistics', label: 'Логістика', icon: '🗺️' }
   ];
 
   return (
@@ -106,6 +108,8 @@ function Dashboard({ user, panelType = 'service' }) {
         <main className="table-area">
           {activeTab === 'contracts' ? (
             <ContractsTable user={user} />
+          ) : activeTab === 'logistics' ? (
+            <LogisticsMap user={user} />
           ) : (
             <TaskTable 
               user={user} 
