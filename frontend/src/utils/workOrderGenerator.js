@@ -514,7 +514,7 @@ const generateDTSTemplate = (data, workOrderNumber, formattedDate, engineers) =>
         <div class="cost-item"><span>Вартість пусконалагоджувальних робіт</span><span>_____ грн.</span></div>
         <div class="cost-item"><span>Загальна вартість з урахуванням коефіцієнта складності</span><span>_____ грн.</span></div>
         
-        <div class="section-title">6.3. Виїзд на об'єкт Замовника: тариф: по місту 600.00 грн.</div>
+        <div class="section-title">6.3. Виїзд на об'єкт Замовника: тариф: по місту 650.00 грн.</div>
         <div class="field" style="font-size: 10pt;">
           <span>Виїзд за місто ____ км * 15,00 грн/км; разом ____ грн.</span>
         </div>
@@ -1061,7 +1061,7 @@ const generateDarexEnergyTemplate = (data, workOrderNumber, formattedDate, engin
         <div class="cost-item"><span>Вартість пусконалагоджувальних робіт</span><span>_____ грн.</span></div>
         <div class="cost-item"><span>Загальна вартість з урахуванням коефіцієнта складності</span><span>_____ грн.</span></div>
         
-        <div class="section-title">6.3. Виїзд на об'єкт Замовника: тариф: по місту 600.00 грн.</div>
+        <div class="section-title">6.3. Виїзд на об'єкт Замовника: тариф: по місту 650.00 грн.</div>
         <div class="field" style="font-size: 10pt;">
           <span>Виїзд за місто ____ км * 15,00 грн/км; разом ____ грн.</span>
         </div>
