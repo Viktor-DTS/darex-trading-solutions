@@ -991,6 +991,15 @@ function LogisticsMap({ user, onTaskClick }) {
                     {task.equipment && (
                       <p><strong>Обладнання:</strong> {task.equipment}</p>
                     )}
+                    {task.contactPerson && (
+                      <p><strong>Контактна особа:</strong> {task.contactPerson}</p>
+                    )}
+                    {task.contactPhone && (
+                      <p><strong>Тел. контактної особи:</strong> {task.contactPhone}</p>
+                    )}
+                    {task.requestDesc && (
+                      <p className="popup-description"><strong>Опис заявки:</strong> {task.requestDesc}</p>
+                    )}
                   </div>
                 </Popup>
               </Marker>

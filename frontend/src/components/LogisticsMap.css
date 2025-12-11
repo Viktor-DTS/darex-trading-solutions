@@ -197,6 +197,13 @@
   margin: 0.25rem 0;
   font-size: 0.85rem;
   color: var(--text-secondary);
+  word-wrap: break-word;
+}
+
+.map-popup .popup-description {
+  max-width: 300px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .map-popup .status-badge {
