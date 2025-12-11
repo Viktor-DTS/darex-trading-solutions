@@ -16,4 +16,7 @@ const getApiUrl = () => {
 
 export const API_BASE_URL = getApiUrl();
 
+// Google Geocoding API Key
+export const GOOGLE_GEOCODING_API_KEY = import.meta.env.VITE_GOOGLE_GEOCODING_API_KEY || 'AIzaSyA7_dKy9VF9OsxsgmElpTTIYjTQ985IBxU';
+
 export default API_BASE_URL;

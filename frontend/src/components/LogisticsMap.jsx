@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import API_BASE_URL from '../config.js';
+import API_BASE_URL, { GOOGLE_GEOCODING_API_KEY } from '../config.js';
 import './LogisticsMap.css';
 
 // Виправлення іконок для Leaflet
@@ -286,7 +286,131 @@ const createAddressVariants = (address) => {
   return variants;
 };
 
-// Покращена функція геокодування з множинними стратегіями
+// Функція геокодування через Google Geocoding API (основний метод)
+const geocodeWithGoogle = async (address) => {
+  if (!GOOGLE_GEOCODING_API_KEY) {
+    return null;
+  }
+
+  try {
+    const encodedAddress = encodeURIComponent(address);
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${GOOGLE_GEOCODING_API_KEY}&language=uk&region=ua`,
+      {
+        headers: {
+          'Accept': 'application/json'
+        }
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      
+      if (data.status === 'OK' && data.results && data.results.length > 0) {
+        const result = data.results[0];
+        const location = result.geometry.location;
+        
+        // Перевіряємо, чи результат в Україні
+        const isUkraine = result.address_components.some(component => 
+          component.types.includes('country') && 
+          (component.short_name === 'UA' || component.long_name === 'Україна')
+        );
+        
+        if (isUkraine) {
+          return {
+            lat: location.lat,
+            lng: location.lng,
+            isApproximate: result.geometry.location_type !== 'ROOFTOP', // ROOFTOP = точна, інші = приблизна
+            found: true
+          };
+        }
+      } else if (data.status === 'ZERO_RESULTS') {
+        // Спробуємо без "Україна" в кінці
+        const addressWithoutCountry = address.replace(/,?\s*Україна\s*$/i, '').trim();
+        if (addressWithoutCountry !== address && addressWithoutCountry.length > 0) {
+          const encodedSimplified = encodeURIComponent(addressWithoutCountry);
+          
+          const simplifiedResponse = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedSimplified}&key=${GOOGLE_GEOCODING_API_KEY}&language=uk&region=ua`,
+            {
+              headers: {
+                'Accept': 'application/json'
+              }
+            }
+          );
+          
+          if (simplifiedResponse.ok) {
+            const simplifiedData = await simplifiedResponse.json();
+            if (simplifiedData.status === 'OK' && simplifiedData.results && simplifiedData.results.length > 0) {
+              const result = simplifiedData.results[0];
+              const location = result.geometry.location;
+              
+              const isUkraine = result.address_components.some(component => 
+                component.types.includes('country') && 
+                (component.short_name === 'UA' || component.long_name === 'Україна')
+              );
+              
+              if (isUkraine) {
+                return {
+                  lat: location.lat,
+                  lng: location.lng,
+                  isApproximate: result.geometry.location_type !== 'ROOFTOP',
+                  found: true
+                };
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`Помилка запиту Google Geocoding для адреси "${address}":`, err);
+  }
+  
+  return null;
+};
+
+// Функція геокодування через Nominatim (fallback)
+const geocodeWithNominatim = async (address) => {
+  try {
+    const encodedAddress = encodeURIComponent(address);
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1&countrycodes=ua`,
+      {
+        headers: {
+          'User-Agent': 'DTS-Service-App'
+        }
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.length > 0) {
+        const result = data[0];
+        // Перевіряємо, чи результат в Україні
+        if (result.address && (
+          result.address.country === 'Україна' || 
+          result.address.country === 'Ukraine' ||
+          result.address.country_code === 'ua' ||
+          result.address.country_code === 'UA'
+        )) {
+          return {
+            lat: parseFloat(result.lat),
+            lng: parseFloat(result.lon),
+            isApproximate: true, // Nominatim завжди приблизний
+            found: true
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`Помилка запиту Nominatim для адреси "${address}":`, err);
+  }
+  
+  return null;
+};
+
+// Покращена функція геокодування з Google API як основним методом
 const geocodeAddress = async (address) => {
   try {
     // Перевірка на невалідні адреси (email, порожні, тільки коди)
@@ -306,49 +430,37 @@ const geocodeAddress = async (address) => {
       return { found: false, error: 'Не вдалося створити варіанти адреси' };
     }
     
-    // Спробуємо кожен варіант
+    // Спочатку спробуємо Google Geocoding API (найкраща точність)
     for (let i = 0; i < variants.length; i++) {
       const variant = variants[i];
-      const encodedAddress = encodeURIComponent(variant);
+      const result = await geocodeWithGoogle(variant);
       
-      // Затримка між запитами (крім першого)
+      if (result && result.found) {
+        return {
+          ...result,
+          isApproximate: result.isApproximate || i > 0 // Позначаємо як приблизне, якщо використали спрощений варіант
+        };
+      }
+      
+      // Невелика затримка між запитами до Google (не обов'язкова, але краще для стабільності)
+      if (i < variants.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    // Якщо Google не знайшов, спробуємо Nominatim як fallback
+    for (let i = 0; i < variants.length; i++) {
+      const variant = variants[i];
+      
+      // Затримка між запитами Nominatim (1 сек за правилами)
       if (i > 0) {
         await new Promise(resolve => setTimeout(resolve, 1100));
       }
       
-      try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1&countrycodes=ua`,
-          {
-            headers: {
-              'User-Agent': 'DTS-Service-App'
-            }
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.length > 0) {
-            const result = data[0];
-            // Перевіряємо, чи результат в Україні
-            if (result.address && (
-              result.address.country === 'Україна' || 
-              result.address.country === 'Ukraine' ||
-              result.address.country_code === 'ua' ||
-              result.address.country_code === 'UA'
-            )) {
-              return {
-                lat: parseFloat(result.lat),
-                lng: parseFloat(result.lon),
-                isApproximate: i > 0, // Якщо використали спрощений варіант
-                found: true
-              };
-            }
-          }
-        }
-      } catch (err) {
-        console.warn(`Помилка запиту для варіанту "${variant}":`, err);
-        // Продовжуємо до наступного варіанту
+      const result = await geocodeWithNominatim(variant);
+      
+      if (result && result.found) {
+        return result;
       }
     }
     
