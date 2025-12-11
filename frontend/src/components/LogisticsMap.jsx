@@ -481,9 +481,67 @@ function LogisticsMap({ user, onTaskClick }) {
   const [showFailedTasks, setShowFailedTasks] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isRegeocoding, setIsRegeocoding] = useState(false);
+  const [regions, setRegions] = useState([]);
+  const [selectedRegion, setSelectedRegion] = useState(null);
   
   // Перевірка, чи користувач є адміністратором
   const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
+  
+  // Визначаємо, чи користувач може вибирати регіон (тільки якщо регіон = "Україна")
+  const canSelectRegion = user?.region === 'Україна';
+  
+  // Ефективний регіон для фільтрації
+  const effectiveRegion = useMemo(() => {
+    // Якщо користувач не з України - використовуємо його регіон
+    if (user?.region && user.region !== 'Україна') {
+      return user.region;
+    }
+    // Якщо вибрано конкретний регіон - використовуємо його
+    if (selectedRegion && selectedRegion !== 'ALL') {
+      return selectedRegion;
+    }
+    // Якщо вибрано "Всі регіони" або не вибрано - повертаємо null (всі регіони)
+    return null;
+  }, [user?.region, selectedRegion]);
+
+  // Завантаження списку регіонів
+  useEffect(() => {
+    const loadRegions = async () => {
+      if (!canSelectRegion) return;
+      
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/regions`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          // Регіони можуть приходити як масив об'єктів {name} або масив рядків
+          const regionNames = data.map(r => typeof r === 'object' ? r.name : r);
+          // Додаємо опцію "Всі регіони"
+          setRegions(['ALL', ...regionNames.filter(r => r !== 'Україна')]);
+        }
+      } catch (err) {
+        console.error('Помилка завантаження регіонів:', err);
+      }
+    };
+
+    if (user && canSelectRegion) {
+      loadRegions();
+    }
+  }, [user, canSelectRegion]);
+
+  // Встановлюємо регіон за замовчуванням
+  useEffect(() => {
+    if (canSelectRegion && regions.length > 0 && !selectedRegion) {
+      // За замовчуванням вибираємо "Всі регіони"
+      setSelectedRegion('ALL');
+    } else if (!canSelectRegion && user?.region) {
+      // Якщо користувач з конкретного регіону, встановлюємо його
+      setSelectedRegion(user.region);
+    }
+  }, [canSelectRegion, regions, selectedRegion, user?.region]);
 
   // Завантаження заявок
   useEffect(() => {
@@ -491,8 +549,10 @@ function LogisticsMap({ user, onTaskClick }) {
       try {
         setLoading(true);
         const token = localStorage.getItem('token');
-        // Використовуємо filter endpoint з параметром notDone (який включає 'Заявка' та 'В роботі')
-        const url = `${API_BASE_URL}/tasks/filter?statuses=notDone&region=${user?.region || ''}`;
+        
+        // Формуємо URL з правильним регіоном
+        const regionParam = effectiveRegion || '';
+        const url = `${API_BASE_URL}/tasks/filter?statuses=notDone&region=${regionParam}`;
         
         const response = await fetch(url, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -500,7 +560,7 @@ function LogisticsMap({ user, onTaskClick }) {
         
         if (!response.ok) {
           // Якщо filter не працює, використовуємо звичайний endpoint
-          const fallbackUrl = `${API_BASE_URL}/tasks?region=${user?.region || ''}`;
+          const fallbackUrl = `${API_BASE_URL}/tasks?region=${regionParam}`;
           const fallbackResponse = await fetch(fallbackUrl, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
@@ -543,7 +603,7 @@ function LogisticsMap({ user, onTaskClick }) {
     if (user) {
       loadTasks();
     }
-  }, [user]);
+  }, [user, effectiveRegion]);
 
   // Геокодування адрес через Nominatim API з перевіркою бази даних
   useEffect(() => {
@@ -780,6 +840,30 @@ function LogisticsMap({ user, onTaskClick }) {
       <div className="logistics-map-header">
         <h2>🗺️ Логістика</h2>
         <div className="map-stats">
+          {canSelectRegion && regions.length > 0 && (
+            <div className="region-filter">
+              <label htmlFor="region-select" className="region-filter-label">
+                Регіон:
+              </label>
+              <select
+                id="region-select"
+                className="region-select"
+                value={selectedRegion || 'ALL'}
+                onChange={(e) => setSelectedRegion(e.target.value)}
+              >
+                {regions.map(region => (
+                  <option key={region} value={region}>
+                    {region === 'ALL' ? 'Всі регіони' : region}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {!canSelectRegion && user?.region && (
+            <div className="region-info">
+              <span className="region-badge">Регіон: {user.region}</span>
+            </div>
+          )}
           <span className="stat-item">
             <span className="stat-dot" style={{ backgroundColor: statusColors['Заявка'] }}></span>
             Заявка: {geocodedTasks.filter(t => t.status === 'Заявка').length}

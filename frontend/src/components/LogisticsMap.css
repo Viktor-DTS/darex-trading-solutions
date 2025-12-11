@@ -25,6 +25,57 @@
   display: flex;
   gap: 1.5rem;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.region-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.region-filter-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.region-select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-background);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  min-width: 150px;
+}
+
+.region-select:hover {
+  border-color: #2196F3;
+}
+
+.region-select:focus {
+  outline: none;
+  border-color: #2196F3;
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+.region-info {
+  display: flex;
+  align-items: center;
+}
+
+.region-badge {
+  padding: 0.4rem 0.75rem;
+  background: rgba(33, 150, 243, 0.1);
+  color: #2196F3;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .stat-item {
