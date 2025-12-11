@@ -226,6 +226,33 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const addressTextareaRef = useRef(null);
   const autocompleteRef = useRef(null);
   
+  // Зберігаємо останні координати з Google Places для нових заявок
+  const [lastPlaceCoordinates, setLastPlaceCoordinates] = useState(null);
+  
+  // Функція для збереження координат в базу даних
+  const saveCoordinatesToDatabase = async (taskId, lat, lng, isApproximate = false) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/coordinates`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ lat, lng, isApproximate })
+      });
+      
+      if (!response.ok) {
+        console.error('Помилка збереження координат в базу');
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('Помилка збереження координат:', err);
+      return false;
+    }
+  };
+  
   // Кеш для ключів PDF (як у вкладці Договори)
   const [pdfKeysCache, setPdfKeysCache] = useState(new Map());
   const [pdfKeysLoading, setPdfKeysLoading] = useState(new Set());
@@ -396,10 +423,32 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           }
         );
 
-        autocomplete.addListener('place_changed', () => {
+        autocomplete.addListener('place_changed', async () => {
           const place = autocomplete.getPlace();
           if (place.formatted_address) {
             setFormData(prev => ({ ...prev, address: place.formatted_address }));
+            
+            // Отримуємо координати з Google Places
+            if (place.geometry && place.geometry.location) {
+              const lat = place.geometry.location.lat();
+              const lng = place.geometry.location.lng();
+              const locationType = place.geometry.location_type;
+              const isApproximate = locationType !== 'ROOFTOP'; // ROOFTOP = точна, інші = приблизна
+              
+              // Зберігаємо координати для подальшого використання (для нових заявок)
+              setLastPlaceCoordinates({ lat, lng, isApproximate });
+              
+              // Якщо це редагування існуючої заявки - зберігаємо координати одразу
+              const taskId = initialData?._id || initialData?.id;
+              if (taskId) {
+                try {
+                  await saveCoordinatesToDatabase(taskId, lat, lng, isApproximate);
+                  console.log('Координати збережено для заявки:', taskId);
+                } catch (err) {
+                  console.error('Помилка збереження координат:', err);
+                }
+              }
+            }
           }
         });
 
@@ -417,10 +466,32 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           }
         );
 
-        autocomplete.addListener('place_changed', () => {
+        autocomplete.addListener('place_changed', async () => {
           const place = autocomplete.getPlace();
           if (place.formatted_address) {
             setFormData(prev => ({ ...prev, address: place.formatted_address }));
+            
+            // Отримуємо координати з Google Places
+            if (place.geometry && place.geometry.location) {
+              const lat = place.geometry.location.lat();
+              const lng = place.geometry.location.lng();
+              const locationType = place.geometry.location_type;
+              const isApproximate = locationType !== 'ROOFTOP'; // ROOFTOP = точна, інші = приблизна
+              
+              // Зберігаємо координати для подальшого використання (для нових заявок)
+              setLastPlaceCoordinates({ lat, lng, isApproximate });
+              
+              // Якщо це редагування існуючої заявки - зберігаємо координати одразу
+              const taskId = initialData?._id || initialData?.id;
+              if (taskId) {
+                try {
+                  await saveCoordinatesToDatabase(taskId, lat, lng, isApproximate);
+                  console.log('Координати збережено для заявки:', taskId);
+                } catch (err) {
+                  console.error('Помилка збереження координат:', err);
+                }
+              }
+            }
           }
         });
 
@@ -1031,6 +1102,23 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
       const savedTask = await response.json();
       console.log(`[DEBUG] Заявка ${taskId ? 'оновлена' : 'створена'}:`, savedTask);
+      
+      // Зберігаємо координати для нової заявки, якщо адреса була вибрана з Google Places
+      if (!taskId && savedTask._id && lastPlaceCoordinates) {
+        try {
+          await saveCoordinatesToDatabase(
+            savedTask._id, 
+            lastPlaceCoordinates.lat, 
+            lastPlaceCoordinates.lng, 
+            lastPlaceCoordinates.isApproximate
+          );
+          console.log('Координати збережено для нової заявки:', savedTask._id);
+          // Очищаємо збережені координати
+          setLastPlaceCoordinates(null);
+        } catch (err) {
+          console.error('Помилка збереження координат для нової заявки:', err);
+        }
+      }
       
       // Логування події
       const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
