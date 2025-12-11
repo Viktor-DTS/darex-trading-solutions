@@ -174,7 +174,7 @@ function App() {
               const updatedUser = await response.json();
               setUser(updatedUser);
               
-              // Встановлюємо панель за замовчуванням або збережену
+          // Встановлюємо панель за замовчуванням або збережену
               const savedPanel = localStorage.getItem('currentPanel');
               const defaultPanel = getDefaultPanelForRole(updatedUser.role, rules);
               const availablePanels = getAvailablePanelsForRole(updatedUser.role, rules).map(p => p.id);
@@ -211,15 +211,15 @@ function App() {
             console.warn('Помилка перевірки токену (мережа), використовуємо збережені дані:', error);
             setUser(userData);
             
-            const savedPanel = localStorage.getItem('currentPanel');
-            const defaultPanel = getDefaultPanelForRole(userData.role, rules);
-            const availablePanels = getAvailablePanelsForRole(userData.role, rules).map(p => p.id);
-            
-            if (savedPanel && availablePanels.includes(savedPanel)) {
-              setCurrentPanel(savedPanel);
-            } else {
-              setCurrentPanel(defaultPanel);
-            }
+          const savedPanel = localStorage.getItem('currentPanel');
+          const defaultPanel = getDefaultPanelForRole(userData.role, rules);
+          const availablePanels = getAvailablePanelsForRole(userData.role, rules).map(p => p.id);
+          
+          if (savedPanel && availablePanels.includes(savedPanel)) {
+            setCurrentPanel(savedPanel);
+          } else {
+            setCurrentPanel(defaultPanel);
+          }
           }
         } else {
           // Немає даних користувача - очищаємо токен
