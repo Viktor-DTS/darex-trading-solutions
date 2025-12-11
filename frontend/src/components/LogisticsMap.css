@@ -46,11 +46,16 @@
   border: 1px solid var(--border-color);
   border-radius: 6px;
   background: var(--card-background);
-  color: var(--text-primary);
+  color: #000 !important; /* Чорний колір тексту */
   font-size: 0.9rem;
   cursor: pointer;
   transition: border-color 0.2s, box-shadow 0.2s;
   min-width: 150px;
+}
+
+.region-select option {
+  color: #000 !important; /* Чорний колір для опцій */
+  background: #fff !important; /* Білий фон для опцій */
 }
 
 .region-select:hover {
@@ -293,6 +298,18 @@
   color: #000 !important; /* Чорний колір тексту */
 }
 
+.failed-tasks-table tbody {
+  color: #000 !important; /* Чорний колір тексту для всього tbody */
+}
+
+.failed-tasks-table tbody td {
+  color: #000 !important; /* Чорний колір тексту для всіх комірок */
+}
+
+.failed-tasks-table tbody tr {
+  color: #000 !important; /* Чорний колір тексту для всіх рядків */
+}
+
 .failed-tasks-table .failed-task-row {
   cursor: pointer;
   transition: background-color 0.2s;
@@ -314,7 +331,7 @@
 
 .failed-tasks-table .reason-cell {
   font-size: 0.8rem;
-  color: #333 !important; /* Темно-сірий замість світлого */
+  color: #000 !important; /* Чорний колір тексту */
   font-style: italic;
 }
 
