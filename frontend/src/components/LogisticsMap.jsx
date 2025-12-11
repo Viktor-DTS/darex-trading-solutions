@@ -81,25 +81,75 @@ const saveCoordinatesToDatabase = async (taskId, lat, lng, isApproximate = false
   }
 };
 
-// Функція для нормалізації адреси (додавання пробілів після крапок)
+// Розширена функція для нормалізації адреси
 const normalizeAddress = (address) => {
-  // Додаємо пробіли після крапок перед скороченнями (м., вул., просп., бул., пл., пров., пер., шосе тощо)
-  // Замінюємо "м.Дніпро" на "м. Дніпро", "вул.Свердлова" на "вул. Свердлова" тощо
-  // Використовуємо простий підхід з конкретними скороченнями для уникнення помилок збірки
-  let normalized = address;
+  if (!address) return '';
   
-  // Список поширених скорочень для більш точного визначення
-  const abbreviations = ['м', 'вул', 'просп', 'бул', 'пл', 'пров', 'пер', 'шосе', 'наб', 'проїзд', 'тупик', 'кв', 'обл', 'смт', 'с'];
+  let normalized = address.trim();
   
-  // Додаємо пробіли після крапок для скорочень (без використання проблемних character classes)
+  // 1. Виправлення поширених помилок та опечаток
+  const corrections = {
+    'Дныпро': 'Дніпро',
+    'Днепропетровская': 'Дніпропетровська',
+    'Днепропетровська': 'Дніпропетровська',
+    'Крвиий': 'Кривий',
+    'Киъвська': 'Київська',
+    'Обухыв': 'Обухів',
+    'ПОлтава': 'Полтава',
+    'Набережнна': 'Набережна',
+    'НабережнаПеремоги': 'Набережна Перемоги',
+    'Старонводницька': 'Старонаводницька',
+    'Волоська': 'Волоська',
+    'Бульварно-Кудрявська': 'Бульварно-Кудрявська',
+    'Дныпропетровська': 'Дніпропетровська',
+    'Дніпропетровська обл': 'Дніпропетровська обл.',
+    'Київська обл': 'Київська обл.',
+    'Запорізька обл': 'Запорізька обл.',
+    'Харківська обл': 'Харківська обл.',
+    'Одеська обл': 'Одеська обл.',
+    'Черкаська обл': 'Черкаська обл.',
+    'Житомирська обл': 'Житомирська обл.',
+    'Полтавська обл': 'Полтавська обл.',
+    'Сумська обл': 'Сумська обл.',
+    'Вінницька обл': 'Вінницька обл.',
+    'Хмельницька обл': 'Хмельницька обл.',
+    'Чернігівська обл': 'Чернігівська обл.',
+    'Миколаївська обл': 'Миколаївська обл.',
+    'Кіровоградська обл': 'Кіровоградська обл.',
+    'Рівненська обл': 'Рівненська обл.',
+    'Івано-Франківська обл': 'Івано-Франківська обл.',
+  };
+  
+  Object.keys(corrections).forEach(wrong => {
+    const regex = new RegExp(wrong.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    normalized = normalized.replace(regex, corrections[wrong]);
+  });
+  
+  // 2. Видалення поштових кодів та кодів на початку (наприклад, "0360", "ZH9102", "DN0042", "CK2020")
+  normalized = normalized.replace(/^[A-Z]{0,2}\d{4,6}\s+/, '');
+  normalized = normalized.replace(/^\d{4,5}\s+/, '');
+  
+  // 3. Видалення додаткового тексту в дужках (орієнтири, примітки)
+  normalized = normalized.replace(/\s*\([^)]*\)/g, '');
+  
+  // 4. Видалення email адрес
+  normalized = normalized.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '').trim();
+  
+  // 5. Видалення зайвих ком та пробілів
+  normalized = normalized.replace(/\s*,\s*,/g, ',');
+  normalized = normalized.replace(/,\s*$/, '');
+  normalized = normalized.replace(/^,\s*/, '');
+  
+  // 6. Додавання пробілів після крапок для скорочень
+  const abbreviations = ['м', 'вул', 'просп', 'бул', 'пл', 'пров', 'пер', 'шосе', 'наб', 'проїзд', 'тупик', 'кв', 'обл', 'смт', 'с', 'пр', 'бульв', 'просп', 'р-н', 'р', 'район'];
+  
   abbreviations.forEach(abbr => {
-    // Створюємо regex динамічно для кожного скорочення
     const pattern = `(${abbr})\\.([^\\s\\d])`;
     const regex = new RegExp(pattern, 'gi');
     normalized = normalized.replace(regex, '$1. $2');
   });
   
-  // Замінюємо множинні пробіли на один
+  // 7. Нормалізація пробілів
   normalized = normalized.replace(/\s+/g, ' ').trim();
   
   return normalized;
@@ -107,74 +157,202 @@ const normalizeAddress = (address) => {
 
 // Функція для видалення номера будинку з адреси
 const removeHouseNumber = (address) => {
-  // Видаляємо останній номер будинку (наприклад, "25", "2Б", "34-А")
+  // Видаляємо останній номер будинку (наприклад, "25", "2Б", "34-А", "11 а", "29к", "35Н")
   // Регулярний вираз для пошуку номерів будинків в кінці адреси
-  return address.replace(/,\s*[0-9]+[А-Яа-яA-Za-z]?(-[0-9]+[А-Яа-яA-Za-z]?)?\s*$/, '').trim();
+  let cleaned = address;
+  
+  // Видаляємо формати типу "буд. 11 а", "буд. 2А"
+  cleaned = cleaned.replace(/,\s*буд\.?\s*[0-9]+[А-Яа-яA-Za-z]?\s*[А-Яа-яA-Za-z]?\s*$/i, '').trim();
+  
+  // Видаляємо номери будинків в різних форматах
+  // Формат: ", 25", ", 2Б", ", 34-А", ", 11 а", ", 29к", ", 35Н"
+  cleaned = cleaned.replace(/,\s*[0-9]+[А-Яа-яA-Za-z]?(-[0-9]+[А-Яа-яA-Za-z]?)?\s*$/, '').trim();
+  
+  // Також видаляємо формати без коми на початку (якщо номер в кінці без коми)
+  cleaned = cleaned.replace(/\s+[0-9]+[А-Яа-яA-Za-z]?(-[0-9]+[А-Яа-яA-Za-z]?)?\s*$/, '').trim();
+  
+  return cleaned;
 };
 
-// Функція геокодування з fallback
+// Функція для витягування регіону з адреси
+const extractRegion = (address) => {
+  const regionPatterns = [
+    /Дніпропетровська\s+обл\.?/i,
+    /Дніпропетровська\s+область/i,
+    /Київська\s+обл\.?/i,
+    /Київська\s+область/i,
+    /Запорізька\s+обл\.?/i,
+    /Запорізька\s+область/i,
+    /Харківська\s+обл\.?/i,
+    /Харківська\s+область/i,
+    /Одеська\s+обл\.?/i,
+    /Одеська\s+область/i,
+    /Черкаська\s+обл\.?/i,
+    /Черкаська\s+область/i,
+    /Житомирська\s+обл\.?/i,
+    /Житомирська\s+область/i,
+    /Полтавська\s+обл\.?/i,
+    /Полтавська\s+область/i,
+    /Сумська\s+обл\.?/i,
+    /Сумська\s+область/i,
+    /Вінницька\s+обл\.?/i,
+    /Вінницька\s+область/i,
+    /Хмельницька\s+обл\.?/i,
+    /Хмельницька\s+область/i,
+    /Чернігівська\s+обл\.?/i,
+    /Чернігівська\s+область/i,
+    /Миколаївська\s+обл\.?/i,
+    /Миколаївська\s+область/i,
+    /Кіровоградська\s+обл\.?/i,
+    /Кіровоградська\s+область/i,
+    /Рівненська\s+обл\.?/i,
+    /Рівненська\s+область/i,
+    /Івано-Франківська\s+обл\.?/i,
+    /Івано-Франківська\s+область/i,
+  ];
+  
+  for (const pattern of regionPatterns) {
+    const match = address.match(pattern);
+    if (match) {
+      return match[0];
+    }
+  }
+  return null;
+};
+
+// Функція для створення варіантів адреси для пошуку
+const createAddressVariants = (address) => {
+  const variants = [];
+  const normalized = normalizeAddress(address);
+  
+  if (!normalized || normalized.length === 0) {
+    return variants;
+  }
+  
+  // Варіант 1: Повна нормалізована адреса
+  variants.push(`${normalized}, Україна`);
+  
+  // Варіант 2: Без номера будинку
+  const withoutNumber = removeHouseNumber(normalized);
+  if (withoutNumber !== normalized && withoutNumber.length > 0) {
+    variants.push(`${withoutNumber}, Україна`);
+  }
+  
+  // Варіант 3: Тільки місто/село + вулиця (без номера) з регіоном
+  const region = extractRegion(normalized);
+  if (region) {
+    // Видаляємо область з адреси для спрощення
+    const withoutRegion = normalized.replace(new RegExp(region.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
+    const simplified = removeHouseNumber(withoutRegion);
+    if (simplified.length > 0 && simplified !== normalized) {
+      variants.push(`${simplified}, ${region}, Україна`);
+    }
+  }
+  
+  // Варіант 4: Тільки місто/село (якщо є)
+  const cityMatch = normalized.match(/(?:м\.|місто|смт\.|селище|с\.|село)\s*([^,]+)/i);
+  if (cityMatch) {
+    const city = cityMatch[1].trim();
+    if (city && city.length > 2) {
+      const region = extractRegion(normalized);
+      if (region) {
+        const cityVariant = `${city}, ${region}, Україна`;
+        // Додаємо тільки якщо це не дублікат
+        if (!variants.includes(cityVariant)) {
+          variants.push(cityVariant);
+        }
+      } else {
+        const cityVariant = `${city}, Україна`;
+        // Додаємо тільки якщо це не дублікат
+        if (!variants.includes(cityVariant)) {
+          variants.push(cityVariant);
+        }
+      }
+    }
+  }
+  
+  // Варіант 5: Для дуже коротких адрес (тільки назва населеного пункту) - спробуємо знайти по всій Україні
+  if (variants.length === 1 && normalized.length < 30) {
+    // Якщо адреса дуже коротка і не знайдено регіон, спробуємо без регіону
+    const shortMatch = normalized.match(/(?:м\.|місто|смт\.|селище|с\.|село)\s*([^,]+)/i);
+    if (shortMatch && !region) {
+      const cityName = shortMatch[1].trim();
+      if (cityName && cityName.length > 2) {
+        variants.push(`${cityName}, Україна`);
+      }
+    }
+  }
+  
+  return variants;
+};
+
+// Покращена функція геокодування з множинними стратегіями
 const geocodeAddress = async (address) => {
   try {
-    // Нормалізуємо адресу (додаємо пробіли після крапок)
-    const normalizedAddress = normalizeAddress(address);
-    
-    // Спочатку шукаємо повну адресу
-    const fullAddress = `${normalizedAddress}, Україна`;
-    const encodedFullAddress = encodeURIComponent(fullAddress);
-    
-    let response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodedFullAddress}&limit=1`,
-      {
-        headers: {
-          'User-Agent': 'DTS-Service-App'
-        }
-      }
-    );
-
-    if (response.ok) {
-      const data = await response.json();
-      if (data.length > 0) {
-        return {
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon),
-          isApproximate: false,
-          found: true
-        };
-      }
+    // Перевірка на невалідні адреси (email, порожні, тільки коди)
+    if (!address || address.trim().length === 0) {
+      return { found: false, error: 'Порожня адреса' };
     }
+    
+    // Перевірка на email
+    if (address.includes('@') && !address.includes(' ')) {
+      return { found: false, error: 'Email замість адреси' };
+    }
+    
+    // Створюємо варіанти адреси
+    const variants = createAddressVariants(address);
+    
+    if (variants.length === 0) {
+      return { found: false, error: 'Не вдалося створити варіанти адреси' };
+    }
+    
+    // Спробуємо кожен варіант
+    for (let i = 0; i < variants.length; i++) {
+      const variant = variants[i];
+      const encodedAddress = encodeURIComponent(variant);
+      
+      // Затримка між запитами (крім першого)
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, 1100));
+      }
+      
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1&countrycodes=ua`,
+          {
+            headers: {
+              'User-Agent': 'DTS-Service-App'
+            }
+          }
+        );
 
-    // Якщо не знайдено повну адресу, спробуємо без номера будинку
-    const addressWithoutNumber = removeHouseNumber(normalizedAddress);
-    if (addressWithoutNumber !== normalizedAddress && addressWithoutNumber.length > 0) {
-      // Затримка перед другим запитом
-      await new Promise(resolve => setTimeout(resolve, 1100));
-      
-      const simplifiedAddress = `${addressWithoutNumber}, Україна`;
-      const encodedSimplified = encodeURIComponent(simplifiedAddress);
-      
-      response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodedSimplified}&limit=1`,
-        {
-          headers: {
-            'User-Agent': 'DTS-Service-App'
+        if (response.ok) {
+          const data = await response.json();
+          if (data.length > 0) {
+            const result = data[0];
+            // Перевіряємо, чи результат в Україні
+            if (result.address && (
+              result.address.country === 'Україна' || 
+              result.address.country === 'Ukraine' ||
+              result.address.country_code === 'ua' ||
+              result.address.country_code === 'UA'
+            )) {
+              return {
+                lat: parseFloat(result.lat),
+                lng: parseFloat(result.lon),
+                isApproximate: i > 0, // Якщо використали спрощений варіант
+                found: true
+              };
+            }
           }
         }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.length > 0) {
-          return {
-            lat: parseFloat(data[0].lat),
-            lng: parseFloat(data[0].lon),
-            isApproximate: true, // Позначаємо як приблизне
-            found: true
-          };
-        }
+      } catch (err) {
+        console.warn(`Помилка запиту для варіанту "${variant}":`, err);
+        // Продовжуємо до наступного варіанту
       }
     }
-
-    return { found: false };
+    
+    return { found: false, error: 'Адресу не знайдено на карті' };
   } catch (err) {
     console.error(`Помилка геокодування адреси "${address}":`, err);
     return { found: false, error: err.message };
