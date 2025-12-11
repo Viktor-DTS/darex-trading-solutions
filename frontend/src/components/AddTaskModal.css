@@ -1,3 +1,31 @@
+/* Стилі для Google Places Autocomplete */
+.pac-container {
+  z-index: 10001 !important; /* Щоб dropdown був поверх модального вікна */
+  border-radius: 6px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-top: 4px;
+  font-family: inherit;
+}
+
+.pac-item {
+  padding: 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+}
+
+.pac-item:hover {
+  background-color: #f5f5f5;
+}
+
+.pac-item-selected {
+  background-color: #e3f2fd;
+}
+
+.pac-icon {
+  margin-right: 0.5rem;
+}
+
 .modal-overlay {
   position: fixed;
   top: 0;

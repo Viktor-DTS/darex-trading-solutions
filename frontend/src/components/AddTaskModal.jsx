@@ -221,6 +221,11 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const [existingContracts, setExistingContracts] = useState([]);
   const [contractsLoading, setContractsLoading] = useState(false);
   
+  // Refs для Google Places Autocomplete
+  const addressInputRef = useRef(null);
+  const addressTextareaRef = useRef(null);
+  const autocompleteRef = useRef(null);
+  
   // Кеш для ключів PDF (як у вкладці Договори)
   const [pdfKeysCache, setPdfKeysCache] = useState(new Map());
   const [pdfKeysLoading, setPdfKeysLoading] = useState(new Set());
@@ -365,6 +370,79 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       setError(null);
     }
   }, [open, user, isNewTask]);
+
+  // Ініціалізація Google Places Autocomplete для поля адреси
+  useEffect(() => {
+    if (!open) return;
+    
+    let timeoutId;
+    
+    // Очікуємо, поки Google Maps API завантажиться
+    const initAutocomplete = () => {
+      if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
+        // Якщо API ще не завантажено, спробуємо через 100мс
+        timeoutId = setTimeout(initAutocomplete, 100);
+        return;
+      }
+
+      // Ініціалізуємо для input (режим бухгалтера)
+      if (addressInputRef.current && isAccountantMode) {
+        const autocomplete = new google.maps.places.Autocomplete(
+          addressInputRef.current,
+          {
+            componentRestrictions: { country: 'ua' },
+            fields: ['formatted_address', 'address_components', 'geometry'],
+            types: ['address']
+          }
+        );
+
+        autocomplete.addListener('place_changed', () => {
+          const place = autocomplete.getPlace();
+          if (place.formatted_address) {
+            setFormData(prev => ({ ...prev, address: place.formatted_address }));
+          }
+        });
+
+        autocompleteRef.current = autocomplete;
+      }
+
+      // Ініціалізуємо для input (звичайний режим)
+      if (addressTextareaRef.current && !isAccountantMode) {
+        const autocomplete = new google.maps.places.Autocomplete(
+          addressTextareaRef.current,
+          {
+            componentRestrictions: { country: 'ua' },
+            fields: ['formatted_address', 'address_components', 'geometry'],
+            types: ['address']
+          }
+        );
+
+        autocomplete.addListener('place_changed', () => {
+          const place = autocomplete.getPlace();
+          if (place.formatted_address) {
+            setFormData(prev => ({ ...prev, address: place.formatted_address }));
+          }
+        });
+
+        if (!autocompleteRef.current) {
+          autocompleteRef.current = autocomplete;
+        }
+      }
+    };
+
+    initAutocomplete();
+
+    // Очищення при закритті
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (autocompleteRef.current && typeof google !== 'undefined' && google.maps) {
+        google.maps.event.clearInstanceListeners(autocompleteRef.current);
+        autocompleteRef.current = null;
+      }
+    };
+  }, [open, isAccountantMode]);
 
   // Автоматичне заповнення номера заявки при виборі/зміні регіону (тільки для нових заявок)
   useEffect(() => {
@@ -1439,9 +1517,17 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                           </div>
                         )}
                       </div>
-                      <div className="form-group">
+                      <div className="form-group autocomplete-wrapper">
                         <label>Адреса</label>
-                        <input type="text" name="address" value={formData.address} onChange={handleChange} />
+                        <input 
+                          ref={addressInputRef}
+                          type="text" 
+                          name="address" 
+                          value={formData.address} 
+                          onChange={handleChange}
+                          placeholder="Почніть вводити адресу..."
+                          autoComplete="off"
+                        />
                       </div>
                     </div>
                     <div className="form-row three-cols">
@@ -1506,9 +1592,18 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         )}
                       </div>
                     </div>
-                    <div className="form-group">
+                    <div className="form-group autocomplete-wrapper">
                       <label>Адреса</label>
-                      <textarea name="address" value={formData.address} onChange={handleChange} rows="2" />
+                      <input 
+                        ref={addressTextareaRef}
+                        type="text" 
+                        name="address" 
+                        value={formData.address} 
+                        onChange={handleChange}
+                        placeholder="Почніть вводити адресу..."
+                        autoComplete="off"
+                        style={{ width: '100%', padding: '0.5rem', minHeight: '60px', resize: 'vertical' }}
+                      />
                     </div>
                     <div className="form-row">
                       <div className="form-group">
