@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import API_BASE_URL from '../config';
 import { generateWorkOrder } from '../utils/workOrderGenerator';
 import './TaskTable.css';
@@ -775,6 +776,43 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     return value.toString();
   };
 
+  // Функція для експорту в Excel
+  const handleExportToExcel = () => {
+    if (filteredAndSortedTasks.length === 0) {
+      alert('Немає даних для експорту');
+      return;
+    }
+
+    try {
+      // Підготовка даних для експорту
+      const exportData = filteredAndSortedTasks.map(task => {
+        const row = {};
+        displayedColumns.forEach(col => {
+          const value = task[col.key];
+          row[col.label] = formatValue(value, col.key);
+        });
+        return row;
+      });
+
+      // Створення робочої книги
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Дані');
+
+      // Генерація імені файлу з поточною датою
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
+      const fileName = `Експорт_${dateStr}_${timeStr}.xlsx`;
+
+      // Завантаження файлу
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      console.error('Помилка експорту в Excel:', error);
+      alert('Помилка експорту в Excel: ' + error.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="task-table-loading">
@@ -859,6 +897,13 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
           />
         </div>
         <div className="toolbar-actions">
+          <button
+            className="btn-export-excel"
+            onClick={handleExportToExcel}
+            title="Експортувати таблицю в Excel"
+          >
+            📊 Експорт в Excel
+          </button>
           <button
             className={`btn-toggle-filters ${showFilters ? 'active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
