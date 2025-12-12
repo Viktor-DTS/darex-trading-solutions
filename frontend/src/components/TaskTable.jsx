@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import API_BASE_URL from '../config';
 import { generateWorkOrder } from '../utils/workOrderGenerator';
 import './TaskTable.css';
@@ -784,26 +784,92 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     }
 
     try {
-      // Підготовка даних для експорту
-      const exportData = filteredAndSortedTasks.map(task => {
-        const row = {};
-        displayedColumns.forEach(col => {
+      // Створення нової робочої книги
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Дані');
+
+      // Додавання заголовків
+      const headers = displayedColumns.map(col => col.label);
+      worksheet.addRow(headers);
+
+      // Стилізація заголовків
+      const headerRow = worksheet.getRow(1);
+      headerRow.font = { bold: true, size: 12 };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      };
+      headerRow.alignment = { 
+        vertical: 'middle', 
+        horizontal: 'center',
+        wrapText: true 
+      };
+      headerRow.height = 25;
+
+      // Додавання даних
+      filteredAndSortedTasks.forEach(task => {
+        const row = displayedColumns.map(col => {
           const value = task[col.key];
-          row[col.label] = formatValue(value, col.key);
+          return formatValue(value, col.key);
         });
-        return row;
+        worksheet.addRow(row);
       });
 
-      // Створення робочої книги
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Дані');
+      // Налаштування колонок: автоширина та перенос тексту
+      displayedColumns.forEach((col, index) => {
+        const column = worksheet.getColumn(index + 1);
+        
+        // Знаходимо максимальну довжину тексту в колонці
+        let maxLength = col.label.length;
+        filteredAndSortedTasks.forEach(task => {
+          const value = formatValue(task[col.key], col.key);
+          if (value) {
+            const strValue = String(value);
+            const lines = strValue.split('\n');
+            const maxLineLength = Math.max(...lines.map(line => line.length));
+            maxLength = Math.max(maxLength, maxLineLength);
+          }
+        });
+        
+        // Встановлюємо ширину з запасом (мінімум 10, максимум 100)
+        column.width = Math.min(Math.max(maxLength + 2, 10), 100);
+      });
+
+      // Налаштування всіх комірок: перенос тексту та вирівнювання
+      worksheet.eachRow((row, rowNumber) => {
+        row.eachCell((cell) => {
+          cell.alignment = {
+            vertical: 'top',
+            horizontal: 'left',
+            wrapText: true
+          };
+        });
+        
+        // Автовисота рядка на основі кількості рядків тексту
+        let maxLines = 1;
+        row.eachCell((cell) => {
+          if (cell.value) {
+            const strValue = String(cell.value);
+            const lines = strValue.split('\n').length;
+            maxLines = Math.max(maxLines, lines);
+          }
+        });
+        // Висота рядка (приблизно 15 пунктів на рядок, мінімум 20)
+        row.height = Math.max(maxLines * 15, 20);
+      });
 
       // Генерація імені файлу з поточною датою
       const now = new Date();
       const dateStr = now.toISOString().split('T')[0];
       const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
       const defaultFileName = `Експорт_${dateStr}_${timeStr}.xlsx`;
+
+      // Генерація буфера
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
 
       // Перевірка підтримки File System Access API (Chrome, Edge)
       if ('showSaveFilePicker' in window) {
@@ -818,26 +884,37 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
             }]
           });
 
-          // Конвертація в ArrayBuffer та запис
-          const wbout = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+          // Запис файлу
           const writable = await fileHandle.createWritable();
-          await writable.write(new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+          await writable.write(blob);
           await writable.close();
         } catch (error) {
-          // Користувач скасував діалог або сталася помилка
+          // Користувач скасував діалог
           if (error.name !== 'AbortError') {
             console.error('Помилка збереження файлу:', error);
-            // Fallback на стандартний метод
-            XLSX.writeFile(wb, defaultFileName);
+            // Fallback - створюємо посилання для завантаження
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = defaultFileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
           }
         }
       } else {
         // Fallback для браузерів без підтримки File System Access API
-        // Запитуємо ім'я файлу у користувача
-        const fileName = prompt('Введіть ім\'я файлу для збереження:', defaultFileName);
-        if (fileName) {
-          XLSX.writeFile(wb, fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`);
-        }
+        // Створюємо посилання для завантаження
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = defaultFileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        // Очищаємо URL через невеликий час
+        setTimeout(() => URL.revokeObjectURL(url), 100);
       }
     } catch (error) {
       console.error('Помилка експорту в Excel:', error);
