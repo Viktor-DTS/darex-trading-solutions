@@ -777,7 +777,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   };
 
   // Функція для експорту в Excel
-  const handleExportToExcel = () => {
+  const handleExportToExcel = async () => {
     if (filteredAndSortedTasks.length === 0) {
       alert('Немає даних для експорту');
       return;
@@ -803,10 +803,42 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       const now = new Date();
       const dateStr = now.toISOString().split('T')[0];
       const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
-      const fileName = `Експорт_${dateStr}_${timeStr}.xlsx`;
+      const defaultFileName = `Експорт_${dateStr}_${timeStr}.xlsx`;
 
-      // Завантаження файлу
-      XLSX.writeFile(wb, fileName);
+      // Перевірка підтримки File System Access API (Chrome, Edge)
+      if ('showSaveFilePicker' in window) {
+        try {
+          const fileHandle = await window.showSaveFilePicker({
+            suggestedName: defaultFileName,
+            types: [{
+              description: 'Excel файли',
+              accept: {
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
+              }
+            }]
+          });
+
+          // Конвертація в ArrayBuffer та запис
+          const wbout = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+          const writable = await fileHandle.createWritable();
+          await writable.write(new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+          await writable.close();
+        } catch (error) {
+          // Користувач скасував діалог або сталася помилка
+          if (error.name !== 'AbortError') {
+            console.error('Помилка збереження файлу:', error);
+            // Fallback на стандартний метод
+            XLSX.writeFile(wb, defaultFileName);
+          }
+        }
+      } else {
+        // Fallback для браузерів без підтримки File System Access API
+        // Запитуємо ім'я файлу у користувача
+        const fileName = prompt('Введіть ім\'я файлу для збереження:', defaultFileName);
+        if (fileName) {
+          XLSX.writeFile(wb, fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`);
+        }
+      }
     } catch (error) {
       console.error('Помилка експорту в Excel:', error);
       alert('Помилка експорту в Excel: ' + error.message);
