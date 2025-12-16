@@ -1,0 +1,383 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { createWorker } from 'tesseract.js';
+import { parseEquipmentData, validateEquipmentData } from '../../utils/ocrParser';
+import API_BASE_URL from '../../config';
+import './EquipmentScanner.css';
+
+function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
+  const [step, setStep] = useState('camera'); // camera, processing, review, success
+  const [image, setImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [ocrText, setOcrText] = useState('');
+  const [equipmentData, setEquipmentData] = useState({
+    currentWarehouse: user?.region || '',
+    currentWarehouseName: user?.region || '',
+    region: user?.region || ''
+  });
+  const [errors, setErrors] = useState([]);
+  const [saving, setSaving] = useState(false);
+  
+  const fileInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        streamRef.current = stream;
+      }
+    } catch (error) {
+      console.error('Помилка доступу до камери:', error);
+      alert('Не вдалося отримати доступ до камери. Перевірте дозволи.');
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current) {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoRef.current, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      setImagePreview(dataUrl);
+      setImage(dataUrl);
+      stopCamera();
+      setStep('processing');
+      processImage(dataUrl);
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target.result;
+        setImagePreview(dataUrl);
+        setImage(dataUrl);
+        setStep('processing');
+        processImage(dataUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const processImage = async (imageData) => {
+    setProcessing(true);
+    try {
+      const worker = await createWorker('eng+ukr');
+      const { data: { text } } = await worker.recognize(imageData);
+      await worker.terminate();
+      
+      setOcrText(text);
+      const parsed = parseEquipmentData(text);
+      setEquipmentData(prev => ({ ...prev, ...parsed }));
+      setStep('review');
+    } catch (error) {
+      console.error('Помилка OCR:', error);
+      alert('Помилка розпізнавання тексту. Спробуйте ще раз з кращою якістю фото.');
+      setStep('camera');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleInputChange = (field, value) => {
+    setEquipmentData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = async () => {
+    const validation = validateEquipmentData(equipmentData);
+    if (!validation.isValid) {
+      setErrors(validation.errors);
+      return;
+    }
+
+    setSaving(true);
+    setErrors([]);
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Завантажуємо фото на Cloudinary (якщо потрібно)
+      let photoUrl = image;
+      // Тут можна додати завантаження на Cloudinary
+      
+      const response = await fetch(`${API_BASE_URL}/equipment/scan`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...equipmentData,
+          photoUrl: photoUrl,
+          ocrData: { text: ocrText }
+        })
+      });
+
+      if (response.ok) {
+        const saved = await response.json();
+        setStep('success');
+        setTimeout(() => {
+          onEquipmentAdded && onEquipmentAdded(saved);
+          onClose && onClose();
+        }, 2000);
+      } else {
+        const error = await response.json();
+        setErrors([error.error || 'Помилка збереження']);
+      }
+    } catch (error) {
+      console.error('Помилка збереження:', error);
+      setErrors(['Помилка збереження обладнання']);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (step === 'camera') {
+      startCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [step]);
+
+  return (
+    <div className="equipment-scanner">
+      {step === 'camera' && (
+        <div className="scanner-camera">
+          <div className="scanner-header">
+            <h2>📷 Сканування шильдика</h2>
+            <button className="btn-close" onClick={onClose}>✕</button>
+          </div>
+          
+          <div className="camera-container">
+            <video ref={videoRef} autoPlay playsInline className="camera-video" />
+            <div className="camera-overlay">
+              <div className="scan-frame" />
+              <p>Наведіть камеру на шильдик</p>
+            </div>
+          </div>
+          
+          <div className="camera-controls">
+            <button className="btn-secondary" onClick={() => fileInputRef.current?.click()}>
+              📁 Вибрати файл
+            </button>
+            <button className="btn-primary btn-capture" onClick={capturePhoto}>
+              📸 Зробити фото
+            </button>
+          </div>
+          
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileSelect}
+            style={{ display: 'none' }}
+          />
+        </div>
+      )}
+
+      {step === 'processing' && (
+        <div className="scanner-processing">
+          <div className="processing-spinner">⏳</div>
+          <h3>Розпізнавання тексту...</h3>
+          <p>Це може зайняти кілька секунд</p>
+        </div>
+      )}
+
+      {step === 'review' && (
+        <div className="scanner-review">
+          <div className="review-header">
+            <h2>✅ Перевірте дані</h2>
+            <button className="btn-close" onClick={() => setStep('camera')}>← Назад</button>
+          </div>
+
+          {imagePreview && (
+            <div className="review-image">
+              <img src={imagePreview} alt="Шильдик" />
+            </div>
+          )}
+
+          {errors.length > 0 && (
+            <div className="errors">
+              {errors.map((err, i) => (
+                <div key={i} className="error-message">{err}</div>
+              ))}
+            </div>
+          )}
+
+          <div className="review-form">
+            <div className="form-group">
+              <label>Тип обладнання *</label>
+              <input
+                type="text"
+                value={equipmentData.type || ''}
+                onChange={(e) => handleInputChange('type', e.target.value)}
+                placeholder="DE-50BDS"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Серійний номер *</label>
+              <input
+                type="text"
+                value={equipmentData.serialNumber || ''}
+                onChange={(e) => handleInputChange('serialNumber', e.target.value)}
+                placeholder="20241007015"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Склад *</label>
+              <select
+                value={equipmentData.currentWarehouse || ''}
+                onChange={(e) => {
+                  const warehouse = warehouses.find(w => w._id === e.target.value || w.name === e.target.value);
+                  handleInputChange('currentWarehouse', e.target.value);
+                  handleInputChange('currentWarehouseName', warehouse?.name || e.target.value);
+                }}
+              >
+                <option value="">Виберіть склад</option>
+                {warehouses.map(w => (
+                  <option key={w._id || w.name} value={w._id || w.name}>
+                    {w.name} {w.region ? `(${w.region})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Резервна потужність</label>
+                <input
+                  type="text"
+                  value={equipmentData.standbyPower || ''}
+                  onChange={(e) => handleInputChange('standbyPower', e.target.value)}
+                  placeholder="50/40 KVA/KW"
+                />
+              </div>
+              <div className="form-group">
+                <label>Основна потужність</label>
+                <input
+                  type="text"
+                  value={equipmentData.primePower || ''}
+                  onChange={(e) => handleInputChange('primePower', e.target.value)}
+                  placeholder="45/36 KVA/KW"
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Фази</label>
+                <input
+                  type="number"
+                  value={equipmentData.phase || ''}
+                  onChange={(e) => handleInputChange('phase', parseInt(e.target.value) || null)}
+                  placeholder="3"
+                />
+              </div>
+              <div className="form-group">
+                <label>Напруга</label>
+                <input
+                  type="text"
+                  value={equipmentData.voltage || ''}
+                  onChange={(e) => handleInputChange('voltage', e.target.value)}
+                  placeholder="400/230"
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Струм (A)</label>
+                <input
+                  type="number"
+                  value={equipmentData.amperage || ''}
+                  onChange={(e) => handleInputChange('amperage', parseInt(e.target.value) || null)}
+                  placeholder="72"
+                />
+              </div>
+              <div className="form-group">
+                <label>RPM</label>
+                <input
+                  type="number"
+                  value={equipmentData.rpm || ''}
+                  onChange={(e) => handleInputChange('rpm', parseInt(e.target.value) || null)}
+                  placeholder="1500"
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Розміри (мм)</label>
+              <input
+                type="text"
+                value={equipmentData.dimensions || ''}
+                onChange={(e) => handleInputChange('dimensions', e.target.value)}
+                placeholder="2280 x 950 x 1250"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Вага (кг)</label>
+              <input
+                type="number"
+                value={equipmentData.weight || ''}
+                onChange={(e) => handleInputChange('weight', parseInt(e.target.value) || null)}
+                placeholder="940"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Дата виробництва</label>
+              <input
+                type="text"
+                value={equipmentData.manufactureDate || ''}
+                onChange={(e) => handleInputChange('manufactureDate', e.target.value)}
+                placeholder="2024"
+              />
+            </div>
+
+            <div className="form-actions">
+              <button className="btn-secondary" onClick={() => setStep('camera')}>
+                Сканувати знову
+              </button>
+              <button className="btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? 'Збереження...' : '💾 Додати на склад'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {step === 'success' && (
+        <div className="scanner-success">
+          <div className="success-icon">✅</div>
+          <h3>Обладнання успішно додано!</h3>
+          <p>Перенаправлення...</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default EquipmentScanner;
+

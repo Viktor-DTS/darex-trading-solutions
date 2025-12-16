@@ -327,6 +327,88 @@ invoiceRequestSchema.index({ status: 1 });
 const InvoiceRequest = mongoose.model('InvoiceRequest', invoiceRequestSchema);
 
 // ============================================
+// МОДЕЛЬ ОБЛАДНАННЯ ДЛЯ СКЛАДСЬКОГО ОБЛІКУ
+// ============================================
+
+const equipmentSchema = new mongoose.Schema({
+  // Дані з шильдика
+  type: String,                    // DE-50BDS
+  serialNumber: { type: String, unique: true, sparse: true }, // 20241007015
+  manufacturer: String,            // DAREX ENERGY
+  standbyPower: String,             // 50/40 KVA/KW
+  primePower: String,               // 45/36 KVA/KW
+  phase: Number,                    // 3
+  voltage: String,                  // 400/230
+  amperage: Number,                 // 72
+  cosPhi: Number,                   // 0.8
+  rpm: Number,                      // 1500
+  frequency: Number,                // 50
+  dimensions: String,               // 2280 x 950 x 1250
+  weight: Number,                   // 940
+  manufactureDate: String,          // 2024
+  
+  // Складські дані
+  currentWarehouse: String,         // ID складу
+  currentWarehouseName: String,     // Назва складу
+  region: String,                    // Регіон
+  status: {                          // Статус
+    type: String,
+    enum: ['in_stock', 'reserved', 'shipped', 'in_transit'],
+    default: 'in_stock'
+  },
+  
+  // Історія переміщень
+  movementHistory: [{
+    fromWarehouse: String,
+    toWarehouse: String,
+    fromWarehouseName: String,
+    toWarehouseName: String,
+    date: Date,
+    movedBy: String,
+    movedByName: String,
+    reason: String
+  }],
+  
+  // Відвантаження
+  shipmentHistory: [{
+    shippedTo: String,               // Назва клієнта/замовника
+    shippedDate: Date,
+    shippedBy: String,
+    shippedByName: String,
+    orderNumber: String,
+    invoiceNumber: String,
+    clientEdrpou: String
+  }],
+  
+  // Метадані
+  addedBy: String,                  // ID користувача
+  addedByName: String,               // Ім'я користувача
+  addedAt: { type: Date, default: Date.now },
+  lastModified: { type: Date, default: Date.now },
+  photoUrl: String,                 // URL фото шильдика
+  ocrData: Object,                   // Сирі дані OCR
+}, { timestamps: true });
+
+equipmentSchema.index({ serialNumber: 1 });
+equipmentSchema.index({ currentWarehouse: 1 });
+equipmentSchema.index({ status: 1 });
+equipmentSchema.index({ region: 1 });
+equipmentSchema.index({ type: 1 });
+
+const Equipment = mongoose.model('Equipment', equipmentSchema);
+
+// Схема для складів
+const warehouseSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  region: String,
+  address: String,
+  isActive: { type: Boolean, default: true }
+}, { timestamps: true });
+
+warehouseSchema.index({ name: 1 }, { unique: true });
+const Warehouse = mongoose.model('Warehouse', warehouseSchema);
+
+// ============================================
 // ОПТИМІЗОВАНІ API ENDPOINTS
 // ============================================
 
@@ -2924,6 +3006,288 @@ app.put('/api/invoice-requests/:id/return-to-work', authenticateToken, async (re
   } catch (error) {
     console.error('[INVOICE] Error returning invoice request to work:', error);
     res.status(500).json({ success: false, message: 'Помилка повернення в роботу', error: error.message });
+  }
+});
+
+// ============================================
+// API ДЛЯ СКЛАДСЬКОГО ОБЛІКУ ОБЛАДНАННЯ
+// ============================================
+
+// Отримання списку складів
+app.get('/api/warehouses', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const warehouses = await Warehouse.find({ isActive: true })
+      .sort({ name: 1 })
+      .lean();
+    logPerformance('GET /api/warehouses', startTime, warehouses.length);
+    res.json(warehouses);
+  } catch (error) {
+    console.error('[ERROR] GET /api/warehouses:', error);
+    logPerformance('GET /api/warehouses', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Створення складу
+app.post('/api/warehouses', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { name, region, address } = req.body;
+    const warehouse = await Warehouse.create({ name, region, address });
+    logPerformance('POST /api/warehouses', startTime);
+    res.status(201).json(warehouse);
+  } catch (error) {
+    console.error('[ERROR] POST /api/warehouses:', error);
+    logPerformance('POST /api/warehouses', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Сканування та додавання обладнання
+app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const equipmentData = req.body;
+    const user = await User.findOne({ login: req.user.login });
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    // Перевірка на дублікат
+    if (equipmentData.serialNumber) {
+      const existing = await Equipment.findOne({ serialNumber: equipmentData.serialNumber });
+      if (existing) {
+        return res.status(400).json({ 
+          error: 'Обладнання з таким серійним номером вже існує',
+          existing: existing
+        });
+      }
+    }
+    
+    const equipment = await Equipment.create({
+      ...equipmentData,
+      addedBy: user._id.toString(),
+      addedByName: user.name || user.login,
+      currentWarehouse: equipmentData.currentWarehouse || user.region,
+      currentWarehouseName: equipmentData.currentWarehouseName || user.region,
+      region: equipmentData.region || user.region
+    });
+    
+    // Логування події
+    try {
+      await EventLog.create({
+        userId: user._id.toString(),
+        userName: user.name || user.login,
+        userRole: user.role,
+        action: 'create',
+        entityType: 'equipment',
+        entityId: equipment._id.toString(),
+        description: `Додано обладнання ${equipment.type} (№${equipment.serialNumber}) на склад ${equipment.currentWarehouseName}`,
+        details: equipmentData
+      });
+    } catch (logErr) {
+      console.error('Помилка логування:', logErr);
+    }
+    
+    logPerformance('POST /api/equipment/scan', startTime);
+    res.status(201).json(equipment);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/scan:', error);
+    logPerformance('POST /api/equipment/scan', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Отримання списку обладнання
+app.get('/api/equipment', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { warehouse, status, region, search } = req.query;
+    const query = {};
+    
+    if (warehouse) query.currentWarehouse = warehouse;
+    if (status) query.status = status;
+    if (region) query.region = region;
+    if (search) {
+      query.$or = [
+        { serialNumber: { $regex: search, $options: 'i' } },
+        { type: { $regex: search, $options: 'i' } },
+        { manufacturer: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    const equipment = await Equipment.find(query)
+      .sort({ addedAt: -1 })
+      .lean();
+    
+    logPerformance('GET /api/equipment', startTime, equipment.length);
+    res.json(equipment);
+  } catch (error) {
+    console.error('[ERROR] GET /api/equipment:', error);
+    logPerformance('GET /api/equipment', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Отримання деталей обладнання
+app.get('/api/equipment/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const equipment = await Equipment.findById(req.params.id).lean();
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+    logPerformance('GET /api/equipment/:id', startTime);
+    res.json(equipment);
+  } catch (error) {
+    console.error('[ERROR] GET /api/equipment/:id:', error);
+    logPerformance('GET /api/equipment/:id', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Переміщення обладнання між складами
+app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { toWarehouse, toWarehouseName, reason } = req.body;
+    const user = await User.findOne({ login: req.user.login });
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    const equipment = await Equipment.findById(req.params.id);
+    
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+    
+    const movement = {
+      fromWarehouse: equipment.currentWarehouse,
+      toWarehouse: toWarehouse,
+      fromWarehouseName: equipment.currentWarehouseName,
+      toWarehouseName: toWarehouseName,
+      date: new Date(),
+      movedBy: user._id.toString(),
+      movedByName: user.name || user.login,
+      reason: reason || ''
+    };
+    
+    equipment.movementHistory.push(movement);
+    equipment.currentWarehouse = toWarehouse;
+    equipment.currentWarehouseName = toWarehouseName;
+    equipment.status = 'in_transit';
+    equipment.lastModified = new Date();
+    
+    await equipment.save();
+    
+    // Логування
+    try {
+      await EventLog.create({
+        userId: user._id.toString(),
+        userName: user.name || user.login,
+        userRole: user.role,
+        action: 'update',
+        entityType: 'equipment',
+        entityId: equipment._id.toString(),
+        description: `Переміщено обладнання ${equipment.type} (№${equipment.serialNumber}) з ${movement.fromWarehouseName} на ${toWarehouseName}`,
+        details: movement
+      });
+    } catch (logErr) {
+      console.error('Помилка логування:', logErr);
+    }
+    
+    logPerformance('POST /api/equipment/:id/move', startTime);
+    res.json(equipment);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/:id/move:', error);
+    logPerformance('POST /api/equipment/:id/move', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Відвантаження обладнання
+app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { shippedTo, orderNumber, invoiceNumber, clientEdrpou } = req.body;
+    const user = await User.findOne({ login: req.user.login });
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    const equipment = await Equipment.findById(req.params.id);
+    
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+    
+    const shipment = {
+      shippedTo: shippedTo,
+      shippedDate: new Date(),
+      shippedBy: user._id.toString(),
+      shippedByName: user.name || user.login,
+      orderNumber: orderNumber || '',
+      invoiceNumber: invoiceNumber || '',
+      clientEdrpou: clientEdrpou || ''
+    };
+    
+    equipment.shipmentHistory.push(shipment);
+    equipment.status = 'shipped';
+    equipment.lastModified = new Date();
+    
+    await equipment.save();
+    
+    // Логування
+    try {
+      await EventLog.create({
+        userId: user._id.toString(),
+        userName: user.name || user.login,
+        userRole: user.role,
+        action: 'update',
+        entityType: 'equipment',
+        entityId: equipment._id.toString(),
+        description: `Відвантажено обладнання ${equipment.type} (№${equipment.serialNumber}) замовнику ${shippedTo}`,
+        details: shipment
+      });
+    } catch (logErr) {
+      console.error('Помилка логування:', logErr);
+    }
+    
+    logPerformance('POST /api/equipment/:id/ship', startTime);
+    res.json(equipment);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/:id/ship:', error);
+    logPerformance('POST /api/equipment/:id/ship', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Оновлення статусу обладнання (наприклад, після доставки)
+app.put('/api/equipment/:id/status', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { status } = req.body;
+    const equipment = await Equipment.findById(req.params.id);
+    
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+    
+    equipment.status = status;
+    equipment.lastModified = new Date();
+    await equipment.save();
+    
+    logPerformance('PUT /api/equipment/:id/status', startTime);
+    res.json(equipment);
+  } catch (error) {
+    console.error('[ERROR] PUT /api/equipment/:id/status', error);
+    logPerformance('PUT /api/equipment/:id/status', startTime);
+    res.status(500).json({ error: error.message });
   }
 });
 

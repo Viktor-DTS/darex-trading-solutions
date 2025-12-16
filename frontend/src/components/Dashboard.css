@@ -476,3 +476,62 @@
   background: #6c757d;
   cursor: not-allowed;
 }
+
+/* Equipment Tab Styles */
+.equipment-tab {
+  padding: 20px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.equipment-tab-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color, #1a2332);
+}
+
+.equipment-tab-header h2 {
+  margin: 0;
+  font-size: 24px;
+  color: var(--text-primary, #fff);
+  font-weight: 600;
+}
+
+.btn-scan {
+  padding: 12px 24px;
+  background: var(--primary, #00ff88);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.btn-scan:hover {
+  background: #00cc6f;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
+}
+
+@media (max-width: 768px) {
+  .equipment-tab-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .btn-scan {
+    width: 100%;
+    justify-content: center;
+  }
+}

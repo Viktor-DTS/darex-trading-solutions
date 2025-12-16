@@ -2,21 +2,47 @@ import React, { useState, useEffect, useMemo } from 'react';
 import TaskTable from './TaskTable';
 import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
+import EquipmentScanner from './equipment/EquipmentScanner';
+import EquipmentList from './equipment/EquipmentList';
+import EquipmentMoveModal from './equipment/EquipmentMoveModal';
+import EquipmentShipModal from './equipment/EquipmentShipModal';
 import API_BASE_URL from '../config';
 import './Dashboard.css';
 
 function WarehouseDashboard({ user }) {
-  const [activeTab, setActiveTab] = useState('pending');
+  const [activeTab, setActiveTab] = useState('equipment');
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [showShipModal, setShowShipModal] = useState(false);
+  const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
   const [tasks, setTasks] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Завантаження завдань
+  // Завантаження завдань та складів
   useEffect(() => {
     loadTasks();
+    loadWarehouses();
   }, [user]);
+
+  const loadWarehouses = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/warehouses`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setWarehouses(data);
+      }
+    } catch (err) {
+      console.error('Помилка завантаження складів:', err);
+    }
+  };
 
   const loadTasks = async () => {
     setLoading(true);
@@ -160,10 +186,36 @@ function WarehouseDashboard({ user }) {
   };
 
   const tabs = [
+    { id: 'equipment', label: 'Складський облік', icon: '📦' },
     { id: 'pending', label: 'Заявки на підтвердженні', icon: '⏳' },
     { id: 'approvedWarehouse', label: 'Архів підтверджених', icon: '✅' },
     { id: 'archive', label: 'Архів виконаних заявок', icon: '📁' }
   ];
+
+  const handleEquipmentAdded = () => {
+    setShowScanner(false);
+    // Оновлення списку відбудеться через EquipmentList
+  };
+
+  const handleMove = (equipment) => {
+    setSelectedEquipment(equipment);
+    setShowMoveModal(true);
+  };
+
+  const handleShip = (equipment) => {
+    setSelectedEquipment(equipment);
+    setShowShipModal(true);
+  };
+
+  const handleMoveSuccess = () => {
+    setShowMoveModal(false);
+    setSelectedEquipment(null);
+  };
+
+  const handleShipSuccess = () => {
+    setShowShipModal(false);
+    setSelectedEquipment(null);
+  };
 
   return (
     <div className="dashboard no-header">
@@ -200,7 +252,25 @@ function WarehouseDashboard({ user }) {
 
         {/* Table Area */}
         <main className="table-area">
-          {loading ? (
+          {activeTab === 'equipment' ? (
+            <div className="equipment-tab">
+              <div className="equipment-tab-header">
+                <h2>Складський облік обладнання</h2>
+                <button 
+                  className="btn-primary btn-scan"
+                  onClick={() => setShowScanner(true)}
+                >
+                  📷 Сканувати шильдик
+                </button>
+              </div>
+              <EquipmentList
+                user={user}
+                warehouses={warehouses}
+                onMove={handleMove}
+                onShip={handleShip}
+              />
+            </div>
+          ) : loading ? (
             <div className="loading-indicator">Завантаження...</div>
           ) : (
             <TaskTable 
@@ -243,6 +313,38 @@ function WarehouseDashboard({ user }) {
             handleCloseModal();
             loadTasks();
           }}
+        />
+      )}
+
+      {showScanner && (
+        <EquipmentScanner
+          user={user}
+          warehouses={warehouses}
+          onEquipmentAdded={handleEquipmentAdded}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+
+      {showMoveModal && selectedEquipment && (
+        <EquipmentMoveModal
+          equipment={selectedEquipment}
+          warehouses={warehouses}
+          onClose={() => {
+            setShowMoveModal(false);
+            setSelectedEquipment(null);
+          }}
+          onSuccess={handleMoveSuccess}
+        />
+      )}
+
+      {showShipModal && selectedEquipment && (
+        <EquipmentShipModal
+          equipment={selectedEquipment}
+          onClose={() => {
+            setShowShipModal(false);
+            setSelectedEquipment(null);
+          }}
+          onSuccess={handleShipSuccess}
         />
       )}
     </div>
