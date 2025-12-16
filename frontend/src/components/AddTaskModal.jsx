@@ -1402,6 +1402,26 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             </div>
           )}
 
+          {/* Номер заявки/наряду - першим і по центру */}
+          <div className="form-group" style={{ textAlign: 'center', marginBottom: '16px' }}>
+            <label style={{ fontSize: '14px', fontWeight: '600' }}>Номер заявки/наряду {isNewTask && '(автогенерація)'}</label>
+            <input 
+              type="text" 
+              name="requestNumber" 
+              value={formData.requestNumber} 
+              onChange={handleChange}
+              placeholder={isNewTask ? "Буде згенеровано автоматично після вибору регіону" : ""}
+              readOnly={!isNewTask}
+              style={{
+                maxWidth: '400px',
+                margin: '0 auto',
+                display: 'block',
+                textAlign: 'center',
+                ...(!isNewTask ? { backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed', color: '#ff0000', fontWeight: 'bold' } : { color: '#ff0000', fontWeight: 'bold' })
+              }}
+            />
+          </div>
+
           {/* Основна інформація */}
           <div className="form-section section-basic">
             {!isAccountantMode && (
@@ -1412,7 +1432,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
             {showSections.basic && (
               <div className="section-content">
-                <div className="form-row four-cols">
+                {/* Перший рядок: Статус заявки, Дата заявки, Компанія виконавець, Регіон сервісного відділу, Запланована дата робіт */}
+                <div className="form-row five-cols">
                   <div className="form-group">
                     <label>Статус заявки <span className="required">*</span></label>
                     <select name="status" value={formData.status} onChange={handleChange} required>
@@ -1456,20 +1477,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         ))}
                     </select>
                   </div>
-                </div>
-                <div className={`form-row ${isAccountantMode ? 'four-cols' : 'three-cols'}`}>
-                  <div className="form-group">
-                    <label>Номер заявки/наряду {isNewTask && '(автогенерація)'}</label>
-                    <input 
-                      type="text" 
-                      name="requestNumber" 
-                      value={formData.requestNumber} 
-                      onChange={handleChange}
-                      placeholder={isNewTask ? "Буде згенеровано автоматично після вибору регіону" : ""}
-                      readOnly={!isNewTask}
-                      style={!isNewTask ? { backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed', color: '#ff0000', fontWeight: 'bold' } : { color: '#ff0000', fontWeight: 'bold' }}
-                    />
-                  </div>
                   <div className="form-group">
                     <label>Запланована дата робіт {panelType === 'operator' && <span className="required">*</span>}</label>
                     <input 
@@ -1480,6 +1487,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       required={panelType === 'operator'}
                     />
                   </div>
+                </div>
+                {/* Другий рядок: Контактна особа, Тел. контактної особи, Опис заявки */}
+                <div className="form-row three-cols">
                   <div className="form-group">
                     <label>Контактна особа</label>
                     <input 
@@ -1490,46 +1500,23 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       placeholder="ПІБ контактної особи"
                     />
                   </div>
-                  {isAccountantMode && (
-                    <div className="form-group">
-                      <label>Тел. контактної особи</label>
-                      <input 
-                        type="tel" 
-                        name="contactPhone" 
-                        value={formData.contactPhone || ''} 
-                        onChange={handleChange}
-                        placeholder="+380..."
-                      />
-                    </div>
-                  )}
+                  <div className="form-group">
+                    <label>Тел. контактної особи</label>
+                    <input 
+                      type="tel" 
+                      name="contactPhone" 
+                      value={formData.contactPhone || ''} 
+                      onChange={handleChange}
+                      placeholder="+380..."
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Опис заявки <span className="required">*</span></label>
+                    <textarea name="requestDesc" value={formData.requestDesc} onChange={handleChange} rows="3" required />
+                  </div>
                 </div>
-                {!isAccountantMode && (
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Тел. контактної особи</label>
-                      <input 
-                        type="tel" 
-                        name="contactPhone" 
-                        value={formData.contactPhone || ''} 
-                        onChange={handleChange}
-                        placeholder="+380..."
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Опис заявки <span className="required">*</span></label>
-                      <textarea name="requestDesc" value={formData.requestDesc} onChange={handleChange} rows="3" required />
-                    </div>
-                  </div>
-                )}
-                {isAccountantMode && (
-                  <div className="form-row">
-                    <div className="form-group" style={{ gridColumn: 'span 4' }}>
-                      <label>Опис заявки <span className="required">*</span></label>
-                      <textarea name="requestDesc" value={formData.requestDesc} onChange={handleChange} rows="2" required />
-                    </div>
-                  </div>
-                )}
-                <div className="form-row">
+                {/* Третій рядок: Термінова заявка, Внутрішні роботи */}
+                <div className="form-row two-cols">
                   <div className="form-group checkbox-group">
                     <label>
                       <input 
@@ -1565,161 +1552,83 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
             {showSections.client && (
               <div className="section-content">
-                {isAccountantMode ? (
-                  <>
-                    <div className="form-row three-cols">
-                      <div className="form-group">
-                        <label>Замовник <span className="required">*</span></label>
-                        <input type="text" name="client" value={formData.client} onChange={handleChange} required />
-                      </div>
-                      <div className="form-group autocomplete-wrapper">
-                        <label>ЄДРПОУ</label>
-                        <input 
-                          type="text" 
-                          name="edrpou" 
-                          value={formData.edrpou} 
-                          onChange={handleChange}
-                          placeholder="Введіть ЄДРПОУ..."
-                          autoComplete="off"
-                        />
-                        {/* Dropdown з автодоповненням для ЄДРПОУ */}
-                        {showEdrpouDropdown && filteredEdrpouList.length > 0 && (
-                          <div className="autocomplete-dropdown">
-                            <div className="autocomplete-hint">
-                              💡 Виберіть ЄДРПОУ для автозаповнення даних клієнта
-                            </div>
-                            {filteredEdrpouList.slice(0, 10).map((edrpou, index) => (
-                              <div
-                                key={index}
-                                className="autocomplete-item"
-                                onClick={() => handleEdrpouSelect(edrpou)}
-                              >
-                                {edrpou}
-                              </div>
-                            ))}
-                            {filteredEdrpouList.length > 10 && (
-                              <div className="autocomplete-more">
-                                ... та ще {filteredEdrpouList.length - 10}
-                              </div>
-                            )}
+                {/* Рядок: Замовник, ЄДРПОУ, Адреса */}
+                <div className="form-row three-cols">
+                  <div className="form-group">
+                    <label>Замовник <span className="required">*</span></label>
+                    <input type="text" name="client" value={formData.client} onChange={handleChange} required />
+                  </div>
+                  <div className="form-group autocomplete-wrapper">
+                    <label>ЄДРПОУ</label>
+                    <input 
+                      type="text" 
+                      name="edrpou" 
+                      value={formData.edrpou} 
+                      onChange={handleChange}
+                      placeholder="Введіть ЄДРПОУ..."
+                      autoComplete="off"
+                    />
+                    {/* Dropdown з автодоповненням для ЄДРПОУ */}
+                    {showEdrpouDropdown && filteredEdrpouList.length > 0 && (
+                      <div className="autocomplete-dropdown">
+                        <div className="autocomplete-hint">
+                          💡 Виберіть ЄДРПОУ для автозаповнення даних клієнта
+                        </div>
+                        {filteredEdrpouList.slice(0, 10).map((edrpou, index) => (
+                          <div
+                            key={index}
+                            className="autocomplete-item"
+                            onClick={() => handleEdrpouSelect(edrpou)}
+                          >
+                            {edrpou}
+                          </div>
+                        ))}
+                        {filteredEdrpouList.length > 10 && (
+                          <div className="autocomplete-more">
+                            ... та ще {filteredEdrpouList.length - 10}
                           </div>
                         )}
                       </div>
-                      <div className="form-group autocomplete-wrapper">
-                        <label>Адреса</label>
-                        <input 
-                          ref={addressInputRef}
-                          type="text" 
-                          name="address" 
-                          value={formData.address} 
-                          onChange={handleChange}
-                          placeholder="Почніть вводити адресу..."
-                          autoComplete="off"
-                        />
-                      </div>
-                    </div>
-                    <div className="form-row three-cols">
-                      <div className="form-group">
-                        <label>Номер рахунку</label>
-                        <input type="text" name="invoice" value={formData.invoice} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Дата оплати</label>
-                        <input type="date" name="paymentDate" value={formData.paymentDate} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Вид оплати {formData.status === 'Виконано' && <span className="required">*</span>}</label>
-                        <select name="paymentType" value={formData.paymentType} onChange={handleChange}>
-                          <option value="не вибрано">не вибрано</option>
-                          <option value="Безготівка">Безготівка</option>
-                          <option value="Готівка">Готівка</option>
-                          <option value="На карту">На карту</option>
-                          <option value="Інше">Інше</option>
-                        </select>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Замовник <span className="required">*</span></label>
-                        <input type="text" name="client" value={formData.client} onChange={handleChange} required />
-                      </div>
-                      <div className="form-group autocomplete-wrapper">
-                        <label>ЄДРПОУ</label>
-                        <input 
-                          type="text" 
-                          name="edrpou" 
-                          value={formData.edrpou} 
-                          onChange={handleChange}
-                          placeholder="Введіть ЄДРПОУ..."
-                          autoComplete="off"
-                        />
-                        {/* Dropdown з автодоповненням для ЄДРПОУ */}
-                        {showEdrpouDropdown && filteredEdrpouList.length > 0 && (
-                          <div className="autocomplete-dropdown">
-                            <div className="autocomplete-hint">
-                              💡 Виберіть ЄДРПОУ для автозаповнення даних клієнта
-                            </div>
-                            {filteredEdrpouList.slice(0, 10).map((edrpou, index) => (
-                              <div
-                                key={index}
-                                className="autocomplete-item"
-                                onClick={() => handleEdrpouSelect(edrpou)}
-                              >
-                                {edrpou}
-                              </div>
-                            ))}
-                            {filteredEdrpouList.length > 10 && (
-                              <div className="autocomplete-more">
-                                ... та ще {filteredEdrpouList.length - 10}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="form-group autocomplete-wrapper">
-                      <label>Адреса</label>
-                      <input 
-                        ref={addressTextareaRef}
-                        type="text" 
-                        name="address" 
-                        value={formData.address} 
-                        onChange={handleChange}
-                        placeholder="Почніть вводити адресу..."
-                        autoComplete="off"
-                        style={{ width: '100%', padding: '0.5rem', minHeight: '60px', resize: 'vertical' }}
-                      />
-                    </div>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Номер рахунку</label>
-                        <input type="text" name="invoice" value={formData.invoice} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Дата оплати</label>
-                        <input type="date" name="paymentDate" value={formData.paymentDate} onChange={handleChange} />
-                      </div>
-                    </div>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Вид оплати {formData.status === 'Виконано' && <span className="required">*</span>}</label>
-                        <select name="paymentType" value={formData.paymentType} onChange={handleChange}>
-                          <option value="не вибрано">не вибрано</option>
-                          <option value="Безготівка">Безготівка</option>
-                          <option value="Готівка">Готівка</option>
-                          <option value="На карту">На карту</option>
-                          <option value="Інше">Інше</option>
-                        </select>
-                      </div>
-                    </div>
-                  </>
-                )}
-                <div className="form-group">
-                  <label>Реквізити отримувача рахунку в паперовому вигляді</label>
-                  <textarea name="invoiceRecipientDetails" value={formData.invoiceRecipientDetails} onChange={handleChange} rows="2" />
+                    )}
+                  </div>
+                  <div className="form-group autocomplete-wrapper">
+                    <label>Адреса</label>
+                    <input 
+                      ref={isAccountantMode ? addressInputRef : addressTextareaRef}
+                      type="text" 
+                      name="address" 
+                      value={formData.address} 
+                      onChange={handleChange}
+                      placeholder="Почніть вводити адресу..."
+                      autoComplete="off"
+                      style={!isAccountantMode ? { width: '100%', padding: '0.5rem', minHeight: '60px', resize: 'vertical' } : {}}
+                    />
+                  </div>
+                </div>
+                {/* Рядок: Номер рахунку, Дата оплати, Вид оплати, Реквізити отримувача рахунку */}
+                <div className="form-row four-cols">
+                  <div className="form-group">
+                    <label>Номер рахунку</label>
+                    <input type="text" name="invoice" value={formData.invoice} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Дата оплати</label>
+                    <input type="date" name="paymentDate" value={formData.paymentDate} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Вид оплати {formData.status === 'Виконано' && <span className="required">*</span>}</label>
+                    <select name="paymentType" value={formData.paymentType} onChange={handleChange}>
+                      <option value="не вибрано">не вибрано</option>
+                      <option value="Безготівка">Безготівка</option>
+                      <option value="Готівка">Готівка</option>
+                      <option value="На карту">На карту</option>
+                      <option value="Інше">Інше</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Реквізити отримувача рахунку в паперовому вигляді</label>
+                    <textarea name="invoiceRecipientDetails" value={formData.invoiceRecipientDetails} onChange={handleChange} rows="2" />
+                  </div>
                 </div>
                 
                 {/* Файл договору */}
@@ -1951,444 +1860,202 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
             {showSections.equipment && (
               <div className="section-content">
-                {/* Загальна сума послуги - на початку секції */}
-                <div className="form-row">
+                {/* Рядок: Загальна сума послуги, Дата проведення робіт, Найменування робіт */}
+                <div className="form-row three-cols">
                   <div className="form-group">
                     <label>Загальна сума послуги, грн</label>
                     <input type="text" name="serviceTotal" value={formData.serviceTotal} onChange={handleChange} placeholder="0.00" />
                   </div>
+                  <div className="form-group">
+                    <label>Дата проведення робіт {formData.status === 'Виконано' && <span className="required">*</span>}</label>
+                    <input type="date" name="date" value={formData.date} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Найменування робіт {panelType === 'operator' && <span className="required">*</span>}</label>
+                    <select name="work" value={formData.work} onChange={handleChange} required={panelType === 'operator'}>
+                      <option value="">Виберіть...</option>
+                      <option value="ТО">ТО</option>
+                      <option value="ПНР">ПНР</option>
+                      <option value="Ремонт в цеху">Ремонт в цеху</option>
+                      <option value="Ремонт на місті">Ремонт на місті</option>
+                      <option value="Діагностика">Діагностика</option>
+                      <option value="Діагностика+ремонт">Діагностика+ремонт</option>
+                      <option value="Ремонт в цеху (волонтерство)">Ремонт в цеху (волонтерство)</option>
+                      <option value="Гарантійний ремонт в цеху">Гарантійний ремонт в цеху</option>
+                      <option value="Гарантійний ремонт на місті">Гарантійний ремонт на місті</option>
+                      <option value="Предпродажна підготовка">Предпродажна підготовка</option>
+                      <option value="Продаж ЗІП">Продаж ЗІП</option>
+                      <option value="Перекомутація">Перекомутація</option>
+                      <option value="Внутрішні роботи (завантаження)">Внутрішні роботи (завантаження)</option>
+                      <option value="Внутрішні роботи (розвантаження)">Внутрішні роботи (розвантаження)</option>
+                      {/* Додаємо поточне значення до опцій, якщо його там немає (для сумісності зі старими даними) */}
+                      {formData.work && !['', 'ТО', 'ПНР', 'Ремонт в цеху', 'Ремонт на місті', 'Діагностика', 'Діагностика+ремонт', 'Ремонт в цеху (волонтерство)', 'Гарантійний ремонт в цеху', 'Гарантійний ремонт на місті', 'Предпродажна підготовка', 'Продаж ЗІП', 'Перекомутація', 'Внутрішні роботи (завантаження)', 'Внутрішні роботи (розвантаження)'].includes(formData.work) && (
+                        <option value={formData.work}>{formData.work}</option>
+                      )}
+                    </select>
+                  </div>
                 </div>
-                
-                {isAccountantMode ? (
-                  <>
-                    <div className="form-row six-cols">
-                      <div className="form-group">
-                        <label>Дата проведення робіт {formData.status === 'Виконано' && <span className="required">*</span>}</label>
-                        <input type="date" name="date" value={formData.date} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Найменування робіт {panelType === 'operator' && <span className="required">*</span>}</label>
-                        <select name="work" value={formData.work} onChange={handleChange} required={panelType === 'operator'}>
-                          <option value="">Виберіть...</option>
-                          <option value="ТО">ТО</option>
-                          <option value="ПНР">ПНР</option>
-                          <option value="Ремонт в цеху">Ремонт в цеху</option>
-                          <option value="Ремонт на місті">Ремонт на місті</option>
-                          <option value="Діагностика">Діагностика</option>
-                          <option value="Діагностика+ремонт">Діагностика+ремонт</option>
-                          <option value="Ремонт в цеху (волонтерство)">Ремонт в цеху (волонтерство)</option>
-                          <option value="Гарантійний ремонт в цеху">Гарантійний ремонт в цеху</option>
-                          <option value="Гарантійний ремонт на місті">Гарантійний ремонт на місті</option>
-                          <option value="Предпродажна підготовка">Предпродажна підготовка</option>
-                          <option value="Продаж ЗІП">Продаж ЗІП</option>
-                          <option value="Перекомутація">Перекомутація</option>
-                          <option value="Внутрішні роботи (завантаження)">Внутрішні роботи (завантаження)</option>
-                          <option value="Внутрішні роботи (розвантаження)">Внутрішні роботи (розвантаження)</option>
-                          {/* Додаємо поточне значення до опцій, якщо його там немає (для сумісності зі старими даними) */}
-                          {formData.work && !['', 'ТО', 'ПНР', 'Ремонт в цеху', 'Ремонт на місті', 'Діагностика', 'Діагностика+ремонт', 'Ремонт в цеху (волонтерство)', 'Гарантійний ремонт в цеху', 'Гарантійний ремонт на місті', 'Предпродажна підготовка', 'Продаж ЗІП', 'Перекомутація', 'Внутрішні роботи (завантаження)', 'Внутрішні роботи (розвантаження)'].includes(formData.work) && (
-                            <option value={formData.work}>{formData.work}</option>
-                          )}
-                        </select>
-                      </div>
-                      <div className="form-group autocomplete-wrapper">
-                        <label>Тип обладнання</label>
-                        <input 
-                          type="text" 
-                          name="equipment" 
-                          value={formData.equipment} 
-                          onChange={handleChange}
-                          placeholder="Введіть тип обладнання..."
-                          autoComplete="off"
-                        />
-                        {/* Dropdown з автодоповненням для типу обладнання */}
-                        {showEquipmentDropdown && filteredEquipmentTypes.length > 0 && (
-                          <div className="autocomplete-dropdown">
-                            <div className="autocomplete-hint">
-                              💡 Виберіть тип для автозаповнення матеріалів
-                            </div>
-                            {filteredEquipmentTypes.slice(0, 10).map((type, index) => (
-                              <div
-                                key={index}
-                                className="autocomplete-item"
-                                onClick={() => handleEquipmentSelect(type)}
-                              >
-                                {type}
-                              </div>
-                            ))}
-                            {filteredEquipmentTypes.length > 10 && (
-                              <div className="autocomplete-more">
-                                ... та ще {filteredEquipmentTypes.length - 10}
-                              </div>
-                            )}
+                {/* Рядок: Тип обладнання, Заводський номер обладнання, Модель двигуна, Зав. № двигуна, Інвент. № обладнання від замовника */}
+                <div className="form-row five-cols">
+                  <div className="form-group autocomplete-wrapper">
+                    <label>Тип обладнання</label>
+                    <input 
+                      type="text" 
+                      name="equipment" 
+                      value={formData.equipment} 
+                      onChange={handleChange}
+                      placeholder="Введіть тип обладнання..."
+                      autoComplete="off"
+                    />
+                    {/* Dropdown з автодоповненням для типу обладнання */}
+                    {showEquipmentDropdown && filteredEquipmentTypes.length > 0 && (
+                      <div className="autocomplete-dropdown">
+                        <div className="autocomplete-hint">
+                          💡 Виберіть тип для автозаповнення матеріалів
+                        </div>
+                        {filteredEquipmentTypes.slice(0, 10).map((type, index) => (
+                          <div
+                            key={index}
+                            className="autocomplete-item"
+                            onClick={() => handleEquipmentSelect(type)}
+                          >
+                            {type}
+                          </div>
+                        ))}
+                        {filteredEquipmentTypes.length > 10 && (
+                          <div className="autocomplete-more">
+                            ... та ще {filteredEquipmentTypes.length - 10}
                           </div>
                         )}
                       </div>
-                      <div className="form-group">
-                        <label>Заводський номер обладнання</label>
-                        <input type="text" name="equipmentSerial" value={formData.equipmentSerial} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Модель двигуна</label>
-                        <input type="text" name="engineModel" value={formData.engineModel} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Зав. № двигуна</label>
-                        <input type="text" name="engineSerial" value={formData.engineSerial} onChange={handleChange} />
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Дата проведення робіт {formData.status === 'Виконано' && <span className="required">*</span>}</label>
-                        <input type="date" name="date" value={formData.date} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Найменування робіт {panelType === 'operator' && <span className="required">*</span>}</label>
-                        <select name="work" value={formData.work} onChange={handleChange} required={panelType === 'operator'}>
-                          <option value="">Виберіть...</option>
-                          <option value="ТО">ТО</option>
-                          <option value="ПНР">ПНР</option>
-                          <option value="Ремонт в цеху">Ремонт в цеху</option>
-                          <option value="Ремонт на місті">Ремонт на місті</option>
-                          <option value="Діагностика">Діагностика</option>
-                          <option value="Діагностика+ремонт">Діагностика+ремонт</option>
-                          <option value="Ремонт в цеху (волонтерство)">Ремонт в цеху (волонтерство)</option>
-                          <option value="Гарантійний ремонт в цеху">Гарантійний ремонт в цеху</option>
-                          <option value="Гарантійний ремонт на місті">Гарантійний ремонт на місті</option>
-                          <option value="Предпродажна підготовка">Предпродажна підготовка</option>
-                          <option value="Продаж ЗІП">Продаж ЗІП</option>
-                          <option value="Перекомутація">Перекомутація</option>
-                          <option value="Внутрішні роботи (завантаження)">Внутрішні роботи (завантаження)</option>
-                          <option value="Внутрішні роботи (розвантаження)">Внутрішні роботи (розвантаження)</option>
-                          {/* Додаємо поточне значення до опцій, якщо його там немає (для сумісності зі старими даними) */}
-                          {formData.work && !['', 'ТО', 'ПНР', 'Ремонт в цеху', 'Ремонт на місті', 'Діагностика', 'Діагностика+ремонт', 'Ремонт в цеху (волонтерство)', 'Гарантійний ремонт в цеху', 'Гарантійний ремонт на місті', 'Предпродажна підготовка', 'Продаж ЗІП', 'Перекомутація', 'Внутрішні роботи (завантаження)', 'Внутрішні роботи (розвантаження)'].includes(formData.work) && (
-                            <option value={formData.work}>{formData.work}</option>
-                          )}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="form-row">
-                      <div className="form-group autocomplete-wrapper">
-                        <label>Тип обладнання</label>
-                        <input 
-                          type="text" 
-                          name="equipment" 
-                          value={formData.equipment} 
-                          onChange={handleChange}
-                          placeholder="Введіть тип обладнання..."
-                          autoComplete="off"
-                        />
-                        {/* Dropdown з автодоповненням для типу обладнання */}
-                        {showEquipmentDropdown && filteredEquipmentTypes.length > 0 && (
-                          <div className="autocomplete-dropdown">
-                            <div className="autocomplete-hint">
-                              💡 Виберіть тип для автозаповнення матеріалів
-                            </div>
-                            {filteredEquipmentTypes.slice(0, 10).map((type, index) => (
-                              <div
-                                key={index}
-                                className="autocomplete-item"
-                                onClick={() => handleEquipmentSelect(type)}
-                              >
-                                {type}
-                              </div>
-                            ))}
-                            {filteredEquipmentTypes.length > 10 && (
-                              <div className="autocomplete-more">
-                                ... та ще {filteredEquipmentTypes.length - 10}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="form-group">
-                        <label>Заводський номер обладнання</label>
-                        <input type="text" name="equipmentSerial" value={formData.equipmentSerial} onChange={handleChange} />
-                      </div>
-                    </div>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Модель двигуна</label>
-                        <input type="text" name="engineModel" value={formData.engineModel} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Зав. № двигуна</label>
-                        <input type="text" name="engineSerial" value={formData.engineSerial} onChange={handleChange} />
-                      </div>
-                    </div>
-                  </>
-                )}
-                <div className="form-group">
-                  <label>Інвент. № обладнання від замовника</label>
-                  <input type="text" name="customerEquipmentNumber" value={formData.customerEquipmentNumber} onChange={handleChange} />
+                    )}
+                  </div>
+                  <div className="form-group">
+                    <label>Заводський номер обладнання</label>
+                    <input type="text" name="equipmentSerial" value={formData.equipmentSerial} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Модель двигуна</label>
+                    <input type="text" name="engineModel" value={formData.engineModel} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Зав. № двигуна</label>
+                    <input type="text" name="engineSerial" value={formData.engineSerial} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Інвент. № обладнання від замовника</label>
+                    <input type="text" name="customerEquipmentNumber" value={formData.customerEquipmentNumber} onChange={handleChange} />
+                  </div>
                 </div>
 
                 {/* Матеріали */}
-                {isAccountantMode ? (
-                  <>
-                    {/* Олива */}
-                    <div className="form-row five-cols">
-                      <div className="form-group">
-                        <label>Олива: Тип</label>
-                        <input type="text" name="oilType" value={formData.oilType} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Використано, л</label>
-                        <input type="text" name="oilUsed" value={formData.oilUsed} onChange={handleChange} placeholder="0" />
-                      </div>
-                      <div className="form-group">
-                        <label>Ціна за 1 л, грн</label>
-                        <input type="text" name="oilPrice" value={formData.oilPrice} onChange={handleChange} placeholder="0" />
-                      </div>
-                      <div className="form-group calculated">
-                        <label>Сума, грн</label>
-                        <input type="text" value={formatNumber(calculations.oilTotal)} readOnly className="calculated-field" />
-                      </div>
-                    </div>
-                    {/* Масляний фільтр */}
-                    <div className="form-row five-cols">
-                      <div className="form-group">
-                        <label>Масл. фільтр: Назва</label>
-                        <input type="text" name="filterName" value={formData.filterName} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Штук</label>
-                        <input type="text" name="filterCount" value={formData.filterCount} onChange={handleChange} placeholder="0" />
-                      </div>
-                      <div className="form-group">
-                        <label>Ціна одного, грн</label>
-                        <input type="text" name="filterPrice" value={formData.filterPrice} onChange={handleChange} placeholder="0" />
-                      </div>
-                      <div className="form-group calculated">
-                        <label>Сума, грн</label>
-                        <input type="text" value={formatNumber(calculations.filterSum)} readOnly className="calculated-field" />
-                      </div>
-                    </div>
-                    {/* Паливний фільтр */}
-                    <div className="form-row five-cols">
-                      <div className="form-group">
-                        <label>Палив. фільтр: Назва</label>
-                        <input type="text" name="fuelFilterName" value={formData.fuelFilterName} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Штук</label>
-                        <input type="text" name="fuelFilterCount" value={formData.fuelFilterCount} onChange={handleChange} placeholder="0" />
-                      </div>
-                      <div className="form-group">
-                        <label>Ціна одного, грн</label>
-                        <input type="text" name="fuelFilterPrice" value={formData.fuelFilterPrice} onChange={handleChange} placeholder="0" />
-                      </div>
-                      <div className="form-group calculated">
-                        <label>Сума, грн</label>
-                        <input type="text" value={formatNumber(calculations.fuelFilterSum)} readOnly className="calculated-field" />
-                      </div>
-                    </div>
-                    {/* Повітряний фільтр */}
-                    <div className="form-row five-cols">
-                      <div className="form-group">
-                        <label>Повітр. фільтр: Назва</label>
-                        <input type="text" name="airFilterName" value={formData.airFilterName} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Штук</label>
-                        <input type="text" name="airFilterCount" value={formData.airFilterCount} onChange={handleChange} placeholder="0" />
-                      </div>
-                      <div className="form-group">
-                        <label>Ціна одного, грн</label>
-                        <input type="text" name="airFilterPrice" value={formData.airFilterPrice} onChange={handleChange} placeholder="0" />
-                      </div>
-                      <div className="form-group calculated">
-                        <label>Сума, грн</label>
-                        <input type="text" value={formatNumber(calculations.airFilterSum)} readOnly className="calculated-field" />
-                      </div>
-                    </div>
-                    {/* Антифриз */}
-                    <div className="form-row five-cols">
-                      <div className="form-group">
-                        <label>Антифриз: Тип</label>
-                        <input type="text" name="antifreezeType" value={formData.antifreezeType} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Літри</label>
-                        <input type="text" name="antifreezeL" value={formData.antifreezeL} onChange={handleChange} placeholder="0" />
-                      </div>
-                      <div className="form-group">
-                        <label>Ціна, грн</label>
-                        <input type="text" name="antifreezePrice" value={formData.antifreezePrice} onChange={handleChange} placeholder="0" />
-                      </div>
-                      <div className="form-group calculated">
-                        <label>Сума, грн</label>
-                        <input type="text" value={formatNumber(calculations.antifreezeSum)} readOnly className="calculated-field" />
-                      </div>
-                    </div>
-                    {/* Інші матеріали */}
-                    <div className="form-row two-cols">
-                      <div className="form-group" style={{flex: 2}}>
-                        <label>Опис інших матеріалів</label>
-                        <input type="text" name="otherMaterials" value={formData.otherMaterials} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Загальна ціна, грн</label>
-                        <input type="text" name="otherSum" value={formData.otherSum} onChange={handleChange} placeholder="0" />
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                <div className="subsection">
-                  <h4>Олива</h4>
-                  <div className="form-row four-cols">
-                    <div className="form-group">
-                      <label>Тип оливи</label>
-                      <input type="text" name="oilType" value={formData.oilType} onChange={handleChange} />
-                    </div>
-                    <div className="form-group">
-                      <label>Використано, л</label>
-                      <input type="text" name="oilUsed" value={formData.oilUsed} onChange={handleChange} placeholder="0" />
-                    </div>
-                    <div className="form-group">
-                      <label>Ціна за 1 л, грн</label>
-                      <input type="text" name="oilPrice" value={formData.oilPrice} onChange={handleChange} placeholder="0" />
-                    </div>
-                    <div className="form-group calculated">
-                      <label>Сума, грн</label>
-                      <input type="text" value={formatNumber(calculations.oilTotal)} readOnly className="calculated-field" />
-                    </div>
+                {/* Рядок: Тип оливи, Використано л, Ціна за 1 л грн, Сума грн */}
+                <div className="form-row four-cols">
+                  <div className="form-group">
+                    <label>Тип оливи</label>
+                    <input type="text" name="oilType" value={formData.oilType} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Використано, л</label>
+                    <input type="text" name="oilUsed" value={formData.oilUsed} onChange={handleChange} placeholder="0" />
+                  </div>
+                  <div className="form-group">
+                    <label>Ціна за 1 л, грн</label>
+                    <input type="text" name="oilPrice" value={formData.oilPrice} onChange={handleChange} placeholder="0" />
+                  </div>
+                  <div className="form-group calculated">
+                    <label>Сума, грн</label>
+                    <input type="text" value={formatNumber(calculations.oilTotal)} readOnly className="calculated-field" />
                   </div>
                 </div>
-
-                <div className="subsection">
-                  <h4>Масляний фільтр</h4>
-                  <div className="form-row four-cols">
-                    <div className="form-group">
-                      <label>Назва</label>
-                      <input type="text" name="filterName" value={formData.filterName} onChange={handleChange} />
-                    </div>
-                    <div className="form-group">
-                      <label>Штук</label>
-                      <input type="text" name="filterCount" value={formData.filterCount} onChange={handleChange} placeholder="0" />
-                    </div>
-                    <div className="form-group">
-                      <label>Ціна одного, грн</label>
-                      <input type="text" name="filterPrice" value={formData.filterPrice} onChange={handleChange} placeholder="0" />
-                    </div>
-                    <div className="form-group calculated">
-                      <label>Сума, грн</label>
-                      <input type="text" value={formatNumber(calculations.filterSum)} readOnly className="calculated-field" />
-                    </div>
+                {/* Рядок: Масляний фільтр - Назва, Штук, Ціна одного грн, Сума грн */}
+                <div className="form-row four-cols">
+                  <div className="form-group">
+                    <label>Масляний фільтр: Назва</label>
+                    <input type="text" name="filterName" value={formData.filterName} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Штук</label>
+                    <input type="text" name="filterCount" value={formData.filterCount} onChange={handleChange} placeholder="0" />
+                  </div>
+                  <div className="form-group">
+                    <label>Ціна одного, грн</label>
+                    <input type="text" name="filterPrice" value={formData.filterPrice} onChange={handleChange} placeholder="0" />
+                  </div>
+                  <div className="form-group calculated">
+                    <label>Сума, грн</label>
+                    <input type="text" value={formatNumber(calculations.filterSum)} readOnly className="calculated-field" />
                   </div>
                 </div>
-
-                <div className="subsection">
-                  <h4>Паливний фільтр</h4>
-                  <div className="form-row four-cols">
-                    <div className="form-group">
-                      <label>Назва</label>
-                      <input type="text" name="fuelFilterName" value={formData.fuelFilterName} onChange={handleChange} />
-                    </div>
-                    <div className="form-group">
-                      <label>Штук</label>
-                      <input type="text" name="fuelFilterCount" value={formData.fuelFilterCount} onChange={handleChange} placeholder="0" />
-                    </div>
-                    <div className="form-group">
-                      <label>Ціна одного, грн</label>
-                      <input type="text" name="fuelFilterPrice" value={formData.fuelFilterPrice} onChange={handleChange} placeholder="0" />
-                    </div>
-                    <div className="form-group calculated">
-                      <label>Сума, грн</label>
-                      <input type="text" value={formatNumber(calculations.fuelFilterSum)} readOnly className="calculated-field" />
-                    </div>
+                {/* Рядок: Паливний фільтр - Назва, Штук, Ціна одного грн, Сума грн */}
+                <div className="form-row four-cols">
+                  <div className="form-group">
+                    <label>Паливний фільтр: Назва</label>
+                    <input type="text" name="fuelFilterName" value={formData.fuelFilterName} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Штук</label>
+                    <input type="text" name="fuelFilterCount" value={formData.fuelFilterCount} onChange={handleChange} placeholder="0" />
+                  </div>
+                  <div className="form-group">
+                    <label>Ціна одного, грн</label>
+                    <input type="text" name="fuelFilterPrice" value={formData.fuelFilterPrice} onChange={handleChange} placeholder="0" />
+                  </div>
+                  <div className="form-group calculated">
+                    <label>Сума, грн</label>
+                    <input type="text" value={formatNumber(calculations.fuelFilterSum)} readOnly className="calculated-field" />
                   </div>
                 </div>
-
-                <div className="subsection">
-                  <h4>Повітряний фільтр</h4>
-                  <div className="form-row four-cols">
-                    <div className="form-group">
-                      <label>Назва</label>
-                      <input type="text" name="airFilterName" value={formData.airFilterName} onChange={handleChange} />
-                    </div>
-                    <div className="form-group">
-                      <label>Штук</label>
-                      <input type="text" name="airFilterCount" value={formData.airFilterCount} onChange={handleChange} placeholder="0" />
-                    </div>
-                    <div className="form-group">
-                      <label>Ціна одного, грн</label>
-                      <input type="text" name="airFilterPrice" value={formData.airFilterPrice} onChange={handleChange} placeholder="0" />
-                    </div>
-                    <div className="form-group calculated">
-                      <label>Сума, грн</label>
-                      <input type="text" value={formatNumber(calculations.airFilterSum)} readOnly className="calculated-field" />
-                    </div>
+                {/* Рядок: Повітряний фільтр - Назва, Штук, Ціна одного грн, Сума грн */}
+                <div className="form-row four-cols">
+                  <div className="form-group">
+                    <label>Повітряний фільтр: Назва</label>
+                    <input type="text" name="airFilterName" value={formData.airFilterName} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Штук</label>
+                    <input type="text" name="airFilterCount" value={formData.airFilterCount} onChange={handleChange} placeholder="0" />
+                  </div>
+                  <div className="form-group">
+                    <label>Ціна одного, грн</label>
+                    <input type="text" name="airFilterPrice" value={formData.airFilterPrice} onChange={handleChange} placeholder="0" />
+                  </div>
+                  <div className="form-group calculated">
+                    <label>Сума, грн</label>
+                    <input type="text" value={formatNumber(calculations.airFilterSum)} readOnly className="calculated-field" />
                   </div>
                 </div>
-
-                    <div className="subsection">
-                      <h4>Антифриз</h4>
-                      <div className="form-row four-cols">
-                        <div className="form-group">
-                          <label>Тип</label>
-                          <input type="text" name="antifreezeType" value={formData.antifreezeType} onChange={handleChange} />
-                        </div>
-                        <div className="form-group">
-                          <label>Літри</label>
-                          <input type="text" name="antifreezeL" value={formData.antifreezeL} onChange={handleChange} placeholder="0" />
-                        </div>
-                        <div className="form-group">
-                          <label>Ціна, грн</label>
-                          <input type="text" name="antifreezePrice" value={formData.antifreezePrice} onChange={handleChange} placeholder="0" />
-                        </div>
-                        <div className="form-group calculated">
-                          <label>Сума, грн</label>
-                          <input type="text" value={formatNumber(calculations.antifreezeSum)} readOnly className="calculated-field" />
-                        </div>
-                      </div>
-                    </div>
-
-                    {isAccountantMode ? (
-                      <div className="form-row two-cols">
-                        <div className="form-group" style={{flex: 2}}>
-                          <label>Інші матеріали: Опис</label>
-                          <input type="text" name="otherMaterials" value={formData.otherMaterials} onChange={handleChange} />
-                        </div>
-                        <div className="form-group">
-                          <label>Загальна ціна, грн</label>
-                          <input type="text" name="otherSum" value={formData.otherSum} onChange={handleChange} placeholder="0" />
-                        </div>
-                      </div>
-                    ) : (
-                      isAccountantMode ? (
-                      <div className="form-row two-cols">
-                        <div className="form-group" style={{flex: 2}}>
-                          <label>Інші матеріали: Опис</label>
-                          <input type="text" name="otherMaterials" value={formData.otherMaterials} onChange={handleChange} />
-                        </div>
-                        <div className="form-group">
-                          <label>Загальна ціна, грн</label>
-                          <input type="text" name="otherSum" value={formData.otherSum} onChange={handleChange} placeholder="0" />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="subsection">
-                        <h4>Інші матеріали</h4>
-                        <div className="form-row">
-                          <div className="form-group" style={{flex: 2}}>
-                            <label>Опис інших матеріалів</label>
-                            <input type="text" name="otherMaterials" value={formData.otherMaterials} onChange={handleChange} />
-                          </div>
-                          <div className="form-group">
-                            <label>Загальна ціна, грн</label>
-                            <input type="text" name="otherSum" value={formData.otherSum} onChange={handleChange} placeholder="0" />
-                          </div>
-                        </div>
-                      </div>
-                    )
-                    )}
-                  </>
-                )}
-                {/* Вартість робіт - загальне для обох режимів */}
+                {/* Рядок: Антифриз - Тип, Літри, Ціна грн, Сума грн */}
+                <div className="form-row four-cols">
+                  <div className="form-group">
+                    <label>Антифриз: Тип</label>
+                    <input type="text" name="antifreezeType" value={formData.antifreezeType} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Літри</label>
+                    <input type="text" name="antifreezeL" value={formData.antifreezeL} onChange={handleChange} placeholder="0" />
+                  </div>
+                  <div className="form-group">
+                    <label>Ціна, грн</label>
+                    <input type="text" name="antifreezePrice" value={formData.antifreezePrice} onChange={handleChange} placeholder="0" />
+                  </div>
+                  <div className="form-group calculated">
+                    <label>Сума, грн</label>
+                    <input type="text" value={formatNumber(calculations.antifreezeSum)} readOnly className="calculated-field" />
+                  </div>
+                </div>
+                {/* Рядок: Інші матеріали - Опис інших матеріалів, Загальна ціна грн */}
+                <div className="form-row two-cols">
+                  <div className="form-group" style={{flex: 2}}>
+                    <label>Інші матеріали: Опис інших матеріалів</label>
+                    <input type="text" name="otherMaterials" value={formData.otherMaterials} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Загальна ціна, грн</label>
+                    <input type="text" name="otherSum" value={formData.otherSum} onChange={handleChange} placeholder="0" />
+                  </div>
+                </div>
+                {/* Рядок: Вартість робіт грн (авторозрахунок) */}
                 <div className="form-group calculated">
                   <label>Вартість робіт, грн (авторозрахунок)</label>
                   <input type="text" value={formatNumber(calculations.workPrice)} readOnly className="calculated-field" />
@@ -2542,65 +2209,36 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
             {showSections.expenses && (
               <div className="section-content">
-                {isAccountantMode ? (
-                  <div className="form-row seven-cols">
-                    <div className="form-group">
-                      <label>Добові, грн</label>
-                      <input type="text" name="perDiem" value={formData.perDiem} onChange={handleChange} placeholder="0" />
-                    </div>
-                    <div className="form-group">
-                      <label>Проживання, грн</label>
-                      <input type="text" name="living" value={formData.living} onChange={handleChange} placeholder="0" />
-                    </div>
-                    <div className="form-group">
-                      <label>Інші витрати, грн</label>
-                      <input type="text" name="otherExp" value={formData.otherExp} onChange={handleChange} placeholder="0" />
-                    </div>
-                    <div className="form-group">
-                      <label>Держномер</label>
-                      <input type="text" name="carNumber" value={formData.carNumber} onChange={handleChange} />
-                    </div>
-                    <div className="form-group">
-                      <label>Транспорт, км</label>
-                      <input type="text" name="transportKm" value={formData.transportKm} onChange={handleChange} placeholder="0" />
-                    </div>
-                    <div className="form-group">
-                      <label>Транспорт, грн</label>
-                      <input type="text" name="transportSum" value={formData.transportSum} onChange={handleChange} placeholder="0" />
-                    </div>
+                {/* Рядок: Добові грн, Проживання грн, Інші витрати грн */}
+                <div className="form-row three-cols">
+                  <div className="form-group">
+                    <label>Добові, грн</label>
+                    <input type="text" name="perDiem" value={formData.perDiem} onChange={handleChange} placeholder="0" />
                   </div>
-                ) : (
-                  <>
-                    <div className="form-row three-cols">
-                      <div className="form-group">
-                        <label>Добові, грн</label>
-                        <input type="text" name="perDiem" value={formData.perDiem} onChange={handleChange} placeholder="0" />
-                      </div>
-                      <div className="form-group">
-                        <label>Проживання, грн</label>
-                        <input type="text" name="living" value={formData.living} onChange={handleChange} placeholder="0" />
-                      </div>
-                      <div className="form-group">
-                        <label>Інші витрати, грн</label>
-                        <input type="text" name="otherExp" value={formData.otherExp} onChange={handleChange} placeholder="0" />
-                      </div>
-                    </div>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Держномер автотранспорту</label>
-                        <input type="text" name="carNumber" value={formData.carNumber} onChange={handleChange} />
-                      </div>
-                      <div className="form-group">
-                        <label>Транспортні витрати, км</label>
-                        <input type="text" name="transportKm" value={formData.transportKm} onChange={handleChange} placeholder="0" />
-                      </div>
-                      <div className="form-group">
-                        <label>Загальна вартість тр. витрат, грн</label>
-                        <input type="text" name="transportSum" value={formData.transportSum} onChange={handleChange} placeholder="0" />
-                      </div>
-                    </div>
-                  </>
-                )}
+                  <div className="form-group">
+                    <label>Проживання, грн</label>
+                    <input type="text" name="living" value={formData.living} onChange={handleChange} placeholder="0" />
+                  </div>
+                  <div className="form-group">
+                    <label>Інші витрати, грн</label>
+                    <input type="text" name="otherExp" value={formData.otherExp} onChange={handleChange} placeholder="0" />
+                  </div>
+                </div>
+                {/* Рядок: Держномер автотранспорту, Транспортні витрати км, Загальна вартість тр. витрат грн */}
+                <div className="form-row three-cols">
+                  <div className="form-group">
+                    <label>Держномер автотранспорту</label>
+                    <input type="text" name="carNumber" value={formData.carNumber} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Транспортні витрати, км</label>
+                    <input type="text" name="transportKm" value={formData.transportKm} onChange={handleChange} placeholder="0" />
+                  </div>
+                  <div className="form-group">
+                    <label>Загальна вартість тр. витрат, грн</label>
+                    <input type="text" name="transportSum" value={formData.transportSum} onChange={handleChange} placeholder="0" />
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -2615,7 +2253,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
             {showSections.other && (
               <div className="section-content">
-                <div className="form-row">
+                {/* Рядок: Коментарі, Дата затвердження премії */}
+                <div className="form-row two-cols">
                   <div className="form-group">
                     <label>Коментарі</label>
                     <textarea name="comments" value={formData.comments} onChange={handleChange} rows="3" />
@@ -2654,133 +2293,121 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     )}
                   </div>
                 </div>
-                {/* Підтвердження */}
-                <div className="subsection">
-                  <h4>Підтвердження зав. складу</h4>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Підтвердження зав. складу</label>
-                      <select 
-                        name="approvedByWarehouse" 
-                        value={formData.approvedByWarehouse || 'На розгляді'} 
-                        onChange={handleChange}
-                        disabled={!['admin', 'administrator', 'zavsklad'].includes(user?.role)}
-                      >
-                        <option value="На розгляді">На розгляді</option>
-                        <option value="Підтверджено">Підтверджено</option>
-                        <option value="Відмова">Відмова</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label>Опис відмови (зав. склад)</label>
-                      <textarea 
-                        name="warehouseComment" 
-                        value={formData.warehouseComment || ''} 
-                        onChange={handleChange}
-                        placeholder="Опис причини відмови..."
-                        rows="2"
-                        disabled={!['admin', 'administrator', 'zavsklad'].includes(user?.role)}
-                      />
-                    </div>
+                {/* Рядок: Підтвердження зав. складу - Підтвердження зав. складу, Опис відмови (зав. склад) */}
+                <div className="form-row two-cols">
+                  <div className="form-group">
+                    <label>Підтвердження зав. складу</label>
+                    <select 
+                      name="approvedByWarehouse" 
+                      value={formData.approvedByWarehouse || 'На розгляді'} 
+                      onChange={handleChange}
+                      disabled={!['admin', 'administrator', 'zavsklad'].includes(user?.role)}
+                    >
+                      <option value="На розгляді">На розгляді</option>
+                      <option value="Підтверджено">Підтверджено</option>
+                      <option value="Відмова">Відмова</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Опис відмови (зав. склад)</label>
+                    <textarea 
+                      name="warehouseComment" 
+                      value={formData.warehouseComment || ''} 
+                      onChange={handleChange}
+                      placeholder="Опис причини відмови..."
+                      rows="2"
+                      disabled={!['admin', 'administrator', 'zavsklad'].includes(user?.role)}
+                    />
                   </div>
                 </div>
-
-                <div className="subsection">
-                  <h4>Підтвердження бухгалтера</h4>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Підтвердження бухгалтера</label>
-                      <select 
-                        name="approvedByAccountant" 
-                        value={formData.approvedByAccountant || 'На розгляді'} 
-                        onChange={handleChange}
-                        disabled={!['admin', 'administrator', 'buhgalteria'].includes(user?.role)}
-                      >
-                        <option value="На розгляді">На розгляді</option>
-                        <option value="Підтверджено">Підтверджено</option>
-                        <option value="Відмова">Відмова</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label>Опис відмови (бухгалтер)</label>
-                      <textarea 
-                        name="accountantComment" 
-                        value={formData.accountantComment || ''} 
-                        onChange={handleChange}
-                        placeholder="Опис причини відмови..."
-                        rows="2"
-                        disabled={!['admin', 'administrator', 'buhgalteria'].includes(user?.role)}
-                      />
-                    </div>
+                {/* Рядок: Підтвердження бухгалтера - Підтвердження бухгалтера, Опис відмови (бухгалтер) */}
+                <div className="form-row two-cols">
+                  <div className="form-group">
+                    <label>Підтвердження бухгалтера</label>
+                    <select 
+                      name="approvedByAccountant" 
+                      value={formData.approvedByAccountant || 'На розгляді'} 
+                      onChange={handleChange}
+                      disabled={!['admin', 'administrator', 'buhgalteria'].includes(user?.role)}
+                    >
+                      <option value="На розгляді">На розгляді</option>
+                      <option value="Підтверджено">Підтверджено</option>
+                      <option value="Відмова">Відмова</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Опис відмови (бухгалтер)</label>
+                    <textarea 
+                      name="accountantComment" 
+                      value={formData.accountantComment || ''} 
+                      onChange={handleChange}
+                      placeholder="Опис причини відмови..."
+                      rows="2"
+                      disabled={!['admin', 'administrator', 'buhgalteria'].includes(user?.role)}
+                    />
                   </div>
                 </div>
-
-                {/* Автоматичні системні поля (тільки для читання) */}
-                <div className="subsection">
-                  <h4>Системна інформація</h4>
-                  <div className="form-row three-cols">
-                    <div className="form-group">
-                      <label>Авт. створення заявки</label>
-                      <input 
-                        type="datetime-local" 
-                        name="autoCreatedAt" 
-                        value={formData.autoCreatedAt || ''} 
-                        readOnly 
-                        style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Авт. виконанно</label>
-                      <input 
-                        type="datetime-local" 
-                        name="autoCompletedAt" 
-                        value={formData.autoCompletedAt || ''} 
-                        readOnly 
-                        style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Авт. затвердження завскладом</label>
-                      <input 
-                        type="datetime-local" 
-                        name="autoWarehouseApprovedAt" 
-                        value={formData.autoWarehouseApprovedAt || ''} 
-                        readOnly 
-                        style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
-                      />
-                    </div>
+                {/* Рядок: Системна інформація - всі поля в один рядок */}
+                <div className="form-row six-cols">
+                  <div className="form-group">
+                    <label>Авт. створення заявки</label>
+                    <input 
+                      type="datetime-local" 
+                      name="autoCreatedAt" 
+                      value={formData.autoCreatedAt || ''} 
+                      readOnly 
+                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
+                    />
                   </div>
-                  <div className="form-row three-cols">
-                    <div className="form-group">
-                      <label>Авт. затвердження бухгалтером</label>
-                      <input 
-                        type="datetime-local" 
-                        name="autoAccountantApprovedAt" 
-                        value={formData.autoAccountantApprovedAt || ''} 
-                        readOnly 
-                        style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Дата заявки на рахунок</label>
-                      <input 
-                        type="datetime-local" 
-                        name="invoiceRequestDate" 
-                        value={formData.invoiceRequestDate || ''} 
-                        readOnly 
-                        style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Дата завантаження рахунку</label>
-                      <input 
-                        type="datetime-local" 
-                        name="invoiceUploadDate" 
-                        value={formData.invoiceUploadDate || ''} 
-                        readOnly 
-                        style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
-                      />
-                    </div>
+                  <div className="form-group">
+                    <label>Авт. виконанно</label>
+                    <input 
+                      type="datetime-local" 
+                      name="autoCompletedAt" 
+                      value={formData.autoCompletedAt || ''} 
+                      readOnly 
+                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Авт. затвердження завскладом</label>
+                    <input 
+                      type="datetime-local" 
+                      name="autoWarehouseApprovedAt" 
+                      value={formData.autoWarehouseApprovedAt || ''} 
+                      readOnly 
+                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Авт. затвердження бухгалтером</label>
+                    <input 
+                      type="datetime-local" 
+                      name="autoAccountantApprovedAt" 
+                      value={formData.autoAccountantApprovedAt || ''} 
+                      readOnly 
+                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Дата заявки на рахунок</label>
+                    <input 
+                      type="datetime-local" 
+                      name="invoiceRequestDate" 
+                      value={formData.invoiceRequestDate || ''} 
+                      readOnly 
+                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Дата завантаження рахунку</label>
+                    <input 
+                      type="datetime-local" 
+                      name="invoiceUploadDate" 
+                      value={formData.invoiceUploadDate || ''} 
+                      readOnly 
+                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
+                    />
                   </div>
                 </div>
               </div>

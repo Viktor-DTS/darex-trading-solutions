@@ -95,6 +95,20 @@
   gap: 12px;
 }
 
+/* Стилі для поля "Номер заявки/наряду" по центру */
+.form-group[style*="textAlign: 'center'"],
+.form-group[style*="text-align: center"] {
+  text-align: center;
+}
+
+.form-group[style*="textAlign: 'center'"] input,
+.form-group[style*="text-align: center"] input {
+  text-align: center;
+  max-width: 400px;
+  margin: 0 auto;
+  display: block;
+}
+
 .form-error {
   background: var(--error);
   color: white;
@@ -116,6 +130,14 @@
 
 .form-row.three-cols {
   grid-template-columns: repeat(3, 1fr);
+}
+
+.form-row.five-cols {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.form-row.six-cols {
+  grid-template-columns: repeat(6, 1fr);
 }
 
 .form-group {
