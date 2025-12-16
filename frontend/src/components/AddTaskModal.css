@@ -705,7 +705,7 @@
 
 .accountant-mode .form-group label[for="invoice"],
 .accountant-mode .form-group:has(input[name="invoice"]) label {
-  color: var(--text-primary) !important;
+  color: #000000 !important;
 }
 
 /* Компактні чекбокси */
