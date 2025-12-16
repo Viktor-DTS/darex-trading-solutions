@@ -191,6 +191,12 @@
   cursor: pointer;
 }
 
+.warehouse-form select option {
+  background: #fff;
+  color: #000;
+  padding: 8px;
+}
+
 .warehouse-form textarea {
   resize: vertical;
   min-height: 80px;

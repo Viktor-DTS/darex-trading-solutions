@@ -97,6 +97,12 @@
   min-height: 80px;
 }
 
+.form-group select option {
+  background: #fff;
+  color: #000;
+  padding: 8px;
+}
+
 .error-message {
   padding: 12px;
   background: rgba(239, 68, 68, 0.1);

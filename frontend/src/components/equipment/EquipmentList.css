@@ -65,6 +65,12 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
+.filter-group select option {
+  background: #fff;
+  color: #000;
+  padding: 8px;
+}
+
 .filter-search {
   grid-column: span 2;
 }
