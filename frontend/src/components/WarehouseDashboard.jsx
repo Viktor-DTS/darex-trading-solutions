@@ -10,7 +10,7 @@ import API_BASE_URL from '../config';
 import './Dashboard.css';
 
 function WarehouseDashboard({ user }) {
-  const [activeTab, setActiveTab] = useState('equipment');
+  const [activeTab, setActiveTab] = useState('pending');
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -186,10 +186,10 @@ function WarehouseDashboard({ user }) {
   };
 
   const tabs = [
-    { id: 'equipment', label: 'Складський облік', icon: '📦' },
     { id: 'pending', label: 'Заявки на підтвердженні', icon: '⏳' },
     { id: 'approvedWarehouse', label: 'Архів підтверджених', icon: '✅' },
-    { id: 'archive', label: 'Архів виконаних заявок', icon: '📁' }
+    { id: 'archive', label: 'Архів виконаних заявок', icon: '📁' },
+    { id: 'equipment', label: 'Складський облік', icon: '📦' }
   ];
 
   const handleEquipmentAdded = () => {
