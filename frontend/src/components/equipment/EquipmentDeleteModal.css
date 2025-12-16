@@ -1,0 +1,111 @@
+.delete-modal {
+  max-width: 500px;
+  width: 90%;
+}
+
+.delete-modal-body {
+  padding: 20px;
+}
+
+.delete-warning {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.delete-warning p {
+  margin: 0 0 12px 0;
+  color: var(--text-primary, #fff);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.delete-warning p:last-child {
+  margin-bottom: 0;
+}
+
+.equipment-info {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.equipment-info p {
+  margin: 6px 0;
+  font-size: 14px;
+  color: var(--text-secondary, #8b949e);
+}
+
+.equipment-info strong {
+  color: var(--text-primary, #fff);
+  margin-right: 8px;
+}
+
+.delete-modal .form-group {
+  margin-bottom: 20px;
+}
+
+.delete-modal .form-group label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-secondary, #8b949e);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.delete-modal .form-group textarea {
+  width: 100%;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color, #1a2332);
+  border-radius: 6px;
+  color: var(--text-primary, #fff);
+  font-size: 16px;
+  box-sizing: border-box;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 100px;
+}
+
+.delete-modal .form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary, #00ff88);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.delete-modal .form-group textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .delete-modal {
+    width: 95%;
+    max-width: none;
+  }
+}
+

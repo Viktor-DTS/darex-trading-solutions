@@ -3,6 +3,7 @@ import API_BASE_URL from '../../config';
 import { exportEquipmentToExcel } from '../../utils/equipmentExport';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
 import EquipmentQRModal from './EquipmentQRModal';
+import EquipmentDeleteModal from './EquipmentDeleteModal';
 import './EquipmentList.css';
 
 function EquipmentList({ user, warehouses, onMove, onShip }) {
@@ -11,6 +12,7 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [filters, setFilters] = useState({
     warehouse: '',
     status: '',
@@ -224,10 +226,52 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
                     ✅ Прибуло
                   </button>
                 )}
+                {(user?.role === 'admin' || user?.role === 'administrator') && (
+                  <button
+                    className="btn-action btn-delete"
+                    onClick={() => {
+                      setSelectedEquipment(item);
+                      setShowDeleteModal(true);
+                    }}
+                    title="Видалити"
+                  >
+                    🗑️ Видалити
+                  </button>
+                )}
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {showDeleteModal && selectedEquipment && (
+        <EquipmentDeleteModal
+          equipment={selectedEquipment}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setSelectedEquipment(null);
+          }}
+          onConfirm={async (reason) => {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_BASE_URL}/equipment/${selectedEquipment._id}`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ reason })
+            });
+
+            if (response.ok) {
+              setShowDeleteModal(false);
+              setSelectedEquipment(null);
+              refreshEquipment();
+            } else {
+              const error = await response.json();
+              throw new Error(error.error || 'Помилка видалення');
+            }
+          }}
+        />
       )}
 
       {showHistory && selectedEquipment && (

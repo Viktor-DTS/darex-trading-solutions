@@ -111,6 +111,15 @@
   background: #9c27b0;
 }
 
+.deletion-marker {
+  background: #ef4444;
+}
+
+.deletion-item .timeline-content {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
 .timeline-content {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-color, #1a2332);

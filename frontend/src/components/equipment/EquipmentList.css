@@ -245,6 +245,16 @@
   background: rgba(156, 39, 176, 0.3);
 }
 
+.btn-delete {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-delete:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
 .btn-qr {
   background: rgba(33, 150, 243, 0.2);
   color: #2196f3;

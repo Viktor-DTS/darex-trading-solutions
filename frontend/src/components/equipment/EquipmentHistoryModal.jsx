@@ -140,8 +140,39 @@ function EquipmentHistoryModal({ equipment, onClose }) {
             </div>
           )}
 
+          {/* Історія видалень */}
+          {equipment.deletionHistory && equipment.deletionHistory.length > 0 && (
+            <div className="history-section">
+              <h3>🗑️ Історія видалень ({equipment.deletionHistory.length})</h3>
+              <div className="history-timeline">
+                {equipment.deletionHistory
+                  .slice()
+                  .reverse()
+                  .map((deletion, index) => (
+                    <div key={index} className="timeline-item deletion-item">
+                      <div className="timeline-marker deletion-marker" />
+                      <div className="timeline-content">
+                        <div className="timeline-header">
+                          <span className="timeline-date">
+                            {deletion.deletedAt ? new Date(deletion.deletedAt).toLocaleString('uk-UA') : '—'}
+                          </span>
+                          <span className="timeline-user">{deletion.deletedByName || deletion.deletedBy || '—'}</span>
+                        </div>
+                        <div className="timeline-body">
+                          <div className="deletion-info">
+                            <div><strong>Причина:</strong> {deletion.reason || '—'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
           {(!equipment.movementHistory || equipment.movementHistory.length === 0) &&
-           (!equipment.shipmentHistory || equipment.shipmentHistory.length === 0) && (
+           (!equipment.shipmentHistory || equipment.shipmentHistory.length === 0) &&
+           (!equipment.deletionHistory || equipment.deletionHistory.length === 0) && (
             <div className="empty-history">
               <p>Історія відсутня</p>
             </div>

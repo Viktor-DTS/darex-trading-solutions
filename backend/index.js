@@ -373,7 +373,7 @@ const equipmentSchema = new mongoose.Schema({
   region: String,                    // Регіон
   status: {                          // Статус
     type: String,
-    enum: ['in_stock', 'reserved', 'shipped', 'in_transit'],
+    enum: ['in_stock', 'reserved', 'shipped', 'in_transit', 'deleted'],
     default: 'in_stock'
   },
   
@@ -399,6 +399,15 @@ const equipmentSchema = new mongoose.Schema({
     invoiceNumber: String,
     clientEdrpou: String
   }],
+  
+  // Історія видалень
+  deletionHistory: [{
+    deletedAt: Date,
+    deletedBy: String,
+    deletedByName: String,
+    reason: String
+  }],
+  isDeleted: { type: Boolean, default: false },
   
   // Метадані
   addedBy: String,                  // ID користувача
@@ -3246,6 +3255,55 @@ app.get('/api/equipment/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('[ERROR] GET /api/equipment/:id:', error);
     logPerformance('GET /api/equipment/:id', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Видалення обладнання (тільки для admin/administrator)
+app.delete('/api/equipment/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    // Перевірка прав доступу
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено. Тільки адміністратор може видаляти обладнання.' });
+    }
+
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: 'Причина видалення обов\'язкова' });
+    }
+
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    const equipment = await Equipment.findById(req.params.id);
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+
+    // Додаємо запис в історію видалення
+    equipment.deletionHistory = equipment.deletionHistory || [];
+    equipment.deletionHistory.push({
+      deletedAt: new Date(),
+      deletedBy: user.login,
+      deletedByName: user.name || user.login,
+      reason: reason.trim()
+    });
+
+    // Позначаємо як видалене (soft delete)
+    equipment.isDeleted = true;
+    equipment.status = 'deleted';
+    equipment.lastModified = new Date();
+
+    await equipment.save();
+
+    logPerformance('DELETE /api/equipment/:id', startTime);
+    res.json({ message: 'Обладнання видалено успішно', equipment });
+  } catch (error) {
+    console.error('[ERROR] DELETE /api/equipment/:id:', error);
+    logPerformance('DELETE /api/equipment/:id', startTime);
     res.status(500).json({ error: error.message });
   }
 });
