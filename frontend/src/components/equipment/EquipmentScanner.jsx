@@ -84,7 +84,21 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
       
       setOcrText(text);
       const parsed = parseEquipmentData(text);
-      setEquipmentData(prev => ({ ...prev, ...parsed }));
+      console.log('Розпізнані дані:', parsed);
+      console.log('OCR текст:', text);
+      
+      // Об'єднуємо дані, але не перезаписуємо порожніми значеннями
+      setEquipmentData(prev => {
+        const merged = { ...prev };
+        Object.keys(parsed).forEach(key => {
+          // Додаємо значення тільки якщо воно не порожнє
+          if (parsed[key] !== '' && parsed[key] !== null && parsed[key] !== undefined) {
+            merged[key] = parsed[key];
+          }
+        });
+        console.log('Об\'єднані дані:', merged);
+        return merged;
+      });
       setStep('review');
     } catch (error) {
       console.error('Помилка OCR:', error);
@@ -100,7 +114,9 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
   };
 
   const handleSave = async () => {
+    console.log('Дані перед валідацією:', equipmentData);
     const validation = validateEquipmentData(equipmentData);
+    console.log('Результат валідації:', validation);
     if (!validation.isValid) {
       setErrors(validation.errors);
       return;

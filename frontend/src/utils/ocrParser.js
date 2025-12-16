@@ -37,9 +37,24 @@ export const parseEquipmentData = (ocrText) => {
     }
   }
 
-  // TYPE: DE-50BDS
-  const typeMatch = text.match(/TYPE[:\s]+([A-Z0-9\-]+)/i);
-  if (typeMatch) data.type = typeMatch[1].trim();
+  // TYPE: DE-50BDS (різні формати)
+  let typeMatch = text.match(/TYPE[:\s]+([A-Z0-9\-]+)/i);
+  if (typeMatch) {
+    data.type = typeMatch[1].trim();
+  } else {
+    // Альтернативний формат: просто DE-50BDS (без слова TYPE)
+    // Шукаємо патерн типу DE-XX, DE-XXBDS, тощо
+    typeMatch = text.match(/([A-Z]{2,3}[-]\d+[A-Z]*)/);
+    if (typeMatch) {
+      data.type = typeMatch[1].trim();
+    } else {
+      // Спробуємо знайти будь-який код типу (букви-цифри-букви)
+      typeMatch = text.match(/([A-Z]{2,}[-]?\d+[A-Z]*)/);
+      if (typeMatch) {
+        data.type = typeMatch[1].trim();
+      }
+    }
+  }
 
   // №: 20241007015 (різні формати)
   const serialMatch = text.match(/(?:[№#N]|SERIAL|S\/N|SN)[:\s]+(\d+)/i);
