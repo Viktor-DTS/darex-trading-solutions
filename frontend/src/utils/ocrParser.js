@@ -69,62 +69,170 @@ export const parseEquipmentData = (ocrText) => {
   }
 
   // STANDBY POWER: 50/40 KVA/KW (різні формати)
-  const standbyMatch = text.match(/STANDBY\s+POWER[:\s]+([\d\/\s]+(?:KVA|KW|kW)?)/i);
+  let standbyMatch = text.match(/STANDBY\s+POWER[:\s]+([\d\/\s]+(?:KVA|KW|kW)?)/i);
   if (standbyMatch) {
     data.standbyPower = standbyMatch[1].trim().replace(/\s+/g, ' ');
   } else {
     // Альтернативний формат: STANDBY: 50/40
-    const standbyAlt = text.match(/STANDBY[:\s]+([\d\/]+)/i);
-    if (standbyAlt) data.standbyPower = standbyAlt[1].trim();
+    standbyMatch = text.match(/STANDBY[:\s]+([\d\/]+)/i);
+    if (standbyMatch) {
+      data.standbyPower = standbyMatch[1].trim();
+    } else {
+      // Якщо OCR розпізнав неточно, шукаємо патерн "число/число" після "пе" або перед "45/36"
+      // Шукаємо формат типу "150/40" або "50/40" перед "45/36"
+      const powerPattern = text.match(/(\d{2,3}\/\d{2,3})\s+(\d{2,3}\/\d{2,3})/);
+      if (powerPattern) {
+        // Перший - це standby, другий - prime
+        data.standbyPower = powerPattern[1].trim();
+        data.primePower = powerPattern[2].trim();
+      } else {
+        // Спробуємо знайти просто "50/40" або "150/40"
+        const simpleStandby = text.match(/(\d{2,3}\/\d{2,3})/);
+        if (simpleStandby && !data.standbyPower) {
+          data.standbyPower = simpleStandby[1].trim();
+        }
+      }
+    }
   }
 
   // PRIME POWER: 45/36 KVA/KW (різні формати)
-  const primeMatch = text.match(/PRIME\s+POWER[:\s]+([\d\/\s]+(?:KVA|KW|kW)?)/i);
+  let primeMatch = text.match(/PRIME\s+POWER[:\s]+([\d\/\s]+(?:KVA|KW|kW)?)/i);
   if (primeMatch) {
     data.primePower = primeMatch[1].trim().replace(/\s+/g, ' ');
   } else {
     // Альтернативний формат: PRIME: 45/36
-    const primeAlt = text.match(/PRIME[:\s]+([\d\/]+)/i);
-    if (primeAlt) data.primePower = primeAlt[1].trim();
+    primeMatch = text.match(/PRIME[:\s]+([\d\/]+)/i);
+    if (primeMatch) {
+      data.primePower = primeMatch[1].trim();
+    } else if (!data.primePower) {
+      // Якщо не знайдено через OCR помилки, спробуємо знайти другий патерн "число/число"
+      const powerPattern = text.match(/(\d{2,3}\/\d{2,3})\s+(\d{2,3}\/\d{2,3})/);
+      if (powerPattern && powerPattern[2]) {
+        data.primePower = powerPattern[2].trim();
+      }
+    }
   }
 
   // PHASE: 3
   const phaseMatch = text.match(/PHASE[:\s]+(\d+)/i);
   if (phaseMatch) data.phase = parseInt(phaseMatch[1]);
 
-  // V: 400/230
-  const voltageMatch = text.match(/V[:\s]+([\d\/]+)/i);
-  if (voltageMatch) data.voltage = voltageMatch[1].trim();
+  // V: 400/230 (різні формати)
+  let voltageMatch = text.match(/V[:\s]+([\d\/]+)/i);
+  if (voltageMatch) {
+    data.voltage = voltageMatch[1].trim();
+  } else {
+    // Якщо OCR розпізнав неточно, шукаємо патерн "400/230" після чисел
+    // Шукаємо формат типу "400/230" після потужностей
+    voltageMatch = text.match(/(\d{3}\/\d{3})/);
+    if (voltageMatch) {
+      // Перевіряємо, чи це не потужність (потужності зазвичай менші)
+      const voltage = voltageMatch[1];
+      if (voltage.startsWith('400') || voltage.startsWith('380') || voltage.startsWith('230')) {
+        data.voltage = voltage.trim();
+      }
+    }
+  }
 
-  // A: 72
-  const amperageMatch = text.match(/A[:\s]+(\d+)/i);
-  if (amperageMatch) data.amperage = parseInt(amperageMatch[1]);
+  // A: 72 (різні формати)
+  let amperageMatch = text.match(/A[:\s]+(\d+)/i);
+  if (amperageMatch) {
+    data.amperage = parseInt(amperageMatch[1]);
+  } else {
+    // Якщо OCR розпізнав неточно, шукаємо число після напруги
+    // Шукаємо число в діапазоні 10-200 (типові значення струму)
+    const amperagePattern = text.match(/(?:[^\d]|^)(\d{2,3})(?:\s|$)/);
+    if (amperagePattern) {
+      const value = parseInt(amperagePattern[1]);
+      // Перевіряємо, чи це не рік, не розміри, не вага
+      if (value >= 10 && value <= 200 && value !== 50 && value !== 1500) {
+        data.amperage = value;
+      }
+    }
+  }
 
-  // COSφ: 0.8
-  const cosPhiMatch = text.match(/COS[φΦ]?[:\s]+([\d.]+)/i);
-  if (cosPhiMatch) data.cosPhi = parseFloat(cosPhiMatch[1]);
+  // COSφ: 0.8 (різні формати)
+  let cosPhiMatch = text.match(/COS[φΦ]?[:\s]+([\d.]+)/i);
+  if (cosPhiMatch) {
+    data.cosPhi = parseFloat(cosPhiMatch[1]);
+  } else {
+    // Якщо OCR розпізнав неточно, шукаємо число 0.8 або 0,8
+    cosPhiMatch = text.match(/(?:^|\s)(0[.,]\d{1,2})(?:\s|$)/);
+    if (cosPhiMatch) {
+      data.cosPhi = parseFloat(cosPhiMatch[1].replace(',', '.'));
+    }
+  }
 
-  // RPM: 1500
-  const rpmMatch = text.match(/RPM[:\s]+(\d+)/i);
-  if (rpmMatch) data.rpm = parseInt(rpmMatch[1]);
+  // RPM: 1500 (різні формати)
+  let rpmMatch = text.match(/RPM[:\s]+(\d+)/i);
+  if (rpmMatch) {
+    data.rpm = parseInt(rpmMatch[1]);
+  } else {
+    // Якщо OCR розпізнав неточно, шукаємо число 1500 (типове значення RPM)
+    rpmMatch = text.match(/(?:^|\s)(1500|3000)(?:\s|$)/);
+    if (rpmMatch) {
+      data.rpm = parseInt(rpmMatch[1]);
+    }
+  }
 
-  // Hz: 50
-  const freqMatch = text.match(/HZ[:\s]+(\d+)/i);
-  if (freqMatch) data.frequency = parseInt(freqMatch[1]);
+  // Hz: 50 (різні формати)
+  let freqMatch = text.match(/HZ[:\s]+(\d+)/i);
+  if (freqMatch) {
+    data.frequency = parseInt(freqMatch[1]);
+  } else {
+    // Якщо OCR розпізнав неточно, шукаємо число 50 або 60 (типові частоти)
+    freqMatch = text.match(/(?:^|\s|°)(50|60)(?:\s|$|°)/);
+    if (freqMatch) {
+      data.frequency = parseInt(freqMatch[1]);
+    }
+  }
 
   // DIMENSION: 2280 x 950 x 1250 (різні формати)
-  const dimMatch = text.match(/DIMENSION[:\s]+([\d\sxX×]+)/i);
+  let dimMatch = text.match(/DIMENSION[:\s]+([\d\sxX×]+)/i);
   if (dimMatch) {
     data.dimensions = dimMatch[1].trim().replace(/\s+/g, ' ');
   } else {
     // Альтернативний формат: LxWxH: 2280x950x1250
-    const dimAlt = text.match(/(?:LxWxH|SIZE)[:\s]+([\d\sxX×]+)/i);
-    if (dimAlt) data.dimensions = dimAlt[1].trim();
+    dimMatch = text.match(/(?:LxWxH|SIZE)[:\s]+([\d\sxX×]+)/i);
+    if (dimMatch) {
+      data.dimensions = dimMatch[1].trim();
+    } else {
+      // Якщо OCR розпізнав неточно, шукаємо три великі числа (розміри зазвичай 1000+)
+      const dimPattern = text.match(/(\d{4})\s+(\d{3,4})\s+[""]?(\d{4})/);
+      if (dimPattern) {
+        data.dimensions = `${dimPattern[1]} x ${dimPattern[2]} x ${dimPattern[3]}`;
+      } else {
+        // Спробуємо знайти три числа підряд
+        const threeNumbers = text.match(/(\d{3,4})\s+(\d{3,4})\s+(\d{3,4})/);
+        if (threeNumbers) {
+          const n1 = parseInt(threeNumbers[1]);
+          const n2 = parseInt(threeNumbers[2]);
+          const n3 = parseInt(threeNumbers[3]);
+          // Розміри зазвичай більші за 500
+          if (n1 > 500 && n2 > 500 && n3 > 500) {
+            data.dimensions = `${n1} x ${n2} x ${n3}`;
+          }
+        }
+      }
+    }
   }
 
-  // WEIGHT: 940
-  const weightMatch = text.match(/WEIGHT[:\s]+(\d+)/i);
-  if (weightMatch) data.weight = parseInt(weightMatch[1]);
+  // WEIGHT: 940 (різні формати)
+  let weightMatch = text.match(/WEIGHT[:\s]+(\d+)/i);
+  if (weightMatch) {
+    data.weight = parseInt(weightMatch[1]);
+  } else {
+    // Якщо OCR розпізнав неточно, шукаємо число після розмірів (вага зазвичай 100-10000)
+    // Шукаємо число, яке не є роком (не 2024) і не є частиною розмірів
+    weightMatch = text.match(/(?:^|\s)(\d{3,4})(?:\s|$)/);
+    if (weightMatch) {
+      const value = parseInt(weightMatch[1]);
+      // Вага зазвичай в діапазоні 100-10000, і не є роком
+      if (value >= 100 && value <= 10000 && value !== 2024 && value !== 1500 && value !== 50) {
+        data.weight = value;
+      }
+    }
+  }
 
   // DATE: 2024
   const dateMatch = text.match(/DATE[:\s]+(\d{4})/i);
