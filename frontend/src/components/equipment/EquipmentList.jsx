@@ -253,22 +253,44 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
           }}
           onConfirm={async (reason) => {
             const token = localStorage.getItem('token');
-            const response = await fetch(`${API_BASE_URL}/equipment/${selectedEquipment._id}`, {
-              method: 'DELETE',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ reason })
-            });
+            const url = `${API_BASE_URL}/equipment/${selectedEquipment._id}`;
+            console.log('[DELETE] Видалення обладнання:', url);
+            
+            try {
+              const response = await fetch(url, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ reason })
+              });
 
-            if (response.ok) {
-              setShowDeleteModal(false);
-              setSelectedEquipment(null);
-              refreshEquipment();
-            } else {
-              const error = await response.json();
-              throw new Error(error.error || 'Помилка видалення');
+              console.log('[DELETE] Відповідь сервера:', response.status, response.statusText);
+
+              if (response.ok) {
+                const data = await response.json();
+                console.log('[DELETE] Успішно видалено:', data);
+                setShowDeleteModal(false);
+                setSelectedEquipment(null);
+                refreshEquipment();
+              } else {
+                // Спробуємо отримати текст помилки
+                let errorMessage = 'Помилка видалення';
+                try {
+                  const errorData = await response.json();
+                  errorMessage = errorData.error || errorMessage;
+                } catch (e) {
+                  // Якщо не JSON, спробуємо текст
+                  const errorText = await response.text();
+                  console.error('[DELETE] Помилка (не JSON):', errorText);
+                  errorMessage = `Помилка ${response.status}: ${response.statusText}`;
+                }
+                throw new Error(errorMessage);
+              }
+            } catch (error) {
+              console.error('[DELETE] Помилка запиту:', error);
+              throw error;
             }
           }}
         />

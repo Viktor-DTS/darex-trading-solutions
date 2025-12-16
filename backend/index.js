@@ -3262,9 +3262,12 @@ app.get('/api/equipment/:id', authenticateToken, async (req, res) => {
 // Видалення обладнання (тільки для admin/administrator)
 app.delete('/api/equipment/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();
+  console.log('[DELETE] /api/equipment/:id - Запит на видалення:', req.params.id);
+  console.log('[DELETE] Користувач:', req.user?.login, 'Роль:', req.user?.role);
   try {
     // Перевірка прав доступу
     if (!['admin', 'administrator'].includes(req.user.role)) {
+      console.log('[DELETE] Доступ заборонено для ролі:', req.user.role);
       return res.status(403).json({ error: 'Доступ заборонено. Тільки адміністратор може видаляти обладнання.' });
     }
 
