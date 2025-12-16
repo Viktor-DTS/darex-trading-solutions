@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config';
 import { exportEquipmentToExcel } from '../../utils/equipmentExport';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
+import EquipmentQRModal from './EquipmentQRModal';
 import './EquipmentList.css';
 
 function EquipmentList({ user, warehouses, onMove, onShip }) {
@@ -9,6 +10,7 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
   const [loading, setLoading] = useState(true);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const [filters, setFilters] = useState({
     warehouse: '',
     status: '',
@@ -168,6 +170,16 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
 
               <div className="card-actions">
                 <button
+                  className="btn-action btn-qr"
+                  onClick={() => {
+                    setSelectedEquipment(item);
+                    setShowQR(true);
+                  }}
+                  title="QR-код"
+                >
+                  📱 QR
+                </button>
+                <button
                   className="btn-action btn-history"
                   onClick={() => {
                     setSelectedEquipment(item);
@@ -223,6 +235,16 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
           equipment={selectedEquipment}
           onClose={() => {
             setShowHistory(false);
+            setSelectedEquipment(null);
+          }}
+        />
+      )}
+
+      {showQR && selectedEquipment && (
+        <EquipmentQRModal
+          equipment={selectedEquipment}
+          onClose={() => {
+            setShowQR(false);
             setSelectedEquipment(null);
           }}
         />

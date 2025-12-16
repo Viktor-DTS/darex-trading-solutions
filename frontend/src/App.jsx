@@ -34,6 +34,7 @@ const DEFAULT_ACCESS_RULES = {
   accountant: ['accountant', 'accountantApproval', 'reports', 'analytics'],
   buhgalteria: ['accountant', 'accountantApproval', 'reports', 'analytics'],
   warehouse: ['warehouse', 'service'],
+  zavsklad: ['warehouse', 'service'],
   regkerivn: ['regional', 'service', 'reports', 'analytics'],
   regional: ['regional', 'service', 'reports', 'analytics'],
   service: ['service'],

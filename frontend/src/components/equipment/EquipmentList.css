@@ -92,13 +92,26 @@
   border: 1px solid var(--border-color, #1a2332);
   border-radius: 8px;
   padding: 16px;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .equipment-card:hover {
   background: rgba(255, 255, 255, 0.05);
   border-color: var(--primary, #00ff88);
-  transform: translateY(-2px);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 255, 136, 0.15);
 }
 
 .card-header {
@@ -224,6 +237,16 @@
 
 .btn-history:hover {
   background: rgba(156, 39, 176, 0.3);
+}
+
+.btn-qr {
+  background: rgba(33, 150, 243, 0.2);
+  color: #2196f3;
+  border: 1px solid rgba(33, 150, 243, 0.3);
+}
+
+.btn-qr:hover {
+  background: rgba(33, 150, 243, 0.3);
 }
 
 @media (max-width: 768px) {

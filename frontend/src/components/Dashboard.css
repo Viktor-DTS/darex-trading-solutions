@@ -523,6 +523,49 @@
   box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
 }
 
+.access-denied {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-secondary, #8b949e);
+}
+
+.access-denied h3 {
+  font-size: 24px;
+  color: var(--text-primary, #fff);
+  margin-bottom: 12px;
+}
+
+.access-denied p {
+  font-size: 16px;
+}
+
+/* Плавні переходи для всіх кнопок */
+button {
+  transition: all 0.2s ease;
+}
+
+/* Покращення мобільної версії */
+@media (max-width: 768px) {
+  .equipment-tab-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .btn-scan {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .equipment-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .btn-export {
+    width: 100%;
+  }
+}
+
 @media (max-width: 768px) {
   .equipment-tab-header {
     flex-direction: column;

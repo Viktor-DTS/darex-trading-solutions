@@ -6,6 +6,8 @@ import EquipmentScanner from './equipment/EquipmentScanner';
 import EquipmentList from './equipment/EquipmentList';
 import EquipmentMoveModal from './equipment/EquipmentMoveModal';
 import EquipmentShipModal from './equipment/EquipmentShipModal';
+import EquipmentStatistics from './equipment/EquipmentStatistics';
+import WarehouseManagement from './equipment/WarehouseManagement';
 import API_BASE_URL from '../config';
 import './Dashboard.css';
 
@@ -189,7 +191,9 @@ function WarehouseDashboard({ user }) {
     { id: 'pending', label: 'Заявки на підтвердженні', icon: '⏳' },
     { id: 'approvedWarehouse', label: 'Архів підтверджених', icon: '✅' },
     { id: 'archive', label: 'Архів виконаних заявок', icon: '📁' },
-    { id: 'equipment', label: 'Складський облік', icon: '📦' }
+    { id: 'equipment', label: 'Складський облік', icon: '📦' },
+    { id: 'statistics', label: 'Статистика', icon: '📊' },
+    { id: 'warehouses', label: 'Управління складами', icon: '🏢' }
   ];
 
   const handleEquipmentAdded = () => {
@@ -270,6 +274,17 @@ function WarehouseDashboard({ user }) {
                 onShip={handleShip}
               />
             </div>
+          ) : activeTab === 'statistics' ? (
+            <EquipmentStatistics warehouses={warehouses} />
+          ) : activeTab === 'warehouses' ? (
+            (user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'warehouse' || user?.role === 'zavsklad') ? (
+              <WarehouseManagement user={user} />
+            ) : (
+              <div className="access-denied">
+                <h3>⛔ Доступ заборонено</h3>
+                <p>У вас немає прав для управління складами</p>
+              </div>
+            )
           ) : loading ? (
             <div className="loading-indicator">Завантаження...</div>
           ) : (

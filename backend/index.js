@@ -3053,6 +3053,11 @@ app.get('/api/warehouses', authenticateToken, async (req, res) => {
 app.post('/api/warehouses', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
+    // Перевірка прав доступу
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    
     const { name, region, address } = req.body;
     const warehouse = await Warehouse.create({ name, region, address });
     logPerformance('POST /api/warehouses', startTime);
@@ -3060,6 +3065,59 @@ app.post('/api/warehouses', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('[ERROR] POST /api/warehouses:', error);
     logPerformance('POST /api/warehouses', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Оновлення складу
+app.put('/api/warehouses/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    // Перевірка прав доступу
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    
+    const { name, region, address, isActive } = req.body;
+    const warehouse = await Warehouse.findByIdAndUpdate(
+      req.params.id,
+      { name, region, address, isActive },
+      { new: true, runValidators: true }
+    );
+    
+    if (!warehouse) {
+      return res.status(404).json({ error: 'Склад не знайдено' });
+    }
+    
+    logPerformance('PUT /api/warehouses/:id', startTime);
+    res.json(warehouse);
+  } catch (error) {
+    console.error('[ERROR] PUT /api/warehouses/:id:', error);
+    logPerformance('PUT /api/warehouses/:id', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Видалення складу
+app.delete('/api/warehouses/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    // Перевірка прав доступу - тільки адміністратори можуть видаляти склади
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено. Тільки адміністратор може видаляти склади.' });
+    }
+    
+    const warehouse = await Warehouse.findByIdAndDelete(req.params.id);
+    
+    if (!warehouse) {
+      return res.status(404).json({ error: 'Склад не знайдено' });
+    }
+    
+    logPerformance('DELETE /api/warehouses/:id', startTime);
+    res.json({ message: 'Склад видалено успішно' });
+  } catch (error) {
+    console.error('[ERROR] DELETE /api/warehouses/:id:', error);
+    logPerformance('DELETE /api/warehouses/:id', startTime);
     res.status(500).json({ error: error.message });
   }
 });
