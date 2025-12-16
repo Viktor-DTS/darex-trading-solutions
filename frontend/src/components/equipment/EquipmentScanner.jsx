@@ -112,9 +112,40 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
     try {
       const token = localStorage.getItem('token');
       
-      // Завантажуємо фото на Cloudinary (якщо потрібно)
+      // Завантажуємо фото на Cloudinary
       let photoUrl = image;
-      // Тут можна додати завантаження на Cloudinary
+      let cloudinaryId = null;
+      
+      if (image && image.startsWith('data:image')) {
+        try {
+          // Конвертуємо base64 в Blob
+          const response = await fetch(image);
+          const blob = await response.blob();
+          
+          // Створюємо FormData для завантаження
+          const formData = new FormData();
+          formData.append('photo', blob, 'equipment-photo.jpg');
+          
+          const uploadResponse = await fetch(`${API_BASE_URL}/equipment/upload-photo`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            },
+            body: formData
+          });
+          
+          if (uploadResponse.ok) {
+            const uploadData = await uploadResponse.json();
+            photoUrl = uploadData.photoUrl;
+            cloudinaryId = uploadData.cloudinaryId;
+          } else {
+            console.warn('Не вдалося завантажити фото на Cloudinary, використовуємо base64');
+          }
+        } catch (uploadError) {
+          console.warn('Помилка завантаження фото:', uploadError);
+          // Продовжуємо з base64
+        }
+      }
       
       const response = await fetch(`${API_BASE_URL}/equipment/scan`, {
         method: 'POST',
@@ -125,6 +156,7 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
         body: JSON.stringify({
           ...equipmentData,
           photoUrl: photoUrl,
+          cloudinaryId: cloudinaryId,
           ocrData: { text: ocrText }
         })
       });

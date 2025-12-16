@@ -68,6 +68,26 @@ const uploadContract = multer({
   }
 });
 
+// Multer Storage для фото обладнання (шильдиків)
+const equipmentPhotoStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'equipment/photos',
+    allowed_formats: ['jpg', 'jpeg', 'png'],
+    resource_type: 'image',
+    transformation: [
+      { width: 1920, height: 1080, crop: 'limit', quality: 'auto' }
+    ]
+  }
+});
+
+const uploadEquipmentPhoto = multer({
+  storage: equipmentPhotoStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB
+  }
+});
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -3044,6 +3064,30 @@ app.post('/api/warehouses', authenticateToken, async (req, res) => {
   }
 });
 
+// Завантаження фото обладнання на Cloudinary
+app.post('/api/equipment/upload-photo', authenticateToken, uploadEquipmentPhoto.single('photo'), async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Фото не було завантажено' });
+    }
+
+    const photoUrl = req.file.path || req.file.secure_url;
+    const cloudinaryId = req.file.public_id;
+
+    logPerformance('POST /api/equipment/upload-photo', startTime);
+    res.json({
+      photoUrl: photoUrl,
+      cloudinaryId: cloudinaryId,
+      filename: req.file.originalname
+    });
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/upload-photo:', error);
+    logPerformance('POST /api/equipment/upload-photo', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Сканування та додавання обладнання
 app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
   const startTime = Date.now();
@@ -3287,6 +3331,111 @@ app.put('/api/equipment/:id/status', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('[ERROR] PUT /api/equipment/:id/status', error);
     logPerformance('PUT /api/equipment/:id/status', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Статистика по складах
+app.get('/api/equipment/statistics', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { warehouse, region } = req.query;
+    
+    const matchQuery = {};
+    if (warehouse) matchQuery.currentWarehouse = warehouse;
+    if (region) matchQuery.region = region;
+    
+    // Загальна статистика
+    const total = await Equipment.countDocuments(matchQuery);
+    const byStatus = await Equipment.aggregate([
+      { $match: matchQuery },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+    
+    // Статистика по складах
+    const byWarehouse = await Equipment.aggregate([
+      { $match: matchQuery },
+      { 
+        $group: { 
+          _id: '$currentWarehouseName',
+          count: { $sum: 1 },
+          statuses: {
+            $push: '$status'
+          }
+        }
+      },
+      {
+        $project: {
+          warehouse: '$_id',
+          total: '$count',
+          inStock: {
+            $size: {
+              $filter: {
+                input: '$statuses',
+                as: 'status',
+                cond: { $eq: ['$$status', 'in_stock'] }
+              }
+            }
+          },
+          inTransit: {
+            $size: {
+              $filter: {
+                input: '$statuses',
+                as: 'status',
+                cond: { $eq: ['$$status', 'in_transit'] }
+              }
+            }
+          },
+          shipped: {
+            $size: {
+              $filter: {
+                input: '$statuses',
+                as: 'status',
+                cond: { $eq: ['$$status', 'shipped'] }
+              }
+            }
+          }
+        }
+      },
+      { $sort: { total: -1 } }
+    ]);
+    
+    // Статистика по типах обладнання
+    const byType = await Equipment.aggregate([
+      { $match: matchQuery },
+      { 
+        $group: { 
+          _id: '$type',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } },
+      { $limit: 10 }
+    ]);
+    
+    // Останні додані
+    const recentlyAdded = await Equipment.find(matchQuery)
+      .sort({ addedAt: -1 })
+      .limit(10)
+      .select('type serialNumber currentWarehouseName addedAt addedByName')
+      .lean();
+    
+    const statistics = {
+      total,
+      byStatus: byStatus.reduce((acc, item) => {
+        acc[item._id] = item.count;
+        return acc;
+      }, {}),
+      byWarehouse,
+      byType,
+      recentlyAdded
+    };
+    
+    logPerformance('GET /api/equipment/statistics', startTime);
+    res.json(statistics);
+  } catch (error) {
+    console.error('[ERROR] GET /api/equipment/statistics:', error);
+    logPerformance('GET /api/equipment/statistics', startTime);
     res.status(500).json({ error: error.message });
   }
 });

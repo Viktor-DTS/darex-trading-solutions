@@ -6,13 +6,34 @@
 
 .equipment-filters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto;
   gap: 16px;
   margin-bottom: 24px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 8px;
   border: 1px solid var(--border-color, #1a2332);
+  align-items: end;
+}
+
+.btn-export {
+  padding: 10px 20px;
+  background: rgba(0, 255, 136, 0.2);
+  color: var(--primary, #00ff88);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  min-height: 44px;
+}
+
+.btn-export:hover {
+  background: rgba(0, 255, 136, 0.3);
+  border-color: rgba(0, 255, 136, 0.5);
+  transform: translateY(-2px);
 }
 
 .filter-group {
@@ -193,6 +214,16 @@
 
 .btn-arrived:hover {
   background: rgba(0, 255, 136, 0.3);
+}
+
+.btn-history {
+  background: rgba(156, 39, 176, 0.2);
+  color: #9c27b0;
+  border: 1px solid rgba(156, 39, 176, 0.3);
+}
+
+.btn-history:hover {
+  background: rgba(156, 39, 176, 0.3);
 }
 
 @media (max-width: 768px) {

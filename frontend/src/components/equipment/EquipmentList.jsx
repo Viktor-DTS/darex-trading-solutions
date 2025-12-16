@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config';
+import { exportEquipmentToExcel } from '../../utils/equipmentExport';
+import EquipmentHistoryModal from './EquipmentHistoryModal';
 import './EquipmentList.css';
 
 function EquipmentList({ user, warehouses, onMove, onShip }) {
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedEquipment, setSelectedEquipment] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
   const [filters, setFilters] = useState({
     warehouse: '',
     status: '',
@@ -14,6 +18,11 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
   useEffect(() => {
     loadEquipment();
   }, [filters]);
+
+  // Функція для перезавантаження після змін
+  const refreshEquipment = () => {
+    loadEquipment();
+  };
 
   const loadEquipment = async () => {
     setLoading(true);
@@ -53,9 +62,20 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
     return `status-${status}`;
   };
 
+  const handleExport = async () => {
+    if (equipment.length === 0) {
+      alert('Немає даних для експорту');
+      return;
+    }
+    await exportEquipmentToExcel(equipment, 'equipment');
+  };
+
   return (
     <div className="equipment-list">
       <div className="equipment-filters">
+        <button className="btn-export" onClick={handleExport} title="Експорт в Excel">
+          📊 Експорт
+        </button>
         <div className="filter-group">
           <label>Склад</label>
           <select
@@ -147,6 +167,16 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
               </div>
 
               <div className="card-actions">
+                <button
+                  className="btn-action btn-history"
+                  onClick={() => {
+                    setSelectedEquipment(item);
+                    setShowHistory(true);
+                  }}
+                  title="Історія"
+                >
+                  📋 Історія
+                </button>
                 {item.status === 'in_stock' && (
                   <>
                     <button
@@ -186,6 +216,16 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
             </div>
           ))}
         </div>
+      )}
+
+      {showHistory && selectedEquipment && (
+        <EquipmentHistoryModal
+          equipment={selectedEquipment}
+          onClose={() => {
+            setShowHistory(false);
+            setSelectedEquipment(null);
+          }}
+        />
       )}
     </div>
   );
