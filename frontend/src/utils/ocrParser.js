@@ -113,9 +113,27 @@ export const parseEquipmentData = (ocrText) => {
     }
   }
 
-  // PHASE: 3
-  const phaseMatch = text.match(/PHASE[:\s]+(\d+)/i);
-  if (phaseMatch) data.phase = parseInt(phaseMatch[1]);
+  // PHASE: 3 (різні формати)
+  let phaseMatch = text.match(/PHASE[:\s]+(\d+)/i);
+  if (phaseMatch) {
+    data.phase = parseInt(phaseMatch[1]);
+  } else {
+    // Якщо OCR розпізнав неточно, шукаємо число 3 після напруги або перед RPM
+    // Шукаємо "3" як окреме число (не частина іншого числа)
+    phaseMatch = text.match(/(?:^|\s|V|В)(3)(?:\s|$|RPM|Гц|HZ)/i);
+    if (phaseMatch) {
+      data.phase = 3;
+    } else {
+      // Спробуємо знайти будь-яке число 1-3 після напруги
+      const phaseAfterVoltage = text.match(/(?:400\/230|380\/220|230)(?:\s|°|°C)?\s*(\d{1})(?:\s|$|A|А|RPM)/i);
+      if (phaseAfterVoltage) {
+        const phaseValue = parseInt(phaseAfterVoltage[1]);
+        if (phaseValue >= 1 && phaseValue <= 3) {
+          data.phase = phaseValue;
+        }
+      }
+    }
+  }
 
   // V: 400/230 (різні формати)
   let voltageMatch = text.match(/V[:\s]+([\d\/]+)/i);
@@ -224,19 +242,41 @@ export const parseEquipmentData = (ocrText) => {
   } else {
     // Якщо OCR розпізнав неточно, шукаємо число після розмірів (вага зазвичай 100-10000)
     // Шукаємо число, яке не є роком (не 2024) і не є частиною розмірів
-    weightMatch = text.match(/(?:^|\s)(\d{3,4})(?:\s|$)/);
+    // Вага зазвичай йде після розмірів або перед датою
+    weightMatch = text.match(/(?:^|\s|кг|KG)(\d{3,4})(?:\s|$|кг|KG|2024)/i);
     if (weightMatch) {
       const value = parseInt(weightMatch[1]);
-      // Вага зазвичай в діапазоні 100-10000, і не є роком
-      if (value >= 100 && value <= 10000 && value !== 2024 && value !== 1500 && value !== 50) {
+      // Вага зазвичай в діапазоні 100-10000, і не є роком, RPM, частотою
+      if (value >= 100 && value <= 10000 && value !== 2024 && value !== 1500 && value !== 50 && value !== 72 && value !== 40) {
         data.weight = value;
+      }
+    } else {
+      // Спробуємо знайти число перед датою виробництва
+      const weightBeforeDate = text.match(/(\d{3,4})\s+(?:2024|DATE|ДАТА)/i);
+      if (weightBeforeDate) {
+        const value = parseInt(weightBeforeDate[1]);
+        if (value >= 100 && value <= 10000) {
+          data.weight = value;
+        }
       }
     }
   }
 
-  // DATE: 2024
-  const dateMatch = text.match(/DATE[:\s]+(\d{4})/i);
-  if (dateMatch) data.manufactureDate = dateMatch[1];
+  // DATE: 2024 (різні формати)
+  let dateMatch = text.match(/DATE[:\s]+(\d{4})/i);
+  if (dateMatch) {
+    data.manufactureDate = dateMatch[1];
+  } else {
+    // Якщо OCR розпізнав неточно, шукаємо рік (2024, 2023, тощо)
+    // Шукаємо 4-значне число, яке є роком (2000-2099)
+    dateMatch = text.match(/(20\d{2})/);
+    if (dateMatch) {
+      const year = parseInt(dateMatch[1]);
+      if (year >= 2000 && year <= 2099) {
+        data.manufactureDate = dateMatch[1];
+      }
+    }
+  }
 
   return data;
 };
