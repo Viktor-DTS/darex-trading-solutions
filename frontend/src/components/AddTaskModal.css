@@ -132,6 +132,10 @@
   grid-template-columns: repeat(3, 1fr);
 }
 
+.form-row.two-cols {
+  grid-template-columns: 2fr 1fr;
+}
+
 .form-row.five-cols {
   grid-template-columns: repeat(5, 1fr);
 }
@@ -629,34 +633,34 @@
   resize: vertical;
 }
 
-/* Більше колонок для оптимізації простору */
-.accountant-mode .form-row {
-  grid-template-columns: repeat(4, 1fr); /* За замовчуванням 4 колонки */
-}
-
-.accountant-mode .form-row.four-cols {
+/* Більше колонок для оптимізації простору - за замовчуванням 4 колонки, але специфічні класи мають пріоритет */
+.accountant-mode .form-row:not(.two-cols):not(.three-cols):not(.four-cols):not(.five-cols):not(.six-cols):not(.seven-cols) {
   grid-template-columns: repeat(4, 1fr);
 }
 
+/* Спеціальні рядки для accountant-mode - мають вищий пріоритет */
+.accountant-mode .form-row.two-cols {
+  grid-template-columns: 2fr 1fr !important;
+}
+
 .accountant-mode .form-row.three-cols {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, 1fr) !important;
 }
 
-/* Спеціальні рядки для accountant-mode */
-.accountant-mode .form-row.seven-cols {
-  grid-template-columns: repeat(7, 1fr);
-}
-
-.accountant-mode .form-row.six-cols {
-  grid-template-columns: repeat(6, 1fr);
+.accountant-mode .form-row.four-cols {
+  grid-template-columns: repeat(4, 1fr) !important;
 }
 
 .accountant-mode .form-row.five-cols {
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, 1fr) !important;
 }
 
-.accountant-mode .form-row.two-cols {
-  grid-template-columns: 2fr 1fr;
+.accountant-mode .form-row.six-cols {
+  grid-template-columns: repeat(6, 1fr) !important;
+}
+
+.accountant-mode .form-row.seven-cols {
+  grid-template-columns: repeat(7, 1fr) !important;
 }
 
 .accountant-mode .form-row.seven-cols .form-group,
@@ -743,18 +747,7 @@
   color: #000000 !important;
 }
 
-/* Збільшуємо кількість колонок для оптимізації простору */
-.accountant-mode .form-row {
-  grid-template-columns: repeat(3, 1fr);
-}
-
-.accountant-mode .form-row.four-cols {
-  grid-template-columns: repeat(4, 1fr);
-}
-
-.accountant-mode .form-row.three-cols {
-  grid-template-columns: repeat(3, 1fr);
-}
+/* Видалено дублікат - використовуємо стилі вище */
 
 /* Компактні секції */
 .accountant-mode .section-header {
