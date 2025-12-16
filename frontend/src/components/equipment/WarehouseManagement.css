@@ -166,6 +166,7 @@
 }
 
 .warehouse-form input,
+.warehouse-form select,
 .warehouse-form textarea {
   width: 100%;
   padding: 12px;
@@ -179,10 +180,15 @@
 }
 
 .warehouse-form input:focus,
+.warehouse-form select:focus,
 .warehouse-form textarea:focus {
   outline: none;
   border-color: var(--primary, #00ff88);
   background: rgba(255, 255, 255, 0.08);
+}
+
+.warehouse-form select {
+  cursor: pointer;
 }
 
 .warehouse-form textarea {

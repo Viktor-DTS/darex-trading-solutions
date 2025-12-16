@@ -4,6 +4,7 @@ import './WarehouseManagement.css';
 
 function WarehouseManagement({ user }) {
   const [warehouses, setWarehouses] = useState([]);
+  const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingWarehouse, setEditingWarehouse] = useState(null);
@@ -16,7 +17,31 @@ function WarehouseManagement({ user }) {
 
   useEffect(() => {
     loadWarehouses();
+    loadRegions();
   }, []);
+
+  const loadRegions = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/regions`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Регіони можуть приходити як масив об'єктів {name} або масив рядків
+        const regionNames = data.map(r => r.name || r).filter(r => r && r !== 'Україна');
+        setRegions(regionNames);
+      } else {
+        // Fallback регіони
+        setRegions(['Київський', 'Дніпровський', 'Львівський', 'Хмельницький']);
+      }
+    } catch (error) {
+      console.error('Помилка завантаження регіонів:', error);
+      // Fallback регіони
+      setRegions(['Київський', 'Дніпровський', 'Львівський', 'Хмельницький']);
+    }
+  };
 
   const loadWarehouses = async () => {
     setLoading(true);
@@ -260,12 +285,17 @@ function WarehouseManagement({ user }) {
 
               <div className="form-group">
                 <label>Регіон</label>
-                <input
-                  type="text"
+                <select
                   value={formData.region}
                   onChange={(e) => handleInputChange('region', e.target.value)}
-                  placeholder="Регіон"
-                />
+                >
+                  <option value="">Виберіть регіон</option>
+                  {regions.map(region => (
+                    <option key={region} value={region}>
+                      {region}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="form-group">
