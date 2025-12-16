@@ -89,10 +89,10 @@
 }
 
 .task-form {
-  padding: 20px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .form-error {
@@ -107,7 +107,7 @@
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 10px;
 }
 
 .form-row.four-cols {
@@ -127,19 +127,18 @@
 .form-group label {
   color: var(--text-primary);
   font-weight: 500;
-  font-size: 15px;
-  margin-bottom: 6px;
+  font-size: 11px;
 }
 
 .form-group input,
 .form-group select,
 .form-group textarea {
-  padding: 12px 14px;
+  padding: 6px 8px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: #ffffff;
   color: #333333;
-  font-size: 15px;
+  font-size: 11px;
   font-family: inherit;
   transition: border-color 0.2s;
 }
@@ -160,7 +159,7 @@
 
 .form-group textarea {
   resize: vertical;
-  min-height: 70px;
+  min-height: 45px;
 }
 
 .checkbox-group {
