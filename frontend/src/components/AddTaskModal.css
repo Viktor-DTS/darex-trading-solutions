@@ -44,7 +44,8 @@
   background: var(--surface);
   border-radius: 10px;
   width: 100%;
-  max-width: 1800px;
+  max-width: 1800px !important;
+  min-width: 1600px;
   max-height: 92vh;
   overflow-y: auto;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
@@ -574,6 +575,7 @@
 .accountant-mode .modal-content {
   background: #f5f5f5 !important; /* Світлий фон як в оригінальному проекті */
   max-width: 95vw !important; /* Ширша форма для бухгалтерів */
+  min-width: 1600px !important;
 }
 
 .accountant-mode .task-form {
@@ -1115,7 +1117,8 @@
   }
   
   .modal-content {
-    max-width: 100%;
+    max-width: 100% !important;
+    min-width: auto !important;
     margin: 10px;
   }
 }
