@@ -3166,15 +3166,27 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
       return res.status(401).json({ error: 'Користувач не знайдено' });
     }
     
-    // Перевірка на дублікат
-    if (equipmentData.serialNumber) {
-      const existing = await Equipment.findOne({ serialNumber: equipmentData.serialNumber });
+    // Перевірка на дублікат: комбінація Тип + Серійний номер повинна бути унікальною
+    if (equipmentData.type && equipmentData.serialNumber) {
+      const existing = await Equipment.findOne({ 
+        type: equipmentData.type,
+        serialNumber: equipmentData.serialNumber
+      });
       if (existing) {
         return res.status(400).json({ 
-          error: 'Обладнання з таким серійним номером вже існує',
-          existing: existing
+          error: 'Обладнання з таким типом та серійним номером вже існує. Тип обладнання та серійний номер разом повинні бути унікальними.',
+          existing: {
+            type: existing.type,
+            serialNumber: existing.serialNumber,
+            currentWarehouse: existing.currentWarehouseName,
+            id: existing._id
+          }
         });
       }
+    } else if (!equipmentData.type || !equipmentData.serialNumber) {
+      return res.status(400).json({ 
+        error: 'Тип обладнання та серійний номер обов\'язкові для перевірки унікальності'
+      });
     }
     
     const equipment = await Equipment.create({

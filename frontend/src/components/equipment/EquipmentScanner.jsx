@@ -359,8 +359,15 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
           onClose && onClose();
         }, 2000);
       } else {
-        const error = await response.json();
-        setErrors([error.error || 'Помилка збереження']);
+        const errorData = await response.json();
+        let errorMessage = errorData.error || 'Помилка збереження';
+        
+        // Якщо це помилка дублікату, показуємо детальну інформацію
+        if (errorData.existing) {
+          errorMessage = `${errorMessage}\n\nІснуюче обладнання:\nТип: ${errorData.existing.type}\nСерійний номер: ${errorData.existing.serialNumber}\nСклад: ${errorData.existing.currentWarehouse || 'Не вказано'}`;
+        }
+        
+        setErrors([errorMessage]);
       }
     } catch (error) {
       console.error('Помилка збереження:', error);
