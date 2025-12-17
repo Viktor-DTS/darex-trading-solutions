@@ -3174,9 +3174,15 @@ app.post('/api/equipment/ocr', authenticateToken, uploadEquipmentPhotoForOCR.sin
     // Використовуємо GOOGLE_GEOCODING_API_KEY (який вже налаштований) для Google Vision API
     const GOOGLE_VISION_API_KEY = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_GEOCODING_API_KEY;
     
+    // Детальне логування для діагностики
+    console.log('[OCR] Перевірка Google API ключа:');
+    console.log('[OCR] GOOGLE_VISION_API_KEY exists:', !!process.env.GOOGLE_VISION_API_KEY);
+    console.log('[OCR] GOOGLE_GEOCODING_API_KEY exists:', !!process.env.GOOGLE_GEOCODING_API_KEY);
+    console.log('[OCR] Використаний ключ exists:', !!GOOGLE_VISION_API_KEY);
+    
     if (!GOOGLE_VISION_API_KEY) {
-      console.error('[OCR] Google API ключ не знайдено. Перевірте GOOGLE_VISION_API_KEY або GOOGLE_GEOCODING_API_KEY');
-      return res.status(400).json({ error: 'Google Vision API ключ не налаштовано' });
+      console.error('[OCR] Google API ключ не знайдено. Перевірте GOOGLE_VISION_API_KEY або GOOGLE_GEOCODING_API_KEY в змінних середовища');
+      return res.status(400).json({ error: 'Google Vision API ключ не налаштовано. Перевірте змінні середовища на сервері.' });
     }
     
     const apiKeySource = process.env.GOOGLE_VISION_API_KEY ? 'GOOGLE_VISION_API_KEY' : 'GOOGLE_GEOCODING_API_KEY';

@@ -135,33 +135,19 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
           g = Math.max(0, Math.min(255, g * brightness));
           b = Math.max(0, Math.min(255, b * brightness));
           
-          // Адаптивна бінаризація для кращого розпізнавання тексту
+          // Спрощена обробка для кращого розпізнавання тексту
           const gray = 0.299 * r + 0.587 * g + 0.114 * b;
           
-          // Для металевих поверхонь: посилюємо контраст між текстом та фоном
-          if (gray < threshold - 30) {
-            // Темні області (текст) - робимо ще темнішими
-            r = Math.max(0, r * 0.5);
-            g = Math.max(0, g * 0.5);
-            b = Math.max(0, b * 0.5);
-          } else if (gray > threshold + 30) {
-            // Світлі області (фон) - робимо світлішими
-            r = Math.min(255, r * 1.3);
-            g = Math.min(255, g * 1.3);
-            b = Math.min(255, b * 1.3);
-          }
-          
-          // Менш агресивна обробка для кращого розпізнавання
-          // Замість повної бінаризації, просто посилюємо контраст
-          if (gray < threshold - 20) {
-            // Темні області (текст) - трохи темніші
-            const darkenFactor = 0.8;
+          // Менш агресивна обробка - тільки посилення контрасту без подвійної обробки
+          if (gray < threshold - 25) {
+            // Темні області (текст) - трохи темніші для кращого контрасту
+            const darkenFactor = 0.85;
             r = Math.max(0, r * darkenFactor);
             g = Math.max(0, g * darkenFactor);
             b = Math.max(0, b * darkenFactor);
-          } else if (gray > threshold + 20) {
+          } else if (gray > threshold + 25) {
             // Світлі області (фон) - трохи світліші
-            const lightenFactor = 1.15;
+            const lightenFactor = 1.1;
             r = Math.min(255, r * lightenFactor);
             g = Math.min(255, g * lightenFactor);
             b = Math.min(255, b * lightenFactor);
@@ -181,8 +167,8 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
         sharpnessCanvas.height = canvas.height;
         const sharpnessCtx = sharpnessCanvas.getContext('2d');
         
-        // Застосовуємо фільтр різкості та контрасту
-        sharpnessCtx.filter = 'contrast(1.3) saturate(1.2) brightness(1.05)';
+        // Застосовуємо фільтр різкості та контрасту (менш агресивно)
+        sharpnessCtx.filter = 'contrast(1.15) saturate(1.1) brightness(1.02)';
         sharpnessCtx.drawImage(canvas, 0, 0);
         
         // Використовуємо покращене зображення
@@ -295,11 +281,27 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
         }
       }
       
-      // Якщо Google Vision не дав результату, використовуємо Tesseract з обробленим зображенням
+      // Якщо Google Vision не дав результату, використовуємо Tesseract
       if (!text || text.trim().length < 10) {
         console.log('[OCR] Використовуємо Tesseract для розпізнавання...');
         const worker = await createWorker('eng+ukr');
-        const { data: { text: tesseractText } } = await worker.recognize(enhancedImageData);
+        
+        // Спочатку пробуємо з обробленим зображенням
+        let { data: { text: tesseractText } } = await worker.recognize(enhancedImageData);
+        
+        // Якщо результат поганий (багато символів, але мало слів), пробуємо з оригіналом
+        const words = tesseractText.trim().split(/\s+/).filter(w => w.length > 2);
+        if (words.length < 3 && originalImageData) {
+          console.log('[OCR] Оброблене зображення дало поганий результат, пробуємо оригінал...');
+          const { data: { text: originalText } } = await worker.recognize(originalImageData);
+          const originalWords = originalText.trim().split(/\s+/).filter(w => w.length > 2);
+          // Вибираємо кращий результат
+          if (originalWords.length > words.length) {
+            tesseractText = originalText;
+            console.log('[OCR] Оригінальне зображення дало кращий результат');
+          }
+        }
+        
         await worker.terminate();
         text = tesseractText;
         console.log('[OCR] Tesseract розпізнав текст:', text.substring(0, 100) + '...');
