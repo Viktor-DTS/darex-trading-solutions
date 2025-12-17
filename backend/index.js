@@ -3195,52 +3195,73 @@ app.post('/api/equipment/ocr', authenticateToken, uploadEquipmentPhotoForOCR.sin
     }
     
     const base64Image = req.file.buffer.toString('base64');
-
     console.log(`[OCR] Розмір base64 зображення: ${base64Image.length} символів`);
-
-    // Використовуємо Google Vision API через REST з base64
-    const visionResponse = await fetch(
-      `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          requests: [
-            {
-              image: {
-                content: base64Image
-              },
-              features: [
-                {
-                  type: 'TEXT_DETECTION',
-                  maxResults: 10
-                }
-              ],
-              imageContext: {
-                languageHints: ['uk', 'en', 'ru'] // Підказки мов для кращого розпізнавання
-              }
-            }
-          ]
-        })
-      }
-    );
-
-    if (!visionResponse.ok) {
-      const errorData = await visionResponse.json().catch(() => ({ error: { message: 'Невідома помилка' } }));
-      console.error('[OCR] Помилка Google Vision API:', errorData);
-      throw new Error(errorData.error?.message || `Помилка Google Vision API: ${visionResponse.status}`);
+    
+    // Перевірка розміру (Google Vision API має обмеження ~20MB для base64)
+    if (base64Image.length > 20 * 1024 * 1024) {
+      console.warn('[OCR] Зображення занадто велике для Google Vision API, використовуємо Tesseract');
+      return res.status(400).json({ error: 'Зображення занадто велике', useTesseract: true });
     }
 
-    const result = await visionResponse.json();
-    const text = result.responses?.[0]?.fullTextAnnotation?.text || 
-                  result.responses?.[0]?.textAnnotations?.[0]?.description || '';
-    
-    console.log(`[OCR] Розпізнано текст довжиною: ${text.length} символів`);
-    
-    logPerformance('POST /api/equipment/ocr', startTime);
-    res.json({ text });
+    // Використовуємо Google Vision API через REST з base64
+    try {
+      const visionResponse = await fetch(
+        `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            requests: [
+              {
+                image: {
+                  content: base64Image
+                },
+                features: [
+                  {
+                    type: 'TEXT_DETECTION',
+                    maxResults: 10
+                  }
+                ],
+                imageContext: {
+                  languageHints: ['uk', 'en', 'ru'] // Підказки мов для кращого розпізнавання
+                }
+              }
+            ]
+          })
+        }
+      );
+
+      if (!visionResponse.ok) {
+        const errorData = await visionResponse.json().catch(() => ({ error: { message: 'Невідома помилка' } }));
+        console.error('[OCR] Помилка Google Vision API:', visionResponse.status, errorData);
+        
+        // Якщо помилка 400 або 403 - ключ не валідний або немає доступу
+        // Якщо помилка 500 - тимчасова проблема з Google
+        // В обох випадках повертаємо помилку, щоб фронтенд використав Tesseract
+        return res.status(visionResponse.status).json({ 
+          error: errorData.error?.message || `Помилка Google Vision API: ${visionResponse.status}`,
+          useTesseract: true 
+        });
+      }
+
+      const result = await visionResponse.json();
+      const text = result.responses?.[0]?.fullTextAnnotation?.text || 
+                    result.responses?.[0]?.textAnnotations?.[0]?.description || '';
+      
+      console.log(`[OCR] Розпізнано текст довжиною: ${text.length} символів`);
+      
+      logPerformance('POST /api/equipment/ocr', startTime);
+      res.json({ text });
+    } catch (visionError) {
+      // Якщо помилка мережі або інша помилка - повертаємо помилку для fallback на Tesseract
+      console.error('[OCR] Помилка запиту до Google Vision API:', visionError);
+      return res.status(500).json({ 
+        error: visionError.message || 'Помилка з\'єднання з Google Vision API',
+        useTesseract: true 
+      });
+    }
   } catch (error) {
     console.error('[ERROR] POST /api/equipment/ocr:', error);
     logPerformance('POST /api/equipment/ocr', startTime);

@@ -258,7 +258,12 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
         }
       } else {
         const errorData = await ocrResponse.json().catch(() => ({}));
-        console.warn('[OCR] Google Vision API помилка:', ocrResponse.status, errorData);
+        // Якщо сервер повертає useTesseract: true, це нормально - використаємо Tesseract
+        if (errorData.useTesseract) {
+          console.log('[OCR] Google Vision API недоступний, використовуємо Tesseract');
+        } else {
+          console.warn('[OCR] Google Vision API помилка:', ocrResponse.status, errorData);
+        }
       }
       return null;
     } catch (error) {
