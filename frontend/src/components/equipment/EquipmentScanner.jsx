@@ -24,9 +24,51 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
-      });
+      // Спочатку пробуємо отримати список доступних камер
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      
+      // Налаштування для максимальної якості та макро режиму
+      const constraints = {
+        video: {
+          facingMode: 'environment',
+          // Максимальне розрішення
+          width: { ideal: 4096 },
+          height: { ideal: 2160 },
+          // Режим макро (фокус на близькі об'єкти)
+          focusMode: 'manual',
+          // Додаткові налаштування для кращої якості
+          aspectRatio: { ideal: 16/9 },
+          frameRate: { ideal: 30 }
+        }
+      };
+
+      let stream;
+      try {
+        // Пробуємо з макро режимом
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        // Намагаємося встановити фокус на близькі об'єкти (макро)
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities();
+        
+        if (capabilities.focusMode && capabilities.focusMode.includes('manual')) {
+          try {
+            await track.applyConstraints({
+              advanced: [{ focusMode: 'manual', focusDistance: 0.1 }]
+            });
+          } catch (focusError) {
+            console.log('Макро режим не підтримується, використовуємо автофокус');
+          }
+        }
+      } catch (highQualityError) {
+        console.log('Високоякісний режим не підтримується, використовуємо стандартний');
+        // Fallback до стандартного режиму
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'environment' } 
+        });
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
@@ -44,32 +86,127 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
     }
   };
 
-  const capturePhoto = () => {
+  const enhanceImage = (imageSrc) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Встановлюємо розміри canvas на розміри зображення
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Малюємо оригінальне зображення
+        ctx.drawImage(img, 0, 0);
+        
+        // Отримуємо дані пікселів
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        // Покращення контрасту та яскравості
+        const contrast = 1.8; // Підвищений контраст для кращого розпізнавання тексту
+        const brightness = 1.1; // Невелике підвищення яскравості
+        
+        for (let i = 0; i < data.length; i += 4) {
+          let r = data[i];
+          let g = data[i + 1];
+          let b = data[i + 2];
+          
+          // Застосовуємо контраст
+          const factor = (259 * (contrast * 255 + 255)) / (255 * (259 - contrast * 255));
+          r = Math.max(0, Math.min(255, factor * (r - 128) + 128));
+          g = Math.max(0, Math.min(255, factor * (g - 128) + 128));
+          b = Math.max(0, Math.min(255, factor * (b - 128) + 128));
+          
+          // Застосовуємо яскравість
+          r = Math.max(0, Math.min(255, r * brightness));
+          g = Math.max(0, Math.min(255, g * brightness));
+          b = Math.max(0, Math.min(255, b * brightness));
+          
+          // Покращення для тексту: збільшуємо різницю між темними та світлими областями
+          const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+          if (gray < 140) {
+            // Темні області (текст) - робимо темнішими
+            r = Math.max(0, r * 0.7);
+            g = Math.max(0, g * 0.7);
+            b = Math.max(0, b * 0.7);
+          } else if (gray > 180) {
+            // Світлі області (фон) - робимо світлішими
+            r = Math.min(255, r * 1.2);
+            g = Math.min(255, g * 1.2);
+            b = Math.min(255, b * 1.2);
+          }
+          
+          data[i] = r;
+          data[i + 1] = g;
+          data[i + 2] = b;
+        }
+        
+        // Застосовуємо покращені дані
+        ctx.putImageData(imageData, 0, 0);
+        
+        // Додаткове покращення різкості через фільтр
+        const sharpnessCanvas = document.createElement('canvas');
+        sharpnessCanvas.width = canvas.width;
+        sharpnessCanvas.height = canvas.height;
+        const sharpnessCtx = sharpnessCanvas.getContext('2d');
+        
+        // Застосовуємо фільтр різкості (unsharp mask)
+        sharpnessCtx.filter = 'contrast(1.2) saturate(1.1)';
+        sharpnessCtx.drawImage(canvas, 0, 0);
+        
+        // Використовуємо покращене зображення
+        canvas.width = sharpnessCanvas.width;
+        canvas.height = sharpnessCanvas.height;
+        ctx.drawImage(sharpnessCanvas, 0, 0);
+        
+        // Конвертуємо в base64 з високою якістю
+        const enhancedDataUrl = canvas.toDataURL('image/jpeg', 1.0);
+        resolve(enhancedDataUrl);
+      };
+      img.src = imageSrc;
+    });
+  };
+
+  const capturePhoto = async () => {
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
+      // Використовуємо максимальне розрішення з відео
       canvas.width = videoRef.current.videoWidth;
       canvas.height = videoRef.current.videoHeight;
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(videoRef.current, 0, 0);
-      const dataUrl = canvas.toDataURL('image/jpeg');
-      setImagePreview(dataUrl);
-      setImage(dataUrl);
+      
+      // Малюємо кадр з максимальною якістю
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      
+      // Зберігаємо оригінальне зображення для preview
+      const originalDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      setImagePreview(originalDataUrl);
+      
+      // Покращуємо зображення для OCR
+      const enhancedDataUrl = await enhanceImage(originalDataUrl);
+      setImage(enhancedDataUrl);
+      
       stopCamera();
       setStep('processing');
-      processImage(dataUrl);
+      processImage(enhancedDataUrl);
     }
   };
 
-  const handleFileSelect = (e) => {
+  const handleFileSelect = async (e) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const dataUrl = e.target.result;
         setImagePreview(dataUrl);
-        setImage(dataUrl);
+        
+        // Покращуємо зображення перед OCR
+        const enhancedDataUrl = await enhanceImage(dataUrl);
+        setImage(enhancedDataUrl);
         setStep('processing');
-        processImage(dataUrl);
+        processImage(enhancedDataUrl);
       };
       reader.readAsDataURL(file);
     }
