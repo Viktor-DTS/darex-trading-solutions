@@ -163,6 +163,14 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
         }
       }
       
+      // Очищаємо значення "не визначено" перед відправкою
+      const cleanedData = { ...equipmentData };
+      Object.keys(cleanedData).forEach(key => {
+        if (cleanedData[key] === 'не визначено' || cleanedData[key] === '') {
+          cleanedData[key] = key === 'phase' || key === 'amperage' || key === 'rpm' || key === 'weight' ? null : '';
+        }
+      });
+      
       const response = await fetch(`${API_BASE_URL}/equipment/scan`, {
         method: 'POST',
         headers: {
@@ -170,7 +178,7 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          ...equipmentData,
+          ...cleanedData,
           photoUrl: photoUrl,
           cloudinaryId: cloudinaryId,
           ocrData: { text: ocrText }
@@ -316,8 +324,20 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
                 <label>Резервна потужність</label>
                 <input
                   type="text"
-                  value={equipmentData.standbyPower || ''}
-                  onChange={(e) => handleInputChange('standbyPower', e.target.value)}
+                  className={!equipmentData.standbyPower ? 'undefined-field' : ''}
+                  value={equipmentData.standbyPower || 'не визначено'}
+                  onChange={(e) => handleInputChange('standbyPower', e.target.value === 'не визначено' ? '' : e.target.value)}
+                  onFocus={(e) => {
+                    if (e.target.value === 'не визначено') {
+                      e.target.value = '';
+                      handleInputChange('standbyPower', '');
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '') {
+                      handleInputChange('standbyPower', '');
+                    }
+                  }}
                   placeholder="50/40 KVA/KW"
                 />
               </div>
@@ -325,8 +345,20 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
                 <label>Основна потужність</label>
                 <input
                   type="text"
-                  value={equipmentData.primePower || ''}
-                  onChange={(e) => handleInputChange('primePower', e.target.value)}
+                  className={!equipmentData.primePower ? 'undefined-field' : ''}
+                  value={equipmentData.primePower || 'не визначено'}
+                  onChange={(e) => handleInputChange('primePower', e.target.value === 'не визначено' ? '' : e.target.value)}
+                  onFocus={(e) => {
+                    if (e.target.value === 'не визначено') {
+                      e.target.value = '';
+                      handleInputChange('primePower', '');
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '') {
+                      handleInputChange('primePower', '');
+                    }
+                  }}
                   placeholder="45/36 KVA/KW"
                 />
               </div>
@@ -336,9 +368,23 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
               <div className="form-group">
                 <label>Фази</label>
                 <input
-                  type="number"
-                  value={equipmentData.phase || ''}
-                  onChange={(e) => handleInputChange('phase', parseInt(e.target.value) || null)}
+                  type="text"
+                  className={equipmentData.phase === null || equipmentData.phase === undefined ? 'undefined-field' : ''}
+                  value={equipmentData.phase !== null && equipmentData.phase !== undefined ? equipmentData.phase : 'не визначено'}
+                  onChange={(e) => {
+                    const val = e.target.value === 'не визначено' ? '' : e.target.value;
+                    handleInputChange('phase', val === '' ? null : (isNaN(parseInt(val)) ? null : parseInt(val)));
+                  }}
+                  onFocus={(e) => {
+                    if (e.target.value === 'не визначено') {
+                      e.target.value = '';
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '') {
+                      handleInputChange('phase', null);
+                    }
+                  }}
                   placeholder="3"
                 />
               </div>
@@ -346,8 +392,20 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
                 <label>Напруга</label>
                 <input
                   type="text"
-                  value={equipmentData.voltage || ''}
-                  onChange={(e) => handleInputChange('voltage', e.target.value)}
+                  className={!equipmentData.voltage ? 'undefined-field' : ''}
+                  value={equipmentData.voltage || 'не визначено'}
+                  onChange={(e) => handleInputChange('voltage', e.target.value === 'не визначено' ? '' : e.target.value)}
+                  onFocus={(e) => {
+                    if (e.target.value === 'не визначено') {
+                      e.target.value = '';
+                      handleInputChange('voltage', '');
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '') {
+                      handleInputChange('voltage', '');
+                    }
+                  }}
                   placeholder="400/230"
                 />
               </div>
@@ -357,18 +415,46 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
               <div className="form-group">
                 <label>Струм (A)</label>
                 <input
-                  type="number"
-                  value={equipmentData.amperage || ''}
-                  onChange={(e) => handleInputChange('amperage', parseInt(e.target.value) || null)}
+                  type="text"
+                  className={equipmentData.amperage === null || equipmentData.amperage === undefined ? 'undefined-field' : ''}
+                  value={equipmentData.amperage !== null && equipmentData.amperage !== undefined ? equipmentData.amperage : 'не визначено'}
+                  onChange={(e) => {
+                    const val = e.target.value === 'не визначено' ? '' : e.target.value;
+                    handleInputChange('amperage', val === '' ? null : (isNaN(parseInt(val)) ? null : parseInt(val)));
+                  }}
+                  onFocus={(e) => {
+                    if (e.target.value === 'не визначено') {
+                      e.target.value = '';
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '') {
+                      handleInputChange('amperage', null);
+                    }
+                  }}
                   placeholder="72"
                 />
               </div>
               <div className="form-group">
                 <label>RPM</label>
                 <input
-                  type="number"
-                  value={equipmentData.rpm || ''}
-                  onChange={(e) => handleInputChange('rpm', parseInt(e.target.value) || null)}
+                  type="text"
+                  className={equipmentData.rpm === null || equipmentData.rpm === undefined ? 'undefined-field' : ''}
+                  value={equipmentData.rpm !== null && equipmentData.rpm !== undefined ? equipmentData.rpm : 'не визначено'}
+                  onChange={(e) => {
+                    const val = e.target.value === 'не визначено' ? '' : e.target.value;
+                    handleInputChange('rpm', val === '' ? null : (isNaN(parseInt(val)) ? null : parseInt(val)));
+                  }}
+                  onFocus={(e) => {
+                    if (e.target.value === 'не визначено') {
+                      e.target.value = '';
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '') {
+                      handleInputChange('rpm', null);
+                    }
+                  }}
                   placeholder="1500"
                 />
               </div>
@@ -378,8 +464,20 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
               <label>Розміри (мм)</label>
               <input
                 type="text"
-                value={equipmentData.dimensions || ''}
-                onChange={(e) => handleInputChange('dimensions', e.target.value)}
+                className={!equipmentData.dimensions ? 'undefined-field' : ''}
+                value={equipmentData.dimensions || 'не визначено'}
+                onChange={(e) => handleInputChange('dimensions', e.target.value === 'не визначено' ? '' : e.target.value)}
+                onFocus={(e) => {
+                  if (e.target.value === 'не визначено') {
+                    e.target.value = '';
+                    handleInputChange('dimensions', '');
+                  }
+                }}
+                onBlur={(e) => {
+                  if (e.target.value === '') {
+                    handleInputChange('dimensions', '');
+                  }
+                }}
                 placeholder="2280 x 950 x 1250"
               />
             </div>
@@ -387,9 +485,23 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
             <div className="form-group">
               <label>Вага (кг)</label>
               <input
-                type="number"
-                value={equipmentData.weight || ''}
-                onChange={(e) => handleInputChange('weight', parseInt(e.target.value) || null)}
+                type="text"
+                className={equipmentData.weight === null || equipmentData.weight === undefined ? 'undefined-field' : ''}
+                value={equipmentData.weight !== null && equipmentData.weight !== undefined ? equipmentData.weight : 'не визначено'}
+                onChange={(e) => {
+                  const val = e.target.value === 'не визначено' ? '' : e.target.value;
+                  handleInputChange('weight', val === '' ? null : (isNaN(parseInt(val)) ? null : parseInt(val)));
+                }}
+                onFocus={(e) => {
+                  if (e.target.value === 'не визначено') {
+                    e.target.value = '';
+                  }
+                }}
+                onBlur={(e) => {
+                  if (e.target.value === '') {
+                    handleInputChange('weight', null);
+                  }
+                }}
                 placeholder="940"
               />
             </div>
@@ -398,8 +510,20 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
               <label>Дата виробництва</label>
               <input
                 type="text"
-                value={equipmentData.manufactureDate || ''}
-                onChange={(e) => handleInputChange('manufactureDate', e.target.value)}
+                className={!equipmentData.manufactureDate ? 'undefined-field' : ''}
+                value={equipmentData.manufactureDate || 'не визначено'}
+                onChange={(e) => handleInputChange('manufactureDate', e.target.value === 'не визначено' ? '' : e.target.value)}
+                onFocus={(e) => {
+                  if (e.target.value === 'не визначено') {
+                    e.target.value = '';
+                    handleInputChange('manufactureDate', '');
+                  }
+                }}
+                onBlur={(e) => {
+                  if (e.target.value === '') {
+                    handleInputChange('manufactureDate', '');
+                  }
+                }}
                 placeholder="2024"
               />
             </div>

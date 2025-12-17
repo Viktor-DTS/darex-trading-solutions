@@ -267,6 +267,12 @@
   box-sizing: border-box;
 }
 
+/* Стилі для полів з "не визначено" */
+.form-group input.undefined-field {
+  color: var(--text-secondary, #8b949e);
+  font-style: italic;
+}
+
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
