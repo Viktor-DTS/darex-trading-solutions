@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useImperativeHandle, forwardRef } from 'react';
 import API_BASE_URL from '../../config';
 import { exportEquipmentToExcel } from '../../utils/equipmentExport';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
@@ -25,7 +25,7 @@ const ALL_COLUMNS = [
   { key: 'manufactureDate', label: 'Дата виробництва', width: 150 }
 ];
 
-function EquipmentList({ user, warehouses, onMove, onShip }) {
+const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => {
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
@@ -102,6 +102,11 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
   const refreshEquipment = () => {
     loadEquipment();
   };
+
+  // Експортуємо метод оновлення через ref
+  useImperativeHandle(ref, () => ({
+    refresh: refreshEquipment
+  }));
 
   const handleColumnFilterChange = (columnKey, value) => {
     setColumnFilters(prev => ({
@@ -611,6 +616,6 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
       )}
     </div>
   );
-}
+});
 
 export default EquipmentList;

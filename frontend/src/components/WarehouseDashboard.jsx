@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import TaskTable from './TaskTable';
 import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
@@ -23,6 +23,7 @@ function WarehouseDashboard({ user }) {
   const [tasks, setTasks] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const equipmentListRef = useRef(null);
 
   // Завантаження завдань та складів
   useEffect(() => {
@@ -198,7 +199,10 @@ function WarehouseDashboard({ user }) {
 
   const handleEquipmentAdded = () => {
     setShowScanner(false);
-    // Оновлення списку відбудеться через EquipmentList
+    // Оновлюємо список обладнання
+    if (equipmentListRef.current) {
+      equipmentListRef.current.refresh();
+    }
   };
 
   const handleMove = (equipment) => {
@@ -268,6 +272,7 @@ function WarehouseDashboard({ user }) {
                 </button>
               </div>
               <EquipmentList
+                ref={equipmentListRef}
                 user={user}
                 warehouses={warehouses}
                 onMove={handleMove}
