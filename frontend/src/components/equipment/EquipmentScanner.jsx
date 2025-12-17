@@ -104,9 +104,20 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
         
-        // Покращення контрасту та яскравості
-        const contrast = 1.8; // Підвищений контраст для кращого розпізнавання тексту
-        const brightness = 1.1; // Невелике підвищення яскравості
+        // Обчислюємо середню яскравість для адаптивної обробки
+        let totalBrightness = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+          totalBrightness += gray;
+        }
+        const avgBrightness = totalBrightness / (data.length / 4);
+        
+        // Адаптивні параметри на основі середньої яскравості
+        const contrast = avgBrightness < 100 ? 2.2 : 1.9; // Більший контраст для темних зображень
+        const brightness = avgBrightness < 100 ? 1.2 : 1.05;
+        
+        // Обчислюємо адаптивний поріг для бінаризації
+        const threshold = avgBrightness;
         
         for (let i = 0; i < data.length; i += 4) {
           let r = data[i];
@@ -124,18 +135,36 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
           g = Math.max(0, Math.min(255, g * brightness));
           b = Math.max(0, Math.min(255, b * brightness));
           
-          // Покращення для тексту: збільшуємо різницю між темними та світлими областями
+          // Адаптивна бінаризація для кращого розпізнавання тексту
           const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-          if (gray < 140) {
-            // Темні області (текст) - робимо темнішими
-            r = Math.max(0, r * 0.7);
-            g = Math.max(0, g * 0.7);
-            b = Math.max(0, b * 0.7);
-          } else if (gray > 180) {
+          
+          // Для металевих поверхонь: посилюємо контраст між текстом та фоном
+          if (gray < threshold - 30) {
+            // Темні області (текст) - робимо ще темнішими
+            r = Math.max(0, r * 0.5);
+            g = Math.max(0, g * 0.5);
+            b = Math.max(0, b * 0.5);
+          } else if (gray > threshold + 30) {
             // Світлі області (фон) - робимо світлішими
-            r = Math.min(255, r * 1.2);
-            g = Math.min(255, g * 1.2);
-            b = Math.min(255, b * 1.2);
+            r = Math.min(255, r * 1.3);
+            g = Math.min(255, g * 1.3);
+            b = Math.min(255, b * 1.3);
+          }
+          
+          // М'яка бінаризація для кращого OCR (не повна бінаризація, але близько)
+          const binaryThreshold = threshold;
+          if (gray < binaryThreshold) {
+            // Текст - робимо чорним
+            const darkenFactor = 0.3;
+            r = Math.max(0, r * darkenFactor);
+            g = Math.max(0, g * darkenFactor);
+            b = Math.max(0, b * darkenFactor);
+          } else {
+            // Фон - робимо білим
+            const lightenFactor = 1.5;
+            r = Math.min(255, r * lightenFactor);
+            g = Math.min(255, g * lightenFactor);
+            b = Math.min(255, b * lightenFactor);
           }
           
           data[i] = r;
@@ -152,8 +181,8 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
         sharpnessCanvas.height = canvas.height;
         const sharpnessCtx = sharpnessCanvas.getContext('2d');
         
-        // Застосовуємо фільтр різкості (unsharp mask)
-        sharpnessCtx.filter = 'contrast(1.2) saturate(1.1)';
+        // Застосовуємо фільтр різкості та контрасту
+        sharpnessCtx.filter = 'contrast(1.3) saturate(1.2) brightness(1.05)';
         sharpnessCtx.drawImage(canvas, 0, 0);
         
         // Використовуємо покращене зображення
