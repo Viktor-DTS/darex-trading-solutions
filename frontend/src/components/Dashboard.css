@@ -494,6 +494,16 @@
   border-bottom: 1px solid var(--border-color, #1a2332);
 }
 
+.equipment-header-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.equipment-header-buttons .btn-primary {
+  white-space: nowrap;
+}
+
 .equipment-tab-header h2 {
   margin: 0;
   font-size: 24px;

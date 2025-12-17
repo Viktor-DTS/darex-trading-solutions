@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config';
+import EquipmentScanner from './EquipmentScanner';
 import './EquipmentEditModal.css';
 
-function EquipmentEditModal({ equipment, warehouses, onClose, onSuccess }) {
+function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess }) {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showScanner, setShowScanner] = useState(false);
+  const isNewEquipment = !equipment;
 
   useEffect(() => {
     if (equipment) {
@@ -18,16 +21,35 @@ function EquipmentEditModal({ equipment, warehouses, onClose, onSuccess }) {
         region: equipment.region || '',
         standbyPower: equipment.standbyPower || '',
         primePower: equipment.primePower || '',
-        phases: equipment.phase !== undefined ? String(equipment.phase) : '',
+        phase: equipment.phase !== undefined ? String(equipment.phase) : '',
         voltage: equipment.voltage || '',
-        current: equipment.amperage !== undefined ? String(equipment.amperage) : '',
+        amperage: equipment.amperage !== undefined ? String(equipment.amperage) : '',
         rpm: equipment.rpm !== undefined ? String(equipment.rpm) : '',
         dimensions: equipment.dimensions || '',
         weight: equipment.weight !== undefined ? String(equipment.weight) : '',
         manufactureDate: equipment.manufactureDate ? new Date(equipment.manufactureDate).toISOString().split('T')[0] : ''
       });
+    } else {
+      // Ініціалізація для нового обладнання
+      setFormData({
+        manufacturer: '',
+        type: '',
+        serialNumber: '',
+        currentWarehouse: user?.region || '',
+        currentWarehouseName: '',
+        region: user?.region || '',
+        standbyPower: '',
+        primePower: '',
+        phase: '',
+        voltage: '',
+        amperage: '',
+        rpm: '',
+        dimensions: '',
+        weight: '',
+        manufactureDate: ''
+      });
     }
-  }, [equipment]);
+  }, [equipment, user]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -72,10 +94,33 @@ function EquipmentEditModal({ equipment, warehouses, onClose, onSuccess }) {
         }
       });
       
+      // Обробка числових полів
+      if (updateData.phase) {
+        const phaseNum = parseFloat(updateData.phase);
+        updateData.phase = isNaN(phaseNum) ? null : phaseNum;
+      }
+      if (updateData.amperage) {
+        const amperageNum = parseFloat(updateData.amperage);
+        updateData.amperage = isNaN(amperageNum) ? null : amperageNum;
+      }
+      if (updateData.rpm) {
+        const rpmNum = parseFloat(updateData.rpm);
+        updateData.rpm = isNaN(rpmNum) ? null : rpmNum;
+      }
+      if (updateData.weight) {
+        const weightNum = parseFloat(updateData.weight);
+        updateData.weight = isNaN(weightNum) ? null : weightNum;
+      }
+      
       console.log('[EDIT] Відправка даних:', updateData);
       
-      const response = await fetch(`${API_BASE_URL}/equipment/${equipment._id}`, {
-        method: 'PUT',
+      const url = isNewEquipment 
+        ? `${API_BASE_URL}/equipment/scan`
+        : `${API_BASE_URL}/equipment/${equipment._id}`;
+      const method = isNewEquipment ? 'POST' : 'PUT';
+      
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -84,13 +129,20 @@ function EquipmentEditModal({ equipment, warehouses, onClose, onSuccess }) {
       });
 
       if (response.ok) {
-        const updatedEquipment = await response.json();
-        console.log('[EDIT] Обладнання оновлено:', updatedEquipment);
+        const result = await response.json();
+        console.log(isNewEquipment ? '[ADD] Обладнання додано:' : '[EDIT] Обладнання оновлено:', result);
         onSuccess();
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('[EDIT] Помилка відповіді:', response.status, errorData);
-        setError(errorData.error || 'Помилка оновлення обладнання');
+        let errorMessage = errorData.error || (isNewEquipment ? 'Помилка додавання обладнання' : 'Помилка оновлення обладнання');
+        
+        // Якщо це помилка дублікату, показуємо детальну інформацію
+        if (errorData.existing) {
+          errorMessage = `${errorMessage}\n\nІснуюче обладнання:\nТип: ${errorData.existing.type}\nСерійний номер: ${errorData.existing.serialNumber}\nСклад: ${errorData.existing.currentWarehouse || 'Не вказано'}`;
+        }
+        
+        setError(errorMessage);
       }
     } catch (err) {
       setError('Помилка з\'єднання з сервером');
@@ -100,24 +152,79 @@ function EquipmentEditModal({ equipment, warehouses, onClose, onSuccess }) {
     }
   };
 
-  if (!equipment) return null;
+  const handleScannerData = (scannedData) => {
+    setFormData(prev => ({
+      ...prev,
+      ...scannedData,
+      // Зберігаємо склад, якщо він вже вибраний
+      currentWarehouse: prev.currentWarehouse || scannedData.currentWarehouse || '',
+      currentWarehouseName: prev.currentWarehouseName || scannedData.currentWarehouseName || '',
+      region: prev.region || scannedData.region || ''
+    }));
+    setShowScanner(false);
+  };
 
   return (
     <div className="equipment-edit-modal-overlay" onClick={onClose}>
       <div className="equipment-edit-modal" onClick={(e) => e.stopPropagation()}>
         <div className="equipment-edit-header">
-          <h2>Редагувати обладнання</h2>
+          <h2>{isNewEquipment ? 'Додати обладнання від постачальників' : 'Редагувати обладнання'}</h2>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         
-        <form onSubmit={handleSubmit} className="equipment-edit-form">
-          {error && (
-            <div className="form-error">
-              {error}
-            </div>
-          )}
+        {showScanner && (
+          <EquipmentScanner
+            user={user}
+            warehouses={warehouses}
+            onEquipmentAdded={(saved) => {
+              // Отримуємо дані зі сканера і заповнюємо форму
+              // Сканер вже зберіг обладнання, тому просто заповнюємо форму даними
+              handleScannerData({
+                manufacturer: saved.manufacturer || '',
+                type: saved.type || '',
+                serialNumber: saved.serialNumber || '',
+                currentWarehouse: saved.currentWarehouse || formData.currentWarehouse || '',
+                currentWarehouseName: saved.currentWarehouseName || formData.currentWarehouseName || '',
+                region: saved.region || formData.region || '',
+                standbyPower: saved.standbyPower || '',
+                primePower: saved.primePower || '',
+                phase: saved.phase !== undefined ? String(saved.phase) : '',
+                voltage: saved.voltage || '',
+                amperage: saved.amperage !== undefined ? String(saved.amperage) : '',
+                rpm: saved.rpm !== undefined ? String(saved.rpm) : '',
+                dimensions: saved.dimensions || '',
+                weight: saved.weight !== undefined ? String(saved.weight) : '',
+                manufactureDate: saved.manufactureDate || ''
+              });
+              // Оновлюємо список обладнання через callback
+              if (onSuccess) {
+                onSuccess();
+              }
+            }}
+            onClose={() => setShowScanner(false)}
+          />
+        )}
+        
+        {!showScanner && (
+          <form onSubmit={handleSubmit} className="equipment-edit-form">
+            {error && (
+              <div className="form-error">
+                {error}
+              </div>
+            )}
 
-          <div className="form-section">
+            <div className="form-section" style={{ marginBottom: '20px' }}>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setShowScanner(true)}
+                style={{ width: '100%', padding: '12px', fontSize: '16px' }}
+              >
+                📷 Сканувати шильдик
+              </button>
+            </div>
+
+            <div className="form-section">
             <h3>Основна інформація</h3>
             <div className="form-grid">
               <div className="form-group">
@@ -203,8 +310,8 @@ function EquipmentEditModal({ equipment, warehouses, onClose, onSuccess }) {
                 <label>Фази</label>
                 <input
                   type="text"
-                  name="phases"
-                  value={formData.phases}
+                  name="phase"
+                  value={formData.phase}
                   onChange={handleChange}
                 />
               </div>
@@ -221,8 +328,8 @@ function EquipmentEditModal({ equipment, warehouses, onClose, onSuccess }) {
                 <label>Струм (A)</label>
                 <input
                   type="text"
-                  name="current"
-                  value={formData.current}
+                  name="amperage"
+                  value={formData.amperage}
                   onChange={handleChange}
                 />
               </div>
@@ -271,15 +378,16 @@ function EquipmentEditModal({ equipment, warehouses, onClose, onSuccess }) {
             </div>
           </div>
 
-          <div className="equipment-edit-footer">
-            <button type="button" className="btn-cancel" onClick={onClose}>
-              Скасувати
-            </button>
-            <button type="submit" className="btn-save" disabled={loading}>
-              {loading ? 'Збереження...' : 'Зберегти'}
-            </button>
-          </div>
-        </form>
+            <div className="equipment-edit-footer">
+              <button type="button" className="btn-cancel" onClick={onClose}>
+                Скасувати
+              </button>
+              <button type="submit" className="btn-save" disabled={loading}>
+                {loading ? 'Збереження...' : isNewEquipment ? 'Додати' : 'Зберегти'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

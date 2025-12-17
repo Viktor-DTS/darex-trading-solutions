@@ -4,6 +4,7 @@ import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
 import EquipmentScanner from './equipment/EquipmentScanner';
 import EquipmentList from './equipment/EquipmentList';
+import EquipmentEditModal from './equipment/EquipmentEditModal';
 import EquipmentMoveModal from './equipment/EquipmentMoveModal';
 import EquipmentShipModal from './equipment/EquipmentShipModal';
 import EquipmentStatistics from './equipment/EquipmentStatistics';
@@ -16,6 +17,7 @@ function WarehouseDashboard({ user }) {
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showAddEquipmentModal, setShowAddEquipmentModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [showShipModal, setShowShipModal] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
@@ -264,12 +266,32 @@ function WarehouseDashboard({ user }) {
             <div className="equipment-tab">
               <div className="equipment-tab-header">
                 <h2>Складський облік обладнання</h2>
-                <button 
-                  className="btn-primary btn-scan"
-                  onClick={() => setShowScanner(true)}
-                >
-                  📷 Сканувати шильдик
-                </button>
+                <div className="equipment-header-buttons">
+                  <button 
+                    className="btn-primary"
+                    onClick={() => setShowAddEquipmentModal(true)}
+                  >
+                    ➕ Додати обладнання від постачальників
+                  </button>
+                  <button 
+                    className="btn-primary"
+                    onClick={() => {
+                      setSelectedEquipment(null);
+                      setShowMoveModal(true);
+                    }}
+                  >
+                    📦 Зробити переміщення між складами
+                  </button>
+                  <button 
+                    className="btn-primary"
+                    onClick={() => {
+                      setSelectedEquipment(null);
+                      setShowShipModal(true);
+                    }}
+                  >
+                    🚚 Зробити відвантаження замовнику
+                  </button>
+                </div>
               </div>
               <EquipmentList
                 ref={equipmentListRef}
@@ -345,7 +367,22 @@ function WarehouseDashboard({ user }) {
         />
       )}
 
-      {showMoveModal && selectedEquipment && (
+      {showAddEquipmentModal && (
+        <EquipmentEditModal
+          equipment={null}
+          warehouses={warehouses}
+          user={user}
+          onClose={() => setShowAddEquipmentModal(false)}
+          onSuccess={() => {
+            setShowAddEquipmentModal(false);
+            if (equipmentListRef.current) {
+              equipmentListRef.current.refresh();
+            }
+          }}
+        />
+      )}
+
+      {showMoveModal && (
         <EquipmentMoveModal
           equipment={selectedEquipment}
           warehouses={warehouses}
@@ -357,7 +394,7 @@ function WarehouseDashboard({ user }) {
         />
       )}
 
-      {showShipModal && selectedEquipment && (
+      {showShipModal && (
         <EquipmentShipModal
           equipment={selectedEquipment}
           onClose={() => {

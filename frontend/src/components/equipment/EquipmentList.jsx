@@ -485,24 +485,6 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
                       >
                         ✏️ Редагувати
                       </button>
-                      {item.status === 'in_stock' && (
-                        <>
-                          <button
-                            className="btn-action btn-move"
-                            onClick={() => onMove && onMove(item)}
-                            title="Перемістити"
-                          >
-                            📦 Перемістити
-                          </button>
-                          <button
-                            className="btn-action btn-ship"
-                            onClick={() => onShip && onShip(item)}
-                            title="Відвантажити"
-                          >
-                            🚚 Відвантажити
-                          </button>
-                        </>
-                      )}
                       {(user?.role === 'admin' || user?.role === 'administrator') && (
                         <button
                           className="btn-action btn-delete"
@@ -607,6 +589,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
         <EquipmentEditModal
           equipment={selectedEquipment}
           warehouses={warehouses}
+          user={user}
           onClose={() => {
             setShowEditModal(false);
             setSelectedEquipment(null);
