@@ -284,8 +284,20 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
               <label>Тип обладнання *</label>
               <input
                 type="text"
-                value={equipmentData.type || ''}
-                onChange={(e) => handleInputChange('type', e.target.value)}
+                className={!equipmentData.type ? 'undefined-field' : ''}
+                value={equipmentData.type || 'не визначено'}
+                onChange={(e) => handleInputChange('type', e.target.value === 'не визначено' ? '' : e.target.value)}
+                onFocus={(e) => {
+                  if (e.target.value === 'не визначено') {
+                    e.target.value = '';
+                    handleInputChange('type', '');
+                  }
+                }}
+                onBlur={(e) => {
+                  if (e.target.value === '') {
+                    handleInputChange('type', '');
+                  }
+                }}
                 placeholder="DE-50BDS"
               />
             </div>
@@ -294,8 +306,20 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
               <label>Серійний номер *</label>
               <input
                 type="text"
-                value={equipmentData.serialNumber || ''}
-                onChange={(e) => handleInputChange('serialNumber', e.target.value)}
+                className={!equipmentData.serialNumber ? 'undefined-field' : ''}
+                value={equipmentData.serialNumber || 'не визначено'}
+                onChange={(e) => handleInputChange('serialNumber', e.target.value === 'не визначено' ? '' : e.target.value)}
+                onFocus={(e) => {
+                  if (e.target.value === 'не визначено') {
+                    e.target.value = '';
+                    handleInputChange('serialNumber', '');
+                  }
+                }}
+                onBlur={(e) => {
+                  if (e.target.value === '') {
+                    handleInputChange('serialNumber', '');
+                  }
+                }}
                 placeholder="20241007015"
               />
             </div>
