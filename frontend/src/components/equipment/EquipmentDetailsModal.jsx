@@ -78,7 +78,7 @@ function EquipmentDetailsModal({ equipment, onClose }) {
               </div>
               <div className="detail-item">
                 <span className="detail-label">Фази:</span>
-                <span className="detail-value">{formatValue(equipment.phases)}</span>
+                <span className="detail-value">{formatValue(equipment.phase)}</span>
               </div>
               <div className="detail-item">
                 <span className="detail-label">Напруга:</span>
@@ -86,7 +86,7 @@ function EquipmentDetailsModal({ equipment, onClose }) {
               </div>
               <div className="detail-item">
                 <span className="detail-label">Струм (A):</span>
-                <span className="detail-value">{formatValue(equipment.current)}</span>
+                <span className="detail-value">{formatValue(equipment.amperage)}</span>
               </div>
               <div className="detail-item">
                 <span className="detail-label">RPM:</span>
