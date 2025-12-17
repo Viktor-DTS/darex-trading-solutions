@@ -29,9 +29,14 @@ function EquipmentStatistics({ warehouses }) {
       if (response.ok) {
         const data = await response.json();
         setStatistics(data);
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Помилка завантаження статистики' }));
+        console.error('Помилка завантаження статистики:', response.status, errorData);
+        setStatistics(null); // Встановлюємо null, щоб показати повідомлення про помилку
       }
     } catch (error) {
       console.error('Помилка завантаження статистики:', error);
+      setStatistics(null); // Встановлюємо null, щоб показати повідомлення про помилку
     } finally {
       setLoading(false);
     }
