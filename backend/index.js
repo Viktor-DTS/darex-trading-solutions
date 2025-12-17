@@ -3400,6 +3400,128 @@ app.get('/api/equipment', authenticateToken, async (req, res) => {
   }
 });
 
+// Статистика по складах (має бути ПЕРЕД /api/equipment/:id, щоб не конфліктувати)
+app.get('/api/equipment/statistics', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { warehouse, region } = req.query;
+    
+    const matchQuery = { isDeleted: { $ne: true } }; // Виключаємо видалені
+    if (warehouse) matchQuery.currentWarehouse = warehouse;
+    if (region) matchQuery.region = region;
+    
+    // Загальна статистика
+    const total = await Equipment.countDocuments(matchQuery);
+    
+    // Статистика по статусах (з обробкою null)
+    const byStatus = await Equipment.aggregate([
+      { $match: matchQuery },
+      { 
+        $group: { 
+          _id: { $ifNull: ['$status', 'in_stock'] }, // Якщо status null, використовуємо 'in_stock'
+          count: { $sum: 1 } 
+        } 
+      }
+    ]);
+    
+    // Статистика по складах (з обробкою null)
+    const byWarehouse = await Equipment.aggregate([
+      { $match: matchQuery },
+      { 
+        $group: { 
+          _id: { $ifNull: ['$currentWarehouseName', 'Не вказано'] },
+          count: { $sum: 1 },
+          statuses: {
+            $push: { $ifNull: ['$status', 'in_stock'] }
+          }
+        }
+      },
+      {
+        $project: {
+          warehouse: '$_id',
+          total: '$count',
+          inStock: {
+            $size: {
+              $filter: {
+                input: '$statuses',
+                as: 'status',
+                cond: { $eq: ['$$status', 'in_stock'] }
+              }
+            }
+          },
+          inTransit: {
+            $size: {
+              $filter: {
+                input: '$statuses',
+                as: 'status',
+                cond: { $eq: ['$$status', 'in_transit'] }
+              }
+            }
+          },
+          shipped: {
+            $size: {
+              $filter: {
+                input: '$statuses',
+                as: 'status',
+                cond: { $eq: ['$$status', 'shipped'] }
+              }
+            }
+          }
+        }
+      },
+      { $sort: { total: -1 } }
+    ]);
+    
+    // Статистика по типах обладнання (з обробкою null)
+    const byType = await Equipment.aggregate([
+      { $match: matchQuery },
+      { 
+        $group: { 
+          _id: { $ifNull: ['$type', 'Не вказано'] },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } },
+      { $limit: 10 }
+    ]);
+    
+    // Останні додані (з обробкою null для addedAt)
+    const recentlyAdded = await Equipment.find(matchQuery)
+      .sort({ addedAt: -1, _id: -1 }) // Сортуємо також по _id якщо addedAt однаковий
+      .limit(10)
+      .select('type serialNumber currentWarehouseName addedAt addedByName _id')
+      .lean();
+    
+    // Обробляємо recentlyAdded для безпечного відображення
+    const processedRecentlyAdded = recentlyAdded.map(item => ({
+      ...item,
+      type: item.type || 'Не вказано',
+      serialNumber: item.serialNumber || '—',
+      currentWarehouseName: item.currentWarehouseName || 'Не вказано',
+      addedAt: item.addedAt || new Date(), // Якщо addedAt відсутнє, використовуємо поточну дату
+      addedByName: item.addedByName || '—'
+    }));
+    
+    const statistics = {
+      total,
+      byStatus: byStatus.reduce((acc, item) => {
+        acc[item._id || 'in_stock'] = item.count;
+        return acc;
+      }, {}),
+      byWarehouse,
+      byType,
+      recentlyAdded: processedRecentlyAdded
+    };
+    
+    logPerformance('GET /api/equipment/statistics', startTime);
+    res.json(statistics);
+  } catch (error) {
+    console.error('[ERROR] GET /api/equipment/statistics:', error);
+    logPerformance('GET /api/equipment/statistics', startTime);
+    res.status(500).json({ error: error.message || 'Помилка завантаження статистики' });
+  }
+});
+
 // Отримання деталей обладнання
 app.get('/api/equipment/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();
@@ -3750,127 +3872,6 @@ app.put('/api/equipment/:id/status', authenticateToken, async (req, res) => {
   }
 });
 
-// Статистика по складах
-app.get('/api/equipment/statistics', authenticateToken, async (req, res) => {
-  const startTime = Date.now();
-  try {
-    const { warehouse, region } = req.query;
-    
-    const matchQuery = { isDeleted: { $ne: true } }; // Виключаємо видалені
-    if (warehouse) matchQuery.currentWarehouse = warehouse;
-    if (region) matchQuery.region = region;
-    
-    // Загальна статистика
-    const total = await Equipment.countDocuments(matchQuery);
-    
-    // Статистика по статусах (з обробкою null)
-    const byStatus = await Equipment.aggregate([
-      { $match: matchQuery },
-      { 
-        $group: { 
-          _id: { $ifNull: ['$status', 'in_stock'] }, // Якщо status null, використовуємо 'in_stock'
-          count: { $sum: 1 } 
-        } 
-      }
-    ]);
-    
-    // Статистика по складах (з обробкою null)
-    const byWarehouse = await Equipment.aggregate([
-      { $match: matchQuery },
-      { 
-        $group: { 
-          _id: { $ifNull: ['$currentWarehouseName', 'Не вказано'] },
-          count: { $sum: 1 },
-          statuses: {
-            $push: { $ifNull: ['$status', 'in_stock'] }
-          }
-        }
-      },
-      {
-        $project: {
-          warehouse: '$_id',
-          total: '$count',
-          inStock: {
-            $size: {
-              $filter: {
-                input: '$statuses',
-                as: 'status',
-                cond: { $eq: ['$$status', 'in_stock'] }
-              }
-            }
-          },
-          inTransit: {
-            $size: {
-              $filter: {
-                input: '$statuses',
-                as: 'status',
-                cond: { $eq: ['$$status', 'in_transit'] }
-              }
-            }
-          },
-          shipped: {
-            $size: {
-              $filter: {
-                input: '$statuses',
-                as: 'status',
-                cond: { $eq: ['$$status', 'shipped'] }
-              }
-            }
-          }
-        }
-      },
-      { $sort: { total: -1 } }
-    ]);
-    
-    // Статистика по типах обладнання (з обробкою null)
-    const byType = await Equipment.aggregate([
-      { $match: matchQuery },
-      { 
-        $group: { 
-          _id: { $ifNull: ['$type', 'Не вказано'] },
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { count: -1 } },
-      { $limit: 10 }
-    ]);
-    
-    // Останні додані (з обробкою null для addedAt)
-    const recentlyAdded = await Equipment.find(matchQuery)
-      .sort({ addedAt: -1, _id: -1 }) // Сортуємо також по _id якщо addedAt однаковий
-      .limit(10)
-      .select('type serialNumber currentWarehouseName addedAt addedByName _id')
-      .lean();
-    
-    // Обробляємо recentlyAdded для безпечного відображення
-    const processedRecentlyAdded = recentlyAdded.map(item => ({
-      ...item,
-      type: item.type || 'Не вказано',
-      serialNumber: item.serialNumber || '—',
-      currentWarehouseName: item.currentWarehouseName || 'Не вказано',
-      addedAt: item.addedAt || new Date(), // Якщо addedAt відсутнє, використовуємо поточну дату
-      addedByName: item.addedByName || '—'
-    }));
-    
-    const statistics = {
-      total,
-      byStatus: byStatus.reduce((acc, item) => {
-        acc[item._id || 'in_stock'] = item.count;
-        return acc;
-      }, {}),
-      byWarehouse,
-      byType,
-      recentlyAdded: processedRecentlyAdded
-    };
-    
-    logPerformance('GET /api/equipment/statistics', startTime);
-    res.json(statistics);
-  } catch (error) {
-    console.error('[ERROR] GET /api/equipment/statistics:', error);
-    logPerformance('GET /api/equipment/statistics', startTime);
-    res.status(500).json({ error: error.message || 'Помилка завантаження статистики' });
-  }
-});
 
 // ============================================
 // TIMESHEET API (Табель персоналу)
