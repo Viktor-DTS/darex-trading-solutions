@@ -3235,14 +3235,46 @@ app.post('/api/equipment/ocr', authenticateToken, uploadEquipmentPhotoForOCR.sin
 
       if (!visionResponse.ok) {
         const errorData = await visionResponse.json().catch(() => ({ error: { message: 'Невідома помилка' } }));
-        console.error('[OCR] Помилка Google Vision API:', visionResponse.status, errorData);
+        console.error('[OCR] Помилка Google Vision API:', visionResponse.status);
+        console.error('[OCR] Деталі помилки:', JSON.stringify(errorData, null, 2));
         
-        // Якщо помилка 400 або 403 - ключ не валідний або немає доступу
-        // Якщо помилка 500 - тимчасова проблема з Google
-        // В обох випадках повертаємо помилку, щоб фронтенд використав Tesseract
+        // Спеціальна обробка для різних типів помилок
+        let errorMessage = errorData.error?.message || `Помилка Google Vision API: ${visionResponse.status}`;
+        let detailedError = '';
+        
+        if (visionResponse.status === 403) {
+          // Детальна інформація про помилку 403
+          const errorReason = errorData.error?.message || 'Невідома причина';
+          console.warn('[OCR] 403 Forbidden - Деталі:', errorReason);
+          
+          if (errorReason.includes('API key not valid') || errorReason.includes('API key not found')) {
+            errorMessage = 'API ключ недійсний або не знайдено. Перевірте правильність ключа.';
+            detailedError = 'Переконайтеся, що API ключ правильний і активний в Google Cloud Console.';
+          } else if (errorReason.includes('API has not been used') || errorReason.includes('API not enabled')) {
+            errorMessage = 'Cloud Vision API не увімкнено для цього проєкту або ключа.';
+            detailedError = '1. Перевірте, що Cloud Vision API увімкнено в проєкті.\n2. Перевірте обмеження API ключа - він повинен дозволяти використання Vision API.\n3. Переконайтеся, що ключ створено в правильному проєкті.';
+          } else if (errorReason.includes('permission denied') || errorReason.includes('forbidden')) {
+            errorMessage = 'Доступ заборонено. API ключ не має дозволів для Vision API.';
+            detailedError = 'Перевірте обмеження API ключа в Google Cloud Console:\n1. Відкрийте "APIs & Services" → "Credentials"\n2. Виберіть ваш API ключ\n3. В розділі "API restrictions" переконайтеся, що "Cloud Vision API" дозволено\n4. Або встановіть "Don\'t restrict key" для тестування';
+          } else {
+            errorMessage = `Google Vision API недоступний: ${errorReason}`;
+            detailedError = 'Перевірте налаштування API ключа в Google Cloud Console.';
+          }
+          
+          console.warn('[OCR] 403 Forbidden - Рекомендації:', detailedError);
+        } else if (visionResponse.status === 400) {
+          errorMessage = 'Невірний запит до Google Vision API. Використовується Tesseract OCR.';
+        } else if (visionResponse.status === 500) {
+          errorMessage = 'Тимчасова проблема з Google Vision API. Використовується Tesseract OCR.';
+        }
+        
+        // В усіх випадках помилок повертаємо useTesseract: true для fallback
         return res.status(visionResponse.status).json({ 
-          error: errorData.error?.message || `Помилка Google Vision API: ${visionResponse.status}`,
-          useTesseract: true 
+          error: errorMessage,
+          details: detailedError || undefined,
+          useTesseract: true,
+          status: visionResponse.status,
+          googleError: errorData.error || undefined
         });
       }
 
