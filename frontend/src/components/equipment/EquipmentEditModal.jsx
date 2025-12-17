@@ -17,12 +17,12 @@ function EquipmentEditModal({ equipment, warehouses, onClose, onSuccess }) {
         currentWarehouseName: equipment.currentWarehouseName || '',
         standbyPower: equipment.standbyPower || '',
         primePower: equipment.primePower || '',
-        phases: equipment.phases || '',
+        phases: equipment.phase !== undefined ? String(equipment.phase) : '',
         voltage: equipment.voltage || '',
-        current: equipment.current || '',
-        rpm: equipment.rpm || '',
+        current: equipment.amperage !== undefined ? String(equipment.amperage) : '',
+        rpm: equipment.rpm !== undefined ? String(equipment.rpm) : '',
         dimensions: equipment.dimensions || '',
-        weight: equipment.weight || '',
+        weight: equipment.weight !== undefined ? String(equipment.weight) : '',
         manufactureDate: equipment.manufactureDate ? new Date(equipment.manufactureDate).toISOString().split('T')[0] : ''
       });
     }
@@ -54,24 +54,45 @@ function EquipmentEditModal({ equipment, warehouses, onClose, onSuccess }) {
 
     try {
       const token = localStorage.getItem('token');
+      
+      // Підготовка даних для відправки
+      const updateData = { ...formData };
+      
+      // Обробка дати виробництва - якщо порожня, відправляємо null
+      if (!updateData.manufactureDate || updateData.manufactureDate.trim() === '') {
+        updateData.manufactureDate = null;
+      }
+      
+      // Очищаємо порожні рядки
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === '') {
+          updateData[key] = null;
+        }
+      });
+      
+      console.log('[EDIT] Відправка даних:', updateData);
+      
       const response = await fetch(`${API_BASE_URL}/equipment/${equipment._id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(updateData)
       });
 
       if (response.ok) {
+        const updatedEquipment = await response.json();
+        console.log('[EDIT] Обладнання оновлено:', updatedEquipment);
         onSuccess();
       } else {
         const errorData = await response.json().catch(() => ({}));
+        console.error('[EDIT] Помилка відповіді:', response.status, errorData);
         setError(errorData.error || 'Помилка оновлення обладнання');
       }
     } catch (err) {
       setError('Помилка з\'єднання з сервером');
-      console.error('Помилка оновлення обладнання:', err);
+      console.error('[EDIT] Помилка оновлення обладнання:', err);
     } finally {
       setLoading(false);
     }

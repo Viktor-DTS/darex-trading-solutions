@@ -3420,9 +3420,13 @@ app.get('/api/equipment/:id', authenticateToken, async (req, res) => {
 // Оновлення обладнання
 app.put('/api/equipment/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();
+  console.log('[PUT] /api/equipment/:id - Оновлення обладнання:', req.params.id);
+  console.log('[PUT] Дані для оновлення:', req.body);
+  
   try {
     const equipment = await Equipment.findById(req.params.id);
     if (!equipment) {
+      console.log('[PUT] Обладнання не знайдено:', req.params.id);
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
 
@@ -3432,20 +3436,99 @@ app.put('/api/equipment/:id', authenticateToken, async (req, res) => {
     }
 
     // Оновлюємо поля
-    const updateFields = [
+    const changes = [];
+    
+    // Основні поля
+    const basicFields = [
       'manufacturer', 'type', 'serialNumber', 'currentWarehouse', 'currentWarehouseName',
-      'standbyPower', 'primePower', 'phases', 'voltage', 'current', 'rpm',
-      'dimensions', 'weight', 'manufactureDate'
+      'standbyPower', 'primePower', 'voltage', 'dimensions', 'weight', 'manufactureDate'
     ];
-
-    updateFields.forEach(field => {
+    
+    basicFields.forEach(field => {
       if (req.body[field] !== undefined) {
-        equipment[field] = req.body[field];
+        const oldValue = equipment[field];
+        equipment[field] = req.body[field] === null || req.body[field] === '' ? undefined : req.body[field];
+        if (oldValue !== equipment[field]) {
+          changes.push(`${field}: ${oldValue} -> ${equipment[field]}`);
+        }
       }
     });
+    
+    // Спеціальна обробка для phases (в схемі phase)
+    if (req.body.phases !== undefined) {
+      const oldValue = equipment.phase;
+      const newValue = req.body.phases === null || req.body.phases === '' ? undefined : req.body.phases;
+      // Спробуємо конвертувати в число, якщо можливо
+      if (newValue !== undefined && !isNaN(newValue)) {
+        equipment.phase = Number(newValue);
+      } else if (newValue !== undefined) {
+        equipment.phase = newValue;
+      } else {
+        equipment.phase = undefined;
+      }
+      if (oldValue !== equipment.phase) {
+        changes.push(`phase: ${oldValue} -> ${equipment.phase}`);
+      }
+    }
+    
+    // Спеціальна обробка для current (в схемі amperage)
+    if (req.body.current !== undefined) {
+      const oldValue = equipment.amperage;
+      const newValue = req.body.current === null || req.body.current === '' ? undefined : req.body.current;
+      // Спробуємо конвертувати в число, якщо можливо
+      if (newValue !== undefined && !isNaN(newValue)) {
+        equipment.amperage = Number(newValue);
+      } else if (newValue !== undefined) {
+        equipment.amperage = newValue;
+      } else {
+        equipment.amperage = undefined;
+      }
+      if (oldValue !== equipment.amperage) {
+        changes.push(`amperage: ${oldValue} -> ${equipment.amperage}`);
+      }
+    }
+    
+    // Обробка rpm (число)
+    if (req.body.rpm !== undefined) {
+      const oldValue = equipment.rpm;
+      const newValue = req.body.rpm === null || req.body.rpm === '' ? undefined : req.body.rpm;
+      if (newValue !== undefined && !isNaN(newValue)) {
+        equipment.rpm = Number(newValue);
+      } else if (newValue !== undefined) {
+        equipment.rpm = newValue;
+      } else {
+        equipment.rpm = undefined;
+      }
+      if (oldValue !== equipment.rpm) {
+        changes.push(`rpm: ${oldValue} -> ${equipment.rpm}`);
+      }
+    }
+    
+    // Обробка weight (число)
+    if (req.body.weight !== undefined) {
+      const oldValue = equipment.weight;
+      const newValue = req.body.weight === null || req.body.weight === '' ? undefined : req.body.weight;
+      if (newValue !== undefined && !isNaN(newValue)) {
+        equipment.weight = Number(newValue);
+      } else if (newValue !== undefined) {
+        equipment.weight = newValue;
+      } else {
+        equipment.weight = undefined;
+      }
+      if (oldValue !== equipment.weight) {
+        changes.push(`weight: ${oldValue} -> ${equipment.weight}`);
+      }
+    }
+
+    console.log('[PUT] Зміни:', changes);
 
     equipment.lastModified = new Date();
-    await equipment.save();
+    const savedEquipment = await equipment.save();
+    console.log('[PUT] Обладнання збережено успішно');
+    
+    // Отримуємо оновлене обладнання з бази
+    const updatedEquipment = await Equipment.findById(req.params.id).lean();
+    console.log('[PUT] Оновлене обладнання:', updatedEquipment);
 
     // Логування
     try {
@@ -3464,7 +3547,7 @@ app.put('/api/equipment/:id', authenticateToken, async (req, res) => {
     }
 
     logPerformance('PUT /api/equipment/:id', startTime);
-    res.json(equipment);
+    res.json(updatedEquipment);
   } catch (error) {
     console.error('[ERROR] PUT /api/equipment/:id:', error);
     logPerformance('PUT /api/equipment/:id', startTime);

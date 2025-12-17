@@ -16,9 +16,9 @@ const ALL_COLUMNS = [
   { key: 'currentWarehouse', label: 'Склад', width: 150 },
   { key: 'standbyPower', label: 'Резервна потужність', width: 150 },
   { key: 'primePower', label: 'Основна потужність', width: 150 },
-  { key: 'phases', label: 'Фази', width: 100 },
+  { key: 'phase', label: 'Фази', width: 100 },
   { key: 'voltage', label: 'Напруга', width: 120 },
-  { key: 'current', label: 'Струм (A)', width: 100 },
+  { key: 'amperage', label: 'Струм (A)', width: 100 },
   { key: 'rpm', label: 'RPM', width: 100 },
   { key: 'dimensions', label: 'Розміри (мм)', width: 150 },
   { key: 'weight', label: 'Вага (кг)', width: 100 },
@@ -518,9 +518,9 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
                   <td>{formatValue(item.currentWarehouseName || item.currentWarehouse, 'currentWarehouse')}</td>
                   <td>{formatValue(item.standbyPower, 'standbyPower')}</td>
                   <td>{formatValue(item.primePower, 'primePower')}</td>
-                  <td>{formatValue(item.phases, 'phases')}</td>
+                  <td>{formatValue(item.phase, 'phases')}</td>
                   <td>{formatValue(item.voltage, 'voltage')}</td>
-                  <td>{formatValue(item.current, 'current')}</td>
+                  <td>{formatValue(item.amperage, 'current')}</td>
                   <td>{formatValue(item.rpm, 'rpm')}</td>
                   <td>{formatValue(item.dimensions, 'dimensions')}</td>
                   <td>{formatValue(item.weight, 'weight')}</td>
