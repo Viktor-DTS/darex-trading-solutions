@@ -1,7 +1,7 @@
 import React from 'react';
 import './EquipmentDetailsModal.css';
 
-function EquipmentDetailsModal({ equipment, onClose }) {
+function EquipmentDetailsModal({ equipment, onClose, isPage = false }) {
   if (!equipment) return null;
 
   const formatValue = (value) => {
@@ -30,9 +30,16 @@ function EquipmentDetailsModal({ equipment, onClose }) {
     return labels[status] || status;
   };
 
+  const containerClass = isPage 
+    ? 'equipment-details-page' 
+    : 'equipment-details-modal-overlay';
+  const contentClass = isPage
+    ? 'equipment-details-page-content'
+    : 'equipment-details-modal';
+
   return (
-    <div className="equipment-details-modal-overlay" onClick={onClose}>
-      <div className="equipment-details-modal" onClick={(e) => e.stopPropagation()}>
+    <div className={containerClass} onClick={isPage ? undefined : onClose}>
+      <div className={contentClass} onClick={(e) => !isPage && e.stopPropagation()}>
         <div className="equipment-details-header">
           <h2>Інформація про обладнання</h2>
           <button className="modal-close" onClick={onClose}>×</button>

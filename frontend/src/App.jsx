@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
@@ -11,6 +12,7 @@ import AdminDashboard from './components/AdminDashboard';
 import ReportBuilder from './components/ReportBuilder';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import TasksStatisticsBar from './components/TasksStatisticsBar';
+import EquipmentPage from './components/equipment/EquipmentPage';
 import API_BASE_URL from './config';
 
 // Доступні панелі
@@ -366,40 +368,59 @@ function App() {
   const availablePanels = user ? getAvailablePanelsForRole(user.role, accessRules) : [];
 
   return (
-    <div className="app">
-      {!user ? (
-        <Login onLogin={handleLogin} />
-      ) : (
-        <div className="app-container">
-          {/* Верхня панель - завжди показуємо */}
-          <nav className="panel-selector">
-            <div className="panel-selector-left">
-              {availablePanels.map(panel => (
-                <button
-                  key={panel.id}
-                  className={`panel-btn ${currentPanel === panel.id ? 'active' : ''}`}
-                  onClick={() => handlePanelChange(panel.id)}
-                >
-                  <span className="panel-icon">{panel.icon}</span>
-                  <span className="panel-label">{panel.label}</span>
-                </button>
-              ))}
+    <BrowserRouter>
+      <Routes>
+        {/* Роут для сторінки обладнання (з QR-коду) */}
+        <Route 
+          path="/equipment/:id" 
+          element={
+            <div className="app">
+              <EquipmentPage />
             </div>
-            <div className="panel-selector-right">
-              <span className="user-info">{user.name || user.login}</span>
-              <button className="logout-btn" onClick={handleLogout}>Вийти</button>
+          } 
+        />
+        {/* Основний роут - залишаємо поточну логіку */}
+        <Route 
+          path="*" 
+          element={
+            <div className="app">
+              {!user ? (
+                <Login onLogin={handleLogin} />
+              ) : (
+                <div className="app-container">
+                  {/* Верхня панель - завжди показуємо */}
+                  <nav className="panel-selector">
+                    <div className="panel-selector-left">
+                      {availablePanels.map(panel => (
+                        <button
+                          key={panel.id}
+                          className={`panel-btn ${currentPanel === panel.id ? 'active' : ''}`}
+                          onClick={() => handlePanelChange(panel.id)}
+                        >
+                          <span className="panel-icon">{panel.icon}</span>
+                          <span className="panel-label">{panel.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="panel-selector-right">
+                      <span className="user-info">{user.name || user.login}</span>
+                      <button className="logout-btn" onClick={handleLogout}>Вийти</button>
+                    </div>
+                  </nav>
+                  {/* Основний вміст */}
+                  <div className="panel-content with-selector with-statistics-bar">
+                    {renderPanel()}
+                  </div>
+                  
+                  {/* Панель статистики заявок */}
+                  <TasksStatisticsBar user={user} />
+                </div>
+              )}
             </div>
-          </nav>
-          {/* Основний вміст */}
-          <div className="panel-content with-selector with-statistics-bar">
-            {renderPanel()}
-          </div>
-          
-          {/* Панель статистики заявок */}
-          <TasksStatisticsBar user={user} />
-        </div>
-      )}
-    </div>
+          } 
+        />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

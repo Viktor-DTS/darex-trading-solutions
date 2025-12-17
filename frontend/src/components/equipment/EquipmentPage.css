@@ -1,0 +1,66 @@
+.equipment-page {
+  min-height: 100vh;
+  background: var(--background, #0d1117);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.equipment-page-loading,
+.equipment-page-error {
+  text-align: center;
+  color: var(--text-primary, #fff);
+  max-width: 600px;
+  padding: 40px;
+  background: var(--surface, #161b22);
+  border-radius: 12px;
+  border: 1px solid var(--border-color, #1a2332);
+}
+
+.equipment-page-loading p,
+.equipment-page-error p {
+  margin-top: 20px;
+  color: var(--text-secondary, #8b949e);
+  font-size: 16px;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid var(--border-color, #1a2332);
+  border-top-color: var(--primary, #00ff88);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.equipment-page-error h2 {
+  color: var(--text-primary, #fff);
+  margin-bottom: 16px;
+  font-size: 24px;
+}
+
+.equipment-page-error .btn-primary {
+  margin-top: 24px;
+  padding: 12px 24px;
+  background: var(--primary, #00ff88);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.equipment-page-error .btn-primary:hover {
+  background: #00cc6f;
+}
+
