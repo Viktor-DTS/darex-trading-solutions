@@ -5,6 +5,7 @@ import EquipmentHistoryModal from './EquipmentHistoryModal';
 import EquipmentQRModal from './EquipmentQRModal';
 import EquipmentDeleteModal from './EquipmentDeleteModal';
 import EquipmentDetailsModal from './EquipmentDetailsModal';
+import EquipmentEditModal from './EquipmentEditModal';
 import './EquipmentList.css';
 
 // Визначення всіх колонок
@@ -32,6 +33,8 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
   const [showQR, setShowQR] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
   const [sortField, setSortField] = useState('type');
   const [sortDirection, setSortDirection] = useState('asc');
   const [showFilters, setShowFilters] = useState(true);
@@ -138,6 +141,11 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
   const filteredAndSortedEquipment = useMemo(() => {
     let result = [...equipment];
 
+    // Фільтр видаленого обладнання
+    if (!showDeleted) {
+      result = result.filter(item => !item.isDeleted && item.status !== 'deleted');
+    }
+
     // Глобальний пошук
     if (filter.trim()) {
       const searchLower = filter.toLowerCase();
@@ -173,12 +181,26 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
             return itemDate <= toDate;
           });
         } else {
-          const filterLower = filterValue.toLowerCase();
-          result = result.filter(item => {
-            const itemValue = item[key];
-            if (itemValue == null) return false;
-            return String(itemValue).toLowerCase().includes(filterLower);
-          });
+          // Спеціальна обробка для select фільтрів (точне співпадіння)
+          if (getFilterType(key) === 'select') {
+            result = result.filter(item => {
+              if (key === 'currentWarehouse') {
+                const warehouseName = item.currentWarehouseName || '';
+                const warehouse = item.currentWarehouse || '';
+                return warehouseName === filterValue || warehouse === filterValue;
+              }
+              const itemValue = item[key];
+              return String(itemValue || '') === filterValue;
+            });
+          } else {
+            // Текстовий фільтр (часткове співпадіння)
+            const filterLower = filterValue.toLowerCase();
+            result = result.filter(item => {
+              const itemValue = item[key];
+              if (itemValue == null) return false;
+              return String(itemValue).toLowerCase().includes(filterLower);
+            });
+          }
         }
       }
     });
@@ -197,7 +219,7 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
     });
 
     return result;
-  }, [equipment, filter, columnFilters, sortField, sortDirection]);
+  }, [equipment, filter, columnFilters, sortField, sortDirection, showDeleted]);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -240,6 +262,18 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
   const handleRowClick = (item) => {
     setSelectedEquipment(item);
     setShowDetailsModal(true);
+  };
+
+  const handleEdit = (item, e) => {
+    e.stopPropagation();
+    setSelectedEquipment(item);
+    setShowEditModal(true);
+  };
+
+  const handleEditSuccess = () => {
+    setShowEditModal(false);
+    setSelectedEquipment(null);
+    refreshEquipment();
   };
 
   const handleExport = async () => {
@@ -321,6 +355,16 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
             onChange={(e) => setFilter(e.target.value)}
             className="search-input"
           />
+        </div>
+        <div className="toolbar-checkbox">
+          <label className="show-deleted-checkbox">
+            <input
+              type="checkbox"
+              checked={showDeleted}
+              onChange={(e) => setShowDeleted(e.target.checked)}
+            />
+            <span>Показати видалене обладнання</span>
+          </label>
         </div>
         <div className="toolbar-actions">
           <button
@@ -428,6 +472,13 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
                         title="Історія"
                       >
                         📋 Історія
+                      </button>
+                      <button
+                        className="btn-action btn-edit"
+                        onClick={(e) => handleEdit(item, e)}
+                        title="Редагувати"
+                      >
+                        ✏️ Редагувати
                       </button>
                       {item.status === 'in_stock' && (
                         <>
@@ -544,6 +595,18 @@ function EquipmentList({ user, warehouses, onMove, onShip }) {
             setShowDetailsModal(false);
             setSelectedEquipment(null);
           }}
+        />
+      )}
+
+      {showEditModal && selectedEquipment && (
+        <EquipmentEditModal
+          equipment={selectedEquipment}
+          warehouses={warehouses}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedEquipment(null);
+          }}
+          onSuccess={handleEditSuccess}
         />
       )}
     </div>

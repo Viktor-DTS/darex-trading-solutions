@@ -3417,6 +3417,61 @@ app.get('/api/equipment/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Оновлення обладнання
+app.put('/api/equipment/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const equipment = await Equipment.findById(req.params.id);
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    // Оновлюємо поля
+    const updateFields = [
+      'manufacturer', 'type', 'serialNumber', 'currentWarehouse', 'currentWarehouseName',
+      'standbyPower', 'primePower', 'phases', 'voltage', 'current', 'rpm',
+      'dimensions', 'weight', 'manufactureDate'
+    ];
+
+    updateFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        equipment[field] = req.body[field];
+      }
+    });
+
+    equipment.lastModified = new Date();
+    await equipment.save();
+
+    // Логування
+    try {
+      await EventLog.create({
+        userId: user._id.toString(),
+        userName: user.name || user.login,
+        userRole: user.role,
+        action: 'update',
+        entityType: 'equipment',
+        entityId: equipment._id.toString(),
+        description: `Оновлено обладнання ${equipment.type} (№${equipment.serialNumber})`,
+        details: req.body
+      });
+    } catch (logErr) {
+      console.error('Помилка логування:', logErr);
+    }
+
+    logPerformance('PUT /api/equipment/:id', startTime);
+    res.json(equipment);
+  } catch (error) {
+    console.error('[ERROR] PUT /api/equipment/:id:', error);
+    logPerformance('PUT /api/equipment/:id', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Видалення обладнання (тільки для admin/administrator)
 app.delete('/api/equipment/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();

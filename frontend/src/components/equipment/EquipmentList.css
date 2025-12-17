@@ -72,6 +72,26 @@
   border-color: var(--primary);
 }
 
+.toolbar-checkbox {
+  display: flex;
+  align-items: center;
+}
+
+.show-deleted-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.show-deleted-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
 .toolbar-info {
   color: var(--text-secondary);
   font-size: 12px;
@@ -308,6 +328,16 @@
 
 .btn-delete:hover {
   background: rgba(239, 68, 68, 0.3);
+}
+
+.btn-edit {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.btn-edit:hover {
+  background: rgba(255, 193, 7, 0.3);
 }
 
 /* Стани */
