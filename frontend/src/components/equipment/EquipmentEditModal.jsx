@@ -176,30 +176,26 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
           <EquipmentScanner
             user={user}
             warehouses={warehouses}
-            onEquipmentAdded={(saved) => {
-              // Отримуємо дані зі сканера і заповнюємо форму
-              // Сканер вже зберіг обладнання, тому просто заповнюємо форму даними
+            embedded={true}
+            onDataScanned={(scannedData) => {
+              // Отримуємо дані зі сканера і заповнюємо форму без збереження
               handleScannerData({
-                manufacturer: saved.manufacturer || '',
-                type: saved.type || '',
-                serialNumber: saved.serialNumber || '',
-                currentWarehouse: saved.currentWarehouse || formData.currentWarehouse || '',
-                currentWarehouseName: saved.currentWarehouseName || formData.currentWarehouseName || '',
-                region: saved.region || formData.region || '',
-                standbyPower: saved.standbyPower || '',
-                primePower: saved.primePower || '',
-                phase: saved.phase !== undefined ? String(saved.phase) : '',
-                voltage: saved.voltage || '',
-                amperage: saved.amperage !== undefined ? String(saved.amperage) : '',
-                rpm: saved.rpm !== undefined ? String(saved.rpm) : '',
-                dimensions: saved.dimensions || '',
-                weight: saved.weight !== undefined ? String(saved.weight) : '',
-                manufactureDate: saved.manufactureDate || ''
+                manufacturer: scannedData.manufacturer || '',
+                type: scannedData.type || '',
+                serialNumber: scannedData.serialNumber || '',
+                currentWarehouse: scannedData.currentWarehouse || formData.currentWarehouse || '',
+                currentWarehouseName: scannedData.currentWarehouseName || formData.currentWarehouseName || '',
+                region: scannedData.region || formData.region || '',
+                standbyPower: scannedData.standbyPower || '',
+                primePower: scannedData.primePower || '',
+                phase: scannedData.phase !== undefined && scannedData.phase !== null ? String(scannedData.phase) : '',
+                voltage: scannedData.voltage || '',
+                amperage: scannedData.amperage !== undefined && scannedData.amperage !== null ? String(scannedData.amperage) : '',
+                rpm: scannedData.rpm !== undefined && scannedData.rpm !== null ? String(scannedData.rpm) : '',
+                dimensions: scannedData.dimensions || '',
+                weight: scannedData.weight !== undefined && scannedData.weight !== null ? String(scannedData.weight) : '',
+                manufactureDate: scannedData.manufactureDate || ''
               });
-              // Оновлюємо список обладнання через callback
-              if (onSuccess) {
-                onSuccess();
-              }
             }}
             onClose={() => setShowScanner(false)}
           />

@@ -4,7 +4,7 @@ import { parseEquipmentData, validateEquipmentData } from '../../utils/ocrParser
 import API_BASE_URL from '../../config';
 import './EquipmentScanner.css';
 
-function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
+function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose, onDataScanned, embedded = false }) {
   const [step, setStep] = useState('camera'); // camera, processing, review, success
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -345,6 +345,24 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
 
   const handleSave = async () => {
     console.log('Дані перед валідацією:', equipmentData);
+    
+    // Якщо сканер використовується всередині форми (embedded mode), просто передаємо дані
+    if (embedded && onDataScanned) {
+      // Очищаємо значення "не визначено" перед передачею
+      const cleanedData = { ...equipmentData };
+      Object.keys(cleanedData).forEach(key => {
+        if (cleanedData[key] === 'не визначено' || cleanedData[key] === '') {
+          cleanedData[key] = key === 'phase' || key === 'amperage' || key === 'rpm' || key === 'weight' ? null : '';
+        }
+      });
+      
+      // Передаємо дані без збереження
+      onDataScanned(cleanedData);
+      onClose && onClose();
+      return;
+    }
+    
+    // Звичайний режим - збереження на сервер
     const validation = validateEquipmentData(equipmentData);
     console.log('Результат валідації:', validation);
     if (!validation.isValid) {
@@ -705,7 +723,7 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
                 Сканувати знову
               </button>
               <button className="btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? 'Збереження...' : '💾 Додати на склад'}
+                {saving ? 'Збереження...' : embedded ? '✅ Застосувати дані' : '💾 Додати на склад'}
               </button>
             </div>
           </div>
