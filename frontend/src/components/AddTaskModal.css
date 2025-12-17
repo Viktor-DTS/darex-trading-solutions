@@ -44,8 +44,8 @@
   background: var(--surface);
   border-radius: 10px;
   width: 100%;
-  max-width: 1620px !important;
-  min-width: 1440px;
+  max-width: 1296px !important;
+  min-width: 1152px;
   max-height: 92vh;
   overflow-y: auto;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
