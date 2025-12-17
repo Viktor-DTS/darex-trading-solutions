@@ -37,59 +37,87 @@ export const parseEquipmentData = (ocrText) => {
     }
   }
 
-  // TYPE: DE-50BDS (різні формати)
-  let typeMatch = text.match(/TYPE[:\s]+([A-Z0-9\-]+)/i);
+  // TYPE: DE-50BDS або GENSET MODEL: DE 55 BDS (різні формати)
+  let typeMatch = text.match(/TYPE[:\s]+([A-Z0-9\-\s]+)/i);
   if (typeMatch) {
-    data.type = typeMatch[1].trim();
+    data.type = typeMatch[1].trim().replace(/\s+/g, '-');
   } else {
-    // Альтернативний формат: просто DE-50BDS (без слова TYPE)
-    // Шукаємо патерн типу DE-XX, DE-XXBDS, тощо
-    typeMatch = text.match(/([A-Z]{2,3}[-]\d+[A-Z]*)/);
+    // GENSET MODEL формат
+    typeMatch = text.match(/GENSET\s+MODEL[:\s]+([A-Z0-9\-\s]+)/i);
     if (typeMatch) {
-      data.type = typeMatch[1].trim();
+      data.type = typeMatch[1].trim().replace(/\s+/g, '-');
     } else {
-      // Спробуємо знайти будь-який код типу (букви-цифри-букви)
-      typeMatch = text.match(/([A-Z]{2,}[-]?\d+[A-Z]*)/);
+      // Альтернативний формат: просто DE-XX, DE-XXBDS, тощо
+      typeMatch = text.match(/([A-Z]{2,3}[-]\d+[A-Z]*)/);
       if (typeMatch) {
         data.type = typeMatch[1].trim();
+      } else {
+        // Формат з пробілами: DE 55 BDS
+        typeMatch = text.match(/([A-Z]{2,3})\s+(\d+)\s+([A-Z]+)/);
+        if (typeMatch) {
+          data.type = `${typeMatch[1]}-${typeMatch[2]}${typeMatch[3]}`;
+        } else {
+          // Спробуємо знайти будь-який код типу (букви-цифри-букви)
+          typeMatch = text.match(/([A-Z]{2,}[-]?\d+[A-Z]*)/);
+          if (typeMatch) {
+            data.type = typeMatch[1].trim();
+          }
+        }
       }
     }
   }
 
   // №: 20241007015 (різні формати та мови)
-  // Підтримка: №, Nº, N, SERIAL, S/N, SN, СЕРИЙНЫЙ НОМЕР, СЕРІЙНИЙ НОМЕР, ЗАВ.№, ЗАВ. НОМЕР
-  const serialMatch = text.match(/(?:[№#N]|N[º°]|SERIAL|S\/N|SN|СЕРИЙНЫЙ|СЕРІЙНИЙ|ЗАВ[\.]?[№N]?)[:\s]+(\d{10,})/i);
+  // Підтримка: №, Nº, N, SERIAL, S/N, SN, СЕРИЙНЫЙ НОМЕР, СЕРІЙНИЙ НОМЕР, ЗАВ.№, ЗАВ. НОМЕР, GENSET SERIAL NUMBER
+  let serialMatch = text.match(/(?:[№#N]|N[º°]|SERIAL|S\/N|SN|СЕРИЙНЫЙ|СЕРІЙНИЙ|ЗАВ[\.]?[№N]?)[:\s]+(\d{7,})/i);
   if (serialMatch) {
     data.serialNumber = serialMatch[1].trim();
   } else {
-    // Спробуємо знайти довгий номер (10+ цифр) після різних міток
-    const serialPatterns = [
-      /(?:НОМЕР|НОМЕРА|NUMBER)[:\s]+(\d{10,})/i,
-      /(\d{11,})/ // Якщо є дуже довгий номер
-    ];
-    
-    for (const pattern of serialPatterns) {
-      const match = text.match(pattern);
-      if (match) {
-        data.serialNumber = match[1];
-        break;
+    // GENSET SERIAL NUMBER формат
+    serialMatch = text.match(/GENSET\s+SERIAL\s+NUMBER[:\s]+(\d{7,})/i);
+    if (serialMatch) {
+      data.serialNumber = serialMatch[1].trim();
+    } else {
+      // Спробуємо знайти довгий номер (7+ цифр) після різних міток
+      const serialPatterns = [
+        /(?:НОМЕР|НОМЕРА|NUMBER)[:\s]+(\d{7,})/i,
+        /(\d{7,})/ // Якщо є довгий номер (мінімум 7 цифр)
+      ];
+      
+      for (const pattern of serialPatterns) {
+        const match = text.match(pattern);
+        if (match) {
+          data.serialNumber = match[1];
+          break;
+        }
       }
     }
   }
 
-  // STANDBY POWER / РЕЗЕРВНА ПОТУЖНІСТЬ / РЕЗЕРВНА МОЩНОСТЬ: 50/40 KVA/KW (різні формати та мови)
+  // STANDBY POWER / РЕЗЕРВНА ПОТУЖНІСТЬ / РЕЗЕРВНА МОЩНОСТЬ / ESP: 50/40 KVA/KW (різні формати та мови)
   const standbyPatterns = [
     /STANDBY\s+POWER[:\s]+([\d\/\s]+(?:KVA|KW|kW)?)/i,
     /РЕЗЕРВНА\s+(?:ПОТУЖНІСТЬ|МОЩНОСТЬ|ПОТУЖНІСТЬ)[:\s]+([\d\/\s]+(?:КВА|КВТ|KVA|KW)?)/i,
     /РЕЗЕРВНА[:\s]+([\d\/]+)/i,
-    /STANDBY[:\s]+([\d\/]+)/i
+    /STANDBY[:\s]+([\d\/]+)/i,
+    /ESP\s*\(?KVA\)?[:\s]+(\d+)/i  // ESP (kVA): 55
   ];
   
   let standbyMatch = null;
   for (const pattern of standbyPatterns) {
     standbyMatch = text.match(pattern);
     if (standbyMatch) {
-      data.standbyPower = standbyMatch[1].trim().replace(/\s+/g, ' ');
+      const powerValue = standbyMatch[1].trim().replace(/\s+/g, ' ');
+      // Обробка ESP якщо знайдено (ESP може бути просто числом без "/")
+      if (powerValue && !powerValue.includes('/')) {
+        // Якщо ESP - це просто число (наприклад, 55), зберігаємо як є
+        const espNum = parseInt(powerValue);
+        if (espNum) {
+          data.standbyPower = String(espNum);
+        }
+      } else {
+        data.standbyPower = powerValue;
+      }
       break;
     }
   }
@@ -110,19 +138,30 @@ export const parseEquipmentData = (ocrText) => {
     }
   }
 
-  // PRIME POWER / ОСНОВНА ПОТУЖНІСТЬ / ОСНОВНА МОЩНОСТЬ: 45/36 KVA/KW (різні формати та мови)
+  // PRIME POWER / ОСНОВНА ПОТУЖНІСТЬ / ОСНОВНА МОЩНОСТЬ / PRP: 45/36 KVA/KW (різні формати та мови)
   const primePatterns = [
     /PRIME\s+POWER[:\s]+([\d\/\s]+(?:KVA|KW|kW)?)/i,
     /ОСНОВНА\s+(?:ПОТУЖНІСТЬ|МОЩНОСТЬ|ПОТУЖНІСТЬ)[:\s]+([\d\/\s]+(?:КВА|КВТ|KVA|KW)?)/i,
     /ОСНОВНА[:\s]+([\d\/]+)/i,
-    /PRIME[:\s]+([\d\/]+)/i
+    /PRIME[:\s]+([\d\/]+)/i,
+    /PRP\s*\(?KVA\)?[:\s]+(\d+)/i  // PRP (kVA): 50
   ];
   
   let primeMatch = null;
   for (const pattern of primePatterns) {
     primeMatch = text.match(pattern);
     if (primeMatch) {
-      data.primePower = primeMatch[1].trim().replace(/\s+/g, ' ');
+      const powerValue = primeMatch[1].trim().replace(/\s+/g, ' ');
+      // Обробка PRP якщо знайдено (PRP може бути просто числом без "/")
+      if (powerValue && !powerValue.includes('/')) {
+        // Якщо PRP - це просто число (наприклад, 50), зберігаємо як є
+        const prpNum = parseInt(powerValue);
+        if (prpNum) {
+          data.primePower = String(prpNum);
+        }
+      } else {
+        data.primePower = powerValue;
+      }
       break;
     }
   }
@@ -169,8 +208,9 @@ export const parseEquipmentData = (ocrText) => {
     }
   }
 
-  // V / В / ВОЛЬТ: 400/230 або 230 400 (різні формати та мови)
+  // V / В / ВОЛЬТ: 400/230 або 230 400 або просто 400 (різні формати та мови)
   const voltagePatterns = [
+    /VOLTAGE\s*\(?V\)?[:\s]+([\d\/\s]+)/i,  // VOLTAGE (V): 400
     /V[:\s]+([\d\/\s]+)/i,
     /В[:\s]+([\d\/\s]+)/i,
     /ВОЛЬТ[:\s]+([\d\/\s]+)/i,
@@ -182,7 +222,7 @@ export const parseEquipmentData = (ocrText) => {
   for (const pattern of voltagePatterns) {
     voltageMatch = text.match(pattern);
     if (voltageMatch) {
-      // Нормалізуємо формат: "230 400" -> "400/230", "400/230" залишаємо як є
+      // Нормалізуємо формат: "230 400" -> "400/230", "400/230" залишаємо як є, "400" -> "400"
       let voltage = voltageMatch[1].trim().replace(/\s+/g, ' ');
       const parts = voltage.split(/[\s\/]+/);
       if (parts.length === 2) {
@@ -195,6 +235,9 @@ export const parseEquipmentData = (ocrText) => {
         } else {
           voltage = `${parts[0]}/${parts[1]}`;
         }
+      } else if (parts.length === 1) {
+        // Якщо одне число (наприклад, 400), залишаємо як є
+        voltage = parts[0];
       }
       data.voltage = voltage;
       break;
@@ -223,13 +266,14 @@ export const parseEquipmentData = (ocrText) => {
     }
   }
 
-  // A / А / СТРУМ / ТОК: 72 (різні формати та мови)
+  // A / А / СТРУМ / ТОК / ESP CURRENT / PRP CURRENT: 72 (різні формати та мови)
   const amperagePatterns = [
     /A[:\s]+(\d+)/i,
     /А[:\s]+(\d+)/i,
     /СТРУМ[:\s]+(\d+)/i,
     /ТОК[:\s]+(\d+)/i,
-    /AMPERAGE[:\s]+(\d+)/i
+    /AMPERAGE[:\s]+(\d+)/i,
+    /(?:ESP|PRP)\s+CURRENT\s*\(?A\)?[:\s]+(\d+)/i  // ESP CURRENT (A): 72 або PRP CURRENT (A): 72
   ];
   
   let amperageMatch = null;
@@ -241,7 +285,20 @@ export const parseEquipmentData = (ocrText) => {
     }
   }
   
+  // Якщо знайдено ESP CURRENT або PRP CURRENT, але не оброблено вище
   if (!amperageMatch) {
+    const espCurrentMatch = text.match(/ESP\s+CURRENT\s*\(?A\)?[:\s]+(\d+)/i);
+    if (espCurrentMatch) {
+      data.amperage = parseInt(espCurrentMatch[1]);
+    } else {
+      const prpCurrentMatch = text.match(/PRP\s+CURRENT\s*\(?A\)?[:\s]+(\d+)/i);
+      if (prpCurrentMatch) {
+        data.amperage = parseInt(prpCurrentMatch[1]);
+      }
+    }
+  }
+  
+  if (!amperageMatch && !data.amperage) {
     // Якщо OCR розпізнав неточно, шукаємо число після напруги
     // Шукаємо число в діапазоні 10-200 (типові значення струму)
     const amperagePattern = text.match(/(?:[^\d]|^)(\d{2,3})(?:\s|$)/);
@@ -254,8 +311,9 @@ export const parseEquipmentData = (ocrText) => {
     }
   }
 
-  // COSφ / КОС φ / КОЭФФИЦИЕНТ: 0.8 (різні формати та мови)
+  // COSφ / КОС φ / КОЭФФИЦИЕНТ / POWER FACTOR: 0.8 (різні формати та мови)
   const cosPhiPatterns = [
+    /POWER\s+FACTOR[:\s]+([\d.,]+)/i,  // POWER FACTOR: 0.8
     /COS[φΦ]?[:\s]+([\d.,]+)/i,
     /КОС[φΦ]?[:\s]+([\d.,]+)/i,
     /КОЭФФИЦИЕНТ[:\s]+([\d.,]+)/i,
@@ -279,8 +337,9 @@ export const parseEquipmentData = (ocrText) => {
     }
   }
 
-  // RPM / ОБОРОТЫ / ОБОРОТИ: 1500 (різні формати та мови)
+  // RPM / ОБОРОТЫ / ОБОРОТИ / SPEED: 1500 (різні формати та мови)
   const rpmPatterns = [
+    /SPEED\s*\(?RPM\)?[:\s]+(\d+)/i,  // SPEED (rpm): 1500
     /RPM[:\s]+(\d+)/i,
     /ОБОРОТЫ[:\s]+(\d+)/i,
     /ОБОРОТИ[:\s]+(\d+)/i,
@@ -404,9 +463,12 @@ export const parseEquipmentData = (ocrText) => {
     }
   }
 
-  // DATE / ДАТА: 2024 (різні формати та мови)
+  // DATE / ДАТА: 2024 або 2023.09.15 (різні формати та мови)
   const datePatterns = [
-    /DATE[:\s]+(\d{4})/i,
+    /DATE\s+OF\s+MANUFACTURE[:\s]+(\d{4}\.\d{2}\.\d{2})/i,  // DATE OF MANUFACTURE: 2023.09.15
+    /DATE\s+OF\s+MANUFACTURE[:\s]+(\d{4})/i,  // DATE OF MANUFACTURE: 2023
+    /DATE[:\s]+(\d{4}\.\d{2}\.\d{2})/i,  // DATE: 2023.09.15
+    /DATE[:\s]+(\d{4})/i,  // DATE: 2024
     /ДАТА[:\s]+(\d{4})/i,
     /ГОД[:\s]+(\d{4})/i,
     /YEAR[:\s]+(\d{4})/i
@@ -416,22 +478,41 @@ export const parseEquipmentData = (ocrText) => {
   for (const pattern of datePatterns) {
     dateMatch = text.match(pattern);
     if (dateMatch) {
-      const year = parseInt(dateMatch[1]);
-      if (year >= 2000 && year <= 2099) {
-        data.manufactureDate = dateMatch[1];
-        break;
+      const dateStr = dateMatch[1];
+      // Якщо формат з днем та місяцем (2023.09.15)
+      if (dateStr.includes('.')) {
+        const parts = dateStr.split('.');
+        if (parts.length === 3) {
+          const year = parseInt(parts[0]);
+          if (year >= 2000 && year <= 2099) {
+            data.manufactureDate = dateStr; // Зберігаємо повну дату
+            break;
+          }
+        }
+      } else {
+        // Просто рік
+        const year = parseInt(dateStr);
+        if (year >= 2000 && year <= 2099) {
+          data.manufactureDate = dateStr;
+          break;
+        }
       }
     }
   }
   
   if (!dateMatch || !data.manufactureDate) {
-    // Якщо OCR розпізнав неточно, шукаємо рік (2024, 2023, тощо)
-    // Шукаємо 4-значне число, яке є роком (2000-2099)
-    dateMatch = text.match(/(20\d{2})/);
+    // Якщо OCR розпізнав неточно, шукаємо формат дати з днем та місяцем
+    dateMatch = text.match(/(20\d{2}\.\d{2}\.\d{2})/);
     if (dateMatch) {
-      const year = parseInt(dateMatch[1]);
-      if (year >= 2000 && year <= 2099) {
-        data.manufactureDate = dateMatch[1];
+      data.manufactureDate = dateMatch[1];
+    } else {
+      // Шукаємо рік (2024, 2023, тощо)
+      dateMatch = text.match(/(20\d{2})/);
+      if (dateMatch) {
+        const year = parseInt(dateMatch[1]);
+        if (year >= 2000 && year <= 2099) {
+          data.manufactureDate = dateMatch[1];
+        }
       }
     }
   }
