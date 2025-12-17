@@ -318,17 +318,33 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose, onDataS
       console.log('OCR текст:', text);
       
       // Об'єднуємо дані, але не перезаписуємо порожніми значеннями
-      setEquipmentData(prev => {
-        const merged = { ...prev };
-        Object.keys(parsed).forEach(key => {
-          // Додаємо значення тільки якщо воно не порожнє
-          if (parsed[key] !== '' && parsed[key] !== null && parsed[key] !== undefined) {
-            merged[key] = parsed[key];
+      const mergedData = { ...equipmentData };
+      Object.keys(parsed).forEach(key => {
+        // Додаємо значення тільки якщо воно не порожнє
+        if (parsed[key] !== '' && parsed[key] !== null && parsed[key] !== undefined) {
+          mergedData[key] = parsed[key];
+        }
+      });
+      console.log('Об\'єднані дані:', mergedData);
+      setEquipmentData(mergedData);
+      
+      // Якщо embedded режим, одразу передаємо дані в форму без перегляду
+      if (embedded && onDataScanned) {
+        // Очищаємо значення "не визначено" перед передачею
+        const cleanedData = { ...mergedData };
+        Object.keys(cleanedData).forEach(key => {
+          if (cleanedData[key] === 'не визначено' || cleanedData[key] === '') {
+            cleanedData[key] = key === 'phase' || key === 'amperage' || key === 'rpm' || key === 'weight' ? null : '';
           }
         });
-        console.log('Об\'єднані дані:', merged);
-        return merged;
-      });
+        
+        // Передаємо дані одразу
+        onDataScanned(cleanedData);
+        onClose && onClose();
+        return;
+      }
+      
+      // Звичайний режим - показуємо вікно перегляду
       setStep('review');
     } catch (error) {
       console.error('Помилка OCR:', error);
