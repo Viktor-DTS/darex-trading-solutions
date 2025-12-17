@@ -8,6 +8,28 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // Захист від null
+  if (!equipment) {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h2>📦 Переміщення обладнання</h2>
+            <button className="btn-close" onClick={onClose}>✕</button>
+          </div>
+          <div className="modal-body">
+            <p>Будь ласка, виберіть обладнання з таблиці для переміщення.</p>
+            <div className="modal-actions">
+              <button type="button" className="btn-secondary" onClick={onClose}>
+                Закрити
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -61,9 +83,9 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
 
         <div className="modal-body">
           <div className="equipment-info">
-            <p><strong>Тип:</strong> {equipment.type}</p>
-            <p><strong>Серійний номер:</strong> {equipment.serialNumber}</p>
-            <p><strong>Поточний склад:</strong> {equipment.currentWarehouseName || equipment.currentWarehouse}</p>
+            <p><strong>Тип:</strong> {equipment.type || '—'}</p>
+            <p><strong>Серійний номер:</strong> {equipment.serialNumber || '—'}</p>
+            <p><strong>Поточний склад:</strong> {equipment.currentWarehouseName || equipment.currentWarehouse || '—'}</p>
           </div>
 
           <form onSubmit={handleSubmit}>
