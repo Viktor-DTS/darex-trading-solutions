@@ -133,6 +133,10 @@
   grid-template-columns: repeat(3, 1fr);
 }
 
+.form-row.three-cols .form-group.request-desc-wide {
+  grid-column: span 2;
+}
+
 .form-row.two-cols {
   grid-template-columns: 2fr 1fr;
 }

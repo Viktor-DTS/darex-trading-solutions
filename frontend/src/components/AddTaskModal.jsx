@@ -1510,7 +1510,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       placeholder="+380..."
                     />
                   </div>
-                  <div className="form-group">
+                  <div className="form-group request-desc-wide">
                     <label>Опис заявки <span className="required">*</span></label>
                     <textarea name="requestDesc" value={formData.requestDesc} onChange={handleChange} rows="3" required />
                   </div>
