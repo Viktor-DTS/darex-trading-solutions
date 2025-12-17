@@ -88,6 +88,14 @@ const uploadEquipmentPhoto = multer({
   }
 });
 
+// Multer для OCR - зберігає в пам'яті для обробки через Google Vision API
+const uploadEquipmentPhotoForOCR = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB
+  }
+});
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -3156,7 +3164,7 @@ app.post('/api/equipment/upload-photo', authenticateToken, uploadEquipmentPhoto.
 });
 
 // OCR через Google Vision API
-app.post('/api/equipment/ocr', authenticateToken, uploadEquipmentPhoto.single('image'), async (req, res) => {
+app.post('/api/equipment/ocr', authenticateToken, uploadEquipmentPhotoForOCR.single('image'), async (req, res) => {
   const startTime = Date.now();
   try {
     if (!req.file) {
@@ -3174,19 +3182,14 @@ app.post('/api/equipment/ocr', authenticateToken, uploadEquipmentPhoto.single('i
     const apiKeySource = process.env.GOOGLE_VISION_API_KEY ? 'GOOGLE_VISION_API_KEY' : 'GOOGLE_GEOCODING_API_KEY';
     console.log(`[OCR] Використовується Google Vision API для розпізнавання тексту (ключ з ${apiKeySource})`);
 
-    // Отримуємо base64 зображення з Cloudinary або з buffer
-    let base64Image = '';
-    
-    if (req.file.buffer) {
-      // Якщо є buffer, використовуємо його
-      base64Image = req.file.buffer.toString('base64');
-    } else {
-      // Інакше завантажуємо з Cloudinary URL
-      const imageUrl = req.file.path || req.file.secure_url;
-      const imageResponse = await fetch(imageUrl);
-      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-      base64Image = imageBuffer.toString('base64');
+    // Отримуємо base64 зображення з buffer (multer.memoryStorage зберігає в req.file.buffer)
+    if (!req.file || !req.file.buffer) {
+      throw new Error('Зображення не було завантажено або не вдалося прочитати');
     }
+    
+    const base64Image = req.file.buffer.toString('base64');
+
+    console.log(`[OCR] Розмір base64 зображення: ${base64Image.length} символів`);
 
     // Використовуємо Google Vision API через REST з base64
     const visionResponse = await fetch(
@@ -3207,7 +3210,10 @@ app.post('/api/equipment/ocr', authenticateToken, uploadEquipmentPhoto.single('i
                   type: 'TEXT_DETECTION',
                   maxResults: 10
                 }
-              ]
+              ],
+              imageContext: {
+                languageHints: ['uk', 'en', 'ru'] // Підказки мов для кращого розпізнавання
+              }
             }
           ]
         })
@@ -3215,12 +3221,16 @@ app.post('/api/equipment/ocr', authenticateToken, uploadEquipmentPhoto.single('i
     );
 
     if (!visionResponse.ok) {
-      const errorData = await visionResponse.json();
-      throw new Error(errorData.error?.message || 'Помилка Google Vision API');
+      const errorData = await visionResponse.json().catch(() => ({ error: { message: 'Невідома помилка' } }));
+      console.error('[OCR] Помилка Google Vision API:', errorData);
+      throw new Error(errorData.error?.message || `Помилка Google Vision API: ${visionResponse.status}`);
     }
 
     const result = await visionResponse.json();
-    const text = result.responses?.[0]?.fullTextAnnotation?.text || '';
+    const text = result.responses?.[0]?.fullTextAnnotation?.text || 
+                  result.responses?.[0]?.textAnnotations?.[0]?.description || '';
+    
+    console.log(`[OCR] Розпізнано текст довжиною: ${text.length} символів`);
     
     logPerformance('POST /api/equipment/ocr', startTime);
     res.json({ text });

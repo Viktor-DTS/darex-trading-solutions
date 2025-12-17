@@ -209,17 +209,18 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
       // Малюємо кадр з максимальною якістю
       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
       
-      // Зберігаємо оригінальне зображення для preview
+      // Зберігаємо оригінальне зображення для preview та Google Vision
       const originalDataUrl = canvas.toDataURL('image/jpeg', 0.95);
       setImagePreview(originalDataUrl);
       
-      // Покращуємо зображення для OCR
+      // Покращуємо зображення для Tesseract OCR (якщо Google Vision не спрацює)
       const enhancedDataUrl = await enhanceImage(originalDataUrl);
       setImage(enhancedDataUrl);
       
       stopCamera();
       setStep('processing');
-      processImage(enhancedDataUrl);
+      // Передаємо обидва зображення: оригінальне для Google Vision, оброблене для Tesseract
+      processImage(enhancedDataUrl, originalDataUrl);
     }
   };
 
@@ -228,23 +229,25 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
     if (file) {
       const reader = new FileReader();
       reader.onload = async (e) => {
-        const dataUrl = e.target.result;
-        setImagePreview(dataUrl);
+        const originalDataUrl = e.target.result;
+        setImagePreview(originalDataUrl);
         
-        // Покращуємо зображення перед OCR
-        const enhancedDataUrl = await enhanceImage(dataUrl);
+        // Покращуємо зображення для Tesseract OCR (якщо Google Vision не спрацює)
+        const enhancedDataUrl = await enhanceImage(originalDataUrl);
         setImage(enhancedDataUrl);
         setStep('processing');
-        processImage(enhancedDataUrl);
+        // Передаємо обидва зображення: оригінальне для Google Vision, оброблене для Tesseract
+        processImage(enhancedDataUrl, originalDataUrl);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const processImageWithGoogleVision = async (imageData) => {
+  const processImageWithGoogleVision = async (originalImageData) => {
     try {
+      // Використовуємо оригінальне зображення (не оброблене) для Google Vision API
       // Конвертуємо base64 в blob
-      const response = await fetch(imageData);
+      const response = await fetch(originalImageData);
       const blob = await response.blob();
       
       // Відправляємо на бекенд для обробки через Google Vision API
@@ -262,33 +265,44 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
       
       if (ocrResponse.ok) {
         const result = await ocrResponse.json();
-        return result.text || '';
+        const text = result.text || '';
+        if (text && text.trim().length > 10) {
+          console.log('[OCR] Google Vision API розпізнав текст:', text.substring(0, 100) + '...');
+          return text;
+        }
+      } else {
+        const errorData = await ocrResponse.json().catch(() => ({}));
+        console.warn('[OCR] Google Vision API помилка:', ocrResponse.status, errorData);
       }
       return null;
     } catch (error) {
-      console.error('Помилка Google Vision API:', error);
+      console.error('[OCR] Помилка Google Vision API:', error);
       return null;
     }
   };
 
-  const processImage = async (imageData) => {
+  const processImage = async (enhancedImageData, originalImageData) => {
     setProcessing(true);
     try {
       let text = '';
       
-      // Спочатку пробуємо Google Vision API (якщо доступний)
-      try {
-        text = await processImageWithGoogleVision(imageData);
-      } catch (googleError) {
-        console.log('Google Vision API недоступний, використовуємо Tesseract:', googleError);
+      // Спочатку пробуємо Google Vision API з оригінальним зображенням (якщо доступний)
+      if (originalImageData) {
+        try {
+          text = await processImageWithGoogleVision(originalImageData);
+        } catch (googleError) {
+          console.log('[OCR] Google Vision API недоступний, використовуємо Tesseract:', googleError);
+        }
       }
       
-      // Якщо Google Vision не дав результату, використовуємо Tesseract
+      // Якщо Google Vision не дав результату, використовуємо Tesseract з обробленим зображенням
       if (!text || text.trim().length < 10) {
+        console.log('[OCR] Використовуємо Tesseract для розпізнавання...');
         const worker = await createWorker('eng+ukr');
-        const { data: { text: tesseractText } } = await worker.recognize(imageData);
+        const { data: { text: tesseractText } } = await worker.recognize(enhancedImageData);
         await worker.terminate();
         text = tesseractText;
+        console.log('[OCR] Tesseract розпізнав текст:', text.substring(0, 100) + '...');
       }
       
       setOcrText(text);
