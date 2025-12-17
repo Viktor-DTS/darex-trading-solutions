@@ -151,17 +151,17 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
             b = Math.min(255, b * 1.3);
           }
           
-          // М'яка бінаризація для кращого OCR (не повна бінаризація, але близько)
-          const binaryThreshold = threshold;
-          if (gray < binaryThreshold) {
-            // Текст - робимо чорним
-            const darkenFactor = 0.3;
+          // Менш агресивна обробка для кращого розпізнавання
+          // Замість повної бінаризації, просто посилюємо контраст
+          if (gray < threshold - 20) {
+            // Темні області (текст) - трохи темніші
+            const darkenFactor = 0.8;
             r = Math.max(0, r * darkenFactor);
             g = Math.max(0, g * darkenFactor);
             b = Math.max(0, b * darkenFactor);
-          } else {
-            // Фон - робимо білим
-            const lightenFactor = 1.5;
+          } else if (gray > threshold + 20) {
+            // Світлі області (фон) - трохи світліші
+            const lightenFactor = 1.15;
             r = Math.min(255, r * lightenFactor);
             g = Math.min(255, g * lightenFactor);
             b = Math.min(255, b * lightenFactor);
@@ -241,12 +241,55 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
     }
   };
 
+  const processImageWithGoogleVision = async (imageData) => {
+    try {
+      // Конвертуємо base64 в blob
+      const response = await fetch(imageData);
+      const blob = await response.blob();
+      
+      // Відправляємо на бекенд для обробки через Google Vision API
+      const formData = new FormData();
+      formData.append('image', blob, 'equipment-photo.jpg');
+      
+      const token = localStorage.getItem('token');
+      const ocrResponse = await fetch(`${API_BASE_URL}/equipment/ocr`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+      
+      if (ocrResponse.ok) {
+        const result = await ocrResponse.json();
+        return result.text || '';
+      }
+      return null;
+    } catch (error) {
+      console.error('Помилка Google Vision API:', error);
+      return null;
+    }
+  };
+
   const processImage = async (imageData) => {
     setProcessing(true);
     try {
-      const worker = await createWorker('eng+ukr');
-      const { data: { text } } = await worker.recognize(imageData);
-      await worker.terminate();
+      let text = '';
+      
+      // Спочатку пробуємо Google Vision API (якщо доступний)
+      try {
+        text = await processImageWithGoogleVision(imageData);
+      } catch (googleError) {
+        console.log('Google Vision API недоступний, використовуємо Tesseract:', googleError);
+      }
+      
+      // Якщо Google Vision не дав результату, використовуємо Tesseract
+      if (!text || text.trim().length < 10) {
+        const worker = await createWorker('eng+ukr');
+        const { data: { text: tesseractText } } = await worker.recognize(imageData);
+        await worker.terminate();
+        text = tesseractText;
+      }
       
       setOcrText(text);
       const parsed = parseEquipmentData(text);
@@ -453,6 +496,28 @@ function EquipmentScanner({ user, warehouses, onEquipmentAdded, onClose }) {
           )}
 
           <div className="review-form">
+            <div className="form-group">
+              <label>Виробник</label>
+              <input
+                type="text"
+                className={!equipmentData.manufacturer ? 'undefined-field' : ''}
+                value={equipmentData.manufacturer || 'не визначено'}
+                onChange={(e) => handleInputChange('manufacturer', e.target.value === 'не визначено' ? '' : e.target.value)}
+                onFocus={(e) => {
+                  if (e.target.value === 'не визначено') {
+                    e.target.value = '';
+                    handleInputChange('manufacturer', '');
+                  }
+                }}
+                onBlur={(e) => {
+                  if (e.target.value === '') {
+                    handleInputChange('manufacturer', '');
+                  }
+                }}
+                placeholder="DAREX ENERGY"
+              />
+            </div>
+
             <div className="form-group">
               <label>Тип обладнання *</label>
               <input

@@ -3155,6 +3155,82 @@ app.post('/api/equipment/upload-photo', authenticateToken, uploadEquipmentPhoto.
   }
 });
 
+// OCR через Google Vision API
+app.post('/api/equipment/ocr', authenticateToken, uploadEquipmentPhoto.single('image'), async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Зображення не було завантажено' });
+    }
+
+    // Використовуємо GOOGLE_GEOCODING_API_KEY (який вже налаштований) для Google Vision API
+    const GOOGLE_VISION_API_KEY = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_GEOCODING_API_KEY;
+    
+    if (!GOOGLE_VISION_API_KEY) {
+      console.error('[OCR] Google API ключ не знайдено. Перевірте GOOGLE_VISION_API_KEY або GOOGLE_GEOCODING_API_KEY');
+      return res.status(400).json({ error: 'Google Vision API ключ не налаштовано' });
+    }
+    
+    const apiKeySource = process.env.GOOGLE_VISION_API_KEY ? 'GOOGLE_VISION_API_KEY' : 'GOOGLE_GEOCODING_API_KEY';
+    console.log(`[OCR] Використовується Google Vision API для розпізнавання тексту (ключ з ${apiKeySource})`);
+
+    // Отримуємо base64 зображення з Cloudinary або з buffer
+    let base64Image = '';
+    
+    if (req.file.buffer) {
+      // Якщо є buffer, використовуємо його
+      base64Image = req.file.buffer.toString('base64');
+    } else {
+      // Інакше завантажуємо з Cloudinary URL
+      const imageUrl = req.file.path || req.file.secure_url;
+      const imageResponse = await fetch(imageUrl);
+      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+      base64Image = imageBuffer.toString('base64');
+    }
+
+    // Використовуємо Google Vision API через REST з base64
+    const visionResponse = await fetch(
+      `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              image: {
+                content: base64Image
+              },
+              features: [
+                {
+                  type: 'TEXT_DETECTION',
+                  maxResults: 10
+                }
+              ]
+            }
+          ]
+        })
+      }
+    );
+
+    if (!visionResponse.ok) {
+      const errorData = await visionResponse.json();
+      throw new Error(errorData.error?.message || 'Помилка Google Vision API');
+    }
+
+    const result = await visionResponse.json();
+    const text = result.responses?.[0]?.fullTextAnnotation?.text || '';
+    
+    logPerformance('POST /api/equipment/ocr', startTime);
+    res.json({ text });
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/ocr:', error);
+    logPerformance('POST /api/equipment/ocr', startTime);
+    res.status(500).json({ error: error.message || 'Помилка розпізнавання тексту' });
+  }
+});
+
 // Сканування та додавання обладнання
 app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
   const startTime = Date.now();
