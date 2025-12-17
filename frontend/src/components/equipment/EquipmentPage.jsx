@@ -99,6 +99,21 @@ function EquipmentPage() {
     );
   }
 
+  // Додаткова перевірка перед рендерингом
+  if (!equipment) {
+    return (
+      <div className="equipment-page">
+        <div className="equipment-page-error">
+          <h2>Обладнання не знайдено</h2>
+          <p>Обладнання з вказаним ID не існує або було видалено.</p>
+          <button className="btn-primary" onClick={handleClose}>
+            Повернутися назад
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="equipment-page">
       <EquipmentDetailsModal 

@@ -2,7 +2,10 @@ import React from 'react';
 import './EquipmentDetailsModal.css';
 
 function EquipmentDetailsModal({ equipment, onClose, isPage = false }) {
-  if (!equipment) return null;
+  // Захист від null/undefined
+  if (!equipment || typeof equipment !== 'object') {
+    return null;
+  }
 
   const formatValue = (value) => {
     if (value == null || value === '') return 'не визначено';
@@ -21,6 +24,7 @@ function EquipmentDetailsModal({ equipment, onClose, isPage = false }) {
   };
 
   const getStatusLabel = (status) => {
+    if (!status) return 'не визначено';
     const labels = {
       'in_stock': 'На складі',
       'reserved': 'Зарезервовано',
