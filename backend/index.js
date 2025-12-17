@@ -3441,7 +3441,7 @@ app.put('/api/equipment/:id', authenticateToken, async (req, res) => {
     // Основні поля
     const basicFields = [
       'manufacturer', 'type', 'serialNumber', 'currentWarehouse', 'currentWarehouseName',
-      'standbyPower', 'primePower', 'voltage', 'dimensions', 'weight', 'manufactureDate'
+      'region', 'standbyPower', 'primePower', 'voltage', 'dimensions', 'weight', 'manufactureDate'
     ];
     
     basicFields.forEach(field => {

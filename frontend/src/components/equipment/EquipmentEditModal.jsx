@@ -15,6 +15,7 @@ function EquipmentEditModal({ equipment, warehouses, onClose, onSuccess }) {
         serialNumber: equipment.serialNumber || '',
         currentWarehouse: equipment.currentWarehouse || '',
         currentWarehouseName: equipment.currentWarehouseName || '',
+        region: equipment.region || '',
         standbyPower: equipment.standbyPower || '',
         primePower: equipment.primePower || '',
         phases: equipment.phase !== undefined ? String(equipment.phase) : '',
@@ -35,13 +36,14 @@ function EquipmentEditModal({ equipment, warehouses, onClose, onSuccess }) {
       [name]: value
     }));
 
-    // Якщо змінюється склад, оновлюємо назву складу
+    // Якщо змінюється склад, оновлюємо назву складу та регіон
     if (name === 'currentWarehouse') {
       const warehouse = warehouses.find(w => (w._id || w.name) === value);
       if (warehouse) {
         setFormData(prev => ({
           ...prev,
-          currentWarehouseName: warehouse.name
+          currentWarehouseName: warehouse.name,
+          region: warehouse.region || prev.region || ''
         }));
       }
     }
@@ -162,6 +164,16 @@ function EquipmentEditModal({ equipment, warehouses, onClose, onSuccess }) {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div className="form-group">
+                <label>Регіон</label>
+                <input
+                  type="text"
+                  name="region"
+                  value={formData.region}
+                  onChange={handleChange}
+                  placeholder="Введіть регіон"
+                />
               </div>
             </div>
           </div>
