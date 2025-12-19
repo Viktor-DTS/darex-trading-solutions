@@ -1875,6 +1875,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     <select name="work" value={formData.work} onChange={handleChange} required={panelType === 'operator'}>
                       <option value="">Виберіть...</option>
                       <option value="ТО">ТО</option>
+                      <option value="ТО-1">ТО-1</option>
+                      <option value="ТО-2">ТО-2</option>
+                      <option value="ТО-3">ТО-3</option>
+                      <option value="ТО-4">ТО-4</option>
                       <option value="ПНР">ПНР</option>
                       <option value="Ремонт в цеху">Ремонт в цеху</option>
                       <option value="Ремонт на місті">Ремонт на місті</option>
@@ -1889,7 +1893,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       <option value="Внутрішні роботи (завантаження)">Внутрішні роботи (завантаження)</option>
                       <option value="Внутрішні роботи (розвантаження)">Внутрішні роботи (розвантаження)</option>
                       {/* Додаємо поточне значення до опцій, якщо його там немає (для сумісності зі старими даними) */}
-                      {formData.work && !['', 'ТО', 'ПНР', 'Ремонт в цеху', 'Ремонт на місті', 'Діагностика', 'Діагностика+ремонт', 'Ремонт в цеху (волонтерство)', 'Гарантійний ремонт в цеху', 'Гарантійний ремонт на місті', 'Предпродажна підготовка', 'Продаж ЗІП', 'Перекомутація', 'Внутрішні роботи (завантаження)', 'Внутрішні роботи (розвантаження)'].includes(formData.work) && (
+                      {formData.work && !['', 'ТО', 'ТО-1', 'ТО-2', 'ТО-3', 'ТО-4', 'ПНР', 'Ремонт в цеху', 'Ремонт на місті', 'Діагностика', 'Діагностика+ремонт', 'Ремонт в цеху (волонтерство)', 'Гарантійний ремонт в цеху', 'Гарантійний ремонт на місті', 'Предпродажна підготовка', 'Продаж ЗІП', 'Перекомутація', 'Внутрішні роботи (завантаження)', 'Внутрішні роботи (розвантаження)'].includes(formData.work) && (
                         <option value={formData.work}>{formData.work}</option>
                       )}
                     </select>
