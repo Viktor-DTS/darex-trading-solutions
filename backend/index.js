@@ -1232,9 +1232,14 @@ app.put('/api/tasks/:id', async (req, res) => {
     }
     
     // Автоматичне встановлення autoCompletedAt при зміні статусу на "Виконано"
-    if (updateData.status === 'Виконано' && currentTask.status !== 'Виконано' && !currentTask.autoCompletedAt) {
-      updateData.autoCompletedAt = new Date();
-      console.log('[DEBUG] PUT /api/tasks/:id - автоматично встановлено autoCompletedAt:', updateData.autoCompletedAt);
+    if (updateData.status === 'Виконано' && currentTask.status !== 'Виконано') {
+      // Встановлюємо дату тільки якщо поле порожнє, щоб зберегти оригінальну дату виконання
+      if (!currentTask.autoCompletedAt) {
+        updateData.autoCompletedAt = new Date();
+        console.log('[DEBUG] PUT /api/tasks/:id - автоматично встановлено autoCompletedAt:', updateData.autoCompletedAt);
+      } else {
+        console.log('[DEBUG] PUT /api/tasks/:id - autoCompletedAt вже встановлено, зберігаємо оригінальну дату:', currentTask.autoCompletedAt);
+      }
     }
     
     // Автоматичне встановлення autoWarehouseApprovedAt при затвердженні завскладом
