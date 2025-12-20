@@ -555,9 +555,18 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       }
       
       // Звичайна фільтрація
+      // Для select полів використовуємо точне порівняння, для текстових - includes
+      const filterType = getFilterType(key);
       result = result.filter(task => {
         let taskValue = task[key];
         if (taskValue === null || taskValue === undefined) taskValue = '';
+        
+        // Для select полів - точне порівняння (без урахування регістру)
+        if (filterType === 'select') {
+          return String(taskValue).toLowerCase() === filterValue;
+        }
+        
+        // Для текстових полів - пошук підрядка
         const taskValueStr = String(taskValue).toLowerCase();
         return taskValueStr.includes(filterValue);
       });
