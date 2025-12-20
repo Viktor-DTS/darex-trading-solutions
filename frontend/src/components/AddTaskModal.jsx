@@ -957,6 +957,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     if (!formData.requestDesc) {
       missingFields.push('Опис заявки');
     }
+    if (!formData.contactPhone) {
+      missingFields.push('Тел. контактної особи');
+    }
     
     // Якщо статус "Виконано", додаткові обов'язкові поля
     if (formData.status === 'Виконано') {
@@ -1501,13 +1504,14 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     />
                   </div>
                   <div className="form-group">
-                    <label>Тел. контактної особи</label>
+                    <label>Тел. контактної особи <span className="required">*</span></label>
                     <input 
                       type="tel" 
                       name="contactPhone" 
                       value={formData.contactPhone || ''} 
                       onChange={handleChange}
                       placeholder="+380..."
+                      required
                     />
                   </div>
                   <div className="form-group request-desc-wide">
