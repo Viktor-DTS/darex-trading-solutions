@@ -8,7 +8,6 @@ import EquipmentEditModal from './equipment/EquipmentEditModal';
 import EquipmentMoveModal from './equipment/EquipmentMoveModal';
 import EquipmentShipModal from './equipment/EquipmentShipModal';
 import EquipmentStatistics from './equipment/EquipmentStatistics';
-import WarehouseManagement from './equipment/WarehouseManagement';
 import API_BASE_URL from '../config';
 import './Dashboard.css';
 
@@ -196,7 +195,6 @@ function WarehouseDashboard({ user }) {
     { id: 'archive', label: 'Архів виконаних заявок', icon: '📁' },
     { id: 'equipment', label: 'Складський облік', icon: '📦' },
     { id: 'statistics', label: 'Статистика', icon: '📊' },
-    { id: 'warehouses', label: 'Управління складами', icon: '🏢' }
   ];
 
   const handleEquipmentAdded = () => {
@@ -311,15 +309,6 @@ function WarehouseDashboard({ user }) {
             </div>
           ) : activeTab === 'statistics' ? (
             <EquipmentStatistics warehouses={warehouses} />
-          ) : activeTab === 'warehouses' ? (
-            (user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'warehouse' || user?.role === 'zavsklad') ? (
-              <WarehouseManagement user={user} />
-            ) : (
-              <div className="access-denied">
-                <h3>⛔ Доступ заборонено</h3>
-                <p>У вас немає прав для управління складами</p>
-              </div>
-            )
           ) : loading ? (
             <div className="loading-indicator">Завантаження...</div>
           ) : (

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import API_BASE_URL from '../config';
+import WarehouseManagement from './equipment/WarehouseManagement';
 import './AdminDashboard.css';
 
 // Вкладки адміністратора
@@ -13,6 +14,7 @@ const ADMIN_TABS = [
   { id: 'notifications', label: '🔔 Сповіщення', icon: '🔔' },
   { id: 'backup', label: '💾 Бекап', icon: '💾' },
   { id: 'logs', label: '📜 Логи', icon: '📜' },
+  { id: 'warehouses', label: '🏢 Управління складами', icon: '🏢' },
 ];
 
 function AdminDashboard({ user }) {
@@ -1857,6 +1859,7 @@ function AdminDashboard({ user }) {
       case 'notifications': return renderNotificationsTab();
       case 'backup': return renderBackupTab();
       case 'logs': return renderLogsTab();
+      case 'warehouses': return <WarehouseManagement user={user} />;
       default: return renderUsersTab();
     }
   };
