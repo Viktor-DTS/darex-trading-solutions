@@ -34,7 +34,10 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
         rpm: equipment.rpm !== undefined ? String(equipment.rpm) : '',
         dimensions: equipment.dimensions || '',
         weight: equipment.weight !== undefined ? String(equipment.weight) : '',
-        manufactureDate: equipment.manufactureDate ? new Date(equipment.manufactureDate).toISOString().split('T')[0] : ''
+        manufactureDate: equipment.manufactureDate ? new Date(equipment.manufactureDate).toISOString().split('T')[0] : '',
+        batchName: equipment.batchName || '',
+        batchUnit: equipment.batchUnit || '',
+        batchPriceWithVAT: equipment.batchPriceWithVAT !== undefined ? String(equipment.batchPriceWithVAT) : ''
       });
       setEquipmentType(equipment.isBatch ? 'batch' : 'single');
     } else {
@@ -55,7 +58,10 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
         rpm: '',
         dimensions: '',
         weight: '',
-        manufactureDate: ''
+        manufactureDate: '',
+        batchName: '',
+        batchUnit: '',
+        batchPriceWithVAT: ''
       });
       setEquipmentType('single');
     }
@@ -142,6 +148,10 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
       if (updateData.weight) {
         const weightNum = parseFloat(updateData.weight);
         updateData.weight = isNaN(weightNum) ? null : weightNum;
+      }
+      if (updateData.batchPriceWithVAT) {
+        const priceNum = parseFloat(updateData.batchPriceWithVAT);
+        updateData.batchPriceWithVAT = isNaN(priceNum) ? null : priceNum;
       }
       
       console.log('[EDIT] Відправка даних:', updateData);
@@ -397,65 +407,112 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
             </div>
           </div>
 
-          <div className="form-section">
-            <h3>Технічні характеристики</h3>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Резервна потужність</label>
-                <input
-                  type="text"
-                  name="standbyPower"
-                  value={formData.standbyPower}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="form-group">
-                <label>Основна потужність</label>
-                <input
-                  type="text"
-                  name="primePower"
-                  value={formData.primePower}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="form-group">
-                <label>Фази</label>
-                <input
-                  type="text"
-                  name="phase"
-                  value={formData.phase}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="form-group">
-                <label>Напруга</label>
-                <input
-                  type="text"
-                  name="voltage"
-                  value={formData.voltage}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="form-group">
-                <label>Струм (A)</label>
-                <input
-                  type="text"
-                  name="amperage"
-                  value={formData.amperage}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="form-group">
-                <label>RPM</label>
-                <input
-                  type="text"
-                  name="rpm"
-                  value={formData.rpm}
-                  onChange={handleChange}
-                />
+          {/* Умовне відображення: для партійного - Кількісна характеристика, для одиничного - Технічні характеристики */}
+          {(equipmentType === 'batch' || (!isNewEquipment && equipment?.isBatch)) ? (
+            <div className="form-section">
+              <h3>Кількісна характеристика</h3>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Назва</label>
+                  <input
+                    type="text"
+                    name="batchName"
+                    value={formData.batchName}
+                    onChange={handleChange}
+                    placeholder="Введіть назву"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Одиниця виміру</label>
+                  <select
+                    name="batchUnit"
+                    value={formData.batchUnit}
+                    onChange={handleChange}
+                  >
+                    <option value="">Виберіть одиницю виміру</option>
+                    <option value="шт.">шт.</option>
+                    <option value="л.">л.</option>
+                    <option value="комплект">комплект</option>
+                    <option value="упаковка">упаковка</option>
+                    <option value="балон">балон</option>
+                    <option value="м.п.">м.п.</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Ціна за одиницю з ПДВ</label>
+                  <input
+                    type="number"
+                    name="batchPriceWithVAT"
+                    value={formData.batchPriceWithVAT}
+                    onChange={handleChange}
+                    placeholder="0.00"
+                    step="0.01"
+                    min="0"
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="form-section">
+              <h3>Технічні характеристики</h3>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Резервна потужність</label>
+                  <input
+                    type="text"
+                    name="standbyPower"
+                    value={formData.standbyPower}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Основна потужність</label>
+                  <input
+                    type="text"
+                    name="primePower"
+                    value={formData.primePower}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Фази</label>
+                  <input
+                    type="text"
+                    name="phase"
+                    value={formData.phase}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Напруга</label>
+                  <input
+                    type="text"
+                    name="voltage"
+                    value={formData.voltage}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Струм (A)</label>
+                  <input
+                    type="text"
+                    name="amperage"
+                    value={formData.amperage}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>RPM</label>
+                  <input
+                    type="text"
+                    name="rpm"
+                    value={formData.rpm}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="form-section">
             <h3>Фізичні параметри</h3>

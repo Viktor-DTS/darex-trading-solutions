@@ -380,6 +380,9 @@ const equipmentSchema = new mongoose.Schema({
   quantity: { type: Number, default: 1, min: 1 },  // Кількість одиниць (для партій)
   batchId: { type: String, sparse: true },  // ID партії для групування
   batchIndex: { type: Number },  // Індекс одиниці в партії (1, 2, 3...)
+  batchName: String,  // Назва для партійного обладнання
+  batchUnit: String,  // Одиниця виміру (шт., л., комплект, упаковка, балон, м.п.)
+  batchPriceWithVAT: Number,  // Ціна за одиницю з ПДВ
   
   // Складські дані
   currentWarehouse: String,         // ID складу
