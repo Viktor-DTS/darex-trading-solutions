@@ -380,8 +380,9 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
         onClose={() => setClientDataModal({ open: false, edrpou: '' })}
         onApply={(updates) => {
           // Застосовуємо дані клієнта до форми
-          if (updates.client && updates.client.value) {
-            setShippedTo(updates.client.value);
+          // ClientDataSelectionModal передає client як просте значення (рядок), а не об'єкт
+          if (updates.client) {
+            setShippedTo(updates.client);
           }
           setClientDataModal({ open: false, edrpou: '' });
         }}
