@@ -424,6 +424,7 @@ const equipmentSchema = new mongoose.Schema({
     clientEdrpou: String,
     clientAddress: String,
     invoiceRecipientDetails: String,
+    totalPrice: Number,
     attachedFiles: [{
       cloudinaryUrl: String,
       cloudinaryId: String,
@@ -3906,7 +3907,7 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
 app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { shippedTo, orderNumber, invoiceNumber, clientEdrpou, clientAddress, invoiceRecipientDetails, attachedFiles } = req.body;
+    const { shippedTo, orderNumber, invoiceNumber, clientEdrpou, clientAddress, invoiceRecipientDetails, totalPrice, attachedFiles } = req.body;
     const user = await User.findOne({ login: req.user.login });
     
     if (!user) {
@@ -3929,6 +3930,7 @@ app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
       clientEdrpou: clientEdrpou || '',
       clientAddress: clientAddress || '',
       invoiceRecipientDetails: invoiceRecipientDetails || '',
+      totalPrice: totalPrice || null,
       attachedFiles: attachedFiles || []
     };
     
@@ -4077,6 +4079,7 @@ app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
       clientEdrpou: clientEdrpou || '',
       clientAddress: clientAddress || '',
       invoiceRecipientDetails: invoiceRecipientDetails || '',
+      totalPrice: totalPrice || null,
       attachedFiles: attachedFiles || []
     };
     

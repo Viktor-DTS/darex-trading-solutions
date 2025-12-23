@@ -17,6 +17,7 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
   const [clientEdrpou, setClientEdrpou] = useState('');
   const [clientAddress, setClientAddress] = useState('');
   const [invoiceRecipientDetails, setInvoiceRecipientDetails] = useState('');
+  const [totalPrice, setTotalPrice] = useState('');
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -530,6 +531,7 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
             clientEdrpou: clientEdrpou,
             clientAddress: clientAddress,
             invoiceRecipientDetails: invoiceRecipientDetails,
+            totalPrice: totalPrice ? parseFloat(totalPrice) : null,
             attachedFiles: attachedFiles.map(f => ({
               cloudinaryUrl: f.cloudinaryUrl,
               cloudinaryId: f.cloudinaryId,
@@ -701,12 +703,24 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
             </div>
 
             <div className="form-group">
-              <label>Реквізити отримувача</label>
+              <label>Реквізити отримувача отримання товару</label>
               <textarea
                 value={invoiceRecipientDetails}
                 onChange={(e) => setInvoiceRecipientDetails(e.target.value)}
                 placeholder="Реквізити для рахунку"
                 rows="3"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Загальна ціна обладнання, грн.</label>
+              <input
+                type="number"
+                value={totalPrice}
+                onChange={(e) => setTotalPrice(e.target.value)}
+                placeholder="0.00"
+                min="0"
+                step="0.01"
               />
             </div>
 

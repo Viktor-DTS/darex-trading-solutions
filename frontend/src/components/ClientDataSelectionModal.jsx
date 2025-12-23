@@ -253,7 +253,7 @@ const ClientDataSelectionModal = ({
                         checked={selectedData.invoiceRecipientDetails.enabled}
                         onChange={() => handleToggleField('invoiceRecipientDetails', clientData.invoiceRecipientDetails)}
                       />
-                      <span className="field-name">Реквізити отримувача:</span>
+                      <span className="field-name">Реквізити отримувача отримання товару:</span>
                       <span className="field-value">{clientData.invoiceRecipientDetails.substring(0, 50)}...</span>
                     </label>
                   </div>
