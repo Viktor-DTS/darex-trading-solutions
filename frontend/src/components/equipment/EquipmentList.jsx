@@ -289,7 +289,12 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
   };
 
   const handleRowClick = (item) => {
-    setSelectedEquipment(item);
+    // Якщо це група партії, використовуємо перший елемент з batchItems
+    if (item.isGrouped && item.batchItems && item.batchItems.length > 0) {
+      setSelectedEquipment(item.batchItems[0]);
+    } else {
+      setSelectedEquipment(item);
+    }
     setShowDetailsModal(true);
   };
 
@@ -491,8 +496,14 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
                     <div className="action-buttons">
                       <button
                         className="btn-action btn-qr"
-                        onClick={() => {
-                          setSelectedEquipment(item);
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Якщо це група партії, використовуємо перший елемент з batchItems
+                          if (item.isGrouped && item.batchItems && item.batchItems.length > 0) {
+                            setSelectedEquipment(item.batchItems[0]);
+                          } else {
+                            setSelectedEquipment(item);
+                          }
                           setShowQR(true);
                         }}
                         title="QR-код"
@@ -501,8 +512,14 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
                       </button>
                       <button
                         className="btn-action btn-history"
-                        onClick={() => {
-                          setSelectedEquipment(item);
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Якщо це група партії, використовуємо перший елемент з batchItems
+                          if (item.isGrouped && item.batchItems && item.batchItems.length > 0) {
+                            setSelectedEquipment(item.batchItems[0]);
+                          } else {
+                            setSelectedEquipment(item);
+                          }
                           setShowHistory(true);
                         }}
                         title="Історія"
@@ -519,8 +536,14 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
                       {(user?.role === 'admin' || user?.role === 'administrator') && (
                         <button
                           className="btn-action btn-delete"
-                          onClick={() => {
-                            setSelectedEquipment(item);
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Якщо це група партії, використовуємо перший елемент з batchItems
+                            if (item.isGrouped && item.batchItems && item.batchItems.length > 0) {
+                              setSelectedEquipment(item.batchItems[0]);
+                            } else {
+                              setSelectedEquipment(item);
+                            }
                             setShowDeleteModal(true);
                           }}
                           title="Видалити"
