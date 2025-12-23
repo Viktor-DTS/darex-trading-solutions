@@ -258,7 +258,8 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background: var(--background);
   padding-bottom: 0; /* Не додаємо padding тут, щоб не конфліктувати з TaskTable */
 }
