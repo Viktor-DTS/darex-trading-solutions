@@ -10,6 +10,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+  const [equipmentType, setEquipmentType] = useState('single'); // 'single' або 'batch'
   const isNewEquipment = !equipment;
 
   useEffect(() => {
@@ -31,12 +32,14 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
         weight: equipment.weight !== undefined ? String(equipment.weight) : '',
         manufactureDate: equipment.manufactureDate ? new Date(equipment.manufactureDate).toISOString().split('T')[0] : ''
       });
+      setEquipmentType(equipment.isBatch ? 'batch' : 'single');
     } else {
       // Ініціалізація для нового обладнання
       setFormData({
         manufacturer: '',
         type: '',
         serialNumber: '',
+        quantity: 1,
         currentWarehouse: user?.region || '',
         currentWarehouseName: '',
         region: user?.region || '',
@@ -50,6 +53,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
         weight: '',
         manufactureDate: ''
       });
+      setEquipmentType('single');
     }
   }, [equipment, user]);
 
@@ -83,6 +87,17 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
       
       // Підготовка даних для відправки
       const updateData = { ...formData };
+      
+      // Додаємо поля для партії (тільки для нового обладнання)
+      if (isNewEquipment) {
+        updateData.isBatch = equipmentType === 'batch';
+        if (equipmentType === 'batch') {
+          updateData.quantity = parseInt(formData.quantity) || 1;
+          updateData.serialNumber = null; // Партії без серійних номерів
+        } else {
+          updateData.quantity = 1;
+        }
+      }
       
       // Додаємо прикріплені файли
       if (attachedFiles.length > 0) {
@@ -233,6 +248,36 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
               </button>
             </div>
 
+            {isNewEquipment && (
+              <div className="form-section">
+                <h3>Тип обладнання</h3>
+                <div className="form-group">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="equipmentType"
+                      value="single"
+                      checked={equipmentType === 'single'}
+                      onChange={(e) => setEquipmentType(e.target.value)}
+                    />
+                    Одиничне обладнання (з серійним номером)
+                  </label>
+                </div>
+                <div className="form-group">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="equipmentType"
+                      value="batch"
+                      checked={equipmentType === 'batch'}
+                      onChange={(e) => setEquipmentType(e.target.value)}
+                    />
+                    Партія обладнання (без серійного номера)
+                  </label>
+                </div>
+              </div>
+            )}
+
             <div className="form-section">
             <h3>Основна інформація</h3>
             <div className="form-grid">
@@ -256,15 +301,31 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
                 />
               </div>
               <div className="form-group">
-                <label>Серійний номер *</label>
+                <label>Серійний номер {equipmentType === 'single' && '*'}</label>
                 <input
                   type="text"
                   name="serialNumber"
                   value={formData.serialNumber}
                   onChange={handleChange}
-                  required
+                  disabled={equipmentType === 'batch' && isNewEquipment}
+                  required={equipmentType === 'single' && isNewEquipment}
+                  placeholder={equipmentType === 'batch' && isNewEquipment ? 'Не застосовується для партій' : 'Введіть серійний номер'}
                 />
               </div>
+              {equipmentType === 'batch' && isNewEquipment && (
+                <div className="form-group">
+                  <label>Кількість одиниць *</label>
+                  <input
+                    type="number"
+                    name="quantity"
+                    value={formData.quantity || 1}
+                    onChange={handleChange}
+                    min="1"
+                    required
+                    placeholder="Введіть кількість"
+                  />
+                </div>
+              )}
               <div className="form-group">
                 <label>Склад *</label>
                 <select

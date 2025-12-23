@@ -375,6 +375,12 @@ const equipmentSchema = new mongoose.Schema({
   weight: Number,                   // 940
   manufactureDate: String,          // 2024
   
+  // Поля для партійного обладнання
+  isBatch: { type: Boolean, default: false },  // Чи це партія
+  quantity: { type: Number, default: 1, min: 1 },  // Кількість одиниць (для партій)
+  batchId: { type: String, sparse: true },  // ID партії для групування
+  batchIndex: { type: Number },  // Індекс одиниці в партії (1, 2, 3...)
+  
   // Складські дані
   currentWarehouse: String,         // ID складу
   currentWarehouseName: String,     // Назва складу
@@ -457,6 +463,8 @@ equipmentSchema.index({ currentWarehouse: 1 });
 equipmentSchema.index({ status: 1 });
 equipmentSchema.index({ region: 1 });
 equipmentSchema.index({ type: 1 });
+equipmentSchema.index({ batchId: 1 });
+equipmentSchema.index({ batchId: 1, currentWarehouse: 1 }); // Для швидкого пошуку партій на складі
 
 const Equipment = mongoose.model('Equipment', equipmentSchema);
 
@@ -3343,15 +3351,25 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
       return res.status(401).json({ error: 'Користувач не знайдено' });
     }
     
-    // Перевірка на дублікат: комбінація Тип + Серійний номер повинна бути унікальною
-    if (equipmentData.type && equipmentData.serialNumber) {
+    const isBatch = equipmentData.isBatch === true;
+    const quantity = isBatch ? (parseInt(equipmentData.quantity) || 1) : 1;
+    
+    // Валідація для одиничного обладнання
+    if (!isBatch) {
+      if (!equipmentData.type || !equipmentData.serialNumber) {
+        return res.status(400).json({ 
+          error: 'Тип обладнання та серійний номер обов\'язкові для одиничного обладнання'
+        });
+      }
+      
+      // Перевірка на дублікат
       const existing = await Equipment.findOne({ 
         type: equipmentData.type,
         serialNumber: equipmentData.serialNumber
       });
       if (existing) {
         return res.status(400).json({ 
-          error: 'Обладнання з таким типом та серійним номером вже існує. Тип обладнання та серійний номер разом повинні бути унікальними.',
+          error: 'Обладнання з таким типом та серійним номером вже існує.',
           existing: {
             type: existing.type,
             serialNumber: existing.serialNumber,
@@ -3360,39 +3378,86 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
           }
         });
       }
-    } else if (!equipmentData.type || !equipmentData.serialNumber) {
-      return res.status(400).json({ 
-        error: 'Тип обладнання та серійний номер обов\'язкові для перевірки унікальності'
-      });
+    } else {
+      // Валідація для партії
+      if (!equipmentData.type) {
+        return res.status(400).json({ 
+          error: 'Тип обладнання обов\'язковий для партії'
+        });
+      }
+      if (quantity < 1) {
+        return res.status(400).json({ 
+          error: 'Кількість повинна бути більше 0'
+        });
+      }
     }
     
-    const equipment = await Equipment.create({
-      ...equipmentData,
-      addedBy: user._id.toString(),
-      addedByName: user.name || user.login,
-      currentWarehouse: equipmentData.currentWarehouse || user.region,
-      currentWarehouseName: equipmentData.currentWarehouseName || user.region,
-      region: equipmentData.region || user.region
-    });
+    // Генерація batchId для партії
+    let batchId = null;
+    if (isBatch) {
+      batchId = `BATCH-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    
+    // Створення обладнання
+    const createdEquipment = [];
+    
+    if (isBatch) {
+      // Створюємо N записів для партії
+      for (let i = 1; i <= quantity; i++) {
+        const equipment = await Equipment.create({
+          ...equipmentData,
+          isBatch: true,
+          quantity: 1, // Кожен запис - одна одиниця
+          batchId: batchId,
+          batchIndex: i,
+          serialNumber: null, // Партії без серійних номерів
+          addedBy: user._id.toString(),
+          addedByName: user.name || user.login,
+          currentWarehouse: equipmentData.currentWarehouse || user.region,
+          currentWarehouseName: equipmentData.currentWarehouseName || user.region,
+          region: equipmentData.region || user.region
+        });
+        createdEquipment.push(equipment);
+      }
+    } else {
+      // Створюємо один запис для одиничного обладнання
+      const equipment = await Equipment.create({
+        ...equipmentData,
+        isBatch: false,
+        quantity: 1,
+        batchId: null,
+        batchIndex: null,
+        addedBy: user._id.toString(),
+        addedByName: user.name || user.login,
+        currentWarehouse: equipmentData.currentWarehouse || user.region,
+        currentWarehouseName: equipmentData.currentWarehouseName || user.region,
+        region: equipmentData.region || user.region
+      });
+      createdEquipment.push(equipment);
+    }
     
     // Логування події
     try {
+      const description = isBatch 
+        ? `Додано партію обладнання ${equipmentData.type} (${quantity} шт.) на склад ${equipmentData.currentWarehouseName || user.region}`
+        : `Додано обладнання ${equipmentData.type} (№${equipmentData.serialNumber}) на склад ${equipmentData.currentWarehouseName || user.region}`;
+      
       await EventLog.create({
         userId: user._id.toString(),
         userName: user.name || user.login,
         userRole: user.role,
         action: 'create',
         entityType: 'equipment',
-        entityId: equipment._id.toString(),
-        description: `Додано обладнання ${equipment.type} (№${equipment.serialNumber}) на склад ${equipment.currentWarehouseName}`,
-        details: equipmentData
+        entityId: isBatch ? batchId : createdEquipment[0]._id.toString(),
+        description: description,
+        details: { ...equipmentData, quantity: isBatch ? quantity : 1 }
       });
     } catch (logErr) {
       console.error('Помилка логування:', logErr);
     }
     
     logPerformance('POST /api/equipment/scan', startTime);
-    res.status(201).json(equipment);
+    res.status(201).json(isBatch ? { batchId, count: quantity, items: createdEquipment } : createdEquipment[0]);
   } catch (error) {
     console.error('[ERROR] POST /api/equipment/scan:', error);
     logPerformance('POST /api/equipment/scan', startTime);
@@ -3879,6 +3944,178 @@ app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('[ERROR] POST /api/equipment/:id/ship:', error);
     logPerformance('POST /api/equipment/:id/ship', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Масове переміщення обладнання (для партій)
+app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { batchId, quantity, fromWarehouse, fromWarehouseName, toWarehouse, toWarehouseName, reason, attachedFiles } = req.body;
+    const user = await User.findOne({ login: req.user.login });
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    if (!batchId || !quantity || quantity < 1) {
+      return res.status(400).json({ error: 'batchId та quantity обов\'язкові' });
+    }
+    
+    // Знаходимо всі одиниці партії на поточному складі
+    const batchItems = await Equipment.find({
+      batchId: batchId,
+      currentWarehouse: fromWarehouse,
+      status: 'in_stock'
+    }).sort({ batchIndex: 1 }).limit(quantity);
+    
+    if (batchItems.length < quantity) {
+      return res.status(400).json({ 
+        error: `На складі доступно тільки ${batchItems.length} одиниць з партії` 
+      });
+    }
+    
+    const movement = {
+      fromWarehouse: fromWarehouse,
+      toWarehouse: toWarehouse,
+      fromWarehouseName: fromWarehouseName,
+      toWarehouseName: toWarehouseName,
+      date: new Date(),
+      movedBy: user._id.toString(),
+      movedByName: user.name || user.login,
+      reason: reason || '',
+      attachedFiles: attachedFiles || []
+    };
+    
+    // Переміщуємо вибрану кількість
+    const movedItems = [];
+    for (const item of batchItems) {
+      item.movementHistory.push(movement);
+      item.currentWarehouse = toWarehouse;
+      item.currentWarehouseName = toWarehouseName;
+      item.status = 'in_transit';
+      item.lastModified = new Date();
+      await item.save();
+      movedItems.push(item);
+    }
+    
+    // Логування
+    try {
+      await EventLog.create({
+        userId: user._id.toString(),
+        userName: user.name || user.login,
+        userRole: user.role,
+        action: 'update',
+        entityType: 'equipment',
+        entityId: batchId,
+        description: `Переміщено ${quantity} одиниць партії ${batchId} з ${fromWarehouseName} на ${toWarehouseName}`,
+        details: { batchId, quantity, movement }
+      });
+    } catch (logErr) {
+      console.error('Помилка логування:', logErr);
+    }
+    
+    logPerformance('POST /api/equipment/batch/move', startTime);
+    res.json({ batchId, movedCount: movedItems.length, items: movedItems });
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/batch/move:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Масове відвантаження обладнання (для партій)
+app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { batchId, quantity, fromWarehouse, shippedTo, orderNumber, invoiceNumber, clientEdrpou, clientAddress, invoiceRecipientDetails, attachedFiles } = req.body;
+    const user = await User.findOne({ login: req.user.login });
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    if (!batchId || !quantity || quantity < 1) {
+      return res.status(400).json({ error: 'batchId та quantity обов\'язкові' });
+    }
+    
+    // Знаходимо всі одиниці партії на складі
+    const batchItems = await Equipment.find({
+      batchId: batchId,
+      currentWarehouse: fromWarehouse,
+      status: 'in_stock'
+    }).sort({ batchIndex: 1 }).limit(quantity);
+    
+    if (batchItems.length < quantity) {
+      return res.status(400).json({ 
+        error: `На складі доступно тільки ${batchItems.length} одиниць з партії` 
+      });
+    }
+    
+    const shipment = {
+      shippedTo: shippedTo,
+      shippedDate: new Date(),
+      shippedBy: user._id.toString(),
+      shippedByName: user.name || user.login,
+      orderNumber: orderNumber || '',
+      invoiceNumber: invoiceNumber || '',
+      clientEdrpou: clientEdrpou || '',
+      clientAddress: clientAddress || '',
+      invoiceRecipientDetails: invoiceRecipientDetails || '',
+      attachedFiles: attachedFiles || []
+    };
+    
+    // Відвантажуємо вибрану кількість
+    const shippedItems = [];
+    for (const item of batchItems) {
+      item.shipmentHistory.push(shipment);
+      item.status = 'shipped';
+      item.lastModified = new Date();
+      await item.save();
+      shippedItems.push(item);
+    }
+    
+    // Логування
+    try {
+      await EventLog.create({
+        userId: user._id.toString(),
+        userName: user.name || user.login,
+        userRole: user.role,
+        action: 'update',
+        entityType: 'equipment',
+        entityId: batchId,
+        description: `Відвантажено ${quantity} одиниць партії ${batchId} замовнику ${shippedTo}`,
+        details: { batchId, quantity, shipment }
+      });
+    } catch (logErr) {
+      console.error('Помилка логування:', logErr);
+    }
+    
+    logPerformance('POST /api/equipment/batch/ship', startTime);
+    res.json({ batchId, shippedCount: shippedItems.length, items: shippedItems });
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/batch/ship:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Отримання інформації про партію (кількість на складі)
+app.get('/api/equipment/batch/:batchId/stock', authenticateToken, async (req, res) => {
+  try {
+    const { batchId } = req.params;
+    const { warehouse } = req.query;
+    
+    const query = { batchId, status: 'in_stock' };
+    if (warehouse) {
+      query.currentWarehouse = warehouse;
+    }
+    
+    const count = await Equipment.countDocuments(query);
+    const items = await Equipment.find(query).select('_id currentWarehouse currentWarehouseName');
+    
+    res.json({ batchId, count, items });
+  } catch (error) {
+    console.error('[ERROR] GET /api/equipment/batch/:batchId/stock:', error);
     res.status(500).json({ error: error.message });
   }
 });

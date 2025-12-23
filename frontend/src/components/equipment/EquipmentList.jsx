@@ -223,7 +223,31 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
       return sortDirection === 'asc' ? comparison : -comparison;
     });
 
-    return result;
+    // Групування партій за типом та складом
+    const groups = {};
+    const singleItems = [];
+    
+    result.forEach(item => {
+      if (item.isBatch && item.batchId && item.status === 'in_stock') {
+        const key = `${item.batchId}-${item.currentWarehouse || item.currentWarehouseName}`;
+        if (!groups[key]) {
+          groups[key] = {
+            ...item,
+            _id: `batch-${key}`, // Унікальний ID для групи
+            batchItems: [],
+            batchCount: 0,
+            isGrouped: true
+          };
+        }
+        groups[key].batchItems.push(item);
+        groups[key].batchCount++;
+      } else {
+        singleItems.push(item);
+      }
+    });
+    
+    // Об'єднуємо групи та одиничні елементи
+    return [...Object.values(groups), ...singleItems];
   }, [equipment, filter, columnFilters, sortField, sortDirection, showDeleted]);
 
   const handleSort = (field) => {
@@ -500,8 +524,24 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
                     </div>
                   </td>
                   <td>{formatValue(item.manufacturer, 'manufacturer')}</td>
-                  <td>{formatValue(item.type, 'type')}</td>
-                  <td>{formatValue(item.serialNumber, 'serialNumber')}</td>
+                  <td>
+                    {item.isGrouped && item.batchCount ? (
+                      <span style={{ fontWeight: 'bold' }}>
+                        {formatValue(item.type, 'type')} × {item.batchCount} шт.
+                      </span>
+                    ) : (
+                      formatValue(item.type, 'type')
+                    )}
+                  </td>
+                  <td>
+                    {item.isGrouped && item.batchCount ? (
+                      <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
+                        Партія: {item.batchCount} шт.
+                      </span>
+                    ) : (
+                      formatValue(item.serialNumber, 'serialNumber')
+                    )}
+                  </td>
                   <td>{formatValue(item.currentWarehouseName || item.currentWarehouse, 'currentWarehouse')}</td>
                   <td>{formatValue(item.standbyPower, 'standbyPower')}</td>
                   <td>{formatValue(item.primePower, 'primePower')}</td>

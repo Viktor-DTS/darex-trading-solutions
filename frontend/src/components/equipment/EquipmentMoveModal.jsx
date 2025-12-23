@@ -14,6 +14,10 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [showBatchQuantityModal, setShowBatchQuantityModal] = useState(false);
+  const [selectedBatch, setSelectedBatch] = useState(null);
+  const [batchQuantity, setBatchQuantity] = useState(1);
+  const [batchQuantities, setBatchQuantities] = useState({}); // { batchId-warehouse: quantity }
 
   // Завантаження списку обладнання, якщо не передано
   useEffect(() => {
@@ -52,27 +56,57 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
     });
   };
 
+  // Групування обладнання за batchId та складом
+  const groupedEquipment = useMemo(() => {
+    const groups = {};
+    const singleItems = [];
+    
+    equipmentList.forEach(eq => {
+      if (eq.isBatch && eq.batchId && eq.status === 'in_stock') {
+        const key = `${eq.batchId}-${eq.currentWarehouse || eq.currentWarehouseName}`;
+        if (!groups[key]) {
+          groups[key] = {
+            ...eq,
+            _id: `batch-${key}`, // Унікальний ID для групи
+            batchItems: [],
+            batchCount: 0
+          };
+        }
+        groups[key].batchItems.push(eq);
+        groups[key].batchCount++;
+      } else {
+        singleItems.push(eq);
+      }
+    });
+    
+    return [...Object.values(groups), ...singleItems];
+  }, [equipmentList]);
+
   // Фільтрація обладнання по пошуковому запиту
   const filteredEquipmentList = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return equipmentList;
+    let result = groupedEquipment;
+    
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = groupedEquipment.filter(eq => {
+        const type = (eq.type || '').toLowerCase();
+        const serialNumber = (eq.serialNumber || '').toLowerCase();
+        const warehouse = (eq.currentWarehouseName || eq.currentWarehouse || '').toLowerCase();
+        const manufacturer = (eq.manufacturer || '').toLowerCase();
+        const region = (eq.region || '').toLowerCase();
+        const batchId = (eq.batchId || '').toLowerCase();
+        
+        return type.includes(query) ||
+               serialNumber.includes(query) ||
+               warehouse.includes(query) ||
+               manufacturer.includes(query) ||
+               region.includes(query) ||
+               batchId.includes(query);
+      });
     }
     
-    const query = searchQuery.toLowerCase();
-    return equipmentList.filter(eq => {
-      const type = (eq.type || '').toLowerCase();
-      const serialNumber = (eq.serialNumber || '').toLowerCase();
-      const warehouse = (eq.currentWarehouseName || eq.currentWarehouse || '').toLowerCase();
-      const manufacturer = (eq.manufacturer || '').toLowerCase();
-      const region = (eq.region || '').toLowerCase();
-      
-      return type.includes(query) ||
-             serialNumber.includes(query) ||
-             warehouse.includes(query) ||
-             manufacturer.includes(query) ||
-             region.includes(query);
-    });
-  }, [equipmentList, searchQuery]);
+    return result;
+  }, [groupedEquipment, searchQuery]);
 
   const handleSelectAll = () => {
     if (selectedEquipmentList.length === filteredEquipmentList.length && filteredEquipmentList.length > 0) {
@@ -85,6 +119,46 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
       const toAdd = filteredEquipmentList.filter(eq => !filteredIds.has(eq._id));
       setSelectedEquipmentList(prev => [...prev, ...toAdd]);
     }
+  };
+
+  const handleBatchSelect = (batch) => {
+    setSelectedBatch(batch);
+    const key = `${batch.batchId}-${batch.currentWarehouse || batch.currentWarehouseName}`;
+    const existingQuantity = batchQuantities[key] || 1;
+    setBatchQuantity(existingQuantity);
+    setShowBatchQuantityModal(true);
+  };
+
+  const handleBatchQuantityConfirm = () => {
+    if (!selectedBatch) return;
+    
+    if (batchQuantity < 1 || batchQuantity > selectedBatch.batchCount) {
+      setError(`Кількість повинна бути від 1 до ${selectedBatch.batchCount}`);
+      return;
+    }
+    
+    const key = `${selectedBatch.batchId}-${selectedBatch.currentWarehouse || selectedBatch.currentWarehouseName}`;
+    
+    // Додаємо вибрані одиниці до списку
+    const itemsToAdd = selectedBatch.batchItems.slice(0, batchQuantity);
+    setSelectedEquipmentList(prev => {
+      // Видаляємо попередні записи цієї партії, якщо вони є
+      const existing = prev.filter(e => 
+        !(e.batchId === selectedBatch.batchId && 
+          (e.currentWarehouse === selectedBatch.currentWarehouse || 
+           e.currentWarehouseName === selectedBatch.currentWarehouseName))
+      );
+      return [...existing, ...itemsToAdd];
+    });
+    
+    setBatchQuantities(prev => ({
+      ...prev,
+      [key]: batchQuantity
+    }));
+    
+    setShowBatchQuantityModal(false);
+    setSelectedBatch(null);
+    setError('');
   };
 
   // Якщо потрібно показати вибір обладнання
@@ -146,26 +220,59 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
                         </label>
                       </div>
                       <div className="equipment-select-list">
-                        {filteredEquipmentList.map(eq => (
-                      <div
-                        key={eq._id}
-                        className={`equipment-select-item ${selectedEquipmentList.find(e => e._id === eq._id) ? 'selected' : ''}`}
-                        onClick={() => handleEquipmentToggle(eq)}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={!!selectedEquipmentList.find(e => e._id === eq._id)}
-                          onChange={() => handleEquipmentToggle(eq)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="equipment-checkbox"
-                        />
-                        <div className="equipment-select-info">
-                          <strong>{eq.type || '—'}</strong>
-                          <span>Серійний номер: {eq.serialNumber || '—'}</span>
-                          <span>Склад: {eq.currentWarehouseName || eq.currentWarehouse || '—'}</span>
-                        </div>
-                      </div>
-                        ))}
+                        {filteredEquipmentList.map(group => {
+                          const isBatch = group.isBatch && group.batchId;
+                          const isSelected = selectedEquipmentList.some(e => 
+                            isBatch 
+                              ? e.batchId === group.batchId && 
+                                (e.currentWarehouse === group.currentWarehouse || 
+                                 e.currentWarehouseName === group.currentWarehouseName)
+                              : e._id === group._id
+                          );
+                          const key = isBatch 
+                            ? `${group.batchId}-${group.currentWarehouse || group.currentWarehouseName}` 
+                            : group._id;
+                          const selectedQuantity = isBatch ? (batchQuantities[key] || 0) : 0;
+                          
+                          return (
+                            <div
+                              key={key}
+                              className={`equipment-select-item ${isSelected ? 'selected' : ''}`}
+                              onClick={() => {
+                                if (isBatch) {
+                                  handleBatchSelect(group);
+                                } else {
+                                  handleEquipmentToggle(group);
+                                }
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {}}
+                                onClick={(e) => e.stopPropagation()}
+                                className="equipment-checkbox"
+                              />
+                              <div className="equipment-select-info">
+                                <strong>{group.type || '—'}</strong>
+                                {isBatch ? (
+                                  <>
+                                    <span>Партія: {group.batchCount} шт. на складі {group.currentWarehouseName || group.currentWarehouse || '—'}</span>
+                                    <span>Batch ID: {group.batchId}</span>
+                                    {selectedQuantity > 0 && (
+                                      <span className="selected-quantity">Вибрано: {selectedQuantity} шт.</span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>Серійний номер: {group.serialNumber || '—'}</span>
+                                    <span>Склад: {group.currentWarehouseName || group.currentWarehouse || '—'}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </>
                   )}
@@ -182,22 +289,76 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
                 </div>
               ) : (
                 <div className="selected-equipment-display-list">
-                  {selectedEquipmentList.map(eq => (
-                    <div key={eq._id} className="selected-equipment-display-item">
-                      <button
-                        className="remove-equipment-btn"
-                        onClick={() => handleEquipmentToggle(eq)}
-                        title="Видалити з вибраного"
-                      >
-                        ✕
-                      </button>
-                      <div className="selected-equipment-display-info">
-                        <strong>{eq.type || '—'}</strong>
-                        <span>Серійний номер: {eq.serialNumber || '—'}</span>
-                        <span>Склад: {eq.currentWarehouseName || eq.currentWarehouse || '—'}</span>
-                      </div>
-                    </div>
-                  ))}
+                  {(() => {
+                    // Групуємо вибране обладнання для відображення
+                    const grouped = {};
+                    selectedEquipmentList.forEach(eq => {
+                      if (eq.isBatch && eq.batchId) {
+                        const key = `${eq.batchId}-${eq.currentWarehouse || eq.currentWarehouseName}`;
+                        if (!grouped[key]) {
+                          grouped[key] = {
+                            ...eq,
+                            count: 0,
+                            items: []
+                          };
+                        }
+                        grouped[key].count++;
+                        grouped[key].items.push(eq);
+                      } else {
+                        grouped[eq._id] = { ...eq, count: 1, items: [eq] };
+                      }
+                    });
+                    
+                    return Object.values(grouped).map(group => {
+                      const isBatch = group.isBatch && group.batchId;
+                      const key = isBatch 
+                        ? `${group.batchId}-${group.currentWarehouse || group.currentWarehouseName}` 
+                        : group._id;
+                      const quantity = isBatch ? (batchQuantities[key] || group.count) : 1;
+                      
+                      return (
+                        <div key={key} className="selected-equipment-display-item">
+                          <button
+                            className="remove-equipment-btn"
+                            onClick={() => {
+                              if (isBatch) {
+                                setSelectedEquipmentList(prev => prev.filter(e => 
+                                  !(e.batchId === group.batchId && 
+                                    (e.currentWarehouse === group.currentWarehouse || 
+                                     e.currentWarehouseName === group.currentWarehouseName))
+                                ));
+                                setBatchQuantities(prev => {
+                                  const newQuantities = { ...prev };
+                                  delete newQuantities[key];
+                                  return newQuantities;
+                                });
+                              } else {
+                                handleEquipmentToggle(group);
+                              }
+                            }}
+                            title="Видалити з вибраного"
+                          >
+                            ✕
+                          </button>
+                          <div className="selected-equipment-display-info">
+                            <strong>{group.type || '—'}</strong>
+                            {isBatch ? (
+                              <>
+                                <span>Партія: {quantity} шт.</span>
+                                <span>Склад: {group.currentWarehouseName || group.currentWarehouse || '—'}</span>
+                                <span>Batch ID: {group.batchId}</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>Серійний номер: {group.serialNumber || '—'}</span>
+                                <span>Склад: {group.currentWarehouseName || group.currentWarehouse || '—'}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               )}
             </div>
@@ -223,6 +384,65 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
           </div>
           {error && <div className="error-message">{error}</div>}
         </div>
+        
+        {/* Модалка вибору кількості для партії */}
+        {showBatchQuantityModal && selectedBatch && (
+          <div className="modal-overlay" style={{ zIndex: 1001 }} onClick={() => {
+            setShowBatchQuantityModal(false);
+            setSelectedBatch(null);
+            setError('');
+          }}>
+            <div className="modal-content" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Виберіть кількість</h3>
+                <button className="btn-close" onClick={() => {
+                  setShowBatchQuantityModal(false);
+                  setSelectedBatch(null);
+                  setError('');
+                }}>✕</button>
+              </div>
+              <div className="modal-body">
+                <p><strong>Партія:</strong> {selectedBatch.type}</p>
+                <p><strong>Доступно на складі:</strong> {selectedBatch.batchCount} шт.</p>
+                <div className="form-group">
+                  <label>Кількість для переміщення *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={selectedBatch.batchCount}
+                    value={batchQuantity}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 1;
+                      setBatchQuantity(Math.max(1, Math.min(val, selectedBatch.batchCount)));
+                    }}
+                    style={{ width: '100%', padding: '8px' }}
+                  />
+                </div>
+                {error && <div className="error-message">{error}</div>}
+              </div>
+              <div className="modal-actions">
+                <button 
+                  type="button" 
+                  className="btn-secondary" 
+                  onClick={() => {
+                    setShowBatchQuantityModal(false);
+                    setSelectedBatch(null);
+                    setError('');
+                  }}
+                >
+                  Скасувати
+                </button>
+                <button 
+                  type="button" 
+                  className="btn-primary" 
+                  onClick={handleBatchQuantityConfirm}
+                >
+                  Підтвердити
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -248,32 +468,83 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
       const warehouse = warehouses.find(w => w._id === toWarehouse || w.name === toWarehouse);
       const toWarehouseName = warehouse?.name || toWarehouse;
       
-      // Обробляємо кожне вибране обладнання
-      const results = await Promise.allSettled(
-        selectedEquipmentList.map(eq =>
-          fetch(`${API_BASE_URL}/equipment/${eq._id}/move`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              toWarehouse: toWarehouse,
-              toWarehouseName: toWarehouseName,
-              reason: reason,
-              attachedFiles: attachedFiles.map(f => ({
-                cloudinaryUrl: f.cloudinaryUrl,
-                cloudinaryId: f.cloudinaryId,
-                originalName: f.originalName,
-                mimetype: f.mimetype,
-                size: f.size
-              }))
-            })
+      // Розділити обладнання на одиничне та партії
+      const singleItems = selectedEquipmentList.filter(eq => !eq.isBatch || !eq.batchId);
+      const batchGroups = {};
+      
+      selectedEquipmentList.forEach(eq => {
+        if (eq.isBatch && eq.batchId) {
+          const key = `${eq.batchId}-${eq.currentWarehouse || eq.currentWarehouseName}`;
+          if (!batchGroups[key]) {
+            batchGroups[key] = {
+              batchId: eq.batchId,
+              fromWarehouse: eq.currentWarehouse,
+              fromWarehouseName: eq.currentWarehouseName,
+              items: []
+            };
+          }
+          batchGroups[key].items.push(eq);
+        }
+      });
+      
+      const results = [];
+      
+      // Обробка одиничного обладнання
+      for (const item of singleItems) {
+        const result = await fetch(`${API_BASE_URL}/equipment/${item._id}/move`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            toWarehouse: toWarehouse,
+            toWarehouseName: toWarehouseName,
+            reason: reason,
+            attachedFiles: attachedFiles.map(f => ({
+              cloudinaryUrl: f.cloudinaryUrl,
+              cloudinaryId: f.cloudinaryId,
+              originalName: f.originalName,
+              mimetype: f.mimetype,
+              size: f.size
+            }))
           })
-        )
-      );
-
-      const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok));
+        });
+        results.push(result);
+      }
+      
+      // Обробка партій
+      for (const key in batchGroups) {
+        const group = batchGroups[key];
+        const quantity = batchQuantities[key] || group.items.length;
+        
+        const result = await fetch(`${API_BASE_URL}/equipment/batch/move`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            batchId: group.batchId,
+            quantity: quantity,
+            fromWarehouse: group.fromWarehouse,
+            fromWarehouseName: group.fromWarehouseName,
+            toWarehouse: toWarehouse,
+            toWarehouseName: toWarehouseName,
+            reason: reason,
+            attachedFiles: attachedFiles.map(f => ({
+              cloudinaryUrl: f.cloudinaryUrl,
+              cloudinaryId: f.cloudinaryId,
+              originalName: f.originalName,
+              mimetype: f.mimetype,
+              size: f.size
+            }))
+          })
+        });
+        results.push(result);
+      }
+      
+      const failed = results.filter(r => !r.ok);
       
       if (failed.length === 0) {
         onSuccess && onSuccess();
