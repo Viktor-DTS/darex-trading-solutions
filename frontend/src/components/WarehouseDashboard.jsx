@@ -220,11 +220,19 @@ function WarehouseDashboard({ user }) {
   const handleMoveSuccess = () => {
     setShowMoveModal(false);
     setSelectedEquipment(null);
+    // Оновлюємо список обладнання
+    if (equipmentListRef.current) {
+      equipmentListRef.current.refresh();
+    }
   };
 
   const handleShipSuccess = () => {
     setShowShipModal(false);
     setSelectedEquipment(null);
+    // Оновлюємо список обладнання
+    if (equipmentListRef.current) {
+      equipmentListRef.current.refresh();
+    }
   };
 
   return (

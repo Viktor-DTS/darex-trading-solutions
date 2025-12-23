@@ -3,25 +3,77 @@ import API_BASE_URL from '../../config';
 import './EquipmentMoveModal.css';
 
 function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
+  const [selectedEquipment, setSelectedEquipment] = useState(equipment);
+  const [equipmentList, setEquipmentList] = useState([]);
+  const [loadingEquipment, setLoadingEquipment] = useState(false);
   const [toWarehouse, setToWarehouse] = useState('');
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  // Захист від null
-  if (!equipment) {
+  // Завантаження списку обладнання, якщо не передано
+  useEffect(() => {
+    if (!equipment) {
+      loadEquipment();
+    } else {
+      setSelectedEquipment(equipment);
+    }
+  }, [equipment]);
+
+  const loadEquipment = async () => {
+    setLoadingEquipment(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/equipment?status=in_stock`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setEquipmentList(data.filter(eq => !eq.deleted));
+      }
+    } catch (error) {
+      console.error('Помилка завантаження обладнання:', error);
+    } finally {
+      setLoadingEquipment(false);
+    }
+  };
+
+  // Якщо обладнання не вибрано - показуємо список для вибору
+  if (!selectedEquipment) {
     return (
       <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-content equipment-select-modal" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
             <h2>📦 Переміщення обладнання</h2>
             <button className="btn-close" onClick={onClose}>✕</button>
           </div>
           <div className="modal-body">
-            <p>Будь ласка, виберіть обладнання з таблиці для переміщення.</p>
+            <p>Будь ласка, виберіть обладнання для переміщення:</p>
+            {loadingEquipment ? (
+              <div className="loading-message">Завантаження...</div>
+            ) : equipmentList.length === 0 ? (
+              <div className="empty-message">Немає доступного обладнання</div>
+            ) : (
+              <div className="equipment-select-list">
+                {equipmentList.map(eq => (
+                  <div
+                    key={eq._id}
+                    className="equipment-select-item"
+                    onClick={() => setSelectedEquipment(eq)}
+                  >
+                    <div className="equipment-select-info">
+                      <strong>{eq.type || '—'}</strong>
+                      <span>Серійний номер: {eq.serialNumber || '—'}</span>
+                      <span>Склад: {eq.currentWarehouseName || eq.currentWarehouse || '—'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="modal-actions">
               <button type="button" className="btn-secondary" onClick={onClose}>
-                Закрити
+                Скасувати
               </button>
             </div>
           </div>
@@ -45,7 +97,7 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
       const token = localStorage.getItem('token');
       const warehouse = warehouses.find(w => w._id === toWarehouse || w.name === toWarehouse);
       
-      const response = await fetch(`${API_BASE_URL}/equipment/${equipment._id}/move`, {
+      const response = await fetch(`${API_BASE_URL}/equipment/${selectedEquipment._id}/move`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -83,10 +135,23 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
 
         <div className="modal-body">
           <div className="equipment-info">
-            <p><strong>Тип:</strong> {equipment.type || '—'}</p>
-            <p><strong>Серійний номер:</strong> {equipment.serialNumber || '—'}</p>
-            <p><strong>Поточний склад:</strong> {equipment.currentWarehouseName || equipment.currentWarehouse || '—'}</p>
+            <p><strong>Тип:</strong> {selectedEquipment.type || '—'}</p>
+            <p><strong>Серійний номер:</strong> {selectedEquipment.serialNumber || '—'}</p>
+            <p><strong>Поточний склад:</strong> {selectedEquipment.currentWarehouseName || selectedEquipment.currentWarehouse || '—'}</p>
           </div>
+
+          {!equipment && (
+            <div className="form-group">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setSelectedEquipment(null)}
+                style={{ marginBottom: '12px' }}
+              >
+                ← Вибрати інше обладнання
+              </button>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit}>
             <div className="form-group">
@@ -98,7 +163,10 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
               >
                 <option value="">Виберіть склад</option>
                 {warehouses
-                  .filter(w => w._id !== equipment.currentWarehouse && w.name !== equipment.currentWarehouse)
+                  .filter(w => {
+                    const currentWarehouse = selectedEquipment.currentWarehouse || selectedEquipment.currentWarehouseName;
+                    return (w._id !== currentWarehouse && w.name !== currentWarehouse);
+                  })
                   .map(w => (
                     <option key={w._id || w.name} value={w._id || w.name}>
                       {w.name} {w.region ? `(${w.region})` : ''}

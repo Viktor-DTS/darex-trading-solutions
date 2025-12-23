@@ -173,6 +173,57 @@
   color: var(--text-primary, #fff);
 }
 
+/* Стилі для вибору обладнання */
+.equipment-select-modal {
+  max-width: 600px;
+}
+
+.equipment-select-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin: 16px 0;
+}
+
+.equipment-select-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color, #1a2332);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.equipment-select-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--primary, #00ff88);
+  transform: translateX(4px);
+}
+
+.equipment-select-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.equipment-select-info strong {
+  color: var(--text-primary, #fff);
+  font-size: 16px;
+}
+
+.equipment-select-info span {
+  color: var(--text-secondary, #8b949e);
+  font-size: 13px;
+}
+
+.loading-message,
+.empty-message {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-secondary, #8b949e);
+  font-size: 14px;
+}
+
 @media (max-width: 768px) {
   .modal-content {
     max-width: 100%;
