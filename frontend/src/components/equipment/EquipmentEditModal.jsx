@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config';
 import EquipmentScanner from './EquipmentScanner';
+import EquipmentFileUpload from './EquipmentFileUpload';
 import './EquipmentEditModal.css';
 
 function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess }) {
   const [formData, setFormData] = useState({});
+  const [attachedFiles, setAttachedFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showScanner, setShowScanner] = useState(false);
@@ -82,6 +84,17 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
       // Підготовка даних для відправки
       const updateData = { ...formData };
       
+      // Додаємо прикріплені файли
+      if (attachedFiles.length > 0) {
+        updateData.attachedFiles = attachedFiles.map(f => ({
+          cloudinaryUrl: f.cloudinaryUrl,
+          cloudinaryId: f.cloudinaryId,
+          originalName: f.originalName,
+          mimetype: f.mimetype,
+          size: f.size
+        }));
+      }
+      
       // Обробка дати виробництва - якщо порожня, відправляємо null
       if (!updateData.manufactureDate || updateData.manufactureDate.trim() === '') {
         updateData.manufactureDate = null;
@@ -89,7 +102,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
       
       // Очищаємо порожні рядки
       Object.keys(updateData).forEach(key => {
-        if (updateData[key] === '') {
+        if (updateData[key] === '' && key !== 'attachedFiles') {
           updateData[key] = null;
         }
       });
@@ -372,6 +385,14 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
                 />
               </div>
             </div>
+          </div>
+
+          <div className="form-section">
+            <h3>Документи та фото</h3>
+            <EquipmentFileUpload
+              onFilesChange={setAttachedFiles}
+              uploadedFiles={attachedFiles}
+            />
           </div>
 
             <div className="equipment-edit-footer">

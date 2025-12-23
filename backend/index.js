@@ -433,6 +433,16 @@ const equipmentSchema = new mongoose.Schema({
   }],
   isDeleted: { type: Boolean, default: false },
   
+  // Прикріплені файли (документи, фото при додаванні)
+  attachedFiles: [{
+    cloudinaryUrl: String,
+    cloudinaryId: String,
+    originalName: String,
+    mimetype: String,
+    size: Number,
+    uploadedAt: { type: Date, default: Date.now }
+  }],
+  
   // Метадані
   addedBy: String,                  // ID користувача
   addedByName: String,               // Ім'я користувача
