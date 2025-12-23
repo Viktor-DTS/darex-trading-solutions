@@ -361,7 +361,7 @@ const InvoiceRequest = mongoose.model('InvoiceRequest', invoiceRequestSchema);
 const equipmentSchema = new mongoose.Schema({
   // Дані з шильдика
   type: String,                    // DE-50BDS
-  serialNumber: { type: String, unique: true, sparse: true }, // 20241007015
+  serialNumber: { type: String, sparse: true }, // 20241007015 (унікальність забезпечується через compound index type + serialNumber)
   manufacturer: String,            // DAREX ENERGY
   standbyPower: String,             // 50/40 KVA/KW
   primePower: String,               // 45/36 KVA/KW
@@ -458,7 +458,10 @@ const equipmentSchema = new mongoose.Schema({
   ocrData: Object,                   // Сирі дані OCR
 }, { timestamps: true });
 
-equipmentSchema.index({ serialNumber: 1 });
+// Індекс для serialNumber - sparse, щоб дозволити кілька null значень для партій
+equipmentSchema.index({ serialNumber: 1 }, { sparse: true, unique: false });
+// Compound unique index для type + serialNumber (тільки для одиничного обладнання)
+equipmentSchema.index({ type: 1, serialNumber: 1 }, { unique: true, sparse: true, partialFilterExpression: { serialNumber: { $ne: null } } });
 equipmentSchema.index({ currentWarehouse: 1 });
 equipmentSchema.index({ status: 1 });
 equipmentSchema.index({ region: 1 });
@@ -3403,14 +3406,17 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
     
     if (isBatch) {
       // Створюємо N записів для партії
+      // Видаляємо serialNumber з даних для партій, щоб не порушувати унікальний індекс
+      const { serialNumber, ...batchEquipmentData } = equipmentData;
+      
       for (let i = 1; i <= quantity; i++) {
         const equipment = await Equipment.create({
-          ...equipmentData,
+          ...batchEquipmentData,
           isBatch: true,
           quantity: 1, // Кожен запис - одна одиниця
           batchId: batchId,
           batchIndex: i,
-          serialNumber: null, // Партії без серійних номерів
+          // serialNumber не встановлюємо для партій (не передаємо поле взагалі)
           addedBy: user._id.toString(),
           addedByName: user.name || user.login,
           currentWarehouse: equipmentData.currentWarehouse || user.region,
