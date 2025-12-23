@@ -397,16 +397,6 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
             className="search-input"
           />
         </div>
-        <div className="toolbar-checkbox">
-          <label className="show-deleted-checkbox">
-            <input
-              type="checkbox"
-              checked={showDeleted}
-              onChange={(e) => setShowDeleted(e.target.checked)}
-            />
-            <span>Показати видалене обладнання</span>
-          </label>
-        </div>
         <div className="toolbar-actions">
           <button
             className="btn-export-excel"
