@@ -295,7 +295,14 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
 
   const handleEdit = (item, e) => {
     e.stopPropagation();
-    setSelectedEquipment(item);
+    
+    // Якщо це група партії, використовуємо перший елемент з batchItems
+    if (item.isGrouped && item.batchItems && item.batchItems.length > 0) {
+      // Беремо перший елемент партії для редагування
+      setSelectedEquipment(item.batchItems[0]);
+    } else {
+      setSelectedEquipment(item);
+    }
     setShowEditModal(true);
   };
 
