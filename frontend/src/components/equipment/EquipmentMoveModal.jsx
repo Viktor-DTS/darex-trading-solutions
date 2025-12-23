@@ -61,44 +61,76 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
   if (showSelection) {
     return (
       <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-content equipment-select-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-content equipment-select-modal two-column-modal" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
             <h2>📦 Переміщення обладнання</h2>
             <button className="btn-close" onClick={onClose}>✕</button>
           </div>
-          <div className="modal-body">
-            <p>Будь ласка, виберіть обладнання для переміщення:</p>
-            {loadingEquipment ? (
-              <div className="loading-message">Завантаження...</div>
-            ) : equipmentList.length === 0 ? (
-              <div className="empty-message">Немає доступного обладнання</div>
-            ) : (
-              <>
-                <div className="select-all-controls">
-                  <label className="select-all-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={selectedEquipmentList.length === equipmentList.length && equipmentList.length > 0}
-                      onChange={handleSelectAll}
-                    />
-                    <span>Вибрати все ({selectedEquipmentList.length}/{equipmentList.length})</span>
-                  </label>
-                </div>
-                <div className="equipment-select-list">
-                  {equipmentList.map(eq => (
-                    <div
-                      key={eq._id}
-                      className={`equipment-select-item ${selectedEquipmentList.find(e => e._id === eq._id) ? 'selected' : ''}`}
-                      onClick={() => handleEquipmentToggle(eq)}
-                    >
+          <div className="modal-body two-column-body">
+            {/* Ліва колонка - список обладнання */}
+            <div className="equipment-selection-column">
+              <h3>Доступне обладнання</h3>
+              {loadingEquipment ? (
+                <div className="loading-message">Завантаження...</div>
+              ) : equipmentList.length === 0 ? (
+                <div className="empty-message">Немає доступного обладнання</div>
+              ) : (
+                <>
+                  <div className="select-all-controls">
+                    <label className="select-all-checkbox">
                       <input
                         type="checkbox"
-                        checked={!!selectedEquipmentList.find(e => e._id === eq._id)}
-                        onChange={() => handleEquipmentToggle(eq)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="equipment-checkbox"
+                        checked={selectedEquipmentList.length === equipmentList.length && equipmentList.length > 0}
+                        onChange={handleSelectAll}
                       />
-                      <div className="equipment-select-info">
+                      <span>Вибрати все ({selectedEquipmentList.length}/{equipmentList.length})</span>
+                    </label>
+                  </div>
+                  <div className="equipment-select-list">
+                    {equipmentList.map(eq => (
+                      <div
+                        key={eq._id}
+                        className={`equipment-select-item ${selectedEquipmentList.find(e => e._id === eq._id) ? 'selected' : ''}`}
+                        onClick={() => handleEquipmentToggle(eq)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!!selectedEquipmentList.find(e => e._id === eq._id)}
+                          onChange={() => handleEquipmentToggle(eq)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="equipment-checkbox"
+                        />
+                        <div className="equipment-select-info">
+                          <strong>{eq.type || '—'}</strong>
+                          <span>Серійний номер: {eq.serialNumber || '—'}</span>
+                          <span>Склад: {eq.currentWarehouseName || eq.currentWarehouse || '—'}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Права колонка - вибране обладнання */}
+            <div className="selected-equipment-column">
+              <h3>Вибране обладнання ({selectedEquipmentList.length})</h3>
+              {selectedEquipmentList.length === 0 ? (
+                <div className="empty-selection-message">
+                  <p>Виберіть обладнання зі списку зліва</p>
+                </div>
+              ) : (
+                <div className="selected-equipment-display-list">
+                  {selectedEquipmentList.map(eq => (
+                    <div key={eq._id} className="selected-equipment-display-item">
+                      <button
+                        className="remove-equipment-btn"
+                        onClick={() => handleEquipmentToggle(eq)}
+                        title="Видалити з вибраного"
+                      >
+                        ✕
+                      </button>
+                      <div className="selected-equipment-display-info">
                         <strong>{eq.type || '—'}</strong>
                         <span>Серійний номер: {eq.serialNumber || '—'}</span>
                         <span>Склад: {eq.currentWarehouseName || eq.currentWarehouse || '—'}</span>
@@ -106,29 +138,29 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
                     </div>
                   ))}
                 </div>
-              </>
-            )}
-            <div className="modal-actions">
-              <button type="button" className="btn-secondary" onClick={onClose}>
-                Скасувати
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => {
-                  if (selectedEquipmentList.length > 0) {
-                    setShowSelection(false);
-                  } else {
-                    setError('Виберіть хоча б одне обладнання');
-                  }
-                }}
-                disabled={selectedEquipmentList.length === 0}
-              >
-                Продовжити ({selectedEquipmentList.length})
-              </button>
+              )}
             </div>
-            {error && <div className="error-message">{error}</div>}
           </div>
+          <div className="modal-actions">
+            <button type="button" className="btn-secondary" onClick={onClose}>
+              Скасувати
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => {
+                if (selectedEquipmentList.length > 0) {
+                  setShowSelection(false);
+                } else {
+                  setError('Виберіть хоча б одне обладнання');
+                }
+              }}
+              disabled={selectedEquipmentList.length === 0}
+            >
+              Продовжити ({selectedEquipmentList.length})
+            </button>
+          </div>
+          {error && <div className="error-message">{error}</div>}
         </div>
       </div>
     );
