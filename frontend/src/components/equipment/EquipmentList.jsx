@@ -494,45 +494,6 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
                 >
                   <td className="actions-cell" onClick={(e) => e.stopPropagation()}>
                     <div className="action-buttons">
-                      <button
-                        className="btn-action btn-qr"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Якщо це група партії, використовуємо перший елемент з batchItems
-                          if (item.isGrouped && item.batchItems && item.batchItems.length > 0) {
-                            setSelectedEquipment(item.batchItems[0]);
-                          } else {
-                            setSelectedEquipment(item);
-                          }
-                          setShowQR(true);
-                        }}
-                        title="QR-код"
-                      >
-                        📱 QR
-                      </button>
-                      <button
-                        className="btn-action btn-history"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Якщо це група партії, використовуємо перший елемент з batchItems
-                          if (item.isGrouped && item.batchItems && item.batchItems.length > 0) {
-                            setSelectedEquipment(item.batchItems[0]);
-                          } else {
-                            setSelectedEquipment(item);
-                          }
-                          setShowHistory(true);
-                        }}
-                        title="Історія"
-                      >
-                        📋 Історія
-                      </button>
-                      <button
-                        className="btn-action btn-edit"
-                        onClick={(e) => handleEdit(item, e)}
-                        title="Редагувати"
-                      >
-                        ✏️ Редагувати
-                      </button>
                       {(user?.role === 'admin' || user?.role === 'administrator') && (
                         <button
                           className="btn-action btn-delete"

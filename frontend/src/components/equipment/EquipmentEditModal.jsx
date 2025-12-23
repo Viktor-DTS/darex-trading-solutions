@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config';
 import EquipmentScanner from './EquipmentScanner';
 import EquipmentFileUpload from './EquipmentFileUpload';
+import EquipmentQRModal from './EquipmentQRModal';
+import EquipmentHistoryModal from './EquipmentHistoryModal';
 import './EquipmentEditModal.css';
 
 function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess }) {
@@ -10,6 +12,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [equipmentType, setEquipmentType] = useState('single'); // 'single' або 'batch'
   const isNewEquipment = !equipment;
 
@@ -237,15 +241,35 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
               </div>
             )}
 
-            <div className="form-section" style={{ marginBottom: '20px' }}>
+            <div className="form-section" style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 className="btn-primary"
                 onClick={() => setShowScanner(true)}
-                style={{ width: '100%', padding: '12px', fontSize: '16px' }}
+                style={{ flex: '1', minWidth: '200px', padding: '12px', fontSize: '16px' }}
               >
                 📷 Сканувати шильдик
               </button>
+              {!isNewEquipment && (
+                <>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowQR(true)}
+                    style={{ flex: '1', minWidth: '150px', padding: '12px', fontSize: '16px' }}
+                  >
+                    📱 QR
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowHistory(true)}
+                    style={{ flex: '1', minWidth: '150px', padding: '12px', fontSize: '16px' }}
+                  >
+                    📋 Історія
+                  </button>
+                </>
+              )}
             </div>
 
             {isNewEquipment && (
@@ -486,6 +510,21 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
           </form>
         )}
       </div>
+
+      {/* Модалки QR та Історії */}
+      {showQR && equipment && (
+        <EquipmentQRModal
+          equipment={equipment}
+          onClose={() => setShowQR(false)}
+        />
+      )}
+
+      {showHistory && equipment && (
+        <EquipmentHistoryModal
+          equipment={equipment}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
     </div>
   );
 }
