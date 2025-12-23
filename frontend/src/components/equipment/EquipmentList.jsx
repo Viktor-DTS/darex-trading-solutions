@@ -290,12 +290,12 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
 
   const handleRowClick = (item) => {
     // Якщо це група партії, використовуємо перший елемент з batchItems
+    let equipmentToEdit = item;
     if (item.isGrouped && item.batchItems && item.batchItems.length > 0) {
-      setSelectedEquipment(item.batchItems[0]);
-    } else {
-      setSelectedEquipment(item);
+      equipmentToEdit = item.batchItems[0];
     }
-    setShowDetailsModal(true);
+    setSelectedEquipment(equipmentToEdit);
+    setShowEditModal(true);
   };
 
   const handleEdit = (item, e) => {
