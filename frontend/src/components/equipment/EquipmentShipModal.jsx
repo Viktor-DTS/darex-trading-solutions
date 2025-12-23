@@ -3,9 +3,10 @@ import API_BASE_URL from '../../config';
 import './EquipmentShipModal.css';
 
 function EquipmentShipModal({ equipment, onClose, onSuccess }) {
-  const [selectedEquipment, setSelectedEquipment] = useState(equipment);
+  const [selectedEquipmentList, setSelectedEquipmentList] = useState(equipment ? [equipment] : []);
   const [equipmentList, setEquipmentList] = useState([]);
   const [loadingEquipment, setLoadingEquipment] = useState(false);
+  const [showSelection, setShowSelection] = useState(!equipment);
   const [shippedTo, setShippedTo] = useState('');
   const [orderNumber, setOrderNumber] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
@@ -17,8 +18,6 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
   useEffect(() => {
     if (!equipment) {
       loadEquipment();
-    } else {
-      setSelectedEquipment(equipment);
     }
   }, [equipment]);
 
@@ -41,8 +40,27 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
     }
   };
 
-  // Якщо обладнання не вибрано - показуємо список для вибору
-  if (!selectedEquipment) {
+  const handleEquipmentToggle = (eq) => {
+    setSelectedEquipmentList(prev => {
+      const exists = prev.find(e => e._id === eq._id);
+      if (exists) {
+        return prev.filter(e => e._id !== eq._id);
+      } else {
+        return [...prev, eq];
+      }
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedEquipmentList.length === equipmentList.length) {
+      setSelectedEquipmentList([]);
+    } else {
+      setSelectedEquipmentList([...equipmentList]);
+    }
+  };
+
+  // Якщо потрібно показати вибір обладнання
+  if (showSelection) {
     return (
       <div className="modal-overlay" onClick={onClose}>
         <div className="modal-content equipment-select-modal" onClick={(e) => e.stopPropagation()}>
@@ -57,27 +75,61 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
             ) : equipmentList.length === 0 ? (
               <div className="empty-message">Немає доступного обладнання</div>
             ) : (
-              <div className="equipment-select-list">
-                {equipmentList.map(eq => (
-                  <div
-                    key={eq._id}
-                    className="equipment-select-item"
-                    onClick={() => setSelectedEquipment(eq)}
-                  >
-                    <div className="equipment-select-info">
-                      <strong>{eq.type || '—'}</strong>
-                      <span>Серійний номер: {eq.serialNumber || '—'}</span>
-                      <span>Склад: {eq.currentWarehouseName || eq.currentWarehouse || '—'}</span>
+              <>
+                <div className="select-all-controls">
+                  <label className="select-all-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={selectedEquipmentList.length === equipmentList.length && equipmentList.length > 0}
+                      onChange={handleSelectAll}
+                    />
+                    <span>Вибрати все ({selectedEquipmentList.length}/{equipmentList.length})</span>
+                  </label>
+                </div>
+                <div className="equipment-select-list">
+                  {equipmentList.map(eq => (
+                    <div
+                      key={eq._id}
+                      className={`equipment-select-item ${selectedEquipmentList.find(e => e._id === eq._id) ? 'selected' : ''}`}
+                      onClick={() => handleEquipmentToggle(eq)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!selectedEquipmentList.find(e => e._id === eq._id)}
+                        onChange={() => handleEquipmentToggle(eq)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="equipment-checkbox"
+                      />
+                      <div className="equipment-select-info">
+                        <strong>{eq.type || '—'}</strong>
+                        <span>Серійний номер: {eq.serialNumber || '—'}</span>
+                        <span>Склад: {eq.currentWarehouseName || eq.currentWarehouse || '—'}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </>
             )}
             <div className="modal-actions">
               <button type="button" className="btn-secondary" onClick={onClose}>
                 Скасувати
               </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  if (selectedEquipmentList.length > 0) {
+                    setShowSelection(false);
+                  } else {
+                    setError('Виберіть хоча б одне обладнання');
+                  }
+                }}
+                disabled={selectedEquipmentList.length === 0}
+              >
+                Продовжити ({selectedEquipmentList.length})
+              </button>
             </div>
+            {error && <div className="error-message">{error}</div>}
           </div>
         </div>
       </div>
@@ -87,6 +139,11 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    if (selectedEquipmentList.length === 0) {
+      setError('Виберіть хоча б одне обладнання');
+      return;
+    }
+
     if (!shippedTo) {
       setError('Вкажіть замовника');
       return;
@@ -98,26 +155,33 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
     try {
       const token = localStorage.getItem('token');
       
-      const response = await fetch(`${API_BASE_URL}/equipment/${selectedEquipment._id}/ship`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          shippedTo: shippedTo,
-          orderNumber: orderNumber,
-          invoiceNumber: invoiceNumber,
-          clientEdrpou: clientEdrpou
-        })
-      });
+      // Обробляємо кожне вибране обладнання
+      const results = await Promise.allSettled(
+        selectedEquipmentList.map(eq =>
+          fetch(`${API_BASE_URL}/equipment/${eq._id}/ship`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              shippedTo: shippedTo,
+              orderNumber: orderNumber,
+              invoiceNumber: invoiceNumber,
+              clientEdrpou: clientEdrpou
+            })
+          })
+        )
+      );
 
-      if (response.ok) {
+      const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok));
+      
+      if (failed.length === 0) {
         onSuccess && onSuccess();
         onClose();
       } else {
-        const data = await response.json();
-        setError(data.error || 'Помилка відвантаження');
+        const successCount = results.length - failed.length;
+        setError(`Відвантажено ${successCount} з ${results.length}. Деякі операції не вдалися.`);
       }
     } catch (error) {
       console.error('Помилка відвантаження:', error);
@@ -137,9 +201,15 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
 
         <div className="modal-body">
           <div className="equipment-info">
-            <p><strong>Тип:</strong> {selectedEquipment.type || '—'}</p>
-            <p><strong>Серійний номер:</strong> {selectedEquipment.serialNumber || '—'}</p>
-            <p><strong>Склад:</strong> {selectedEquipment.currentWarehouseName || selectedEquipment.currentWarehouse || '—'}</p>
+            <p><strong>Вибрано обладнання:</strong> {selectedEquipmentList.length} шт.</p>
+            <div className="selected-equipment-list">
+              {selectedEquipmentList.map(eq => (
+                <div key={eq._id} className="selected-equipment-item">
+                  <span><strong>{eq.type || '—'}</strong> (Серійний номер: {eq.serialNumber || '—'})</span>
+                  <span>Склад: {eq.currentWarehouseName || eq.currentWarehouse || '—'}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           {!equipment && (
@@ -147,10 +217,10 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
               <button
                 type="button"
                 className="btn-secondary"
-                onClick={() => setSelectedEquipment(null)}
+                onClick={() => setShowSelection(true)}
                 style={{ marginBottom: '12px' }}
               >
-                ← Вибрати інше обладнання
+                ← Змінити вибір обладнання
               </button>
             </div>
           )}
