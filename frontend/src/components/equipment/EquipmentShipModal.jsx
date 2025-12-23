@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import API_BASE_URL from '../../config';
 import { getEdrpouList } from '../../utils/edrpouAPI';
 import ClientDataSelectionModal from '../ClientDataSelectionModal';
@@ -10,6 +10,7 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
   const [equipmentList, setEquipmentList] = useState([]);
   const [loadingEquipment, setLoadingEquipment] = useState(false);
   const [showSelection, setShowSelection] = useState(!equipment);
+  const [searchQuery, setSearchQuery] = useState('');
   const [shippedTo, setShippedTo] = useState('');
   const [orderNumber, setOrderNumber] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
@@ -72,11 +73,38 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
     });
   };
 
+  // Фільтрація обладнання по пошуковому запиту
+  const filteredEquipmentList = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return equipmentList;
+    }
+    
+    const query = searchQuery.toLowerCase();
+    return equipmentList.filter(eq => {
+      const type = (eq.type || '').toLowerCase();
+      const serialNumber = (eq.serialNumber || '').toLowerCase();
+      const warehouse = (eq.currentWarehouseName || eq.currentWarehouse || '').toLowerCase();
+      const manufacturer = (eq.manufacturer || '').toLowerCase();
+      const region = (eq.region || '').toLowerCase();
+      
+      return type.includes(query) ||
+             serialNumber.includes(query) ||
+             warehouse.includes(query) ||
+             manufacturer.includes(query) ||
+             region.includes(query);
+    });
+  }, [equipmentList, searchQuery]);
+
   const handleSelectAll = () => {
-    if (selectedEquipmentList.length === equipmentList.length) {
-      setSelectedEquipmentList([]);
+    if (selectedEquipmentList.length === filteredEquipmentList.length && filteredEquipmentList.length > 0) {
+      // Знімаємо вибір з усіх відфільтрованих
+      const filteredIds = new Set(filteredEquipmentList.map(eq => eq._id));
+      setSelectedEquipmentList(prev => prev.filter(eq => !filteredIds.has(eq._id)));
     } else {
-      setSelectedEquipmentList([...equipmentList]);
+      // Додаємо всі відфільтровані до вибраних
+      const filteredIds = new Set(selectedEquipmentList.map(eq => eq._id));
+      const toAdd = filteredEquipmentList.filter(eq => !filteredIds.has(eq._id));
+      setSelectedEquipmentList(prev => [...prev, ...toAdd]);
     }
   };
 
@@ -93,24 +121,53 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
             {/* Ліва колонка - список обладнання */}
             <div className="equipment-selection-column">
               <h3>Доступне обладнання</h3>
+              
               {loadingEquipment ? (
                 <div className="loading-message">Завантаження...</div>
               ) : equipmentList.length === 0 ? (
                 <div className="empty-message">Немає доступного обладнання</div>
               ) : (
                 <>
-                  <div className="select-all-controls">
-                    <label className="select-all-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={selectedEquipmentList.length === equipmentList.length && equipmentList.length > 0}
-                        onChange={handleSelectAll}
-                      />
-                      <span>Вибрати все ({selectedEquipmentList.length}/{equipmentList.length})</span>
-                    </label>
+                  <div className="equipment-search">
+                    <input
+                      type="text"
+                      placeholder="🔍 Пошук по всіх полях..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="equipment-search-input"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="equipment-search-clear"
+                        title="Очистити пошук"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
-                  <div className="equipment-select-list">
-                    {equipmentList.map(eq => (
+                  
+                  {filteredEquipmentList.length === 0 ? (
+                    <div className="empty-message">Нічого не знайдено за запитом "{searchQuery}"</div>
+                  ) : (
+                    <>
+                      <div className="select-all-controls">
+                        <label className="select-all-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={filteredEquipmentList.length > 0 && 
+                                    filteredEquipmentList.every(eq => selectedEquipmentList.find(e => e._id === eq._id))}
+                            onChange={handleSelectAll}
+                          />
+                          <span>Вибрати все ({selectedEquipmentList.length}/{equipmentList.length})</span>
+                          {searchQuery && (
+                            <span className="filtered-count"> (Знайдено: {filteredEquipmentList.length})</span>
+                          )}
+                        </label>
+                      </div>
+                      <div className="equipment-select-list">
+                        {filteredEquipmentList.map(eq => (
                       <div
                         key={eq._id}
                         className={`equipment-select-item ${selectedEquipmentList.find(e => e._id === eq._id) ? 'selected' : ''}`}
@@ -129,8 +186,10 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
                           <span>Склад: {eq.currentWarehouseName || eq.currentWarehouse || '—'}</span>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>
