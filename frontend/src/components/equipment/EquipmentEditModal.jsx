@@ -413,16 +413,6 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
               <h3>Кількісна характеристика</h3>
               <div className="form-grid">
                 <div className="form-group">
-                  <label>Назва</label>
-                  <input
-                    type="text"
-                    name="batchName"
-                    value={formData.batchName}
-                    onChange={handleChange}
-                    placeholder="Введіть назву"
-                  />
-                </div>
-                <div className="form-group">
                   <label>Одиниця виміру</label>
                   <select
                     name="batchUnit"
