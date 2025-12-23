@@ -2364,7 +2364,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       name="autoCreatedAt" 
                       value={formData.autoCreatedAt || ''} 
                       readOnly 
-                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
+                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed', color: 'var(--text-primary)' }}
                     />
                   </div>
                   <div className="form-group">
@@ -2374,7 +2374,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       name="autoCompletedAt" 
                       value={formData.autoCompletedAt || ''} 
                       readOnly 
-                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
+                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed', color: 'var(--text-primary)' }}
                     />
                   </div>
                   <div className="form-group">
@@ -2384,7 +2384,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       name="autoWarehouseApprovedAt" 
                       value={formData.autoWarehouseApprovedAt || ''} 
                       readOnly 
-                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
+                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed', color: 'var(--text-primary)' }}
                     />
                   </div>
                   <div className="form-group">
@@ -2394,7 +2394,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       name="autoAccountantApprovedAt" 
                       value={formData.autoAccountantApprovedAt || ''} 
                       readOnly 
-                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
+                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed', color: 'var(--text-primary)' }}
                     />
                   </div>
                   <div className="form-group">
@@ -2404,7 +2404,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       name="invoiceRequestDate" 
                       value={formData.invoiceRequestDate || ''} 
                       readOnly 
-                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
+                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed', color: 'var(--text-primary)' }}
                     />
                   </div>
                   <div className="form-group">
@@ -2414,7 +2414,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       name="invoiceUploadDate" 
                       value={formData.invoiceUploadDate || ''} 
                       readOnly 
-                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed' }}
+                      style={{ backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed', color: 'var(--text-primary)' }}
                     />
                   </div>
                 </div>
