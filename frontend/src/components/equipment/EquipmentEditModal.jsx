@@ -278,6 +278,19 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
               </div>
             )}
 
+            {!isNewEquipment && equipment?.isBatch && (
+              <div className="form-section" style={{ backgroundColor: 'var(--surface-dark)', padding: '15px', borderRadius: '6px', marginBottom: '15px' }}>
+                <h3 style={{ color: 'var(--primary)', marginBottom: '10px' }}>📦 Партійне обладнання</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', color: 'var(--text-secondary)' }}>
+                  <div><strong>Batch ID:</strong> {equipment.batchId || '—'}</div>
+                  <div><strong>Індекс в партії:</strong> {equipment.batchIndex || '—'}</div>
+                  <div style={{ fontSize: '12px', marginTop: '5px', color: 'var(--text-secondary)' }}>
+                    ⚠️ Це одиниця з партії. Серійний номер не застосовується.
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="form-section">
             <h3>Основна інформація</h3>
             <div className="form-grid">
@@ -307,9 +320,15 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
                   name="serialNumber"
                   value={formData.serialNumber}
                   onChange={handleChange}
-                  disabled={equipmentType === 'batch' && isNewEquipment}
+                  disabled={(equipmentType === 'batch' && isNewEquipment) || (!isNewEquipment && equipment?.isBatch)}
                   required={equipmentType === 'single' && isNewEquipment}
-                  placeholder={equipmentType === 'batch' && isNewEquipment ? 'Не застосовується для партій' : 'Введіть серійний номер'}
+                  placeholder={
+                    (!isNewEquipment && equipment?.isBatch) 
+                      ? 'Не застосовується для партійного обладнання' 
+                      : (equipmentType === 'batch' && isNewEquipment) 
+                        ? 'Не застосовується для партій' 
+                        : 'Введіть серійний номер'
+                  }
                 />
               </div>
               {equipmentType === 'batch' && isNewEquipment && (
