@@ -11,6 +11,7 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [toWarehouse, setToWarehouse] = useState('');
   const [reason, setReason] = useState('');
+  const [notes, setNotes] = useState('');
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -508,6 +509,7 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
             toWarehouse: toWarehouse,
             toWarehouseName: toWarehouseName,
             reason: reason,
+            notes: notes,
             attachedFiles: attachedFiles.map(f => ({
               cloudinaryUrl: f.cloudinaryUrl,
               cloudinaryId: f.cloudinaryId,
@@ -642,6 +644,17 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
               <EquipmentFileUpload
                 onFilesChange={setAttachedFiles}
                 uploadedFiles={attachedFiles}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Примітки</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Введіть примітки (необов'язково)"
+                rows="5"
+                style={{ width: '100%', minHeight: '120px' }}
               />
             </div>
 

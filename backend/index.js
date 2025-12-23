@@ -374,6 +374,7 @@ const equipmentSchema = new mongoose.Schema({
   dimensions: String,               // 2280 x 950 x 1250
   weight: Number,                   // 940
   manufactureDate: String,          // 2024
+  notes: String,                     // Примітки
   
   // Поля для партійного обладнання
   isBatch: { type: Boolean, default: false },  // Чи це партія
@@ -404,6 +405,7 @@ const equipmentSchema = new mongoose.Schema({
     movedBy: String,
     movedByName: String,
     reason: String,
+    notes: String,
     attachedFiles: [{
       cloudinaryUrl: String,
       cloudinaryId: String,
@@ -425,6 +427,7 @@ const equipmentSchema = new mongoose.Schema({
     clientAddress: String,
     invoiceRecipientDetails: String,
     totalPrice: Number,
+    notes: String,
     attachedFiles: [{
       cloudinaryUrl: String,
       cloudinaryId: String,
@@ -3845,7 +3848,7 @@ app.delete('/api/equipment/:id', authenticateToken, async (req, res) => {
 app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { toWarehouse, toWarehouseName, reason, attachedFiles } = req.body;
+    const { toWarehouse, toWarehouseName, reason, notes, attachedFiles } = req.body;
     const user = await User.findOne({ login: req.user.login });
     
     if (!user) {
@@ -3867,6 +3870,7 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
       movedBy: user._id.toString(),
       movedByName: user.name || user.login,
       reason: reason || '',
+      notes: notes || '',
       attachedFiles: attachedFiles || []
     };
     
@@ -3907,7 +3911,7 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
 app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { shippedTo, orderNumber, invoiceNumber, clientEdrpou, clientAddress, invoiceRecipientDetails, totalPrice, attachedFiles } = req.body;
+    const { shippedTo, orderNumber, invoiceNumber, clientEdrpou, clientAddress, invoiceRecipientDetails, totalPrice, notes, attachedFiles } = req.body;
     const user = await User.findOne({ login: req.user.login });
     
     if (!user) {
@@ -3931,6 +3935,7 @@ app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
       clientAddress: clientAddress || '',
       invoiceRecipientDetails: invoiceRecipientDetails || '',
       totalPrice: totalPrice || null,
+      notes: notes || '',
       attachedFiles: attachedFiles || []
     };
     
@@ -3969,7 +3974,7 @@ app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
 app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { batchId, quantity, fromWarehouse, fromWarehouseName, toWarehouse, toWarehouseName, reason, attachedFiles } = req.body;
+    const { batchId, quantity, fromWarehouse, fromWarehouseName, toWarehouse, toWarehouseName, reason, notes, attachedFiles } = req.body;
     const user = await User.findOne({ login: req.user.login });
     
     if (!user) {
@@ -4002,6 +4007,7 @@ app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
       movedBy: user._id.toString(),
       movedByName: user.name || user.login,
       reason: reason || '',
+      notes: notes || '',
       attachedFiles: attachedFiles || []
     };
     
@@ -4045,7 +4051,7 @@ app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
 app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { batchId, quantity, fromWarehouse, shippedTo, orderNumber, invoiceNumber, clientEdrpou, clientAddress, invoiceRecipientDetails, attachedFiles } = req.body;
+    const { batchId, quantity, fromWarehouse, shippedTo, orderNumber, invoiceNumber, clientEdrpou, clientAddress, invoiceRecipientDetails, totalPrice, notes, attachedFiles } = req.body;
     const user = await User.findOne({ login: req.user.login });
     
     if (!user) {
@@ -4080,6 +4086,7 @@ app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
       clientAddress: clientAddress || '',
       invoiceRecipientDetails: invoiceRecipientDetails || '',
       totalPrice: totalPrice || null,
+      notes: notes || '',
       attachedFiles: attachedFiles || []
     };
     

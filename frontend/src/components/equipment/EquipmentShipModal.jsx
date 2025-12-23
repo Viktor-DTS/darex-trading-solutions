@@ -18,6 +18,7 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
   const [clientAddress, setClientAddress] = useState('');
   const [invoiceRecipientDetails, setInvoiceRecipientDetails] = useState('');
   const [totalPrice, setTotalPrice] = useState('');
+  const [notes, setNotes] = useState('');
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -532,6 +533,7 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
             clientAddress: clientAddress,
             invoiceRecipientDetails: invoiceRecipientDetails,
             totalPrice: totalPrice ? parseFloat(totalPrice) : null,
+            notes: notes,
             attachedFiles: attachedFiles.map(f => ({
               cloudinaryUrl: f.cloudinaryUrl,
               cloudinaryId: f.cloudinaryId,
@@ -565,6 +567,8 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
             clientEdrpou: clientEdrpou,
             clientAddress: clientAddress,
             invoiceRecipientDetails: invoiceRecipientDetails,
+            totalPrice: totalPrice ? parseFloat(totalPrice) : null,
+            notes: notes,
             attachedFiles: attachedFiles.map(f => ({
               cloudinaryUrl: f.cloudinaryUrl,
               cloudinaryId: f.cloudinaryId,
@@ -749,6 +753,17 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
               <EquipmentFileUpload
                 onFilesChange={setAttachedFiles}
                 uploadedFiles={attachedFiles}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Примітки</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Введіть примітки (необов'язково)"
+                rows="5"
+                style={{ width: '100%', minHeight: '120px' }}
               />
             </div>
 

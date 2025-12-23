@@ -37,7 +37,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
         manufactureDate: equipment.manufactureDate ? new Date(equipment.manufactureDate).toISOString().split('T')[0] : '',
         batchName: equipment.batchName || '',
         batchUnit: equipment.batchUnit || '',
-        batchPriceWithVAT: equipment.batchPriceWithVAT !== undefined ? String(equipment.batchPriceWithVAT) : ''
+        batchPriceWithVAT: equipment.batchPriceWithVAT !== undefined ? String(equipment.batchPriceWithVAT) : '',
+        notes: equipment.notes || ''
       });
       setEquipmentType(equipment.isBatch ? 'batch' : 'single');
     } else {
@@ -61,7 +62,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
         manufactureDate: '',
         batchName: '',
         batchUnit: '',
-        batchPriceWithVAT: ''
+        batchPriceWithVAT: '',
+        notes: ''
       });
       setEquipmentType('single');
     }
@@ -544,6 +546,20 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
               onFilesChange={setAttachedFiles}
               uploadedFiles={attachedFiles}
             />
+          </div>
+
+          <div className="form-section">
+            <h3>Примітки</h3>
+            <div className="form-group">
+              <textarea
+                name="notes"
+                value={formData.notes || ''}
+                onChange={handleChange}
+                placeholder="Введіть примітки (необов'язково)"
+                rows="5"
+                style={{ width: '100%', minHeight: '120px' }}
+              />
+            </div>
           </div>
 
             <div className="equipment-edit-footer">
