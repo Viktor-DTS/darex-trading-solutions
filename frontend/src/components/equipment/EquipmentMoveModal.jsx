@@ -249,7 +249,14 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
                               <input
                                 type="checkbox"
                                 checked={isSelected}
-                                onChange={() => {}}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  if (isBatch) {
+                                    handleBatchSelect(group);
+                                  } else {
+                                    handleEquipmentToggle(group);
+                                  }
+                                }}
                                 onClick={(e) => e.stopPropagation()}
                                 className="equipment-checkbox"
                               />
