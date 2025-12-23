@@ -5,6 +5,7 @@ import './AdminDashboard.css';
 // Вкладки адміністратора
 const ADMIN_TABS = [
   { id: 'users', label: '👥 Користувачі', icon: '👥' },
+  { id: 'activeUsers', label: '🟢 Активні користувачі', icon: '🟢' },
   { id: 'access', label: '🔑 Права доступу', icon: '🔑' },
   { id: 'regions', label: '🌍 Регіони', icon: '🌍' },
   { id: 'roles', label: '🎭 Ролі', icon: '🎭' },
@@ -704,6 +705,90 @@ function AdminDashboard({ user }) {
       </div>
     </div>
   );
+
+  const renderActiveUsersTab = () => {
+    // Фільтруємо тільки активних користувачів
+    const activeUsersList = users.filter(u => onlineUsers.has(u.login) && !u.dismissed);
+    
+    return (
+      <div className="admin-section">
+        <div className="section-header">
+          <h3>🟢 Активні користувачі</h3>
+          <div className="section-info">
+            <span className="info-badge">Всього активних: {activeUsersList.length}</span>
+            <button className="btn-refresh" onClick={() => {
+              const checkOnlineStatus = async () => {
+                try {
+                  const token = localStorage.getItem('token');
+                  const res = await fetch(`${API_BASE_URL}/users/online`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    setOnlineUsers(new Set(data));
+                  }
+                } catch (error) {
+                  console.error('Помилка оновлення статусу:', error);
+                }
+              };
+              checkOnlineStatus();
+            }}>
+              🔄 Оновити
+            </button>
+          </div>
+        </div>
+
+        {activeUsersList.length === 0 ? (
+          <div className="empty-state">
+            <p>📭 Немає активних користувачів в системі</p>
+            <p className="hint">Користувачі вважаються активними, якщо вони були в системі за останні 5 хвилин</p>
+          </div>
+        ) : (
+          <div className="users-table-wrapper">
+            <table className="users-table">
+              <thead>
+                <tr>
+                  <th>Статус</th>
+                  <th>Логін</th>
+                  <th>ПІБ</th>
+                  <th>Роль</th>
+                  <th>Регіон</th>
+                  <th>Telegram</th>
+                  <th>Дії</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeUsersList
+                  .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'uk'))
+                  .map(u => (
+                    <tr key={u._id || u.id} className="online">
+                      <td className="status-cell">
+                        <span className="status-badge online">🟢 Online</span>
+                      </td>
+                      <td>{u.login}</td>
+                      <td>{u.name}</td>
+                      <td>{roles.find(r => r.value === u.role)?.label || u.role}</td>
+                      <td>{u.region || 'Без регіону'}</td>
+                      <td>{u.telegramChatId || '-'}</td>
+                      <td className="actions-cell">
+                        <button className="btn-edit" onClick={() => handleEditUser(u)} title="Редагувати">✏️</button>
+                        <button 
+                          className={`btn-dismiss ${u.dismissed ? 'active' : ''}`}
+                          onClick={() => handleToggleDismissed(u)}
+                          title={u.dismissed ? 'Відновити' : 'Звільнити'}
+                        >
+                          {u.dismissed ? '✅' : '🚫'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderRegionsTab = () => (
     <div className="admin-section">
@@ -1764,6 +1849,7 @@ function AdminDashboard({ user }) {
   const renderContent = () => {
     switch (activeTab) {
       case 'users': return renderUsersTab();
+      case 'activeUsers': return renderActiveUsersTab();
       case 'regions': return renderRegionsTab();
       case 'roles': return renderRolesTab();
       case 'access': return renderAccessTab();
