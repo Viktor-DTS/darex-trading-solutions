@@ -13,6 +13,8 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
   const [orderNumber, setOrderNumber] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [clientEdrpou, setClientEdrpou] = useState('');
+  const [clientAddress, setClientAddress] = useState('');
+  const [invoiceRecipientDetails, setInvoiceRecipientDetails] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   
@@ -217,7 +219,9 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
               shippedTo: shippedTo,
               orderNumber: orderNumber,
               invoiceNumber: invoiceNumber,
-              clientEdrpou: clientEdrpou
+              clientEdrpou: clientEdrpou,
+              clientAddress: clientAddress,
+              invoiceRecipientDetails: invoiceRecipientDetails
             })
           })
         )
@@ -339,6 +343,26 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
             </div>
 
             <div className="form-group">
+              <label>Адреса</label>
+              <input
+                type="text"
+                value={clientAddress}
+                onChange={(e) => setClientAddress(e.target.value)}
+                placeholder="Адреса доставки"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Реквізити отримувача</label>
+              <textarea
+                value={invoiceRecipientDetails}
+                onChange={(e) => setInvoiceRecipientDetails(e.target.value)}
+                placeholder="Реквізити для рахунку"
+                rows="3"
+              />
+            </div>
+
+            <div className="form-group">
               <label>Номер замовлення</label>
               <input
                 type="text"
@@ -380,14 +404,20 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
         onClose={() => setClientDataModal({ open: false, edrpou: '' })}
         onApply={(updates) => {
           // Застосовуємо дані клієнта до форми
-          // ClientDataSelectionModal передає client як просте значення (рядок), а не об'єкт
+          // ClientDataSelectionModal передає поля як прості значення (рядки), а не об'єкти
           if (updates.client) {
             setShippedTo(updates.client);
+          }
+          if (updates.address) {
+            setClientAddress(updates.address);
+          }
+          if (updates.invoiceRecipientDetails) {
+            setInvoiceRecipientDetails(updates.invoiceRecipientDetails);
           }
           setClientDataModal({ open: false, edrpou: '' });
         }}
         edrpou={clientDataModal.edrpou}
-        currentFormData={{ shippedTo, clientEdrpou }}
+        currentFormData={{ shippedTo, clientEdrpou, clientAddress, invoiceRecipientDetails }}
       />
     </div>
   );
