@@ -407,42 +407,43 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
             </div>
           </div>
 
-          {/* Умовне відображення: для партійного - Кількісна характеристика, для одиничного - Технічні характеристики */}
-          {(equipmentType === 'batch' || (!isNewEquipment && equipment?.isBatch)) ? (
-            <div className="form-section">
-              <h3>Кількісна характеристика</h3>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label>Одиниця виміру</label>
-                  <select
-                    name="batchUnit"
-                    value={formData.batchUnit}
-                    onChange={handleChange}
-                  >
-                    <option value="">Виберіть одиницю виміру</option>
-                    <option value="шт.">шт.</option>
-                    <option value="л.">л.</option>
-                    <option value="комплект">комплект</option>
-                    <option value="упаковка">упаковка</option>
-                    <option value="балон">балон</option>
-                    <option value="м.п.">м.п.</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Ціна за одиницю з ПДВ</label>
-                  <input
-                    type="number"
-                    name="batchPriceWithVAT"
-                    value={formData.batchPriceWithVAT}
-                    onChange={handleChange}
-                    placeholder="0.00"
-                    step="0.01"
-                    min="0"
-                  />
-                </div>
+          {/* Кількісна характеристика - відображається для обох типів */}
+          <div className="form-section">
+            <h3>Кількісна характеристика</h3>
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Одиниця виміру</label>
+                <select
+                  name="batchUnit"
+                  value={formData.batchUnit}
+                  onChange={handleChange}
+                >
+                  <option value="">Виберіть одиницю виміру</option>
+                  <option value="шт.">шт.</option>
+                  <option value="л.">л.</option>
+                  <option value="комплект">комплект</option>
+                  <option value="упаковка">упаковка</option>
+                  <option value="балон">балон</option>
+                  <option value="м.п.">м.п.</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Ціна за одиницю з ПДВ</label>
+                <input
+                  type="number"
+                  name="batchPriceWithVAT"
+                  value={formData.batchPriceWithVAT}
+                  onChange={handleChange}
+                  placeholder="0.00"
+                  step="0.01"
+                  min="0"
+                />
               </div>
             </div>
-          ) : (
+          </div>
+
+          {/* Технічні характеристики - тільки для одиничного обладнання */}
+          {!(equipmentType === 'batch' || (!isNewEquipment && equipment?.isBatch)) && (
             <div className="form-section">
               <h3>Технічні характеристики</h3>
               <div className="form-grid">
