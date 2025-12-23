@@ -306,7 +306,6 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
               <div className="form-section" style={{ backgroundColor: 'var(--surface-dark)', padding: '15px', borderRadius: '6px', marginBottom: '15px' }}>
                 <h3 style={{ color: 'var(--primary)', marginBottom: '10px' }}>📦 Партійне обладнання</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', color: 'var(--text-secondary)' }}>
-                  <div><strong>Batch ID:</strong> {equipment.batchId || '—'}</div>
                   <div><strong>Індекс в партії:</strong> {equipment.batchIndex || '—'}</div>
                   <div style={{ fontSize: '12px', marginTop: '5px', color: 'var(--text-secondary)' }}>
                     ⚠️ Це одиниця з партії. Серійний номер не застосовується.
