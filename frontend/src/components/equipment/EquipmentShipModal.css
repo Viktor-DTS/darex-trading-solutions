@@ -419,3 +419,76 @@
   }
 }
 
+/* Стилі для автозаповнення ЄДРПОУ */
+.autocomplete-wrapper {
+  position: relative;
+}
+
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--background, #0a0e1a);
+  border: 1px solid var(--border-color, #1a2332);
+  border-radius: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  margin-top: 3px;
+}
+
+.autocomplete-hint {
+  padding: 6px 10px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.1) 100%);
+  color: var(--text-secondary, #8b949e);
+  font-size: 10px;
+  border-bottom: 1px solid var(--border-color, #1a2332);
+}
+
+.autocomplete-item {
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--text-primary, #fff);
+  font-size: 11px;
+  transition: background 0.15s ease;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-item:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(37, 99, 235, 0.15) 100%);
+}
+
+.autocomplete-more {
+  padding: 5px 10px;
+  color: var(--text-secondary, #8b949e);
+  font-size: 10px;
+  font-style: italic;
+  background: rgba(255, 255, 255, 0.03);
+  border-top: 1px solid var(--border-color, #1a2332);
+}
+
+/* Scrollbar для autocomplete */
+.autocomplete-dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 3px;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-thumb {
+  background: var(--border-color, #1a2332);
+  border-radius: 3px;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary, #8b949e);
+}
+

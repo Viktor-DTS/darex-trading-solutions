@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config';
+import { getEdrpouList } from '../../utils/edrpouAPI';
+import ClientDataSelectionModal from '../ClientDataSelectionModal';
 import './EquipmentShipModal.css';
 
 function EquipmentShipModal({ equipment, onClose, onSuccess }) {
@@ -13,6 +15,12 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
   const [clientEdrpou, setClientEdrpou] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  
+  // Стан для автозаповнення ЄДРПОУ
+  const [edrpouList, setEdrpouList] = useState([]);
+  const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false);
+  const [filteredEdrpouList, setFilteredEdrpouList] = useState([]);
+  const [clientDataModal, setClientDataModal] = useState({ open: false, edrpou: '' });
 
   // Завантаження списку обладнання, якщо не передано
   useEffect(() => {
@@ -20,6 +28,15 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
       loadEquipment();
     }
   }, [equipment]);
+
+  // Завантаження списку ЄДРПОУ для автозаповнення
+  useEffect(() => {
+    getEdrpouList()
+      .then(data => {
+        setEdrpouList(data || []);
+      })
+      .catch(err => console.error('Помилка завантаження ЄДРПОУ:', err));
+  }, []);
 
   const loadEquipment = async () => {
     setLoadingEquipment(true);
@@ -269,14 +286,56 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
               />
             </div>
 
-            <div className="form-group">
+            <div className="form-group autocomplete-wrapper">
               <label>ЄДРПОУ</label>
               <input
                 type="text"
                 value={clientEdrpou}
-                onChange={(e) => setClientEdrpou(e.target.value)}
-                placeholder="12345678"
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setClientEdrpou(value);
+                  // Фільтруємо ЄДРПОУ для автодоповнення
+                  if (value.trim()) {
+                    const filtered = edrpouList.filter(edrpou => 
+                      edrpou.toLowerCase().includes(value.toLowerCase())
+                    );
+                    setFilteredEdrpouList(filtered);
+                    setShowEdrpouDropdown(filtered.length > 0);
+                  } else {
+                    setShowEdrpouDropdown(false);
+                    setFilteredEdrpouList([]);
+                  }
+                }}
+                placeholder="Введіть ЄДРПОУ..."
+                autoComplete="off"
               />
+              {/* Dropdown з автодоповненням для ЄДРПОУ */}
+              {showEdrpouDropdown && filteredEdrpouList.length > 0 && (
+                <div className="autocomplete-dropdown">
+                  <div className="autocomplete-hint">
+                    💡 Виберіть ЄДРПОУ для автозаповнення даних клієнта
+                  </div>
+                  {filteredEdrpouList.slice(0, 10).map((edrpou, index) => (
+                    <div
+                      key={index}
+                      className="autocomplete-item"
+                      onClick={() => {
+                        setClientEdrpou(edrpou);
+                        setShowEdrpouDropdown(false);
+                        setFilteredEdrpouList([]);
+                        setClientDataModal({ open: true, edrpou: edrpou });
+                      }}
+                    >
+                      {edrpou}
+                    </div>
+                  ))}
+                  {filteredEdrpouList.length > 10 && (
+                    <div className="autocomplete-more">
+                      ... та ще {filteredEdrpouList.length - 10}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="form-group">
@@ -314,6 +373,21 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
           </form>
         </div>
       </div>
+
+      {/* Модальне вікно для вибору даних клієнта */}
+      <ClientDataSelectionModal
+        open={clientDataModal.open}
+        onClose={() => setClientDataModal({ open: false, edrpou: '' })}
+        onApply={(updates) => {
+          // Застосовуємо дані клієнта до форми
+          if (updates.client && updates.client.value) {
+            setShippedTo(updates.client.value);
+          }
+          setClientDataModal({ open: false, edrpou: '' });
+        }}
+        edrpou={clientDataModal.edrpou}
+        currentFormData={{ shippedTo, clientEdrpou }}
+      />
     </div>
   );
 }
