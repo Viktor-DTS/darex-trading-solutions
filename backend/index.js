@@ -394,7 +394,14 @@ const equipmentSchema = new mongoose.Schema({
     date: Date,
     movedBy: String,
     movedByName: String,
-    reason: String
+    reason: String,
+    attachedFiles: [{
+      cloudinaryUrl: String,
+      cloudinaryId: String,
+      originalName: String,
+      mimetype: String,
+      size: Number
+    }]
   }],
   
   // Відвантаження
@@ -405,7 +412,16 @@ const equipmentSchema = new mongoose.Schema({
     shippedByName: String,
     orderNumber: String,
     invoiceNumber: String,
-    clientEdrpou: String
+    clientEdrpou: String,
+    clientAddress: String,
+    invoiceRecipientDetails: String,
+    attachedFiles: [{
+      cloudinaryUrl: String,
+      cloudinaryId: String,
+      originalName: String,
+      mimetype: String,
+      size: Number
+    }]
   }],
   
   // Історія видалень
@@ -3738,7 +3754,7 @@ app.delete('/api/equipment/:id', authenticateToken, async (req, res) => {
 app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { toWarehouse, toWarehouseName, reason } = req.body;
+    const { toWarehouse, toWarehouseName, reason, attachedFiles } = req.body;
     const user = await User.findOne({ login: req.user.login });
     
     if (!user) {
@@ -3759,7 +3775,8 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
       date: new Date(),
       movedBy: user._id.toString(),
       movedByName: user.name || user.login,
-      reason: reason || ''
+      reason: reason || '',
+      attachedFiles: attachedFiles || []
     };
     
     equipment.movementHistory.push(movement);
@@ -3799,7 +3816,7 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
 app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { shippedTo, orderNumber, invoiceNumber, clientEdrpou } = req.body;
+    const { shippedTo, orderNumber, invoiceNumber, clientEdrpou, clientAddress, invoiceRecipientDetails, attachedFiles } = req.body;
     const user = await User.findOne({ login: req.user.login });
     
     if (!user) {
@@ -3819,7 +3836,10 @@ app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
       shippedByName: user.name || user.login,
       orderNumber: orderNumber || '',
       invoiceNumber: invoiceNumber || '',
-      clientEdrpou: clientEdrpou || ''
+      clientEdrpou: clientEdrpou || '',
+      clientAddress: clientAddress || '',
+      invoiceRecipientDetails: invoiceRecipientDetails || '',
+      attachedFiles: attachedFiles || []
     };
     
     equipment.shipmentHistory.push(shipment);

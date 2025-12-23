@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config';
+import EquipmentFileUpload from './EquipmentFileUpload';
 import './EquipmentMoveModal.css';
 
 function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
@@ -9,6 +10,7 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
   const [showSelection, setShowSelection] = useState(!equipment);
   const [toWarehouse, setToWarehouse] = useState('');
   const [reason, setReason] = useState('');
+  const [attachedFiles, setAttachedFiles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -199,7 +201,14 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
             body: JSON.stringify({
               toWarehouse: toWarehouse,
               toWarehouseName: toWarehouseName,
-              reason: reason
+              reason: reason,
+              attachedFiles: attachedFiles.map(f => ({
+                cloudinaryUrl: f.cloudinaryUrl,
+                cloudinaryId: f.cloudinaryId,
+                originalName: f.originalName,
+                mimetype: f.mimetype,
+                size: f.size
+              }))
             })
           })
         )
@@ -288,6 +297,14 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Вкажіть причину переміщення (необов'язково)"
                 rows="3"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Документи та фото</label>
+              <EquipmentFileUpload
+                onFilesChange={setAttachedFiles}
+                uploadedFiles={attachedFiles}
               />
             </div>
 

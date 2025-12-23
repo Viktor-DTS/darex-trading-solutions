@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config';
 import { getEdrpouList } from '../../utils/edrpouAPI';
 import ClientDataSelectionModal from '../ClientDataSelectionModal';
+import EquipmentFileUpload from './EquipmentFileUpload';
 import './EquipmentShipModal.css';
 
 function EquipmentShipModal({ equipment, onClose, onSuccess }) {
@@ -15,6 +16,7 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
   const [clientEdrpou, setClientEdrpou] = useState('');
   const [clientAddress, setClientAddress] = useState('');
   const [invoiceRecipientDetails, setInvoiceRecipientDetails] = useState('');
+  const [attachedFiles, setAttachedFiles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   
@@ -221,7 +223,14 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
               invoiceNumber: invoiceNumber,
               clientEdrpou: clientEdrpou,
               clientAddress: clientAddress,
-              invoiceRecipientDetails: invoiceRecipientDetails
+              invoiceRecipientDetails: invoiceRecipientDetails,
+              attachedFiles: attachedFiles.map(f => ({
+                cloudinaryUrl: f.cloudinaryUrl,
+                cloudinaryId: f.cloudinaryId,
+                originalName: f.originalName,
+                mimetype: f.mimetype,
+                size: f.size
+              }))
             })
           })
         )
@@ -379,6 +388,14 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
                 placeholder="INV-12345"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Документи та фото</label>
+              <EquipmentFileUpload
+                onFilesChange={setAttachedFiles}
+                uploadedFiles={attachedFiles}
               />
             </div>
 
