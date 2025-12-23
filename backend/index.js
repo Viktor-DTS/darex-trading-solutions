@@ -384,6 +384,7 @@ const equipmentSchema = new mongoose.Schema({
   batchName: String,  // Назва для партійного обладнання
   batchUnit: String,  // Одиниця виміру (шт., л., комплект, упаковка, балон, м.п.)
   batchPriceWithVAT: Number,  // Ціна за одиницю з ПДВ
+  currency: { type: String, default: 'грн.' },  // Тип валюти (грн., USD, EURO)
   
   // Складські дані
   currentWarehouse: String,         // ID складу
@@ -3401,11 +3402,23 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
           error: 'Тип обладнання обов\'язковий для партії'
         });
       }
+      if (!equipmentData.batchUnit) {
+        return res.status(400).json({ 
+          error: 'Одиниця виміру обов\'язкова'
+        });
+      }
       if (quantity < 1) {
         return res.status(400).json({ 
           error: 'Кількість повинна бути більше 0'
         });
       }
+    }
+    
+    // Валідація одиниці виміру для одиничного обладнання
+    if (!isBatch && !equipmentData.batchUnit) {
+      return res.status(400).json({ 
+        error: 'Одиниця виміру обов\'язкова'
+      });
     }
     
     // Генерація batchId для партії

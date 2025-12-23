@@ -38,6 +38,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
         batchName: equipment.batchName || '',
         batchUnit: equipment.batchUnit || '',
         batchPriceWithVAT: equipment.batchPriceWithVAT !== undefined ? String(equipment.batchPriceWithVAT) : '',
+        currency: equipment.currency || 'грн.',
         notes: equipment.notes || ''
       });
       setEquipmentType(equipment.isBatch ? 'batch' : 'single');
@@ -63,6 +64,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
         batchName: '',
         batchUnit: '',
         batchPriceWithVAT: '',
+        currency: 'грн.',
         notes: ''
       });
       setEquipmentType('single');
@@ -414,11 +416,12 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
             <h3>Кількісна характеристика</h3>
             <div className="form-grid">
               <div className="form-group">
-                <label>Одиниця виміру</label>
+                <label>Одиниця виміру <span className="required">*</span></label>
                 <select
                   name="batchUnit"
                   value={formData.batchUnit}
                   onChange={handleChange}
+                  required
                 >
                   <option value="">Виберіть одиницю виміру</option>
                   <option value="шт.">шт.</option>
@@ -440,6 +443,18 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
                   step="0.01"
                   min="0"
                 />
+              </div>
+              <div className="form-group">
+                <label>Тип валюти</label>
+                <select
+                  name="currency"
+                  value={formData.currency || 'грн.'}
+                  onChange={handleChange}
+                >
+                  <option value="грн.">грн.</option>
+                  <option value="USD">USD</option>
+                  <option value="EURO">EURO</option>
+                </select>
               </div>
             </div>
           </div>
