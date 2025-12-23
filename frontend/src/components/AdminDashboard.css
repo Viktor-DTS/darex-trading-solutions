@@ -729,7 +729,7 @@
 .logs-table-wrapper {
   overflow-x: auto;
   border-radius: 6px;
-  max-height: 400px;
+  max-height: 520px;
   overflow-y: auto;
 }
 
