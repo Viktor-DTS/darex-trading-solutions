@@ -1234,6 +1234,12 @@ app.post('/api/tasks', async (req, res) => {
       console.log('[DEBUG] POST /api/tasks - автоматично встановлено autoCreatedAt:', taskData.autoCreatedAt);
     }
     
+    // Автоматичне встановлення autoCompletedAt якщо заявка створюється одразу зі статусом "Виконано"
+    if (taskData.status === 'Виконано' && !taskData.autoCompletedAt) {
+      taskData.autoCompletedAt = new Date();
+      console.log('[DEBUG] POST /api/tasks - автоматично встановлено autoCompletedAt при створенні зі статусом "Виконано":', taskData.autoCompletedAt);
+    }
+    
     const task = new Task(taskData);
     const savedTask = await task.save();
     
