@@ -376,10 +376,12 @@ const equipmentSchema = new mongoose.Schema({
   manufactureDate: String,          // 2024
   notes: String,                     // Примітки
   
-  // Категорії матеріальних цінностей
-  isServiceParts: { type: Boolean, default: false },  // Комплектуючі ЗІП (Сервіс)
-  isElectroInstallParts: { type: Boolean, default: false },  // Комплектуючі для електромонтажних робіт (Елетромонтажний відділ)
-  isInternalEquipment: { type: Boolean, default: false },  // Обладнання для внутрішніх потреб підприємства
+  // Категорії матеріальних цінностей (вибір тільки однієї опції)
+  materialValueType: { 
+    type: String, 
+    enum: ['', 'service', 'electroinstall', 'internal'], 
+    default: '' 
+  },  // 'service' - Комплектуючі ЗІП (Сервіс), 'electroinstall' - Комплектуючі для електромонтажних робіт, 'internal' - Обладнання для внутрішніх потреб
   
   // Поля для партійного обладнання
   isBatch: { type: Boolean, default: false },  // Чи це партія

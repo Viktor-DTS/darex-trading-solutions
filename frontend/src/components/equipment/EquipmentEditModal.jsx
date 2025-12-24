@@ -40,9 +40,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
         batchPriceWithVAT: equipment.batchPriceWithVAT !== undefined ? String(equipment.batchPriceWithVAT) : '',
         currency: equipment.currency || 'грн.',
         notes: equipment.notes || '',
-        isServiceParts: equipment.isServiceParts || false,
-        isElectroInstallParts: equipment.isElectroInstallParts || false,
-        isInternalEquipment: equipment.isInternalEquipment || false
+        materialValueType: equipment.materialValueType || (equipment.isServiceParts ? 'service' : equipment.isElectroInstallParts ? 'electroinstall' : equipment.isInternalEquipment ? 'internal' : '')
       });
       setEquipmentType(equipment.isBatch ? 'batch' : 'single');
     } else {
@@ -69,9 +67,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
         batchPriceWithVAT: '',
         currency: 'грн.',
         notes: '',
-        isServiceParts: false,
-        isElectroInstallParts: false,
-        isInternalEquipment: false
+        materialValueType: ''
       });
       setEquipmentType('single');
     }
@@ -325,9 +321,10 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
               <div className="form-group" style={{ marginTop: isNewEquipment ? '15px' : '0' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
                   <input
-                    type="checkbox"
-                    name="isServiceParts"
-                    checked={formData.isServiceParts || false}
+                    type="radio"
+                    name="materialValueType"
+                    value="service"
+                    checked={formData.materialValueType === 'service'}
                     onChange={handleChange}
                   />
                   Комплектуючі ЗІП (Сервіс)
@@ -336,9 +333,10 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
               <div className="form-group">
                 <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
                   <input
-                    type="checkbox"
-                    name="isElectroInstallParts"
-                    checked={formData.isElectroInstallParts || false}
+                    type="radio"
+                    name="materialValueType"
+                    value="electroinstall"
+                    checked={formData.materialValueType === 'electroinstall'}
                     onChange={handleChange}
                   />
                   Комплектуючі для електромонтажних робіт (Елетромонтажний відділ)
@@ -347,9 +345,10 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
               <div className="form-group">
                 <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
                   <input
-                    type="checkbox"
-                    name="isInternalEquipment"
-                    checked={formData.isInternalEquipment || false}
+                    type="radio"
+                    name="materialValueType"
+                    value="internal"
+                    checked={formData.materialValueType === 'internal'}
                     onChange={handleChange}
                   />
                   Обладнання для внутрішніх потреб підприємства
