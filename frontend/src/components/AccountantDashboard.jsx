@@ -473,7 +473,8 @@ function AccountantDashboard({ user }) {
   };
 
   const tabs = [
-    { id: 'invoiceRequests', label: 'Заявка на рахунок', icon: '📋' }
+    { id: 'invoiceRequests', label: 'Заявка на рахунок', icon: '📋' },
+    { id: 'allExceptApproved', label: 'Всі заявки окрім затвердженні до оплати на премію', icon: '📋' }
   ];
 
   return (
@@ -530,7 +531,7 @@ function AccountantDashboard({ user }) {
             <TaskTable 
               key={refreshKey}
               user={user} 
-              status="accountantInvoiceRequests"
+              status={activeTab === 'allExceptApproved' ? 'allExceptApproved' : 'accountantInvoiceRequests'}
               onColumnSettingsClick={() => setShowColumnSettings(true)}
               showRejectedApprovals={false}
               showRejectedInvoices={false}
