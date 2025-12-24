@@ -1491,8 +1491,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     />
                   </div>
                 </div>
-                {/* Другий рядок: Контактна особа, Тел. контактної особи, Опис заявки */}
-                <div className="form-row three-cols">
+                {/* Другий рядок: Контактна особа, Тел. контактної особи */}
+                <div className="form-row two-cols">
                   <div className="form-group">
                     <label>Контактна особа</label>
                     <input 
@@ -1514,7 +1514,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       required
                     />
                   </div>
-                  <div className="form-group request-desc-wide">
+                </div>
+                {/* Рядок: Опис заявки (збільшено в 3 рази) */}
+                <div className="form-row">
+                  <div className="form-group request-desc-full-width">
                     <label>Опис заявки <span className="required">*</span></label>
                     <textarea name="requestDesc" value={formData.requestDesc} onChange={handleChange} rows="3" required />
                   </div>
@@ -1556,8 +1559,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
             {showSections.client && (
               <div className="section-content">
-                {/* Рядок: Замовник, ЄДРПОУ, Адреса */}
-                <div className="form-row three-cols">
+                {/* Рядок: Замовник, ЄДРПОУ */}
+                <div className="form-row two-cols">
                   <div className="form-group">
                     <label>Замовник <span className="required">*</span></label>
                     <input type="text" name="client" value={formData.client} onChange={handleChange} required />
@@ -1595,7 +1598,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       </div>
                     )}
                   </div>
-                  <div className="form-group autocomplete-wrapper">
+                </div>
+                {/* Рядок: Адреса (збільшено в 3 рази) */}
+                <div className="form-row">
+                  <div className="form-group autocomplete-wrapper address-full-width">
                     <label>Адреса</label>
                     <input 
                       ref={isAccountantMode ? addressInputRef : addressTextareaRef}

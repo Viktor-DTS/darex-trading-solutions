@@ -137,6 +137,12 @@
   grid-column: span 2;
 }
 
+.form-row .form-group.request-desc-full-width,
+.form-row .form-group.address-full-width {
+  width: 100%;
+  grid-column: 1 / -1;
+}
+
 .form-row.two-cols {
   grid-template-columns: 2fr 1fr;
 }
