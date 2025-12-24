@@ -46,6 +46,9 @@ function AccountantApprovalDashboard({ user }) {
         case 'debt':
           statusParam = 'accountantDebt';
           break;
+        case 'allExceptApproved':
+          statusParam = 'allExceptApproved';
+          break;
         default:
           statusParam = 'accountantPending';
       }
@@ -239,7 +242,8 @@ function AccountantApprovalDashboard({ user }) {
   const tabs = [
     { id: 'pending', label: 'Заявка на підтвердженні', icon: '⏳' },
     { id: 'archive', label: 'Архів виконаних заявок', icon: '📁' },
-    { id: 'debt', label: 'Заборгованість по документам', icon: '💰' }
+    { id: 'debt', label: 'Заборгованість по документам', icon: '💰' },
+    { id: 'allExceptApproved', label: 'Всі заявки окрім затвердженні до оплати на премію', icon: '📋' }
   ];
 
   return (
@@ -292,7 +296,9 @@ function AccountantApprovalDashboard({ user }) {
               status={
                 activeTab === 'pending' ? 'accountantPending' :
                 activeTab === 'archive' ? 'done' :
-                'accountantDebt'
+                activeTab === 'debt' ? 'accountantDebt' :
+                activeTab === 'allExceptApproved' ? 'allExceptApproved' :
+                'accountantPending'
               }
               onColumnSettingsClick={() => setShowColumnSettings(true)}
               showRejectedApprovals={false}

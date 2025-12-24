@@ -945,6 +945,11 @@ app.get('/api/tasks/filter', async (req, res) => {
           matchStage.paymentType = { $exists: true, $ne: '', $ne: 'не вибрано', $nin: ['Готівка', 'Інше'] };
           matchStage.debtStatus = { $ne: 'Документи в наявності' };
           break;
+        case 'allExceptApproved':
+          // Всі заявки окрім затвердженні до оплати на премію:
+          // Показуємо всі заявки, окрім тих, де Підтвердження бухгалтера = 'Підтверджено'
+          matchStage.approvedByAccountant = { $ne: 'Підтверджено' };
+          break;
         default:
           matchStage.status = status;
       }
