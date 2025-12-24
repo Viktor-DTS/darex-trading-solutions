@@ -939,18 +939,11 @@ app.get('/api/tasks/filter', async (req, res) => {
         case 'accountantDebt':
           // Заборгованість по документам:
           // 1. Статус = 'Виконано'
-          // 2. Затверджено бухгалтером
-          // 3. paymentType не 'Готівка' і не 'Інше'
-          // 4. debtStatus = 'Заборгованість' АБО не встановлено
+          // 2. paymentType не 'Готівка' і не 'Інше'
+          // 3. debtStatus НЕ 'Документи в наявності' (виключаємо заявки з активованим чекбоксом)
           matchStage.status = 'Виконано';
-          matchStage.approvedByAccountant = 'Підтверджено';
           matchStage.paymentType = { $exists: true, $ne: '', $ne: 'не вибрано', $nin: ['Готівка', 'Інше'] };
-          matchStage.$or = [
-            { debtStatus: 'Заборгованість' },
-            { debtStatus: { $exists: false } },
-            { debtStatus: null },
-            { debtStatus: '' }
-          ];
+          matchStage.debtStatus = { $ne: 'Документи в наявності' };
           break;
         default:
           matchStage.status = status;
