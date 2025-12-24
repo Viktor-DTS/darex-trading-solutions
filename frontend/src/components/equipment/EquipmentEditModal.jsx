@@ -39,7 +39,10 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
         batchUnit: equipment.batchUnit || '',
         batchPriceWithVAT: equipment.batchPriceWithVAT !== undefined ? String(equipment.batchPriceWithVAT) : '',
         currency: equipment.currency || 'грн.',
-        notes: equipment.notes || ''
+        notes: equipment.notes || '',
+        isServiceParts: equipment.isServiceParts || false,
+        isElectroInstallParts: equipment.isElectroInstallParts || false,
+        isInternalEquipment: equipment.isInternalEquipment || false
       });
       setEquipmentType(equipment.isBatch ? 'batch' : 'single');
     } else {
@@ -65,17 +68,20 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
         batchUnit: '',
         batchPriceWithVAT: '',
         currency: 'грн.',
-        notes: ''
+        notes: '',
+        isServiceParts: false,
+        isElectroInstallParts: false,
+        isInternalEquipment: false
       });
       setEquipmentType('single');
     }
   }, [equipment, user]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     }));
 
     // Якщо змінюється склад, оновлюємо назву складу та регіон
@@ -286,35 +292,70 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
               )}
             </div>
 
-            {isNewEquipment && (
-              <div className="form-section">
-                <h3>Тип обладнання</h3>
-                <div className="form-group">
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name="equipmentType"
-                      value="single"
-                      checked={equipmentType === 'single'}
-                      onChange={(e) => setEquipmentType(e.target.value)}
-                    />
-                    Одиничне обладнання (з серійним номером)
-                  </label>
-                </div>
-                <div className="form-group">
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name="equipmentType"
-                      value="batch"
-                      checked={equipmentType === 'batch'}
-                      onChange={(e) => setEquipmentType(e.target.value)}
-                    />
-                    Партія обладнання (без серійного номера)
-                  </label>
-                </div>
+            <div className="form-section">
+              <h3>Тип матеріальних цінностей</h3>
+              {isNewEquipment && (
+                <>
+                  <div className="form-group">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="equipmentType"
+                        value="single"
+                        checked={equipmentType === 'single'}
+                        onChange={(e) => setEquipmentType(e.target.value)}
+                      />
+                      Одиничне обладнання (з серійним номером)
+                    </label>
+                  </div>
+                  <div className="form-group">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="equipmentType"
+                        value="batch"
+                        checked={equipmentType === 'batch'}
+                        onChange={(e) => setEquipmentType(e.target.value)}
+                      />
+                      Партія обладнання (без серійного номера - щитове обладннання для продажу - АВР, ЩР, ЩС, тощо)
+                    </label>
+                  </div>
+                </>
+              )}
+              <div className="form-group" style={{ marginTop: isNewEquipment ? '15px' : '0' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    name="isServiceParts"
+                    checked={formData.isServiceParts || false}
+                    onChange={handleChange}
+                  />
+                  Комплектуючі ЗІП (Сервіс)
+                </label>
               </div>
-            )}
+              <div className="form-group">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    name="isElectroInstallParts"
+                    checked={formData.isElectroInstallParts || false}
+                    onChange={handleChange}
+                  />
+                  Комплектуючі для електромонтажних робіт (Елетромонтажний відділ)
+                </label>
+              </div>
+              <div className="form-group">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    name="isInternalEquipment"
+                    checked={formData.isInternalEquipment || false}
+                    onChange={handleChange}
+                  />
+                  Обладнання для внутрішніх потреб підприємства
+                </label>
+              </div>
+            </div>
 
             {!isNewEquipment && equipment?.isBatch && (
               <div className="form-section" style={{ backgroundColor: 'var(--surface-dark)', padding: '15px', borderRadius: '6px', marginBottom: '15px' }}>

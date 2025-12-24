@@ -376,6 +376,11 @@ const equipmentSchema = new mongoose.Schema({
   manufactureDate: String,          // 2024
   notes: String,                     // Примітки
   
+  // Категорії матеріальних цінностей
+  isServiceParts: { type: Boolean, default: false },  // Комплектуючі ЗІП (Сервіс)
+  isElectroInstallParts: { type: Boolean, default: false },  // Комплектуючі для електромонтажних робіт (Елетромонтажний відділ)
+  isInternalEquipment: { type: Boolean, default: false },  // Обладнання для внутрішніх потреб підприємства
+  
   // Поля для партійного обладнання
   isBatch: { type: Boolean, default: false },  // Чи це партія
   quantity: { type: Number, default: 1, min: 1 },  // Кількість одиниць (для партій)
