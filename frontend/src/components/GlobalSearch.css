@@ -59,6 +59,16 @@
   transition: border-color 0.2s;
 }
 
+.search-form-field select {
+  background: white;
+  color: #000;
+}
+
+.search-form-field select option {
+  background: white;
+  color: #000;
+}
+
 .search-form-field input:focus,
 .search-form-field select:focus {
   outline: none;
