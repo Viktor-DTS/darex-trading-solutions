@@ -58,11 +58,27 @@ function InventoryDashboard({ user }) {
     { id: 'statistics', label: 'Статистика', icon: '📈' },
   ];
 
+  // Автоматичне відкриття модальних вікон при переключенні на відповідні вкладки
+  useEffect(() => {
+    // Не відкриваємо модальні вікна, якщо вони вже відкриті (щоб уникнути зациклення)
+    if (activeTab === 'receipt' && !showAddModal && !showMoveModal && !showShipModal) {
+      setShowAddModal(true);
+    } else if (activeTab === 'movement' && !showMoveModal && !showAddModal && !showShipModal) {
+      setSelectedEquipment(null);
+      setShowMoveModal(true);
+    } else if (activeTab === 'shipment' && !showShipModal && !showAddModal && !showMoveModal) {
+      setSelectedEquipment(null);
+      setShowShipModal(true);
+    }
+  }, [activeTab, showAddModal, showMoveModal, showShipModal]);
+
   const handleEquipmentAdded = () => {
     setShowAddModal(false);
     if (equipmentListRef.current) {
       equipmentListRef.current.refresh();
     }
+    // Після успішного додавання повертаємося на вкладку залишків
+    setActiveTab('stock');
   };
 
   const handleMove = (equipment) => {
@@ -81,6 +97,8 @@ function InventoryDashboard({ user }) {
     if (equipmentListRef.current) {
       equipmentListRef.current.refresh();
     }
+    // Після успішного переміщення повертаємося на вкладку залишків
+    setActiveTab('stock');
   };
 
   const handleShipSuccess = () => {
@@ -89,6 +107,8 @@ function InventoryDashboard({ user }) {
     if (equipmentListRef.current) {
       equipmentListRef.current.refresh();
     }
+    // Після успішного відвантаження повертаємося на вкладку залишків
+    setActiveTab('stock');
   };
 
   const renderTabContent = () => {
@@ -136,13 +156,49 @@ function InventoryDashboard({ user }) {
         );
 
       case 'receipt':
-        return <ReceiptDocuments warehouses={warehouses} />;
+        return (
+          <div className="inventory-tab-content">
+            <div className="inventory-header">
+              <h2>Надходження товарів</h2>
+              <p className="inventory-description">
+                Додавання нового обладнання на склад від постачальників
+              </p>
+            </div>
+            <div className="documents-placeholder">
+              <p>Використовуйте модальне вікно для додавання обладнання</p>
+            </div>
+          </div>
+        );
 
       case 'movement':
-        return <MovementDocuments warehouses={warehouses} />;
+        return (
+          <div className="inventory-tab-content">
+            <div className="inventory-header">
+              <h2>Переміщення між складами</h2>
+              <p className="inventory-description">
+                Переміщення обладнання між складами
+              </p>
+            </div>
+            <div className="documents-placeholder">
+              <p>Використовуйте модальне вікно для переміщення обладнання</p>
+            </div>
+          </div>
+        );
 
       case 'shipment':
-        return <ShipmentDocuments warehouses={warehouses} />;
+        return (
+          <div className="inventory-tab-content">
+            <div className="inventory-header">
+              <h2>Відвантаження замовникам</h2>
+              <p className="inventory-description">
+                Відвантаження обладнання замовникам
+              </p>
+            </div>
+            <div className="documents-placeholder">
+              <p>Використовуйте модальне вікно для відвантаження обладнання</p>
+            </div>
+          </div>
+        );
 
       case 'inventory':
         return <InventoryDocuments warehouses={warehouses} />;
@@ -198,7 +254,13 @@ function InventoryDashboard({ user }) {
           equipment={null}
           warehouses={warehouses}
           user={user}
-          onClose={() => setShowAddModal(false)}
+          onClose={() => {
+            setShowAddModal(false);
+            // Якщо закриваємо модальне вікно з вкладки надходження, повертаємося на залишки
+            if (activeTab === 'receipt') {
+              setActiveTab('stock');
+            }
+          }}
           onSuccess={handleEquipmentAdded}
         />
       )}
@@ -210,6 +272,10 @@ function InventoryDashboard({ user }) {
           onClose={() => {
             setShowMoveModal(false);
             setSelectedEquipment(null);
+            // Якщо закриваємо модальне вікно з вкладки переміщення, повертаємося на залишки
+            if (activeTab === 'movement') {
+              setActiveTab('stock');
+            }
           }}
           onSuccess={handleMoveSuccess}
         />
@@ -221,6 +287,10 @@ function InventoryDashboard({ user }) {
           onClose={() => {
             setShowShipModal(false);
             setSelectedEquipment(null);
+            // Якщо закриваємо модальне вікно з вкладки відвантаження, повертаємося на залишки
+            if (activeTab === 'shipment') {
+              setActiveTab('stock');
+            }
           }}
           onSuccess={handleShipSuccess}
         />
