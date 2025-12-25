@@ -81,6 +81,30 @@ function Reservations({ warehouses = [], user }) {
     return new Date(reservedUntil) < new Date();
   };
 
+  // Функція для отримання списку типів обладнання з кількістю
+  const getEquipmentTypes = (items) => {
+    if (!items || items.length === 0) return '—';
+    
+    // Групуємо по типах та підраховуємо кількість
+    const typeCounts = {};
+    items.forEach(item => {
+      const type = item.type || 'Без типу';
+      const quantity = item.quantity || 1;
+      if (typeCounts[type]) {
+        typeCounts[type] += quantity;
+      } else {
+        typeCounts[type] = quantity;
+      }
+    });
+    
+    // Формуємо рядок з типами та кількістю
+    const typesList = Object.entries(typeCounts)
+      .map(([type, count]) => `${type}${count > 1 ? ` (${count})` : ''}`)
+      .join(', ');
+    
+    return typesList || '—';
+  };
+
   return (
     <div className="documents-container">
       <div className="documents-header">
@@ -130,6 +154,7 @@ function Reservations({ warehouses = [], user }) {
                 <th>Дата</th>
                 <th>Клієнт</th>
                 <th>Номер замовлення</th>
+                <th>Тип обладнання</th>
                 <th>Кількість позицій</th>
                 <th>Зарезервовано до</th>
                 <th>Статус</th>
@@ -144,6 +169,9 @@ function Reservations({ warehouses = [], user }) {
                   <td>{new Date(res.reservationDate).toLocaleDateString('uk-UA')}</td>
                   <td>{res.clientName || '—'}</td>
                   <td>{res.orderNumber || '—'}</td>
+                  <td style={{ maxWidth: '300px', wordBreak: 'break-word' }}>
+                    {getEquipmentTypes(res.items)}
+                  </td>
                   <td>{res.items?.length || 0}</td>
                   <td>
                     {res.reservedUntil 
