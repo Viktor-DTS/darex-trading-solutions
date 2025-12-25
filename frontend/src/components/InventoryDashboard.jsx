@@ -12,6 +12,7 @@ import ShipmentDocuments from './inventory/ShipmentDocuments';
 import InventoryDocuments from './inventory/InventoryDocuments';
 import Reservations from './inventory/Reservations';
 import InventoryReports from './inventory/InventoryReports';
+import ReceiptApproval from './inventory/ReceiptApproval';
 import './InventoryDashboard.css';
 
 function InventoryDashboard({ user }) {
@@ -22,10 +23,15 @@ function InventoryDashboard({ user }) {
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [showShipModal, setShowShipModal] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
+  const [inTransitCount, setInTransitCount] = useState(0);
   const equipmentListRef = useRef(null);
 
   useEffect(() => {
     loadWarehouses();
+    loadInTransitCount();
+    // Оновлюємо лічильник кожні 30 секунд
+    const interval = setInterval(loadInTransitCount, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadWarehouses = async () => {
@@ -46,11 +52,28 @@ function InventoryDashboard({ user }) {
     }
   };
 
+  const loadInTransitCount = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/equipment/in-transit/count`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setInTransitCount(data.count || 0);
+      }
+    } catch (err) {
+      console.error('Помилка завантаження лічильника товарів в дорозі:', err);
+    }
+  };
+
   const tabs = [
     { id: 'stock', label: 'Залишки на складах', icon: '📦' },
     { id: 'receipt', label: 'Надходження', icon: '📥' },
     { id: 'movement', label: 'Переміщення', icon: '🔄' },
     { id: 'shipment', label: 'Відвантаження', icon: '🚚' },
+    { id: 'approval', label: 'Затвердження отримання товару', icon: '✅', badge: inTransitCount },
     { id: 'inventory', label: 'Інвентаризація', icon: '📋' },
     { id: 'reservations', label: 'Резервування', icon: '🔒' },
     { id: 'warehouses', label: 'Управління складами', icon: '🏢' },
@@ -174,6 +197,9 @@ function InventoryDashboard({ user }) {
           </div>
         );
 
+      case 'approval':
+        return <ReceiptApproval warehouses={warehouses} user={user} />;
+
       case 'inventory':
         return <InventoryDocuments warehouses={warehouses} />;
 
@@ -204,10 +230,19 @@ function InventoryDashboard({ user }) {
               <button
                 key={tab.id}
                 className={`inventory-sidebar-tab ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  if (tab.id === 'approval') {
+                    // Оновлюємо лічильник при відкритті вкладки
+                    loadInTransitCount();
+                  }
+                }}
               >
                 <span className="tab-icon">{tab.icon}</span>
                 <span className="tab-label">{tab.label}</span>
+                {tab.badge !== undefined && tab.badge > 0 && (
+                  <span className="tab-badge">{tab.badge}</span>
+                )}
               </button>
             ))}
           </nav>

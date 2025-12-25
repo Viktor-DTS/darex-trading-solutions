@@ -4442,6 +4442,96 @@ app.get('/api/equipment/batch/:batchId/stock', authenticateToken, async (req, re
   }
 });
 
+// Затвердження отримання товару (масове оновлення статусу з in_transit на in_stock)
+app.post('/api/equipment/approve-receipt', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    const { equipmentIds } = req.body;
+
+    if (!equipmentIds || !Array.isArray(equipmentIds) || equipmentIds.length === 0) {
+      return res.status(400).json({ error: 'Вкажіть список ID обладнання для затвердження' });
+    }
+
+    // Знаходимо всі обладнання з вказаними ID та статусом in_transit
+    const equipmentList = await Equipment.find({
+      _id: { $in: equipmentIds },
+      status: 'in_transit'
+    });
+
+    if (equipmentList.length === 0) {
+      return res.status(404).json({ error: 'Не знайдено товарів в дорозі з вказаними ID' });
+    }
+
+    // Оновлюємо статус на in_stock
+    const updatedItems = [];
+    for (const item of equipmentList) {
+      item.status = 'in_stock';
+      item.lastModified = new Date();
+      await item.save();
+      updatedItems.push(item);
+    }
+
+    // Логування
+    try {
+      await EventLog.create({
+        userId: user._id.toString(),
+        userName: user.name || user.login,
+        userRole: user.role,
+        action: 'update',
+        entityType: 'equipment',
+        entityId: equipmentIds.join(','),
+        description: `Затверджено отримання ${updatedItems.length} товарів на склад`,
+        details: {
+          equipmentIds: equipmentIds,
+          updatedCount: updatedItems.length,
+          warehouse: updatedItems[0]?.currentWarehouseName || updatedItems[0]?.currentWarehouse
+        }
+      });
+    } catch (logErr) {
+      console.error('Помилка логування:', logErr);
+    }
+
+    logPerformance('POST /api/equipment/approve-receipt', startTime);
+    res.json({
+      success: true,
+      approvedCount: updatedItems.length,
+      items: updatedItems.map(item => ({
+        _id: item._id,
+        type: item.type,
+        serialNumber: item.serialNumber,
+        currentWarehouse: item.currentWarehouse,
+        currentWarehouseName: item.currentWarehouseName,
+        status: item.status
+      }))
+    });
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/approve-receipt:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Отримання кількості товарів в дорозі (для лічильника)
+app.get('/api/equipment/in-transit/count', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const count = await Equipment.countDocuments({
+      status: 'in_transit',
+      isDeleted: { $ne: true }
+    });
+    
+    logPerformance('GET /api/equipment/in-transit/count', startTime);
+    res.json({ count });
+  } catch (error) {
+    console.error('[ERROR] GET /api/equipment/in-transit/count:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Оновлення статусу обладнання (наприклад, після доставки)
 app.put('/api/equipment/:id/status', authenticateToken, async (req, res) => {
   const startTime = Date.now();
