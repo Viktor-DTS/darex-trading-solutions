@@ -37,7 +37,7 @@ function InventoryReports({ warehouses }) {
             if (format) {
               await exportEquipmentToExcel(equipment, 'Залишки_на_складах');
             } else {
-              exportStockReportToPDF(equipment, warehouseName);
+              await exportStockReportToPDF(equipment, warehouseName);
             }
           }
           break;
@@ -54,7 +54,7 @@ function InventoryReports({ warehouses }) {
           });
           if (movementResponse.ok) {
             const movements = await movementResponse.json();
-            exportMovementReportToPDF(movements, reportParams.dateFrom, reportParams.dateTo);
+            await exportMovementReportToPDF(movements, reportParams.dateFrom, reportParams.dateTo);
           }
           break;
           
@@ -65,7 +65,7 @@ function InventoryReports({ warehouses }) {
           });
           if (costResponse.ok) {
             const costData = await costResponse.json();
-            exportCostReportToPDF(costData);
+            await exportCostReportToPDF(costData);
           }
           break;
           

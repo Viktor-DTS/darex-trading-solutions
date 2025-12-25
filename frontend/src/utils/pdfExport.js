@@ -1,7 +1,6 @@
-import jsPDF from 'jspdf';
-
 // Експорт звіту про залишки на складах в PDF
-export const exportStockReportToPDF = (equipment, warehouseName = 'Всі склади') => {
+export const exportStockReportToPDF = async (equipment, warehouseName = 'Всі склади') => {
+  const { default: jsPDF } = await import('jspdf');
   const doc = new jsPDF();
   
   // Заголовок
@@ -64,7 +63,8 @@ export const exportStockReportToPDF = (equipment, warehouseName = 'Всі скл
 };
 
 // Експорт звіту про рух товарів в PDF
-export const exportMovementReportToPDF = (documents, dateFrom, dateTo) => {
+export const exportMovementReportToPDF = async (documents, dateFrom, dateTo) => {
+  const { default: jsPDF } = await import('jspdf');
   const doc = new jsPDF();
   
   doc.setFontSize(18);
@@ -129,7 +129,8 @@ export const exportMovementReportToPDF = (documents, dateFrom, dateTo) => {
 };
 
 // Експорт вартісного звіту в PDF
-export const exportCostReportToPDF = (costData) => {
+export const exportCostReportToPDF = async (costData) => {
+  const { default: jsPDF } = await import('jspdf');
   const doc = new jsPDF();
   
   doc.setFontSize(18);
