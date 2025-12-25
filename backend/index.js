@@ -498,6 +498,196 @@ warehouseSchema.index({ name: 1 }, { unique: true });
 const Warehouse = mongoose.model('Warehouse', warehouseSchema);
 
 // ============================================
+// МОДЕЛІ ДОКУМЕНТІВ СКЛАДСЬКОГО ОБЛІКУ
+// ============================================
+
+// Схема для документів надходження
+const receiptDocumentSchema = new mongoose.Schema({
+  documentNumber: { type: String, required: true, unique: true },
+  documentDate: { type: Date, default: Date.now },
+  supplier: String, // Постачальник
+  supplierEdrpou: String,
+  warehouse: { type: String, required: true }, // ID складу
+  warehouseName: String,
+  items: [{
+    equipmentId: String, // ID обладнання
+    type: String,
+    serialNumber: String,
+    quantity: { type: Number, default: 1 },
+    unitPrice: Number,
+    totalPrice: Number,
+    batchId: String,
+    batchName: String,
+    notes: String
+  }],
+  totalAmount: Number,
+  currency: { type: String, default: 'грн.' },
+  notes: String,
+  attachedFiles: [{
+    cloudinaryUrl: String,
+    cloudinaryId: String,
+    originalName: String,
+    mimetype: String,
+    size: Number
+  }],
+  createdBy: String,
+  createdByName: String,
+  status: { type: String, enum: ['draft', 'completed', 'cancelled'], default: 'draft' }
+}, { timestamps: true });
+
+receiptDocumentSchema.index({ documentNumber: 1 }, { unique: true });
+receiptDocumentSchema.index({ documentDate: -1 });
+receiptDocumentSchema.index({ warehouse: 1 });
+const ReceiptDocument = mongoose.model('ReceiptDocument', receiptDocumentSchema);
+
+// Схема для документів переміщення
+const movementDocumentSchema = new mongoose.Schema({
+  documentNumber: { type: String, required: true, unique: true },
+  documentDate: { type: Date, default: Date.now },
+  fromWarehouse: { type: String, required: true },
+  fromWarehouseName: String,
+  toWarehouse: { type: String, required: true },
+  toWarehouseName: String,
+  items: [{
+    equipmentId: String,
+    type: String,
+    serialNumber: String,
+    quantity: { type: Number, default: 1 },
+    batchId: String,
+    notes: String
+  }],
+  reason: String,
+  notes: String,
+  attachedFiles: [{
+    cloudinaryUrl: String,
+    cloudinaryId: String,
+    originalName: String,
+    mimetype: String,
+    size: Number
+  }],
+  createdBy: String,
+  createdByName: String,
+  status: { type: String, enum: ['draft', 'in_transit', 'completed', 'cancelled'], default: 'draft' }
+}, { timestamps: true });
+
+movementDocumentSchema.index({ documentNumber: 1 }, { unique: true });
+movementDocumentSchema.index({ documentDate: -1 });
+movementDocumentSchema.index({ fromWarehouse: 1, toWarehouse: 1 });
+const MovementDocument = mongoose.model('MovementDocument', movementDocumentSchema);
+
+// Схема для документів відвантаження
+const shipmentDocumentSchema = new mongoose.Schema({
+  documentNumber: { type: String, required: true, unique: true },
+  documentDate: { type: Date, default: Date.now },
+  shippedTo: { type: String, required: true }, // Назва клієнта
+  clientEdrpou: String,
+  clientAddress: String,
+  invoiceRecipientDetails: String,
+  warehouse: String,
+  warehouseName: String,
+  items: [{
+    equipmentId: String,
+    type: String,
+    serialNumber: String,
+    quantity: { type: Number, default: 1 },
+    unitPrice: Number,
+    totalPrice: Number,
+    batchId: String,
+    notes: String
+  }],
+  orderNumber: String,
+  invoiceNumber: String,
+  totalAmount: Number,
+  currency: { type: String, default: 'грн.' },
+  notes: String,
+  attachedFiles: [{
+    cloudinaryUrl: String,
+    cloudinaryId: String,
+    originalName: String,
+    mimetype: String,
+    size: Number
+  }],
+  createdBy: String,
+  createdByName: String,
+  status: { type: String, enum: ['draft', 'shipped', 'delivered', 'cancelled'], default: 'draft' }
+}, { timestamps: true });
+
+shipmentDocumentSchema.index({ documentNumber: 1 }, { unique: true });
+shipmentDocumentSchema.index({ documentDate: -1 });
+shipmentDocumentSchema.index({ shippedTo: 1 });
+const ShipmentDocument = mongoose.model('ShipmentDocument', shipmentDocumentSchema);
+
+// Схема для документів інвентаризації
+const inventoryDocumentSchema = new mongoose.Schema({
+  documentNumber: { type: String, required: true, unique: true },
+  documentDate: { type: Date, default: Date.now },
+  warehouse: { type: String, required: true },
+  warehouseName: String,
+  inventoryDate: Date,
+  items: [{
+    equipmentId: String,
+    type: String,
+    serialNumber: String,
+    quantityInSystem: { type: Number, default: 0 }, // Кількість в системі
+    quantityActual: { type: Number, default: 0 }, // Фактична кількість
+    difference: { type: Number, default: 0 }, // Різниця
+    notes: String
+  }],
+  status: { type: String, enum: ['draft', 'in_progress', 'completed', 'cancelled'], default: 'draft' },
+  notes: String,
+  attachedFiles: [{
+    cloudinaryUrl: String,
+    cloudinaryId: String,
+    originalName: String,
+    mimetype: String,
+    size: Number
+  }],
+  createdBy: String,
+  createdByName: String,
+  completedBy: String,
+  completedByName: String,
+  completedAt: Date
+}, { timestamps: true });
+
+inventoryDocumentSchema.index({ documentNumber: 1 }, { unique: true });
+inventoryDocumentSchema.index({ documentDate: -1 });
+inventoryDocumentSchema.index({ warehouse: 1 });
+const InventoryDocument = mongoose.model('InventoryDocument', inventoryDocumentSchema);
+
+// Схема для резервування товарів
+const reservationSchema = new mongoose.Schema({
+  reservationNumber: { type: String, required: true, unique: true },
+  reservationDate: { type: Date, default: Date.now },
+  clientName: String,
+  clientEdrpou: String,
+  orderNumber: String,
+  items: [{
+    equipmentId: String,
+    type: String,
+    serialNumber: String,
+    quantity: { type: Number, default: 1 },
+    warehouse: String,
+    warehouseName: String,
+    batchId: String,
+    notes: String
+  }],
+  reservedUntil: Date, // До якої дати зарезервовано
+  status: { type: String, enum: ['active', 'completed', 'cancelled', 'expired'], default: 'active' },
+  notes: String,
+  createdBy: String,
+  createdByName: String,
+  cancelledBy: String,
+  cancelledByName: String,
+  cancelledAt: Date
+}, { timestamps: true });
+
+reservationSchema.index({ reservationNumber: 1 }, { unique: true });
+reservationSchema.index({ reservationDate: -1 });
+reservationSchema.index({ status: 1 });
+reservationSchema.index({ reservedUntil: 1 });
+const Reservation = mongoose.model('Reservation', reservationSchema);
+
+// ============================================
 // ОПТИМІЗОВАНІ API ENDPOINTS
 // ============================================
 
@@ -4242,6 +4432,596 @@ app.put('/api/equipment/:id/status', authenticateToken, async (req, res) => {
   }
 });
 
+// ============================================
+// API ДЛЯ ДОКУМЕНТІВ СКЛАДСЬКОГО ОБЛІКУ
+// ============================================
+
+// Генерація номера документа
+const generateDocumentNumber = async (prefix, Model) => {
+  const year = new Date().getFullYear();
+  const month = String(new Date().getMonth() + 1).padStart(2, '0');
+  const prefixWithDate = `${prefix}-${year}${month}`;
+  
+  const lastDoc = await Model.findOne({
+    documentNumber: new RegExp(`^${prefixWithDate}`)
+  }).sort({ documentNumber: -1 });
+  
+  let sequence = 1;
+  if (lastDoc) {
+    const lastSeq = parseInt(lastDoc.documentNumber.split('-').pop() || '0');
+    sequence = lastSeq + 1;
+  }
+  
+  return `${prefixWithDate}-${String(sequence).padStart(4, '0')}`;
+};
+
+// ========== ДОКУМЕНТИ НАДХОДЖЕННЯ ==========
+
+// Отримання списку документів надходження
+app.get('/api/documents/receipt', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { warehouse, status, dateFrom, dateTo } = req.query;
+    const query = {};
+    
+    if (warehouse) query.warehouse = warehouse;
+    if (status) query.status = status;
+    if (dateFrom || dateTo) {
+      query.documentDate = {};
+      if (dateFrom) query.documentDate.$gte = new Date(dateFrom);
+      if (dateTo) query.documentDate.$lte = new Date(dateTo);
+    }
+    
+    const documents = await ReceiptDocument.find(query)
+      .sort({ documentDate: -1 })
+      .lean();
+    
+    logPerformance('GET /api/documents/receipt', startTime, documents.length);
+    res.json(documents);
+  } catch (error) {
+    console.error('[ERROR] GET /api/documents/receipt:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Створення документа надходження
+app.post('/api/documents/receipt', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    const documentNumber = await generateDocumentNumber('REC', ReceiptDocument);
+    
+    const document = await ReceiptDocument.create({
+      ...req.body,
+      documentNumber,
+      createdBy: user._id.toString(),
+      createdByName: user.name || user.login
+    });
+    
+    // Оновлюємо статус обладнання та склад
+    if (document.status === 'completed' && document.items) {
+      for (const item of document.items) {
+        if (item.equipmentId) {
+          const equipment = await Equipment.findById(item.equipmentId);
+          if (equipment) {
+            equipment.currentWarehouse = document.warehouse;
+            equipment.currentWarehouseName = document.warehouseName;
+            equipment.status = 'in_stock';
+            equipment.lastModified = new Date();
+            await equipment.save();
+          }
+        }
+      }
+    }
+    
+    logPerformance('POST /api/documents/receipt', startTime);
+    res.status(201).json(document);
+  } catch (error) {
+    console.error('[ERROR] POST /api/documents/receipt:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Оновлення документа надходження
+app.put('/api/documents/receipt/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const document = await ReceiptDocument.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    
+    if (!document) {
+      return res.status(404).json({ error: 'Документ не знайдено' });
+    }
+    
+    logPerformance('PUT /api/documents/receipt/:id', startTime);
+    res.json(document);
+  } catch (error) {
+    console.error('[ERROR] PUT /api/documents/receipt/:id:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========== ДОКУМЕНТИ ПЕРЕМІЩЕННЯ ==========
+
+// Отримання списку документів переміщення
+app.get('/api/documents/movement', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { warehouse, status, dateFrom, dateTo } = req.query;
+    const query = {};
+    
+    if (warehouse) {
+      query.$or = [
+        { fromWarehouse: warehouse },
+        { toWarehouse: warehouse }
+      ];
+    }
+    if (status) query.status = status;
+    if (dateFrom || dateTo) {
+      query.documentDate = {};
+      if (dateFrom) query.documentDate.$gte = new Date(dateFrom);
+      if (dateTo) query.documentDate.$lte = new Date(dateTo);
+    }
+    
+    const documents = await MovementDocument.find(query)
+      .sort({ documentDate: -1 })
+      .lean();
+    
+    logPerformance('GET /api/documents/movement', startTime, documents.length);
+    res.json(documents);
+  } catch (error) {
+    console.error('[ERROR] GET /api/documents/movement:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Створення документа переміщення
+app.post('/api/documents/movement', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
+    
+    const document = await MovementDocument.create({
+      ...req.body,
+      documentNumber,
+      createdBy: user._id.toString(),
+      createdByName: user.name || user.login
+    });
+    
+    // Оновлюємо обладнання при завершенні переміщення
+    if (document.status === 'completed' && document.items) {
+      for (const item of document.items) {
+        if (item.equipmentId) {
+          const equipment = await Equipment.findById(item.equipmentId);
+          if (equipment) {
+            equipment.movementHistory.push({
+              fromWarehouse: document.fromWarehouse,
+              toWarehouse: document.toWarehouse,
+              fromWarehouseName: document.fromWarehouseName,
+              toWarehouseName: document.toWarehouseName,
+              date: document.documentDate,
+              movedBy: user._id.toString(),
+              movedByName: user.name || user.login,
+              reason: document.reason || '',
+              notes: document.notes || ''
+            });
+            equipment.currentWarehouse = document.toWarehouse;
+            equipment.currentWarehouseName = document.toWarehouseName;
+            equipment.status = document.status === 'completed' ? 'in_stock' : 'in_transit';
+            equipment.lastModified = new Date();
+            await equipment.save();
+          }
+        }
+      }
+    }
+    
+    logPerformance('POST /api/documents/movement', startTime);
+    res.status(201).json(document);
+  } catch (error) {
+    console.error('[ERROR] POST /api/documents/movement:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========== ДОКУМЕНТИ ВІДВАНТАЖЕННЯ ==========
+
+// Отримання списку документів відвантаження
+app.get('/api/documents/shipment', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { warehouse, status, dateFrom, dateTo, client } = req.query;
+    const query = {};
+    
+    if (warehouse) query.warehouse = warehouse;
+    if (status) query.status = status;
+    if (client) query.shippedTo = { $regex: client, $options: 'i' };
+    if (dateFrom || dateTo) {
+      query.documentDate = {};
+      if (dateFrom) query.documentDate.$gte = new Date(dateFrom);
+      if (dateTo) query.documentDate.$lte = new Date(dateTo);
+    }
+    
+    const documents = await ShipmentDocument.find(query)
+      .sort({ documentDate: -1 })
+      .lean();
+    
+    logPerformance('GET /api/documents/shipment', startTime, documents.length);
+    res.json(documents);
+  } catch (error) {
+    console.error('[ERROR] GET /api/documents/shipment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Створення документа відвантаження
+app.post('/api/documents/shipment', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    const documentNumber = await generateDocumentNumber('SHIP', ShipmentDocument);
+    
+    const document = await ShipmentDocument.create({
+      ...req.body,
+      documentNumber,
+      createdBy: user._id.toString(),
+      createdByName: user.name || user.login
+    });
+    
+    // Оновлюємо обладнання при відвантаженні
+    if (document.status === 'shipped' && document.items) {
+      for (const item of document.items) {
+        if (item.equipmentId) {
+          const equipment = await Equipment.findById(item.equipmentId);
+          if (equipment) {
+            equipment.shipmentHistory.push({
+              shippedTo: document.shippedTo,
+              shippedDate: document.documentDate,
+              shippedBy: user._id.toString(),
+              shippedByName: user.name || user.login,
+              orderNumber: document.orderNumber || '',
+              invoiceNumber: document.invoiceNumber || '',
+              clientEdrpou: document.clientEdrpou || '',
+              clientAddress: document.clientAddress || '',
+              invoiceRecipientDetails: document.invoiceRecipientDetails || '',
+              totalPrice: item.totalPrice || document.totalAmount || null,
+              notes: document.notes || ''
+            });
+            equipment.status = 'shipped';
+            equipment.lastModified = new Date();
+            await equipment.save();
+          }
+        }
+      }
+    }
+    
+    logPerformance('POST /api/documents/shipment', startTime);
+    res.status(201).json(document);
+  } catch (error) {
+    console.error('[ERROR] POST /api/documents/shipment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========== ДОКУМЕНТИ ІНВЕНТАРИЗАЦІЇ ==========
+
+// Отримання списку документів інвентаризації
+app.get('/api/documents/inventory', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { warehouse, status, dateFrom, dateTo } = req.query;
+    const query = {};
+    
+    if (warehouse) query.warehouse = warehouse;
+    if (status) query.status = status;
+    if (dateFrom || dateTo) {
+      query.documentDate = {};
+      if (dateFrom) query.documentDate.$gte = new Date(dateFrom);
+      if (dateTo) query.documentDate.$lte = new Date(dateTo);
+    }
+    
+    const documents = await InventoryDocument.find(query)
+      .sort({ documentDate: -1 })
+      .lean();
+    
+    logPerformance('GET /api/documents/inventory', startTime, documents.length);
+    res.json(documents);
+  } catch (error) {
+    console.error('[ERROR] GET /api/documents/inventory:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Створення документа інвентаризації
+app.post('/api/documents/inventory', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    const documentNumber = await generateDocumentNumber('INV', InventoryDocument);
+    
+    const document = await InventoryDocument.create({
+      ...req.body,
+      documentNumber,
+      createdBy: user._id.toString(),
+      createdByName: user.name || user.login
+    });
+    
+    logPerformance('POST /api/documents/inventory', startTime);
+    res.status(201).json(document);
+  } catch (error) {
+    console.error('[ERROR] POST /api/documents/inventory:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Завершення інвентаризації
+app.post('/api/documents/inventory/:id/complete', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    const document = await InventoryDocument.findById(req.params.id);
+    if (!document) {
+      return res.status(404).json({ error: 'Документ не знайдено' });
+    }
+    
+    document.status = 'completed';
+    document.completedBy = user._id.toString();
+    document.completedByName = user.name || user.login;
+    document.completedAt = new Date();
+    
+    // Обчислюємо різниці
+    for (const item of document.items) {
+      item.difference = item.quantityActual - item.quantityInSystem;
+    }
+    
+    await document.save();
+    
+    logPerformance('POST /api/documents/inventory/:id/complete', startTime);
+    res.json(document);
+  } catch (error) {
+    console.error('[ERROR] POST /api/documents/inventory/:id/complete:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========== РЕЗЕРВУВАННЯ ==========
+
+// Отримання списку резервувань
+app.get('/api/reservations', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { status, client } = req.query;
+    const query = {};
+    
+    if (status) query.status = status;
+    if (client) query.clientName = { $regex: client, $options: 'i' };
+    
+    const reservations = await Reservation.find(query)
+      .sort({ reservationDate: -1 })
+      .lean();
+    
+    logPerformance('GET /api/reservations', startTime, reservations.length);
+    res.json(reservations);
+  } catch (error) {
+    console.error('[ERROR] GET /api/reservations:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Створення резервування
+app.post('/api/reservations', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    const year = new Date().getFullYear();
+    const month = String(new Date().getMonth() + 1).padStart(2, '0');
+    const prefix = `RES-${year}${month}`;
+    
+    const lastRes = await Reservation.findOne({
+      reservationNumber: new RegExp(`^${prefix}`)
+    }).sort({ reservationNumber: -1 });
+    
+    let sequence = 1;
+    if (lastRes) {
+      const lastSeq = parseInt(lastRes.reservationNumber.split('-').pop() || '0');
+      sequence = lastSeq + 1;
+    }
+    
+    const reservationNumber = `${prefix}-${String(sequence).padStart(4, '0')}`;
+    
+    const reservation = await Reservation.create({
+      ...req.body,
+      reservationNumber,
+      createdBy: user._id.toString(),
+      createdByName: user.name || user.login
+    });
+    
+    // Резервуємо обладнання
+    if (reservation.items) {
+      for (const item of reservation.items) {
+        if (item.equipmentId) {
+          const equipment = await Equipment.findById(item.equipmentId);
+          if (equipment) {
+            equipment.status = 'reserved';
+            equipment.lastModified = new Date();
+            await equipment.save();
+          }
+        }
+      }
+    }
+    
+    logPerformance('POST /api/reservations', startTime);
+    res.status(201).json(reservation);
+  } catch (error) {
+    console.error('[ERROR] POST /api/reservations:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Скасування резервування
+app.post('/api/reservations/:id/cancel', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    const reservation = await Reservation.findById(req.params.id);
+    if (!reservation) {
+      return res.status(404).json({ error: 'Резервування не знайдено' });
+    }
+    
+    reservation.status = 'cancelled';
+    reservation.cancelledBy = user._id.toString();
+    reservation.cancelledByName = user.name || user.login;
+    reservation.cancelledAt = new Date();
+    
+    // Знімаємо резервування з обладнання
+    if (reservation.items) {
+      for (const item of reservation.items) {
+        if (item.equipmentId) {
+          const equipment = await Equipment.findById(item.equipmentId);
+          if (equipment && equipment.status === 'reserved') {
+            equipment.status = 'in_stock';
+            equipment.lastModified = new Date();
+            await equipment.save();
+          }
+        }
+      }
+    }
+    
+    await reservation.save();
+    
+    logPerformance('POST /api/reservations/:id/cancel', startTime);
+    res.json(reservation);
+  } catch (error) {
+    console.error('[ERROR] POST /api/reservations/:id/cancel:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========== ВАРТІСНИЙ ОБЛІК ==========
+
+// Звіт по вартісному обліку
+app.get('/api/equipment/cost-report', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { warehouse, method = 'average' } = req.query;
+    const query = { isDeleted: false, status: { $in: ['in_stock', 'reserved'] } };
+    
+    if (warehouse) query.currentWarehouse = warehouse;
+    
+    const equipment = await Equipment.find(query).lean();
+    
+    // Групуємо по типах обладнання
+    const grouped = {};
+    equipment.forEach(item => {
+      const key = item.type || 'Без типу';
+      if (!grouped[key]) {
+        grouped[key] = {
+          type: key,
+          items: [],
+          totalQuantity: 0,
+          totalCost: 0
+        };
+      }
+      grouped[key].items.push(item);
+      grouped[key].totalQuantity += item.quantity || 1;
+    });
+    
+    // Обчислюємо собівартість за вибраним методом
+    Object.keys(grouped).forEach(key => {
+      const group = grouped[key];
+      
+      if (method === 'average') {
+        // Середня собівартість
+        let totalCost = 0;
+        let totalQty = 0;
+        group.items.forEach(item => {
+          const price = item.batchPriceWithVAT || 0;
+          const qty = item.quantity || 1;
+          totalCost += price * qty;
+          totalQty += qty;
+        });
+        group.averageCost = totalQty > 0 ? totalCost / totalQty : 0;
+        group.totalCost = totalCost;
+      } else if (method === 'fifo') {
+        // FIFO - перший прийшов, перший пішов (сортуємо по даті надходження)
+        const sorted = [...group.items].sort((a, b) => 
+          new Date(a.addedAt || 0) - new Date(b.addedAt || 0)
+        );
+        let totalCost = 0;
+        sorted.forEach(item => {
+          const price = item.batchPriceWithVAT || 0;
+          const qty = item.quantity || 1;
+          totalCost += price * qty;
+        });
+        group.totalCost = totalCost;
+        group.fifoCost = totalCost;
+      } else if (method === 'lifo') {
+        // LIFO - останній прийшов, перший пішов (сортуємо по даті надходження в зворотному порядку)
+        const sorted = [...group.items].sort((a, b) => 
+          new Date(b.addedAt || 0) - new Date(a.addedAt || 0)
+        );
+        let totalCost = 0;
+        sorted.forEach(item => {
+          const price = item.batchPriceWithVAT || 0;
+          const qty = item.quantity || 1;
+          totalCost += price * qty;
+        });
+        group.totalCost = totalCost;
+        group.lifoCost = totalCost;
+      }
+    });
+    
+    const result = {
+      method,
+      warehouse: warehouse || 'Всі склади',
+      reportDate: new Date().toISOString(),
+      groups: Object.values(grouped),
+      summary: {
+        totalTypes: Object.keys(grouped).length,
+        totalItems: equipment.length,
+        totalQuantity: equipment.reduce((sum, item) => sum + (item.quantity || 1), 0),
+        totalCost: Object.values(grouped).reduce((sum, group) => sum + (group.totalCost || 0), 0)
+      }
+    };
+    
+    logPerformance('GET /api/equipment/cost-report', startTime);
+    res.json(result);
+  } catch (error) {
+    console.error('[ERROR] GET /api/equipment/cost-report:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // ============================================
 // TIMESHEET API (Табель персоналу)

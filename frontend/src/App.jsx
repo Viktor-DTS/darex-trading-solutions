@@ -13,6 +13,7 @@ import ReportBuilder from './components/ReportBuilder';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import TasksStatisticsBar from './components/TasksStatisticsBar';
 import EquipmentPage from './components/equipment/EquipmentPage';
+import InventoryDashboard from './components/InventoryDashboard';
 import API_BASE_URL from './config';
 
 // Доступні панелі
@@ -20,6 +21,7 @@ const PANELS = [
   { id: 'service', label: 'Сервісна служба', icon: '🔧' },
   { id: 'operator', label: 'Оператор', icon: '📞' },
   { id: 'warehouse', label: 'Зав. склад', icon: '📦' },
+  { id: 'inventory', label: 'Складський облік', icon: '📋' },
   { id: 'accountant', label: 'Бух рахунки', icon: '📄' },
   { id: 'accountantApproval', label: 'Бух на затвердженні', icon: '💰' },
   { id: 'regional', label: 'Регіональний керівник', icon: '👔' },
@@ -30,15 +32,15 @@ const PANELS = [
 
 // Права доступу за замовчуванням (резервні, якщо база недоступна)
 const DEFAULT_ACCESS_RULES = {
-  admin: ['service', 'operator', 'warehouse', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
-  administrator: ['service', 'operator', 'warehouse', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
+  admin: ['service', 'operator', 'warehouse', 'inventory', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
+  administrator: ['service', 'operator', 'warehouse', 'inventory', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
   operator: ['operator'],
-  accountant: ['accountant', 'accountantApproval', 'reports', 'analytics'],
-  buhgalteria: ['accountant', 'accountantApproval', 'reports', 'analytics'],
-  warehouse: ['warehouse', 'service'],
-  zavsklad: ['warehouse', 'service'],
-  regkerivn: ['regional', 'service', 'reports', 'analytics'],
-  regional: ['regional', 'service', 'reports', 'analytics'],
+  accountant: ['accountant', 'accountantApproval', 'inventory', 'reports', 'analytics'],
+  buhgalteria: ['accountant', 'accountantApproval', 'inventory', 'reports', 'analytics'],
+  warehouse: ['warehouse', 'inventory', 'service'],
+  zavsklad: ['warehouse', 'inventory', 'service'],
+  regkerivn: ['regional', 'service', 'reports', 'analytics', 'inventory'],
+  regional: ['regional', 'service', 'reports', 'analytics', 'inventory'],
   service: ['service'],
 };
 
@@ -346,6 +348,8 @@ function App() {
         return <OperatorDashboard user={user} />;
       case 'warehouse':
         return <WarehouseDashboard user={user} />;
+      case 'inventory':
+        return <InventoryDashboard user={user} />;
       case 'accountant':
         return <AccountantDashboard user={user} />;
       case 'accountantApproval':
