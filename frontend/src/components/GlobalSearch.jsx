@@ -28,7 +28,7 @@ function GlobalSearch({ user }) {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/tasks/global-search`, {
+      const response = await fetch(`${API_BASE_URL}/tasks/global-search`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
