@@ -4,6 +4,7 @@ import ContractsTable from './ContractsTable';
 import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
 import LogisticsMap from './LogisticsMap';
+import GlobalSearch from './GlobalSearch';
 import './Dashboard.css';
 
 function Dashboard({ user, panelType = 'service' }) {
@@ -44,7 +45,8 @@ function Dashboard({ user, panelType = 'service' }) {
     { id: 'done', label: 'Заявки на підтвердженні у завсклада та бухгалтера', icon: '✅' },
     { id: 'blocked', label: 'Заблоковані', icon: '🚫' },
     { id: 'contracts', label: 'Договори', icon: '📄' },
-    { id: 'logistics', label: 'Логістика', icon: '🗺️' }
+    { id: 'logistics', label: 'Логістика', icon: '🗺️' },
+    { id: 'globalSearch', label: 'Глобальний пошук', icon: '🔍' }
   ];
 
   return (
@@ -115,6 +117,8 @@ function Dashboard({ user, panelType = 'service' }) {
             <ContractsTable user={user} />
           ) : activeTab === 'logistics' ? (
             <LogisticsMap user={user} onTaskClick={handleLogisticsTaskClick} />
+          ) : activeTab === 'globalSearch' ? (
+            <GlobalSearch user={user} />
           ) : (
             <TaskTable 
               user={user} 

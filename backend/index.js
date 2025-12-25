@@ -1485,6 +1485,56 @@ app.get('/api/tasks/:id', async (req, res) => {
 });
 
 // ============================================
+// ГЛОБАЛЬНИЙ ПОШУК ЗАЯВОК
+// ============================================
+app.post('/api/tasks/global-search', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { edrpou, engineSerial, customerEquipmentNumber } = req.body;
+    
+    // Будуємо умови пошуку
+    const matchConditions = {};
+    
+    if (edrpou && edrpou.trim()) {
+      matchConditions.edrpou = { $regex: new RegExp(edrpou.trim(), 'i') };
+    }
+    
+    if (engineSerial && engineSerial.trim()) {
+      matchConditions.engineSerial = { $regex: new RegExp(engineSerial.trim(), 'i') };
+    }
+    
+    if (customerEquipmentNumber && customerEquipmentNumber.trim()) {
+      matchConditions.customerEquipmentNumber = { $regex: new RegExp(customerEquipmentNumber.trim(), 'i') };
+    }
+    
+    // Якщо немає жодної умови пошуку, повертаємо порожній результат
+    if (Object.keys(matchConditions).length === 0) {
+      logPerformance('POST /api/tasks/global-search', startTime, 0);
+      return res.json([]);
+    }
+    
+    // Виконуємо пошук з агрегацією для отримання повної інформації
+    const tasks = await Task.aggregate([
+      { $match: matchConditions },
+      { $sort: { requestDate: -1, date: -1 } },
+      {
+        $addFields: {
+          id: { $toString: '$_id' }
+        }
+      }
+    ]).allowDiskUse(true);
+    
+    console.log('[DEBUG] POST /api/tasks/global-search - знайдено заявок:', tasks.length);
+    logPerformance('POST /api/tasks/global-search', startTime, tasks.length);
+    res.json(tasks);
+  } catch (error) {
+    logPerformance('POST /api/tasks/global-search', startTime);
+    console.error('[ERROR] POST /api/tasks/global-search:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
 // НАЛАШТУВАННЯ КОЛОНОК
 // ============================================
 app.get('/api/users/:login/columns-settings/:area', async (req, res) => {
