@@ -22,7 +22,12 @@ function ReceiptApproval({ user, warehouses }) {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('[DEBUG] Завантажено товарів в дорозі:', data.length, data);
         setEquipmentInTransit(data);
+      } else {
+        const error = await response.json();
+        console.error('[ERROR] Помилка завантаження:', error);
+        alert(`Помилка завантаження: ${error.error || 'Невідома помилка'}`);
       }
     } catch (error) {
       console.error('Помилка завантаження товарів в дорозі:', error);
@@ -127,6 +132,10 @@ function ReceiptApproval({ user, warehouses }) {
 
   // Групуємо товари за складом призначення
   const groupedByWarehouse = equipmentInTransit.reduce((acc, eq) => {
+    if (!eq || !eq._id) {
+      console.warn('[WARN] Пропущено обладнання без ID:', eq);
+      return acc;
+    }
     const warehouseId = eq.currentWarehouse || 'unknown';
     const warehouseName = eq.currentWarehouseName || getWarehouseName(warehouseId);
     
@@ -140,6 +149,8 @@ function ReceiptApproval({ user, warehouses }) {
     acc[warehouseId].items.push(eq);
     return acc;
   }, {});
+
+  console.log('[DEBUG] Згруповано по складах:', groupedByWarehouse);
 
   if (loading) {
     return <div className="loading-indicator">Завантаження...</div>;

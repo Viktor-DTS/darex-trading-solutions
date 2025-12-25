@@ -122,11 +122,13 @@
 
 .equipment-table-wrapper {
   overflow-x: auto;
+  min-height: 100px;
 }
 
 .equipment-table {
   width: 100%;
   border-collapse: collapse;
+  background: white;
 }
 
 .equipment-table thead {
@@ -166,10 +168,27 @@
   background: #d0e7ff;
 }
 
+.equipment-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .equipment-table input[type="checkbox"] {
   width: 18px;
   height: 18px;
   cursor: pointer;
+}
+
+/* Переконаємося, що таблиця видима */
+.equipment-table tbody {
+  display: table-row-group;
+}
+
+.equipment-table tbody tr {
+  display: table-row;
+}
+
+.equipment-table tbody td {
+  display: table-cell;
 }
 
 .empty-state {
