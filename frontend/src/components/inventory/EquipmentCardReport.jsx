@@ -57,13 +57,10 @@ function EquipmentCardReport() {
 
       if (response.ok) {
         const data = await response.json();
-        // Фільтруємо партійне обладнання (якщо batchId є і не порожній, це партійне)
-        // Також виключаємо видалене обладнання
-        const nonBatchEquipment = data.filter(eq => 
-          !eq.deleted && 
-          (!eq.batchId || eq.batchId === '' || eq.batchId === null)
-        );
-        setSearchResults(nonBatchEquipment);
+        // Виключаємо тільки видалене обладнання
+        // Партійне обладнання теж показуємо
+        const availableEquipment = data.filter(eq => !eq.deleted);
+        setSearchResults(availableEquipment);
         setShowSuggestions(true);
       }
     } catch (error) {
