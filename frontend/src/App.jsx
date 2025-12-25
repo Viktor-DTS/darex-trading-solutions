@@ -55,6 +55,13 @@ const convertAccessRules = (dbRules) => {
       converted[role] = Object.keys(panels).filter(panelId => 
         panels[panelId] === 'full' || panels[panelId] === 'read'
       );
+      
+      // Автоматично додаємо 'inventory' якщо є доступ до 'warehouse' або 'accountant'
+      if ((converted[role].includes('warehouse') || converted[role].includes('accountant')) 
+          && !converted[role].includes('inventory') 
+          && panels.inventory !== 'none') {
+        converted[role].push('inventory');
+      }
     }
   });
   
@@ -144,6 +151,11 @@ function App() {
         Object.keys(converted).forEach(role => {
           if (converted[role] && converted[role].length > 0) {
             merged[role] = converted[role];
+            // Автоматично додаємо 'inventory' якщо є доступ до 'warehouse' або 'accountant'
+            if ((converted[role].includes('warehouse') || converted[role].includes('accountant')) 
+                && !converted[role].includes('inventory')) {
+              merged[role].push('inventory');
+            }
           }
         });
         setAccessRules(merged);
