@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config';
+import MovementDocumentModal from './MovementDocumentModal';
 import './Documents.css';
 
 function MovementDocuments({ warehouses }) {
@@ -11,6 +12,8 @@ function MovementDocuments({ warehouses }) {
     dateFrom: '',
     dateTo: ''
   });
+  const [showModal, setShowModal] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState(null);
 
   useEffect(() => {
     loadDocuments();
@@ -60,6 +63,12 @@ function MovementDocuments({ warehouses }) {
     <div className="documents-container">
       <div className="documents-header">
         <h2>Документи переміщення</h2>
+        <button className="btn-primary" onClick={() => {
+          setSelectedDocument(null);
+          setShowModal(true);
+        }}>
+          ➕ Створити документ
+        </button>
       </div>
 
       <div className="documents-filters">
@@ -126,13 +135,38 @@ function MovementDocuments({ warehouses }) {
                   <td>{getStatusBadge(doc.status)}</td>
                   <td>{doc.createdByName || '—'}</td>
                   <td>
-                    <button className="btn-action">Переглянути</button>
+                    <button
+                      className="btn-action"
+                      onClick={() => {
+                        setSelectedDocument(doc);
+                        setShowModal(true);
+                      }}
+                    >
+                      {doc.status === 'draft' ? 'Редагувати' : 'Переглянути'}
+                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {showModal && (
+        <MovementDocumentModal
+          document={selectedDocument}
+          warehouses={warehouses}
+          user={null}
+          onClose={() => {
+            setShowModal(false);
+            setSelectedDocument(null);
+          }}
+          onSuccess={() => {
+            loadDocuments();
+            setShowModal(false);
+            setSelectedDocument(null);
+          }}
+        />
       )}
     </div>
   );

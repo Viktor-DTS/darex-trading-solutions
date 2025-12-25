@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import API_BASE_URL from '../../config';
 import { exportEquipmentToExcel } from '../../utils/equipmentExport';
+import { exportStockReportToPDF, exportMovementReportToPDF, exportCostReportToPDF } from '../../utils/pdfExport';
 import './Documents.css';
 
 function InventoryReports({ warehouses }) {
@@ -27,7 +28,17 @@ function InventoryReports({ warehouses }) {
           });
           if (stockResponse.ok) {
             const equipment = await stockResponse.json();
-            await exportEquipmentToExcel(equipment, 'Залишки_на_складах');
+            const warehouseName = reportParams.warehouse 
+              ? warehouses.find(w => w._id === reportParams.warehouse)?.name || 'Всі склади'
+              : 'Всі склади';
+            
+            // Пропонуємо вибір формату
+            const format = window.confirm('Експортувати в Excel? (OK - Excel, Cancel - PDF)');
+            if (format) {
+              await exportEquipmentToExcel(equipment, 'Залишки_на_складах');
+            } else {
+              exportStockReportToPDF(equipment, warehouseName);
+            }
           }
           break;
           
@@ -43,9 +54,7 @@ function InventoryReports({ warehouses }) {
           });
           if (movementResponse.ok) {
             const movements = await movementResponse.json();
-            // Тут можна додати експорт в Excel
-            console.log('Документи переміщення:', movements);
-            alert(`Знайдено ${movements.length} документів переміщення`);
+            exportMovementReportToPDF(movements, reportParams.dateFrom, reportParams.dateTo);
           }
           break;
           
@@ -56,9 +65,7 @@ function InventoryReports({ warehouses }) {
           });
           if (costResponse.ok) {
             const costData = await costResponse.json();
-            // Експорт вартісного звіту
-            console.log('Вартісний звіт:', costData);
-            alert('Вартісний звіт сформовано');
+            exportCostReportToPDF(costData);
           }
           break;
           
@@ -101,7 +108,7 @@ function InventoryReports({ warehouses }) {
               onClick={() => handleGenerateReport('stock')}
               disabled={generating}
             >
-              {generating ? 'Формування...' : 'Сформувати звіт (Excel)'}
+              {generating ? 'Формування...' : 'Сформувати звіт (Excel/PDF)'}
             </button>
           </div>
         </div>
@@ -136,7 +143,7 @@ function InventoryReports({ warehouses }) {
               onClick={() => handleGenerateReport('movement')}
               disabled={generating}
             >
-              {generating ? 'Формування...' : 'Сформувати звіт'}
+              {generating ? 'Формування...' : 'Сформувати звіт (PDF)'}
             </button>
           </div>
         </div>
@@ -194,7 +201,7 @@ function InventoryReports({ warehouses }) {
               onClick={() => handleGenerateReport('cost')}
               disabled={generating}
             >
-              {generating ? 'Формування...' : 'Сформувати звіт'}
+              {generating ? 'Формування...' : 'Сформувати звіт (PDF)'}
             </button>
           </div>
         </div>

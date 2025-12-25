@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config';
+import ReceiptDocumentModal from './ReceiptDocumentModal';
 import './Documents.css';
 
 function ReceiptDocuments({ warehouses }) {
@@ -13,10 +14,27 @@ function ReceiptDocuments({ warehouses }) {
   });
   const [showModal, setShowModal] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
+  const [equipment, setEquipment] = useState([]);
 
   useEffect(() => {
     loadDocuments();
+    loadEquipment();
   }, [filters]);
+
+  const loadEquipment = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/equipment`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setEquipment(data);
+      }
+    } catch (error) {
+      console.error('Помилка завантаження обладнання:', error);
+    }
+  };
 
   const loadDocuments = async () => {
     setLoading(true);
@@ -140,7 +158,7 @@ function ReceiptDocuments({ warehouses }) {
                         setShowModal(true);
                       }}
                     >
-                      Переглянути
+                      {doc.status === 'draft' ? 'Редагувати' : 'Переглянути'}
                     </button>
                   </td>
                 </tr>
@@ -148,6 +166,24 @@ function ReceiptDocuments({ warehouses }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {showModal && (
+        <ReceiptDocumentModal
+          document={selectedDocument}
+          warehouses={warehouses}
+          equipment={equipment}
+          user={null}
+          onClose={() => {
+            setShowModal(false);
+            setSelectedDocument(null);
+          }}
+          onSuccess={() => {
+            loadDocuments();
+            setShowModal(false);
+            setSelectedDocument(null);
+          }}
+        />
       )}
     </div>
   );

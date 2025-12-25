@@ -4582,6 +4582,28 @@ app.get('/api/documents/movement', authenticateToken, async (req, res) => {
   }
 });
 
+// Оновлення документа переміщення
+app.put('/api/documents/movement/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const document = await MovementDocument.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    
+    if (!document) {
+      return res.status(404).json({ error: 'Документ не знайдено' });
+    }
+    
+    logPerformance('PUT /api/documents/movement/:id', startTime);
+    res.json(document);
+  } catch (error) {
+    console.error('[ERROR] PUT /api/documents/movement/:id:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Створення документа переміщення
 app.post('/api/documents/movement', authenticateToken, async (req, res) => {
   const startTime = Date.now();
