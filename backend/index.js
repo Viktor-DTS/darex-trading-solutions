@@ -4620,6 +4620,11 @@ app.get('/api/documents/movement', authenticateToken, async (req, res) => {
 app.put('/api/documents/movement/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
     const document = await MovementDocument.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -4628,6 +4633,60 @@ app.put('/api/documents/movement/:id', authenticateToken, async (req, res) => {
     
     if (!document) {
       return res.status(404).json({ error: 'Документ не знайдено' });
+    }
+    
+    // Оновлюємо обладнання при завершенні переміщення
+    if (document.status === 'completed' && document.items) {
+      for (const item of document.items) {
+        if (item.equipmentId) {
+          const equipment = await Equipment.findById(item.equipmentId);
+          if (equipment) {
+            // Перевіряємо, чи вже є запис про це переміщення в історії
+            const existingMovement = equipment.movementHistory?.find(
+              m => m.fromWarehouse === document.fromWarehouse && 
+                   m.toWarehouse === document.toWarehouse &&
+                   new Date(m.date).getTime() === new Date(document.documentDate).getTime()
+            );
+            
+            if (!existingMovement) {
+              // Додаємо запис до історії переміщень
+              if (!equipment.movementHistory) {
+                equipment.movementHistory = [];
+              }
+              equipment.movementHistory.push({
+                fromWarehouse: document.fromWarehouse,
+                toWarehouse: document.toWarehouse,
+                fromWarehouseName: document.fromWarehouseName,
+                toWarehouseName: document.toWarehouseName,
+                date: document.documentDate,
+                movedBy: user._id.toString(),
+                movedByName: user.name || user.login,
+                reason: document.reason || '',
+                notes: document.notes || ''
+              });
+            }
+            
+            // Оновлюємо склад та статус
+            equipment.currentWarehouse = document.toWarehouse;
+            equipment.currentWarehouseName = document.toWarehouseName;
+            equipment.status = 'in_stock'; // При завершенні переміщення статус = "на складі"
+            equipment.lastModified = new Date();
+            await equipment.save();
+          }
+        }
+      }
+    } else if (document.status === 'in_transit' && document.items) {
+      // Якщо статус змінився на "в дорозі", оновлюємо статус обладнання
+      for (const item of document.items) {
+        if (item.equipmentId) {
+          const equipment = await Equipment.findById(item.equipmentId);
+          if (equipment) {
+            equipment.status = 'in_transit';
+            equipment.lastModified = new Date();
+            await equipment.save();
+          }
+        }
+      }
     }
     
     logPerformance('PUT /api/documents/movement/:id', startTime);

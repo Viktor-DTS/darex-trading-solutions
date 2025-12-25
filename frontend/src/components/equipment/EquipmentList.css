@@ -1,3 +1,39 @@
+/* Статус бейджі */
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.status-in_stock {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-in_transit {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.status-reserved {
+  background-color: #cce5ff;
+  color: #004085;
+}
+
+.status-shipped {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.status-deleted {
+  background-color: #e2e3e5;
+  color: #383d41;
+}
+
 /* Контейнер таблиці */
 .equipment-table-container {
   width: 100%;

@@ -10,6 +10,7 @@ import './EquipmentList.css';
 
 // Визначення всіх колонок
 const ALL_COLUMNS = [
+  { key: 'status', label: 'Статус', width: 120 },
   { key: 'manufacturer', label: 'Виробник', width: 150 },
   { key: 'type', label: 'Тип обладнання', width: 180 },
   { key: 'serialNumber', label: 'Серійний номер', width: 150 },
@@ -131,6 +132,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
   const getFilterType = (columnKey) => {
     if (columnKey === 'manufactureDate') return 'date';
     if (columnKey === 'currentWarehouse') return 'select';
+    if (columnKey === 'status') return 'select';
     return 'text';
   };
 
@@ -138,6 +140,9 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
     if (columnKey === 'currentWarehouse') {
       const uniqueWarehouses = [...new Set(equipment.map(eq => eq.currentWarehouseName || eq.currentWarehouse).filter(Boolean))];
       return ['', ...uniqueWarehouses];
+    }
+    if (columnKey === 'status') {
+      return ['', 'На складі', 'В дорозі', 'Зарезервовано', 'Відвантажено'];
     }
     return [];
   };
@@ -193,6 +198,10 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
                 const warehouseName = item.currentWarehouseName || '';
                 const warehouse = item.currentWarehouse || '';
                 return warehouseName === filterValue || warehouse === filterValue;
+              }
+              if (key === 'status') {
+                const statusLabel = getStatusLabel(item.status || '');
+                return statusLabel === filterValue;
               }
               const itemValue = item[key];
               return String(itemValue || '') === filterValue;
@@ -503,6 +512,11 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
                         </button>
                       )}
                     </div>
+                  </td>
+                  <td>
+                    <span className={`status-badge ${getStatusClass(item.status || 'in_stock')}`}>
+                      {getStatusLabel(item.status || 'in_stock')}
+                    </span>
                   </td>
                   <td>{formatValue(item.manufacturer, 'manufacturer')}</td>
                   <td>
