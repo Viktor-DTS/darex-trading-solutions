@@ -195,97 +195,114 @@ function ReceiptApproval({ user, warehouses }) {
           </div>
 
           <div className="receipt-approval-content">
-            {Object.values(groupedByWarehouse).map(group => (
-              <div key={group.warehouseId} className="warehouse-group">
-                <div className="warehouse-group-header">
-                  <h3>📦 Склад: {group.warehouseName}</h3>
-                  <span className="warehouse-count">
-                    {group.items.length} {group.items.length === 1 ? 'товар' : 'товарів'}
-                  </span>
-                </div>
-                <div className="equipment-table-wrapper">
-                  <table className="equipment-table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: '50px' }}>
-                          <input
-                            type="checkbox"
-                            checked={group.items.every(item => selectedItems.has(item._id))}
-                            onChange={() => {
-                              const allSelected = group.items.every(item => selectedItems.has(item._id));
-                              if (allSelected) {
-                                setSelectedItems(prev => {
-                                  const newSet = new Set(prev);
-                                  group.items.forEach(item => newSet.delete(item._id));
-                                  return newSet;
-                                });
-                              } else {
-                                setSelectedItems(prev => {
-                                  const newSet = new Set(prev);
-                                  group.items.forEach(item => newSet.add(item._id));
-                                  return newSet;
-                                });
-                              }
-                            }}
-                          />
-                        </th>
-                        <th>Тип обладнання</th>
-                        <th>Серійний номер</th>
-                        <th>Зі складу</th>
-                        <th>Дата переміщення</th>
-                        <th>Примітки</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.items.map(item => {
-                        const lastMovement = getLastMovement(item);
-                        return (
-                          <tr key={item._id} className={selectedItems.has(item._id) ? 'selected' : ''}>
-                            <td>
+            {Object.values(groupedByWarehouse).map(group => {
+              console.log('[DEBUG] Відображення групи складу:', group.warehouseName, 'товарів:', group.items.length);
+              return (
+                <div key={group.warehouseId} className="warehouse-group">
+                  <div className="warehouse-group-header">
+                    <h3>📦 Склад: {group.warehouseName}</h3>
+                    <span className="warehouse-count">
+                      {group.items.length} {group.items.length === 1 ? 'товар' : 'товарів'}
+                    </span>
+                  </div>
+                  {group.items && group.items.length > 0 ? (
+                    <div className="equipment-table-wrapper">
+                      <table className="equipment-table">
+                        <thead>
+                          <tr>
+                            <th style={{ width: '50px' }}>
                               <input
                                 type="checkbox"
-                                checked={selectedItems.has(item._id)}
-                                onChange={() => handleToggleSelect(item._id)}
+                                checked={group.items.length > 0 && group.items.every(item => item._id && selectedItems.has(item._id))}
+                                onChange={() => {
+                                  const allSelected = group.items.every(item => item._id && selectedItems.has(item._id));
+                                  if (allSelected) {
+                                    setSelectedItems(prev => {
+                                      const newSet = new Set(prev);
+                                      group.items.forEach(item => {
+                                        if (item._id) newSet.delete(item._id);
+                                      });
+                                      return newSet;
+                                    });
+                                  } else {
+                                    setSelectedItems(prev => {
+                                      const newSet = new Set(prev);
+                                      group.items.forEach(item => {
+                                        if (item._id) newSet.add(item._id);
+                                      });
+                                      return newSet;
+                                    });
+                                  }
+                                }}
                               />
-                            </td>
-                            <td>{item.type || '—'}</td>
-                            <td>
-                              {item.batchId ? (
-                                <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>
-                                  Партія: {item.batchId}
-                                </span>
-                              ) : (
-                                item.serialNumber || '—'
-                              )}
-                            </td>
-                            <td>
-                              {lastMovement ? (
-                                <div>
-                                  <div>{lastMovement.fromWarehouseName || lastMovement.fromWarehouse || '—'}</div>
-                                  {lastMovement.movedByName && (
-                                    <div style={{ fontSize: '12px', color: '#666' }}>
-                                      {lastMovement.movedByName}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                '—'
-                              )}
-                            </td>
-                            <td>
-                              {lastMovement ? formatDate(lastMovement.date) : '—'}
-                            </td>
-                            <td>
-                              {lastMovement?.notes || '—'}
-                            </td>
+                            </th>
+                            <th>Тип обладнання</th>
+                            <th>Серійний номер</th>
+                            <th>Зі складу</th>
+                            <th>Дата переміщення</th>
+                            <th>Примітки</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody>
+                          {group.items.map(item => {
+                            if (!item || !item._id) {
+                              console.warn('[WARN] Пропущено товар без ID:', item);
+                              return null;
+                            }
+                            const lastMovement = getLastMovement(item);
+                            return (
+                              <tr key={item._id} className={selectedItems.has(item._id) ? 'selected' : ''}>
+                                <td>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedItems.has(item._id)}
+                                    onChange={() => handleToggleSelect(item._id)}
+                                  />
+                                </td>
+                                <td>{item.type || '—'}</td>
+                                <td>
+                                  {item.batchId ? (
+                                    <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>
+                                      Партія: {item.batchId}
+                                    </span>
+                                  ) : (
+                                    item.serialNumber || '—'
+                                  )}
+                                </td>
+                                <td>
+                                  {lastMovement ? (
+                                    <div>
+                                      <div>{lastMovement.fromWarehouseName || lastMovement.fromWarehouse || '—'}</div>
+                                      {lastMovement.movedByName && (
+                                        <div style={{ fontSize: '12px', color: '#666' }}>
+                                          {lastMovement.movedByName}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    '—'
+                                  )}
+                                </td>
+                                <td>
+                                  {lastMovement ? formatDate(lastMovement.date) : '—'}
+                                </td>
+                                <td>
+                                  {lastMovement?.notes || '—'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                      Немає товарів для відображення
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
