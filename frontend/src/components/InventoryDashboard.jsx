@@ -118,32 +118,6 @@ function InventoryDashboard({ user }) {
           <div className="inventory-tab-content">
             <div className="inventory-header">
               <h2>Залишки на складах</h2>
-              <div className="inventory-actions">
-                <button 
-                  className="btn-primary"
-                  onClick={() => setShowAddModal(true)}
-                >
-                  ➕ Надходження товарів
-                </button>
-                <button 
-                  className="btn-primary"
-                  onClick={() => {
-                    setSelectedEquipment(null);
-                    setShowMoveModal(true);
-                  }}
-                >
-                  🔄 Переміщення між складами
-                </button>
-                <button 
-                  className="btn-primary"
-                  onClick={() => {
-                    setSelectedEquipment(null);
-                    setShowShipModal(true);
-                  }}
-                >
-                  🚚 Відвантаження замовнику
-                </button>
-              </div>
             </div>
             <EquipmentList
               ref={equipmentListRef}
