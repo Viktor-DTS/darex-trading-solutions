@@ -4965,12 +4965,34 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
     
     const reservationNumber = `${prefix}-${String(sequence).padStart(4, '0')}`;
     
-    const reservation = await Reservation.create({
-      ...reservationData,
+    // Нормалізуємо items - переконуємося, що це масив об'єктів
+    const normalizedItems = (reservationData.items || []).map(item => ({
+      equipmentId: String(item.equipmentId || ''),
+      type: String(item.type || ''),
+      serialNumber: String(item.serialNumber || ''),
+      quantity: parseInt(item.quantity) || 1,
+      warehouse: String(item.warehouse || ''),
+      warehouseName: String(item.warehouseName || ''),
+      batchId: String(item.batchId || ''),
+      notes: String(item.notes || '')
+    }));
+    
+    // Створюємо резервування з явною структурою
+    const reservation = new Reservation({
       reservationNumber,
+      reservationDate: reservationData.reservationDate,
+      clientName: reservationData.clientName,
+      clientEdrpou: reservationData.clientEdrpou || '',
+      orderNumber: reservationData.orderNumber || '',
+      reservedUntil: reservationData.reservedUntil,
+      status: reservationData.status || 'active',
+      notes: reservationData.notes || '',
+      items: normalizedItems,
       createdBy: user._id.toString(),
       createdByName: user.name || user.login
     });
+    
+    await reservation.save();
     
     // Резервуємо обладнання
     if (reservation.items && reservation.items.length > 0) {
