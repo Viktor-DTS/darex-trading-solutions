@@ -69,6 +69,44 @@ function InventoryReports({ warehouses }) {
           }
           break;
           
+        case 'turnover':
+          // Оборотна відомість
+          alert('Функція "Оборотна відомість" в розробці');
+          break;
+          
+        case 'equipment-card':
+          // Картка товару
+          if (!reportParams.equipmentId) {
+            alert('Введіть ID обладнання');
+            return;
+          }
+          const equipmentResponse = await fetch(`${API_BASE_URL}/equipment/${reportParams.equipmentId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (equipmentResponse.ok) {
+            const equipment = await equipmentResponse.json();
+            alert('Функція "Картка товару" в розробці. Обладнання знайдено: ' + (equipment.type || 'Невідомо'));
+          } else {
+            alert('Обладнання не знайдено');
+          }
+          break;
+          
+        case 'movements':
+          // Переміщення товарів (аналогічно до movement, але з іншим API)
+          const movementsParams = new URLSearchParams();
+          if (reportParams.warehouse) movementsParams.append('warehouse', reportParams.warehouse);
+          if (reportParams.dateFrom) movementsParams.append('dateFrom', reportParams.dateFrom);
+          if (reportParams.dateTo) movementsParams.append('dateTo', reportParams.dateTo);
+          
+          const movementsResponse = await fetch(`${API_BASE_URL}/documents/movement?${movementsParams}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (movementsResponse.ok) {
+            const movements = await movementsResponse.json();
+            await exportMovementReportToPDF(movements, reportParams.dateFrom, reportParams.dateTo);
+          }
+          break;
+          
         default:
           alert('Оберіть тип звіту');
       }
@@ -171,7 +209,13 @@ function InventoryReports({ warehouses }) {
               value={reportParams.dateTo}
               onChange={(e) => setReportParams({ ...reportParams, dateTo: e.target.value })}
             />
-            <button className="btn-secondary">Сформувати звіт</button>
+            <button 
+              className="btn-secondary"
+              onClick={() => handleGenerateReport('turnover')}
+              disabled={generating}
+            >
+              {generating ? 'Формування...' : 'Сформувати звіт'}
+            </button>
           </div>
         </div>
 
@@ -216,7 +260,13 @@ function InventoryReports({ warehouses }) {
               onChange={(e) => setReportParams({ ...reportParams, equipmentId: e.target.value })}
               placeholder="ID обладнання"
             />
-            <button className="btn-secondary">Сформувати звіт</button>
+            <button 
+              className="btn-secondary"
+              onClick={() => handleGenerateReport('equipment-card')}
+              disabled={generating}
+            >
+              {generating ? 'Формування...' : 'Сформувати звіт'}
+            </button>
           </div>
         </div>
 
@@ -243,7 +293,13 @@ function InventoryReports({ warehouses }) {
               value={reportParams.dateTo}
               onChange={(e) => setReportParams({ ...reportParams, dateTo: e.target.value })}
             />
-            <button className="btn-secondary">Сформувати звіт</button>
+            <button 
+              className="btn-secondary"
+              onClick={() => handleGenerateReport('movements')}
+              disabled={generating}
+            >
+              {generating ? 'Формування...' : 'Сформувати звіт (PDF)'}
+            </button>
           </div>
         </div>
       </div>
