@@ -178,7 +178,7 @@ function InventoryDashboard({ user }) {
         return <InventoryDocuments warehouses={warehouses} />;
 
       case 'reservations':
-        return <Reservations />;
+        return <Reservations warehouses={warehouses} user={user} />;
 
       case 'warehouses':
         return <WarehouseManagement user={user} />;

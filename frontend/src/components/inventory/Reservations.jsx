@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config';
+import ReservationModal from './ReservationModal';
 import './Documents.css';
 
-function Reservations() {
+function Reservations({ warehouses = [], user }) {
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedReservation, setSelectedReservation] = useState(null);
   const [filters, setFilters] = useState({
     status: '',
     client: ''
@@ -82,7 +85,13 @@ function Reservations() {
     <div className="documents-container">
       <div className="documents-header">
         <h2>Резервування товарів</h2>
-        <button className="btn-primary">
+        <button 
+          className="btn-primary"
+          onClick={() => {
+            setSelectedReservation(null);
+            setShowModal(true);
+          }}
+        >
           ➕ Створити резервування
         </button>
       </div>
@@ -149,7 +158,15 @@ function Reservations() {
                   <td>{res.createdByName || '—'}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '5px' }}>
-                      <button className="btn-action">Переглянути</button>
+                      <button 
+                        className="btn-action"
+                        onClick={() => {
+                          setSelectedReservation(res);
+                          setShowModal(true);
+                        }}
+                      >
+                        Переглянути
+                      </button>
                       {res.status === 'active' && (
                         <button
                           className="btn-action"
@@ -166,6 +183,21 @@ function Reservations() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {showModal && (
+        <ReservationModal
+          reservation={selectedReservation}
+          warehouses={warehouses}
+          user={user}
+          onClose={() => {
+            setShowModal(false);
+            setSelectedReservation(null);
+          }}
+          onSuccess={() => {
+            loadReservations();
+          }}
+        />
       )}
     </div>
   );
