@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import API_BASE_URL from '../../config';
 import { exportEquipmentToExcel } from '../../utils/equipmentExport';
 import { exportStockReportToPDF, exportMovementReportToPDF, exportCostReportToPDF } from '../../utils/pdfExport';
+import EquipmentCardReport from './EquipmentCardReport';
 import './Documents.css';
 
 function InventoryReports({ warehouses }) {
@@ -75,20 +76,8 @@ function InventoryReports({ warehouses }) {
           break;
           
         case 'equipment-card':
-          // Картка товару
-          if (!reportParams.equipmentId) {
-            alert('Введіть ID обладнання');
-            return;
-          }
-          const equipmentResponse = await fetch(`${API_BASE_URL}/equipment/${reportParams.equipmentId}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (equipmentResponse.ok) {
-            const equipment = await equipmentResponse.json();
-            alert('Функція "Картка товару" в розробці. Обладнання знайдено: ' + (equipment.type || 'Невідомо'));
-          } else {
-            alert('Обладнання не знайдено');
-          }
+          // Картка товару - відкривається окремий компонент
+          setReportType('equipment-card');
           break;
           
         case 'movements':
@@ -117,6 +106,24 @@ function InventoryReports({ warehouses }) {
       setGenerating(false);
     }
   };
+
+  // Якщо вибрано картку товару, показуємо окремий компонент
+  if (reportType === 'equipment-card') {
+    return (
+      <div className="inventory-tab-content">
+        <div style={{ marginBottom: '20px' }}>
+          <button 
+            className="btn-secondary"
+            onClick={() => setReportType('')}
+            style={{ marginBottom: '20px' }}
+          >
+            ← Назад до звітів
+          </button>
+        </div>
+        <EquipmentCardReport />
+      </div>
+    );
+  }
 
   return (
     <div className="inventory-tab-content">
@@ -254,19 +261,16 @@ function InventoryReports({ warehouses }) {
           <h3>📋 Картка товару</h3>
           <p>Детальна картка товару з історією руху</p>
           <div className="report-params" style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <input
-              type="text"
-              value={reportParams.equipmentId}
-              onChange={(e) => setReportParams({ ...reportParams, equipmentId: e.target.value })}
-              placeholder="ID обладнання"
-            />
             <button 
               className="btn-secondary"
               onClick={() => handleGenerateReport('equipment-card')}
               disabled={generating}
             >
-              {generating ? 'Формування...' : 'Сформувати звіт'}
+              {generating ? 'Відкриття...' : 'Відкрити картку товару'}
             </button>
+            <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>
+              Пошук по назві або заводському номеру (не партійне обладнання)
+            </p>
           </div>
         </div>
 
