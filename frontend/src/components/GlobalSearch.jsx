@@ -1,20 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 import WorkHistoryModal from './WorkHistoryModal';
 import './GlobalSearch.css';
 
 function GlobalSearch({ user }) {
+  // Визначаємо значення регіону за замовчуванням
+  const getDefaultRegion = () => {
+    if (user?.region && user.region !== 'Україна') {
+      return user.region;
+    }
+    return ''; // 'Всі регіони' або порожнє значення
+  };
+
   const [searchData, setSearchData] = useState({
     edrpou: '',
     engineSerial: '',
-    customerEquipmentNumber: ''
+    customerEquipmentNumber: '',
+    region: getDefaultRegion()
   });
+  const [regions, setRegions] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [groupedResults, setGroupedResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedGroupTasks, setSelectedGroupTasks] = useState([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // Завантаження списку регіонів
+  useEffect(() => {
+    const loadRegions = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/regions`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          // Регіони можуть приходити як масив об'єктів {name} або масив рядків
+          const regionNames = data.map(r => typeof r === 'object' ? r.name : r);
+          setRegions(regionNames);
+        }
+      } catch (error) {
+        console.error('Помилка завантаження регіонів:', error);
+      }
+    };
+
+    loadRegions();
+  }, []);
 
   // Функція для групування заявок по унікальним комбінаціям
   const groupTasksByUniqueCombination = (tasks) => {
@@ -191,6 +226,24 @@ function GlobalSearch({ user }) {
               }}
             />
           </div>
+
+          <div className="search-form-field">
+            <label htmlFor="region">Регіон</label>
+            <select
+              id="region"
+              value={searchData.region}
+              onChange={(e) => handleInputChange('region', e.target.value)}
+            >
+              <option value="">Всі регіони</option>
+              {regions
+                .filter(r => r && r !== 'Україна')
+                .map(region => (
+                  <option key={region} value={region}>
+                    {region}
+                  </option>
+                ))}
+            </select>
+          </div>
         </div>
 
         <div className="search-form-actions">
@@ -207,9 +260,11 @@ function GlobalSearch({ user }) {
               setSearchData({
                 edrpou: '',
                 engineSerial: '',
-                customerEquipmentNumber: ''
+                customerEquipmentNumber: '',
+                region: getDefaultRegion()
               });
               setSearchResults([]);
+              setGroupedResults([]);
               setError(null);
             }}
             disabled={loading}

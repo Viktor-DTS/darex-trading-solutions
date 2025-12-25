@@ -1490,7 +1490,7 @@ app.get('/api/tasks/:id', async (req, res) => {
 app.post('/api/tasks/global-search', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { edrpou, engineSerial, customerEquipmentNumber } = req.body;
+    const { edrpou, engineSerial, customerEquipmentNumber, region } = req.body;
     
     // Будуємо умови пошуку
     const matchConditions = {};
@@ -1505,6 +1505,11 @@ app.post('/api/tasks/global-search', authenticateToken, async (req, res) => {
     
     if (customerEquipmentNumber && customerEquipmentNumber.trim()) {
       matchConditions.customerEquipmentNumber = { $regex: new RegExp(customerEquipmentNumber.trim(), 'i') };
+    }
+    
+    // Фільтрація по регіону (якщо вказано і не "Всі регіони")
+    if (region && region.trim() && region !== 'Україна') {
+      matchConditions.serviceRegion = region.trim();
     }
     
     // Якщо немає жодної умови пошуку, повертаємо порожній результат
