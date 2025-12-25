@@ -183,7 +183,8 @@ function EquipmentCardReport() {
                 maxHeight: '300px',
                 overflowY: 'auto',
                 zIndex: 1000,
-                marginTop: '4px'
+                marginTop: '4px',
+                color: '#000'
               }}
             >
               {searchResults.map((eq) => (
@@ -194,12 +195,19 @@ function EquipmentCardReport() {
                     padding: '10px',
                     cursor: 'pointer',
                     borderBottom: '1px solid #eee',
-                    transition: 'background-color 0.2s'
+                    transition: 'background-color 0.2s',
+                    color: '#000'
                   }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f5f5f5';
+                    e.currentTarget.style.color = '#000';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'white';
+                    e.currentTarget.style.color = '#000';
+                  }}
                 >
-                  <div style={{ fontWeight: 'bold' }}>{eq.type || 'Без типу'}</div>
+                  <div style={{ fontWeight: 'bold', color: '#000' }}>{eq.type || 'Без типу'}</div>
                   {eq.serialNumber && (
                     <div style={{ fontSize: '12px', color: '#666' }}>
                       Серійний номер: {eq.serialNumber}
@@ -227,7 +235,8 @@ function EquipmentCardReport() {
                 borderRadius: '6px',
                 padding: '10px',
                 marginTop: '4px',
-                zIndex: 1000
+                zIndex: 1000,
+                color: '#000'
               }}
             >
               Обладнання не знайдено
