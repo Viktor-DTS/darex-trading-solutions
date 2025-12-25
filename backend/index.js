@@ -4269,6 +4269,8 @@ app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
       status: 'in_stock'
     }).sort({ batchIndex: 1 }).limit(quantity);
     
+    console.log('[DEBUG] Знайдено елементів партії:', batchItems.length, 'з запитуваних:', quantity);
+    
     if (batchItems.length < quantity) {
       return res.status(400).json({ 
         error: `На складі доступно тільки ${batchItems.length} одиниць з партії` 
