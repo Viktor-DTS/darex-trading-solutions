@@ -4240,6 +4240,13 @@ app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
 app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
+    console.log('[DEBUG] POST /api/equipment/batch/move - отримано запит:', {
+      batchId: req.body.batchId,
+      quantity: req.body.quantity,
+      fromWarehouse: req.body.fromWarehouse,
+      toWarehouse: req.body.toWarehouse
+    });
+    
     const { batchId, quantity, fromWarehouse, fromWarehouseName, toWarehouse, toWarehouseName, reason, notes, attachedFiles } = req.body;
     const user = await User.findOne({ login: req.user.login });
     
@@ -4249,6 +4256,10 @@ app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
     
     if (!batchId || !quantity || quantity < 1) {
       return res.status(400).json({ error: 'batchId та quantity обов\'язкові' });
+    }
+    
+    if (!fromWarehouse || !toWarehouse) {
+      return res.status(400).json({ error: 'fromWarehouse та toWarehouse обов\'язкові' });
     }
     
     // Знаходимо всі одиниці партії на поточному складі
@@ -4280,13 +4291,31 @@ app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
     // Переміщуємо вибрану кількість
     const movedItems = [];
     for (const item of batchItems) {
+      // Перевіряємо та ініціалізуємо movementHistory, якщо відсутня
+      if (!item.movementHistory) {
+        item.movementHistory = [];
+      }
+      if (!Array.isArray(item.movementHistory)) {
+        item.movementHistory = [];
+      }
+      
       item.movementHistory.push(movement);
       item.currentWarehouse = toWarehouse;
       item.currentWarehouseName = toWarehouseName;
       item.status = 'in_transit';
       item.lastModified = new Date();
-      await item.save();
-      movedItems.push(item);
+      
+      try {
+        await item.save();
+        movedItems.push(item);
+      } catch (saveError) {
+        console.error(`[ERROR] Помилка збереження обладнання ${item._id}:`, saveError);
+        // Продовжуємо з наступним елементом
+      }
+    }
+    
+    if (movedItems.length === 0) {
+      return res.status(500).json({ error: 'Не вдалося перемістити жодного елемента' });
     }
     
     // Логування
