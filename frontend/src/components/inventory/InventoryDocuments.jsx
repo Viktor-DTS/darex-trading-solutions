@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config';
+import InventoryDocumentModal from './InventoryDocumentModal';
 import './Documents.css';
 
 function InventoryDocuments({ warehouses }) {
@@ -12,6 +13,7 @@ function InventoryDocuments({ warehouses }) {
     dateTo: ''
   });
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState(null);
 
   useEffect(() => {
     loadDocuments();
@@ -151,7 +153,15 @@ function InventoryDocuments({ warehouses }) {
                   <td>{doc.createdByName || '—'}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '5px' }}>
-                      <button className="btn-action">Переглянути</button>
+                      <button
+                        className="btn-action"
+                        onClick={() => {
+                          setSelectedDocument(doc);
+                          setShowCreateModal(true);
+                        }}
+                      >
+                        {doc.status === 'draft' || doc.status === 'in_progress' ? 'Редагувати' : 'Переглянути'}
+                      </button>
                       {doc.status === 'in_progress' && (
                         <button
                           className="btn-action"
@@ -168,6 +178,23 @@ function InventoryDocuments({ warehouses }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {showCreateModal && (
+        <InventoryDocumentModal
+          document={selectedDocument}
+          warehouses={warehouses}
+          user={null}
+          onClose={() => {
+            setShowCreateModal(false);
+            setSelectedDocument(null);
+          }}
+          onSuccess={() => {
+            loadDocuments();
+            setShowCreateModal(false);
+            setSelectedDocument(null);
+          }}
+        />
       )}
     </div>
   );

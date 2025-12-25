@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config';
+import ShipmentDocumentModal from './ShipmentDocumentModal';
 import './Documents.css';
 
 function ShipmentDocuments({ warehouses }) {
@@ -12,10 +13,29 @@ function ShipmentDocuments({ warehouses }) {
     dateFrom: '',
     dateTo: ''
   });
+  const [showModal, setShowModal] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState(null);
+  const [equipment, setEquipment] = useState([]);
 
   useEffect(() => {
     loadDocuments();
+    loadEquipment();
   }, [filters]);
+
+  const loadEquipment = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/equipment`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setEquipment(data);
+      }
+    } catch (error) {
+      console.error('Помилка завантаження обладнання:', error);
+    }
+  };
 
   const loadDocuments = async () => {
     setLoading(true);
@@ -62,6 +82,12 @@ function ShipmentDocuments({ warehouses }) {
     <div className="documents-container">
       <div className="documents-header">
         <h2>Документи відвантаження</h2>
+        <button className="btn-primary" onClick={() => {
+          setSelectedDocument(null);
+          setShowModal(true);
+        }}>
+          ➕ Створити документ
+        </button>
       </div>
 
       <div className="documents-filters">
@@ -136,13 +162,38 @@ function ShipmentDocuments({ warehouses }) {
                   <td>{doc.totalAmount ? `${doc.totalAmount} ${doc.currency || 'грн.'}` : '—'}</td>
                   <td>{getStatusBadge(doc.status)}</td>
                   <td>
-                    <button className="btn-action">Переглянути</button>
+                    <button
+                      className="btn-action"
+                      onClick={() => {
+                        setSelectedDocument(doc);
+                        setShowModal(true);
+                      }}
+                    >
+                      {doc.status === 'draft' ? 'Редагувати' : 'Переглянути'}
+                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {showModal && (
+        <ShipmentDocumentModal
+          document={selectedDocument}
+          warehouses={warehouses}
+          user={null}
+          onClose={() => {
+            setShowModal(false);
+            setSelectedDocument(null);
+          }}
+          onSuccess={() => {
+            loadDocuments();
+            setShowModal(false);
+            setSelectedDocument(null);
+          }}
+        />
       )}
     </div>
   );

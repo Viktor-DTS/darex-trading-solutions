@@ -4687,6 +4687,28 @@ app.get('/api/documents/shipment', authenticateToken, async (req, res) => {
   }
 });
 
+// Оновлення документа відвантаження
+app.put('/api/documents/shipment/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const document = await ShipmentDocument.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    
+    if (!document) {
+      return res.status(404).json({ error: 'Документ не знайдено' });
+    }
+    
+    logPerformance('PUT /api/documents/shipment/:id', startTime);
+    res.json(document);
+  } catch (error) {
+    console.error('[ERROR] PUT /api/documents/shipment/:id:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Створення документа відвантаження
 app.post('/api/documents/shipment', authenticateToken, async (req, res) => {
   const startTime = Date.now();
@@ -4765,6 +4787,28 @@ app.get('/api/documents/inventory', authenticateToken, async (req, res) => {
     res.json(documents);
   } catch (error) {
     console.error('[ERROR] GET /api/documents/inventory:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Оновлення документа інвентаризації
+app.put('/api/documents/inventory/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const document = await InventoryDocument.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    
+    if (!document) {
+      return res.status(404).json({ error: 'Документ не знайдено' });
+    }
+    
+    logPerformance('PUT /api/documents/inventory/:id', startTime);
+    res.json(document);
+  } catch (error) {
+    console.error('[ERROR] PUT /api/documents/inventory/:id:', error);
     res.status(500).json({ error: error.message });
   }
 });
