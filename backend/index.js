@@ -654,6 +654,18 @@ inventoryDocumentSchema.index({ documentDate: -1 });
 inventoryDocumentSchema.index({ warehouse: 1 });
 const InventoryDocument = mongoose.model('InventoryDocument', inventoryDocumentSchema);
 
+// Підсхема для позицій резервування
+const reservationItemSchema = new mongoose.Schema({
+  equipmentId: { type: String, required: true },
+  type: { type: String, default: '' },
+  serialNumber: { type: String, default: '' },
+  quantity: { type: Number, default: 1 },
+  warehouse: { type: String, default: '' },
+  warehouseName: { type: String, default: '' },
+  batchId: { type: String, default: '' },
+  notes: { type: String, default: '' }
+}, { _id: false });
+
 // Схема для резервування товарів
 const reservationSchema = new mongoose.Schema({
   reservationNumber: { type: String, required: true, unique: true },
@@ -661,16 +673,7 @@ const reservationSchema = new mongoose.Schema({
   clientName: String,
   clientEdrpou: String,
   orderNumber: String,
-  items: [{
-    equipmentId: String,
-    type: String,
-    serialNumber: String,
-    quantity: { type: Number, default: 1 },
-    warehouse: String,
-    warehouseName: String,
-    batchId: String,
-    notes: String
-  }],
+  items: { type: [reservationItemSchema], default: [] },
   reservedUntil: Date, // До якої дати зарезервовано
   status: { type: String, enum: ['active', 'completed', 'cancelled', 'expired'], default: 'active' },
   notes: String,
@@ -4966,19 +4969,26 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
     const reservationNumber = `${prefix}-${String(sequence).padStart(4, '0')}`;
     
     // Нормалізуємо items - переконуємося, що це масив об'єктів
-    const normalizedItems = (reservationData.items || []).map(item => ({
-      equipmentId: String(item.equipmentId || ''),
-      type: String(item.type || ''),
-      serialNumber: String(item.serialNumber || ''),
-      quantity: parseInt(item.quantity) || 1,
-      warehouse: String(item.warehouse || ''),
-      warehouseName: String(item.warehouseName || ''),
-      batchId: String(item.batchId || ''),
-      notes: String(item.notes || '')
-    }));
+    const normalizedItems = (reservationData.items || []).map(item => {
+      const normalized = {
+        equipmentId: String(item.equipmentId || ''),
+        type: String(item.type || ''),
+        serialNumber: String(item.serialNumber || ''),
+        quantity: parseInt(item.quantity) || 1,
+        warehouse: String(item.warehouse || ''),
+        warehouseName: String(item.warehouseName || ''),
+        batchId: String(item.batchId || ''),
+        notes: String(item.notes || '')
+      };
+      return normalized;
+    });
+    
+    console.log('[DEBUG] POST /api/reservations - normalizedItems:', JSON.stringify(normalizedItems, null, 2));
+    console.log('[DEBUG] POST /api/reservations - normalizedItems type:', Array.isArray(normalizedItems) ? 'array' : typeof normalizedItems);
+    console.log('[DEBUG] POST /api/reservations - normalizedItems[0] type:', normalizedItems[0] ? typeof normalizedItems[0] : 'undefined');
     
     // Створюємо резервування з явною структурою
-    const reservation = new Reservation({
+    const reservationDataToSave = {
       reservationNumber,
       reservationDate: reservationData.reservationDate,
       clientName: reservationData.clientName,
@@ -4990,7 +5000,11 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
       items: normalizedItems,
       createdBy: user._id.toString(),
       createdByName: user.name || user.login
-    });
+    };
+    
+    console.log('[DEBUG] POST /api/reservations - reservationDataToSave.items:', JSON.stringify(reservationDataToSave.items, null, 2));
+    
+    const reservation = new Reservation(reservationDataToSave);
     
     await reservation.save();
     
