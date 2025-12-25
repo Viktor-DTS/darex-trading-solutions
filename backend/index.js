@@ -4906,6 +4906,49 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
       return res.status(401).json({ error: 'Користувач не знайдено' });
     }
     
+    // Конвертуємо дати з рядків в Date об'єкти та валідуємо дані
+    const reservationData = { ...req.body };
+    
+    // Валідація обов'язкових полів
+    if (!reservationData.clientName) {
+      return res.status(400).json({ error: 'Назва клієнта обов\'язкова' });
+    }
+    
+    if (!reservationData.items || !Array.isArray(reservationData.items) || reservationData.items.length === 0) {
+      return res.status(400).json({ error: 'Додайте хоча б одну позицію обладнання' });
+    }
+    
+    if (!reservationData.reservedUntil) {
+      return res.status(400).json({ error: 'Термін резервування обов\'язковий' });
+    }
+    
+    // Конвертуємо дати
+    if (reservationData.reservationDate) {
+      reservationData.reservationDate = new Date(reservationData.reservationDate);
+      if (isNaN(reservationData.reservationDate.getTime())) {
+        return res.status(400).json({ error: 'Невірний формат дати резервування' });
+      }
+    } else {
+      reservationData.reservationDate = new Date();
+    }
+    
+    if (reservationData.reservedUntil) {
+      reservationData.reservedUntil = new Date(reservationData.reservedUntil);
+      if (isNaN(reservationData.reservedUntil.getTime())) {
+        return res.status(400).json({ error: 'Невірний формат терміну резервування' });
+      }
+    }
+    
+    // Валідація items
+    for (const item of reservationData.items) {
+      if (!item.equipmentId) {
+        return res.status(400).json({ error: 'Всі позиції повинні мати ID обладнання' });
+      }
+      if (item.quantity && isNaN(parseInt(item.quantity))) {
+        item.quantity = 1;
+      }
+    }
+    
     const year = new Date().getFullYear();
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
     const prefix = `RES-${year}${month}`;
@@ -4923,21 +4966,27 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
     const reservationNumber = `${prefix}-${String(sequence).padStart(4, '0')}`;
     
     const reservation = await Reservation.create({
-      ...req.body,
+      ...reservationData,
       reservationNumber,
       createdBy: user._id.toString(),
       createdByName: user.name || user.login
     });
     
     // Резервуємо обладнання
-    if (reservation.items) {
+    if (reservation.items && reservation.items.length > 0) {
       for (const item of reservation.items) {
         if (item.equipmentId) {
           const equipment = await Equipment.findById(item.equipmentId);
           if (equipment) {
+            // Перевіряємо, чи обладнання не вже зарезервоване
+            if (equipment.status === 'reserved') {
+              console.warn(`[WARNING] Обладнання ${equipment._id} вже зарезервоване`);
+            }
             equipment.status = 'reserved';
             equipment.lastModified = new Date();
             await equipment.save();
+          } else {
+            console.warn(`[WARNING] Обладнання ${item.equipmentId} не знайдено`);
           }
         }
       }
@@ -4947,6 +4996,8 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
     res.status(201).json(reservation);
   } catch (error) {
     console.error('[ERROR] POST /api/reservations:', error);
+    console.error('[ERROR] Stack:', error.stack);
+    console.error('[ERROR] Request body:', JSON.stringify(req.body, null, 2));
     res.status(500).json({ error: error.message });
   }
 });
