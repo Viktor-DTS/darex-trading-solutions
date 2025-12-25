@@ -10,10 +10,48 @@ function GlobalSearch({ user }) {
     customerEquipmentNumber: ''
   });
   const [searchResults, setSearchResults] = useState([]);
+  const [groupedResults, setGroupedResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [selectedTask, setSelectedTask] = useState(null);
+  const [selectedGroupTasks, setSelectedGroupTasks] = useState([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // Функція для групування заявок по унікальним комбінаціям
+  const groupTasksByUniqueCombination = (tasks) => {
+    const groupsMap = new Map();
+    
+    tasks.forEach(task => {
+      // Створюємо ключ для групування
+      const key = `${task.client || ''}_${task.edrpou || ''}_${task.equipment || ''}_${task.engineSerial || ''}_${task.customerEquipmentNumber || ''}`;
+      
+      if (!groupsMap.has(key)) {
+        groupsMap.set(key, {
+          key,
+          client: task.client || '',
+          edrpou: task.edrpou || '',
+          equipment: task.equipment || '',
+          engineSerial: task.engineSerial || '',
+          customerEquipmentNumber: task.customerEquipmentNumber || '',
+          tasks: []
+        });
+      }
+      
+      groupsMap.get(key).tasks.push(task);
+    });
+    
+    // Сортуємо заявки в кожній групі від новіших до старіших (по даті заявки)
+    const groups = Array.from(groupsMap.values()).map(group => ({
+      ...group,
+      tasks: group.tasks.sort((a, b) => {
+        const dateA = new Date(a.requestDate || a.date || 0);
+        const dateB = new Date(b.requestDate || b.date || 0);
+        return dateB - dateA; // Від новіших до старіших
+      }),
+      count: group.tasks.length
+    }));
+    
+    return groups;
+  };
 
   const handleSearch = async () => {
     // Перевірка, чи заповнено хоча б одне поле
@@ -46,6 +84,11 @@ function GlobalSearch({ user }) {
       
       if (results.length === 0) {
         setError('За результатами пошуку нічого не знайдено');
+        setGroupedResults([]);
+      } else {
+        // Групуємо результати по унікальним комбінаціям
+        const grouped = groupTasksByUniqueCombination(results);
+        setGroupedResults(grouped);
       }
     } catch (err) {
       console.error('Помилка пошуку:', err);
@@ -63,8 +106,9 @@ function GlobalSearch({ user }) {
     setError(null);
   };
 
-  const handleViewHistory = (task) => {
-    setSelectedTask(task);
+  const handleViewHistory = (group) => {
+    // Передаємо всі заявки групи, відсортовані від новіших до старіших
+    setSelectedGroupTasks(group.tasks);
     setShowHistoryModal(true);
   };
 
@@ -183,55 +227,43 @@ function GlobalSearch({ user }) {
       )}
 
       {/* Результати пошуку */}
-      {searchResults.length > 0 && (
+      {groupedResults.length > 0 && (
         <div className="search-results">
           <div className="results-header">
-            <h3>Знайдено заявок: {searchResults.length}</h3>
+            <h3>Знайдено груп: {groupedResults.length} (всього заявок: {searchResults.length})</h3>
           </div>
 
           <div className="results-table-container">
             <table className="results-table">
               <thead>
                 <tr>
-                  <th>Номер заявки/наряду</th>
-                  <th>Статус заявки</th>
-                  <th>Дата заявки</th>
-                  <th>Компанія виконавець</th>
-                  <th>Регіон сервісного відділу</th>
+                  <th>Дія</th>
+                  <th>Кількість заявок</th>
                   <th>Замовник</th>
                   <th>ЄДРПОУ</th>
                   <th>Тип обладнання</th>
                   <th>Зав. № двигуна</th>
                   <th>Інвент. № обладнання</th>
-                  <th>Дата проведення робіт</th>
-                  <th>Загальна сума послуги, грн</th>
-                  <th>Дії</th>
                 </tr>
               </thead>
               <tbody>
-                {searchResults.map((task) => (
-                  <tr key={task.id || task._id}>
-                    <td>{task.requestNumber || ''}</td>
-                    <td>{task.status || ''}</td>
-                    <td>{formatDate(task.requestDate)}</td>
-                    <td>{task.company || ''}</td>
-                    <td>{task.serviceRegion || ''}</td>
-                    <td>{task.client || ''}</td>
-                    <td>{task.edrpou || ''}</td>
-                    <td>{task.equipment || ''}</td>
-                    <td>{task.engineSerial || ''}</td>
-                    <td>{task.customerEquipmentNumber || ''}</td>
-                    <td>{formatDate(task.date)}</td>
-                    <td>{formatNumber(task.serviceTotal)}</td>
+                {groupedResults.map((group) => (
+                  <tr key={group.key}>
                     <td>
                       <button
                         className="btn-view-history"
-                        onClick={() => handleViewHistory(task)}
+                        onClick={() => handleViewHistory(group)}
                         title="Переглянути історію робіт"
                       >
                         📋 Історія
                       </button>
                     </td>
+                    <td>{group.count}</td>
+                    <td>{group.client}</td>
+                    <td>{group.edrpou}</td>
+                    <td>{group.equipment}</td>
+                    <td>{group.engineSerial}</td>
+                    <td>{group.customerEquipmentNumber}</td>
                   </tr>
                 ))}
               </tbody>
@@ -241,12 +273,12 @@ function GlobalSearch({ user }) {
       )}
 
       {/* Модальне вікно історії робіт */}
-      {showHistoryModal && selectedTask && (
+      {showHistoryModal && selectedGroupTasks.length > 0 && (
         <WorkHistoryModal
-          task={selectedTask}
+          tasks={selectedGroupTasks}
           onClose={() => {
             setShowHistoryModal(false);
-            setSelectedTask(null);
+            setSelectedGroupTasks([]);
           }}
         />
       )}
