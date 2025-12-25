@@ -204,10 +204,18 @@ function EquipmentCardReport() {
                     e.currentTarget.style.color = '#000';
                   }}
                 >
-                  <div style={{ fontWeight: 'bold', color: '#000' }}>{eq.type || 'Без типу'}</div>
+                  <div style={{ fontWeight: 'bold', color: '#000' }}>
+                    {eq.type || 'Без типу'}
+                    {eq.batchId && <span style={{ fontSize: '11px', color: '#888', marginLeft: '8px' }}>(Партія)</span>}
+                  </div>
                   {eq.serialNumber && (
                     <div style={{ fontSize: '12px', color: '#666' }}>
                       Серійний номер: {eq.serialNumber}
+                    </div>
+                  )}
+                  {eq.batchId && (
+                    <div style={{ fontSize: '12px', color: '#666' }}>
+                      Партія: {eq.batchId}
                     </div>
                   )}
                   {eq.currentWarehouseName && (
