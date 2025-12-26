@@ -4521,6 +4521,35 @@ app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
       return res.status(500).json({ error: 'Не вдалося перемістити жодного елемента' });
     }
     
+    // Створюємо документ переміщення
+    try {
+      const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
+      await MovementDocument.create({
+        documentNumber,
+        documentDate: new Date(),
+        fromWarehouse: fromWarehouse,
+        fromWarehouseName: fromWarehouseName,
+        toWarehouse: toWarehouse,
+        toWarehouseName: toWarehouseName,
+        items: movedItems.map(item => ({
+          equipmentId: item._id.toString(),
+          type: item.type,
+          serialNumber: item.serialNumber || '',
+          quantity: 1,
+          batchId: item.batchId || '',
+          notes: notes || ''
+        })),
+        reason: reason || '',
+        notes: notes || '',
+        attachedFiles: attachedFiles || [],
+        createdBy: user._id.toString(),
+        createdByName: user.name || user.login,
+        status: 'completed'
+      });
+    } catch (docErr) {
+      console.error('Помилка створення документа переміщення:', docErr);
+    }
+    
     // Логування
     try {
       await EventLog.create({
@@ -4675,6 +4704,34 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
         equipment.lastModified = new Date();
         await equipment.save();
         
+        // Створюємо документ переміщення
+        try {
+          const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
+          await MovementDocument.create({
+            documentNumber,
+            documentDate: new Date(),
+            fromWarehouse: fromWarehouse,
+            fromWarehouseName: fromWarehouseName || equipment.currentWarehouseName,
+            toWarehouse: toWarehouse,
+            toWarehouseName: toWarehouseName,
+            items: [{
+              equipmentId: existingEquipmentOnDestination._id.toString(),
+              type: equipment.type,
+              serialNumber: equipment.serialNumber || '',
+              quantity: quantity,
+              notes: notes || ''
+            }],
+            reason: reason || '',
+            notes: notes || '',
+            attachedFiles: attachedFiles || [],
+            createdBy: user._id.toString(),
+            createdByName: user.name || user.login,
+            status: 'completed'
+          });
+        } catch (docErr) {
+          console.error('Помилка створення документа переміщення:', docErr);
+        }
+        
         // Логування
         try {
           await EventLog.create({
@@ -4701,6 +4758,34 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
         equipment.lastModified = new Date();
         
         await equipment.save();
+        
+        // Створюємо документ переміщення
+        try {
+          const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
+          await MovementDocument.create({
+            documentNumber,
+            documentDate: new Date(),
+            fromWarehouse: fromWarehouse,
+            fromWarehouseName: fromWarehouseName || equipment.currentWarehouseName,
+            toWarehouse: toWarehouse,
+            toWarehouseName: toWarehouseName,
+            items: [{
+              equipmentId: equipment._id.toString(),
+              type: equipment.type,
+              serialNumber: equipment.serialNumber || '',
+              quantity: quantity,
+              notes: notes || ''
+            }],
+            reason: reason || '',
+            notes: notes || '',
+            attachedFiles: attachedFiles || [],
+            createdBy: user._id.toString(),
+            createdByName: user.name || user.login,
+            status: 'completed'
+          });
+        } catch (docErr) {
+          console.error('Помилка створення документа переміщення:', docErr);
+        }
         
         // Логування
         try {
@@ -4745,6 +4830,34 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
         
         await existingEquipmentOnDestination.save();
         
+        // Створюємо документ переміщення
+        try {
+          const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
+          await MovementDocument.create({
+            documentNumber,
+            documentDate: new Date(),
+            fromWarehouse: fromWarehouse,
+            fromWarehouseName: fromWarehouseName || equipment.currentWarehouseName,
+            toWarehouse: toWarehouse,
+            toWarehouseName: toWarehouseName,
+            items: [{
+              equipmentId: existingEquipmentOnDestination._id.toString(),
+              type: equipment.type,
+              serialNumber: equipment.serialNumber || '',
+              quantity: quantity,
+              notes: notes || ''
+            }],
+            reason: reason || '',
+            notes: notes || '',
+            attachedFiles: attachedFiles || [],
+            createdBy: user._id.toString(),
+            createdByName: user.name || user.login,
+            status: 'completed'
+          });
+        } catch (docErr) {
+          console.error('Помилка створення документа переміщення:', docErr);
+        }
+        
         // Логування
         try {
           await EventLog.create({
@@ -4777,6 +4890,34 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
           addedByName: user.name || user.login,
           addedAt: new Date()
         });
+        
+        // Створюємо документ переміщення
+        try {
+          const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
+          await MovementDocument.create({
+            documentNumber,
+            documentDate: new Date(),
+            fromWarehouse: fromWarehouse,
+            fromWarehouseName: fromWarehouseName || equipment.currentWarehouseName,
+            toWarehouse: toWarehouse,
+            toWarehouseName: toWarehouseName,
+            items: [{
+              equipmentId: newEquipment._id.toString(),
+              type: equipment.type,
+              serialNumber: equipment.serialNumber || '',
+              quantity: quantity,
+              notes: notes || ''
+            }],
+            reason: reason || '',
+            notes: notes || '',
+            attachedFiles: attachedFiles || [],
+            createdBy: user._id.toString(),
+            createdByName: user.name || user.login,
+            status: 'completed'
+          });
+        } catch (docErr) {
+          console.error('Помилка створення документа переміщення:', docErr);
+        }
         
         // Логування
         try {
@@ -5074,6 +5215,34 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
     equipment.lastModified = new Date();
     
     await equipment.save();
+    
+    // Створюємо документ переміщення
+    try {
+      const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
+      await MovementDocument.create({
+        documentNumber,
+        documentDate: new Date(),
+        fromWarehouse: equipment.currentWarehouse,
+        fromWarehouseName: equipment.currentWarehouseName,
+        toWarehouse: toWarehouse,
+        toWarehouseName: toWarehouseName,
+        items: [{
+          equipmentId: equipment._id.toString(),
+          type: equipment.type,
+          serialNumber: equipment.serialNumber || '',
+          quantity: 1,
+          notes: notes || ''
+        }],
+        reason: reason || '',
+        notes: notes || '',
+        attachedFiles: attachedFiles || [],
+        createdBy: user._id.toString(),
+        createdByName: user.name || user.login,
+        status: 'completed'
+      });
+    } catch (docErr) {
+      console.error('Помилка створення документа переміщення:', docErr);
+    }
     
     // Логування
     try {
