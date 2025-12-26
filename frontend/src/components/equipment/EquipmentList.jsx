@@ -4,7 +4,6 @@ import { exportEquipmentToExcel } from '../../utils/equipmentExport';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
 import EquipmentQRModal from './EquipmentQRModal';
 import EquipmentDeleteModal from './EquipmentDeleteModal';
-import EquipmentWriteOffModal from './EquipmentWriteOffModal';
 import EquipmentDetailsModal from './EquipmentDetailsModal';
 import EquipmentEditModal from './EquipmentEditModal';
 import './EquipmentList.css';
@@ -35,7 +34,6 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
   const [showHistory, setShowHistory] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showWriteOffModal, setShowWriteOffModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
@@ -498,25 +496,6 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
                 >
                   <td className="actions-cell" onClick={(e) => e.stopPropagation()}>
                     <div className="action-buttons">
-                      {item.status !== 'written_off' && item.status !== 'deleted' && (
-                        <button
-                          className="btn-action btn-write-off"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Якщо це група партії, використовуємо перший елемент з batchItems
-                            if (item.isGrouped && item.batchItems && item.batchItems.length > 0) {
-                              setSelectedEquipment(item.batchItems[0]);
-                            } else {
-                              setSelectedEquipment(item);
-                            }
-                            setShowWriteOffModal(true);
-                          }}
-                          title="Списати"
-                          style={{ backgroundColor: '#f59e0b', color: 'white', marginRight: '8px' }}
-                        >
-                          📝 Списати
-                        </button>
-                      )}
                       {(user?.role === 'admin' || user?.role === 'administrator') && (
                         <button
                           className="btn-action btn-delete"
@@ -588,63 +567,6 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
       </div>
 
       {/* Модальні вікна */}
-      {showWriteOffModal && selectedEquipment && (
-        <EquipmentWriteOffModal
-          equipment={selectedEquipment}
-          onClose={() => {
-            setShowWriteOffModal(false);
-            setSelectedEquipment(null);
-          }}
-          onConfirm={async (reason, notes, quantity) => {
-            const token = localStorage.getItem('token');
-            try {
-              const isQuantityBased = !selectedEquipment.batchId && (!selectedEquipment.serialNumber || selectedEquipment.serialNumber.trim() === '') && (selectedEquipment.quantity || 1) > 1;
-              
-              let response;
-              if (isQuantityBased) {
-                response = await fetch(`${API_BASE_URL}/equipment/quantity/write-off`, {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({ 
-                    equipmentId: selectedEquipment._id,
-                    quantity: quantity,
-                    reason: reason,
-                    notes: notes
-                  })
-                });
-              } else {
-                response = await fetch(`${API_BASE_URL}/equipment/${selectedEquipment._id}/write-off`, {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({ 
-                    reason: reason,
-                    notes: notes
-                  })
-                });
-              }
-
-              if (response.ok) {
-                setShowWriteOffModal(false);
-                setSelectedEquipment(null);
-                refreshEquipment();
-              } else {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || 'Помилка списання');
-              }
-            } catch (error) {
-              console.error('[WRITE-OFF] Помилка запиту:', error);
-              throw error;
-            }
-          }}
-        />
-      )}
-
       {showDeleteModal && selectedEquipment && (
         <EquipmentDeleteModal
           equipment={selectedEquipment}

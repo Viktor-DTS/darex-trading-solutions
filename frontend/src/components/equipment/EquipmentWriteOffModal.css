@@ -1,33 +1,8 @@
+/* Використовуємо стилі з EquipmentMoveModal.css */
+@import './EquipmentMoveModal.css';
+
 .write-off-modal {
-  max-width: 600px;
-}
-
-.write-off-modal-body {
-  padding: 20px;
-}
-
-.write-off-info {
-  background-color: var(--bg-secondary);
-  padding: 16px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  border: 1px solid var(--border-color);
-}
-
-.write-off-info p {
-  margin: 8px 0;
-  color: var(--text-primary);
-}
-
-.equipment-info {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-color);
-}
-
-.equipment-info p {
-  margin: 6px 0;
-  font-size: 0.95em;
+  max-width: 1200px;
 }
 
 .btn-warning {

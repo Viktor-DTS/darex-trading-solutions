@@ -4,6 +4,7 @@ import EquipmentList from './equipment/EquipmentList';
 import EquipmentEditModal from './equipment/EquipmentEditModal';
 import EquipmentMoveModal from './equipment/EquipmentMoveModal';
 import EquipmentShipModal from './equipment/EquipmentShipModal';
+import EquipmentWriteOffModal from './equipment/EquipmentWriteOffModal';
 import EquipmentStatistics from './equipment/EquipmentStatistics';
 import WarehouseManagement from './equipment/WarehouseManagement';
 import ReceiptDocuments from './inventory/ReceiptDocuments';
@@ -22,6 +23,7 @@ function InventoryDashboard({ user }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [showShipModal, setShowShipModal] = useState(false);
+  const [showWriteOffModal, setShowWriteOffModal] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [inTransitCount, setInTransitCount] = useState(0);
   const equipmentListRef = useRef(null);
@@ -73,6 +75,7 @@ function InventoryDashboard({ user }) {
     { id: 'receipt', label: 'Надходження', icon: '📥' },
     { id: 'movement', label: 'Переміщення', icon: '🔄' },
     { id: 'shipment', label: 'Відвантаження', icon: '🚚' },
+    { id: 'write-off', label: 'Списання', icon: '📝' },
     { id: 'approval', label: 'Затвердження отримання товару', icon: '✅', badge: inTransitCount },
     { id: 'inventory', label: 'Інвентаризація', icon: '📋' },
     { id: 'reservations', label: 'Резервування', icon: '🔒' },
@@ -84,16 +87,19 @@ function InventoryDashboard({ user }) {
   // Автоматичне відкриття модальних вікон при переключенні на відповідні вкладки
   useEffect(() => {
     // Не відкриваємо модальні вікна, якщо вони вже відкриті (щоб уникнути зациклення)
-    if (activeTab === 'receipt' && !showAddModal && !showMoveModal && !showShipModal) {
+    if (activeTab === 'receipt' && !showAddModal && !showMoveModal && !showShipModal && !showWriteOffModal) {
       setShowAddModal(true);
-    } else if (activeTab === 'movement' && !showMoveModal && !showAddModal && !showShipModal) {
+    } else if (activeTab === 'movement' && !showMoveModal && !showAddModal && !showShipModal && !showWriteOffModal) {
       setSelectedEquipment(null);
       setShowMoveModal(true);
-    } else if (activeTab === 'shipment' && !showShipModal && !showAddModal && !showMoveModal) {
+    } else if (activeTab === 'shipment' && !showShipModal && !showAddModal && !showMoveModal && !showWriteOffModal) {
       setSelectedEquipment(null);
       setShowShipModal(true);
+    } else if (activeTab === 'write-off' && !showWriteOffModal && !showAddModal && !showMoveModal && !showShipModal) {
+      setSelectedEquipment(null);
+      setShowWriteOffModal(true);
     }
-  }, [activeTab, showAddModal, showMoveModal, showShipModal]);
+  }, [activeTab, showAddModal, showMoveModal, showShipModal, showWriteOffModal]);
 
   const handleEquipmentAdded = () => {
     setShowAddModal(false);
@@ -131,6 +137,16 @@ function InventoryDashboard({ user }) {
       equipmentListRef.current.refresh();
     }
     // Після успішного відвантаження повертаємося на вкладку залишків
+    setActiveTab('stock');
+  };
+
+  const handleWriteOffSuccess = () => {
+    setShowWriteOffModal(false);
+    setSelectedEquipment(null);
+    if (equipmentListRef.current) {
+      equipmentListRef.current.refresh();
+    }
+    // Після успішного списання повертаємося на вкладку залишків
     setActiveTab('stock');
   };
 
@@ -193,6 +209,21 @@ function InventoryDashboard({ user }) {
             </div>
             <div className="documents-placeholder">
               <p>Використовуйте модальне вікно для відвантаження обладнання</p>
+            </div>
+          </div>
+        );
+
+      case 'write-off':
+        return (
+          <div className="inventory-tab-content">
+            <div className="inventory-header">
+              <h2>Списання обладнання</h2>
+              <p className="inventory-description">
+                Списання обладнання зі складу
+              </p>
+            </div>
+            <div className="documents-placeholder">
+              <p>Використовуйте модальне вікно для списання обладнання</p>
             </div>
           </div>
         );
@@ -302,6 +333,22 @@ function InventoryDashboard({ user }) {
             }
           }}
           onSuccess={handleShipSuccess}
+        />
+      )}
+
+      {showWriteOffModal && (
+        <EquipmentWriteOffModal
+          equipment={selectedEquipment}
+          warehouses={warehouses}
+          onClose={() => {
+            setShowWriteOffModal(false);
+            setSelectedEquipment(null);
+            // Якщо закриваємо модальне вікно з вкладки списання, повертаємося на залишки
+            if (activeTab === 'write-off') {
+              setActiveTab('stock');
+            }
+          }}
+          onSuccess={handleWriteOffSuccess}
         />
       )}
     </div>
