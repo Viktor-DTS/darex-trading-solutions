@@ -1781,6 +1781,27 @@ app.get('/api/users/:login/columns-settings/:area', async (req, res) => {
 // ============================================
 // API ДЛЯ КОРИСТУВАЧІВ
 // ============================================
+// Отримання користувача за логіном
+app.get('/api/users/:login', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const user = await User.findOne({ login: req.params.login })
+      .select('-password') // Виключаємо пароль
+      .lean();
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Користувач не знайдено' });
+    }
+    
+    logPerformance('GET /api/users/:login', startTime);
+    res.json(user);
+  } catch (error) {
+    logPerformance('GET /api/users/:login', startTime);
+    console.error('[ERROR] GET /api/users/:login:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/users', async (req, res) => {
   const startTime = Date.now();
   try {
@@ -3736,12 +3757,33 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
         // Не знайдено - створюємо новий запис з quantity (БЕЗ batchId та batchIndex)
         const { serialNumber, ...batchEquipmentData } = equipmentData;
         
+        // Очищаємо null значення для числових полів (замість null не встановлюємо поле)
+        const cleanedData = {};
+        Object.keys(batchEquipmentData).forEach(key => {
+          const value = batchEquipmentData[key];
+          // Пропускаємо batchId та batchIndex - не встановлюємо їх
+          if (['batchId', 'batchIndex'].includes(key)) {
+            return;
+          }
+          // Для числових полів не встановлюємо null, пропускаємо поле
+          if (['phase', 'amperage', 'rpm', 'frequency', 'weight', 'cosPhi'].includes(key)) {
+            if (value !== null && value !== undefined && value !== '') {
+              const numValue = parseFloat(value);
+              if (!isNaN(numValue)) {
+                cleanedData[key] = numValue;
+              }
+            }
+          } else if (value !== null && value !== undefined) {
+            // Для інших полів пропускаємо null та undefined
+            cleanedData[key] = value === '' ? undefined : value;
+          }
+        });
+        
         const equipment = await Equipment.create({
-          ...batchEquipmentData,
+          ...cleanedData,
           isBatch: false, // Не партія, просто обладнання без серійного номера
           quantity: quantity, // Вся кількість в одному записі
-          batchId: null, // Не використовуємо batchId
-          batchIndex: null, // Не використовуємо batchIndex
+          // batchId та batchIndex не встановлюємо взагалі (не передаємо поле)
           // serialNumber не встановлюємо (не передаємо поле взагалі)
           addedBy: user._id.toString(),
           addedByName: user.name || user.login,
@@ -3753,12 +3795,33 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
       }
     } else {
       // Створюємо один запис для одиничного обладнання (з серійним номером)
+      // Очищаємо null значення для числових полів
+      const cleanedData = {};
+      Object.keys(equipmentData).forEach(key => {
+        const value = equipmentData[key];
+        // Пропускаємо batchId та batchIndex - не встановлюємо їх
+        if (['batchId', 'batchIndex'].includes(key)) {
+          return;
+        }
+        // Для числових полів не встановлюємо null, пропускаємо поле
+        if (['phase', 'amperage', 'rpm', 'frequency', 'weight', 'cosPhi'].includes(key)) {
+          if (value !== null && value !== undefined && value !== '') {
+            const numValue = parseFloat(value);
+            if (!isNaN(numValue)) {
+              cleanedData[key] = numValue;
+            }
+          }
+        } else if (value !== null && value !== undefined) {
+          // Для інших полів пропускаємо null та undefined
+          cleanedData[key] = value === '' ? undefined : value;
+        }
+      });
+      
       const equipment = await Equipment.create({
-        ...equipmentData,
+        ...cleanedData,
         isBatch: false,
         quantity: 1,
-        batchId: null,
-        batchIndex: null,
+        // batchId та batchIndex не встановлюємо взагалі (не передаємо поле)
         addedBy: user._id.toString(),
         addedByName: user.name || user.login,
         currentWarehouse: warehouse,
