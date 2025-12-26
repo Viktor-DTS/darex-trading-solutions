@@ -107,36 +107,97 @@ export const exportStockReportToPDF = async (equipment, warehouseName = 'Всі 
 
 // Експорт звіту про рух товарів в PDF
 export const exportMovementReportToPDF = async (documents, dateFrom, dateTo) => {
+  const getStatusLabel = (status) => {
+    const labels = {
+      'in_stock': 'На складі',
+      'in_transit': 'В дорозі',
+      'shipped': 'Відвантажено замовнику',
+      'written_off': 'Списано',
+      'deleted': 'Видалено',
+      'reserved': 'Зарезервовано'
+    };
+    return labels[status] || status || '—';
+  };
+
+  const formatDateTime = (date) => {
+    if (!date) return '—';
+    const d = new Date(date);
+    return d.toLocaleString('uk-UA', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Створюємо рядки для таблиці - по одному на кожен item
+  const tableRows = [];
+  documents.forEach(docItem => {
+    if (docItem.items && docItem.items.length > 0) {
+      docItem.items.forEach((item, itemIndex) => {
+        tableRows.push(`
+          <tr>
+            <td>${itemIndex === 0 ? (docItem.documentNumber || '—') : ''}</td>
+            <td>${itemIndex === 0 ? formatDateTime(docItem.documentDate) : ''}</td>
+            <td>${itemIndex === 0 ? (docItem.fromWarehouseName || '—') : ''}</td>
+            <td>${itemIndex === 0 ? (docItem.toWarehouseName || '—') : ''}</td>
+            <td>${item.type || '—'}</td>
+            <td>${item.quantity || 1}</td>
+            <td>${itemIndex === 0 ? (docItem.createdByName || '—') : ''}</td>
+            <td>${itemIndex === 0 ? (docItem.receivedByName || '—') : ''}</td>
+            <td>${getStatusLabel(item.equipmentStatus || docItem.status)}</td>
+          </tr>
+        `);
+      });
+    } else {
+      // Якщо немає items, показуємо хоча б основну інформацію
+      tableRows.push(`
+        <tr>
+          <td>${docItem.documentNumber || '—'}</td>
+          <td>${formatDateTime(docItem.documentDate)}</td>
+          <td>${docItem.fromWarehouseName || '—'}</td>
+          <td>${docItem.toWarehouseName || '—'}</td>
+          <td>—</td>
+          <td>0</td>
+          <td>${docItem.createdByName || '—'}</td>
+          <td>${docItem.receivedByName || '—'}</td>
+          <td>${getStatusLabel(docItem.status)}</td>
+        </tr>
+      `);
+    }
+  });
+
   const htmlContent = `
+    <style>
+      table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+      th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+      th { background-color: #f2f2f2; font-weight: bold; }
+      tr:nth-child(even) { background-color: #f9f9f9; }
+    </style>
     <h1>Звіт про рух товарів</h1>
     ${dateFrom && dateTo ? `<p><strong>Період:</strong> ${dateFrom} - ${dateTo}</p>` : ''}
-    <p><strong>Дата формування:</strong> ${new Date().toLocaleDateString('uk-UA')}</p>
+    <p><strong>Дата формування:</strong> ${new Date().toLocaleString('uk-UA')}</p>
     <table>
       <thead>
         <tr>
           <th>Номер</th>
-          <th>Дата</th>
+          <th>Дата та час</th>
           <th>Зі складу</th>
           <th>На склад</th>
-          <th>Позицій</th>
+          <th>Обладнання</th>
+          <th>Кількість</th>
+          <th>Відправив</th>
+          <th>Прийняв</th>
           <th>Статус</th>
         </tr>
       </thead>
       <tbody>
-        ${documents.map(docItem => `
-          <tr>
-            <td>${docItem.documentNumber || '—'}</td>
-            <td>${new Date(docItem.documentDate).toLocaleDateString('uk-UA')}</td>
-            <td>${docItem.fromWarehouseName || '—'}</td>
-            <td>${docItem.toWarehouseName || '—'}</td>
-            <td>${docItem.items?.length || 0}</td>
-            <td>${docItem.status || '—'}</td>
-          </tr>
-        `).join('')}
+        ${tableRows.join('')}
       </tbody>
       <tfoot>
         <tr>
-          <td colspan="5" style="text-align: right; font-weight: bold;">Всього документів:</td>
+          <td colspan="8" style="text-align: right; font-weight: bold;">Всього документів:</td>
           <td style="font-weight: bold;">${documents.length}</td>
         </tr>
       </tfoot>

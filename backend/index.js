@@ -564,7 +564,8 @@ const movementItemSchema = new mongoose.Schema({
   serialNumber: { type: String },
   quantity: { type: Number, default: 1 },
   batchId: { type: String },
-  notes: { type: String }
+  notes: { type: String },
+  equipmentStatus: { type: String } // Статус обладнання на момент переміщення
 }, { _id: false });
 
 const movementDocumentSchema = new mongoose.Schema({
@@ -586,6 +587,8 @@ const movementDocumentSchema = new mongoose.Schema({
   }],
   createdBy: String,
   createdByName: String,
+  receivedBy: String, // Хто прийняв товар
+  receivedByName: String,
   status: { type: String, enum: ['draft', 'in_transit', 'completed', 'cancelled'], default: 'draft' }
 }, { timestamps: true });
 
@@ -4539,7 +4542,8 @@ app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
           serialNumber: item.serialNumber || '',
           quantity: 1,
           batchId: item.batchId || '',
-          notes: notes || ''
+          notes: notes || '',
+          equipmentStatus: item.status || 'in_stock'
         })),
         reason: reason || '',
         notes: notes || '',
@@ -4727,7 +4731,8 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
               type: equipment.type,
               serialNumber: equipment.serialNumber || '',
               quantity: quantity,
-              notes: notes || ''
+              notes: notes || '',
+              equipmentStatus: equipment.status || 'in_stock'
             }],
             reason: reason || '',
             notes: notes || '',
@@ -4860,7 +4865,8 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
               type: equipment.type,
               serialNumber: equipment.serialNumber || '',
               quantity: quantity,
-              notes: notes || ''
+              notes: notes || '',
+              equipmentStatus: equipment.status || 'in_stock'
             }],
             reason: reason || '',
             notes: notes || '',
@@ -4924,7 +4930,8 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
               type: equipment.type,
               serialNumber: equipment.serialNumber || '',
               quantity: quantity,
-              notes: notes || ''
+              notes: notes || '',
+              equipmentStatus: 'in_transit'
             }],
             reason: reason || '',
             notes: notes || '',
@@ -5257,7 +5264,8 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
           type: equipment.type || '',
           serialNumber: equipment.serialNumber || '',
           quantity: 1,
-          notes: notes || ''
+          notes: notes || '',
+          equipmentStatus: equipment.status || 'in_stock'
         }],
         reason: reason || '',
         notes: notes || '',
@@ -5429,6 +5437,22 @@ app.post('/api/equipment/approve-receipt', authenticateToken, async (req, res) =
       await item.save();
       updatedItems.push(item);
     }
+
+    // Оновлюємо документи переміщення - додаємо інформацію про того, хто прийняв
+    const equipmentIdStrings = equipmentIds.map(id => id.toString());
+    await MovementDocument.updateMany(
+      {
+        'items.equipmentId': { $in: equipmentIdStrings },
+        status: 'in_transit'
+      },
+      {
+        $set: {
+          receivedBy: user._id.toString(),
+          receivedByName: user.name || user.login,
+          status: 'completed'
+        }
+      }
+    );
 
     // Логування
     try {
