@@ -4264,11 +4264,29 @@ app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
     // Відвантажуємо вибрану кількість
     const shippedItems = [];
     for (const item of batchItems) {
+      // Перевіряємо та ініціалізуємо shipmentHistory, якщо відсутня
+      if (!item.shipmentHistory) {
+        item.shipmentHistory = [];
+      }
+      if (!Array.isArray(item.shipmentHistory)) {
+        item.shipmentHistory = [];
+      }
+      
       item.shipmentHistory.push(shipment);
       item.status = 'shipped';
       item.lastModified = new Date();
-      await item.save();
-      shippedItems.push(item);
+      
+      try {
+        await item.save();
+        shippedItems.push(item);
+      } catch (saveError) {
+        console.error(`[ERROR] Помилка збереження обладнання ${item._id}:`, saveError);
+        // Продовжуємо з наступним елементом
+      }
+    }
+    
+    if (shippedItems.length === 0) {
+      return res.status(500).json({ error: 'Не вдалося відвантажити жодного елемента' });
     }
     
     // Логування
@@ -4389,6 +4407,14 @@ app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
       notes: notes || '',
       attachedFiles: attachedFiles || []
     };
+    
+    // Перевіряємо та ініціалізуємо shipmentHistory, якщо відсутня
+    if (!equipment.shipmentHistory) {
+      equipment.shipmentHistory = [];
+    }
+    if (!Array.isArray(equipment.shipmentHistory)) {
+      equipment.shipmentHistory = [];
+    }
     
     equipment.shipmentHistory.push(shipment);
     equipment.status = 'shipped';
@@ -4916,6 +4942,14 @@ app.post('/api/documents/shipment', authenticateToken, async (req, res) => {
         if (item.equipmentId) {
           const equipment = await Equipment.findById(item.equipmentId);
           if (equipment) {
+            // Перевіряємо та ініціалізуємо shipmentHistory, якщо відсутня
+            if (!equipment.shipmentHistory) {
+              equipment.shipmentHistory = [];
+            }
+            if (!Array.isArray(equipment.shipmentHistory)) {
+              equipment.shipmentHistory = [];
+            }
+            
             equipment.shipmentHistory.push({
               shippedTo: document.shippedTo,
               shippedDate: document.documentDate,
