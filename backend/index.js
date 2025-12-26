@@ -4524,7 +4524,7 @@ app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
     // Створюємо документ переміщення
     try {
       const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
-      await MovementDocument.create({
+      const movementDoc = await MovementDocument.create({
         documentNumber,
         documentDate: new Date(),
         fromWarehouse: fromWarehouse,
@@ -4546,8 +4546,9 @@ app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
         createdByName: user.name || user.login,
         status: 'completed'
       });
+      console.log('[DEBUG] Створено документ переміщення (batch):', movementDoc.documentNumber, movementDoc._id);
     } catch (docErr) {
-      console.error('Помилка створення документа переміщення:', docErr);
+      console.error('[ERROR] Помилка створення документа переміщення (batch):', docErr);
     }
     
     // Логування
@@ -4762,7 +4763,7 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
         // Створюємо документ переміщення
         try {
           const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
-          await MovementDocument.create({
+          const movementDoc = await MovementDocument.create({
             documentNumber,
             documentDate: new Date(),
             fromWarehouse: fromWarehouse,
@@ -4783,8 +4784,9 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
             createdByName: user.name || user.login,
             status: 'completed'
           });
+          console.log('[DEBUG] Створено документ переміщення:', movementDoc.documentNumber, movementDoc._id);
         } catch (docErr) {
-          console.error('Помилка створення документа переміщення:', docErr);
+          console.error('[ERROR] Помилка створення документа переміщення:', docErr);
         }
         
         // Логування
@@ -4833,7 +4835,7 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
         // Створюємо документ переміщення
         try {
           const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
-          await MovementDocument.create({
+          const movementDoc = await MovementDocument.create({
             documentNumber,
             documentDate: new Date(),
             fromWarehouse: fromWarehouse,
@@ -4854,8 +4856,9 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
             createdByName: user.name || user.login,
             status: 'completed'
           });
+          console.log('[DEBUG] Створено документ переміщення (merged):', movementDoc.documentNumber, movementDoc._id);
         } catch (docErr) {
-          console.error('Помилка створення документа переміщення:', docErr);
+          console.error('[ERROR] Помилка створення документа переміщення (merged):', docErr);
         }
         
         // Логування
@@ -4894,7 +4897,7 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
         // Створюємо документ переміщення
         try {
           const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
-          await MovementDocument.create({
+          const movementDoc = await MovementDocument.create({
             documentNumber,
             documentDate: new Date(),
             fromWarehouse: fromWarehouse,
@@ -4915,8 +4918,9 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
             createdByName: user.name || user.login,
             status: 'completed'
           });
+          console.log('[DEBUG] Створено документ переміщення (new):', movementDoc.documentNumber, movementDoc._id);
         } catch (docErr) {
-          console.error('Помилка створення документа переміщення:', docErr);
+          console.error('[ERROR] Помилка створення документа переміщення (new):', docErr);
         }
         
         // Логування
@@ -5219,7 +5223,7 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
     // Створюємо документ переміщення
     try {
       const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
-      await MovementDocument.create({
+      const movementDoc = await MovementDocument.create({
         documentNumber,
         documentDate: new Date(),
         fromWarehouse: equipment.currentWarehouse,
@@ -5240,8 +5244,9 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
         createdByName: user.name || user.login,
         status: 'completed'
       });
+      console.log('[DEBUG] Створено документ переміщення (single):', movementDoc.documentNumber, movementDoc._id);
     } catch (docErr) {
-      console.error('Помилка створення документа переміщення:', docErr);
+      console.error('[ERROR] Помилка створення документа переміщення (single):', docErr);
     }
     
     // Логування
@@ -5600,6 +5605,8 @@ app.get('/api/documents/movement', authenticateToken, async (req, res) => {
     const { warehouse, status, dateFrom, dateTo } = req.query;
     const query = {};
     
+    console.log('[DEBUG] GET /api/documents/movement - параметри:', { warehouse, status, dateFrom, dateTo });
+    
     if (warehouse) {
       query.$or = [
         { fromWarehouse: warehouse },
@@ -5609,13 +5616,38 @@ app.get('/api/documents/movement', authenticateToken, async (req, res) => {
     if (status) query.status = status;
     if (dateFrom || dateTo) {
       query.documentDate = {};
-      if (dateFrom) query.documentDate.$gte = new Date(dateFrom);
-      if (dateTo) query.documentDate.$lte = new Date(dateTo);
+      if (dateFrom) {
+        const fromDate = new Date(dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        query.documentDate.$gte = fromDate;
+      }
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        query.documentDate.$lte = toDate;
+      }
     }
+    
+    console.log('[DEBUG] GET /api/documents/movement - запит:', JSON.stringify(query, null, 2));
+    
+    // Перевіряємо загальну кількість документів
+    const totalCount = await MovementDocument.countDocuments({});
+    console.log('[DEBUG] GET /api/documents/movement - всього документів в БД:', totalCount);
     
     const documents = await MovementDocument.find(query)
       .sort({ documentDate: -1 })
       .lean();
+    
+    console.log('[DEBUG] GET /api/documents/movement - знайдено документів:', documents.length);
+    if (documents.length > 0) {
+      console.log('[DEBUG] Перший документ:', {
+        documentNumber: documents[0].documentNumber,
+        documentDate: documents[0].documentDate,
+        fromWarehouse: documents[0].fromWarehouseName,
+        toWarehouse: documents[0].toWarehouseName,
+        status: documents[0].status
+      });
+    }
     
     logPerformance('GET /api/documents/movement', startTime, documents.length);
     res.json(documents);
