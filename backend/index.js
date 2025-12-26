@@ -4578,6 +4578,7 @@ app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
 // Переміщення обладнання без серійного номера за кількістю (quantity-based)
 app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => {
   const startTime = Date.now();
+  console.log('[DEBUG] POST /api/equipment/quantity/move - отримано запит:', { equipmentId: req.body.equipmentId, quantity: req.body.quantity });
   try {
     const { equipmentId, quantity, fromWarehouse, fromWarehouseName, toWarehouse, toWarehouseName, reason, notes, attachedFiles } = req.body;
     const user = await User.findOne({ login: req.user.login });
@@ -4659,6 +4660,7 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
     }
     
     const existingEquipmentOnDestination = await Equipment.findOne(searchQuery);
+    console.log('[DEBUG] POST /api/equipment/quantity/move - знайдено існуюче обладнання на складі призначення:', existingEquipmentOnDestination ? 'так' : 'ні');
     
     const movement = {
       fromWarehouse: fromWarehouse,
@@ -4683,7 +4685,9 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
     
     // Якщо переміщуємо всю кількість
     if (quantity >= availableQuantity) {
+      console.log('[DEBUG] POST /api/equipment/quantity/move - переміщуємо всю кількість');
       if (existingEquipmentOnDestination && existingEquipmentOnDestination._id.toString() !== equipment._id.toString()) {
+        console.log('[DEBUG] POST /api/equipment/quantity/move - об\'єднуємо з існуючим обладнанням');
         // Знайдено ідентичне обладнання на складі призначення - збільшуємо кількість
         existingEquipmentOnDestination.quantity = (existingEquipmentOnDestination.quantity || 1) + quantity;
         existingEquipmentOnDestination.lastModified = new Date();
@@ -4707,8 +4711,9 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
         
         // Створюємо документ переміщення
         try {
+          console.log('[DEBUG] POST /api/equipment/quantity/move - починаємо створення документа переміщення (merged full)');
           const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
-          await MovementDocument.create({
+          const movementDoc = await MovementDocument.create({
             documentNumber,
             documentDate: new Date(),
             fromWarehouse: fromWarehouse,
@@ -4729,8 +4734,9 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
             createdByName: user.name || user.login,
             status: 'completed'
           });
+          console.log('[DEBUG] Створено документ переміщення (merged full):', movementDoc.documentNumber, movementDoc._id);
         } catch (docErr) {
-          console.error('Помилка створення документа переміщення:', docErr);
+          console.error('[ERROR] Помилка створення документа переміщення (merged full):', docErr);
         }
         
         // Логування
@@ -4753,6 +4759,7 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
         return res.json({ equipment: existingEquipmentOnDestination, movedQuantity: quantity, remainingQuantity: 0, merged: true });
       } else {
         // Не знайдено ідентичного обладнання - просто оновлюємо склад
+        console.log('[DEBUG] POST /api/equipment/quantity/move - не знайдено ідентичного обладнання, оновлюємо склад');
         equipment.currentWarehouse = toWarehouse;
         equipment.currentWarehouseName = toWarehouseName;
         equipment.status = 'in_transit';
@@ -4762,6 +4769,7 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
         
         // Створюємо документ переміщення
         try {
+          console.log('[DEBUG] POST /api/equipment/quantity/move - починаємо створення документа переміщення (full)');
           const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
           const movementDoc = await MovementDocument.create({
             documentNumber,
@@ -4784,9 +4792,9 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
             createdByName: user.name || user.login,
             status: 'completed'
           });
-          console.log('[DEBUG] Створено документ переміщення:', movementDoc.documentNumber, movementDoc._id);
+          console.log('[DEBUG] Створено документ переміщення (full):', movementDoc.documentNumber, movementDoc._id);
         } catch (docErr) {
-          console.error('[ERROR] Помилка створення документа переміщення:', docErr);
+          console.error('[ERROR] Помилка створення документа переміщення (full):', docErr);
         }
         
         // Логування
@@ -4810,6 +4818,7 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
       }
     } else {
       // Якщо переміщуємо частину - зменшуємо кількість на поточному складі
+      console.log('[DEBUG] POST /api/equipment/quantity/move - переміщуємо частину кількості');
       equipment.quantity = availableQuantity - quantity;
       equipment.lastModified = new Date();
       
@@ -4817,6 +4826,7 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
       
       // Перевіряємо, чи існує ідентичне обладнання на складі призначення
       if (existingEquipmentOnDestination) {
+        console.log('[DEBUG] POST /api/equipment/quantity/move - об\'єднуємо частину з існуючим обладнанням');
         // Знайдено ідентичне обладнання - збільшуємо кількість
         existingEquipmentOnDestination.quantity = (existingEquipmentOnDestination.quantity || 1) + quantity;
         existingEquipmentOnDestination.lastModified = new Date();
@@ -4834,6 +4844,7 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
         
         // Створюємо документ переміщення
         try {
+          console.log('[DEBUG] POST /api/equipment/quantity/move - починаємо створення документа переміщення (merged partial)');
           const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
           const movementDoc = await MovementDocument.create({
             documentNumber,
@@ -4856,9 +4867,9 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
             createdByName: user.name || user.login,
             status: 'completed'
           });
-          console.log('[DEBUG] Створено документ переміщення (merged):', movementDoc.documentNumber, movementDoc._id);
+          console.log('[DEBUG] Створено документ переміщення (merged partial):', movementDoc.documentNumber, movementDoc._id);
         } catch (docErr) {
-          console.error('[ERROR] Помилка створення документа переміщення (merged):', docErr);
+          console.error('[ERROR] Помилка створення документа переміщення (merged partial):', docErr);
         }
         
         // Логування
@@ -4881,6 +4892,7 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
         return res.json({ equipment, mergedEquipment: existingEquipmentOnDestination, movedQuantity: quantity, remainingQuantity: equipment.quantity, merged: true });
       } else {
         // Не знайдено ідентичного обладнання - створюємо новий запис на складі призначення
+        console.log('[DEBUG] POST /api/equipment/quantity/move - створюємо новий запис на складі призначення');
         const newEquipment = await Equipment.create({
           ...equipment.toObject(),
           _id: undefined, // Створюємо новий ID
@@ -4896,6 +4908,7 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
         
         // Створюємо документ переміщення
         try {
+          console.log('[DEBUG] POST /api/equipment/quantity/move - починаємо створення документа переміщення (new partial)');
           const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
           const movementDoc = await MovementDocument.create({
             documentNumber,
@@ -4918,9 +4931,9 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
             createdByName: user.name || user.login,
             status: 'completed'
           });
-          console.log('[DEBUG] Створено документ переміщення (new):', movementDoc.documentNumber, movementDoc._id);
+          console.log('[DEBUG] Створено документ переміщення (new partial):', movementDoc.documentNumber, movementDoc._id);
         } catch (docErr) {
-          console.error('[ERROR] Помилка створення документа переміщення (new):', docErr);
+          console.error('[ERROR] Помилка створення документа переміщення (new partial):', docErr);
         }
         
         // Логування
@@ -5185,6 +5198,7 @@ app.post('/api/equipment/quantity/ship', authenticateToken, async (req, res) => 
 // Переміщення обладнання між складами
 app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
   const startTime = Date.now();
+  console.log('[DEBUG] POST /api/equipment/:id/move - отримано запит:', { equipmentId: req.params.id });
   try {
     const { toWarehouse, toWarehouseName, reason, notes, attachedFiles } = req.body;
     const user = await User.findOne({ login: req.user.login });
