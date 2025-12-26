@@ -25,6 +25,15 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
   useEffect(() => {
     if (!equipment) {
       loadEquipment();
+    } else {
+      // Ініціалізуємо кількість для обладнання без серійного номера
+      const isQuantityBased = !equipment.batchId && (!equipment.serialNumber || equipment.serialNumber.trim() === '') && equipment.quantity > 1;
+      if (isQuantityBased) {
+        setQuantityBasedQuantities(prev => ({
+          ...prev,
+          [equipment._id]: equipment.quantity || 1
+        }));
+      }
     }
   }, [equipment]);
 
@@ -735,6 +744,42 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
           )}
 
           <form onSubmit={handleSubmit}>
+            {/* Поле вибору кількості для обладнання без серійного номера */}
+            {selectedEquipmentList.map(eq => {
+              const isQuantityBased = !eq.batchId && (!eq.serialNumber || eq.serialNumber.trim() === '') && eq.quantity > 1;
+              if (!isQuantityBased) return null;
+              
+              const currentQuantity = quantityBasedQuantities[eq._id] || eq.quantity || 1;
+              const maxQuantity = eq.quantity || 1;
+              
+              return (
+                <div key={eq._id} className="form-group" style={{ marginBottom: '16px', padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <label>
+                    Кількість для переміщення: <strong>{eq.type || '—'}</strong> *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={maxQuantity}
+                    value={currentQuantity}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 1;
+                      const newQuantity = Math.max(1, Math.min(val, maxQuantity));
+                      setQuantityBasedQuantities(prev => ({
+                        ...prev,
+                        [eq._id]: newQuantity
+                      }));
+                    }}
+                    style={{ width: '100%', padding: '8px', marginTop: '8px' }}
+                    required
+                  />
+                  <div style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+                    Доступно на складі: <strong>{maxQuantity} шт.</strong>
+                  </div>
+                </div>
+              );
+            })}
+
             <div className="form-group">
               <label>Склад призначення *</label>
               <select
