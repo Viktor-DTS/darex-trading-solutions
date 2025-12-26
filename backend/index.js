@@ -3623,10 +3623,16 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
     
     const isBatch = equipmentData.isBatch === true;
     const quantity = isBatch ? (parseInt(equipmentData.quantity) || 1) : 1;
+    const hasSerialNumber = equipmentData.serialNumber && equipmentData.serialNumber.trim() !== '';
     
-    // Валідація для одиничного обладнання
+    // Визначаємо склад та регіон
+    const warehouse = equipmentData.currentWarehouse || user.region;
+    const warehouseName = equipmentData.currentWarehouseName || user.region;
+    const region = equipmentData.region || user.region;
+    
+    // Валідація для одиничного обладнання (з серійним номером)
     if (!isBatch) {
-      if (!equipmentData.type || !equipmentData.serialNumber) {
+      if (!equipmentData.type || !hasSerialNumber) {
         return res.status(400).json({ 
           error: 'Тип обладнання та серійний номер обов\'язкові для одиничного обладнання'
         });
@@ -3649,7 +3655,7 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
         });
       }
     } else {
-      // Валідація для партії
+      // Валідація для партії (без серійного номера)
       if (!equipmentData.type) {
         return res.status(400).json({ 
           error: 'Тип обладнання обов\'язковий для партії'
@@ -3674,38 +3680,79 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
       });
     }
     
-    // Генерація batchId для партії
-    let batchId = null;
-    if (isBatch) {
-      batchId = `BATCH-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    }
-    
     // Створення обладнання
     const createdEquipment = [];
+    let updatedEquipment = null;
     
     if (isBatch) {
-      // Створюємо N записів для партії
-      // Видаляємо serialNumber з даних для партій, щоб не порушувати унікальний індекс
-      const { serialNumber, ...batchEquipmentData } = equipmentData;
+      // Для обладнання без серійного номера: перевіряємо чи існує ідентичне обладнання
+      // Шукаємо обладнання з такими ж параметрами: type, manufacturer, currentWarehouse, region, без serialNumber
+      const manufacturerValue = equipmentData.manufacturer && equipmentData.manufacturer.trim() !== '' 
+        ? equipmentData.manufacturer.trim() 
+        : null;
       
-      for (let i = 1; i <= quantity; i++) {
+      // Будуємо запит для пошуку ідентичного обладнання
+      const searchQuery = {
+        type: equipmentData.type,
+        currentWarehouse: warehouse,
+        region: region,
+        status: { $ne: 'deleted' },
+        $and: [
+          {
+            $or: [
+              { serialNumber: null },
+              { serialNumber: { $exists: false } },
+              { serialNumber: '' }
+            ]
+          }
+        ]
+      };
+      
+      // Додаємо manufacturer до пошуку
+      if (manufacturerValue) {
+        // Якщо manufacturer вказаний, шукаємо з таким же manufacturer
+        searchQuery.manufacturer = manufacturerValue;
+      } else {
+        // Якщо manufacturer не вказаний, шукаємо записи де manufacturer також null/undefined/порожній
+        searchQuery.$and.push({
+          $or: [
+            { manufacturer: null },
+            { manufacturer: { $exists: false } },
+            { manufacturer: '' }
+          ]
+        });
+      }
+      
+      const existingEquipment = await Equipment.findOne(searchQuery);
+      
+      if (existingEquipment) {
+        // Знайдено ідентичне обладнання - збільшуємо кількість
+        existingEquipment.quantity = (existingEquipment.quantity || 1) + quantity;
+        existingEquipment.lastModified = new Date();
+        await existingEquipment.save();
+        updatedEquipment = existingEquipment;
+        createdEquipment.push(existingEquipment);
+      } else {
+        // Не знайдено - створюємо новий запис з quantity (БЕЗ batchId та batchIndex)
+        const { serialNumber, ...batchEquipmentData } = equipmentData;
+        
         const equipment = await Equipment.create({
           ...batchEquipmentData,
-          isBatch: true,
-          quantity: 1, // Кожен запис - одна одиниця
-          batchId: batchId,
-          batchIndex: i,
-          // serialNumber не встановлюємо для партій (не передаємо поле взагалі)
+          isBatch: false, // Не партія, просто обладнання без серійного номера
+          quantity: quantity, // Вся кількість в одному записі
+          batchId: null, // Не використовуємо batchId
+          batchIndex: null, // Не використовуємо batchIndex
+          // serialNumber не встановлюємо (не передаємо поле взагалі)
           addedBy: user._id.toString(),
           addedByName: user.name || user.login,
-          currentWarehouse: equipmentData.currentWarehouse || user.region,
-          currentWarehouseName: equipmentData.currentWarehouseName || user.region,
-          region: equipmentData.region || user.region
+          currentWarehouse: warehouse,
+          currentWarehouseName: warehouseName,
+          region: region
         });
         createdEquipment.push(equipment);
       }
     } else {
-      // Створюємо один запис для одиничного обладнання
+      // Створюємо один запис для одиничного обладнання (з серійним номером)
       const equipment = await Equipment.create({
         ...equipmentData,
         isBatch: false,
@@ -3714,35 +3761,68 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
         batchIndex: null,
         addedBy: user._id.toString(),
         addedByName: user.name || user.login,
-        currentWarehouse: equipmentData.currentWarehouse || user.region,
-        currentWarehouseName: equipmentData.currentWarehouseName || user.region,
-        region: equipmentData.region || user.region
+        currentWarehouse: warehouse,
+        currentWarehouseName: warehouseName,
+        region: region
       });
       createdEquipment.push(equipment);
     }
     
     // Логування події
     try {
-      const description = isBatch 
-        ? `Додано партію обладнання ${equipmentData.type} (${quantity} шт.) на склад ${equipmentData.currentWarehouseName || user.region}`
-        : `Додано обладнання ${equipmentData.type} (№${equipmentData.serialNumber}) на склад ${equipmentData.currentWarehouseName || user.region}`;
+      let description;
+      let action = 'create';
+      
+      if (isBatch) {
+        if (updatedEquipment) {
+          // Обладнання оновлено (збільшено кількість)
+          description = `Збільшено кількість обладнання ${equipmentData.type} на ${quantity} шт. (всього: ${updatedEquipment.quantity}) на складі ${warehouseName}`;
+          action = 'update';
+        } else {
+          // Створено нове обладнання без серійного номера
+          description = `Додано обладнання ${equipmentData.type} (${quantity} шт.) на склад ${warehouseName}`;
+        }
+      } else {
+        description = `Додано обладнання ${equipmentData.type} (№${equipmentData.serialNumber}) на склад ${warehouseName}`;
+      }
       
       await EventLog.create({
         userId: user._id.toString(),
         userName: user.name || user.login,
         userRole: user.role,
-        action: 'create',
+        action: action,
         entityType: 'equipment',
-        entityId: isBatch ? batchId : createdEquipment[0]._id.toString(),
+        entityId: createdEquipment[0]._id.toString(),
         description: description,
-        details: { ...equipmentData, quantity: isBatch ? quantity : 1 }
+        details: { ...equipmentData, quantity: isBatch ? quantity : 1, updated: !!updatedEquipment }
       });
     } catch (logErr) {
       console.error('Помилка логування:', logErr);
     }
     
     logPerformance('POST /api/equipment/scan', startTime);
-    res.status(201).json(isBatch ? { batchId, count: quantity, items: createdEquipment } : createdEquipment[0]);
+    
+    // Формуємо відповідь
+    if (isBatch) {
+      if (updatedEquipment) {
+        // Обладнання оновлено
+        res.status(200).json({ 
+          updated: true,
+          equipment: updatedEquipment,
+          addedQuantity: quantity,
+          totalQuantity: updatedEquipment.quantity
+        });
+      } else {
+        // Створено нове обладнання
+        res.status(201).json({ 
+          created: true,
+          equipment: createdEquipment[0],
+          quantity: quantity
+        });
+      }
+    } else {
+      res.status(201).json(createdEquipment[0]);
+    }
   } catch (error) {
     console.error('[ERROR] POST /api/equipment/scan:', error);
     logPerformance('POST /api/equipment/scan', startTime);
