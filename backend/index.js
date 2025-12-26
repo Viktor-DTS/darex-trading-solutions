@@ -5213,10 +5213,14 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
     
+    // Зберігаємо оригінальний склад ПЕРЕД зміною
+    const fromWarehouse = equipment.currentWarehouse;
+    const fromWarehouseName = equipment.currentWarehouseName;
+    
     const movement = {
-      fromWarehouse: equipment.currentWarehouse,
+      fromWarehouse: fromWarehouse,
       toWarehouse: toWarehouse,
-      fromWarehouseName: equipment.currentWarehouseName,
+      fromWarehouseName: fromWarehouseName,
       toWarehouseName: toWarehouseName,
       date: new Date(),
       movedBy: user._id.toString(),
@@ -5236,12 +5240,13 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
     
     // Створюємо документ переміщення
     try {
+      console.log('[DEBUG] POST /api/equipment/:id/move - починаємо створення документа переміщення (single)');
       const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
       const movementDoc = await MovementDocument.create({
         documentNumber,
         documentDate: new Date(),
-        fromWarehouse: equipment.currentWarehouse,
-        fromWarehouseName: equipment.currentWarehouseName,
+        fromWarehouse: fromWarehouse,
+        fromWarehouseName: fromWarehouseName,
         toWarehouse: toWarehouse,
         toWarehouseName: toWarehouseName,
         items: [{
@@ -5261,6 +5266,7 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
       console.log('[DEBUG] Створено документ переміщення (single):', movementDoc.documentNumber, movementDoc._id);
     } catch (docErr) {
       console.error('[ERROR] Помилка створення документа переміщення (single):', docErr);
+      console.error('[ERROR] Деталі помилки:', JSON.stringify(docErr, null, 2));
     }
     
     // Логування
