@@ -558,6 +558,15 @@ receiptDocumentSchema.index({ warehouse: 1 });
 const ReceiptDocument = mongoose.model('ReceiptDocument', receiptDocumentSchema);
 
 // Схема для документів переміщення
+const movementItemSchema = new mongoose.Schema({
+  equipmentId: { type: String },
+  type: { type: String },
+  serialNumber: { type: String },
+  quantity: { type: Number, default: 1 },
+  batchId: { type: String },
+  notes: { type: String }
+}, { _id: false });
+
 const movementDocumentSchema = new mongoose.Schema({
   documentNumber: { type: String, required: true, unique: true },
   documentDate: { type: Date, default: Date.now },
@@ -565,14 +574,7 @@ const movementDocumentSchema = new mongoose.Schema({
   fromWarehouseName: String,
   toWarehouse: { type: String, required: true },
   toWarehouseName: String,
-  items: [{
-    equipmentId: String,
-    type: String,
-    serialNumber: String,
-    quantity: { type: Number, default: 1 },
-    batchId: String,
-    notes: String
-  }],
+  items: { type: [movementItemSchema], default: [] },
   reason: String,
   notes: String,
   attachedFiles: [{
