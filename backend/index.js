@@ -4409,114 +4409,210 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
       });
     }
     
-    // Якщо переміщуємо всю кількість - просто оновлюємо склад
+    // Перевіряємо, чи існує ідентичне обладнання на складі призначення
+    const manufacturerValue = equipment.manufacturer && equipment.manufacturer.trim() !== '' 
+      ? equipment.manufacturer.trim() 
+      : null;
+    
+    // Будуємо запит для пошуку ідентичного обладнання на складі призначення
+    const searchQuery = {
+      type: equipment.type,
+      currentWarehouse: toWarehouse,
+      region: equipment.region || null,
+      status: { $ne: 'deleted' },
+      $and: [
+        {
+          $or: [
+            { serialNumber: null },
+            { serialNumber: { $exists: false } },
+            { serialNumber: '' }
+          ]
+        }
+      ]
+    };
+    
+    // Додаємо manufacturer до пошуку
+    if (manufacturerValue) {
+      searchQuery.manufacturer = manufacturerValue;
+    } else {
+      searchQuery.$and.push({
+        $or: [
+          { manufacturer: null },
+          { manufacturer: { $exists: false } },
+          { manufacturer: '' }
+        ]
+      });
+    }
+    
+    const existingEquipmentOnDestination = await Equipment.findOne(searchQuery);
+    
+    const movement = {
+      fromWarehouse: fromWarehouse,
+      toWarehouse: toWarehouse,
+      fromWarehouseName: fromWarehouseName || equipment.currentWarehouseName,
+      toWarehouseName: toWarehouseName,
+      date: new Date(),
+      movedBy: user._id.toString(),
+      movedByName: user.name || user.login,
+      reason: reason || '',
+      notes: notes || '',
+      attachedFiles: attachedFiles || []
+    };
+    
+    if (!equipment.movementHistory) {
+      equipment.movementHistory = [];
+    }
+    if (!Array.isArray(equipment.movementHistory)) {
+      equipment.movementHistory = [];
+    }
+    equipment.movementHistory.push(movement);
+    
+    // Якщо переміщуємо всю кількість
     if (quantity >= availableQuantity) {
-      const movement = {
-        fromWarehouse: fromWarehouse,
-        toWarehouse: toWarehouse,
-        fromWarehouseName: fromWarehouseName || equipment.currentWarehouseName,
-        toWarehouseName: toWarehouseName,
-        date: new Date(),
-        movedBy: user._id.toString(),
-        movedByName: user.name || user.login,
-        reason: reason || '',
-        notes: notes || '',
-        attachedFiles: attachedFiles || []
-      };
-      
-      if (!equipment.movementHistory) {
-        equipment.movementHistory = [];
+      if (existingEquipmentOnDestination && existingEquipmentOnDestination._id.toString() !== equipment._id.toString()) {
+        // Знайдено ідентичне обладнання на складі призначення - збільшуємо кількість
+        existingEquipmentOnDestination.quantity = (existingEquipmentOnDestination.quantity || 1) + quantity;
+        existingEquipmentOnDestination.lastModified = new Date();
+        
+        // Додаємо історію переміщення до існуючого обладнання
+        if (!existingEquipmentOnDestination.movementHistory) {
+          existingEquipmentOnDestination.movementHistory = [];
+        }
+        if (!Array.isArray(existingEquipmentOnDestination.movementHistory)) {
+          existingEquipmentOnDestination.movementHistory = [];
+        }
+        existingEquipmentOnDestination.movementHistory.push(movement);
+        
+        await existingEquipmentOnDestination.save();
+        
+        // Видаляємо поточне обладнання (вся кількість переміщена)
+        equipment.status = 'deleted';
+        equipment.isDeleted = true;
+        equipment.lastModified = new Date();
+        await equipment.save();
+        
+        // Логування
+        try {
+          await EventLog.create({
+            userId: user._id.toString(),
+            userName: user.name || user.login,
+            userRole: user.role,
+            action: 'update',
+            entityType: 'equipment',
+            entityId: existingEquipmentOnDestination._id.toString(),
+            description: `Переміщено ${quantity} одиниць обладнання ${equipment.type} з ${fromWarehouseName || equipment.currentWarehouseName} на ${toWarehouseName} (об'єднано з існуючим, всього: ${existingEquipmentOnDestination.quantity})`,
+            details: { equipmentId, quantity, availableQuantity, mergedWith: existingEquipmentOnDestination._id.toString(), movement }
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
+        logPerformance('POST /api/equipment/quantity/move', startTime);
+        return res.json({ equipment: existingEquipmentOnDestination, movedQuantity: quantity, remainingQuantity: 0, merged: true });
+      } else {
+        // Не знайдено ідентичного обладнання - просто оновлюємо склад
+        equipment.currentWarehouse = toWarehouse;
+        equipment.currentWarehouseName = toWarehouseName;
+        equipment.status = 'in_transit';
+        equipment.lastModified = new Date();
+        
+        await equipment.save();
+        
+        // Логування
+        try {
+          await EventLog.create({
+            userId: user._id.toString(),
+            userName: user.name || user.login,
+            userRole: user.role,
+            action: 'update',
+            entityType: 'equipment',
+            entityId: equipment._id.toString(),
+            description: `Переміщено ${quantity} одиниць обладнання ${equipment.type} (всього: ${availableQuantity}) з ${fromWarehouseName || equipment.currentWarehouseName} на ${toWarehouseName}`,
+            details: { equipmentId, quantity, availableQuantity, movement }
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
+        logPerformance('POST /api/equipment/quantity/move', startTime);
+        return res.json({ equipment, movedQuantity: quantity, remainingQuantity: 0 });
       }
-      if (!Array.isArray(equipment.movementHistory)) {
-        equipment.movementHistory = [];
-      }
-      
-      equipment.movementHistory.push(movement);
-      equipment.currentWarehouse = toWarehouse;
-      equipment.currentWarehouseName = toWarehouseName;
-      equipment.status = 'in_transit';
-      equipment.lastModified = new Date();
-      
-      await equipment.save();
-      
-      // Логування
-      try {
-        await EventLog.create({
-          userId: user._id.toString(),
-          userName: user.name || user.login,
-          userRole: user.role,
-          action: 'update',
-          entityType: 'equipment',
-          entityId: equipment._id.toString(),
-          description: `Переміщено ${quantity} одиниць обладнання ${equipment.type} (всього: ${availableQuantity}) з ${fromWarehouseName || equipment.currentWarehouseName} на ${toWarehouseName}`,
-          details: { equipmentId, quantity, availableQuantity, movement }
-        });
-      } catch (logErr) {
-        console.error('Помилка логування:', logErr);
-      }
-      
-      logPerformance('POST /api/equipment/quantity/move', startTime);
-      return res.json({ equipment, movedQuantity: quantity, remainingQuantity: 0 });
     } else {
       // Якщо переміщуємо частину - зменшуємо кількість на поточному складі
-      const movement = {
-        fromWarehouse: fromWarehouse,
-        toWarehouse: toWarehouse,
-        fromWarehouseName: fromWarehouseName || equipment.currentWarehouseName,
-        toWarehouseName: toWarehouseName,
-        date: new Date(),
-        movedBy: user._id.toString(),
-        movedByName: user.name || user.login,
-        reason: reason || '',
-        notes: notes || '',
-        attachedFiles: attachedFiles || []
-      };
-      
-      if (!equipment.movementHistory) {
-        equipment.movementHistory = [];
-      }
-      if (!Array.isArray(equipment.movementHistory)) {
-        equipment.movementHistory = [];
-      }
-      
-      equipment.movementHistory.push(movement);
       equipment.quantity = availableQuantity - quantity;
       equipment.lastModified = new Date();
       
       await equipment.save();
       
-      // Створюємо новий запис на складі призначення
-      const newEquipment = await Equipment.create({
-        ...equipment.toObject(),
-        _id: undefined, // Створюємо новий ID
-        quantity: quantity,
-        currentWarehouse: toWarehouse,
-        currentWarehouseName: toWarehouseName,
-        status: 'in_transit',
-        movementHistory: [movement],
-        addedBy: user._id.toString(),
-        addedByName: user.name || user.login,
-        addedAt: new Date()
-      });
-      
-      // Логування
-      try {
-        await EventLog.create({
-          userId: user._id.toString(),
-          userName: user.name || user.login,
-          userRole: user.role,
-          action: 'update',
-          entityType: 'equipment',
-          entityId: equipment._id.toString(),
-          description: `Переміщено ${quantity} одиниць обладнання ${equipment.type} з ${fromWarehouseName || equipment.currentWarehouseName} на ${toWarehouseName} (залишилось: ${equipment.quantity})`,
-          details: { equipmentId, quantity, availableQuantity, newEquipmentId: newEquipment._id.toString(), movement }
+      // Перевіряємо, чи існує ідентичне обладнання на складі призначення
+      if (existingEquipmentOnDestination) {
+        // Знайдено ідентичне обладнання - збільшуємо кількість
+        existingEquipmentOnDestination.quantity = (existingEquipmentOnDestination.quantity || 1) + quantity;
+        existingEquipmentOnDestination.lastModified = new Date();
+        
+        // Додаємо історію переміщення до існуючого обладнання
+        if (!existingEquipmentOnDestination.movementHistory) {
+          existingEquipmentOnDestination.movementHistory = [];
+        }
+        if (!Array.isArray(existingEquipmentOnDestination.movementHistory)) {
+          existingEquipmentOnDestination.movementHistory = [];
+        }
+        existingEquipmentOnDestination.movementHistory.push(movement);
+        
+        await existingEquipmentOnDestination.save();
+        
+        // Логування
+        try {
+          await EventLog.create({
+            userId: user._id.toString(),
+            userName: user.name || user.login,
+            userRole: user.role,
+            action: 'update',
+            entityType: 'equipment',
+            entityId: existingEquipmentOnDestination._id.toString(),
+            description: `Переміщено ${quantity} одиниць обладнання ${equipment.type} з ${fromWarehouseName || equipment.currentWarehouseName} на ${toWarehouseName} (об'єднано з існуючим, всього: ${existingEquipmentOnDestination.quantity}, залишилось: ${equipment.quantity})`,
+            details: { equipmentId, quantity, availableQuantity, mergedWith: existingEquipmentOnDestination._id.toString(), movement }
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
+        logPerformance('POST /api/equipment/quantity/move', startTime);
+        return res.json({ equipment, mergedEquipment: existingEquipmentOnDestination, movedQuantity: quantity, remainingQuantity: equipment.quantity, merged: true });
+      } else {
+        // Не знайдено ідентичного обладнання - створюємо новий запис на складі призначення
+        const newEquipment = await Equipment.create({
+          ...equipment.toObject(),
+          _id: undefined, // Створюємо новий ID
+          quantity: quantity,
+          currentWarehouse: toWarehouse,
+          currentWarehouseName: toWarehouseName,
+          status: 'in_transit',
+          movementHistory: [movement],
+          addedBy: user._id.toString(),
+          addedByName: user.name || user.login,
+          addedAt: new Date()
         });
-      } catch (logErr) {
-        console.error('Помилка логування:', logErr);
+        
+        // Логування
+        try {
+          await EventLog.create({
+            userId: user._id.toString(),
+            userName: user.name || user.login,
+            userRole: user.role,
+            action: 'update',
+            entityType: 'equipment',
+            entityId: equipment._id.toString(),
+            description: `Переміщено ${quantity} одиниць обладнання ${equipment.type} з ${fromWarehouseName || equipment.currentWarehouseName} на ${toWarehouseName} (залишилось: ${equipment.quantity})`,
+            details: { equipmentId, quantity, availableQuantity, newEquipmentId: newEquipment._id.toString(), movement }
+          });
+        } catch (logErr) {
+          console.error('Помилка логування:', logErr);
+        }
+        
+        logPerformance('POST /api/equipment/quantity/move', startTime);
+        return res.json({ equipment, newEquipment, movedQuantity: quantity, remainingQuantity: equipment.quantity });
       }
-      
-      logPerformance('POST /api/equipment/quantity/move', startTime);
-      return res.json({ equipment, newEquipment, movedQuantity: quantity, remainingQuantity: equipment.quantity });
     }
   } catch (error) {
     console.error('[ERROR] POST /api/equipment/quantity/move:', error);
