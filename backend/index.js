@@ -5242,7 +5242,8 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
     try {
       console.log('[DEBUG] POST /api/equipment/:id/move - починаємо створення документа переміщення (single)');
       const documentNumber = await generateDocumentNumber('MOV', MovementDocument);
-      const movementDoc = await MovementDocument.create({
+      
+      const documentData = {
         documentNumber,
         documentDate: new Date(),
         fromWarehouse: fromWarehouse,
@@ -5251,7 +5252,7 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
         toWarehouseName: toWarehouseName,
         items: [{
           equipmentId: equipment._id.toString(),
-          type: equipment.type,
+          type: equipment.type || '',
           serialNumber: equipment.serialNumber || '',
           quantity: 1,
           notes: notes || ''
@@ -5262,11 +5263,18 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
         createdBy: user._id.toString(),
         createdByName: user.name || user.login,
         status: 'completed'
-      });
+      };
+      
+      console.log('[DEBUG] Дані для створення документа:', JSON.stringify(documentData, null, 2));
+      
+      const movementDoc = await MovementDocument.create(documentData);
       console.log('[DEBUG] Створено документ переміщення (single):', movementDoc.documentNumber, movementDoc._id);
     } catch (docErr) {
       console.error('[ERROR] Помилка створення документа переміщення (single):', docErr);
       console.error('[ERROR] Деталі помилки:', JSON.stringify(docErr, null, 2));
+      if (docErr.errors) {
+        console.error('[ERROR] Помилки валідації:', JSON.stringify(docErr.errors, null, 2));
+      }
     }
     
     // Логування
