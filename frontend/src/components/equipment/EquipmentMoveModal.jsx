@@ -19,6 +19,7 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [batchQuantity, setBatchQuantity] = useState(1);
   const [batchQuantities, setBatchQuantities] = useState({}); // { batchId-warehouse: quantity }
+  const [quantityBasedQuantities, setQuantityBasedQuantities] = useState({}); // { equipmentId: quantity } для обладнання без серійного номера
 
   // Завантаження списку обладнання, якщо не передано
   useEffect(() => {
@@ -63,6 +64,7 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
     const singleItems = [];
     
     equipmentList.forEach(eq => {
+      // Обладнання з batchId (стара логіка партій)
       if (eq.isBatch && eq.batchId && eq.status === 'in_stock') {
         const key = `${eq.batchId}-${eq.currentWarehouse || eq.currentWarehouseName}`;
         if (!groups[key]) {
@@ -75,7 +77,14 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
         }
         groups[key].batchItems.push(eq);
         groups[key].batchCount++;
-      } else {
+      } 
+      // Обладнання без серійного номера з quantity > 1 (нова логіка)
+      else if ((!eq.serialNumber || eq.serialNumber.trim() === '') && eq.quantity > 1 && eq.status === 'in_stock') {
+        // Додаємо як окремий елемент з можливістю вибору кількості
+        singleItems.push(eq);
+      } 
+      // Звичайне одиничне обладнання
+      else {
         singleItems.push(eq);
       }
     });
@@ -130,32 +139,60 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
     setShowBatchQuantityModal(true);
   };
 
+  // Обробка вибору кількості для обладнання без серійного номера
+  const handleQuantityBasedSelect = (eq) => {
+    setSelectedBatch(eq);
+    const existingQuantity = quantityBasedQuantities[eq._id] || 1;
+    setBatchQuantity(existingQuantity);
+    setShowBatchQuantityModal(true);
+  };
+
   const handleBatchQuantityConfirm = () => {
     if (!selectedBatch) return;
     
-    if (batchQuantity < 1 || batchQuantity > selectedBatch.batchCount) {
-      setError(`Кількість повинна бути від 1 до ${selectedBatch.batchCount}`);
+    // Перевірка для quantity-based обладнання (без batchId)
+    const isQuantityBased = !selectedBatch.batchId && (!selectedBatch.serialNumber || selectedBatch.serialNumber.trim() === '') && selectedBatch.quantity > 1;
+    const maxQuantity = isQuantityBased ? selectedBatch.quantity : selectedBatch.batchCount;
+    
+    if (batchQuantity < 1 || batchQuantity > maxQuantity) {
+      setError(`Кількість повинна бути від 1 до ${maxQuantity}`);
       return;
     }
     
-    const key = `${selectedBatch.batchId}-${selectedBatch.currentWarehouse || selectedBatch.currentWarehouseName}`;
-    
-    // Додаємо вибрані одиниці до списку
-    const itemsToAdd = selectedBatch.batchItems.slice(0, batchQuantity);
-    setSelectedEquipmentList(prev => {
-      // Видаляємо попередні записи цієї партії, якщо вони є
-      const existing = prev.filter(e => 
-        !(e.batchId === selectedBatch.batchId && 
-          (e.currentWarehouse === selectedBatch.currentWarehouse || 
-           e.currentWarehouseName === selectedBatch.currentWarehouseName))
-      );
-      return [...existing, ...itemsToAdd];
-    });
-    
-    setBatchQuantities(prev => ({
-      ...prev,
-      [key]: batchQuantity
-    }));
+    if (isQuantityBased) {
+      // Обладнання без серійного номера (quantity-based)
+      setSelectedEquipmentList(prev => {
+        // Видаляємо попередній запис цього обладнання, якщо він є
+        const existing = prev.filter(e => e._id !== selectedBatch._id);
+        // Додаємо обладнання з вибраною кількістю
+        return [...existing, { ...selectedBatch, selectedQuantity: batchQuantity }];
+      });
+      
+      setQuantityBasedQuantities(prev => ({
+        ...prev,
+        [selectedBatch._id]: batchQuantity
+      }));
+    } else {
+      // Стара логіка для batch обладнання
+      const key = `${selectedBatch.batchId}-${selectedBatch.currentWarehouse || selectedBatch.currentWarehouseName}`;
+      
+      // Додаємо вибрані одиниці до списку
+      const itemsToAdd = selectedBatch.batchItems.slice(0, batchQuantity);
+      setSelectedEquipmentList(prev => {
+        // Видаляємо попередні записи цієї партії, якщо вони є
+        const existing = prev.filter(e => 
+          !(e.batchId === selectedBatch.batchId && 
+            (e.currentWarehouse === selectedBatch.currentWarehouse || 
+             e.currentWarehouseName === selectedBatch.currentWarehouseName))
+        );
+        return [...existing, ...itemsToAdd];
+      });
+      
+      setBatchQuantities(prev => ({
+        ...prev,
+        [key]: batchQuantity
+      }));
+    }
     
     setShowBatchQuantityModal(false);
     setSelectedBatch(null);
@@ -223,6 +260,7 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
                       <div className="equipment-select-list">
                         {filteredEquipmentList.map(group => {
                           const isBatch = group.isBatch && group.batchId;
+                          const isQuantityBased = !isBatch && (!group.serialNumber || group.serialNumber.trim() === '') && group.quantity > 1;
                           const isSelected = selectedEquipmentList.some(e => 
                             isBatch 
                               ? e.batchId === group.batchId && 
@@ -233,7 +271,11 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
                           const key = isBatch 
                             ? `${group.batchId}-${group.currentWarehouse || group.currentWarehouseName}` 
                             : group._id;
-                          const selectedQuantity = isBatch ? (batchQuantities[key] || 0) : 0;
+                          const selectedQuantity = isBatch 
+                            ? (batchQuantities[key] || 0) 
+                            : isQuantityBased 
+                              ? (quantityBasedQuantities[group._id] || 0)
+                              : 0;
                           
                           return (
                             <div
@@ -242,6 +284,8 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
                               onClick={() => {
                                 if (isBatch) {
                                   handleBatchSelect(group);
+                                } else if (isQuantityBased) {
+                                  handleQuantityBasedSelect(group);
                                 } else {
                                   handleEquipmentToggle(group);
                                 }
@@ -254,6 +298,8 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
                                   e.stopPropagation();
                                   if (isBatch) {
                                     handleBatchSelect(group);
+                                  } else if (isQuantityBased) {
+                                    handleQuantityBasedSelect(group);
                                   } else {
                                     handleEquipmentToggle(group);
                                   }
@@ -267,6 +313,14 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
                                   <>
                                     <span>Партія: {group.batchCount} шт. на складі {group.currentWarehouseName || group.currentWarehouse || '—'}</span>
                                     <span>Batch ID: {group.batchId}</span>
+                                    {selectedQuantity > 0 && (
+                                      <span className="selected-quantity">Вибрано: {selectedQuantity} шт.</span>
+                                    )}
+                                  </>
+                                ) : isQuantityBased ? (
+                                  <>
+                                    <span>Кількість на складі: {group.quantity} шт.</span>
+                                    <span>Склад: {group.currentWarehouseName || group.currentWarehouse || '—'}</span>
                                     {selectedQuantity > 0 && (
                                       <span className="selected-quantity">Вибрано: {selectedQuantity} шт.</span>
                                     )}
@@ -414,17 +468,28 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
                 <p><strong>Доступно на складі:</strong> {selectedBatch.batchCount} шт.</p>
                 <div className="form-group">
                   <label>Кількість для переміщення *</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max={selectedBatch.batchCount}
-                    value={batchQuantity}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value) || 1;
-                      setBatchQuantity(Math.max(1, Math.min(val, selectedBatch.batchCount)));
-                    }}
-                    style={{ width: '100%', padding: '8px' }}
-                  />
+                  {(() => {
+                    const isQuantityBased = !selectedBatch.batchId && (!selectedBatch.serialNumber || selectedBatch.serialNumber.trim() === '') && selectedBatch.quantity > 1;
+                    const maxQuantity = isQuantityBased ? selectedBatch.quantity : selectedBatch.batchCount;
+                    return (
+                      <>
+                        <input
+                          type="number"
+                          min="1"
+                          max={maxQuantity}
+                          value={batchQuantity}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 1;
+                            setBatchQuantity(Math.max(1, Math.min(val, maxQuantity)));
+                          }}
+                          style={{ width: '100%', padding: '8px' }}
+                        />
+                        <div style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+                          Доступно на складі: {maxQuantity} шт.
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
                 {error && <div className="error-message">{error}</div>}
               </div>
@@ -476,12 +541,19 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
       const warehouse = warehouses.find(w => w._id === toWarehouse || w.name === toWarehouse);
       const toWarehouseName = warehouse?.name || toWarehouse;
       
-      // Розділити обладнання на одиничне та партії
-      const singleItems = selectedEquipmentList.filter(eq => !eq.isBatch || !eq.batchId);
+      // Розділити обладнання на одиничне, quantity-based та партії
+      const singleItems = [];
+      const quantityBasedItems = [];
       const batchGroups = {};
       
       selectedEquipmentList.forEach(eq => {
-        if (eq.isBatch && eq.batchId) {
+        // Quantity-based обладнання (без серійного номера, quantity > 1)
+        const isQuantityBased = !eq.batchId && (!eq.serialNumber || eq.serialNumber.trim() === '') && eq.quantity > 1;
+        if (isQuantityBased) {
+          quantityBasedItems.push(eq);
+        }
+        // Batch обладнання (з batchId)
+        else if (eq.isBatch && eq.batchId) {
           const key = `${eq.batchId}-${eq.currentWarehouse || eq.currentWarehouseName}`;
           if (!batchGroups[key]) {
             batchGroups[key] = {
@@ -492,6 +564,10 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
             };
           }
           batchGroups[key].items.push(eq);
+        }
+        // Звичайне одиничне обладнання
+        else {
+          singleItems.push(eq);
         }
       });
       
@@ -519,6 +595,47 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
             }))
           })
         });
+        results.push(result);
+      }
+      
+      // Обробка quantity-based обладнання
+      for (const item of quantityBasedItems) {
+        const quantity = quantityBasedQuantities[item._id] || item.quantity || 1;
+        
+        const result = await fetch(`${API_BASE_URL}/equipment/quantity/move`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            equipmentId: item._id,
+            quantity: quantity,
+            fromWarehouse: item.currentWarehouse,
+            fromWarehouseName: item.currentWarehouseName,
+            toWarehouse: toWarehouse,
+            toWarehouseName: toWarehouseName,
+            reason: reason,
+            notes: notes,
+            attachedFiles: attachedFiles.map(f => ({
+              cloudinaryUrl: f.cloudinaryUrl,
+              cloudinaryId: f.cloudinaryId,
+              originalName: f.originalName,
+              mimetype: f.mimetype,
+              size: f.size
+            }))
+          })
+        });
+        
+        if (!result.ok) {
+          const errorData = await result.json().catch(() => ({ error: 'Невідома помилка' }));
+          if (errorData.availableQuantity !== undefined) {
+            setError(`⚠️ ${errorData.error}\nДоступно: ${errorData.availableQuantity} шт., Запитується: ${errorData.requestedQuantity} шт.`);
+            setSaving(false);
+            return;
+          }
+        }
+        
         results.push(result);
       }
       
@@ -582,12 +699,25 @@ function EquipmentMoveModal({ equipment, warehouses, onClose, onSuccess }) {
           <div className="equipment-info">
             <p><strong>Вибрано обладнання:</strong> {selectedEquipmentList.length} шт.</p>
             <div className="selected-equipment-list">
-              {selectedEquipmentList.map(eq => (
-                <div key={eq._id} className="selected-equipment-item">
-                  <span><strong>{eq.type || '—'}</strong> (Серійний номер: {eq.serialNumber || '—'})</span>
-                  <span>Склад: {eq.currentWarehouseName || eq.currentWarehouse || '—'}</span>
-                </div>
-              ))}
+              {selectedEquipmentList.map(eq => {
+                const isQuantityBased = !eq.batchId && (!eq.serialNumber || eq.serialNumber.trim() === '') && eq.quantity > 1;
+                const selectedQuantity = isQuantityBased ? (quantityBasedQuantities[eq._id] || eq.quantity || 1) : null;
+                return (
+                  <div key={eq._id} className="selected-equipment-item">
+                    <span>
+                      <strong>{eq.type || '—'}</strong> 
+                      {isQuantityBased && selectedQuantity ? (
+                        <span style={{ color: 'var(--primary)', fontWeight: 'bold', marginLeft: '8px' }}>
+                          (Кількість: {selectedQuantity} шт.)
+                        </span>
+                      ) : (
+                        <span> (Серійний номер: {eq.serialNumber || '—'})</span>
+                      )}
+                    </span>
+                    <span>Склад: {eq.currentWarehouseName || eq.currentWarehouse || '—'}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

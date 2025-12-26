@@ -4361,6 +4361,170 @@ app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
   }
 });
 
+// Переміщення обладнання без серійного номера за кількістю (quantity-based)
+app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { equipmentId, quantity, fromWarehouse, fromWarehouseName, toWarehouse, toWarehouseName, reason, notes, attachedFiles } = req.body;
+    const user = await User.findOne({ login: req.user.login });
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    if (!equipmentId || !quantity || quantity < 1) {
+      return res.status(400).json({ error: 'equipmentId та quantity обов\'язкові' });
+    }
+    
+    if (!fromWarehouse || !toWarehouse) {
+      return res.status(400).json({ error: 'fromWarehouse та toWarehouse обов\'язкові' });
+    }
+    
+    // Знаходимо обладнання
+    const equipment = await Equipment.findById(equipmentId);
+    
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+    
+    // Перевірка, що це обладнання без серійного номера
+    if (equipment.serialNumber && equipment.serialNumber.trim() !== '') {
+      return res.status(400).json({ error: 'Це endpoint тільки для обладнання без серійного номера' });
+    }
+    
+    // Перевірка кількості на складі
+    const availableQuantity = equipment.quantity || 1;
+    if (availableQuantity < quantity) {
+      return res.status(400).json({ 
+        error: `На складі доступно тільки ${availableQuantity} одиниць, а ви намагаєтесь перемістити ${quantity}`,
+        availableQuantity: availableQuantity,
+        requestedQuantity: quantity
+      });
+    }
+    
+    // Перевірка складу
+    if (equipment.currentWarehouse !== fromWarehouse) {
+      return res.status(400).json({ 
+        error: `Обладнання знаходиться на іншому складі: ${equipment.currentWarehouseName || equipment.currentWarehouse}` 
+      });
+    }
+    
+    // Якщо переміщуємо всю кількість - просто оновлюємо склад
+    if (quantity >= availableQuantity) {
+      const movement = {
+        fromWarehouse: fromWarehouse,
+        toWarehouse: toWarehouse,
+        fromWarehouseName: fromWarehouseName || equipment.currentWarehouseName,
+        toWarehouseName: toWarehouseName,
+        date: new Date(),
+        movedBy: user._id.toString(),
+        movedByName: user.name || user.login,
+        reason: reason || '',
+        notes: notes || '',
+        attachedFiles: attachedFiles || []
+      };
+      
+      if (!equipment.movementHistory) {
+        equipment.movementHistory = [];
+      }
+      if (!Array.isArray(equipment.movementHistory)) {
+        equipment.movementHistory = [];
+      }
+      
+      equipment.movementHistory.push(movement);
+      equipment.currentWarehouse = toWarehouse;
+      equipment.currentWarehouseName = toWarehouseName;
+      equipment.status = 'in_transit';
+      equipment.lastModified = new Date();
+      
+      await equipment.save();
+      
+      // Логування
+      try {
+        await EventLog.create({
+          userId: user._id.toString(),
+          userName: user.name || user.login,
+          userRole: user.role,
+          action: 'update',
+          entityType: 'equipment',
+          entityId: equipment._id.toString(),
+          description: `Переміщено ${quantity} одиниць обладнання ${equipment.type} (всього: ${availableQuantity}) з ${fromWarehouseName || equipment.currentWarehouseName} на ${toWarehouseName}`,
+          details: { equipmentId, quantity, availableQuantity, movement }
+        });
+      } catch (logErr) {
+        console.error('Помилка логування:', logErr);
+      }
+      
+      logPerformance('POST /api/equipment/quantity/move', startTime);
+      return res.json({ equipment, movedQuantity: quantity, remainingQuantity: 0 });
+    } else {
+      // Якщо переміщуємо частину - зменшуємо кількість на поточному складі
+      const movement = {
+        fromWarehouse: fromWarehouse,
+        toWarehouse: toWarehouse,
+        fromWarehouseName: fromWarehouseName || equipment.currentWarehouseName,
+        toWarehouseName: toWarehouseName,
+        date: new Date(),
+        movedBy: user._id.toString(),
+        movedByName: user.name || user.login,
+        reason: reason || '',
+        notes: notes || '',
+        attachedFiles: attachedFiles || []
+      };
+      
+      if (!equipment.movementHistory) {
+        equipment.movementHistory = [];
+      }
+      if (!Array.isArray(equipment.movementHistory)) {
+        equipment.movementHistory = [];
+      }
+      
+      equipment.movementHistory.push(movement);
+      equipment.quantity = availableQuantity - quantity;
+      equipment.lastModified = new Date();
+      
+      await equipment.save();
+      
+      // Створюємо новий запис на складі призначення
+      const newEquipment = await Equipment.create({
+        ...equipment.toObject(),
+        _id: undefined, // Створюємо новий ID
+        quantity: quantity,
+        currentWarehouse: toWarehouse,
+        currentWarehouseName: toWarehouseName,
+        status: 'in_transit',
+        movementHistory: [movement],
+        addedBy: user._id.toString(),
+        addedByName: user.name || user.login,
+        addedAt: new Date()
+      });
+      
+      // Логування
+      try {
+        await EventLog.create({
+          userId: user._id.toString(),
+          userName: user.name || user.login,
+          userRole: user.role,
+          action: 'update',
+          entityType: 'equipment',
+          entityId: equipment._id.toString(),
+          description: `Переміщено ${quantity} одиниць обладнання ${equipment.type} з ${fromWarehouseName || equipment.currentWarehouseName} на ${toWarehouseName} (залишилось: ${equipment.quantity})`,
+          details: { equipmentId, quantity, availableQuantity, newEquipmentId: newEquipment._id.toString(), movement }
+        });
+      } catch (logErr) {
+        console.error('Помилка логування:', logErr);
+      }
+      
+      logPerformance('POST /api/equipment/quantity/move', startTime);
+      return res.json({ equipment, newEquipment, movedQuantity: quantity, remainingQuantity: equipment.quantity });
+    }
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/quantity/move:', error);
+    logPerformance('POST /api/equipment/quantity/move', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Масове відвантаження обладнання (для партій) - ПОВИННО БУТИ ПЕРЕД /api/equipment/:id/ship
 app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
   const startTime = Date.now();
@@ -4452,6 +4616,143 @@ app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
     res.json({ batchId, shippedCount: shippedItems.length, items: shippedItems });
   } catch (error) {
     console.error('[ERROR] POST /api/equipment/batch/ship:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Відвантаження обладнання без серійного номера за кількістю (quantity-based)
+app.post('/api/equipment/quantity/ship', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { equipmentId, quantity, fromWarehouse, shippedTo, orderNumber, invoiceNumber, clientEdrpou, clientAddress, invoiceRecipientDetails, totalPrice, notes, attachedFiles } = req.body;
+    const user = await User.findOne({ login: req.user.login });
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    if (!equipmentId || !quantity || quantity < 1) {
+      return res.status(400).json({ error: 'equipmentId та quantity обов\'язкові' });
+    }
+    
+    if (!fromWarehouse) {
+      return res.status(400).json({ error: 'fromWarehouse обов\'язковий' });
+    }
+    
+    // Знаходимо обладнання
+    const equipment = await Equipment.findById(equipmentId);
+    
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+    
+    // Перевірка, що це обладнання без серійного номера
+    if (equipment.serialNumber && equipment.serialNumber.trim() !== '') {
+      return res.status(400).json({ error: 'Це endpoint тільки для обладнання без серійного номера' });
+    }
+    
+    // Перевірка кількості на складі
+    const availableQuantity = equipment.quantity || 1;
+    if (availableQuantity < quantity) {
+      return res.status(400).json({ 
+        error: `На складі доступно тільки ${availableQuantity} одиниць, а ви намагаєтесь відвантажити ${quantity}`,
+        availableQuantity: availableQuantity,
+        requestedQuantity: quantity
+      });
+    }
+    
+    // Перевірка складу
+    if (equipment.currentWarehouse !== fromWarehouse) {
+      return res.status(400).json({ 
+        error: `Обладнання знаходиться на іншому складі: ${equipment.currentWarehouseName || equipment.currentWarehouse}` 
+      });
+    }
+    
+    const shipment = {
+      shippedTo: shippedTo,
+      shippedDate: new Date(),
+      shippedBy: user._id.toString(),
+      shippedByName: user.name || user.login,
+      orderNumber: orderNumber || '',
+      invoiceNumber: invoiceNumber || '',
+      clientEdrpou: clientEdrpou || '',
+      clientAddress: clientAddress || '',
+      invoiceRecipientDetails: invoiceRecipientDetails || '',
+      totalPrice: totalPrice || null,
+      notes: notes || '',
+      attachedFiles: attachedFiles || []
+    };
+    
+    // Якщо відвантажуємо всю кількість - просто оновлюємо статус
+    if (quantity >= availableQuantity) {
+      if (!equipment.shipmentHistory) {
+        equipment.shipmentHistory = [];
+      }
+      if (!Array.isArray(equipment.shipmentHistory)) {
+        equipment.shipmentHistory = [];
+      }
+      
+      equipment.shipmentHistory.push(shipment);
+      equipment.status = 'shipped';
+      equipment.lastModified = new Date();
+      
+      await equipment.save();
+      
+      // Логування
+      try {
+        await EventLog.create({
+          userId: user._id.toString(),
+          userName: user.name || user.login,
+          userRole: user.role,
+          action: 'update',
+          entityType: 'equipment',
+          entityId: equipment._id.toString(),
+          description: `Відвантажено ${quantity} одиниць обладнання ${equipment.type} (всього: ${availableQuantity}) замовнику ${shippedTo}`,
+          details: { equipmentId, quantity, availableQuantity, shipment }
+        });
+      } catch (logErr) {
+        console.error('Помилка логування:', logErr);
+      }
+      
+      logPerformance('POST /api/equipment/quantity/ship', startTime);
+      return res.json({ equipment, shippedQuantity: quantity, remainingQuantity: 0 });
+    } else {
+      // Якщо відвантажуємо частину - зменшуємо кількість
+      if (!equipment.shipmentHistory) {
+        equipment.shipmentHistory = [];
+      }
+      if (!Array.isArray(equipment.shipmentHistory)) {
+        equipment.shipmentHistory = [];
+      }
+      
+      equipment.shipmentHistory.push(shipment);
+      equipment.quantity = availableQuantity - quantity;
+      equipment.lastModified = new Date();
+      
+      await equipment.save();
+      
+      // Логування
+      try {
+        await EventLog.create({
+          userId: user._id.toString(),
+          userName: user.name || user.login,
+          userRole: user.role,
+          action: 'update',
+          entityType: 'equipment',
+          entityId: equipment._id.toString(),
+          description: `Відвантажено ${quantity} одиниць обладнання ${equipment.type} замовнику ${shippedTo} (залишилось: ${equipment.quantity})`,
+          details: { equipmentId, quantity, availableQuantity, shipment }
+        });
+      } catch (logErr) {
+        console.error('Помилка логування:', logErr);
+      }
+      
+      logPerformance('POST /api/equipment/quantity/ship', startTime);
+      return res.json({ equipment, shippedQuantity: quantity, remainingQuantity: equipment.quantity });
+    }
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/quantity/ship:', error);
+    logPerformance('POST /api/equipment/quantity/ship', startTime);
     res.status(500).json({ error: error.message });
   }
 });
