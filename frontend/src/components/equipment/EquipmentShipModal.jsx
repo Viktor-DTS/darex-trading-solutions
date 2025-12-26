@@ -522,7 +522,6 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
                     </>
                   );
                 })()}
-              </div>
                 {error && <div className="error-message">{error}</div>}
               </div>
               <div className="modal-actions">
