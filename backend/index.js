@@ -399,7 +399,7 @@ const equipmentSchema = new mongoose.Schema({
   region: String,                    // Регіон
   status: {                          // Статус
     type: String,
-    enum: ['in_stock', 'reserved', 'shipped', 'in_transit', 'deleted'],
+    enum: ['in_stock', 'reserved', 'shipped', 'in_transit', 'deleted', 'written_off'],
     default: 'in_stock'
   },
   
@@ -453,6 +453,23 @@ const equipmentSchema = new mongoose.Schema({
     reason: String
   }],
   isDeleted: { type: Boolean, default: false },
+  
+  // Історія списань
+  writeOffHistory: [{
+    writtenOffAt: Date,
+    writtenOffBy: String,
+    writtenOffByName: String,
+    quantity: Number,
+    reason: String,
+    notes: String,
+    attachedFiles: [{
+      cloudinaryUrl: String,
+      cloudinaryId: String,
+      originalName: String,
+      mimetype: String,
+      size: Number
+    }]
+  }],
   
   // Прикріплені файли (документи, фото при додаванні)
   attachedFiles: [{
@@ -4249,6 +4266,173 @@ app.delete('/api/equipment/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('[ERROR] DELETE /api/equipment/:id:', error);
     logPerformance('DELETE /api/equipment/:id', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Списання обладнання без серійного номера за кількістю (quantity-based)
+app.post('/api/equipment/quantity/write-off', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { equipmentId, quantity, reason, notes, attachedFiles } = req.body;
+    const user = await User.findOne({ login: req.user.login });
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    if (!equipmentId || !quantity || quantity < 1) {
+      return res.status(400).json({ error: 'equipmentId та quantity обов\'язкові' });
+    }
+    
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: 'Причина списання обов\'язкова' });
+    }
+    
+    // Знаходимо обладнання
+    const equipment = await Equipment.findById(equipmentId);
+    
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+    
+    // Перевірка, що це обладнання без серійного номера
+    if (equipment.serialNumber && equipment.serialNumber.trim() !== '') {
+      return res.status(400).json({ error: 'Це endpoint тільки для обладнання без серійного номера' });
+    }
+    
+    // Перевірка кількості на складі
+    const availableQuantity = equipment.quantity || 1;
+    if (availableQuantity < quantity) {
+      return res.status(400).json({ 
+        error: `На складі доступно тільки ${availableQuantity} одиниць, а ви намагаєтесь списати ${quantity}`,
+        availableQuantity: availableQuantity,
+        requestedQuantity: quantity
+      });
+    }
+    
+    // Створюємо запис списання
+    const writeOff = {
+      writtenOffAt: new Date(),
+      writtenOffBy: user._id.toString(),
+      writtenOffByName: user.name || user.login,
+      quantity: quantity,
+      reason: reason.trim(),
+      notes: notes || '',
+      attachedFiles: attachedFiles || []
+    };
+    
+    if (!equipment.writeOffHistory) {
+      equipment.writeOffHistory = [];
+    }
+    if (!Array.isArray(equipment.writeOffHistory)) {
+      equipment.writeOffHistory = [];
+    }
+    equipment.writeOffHistory.push(writeOff);
+    
+    // Якщо списуємо всю кількість - змінюємо статус
+    if (quantity >= availableQuantity) {
+      equipment.quantity = 0;
+      equipment.status = 'written_off';
+    } else {
+      // Якщо списуємо частину - зменшуємо кількість
+      equipment.quantity = availableQuantity - quantity;
+    }
+    
+    equipment.lastModified = new Date();
+    await equipment.save();
+    
+    // Логування
+    try {
+      await EventLog.create({
+        userId: user._id.toString(),
+        userName: user.name || user.login,
+        userRole: user.role,
+        action: 'update',
+        entityType: 'equipment',
+        entityId: equipment._id.toString(),
+        description: `Списано ${quantity} одиниць обладнання ${equipment.type}${quantity >= availableQuantity ? ' (всього)' : ` (залишилось: ${equipment.quantity})`}. Причина: ${reason.trim()}`,
+        details: { equipmentId, quantity, availableQuantity, writeOff }
+      });
+    } catch (logErr) {
+      console.error('Помилка логування:', logErr);
+    }
+    
+    logPerformance('POST /api/equipment/quantity/write-off', startTime);
+    return res.json({ equipment, writtenOffQuantity: quantity, remainingQuantity: equipment.quantity });
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/quantity/write-off:', error);
+    logPerformance('POST /api/equipment/quantity/write-off', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Списання одиничного обладнання (з серійним номером)
+app.post('/api/equipment/:id/write-off', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { reason, notes, attachedFiles } = req.body;
+    const user = await User.findOne({ login: req.user.login });
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: 'Причина списання обов\'язкова' });
+    }
+    
+    const equipment = await Equipment.findById(req.params.id);
+    
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+    
+    // Створюємо запис списання
+    const writeOff = {
+      writtenOffAt: new Date(),
+      writtenOffBy: user._id.toString(),
+      writtenOffByName: user.name || user.login,
+      quantity: 1,
+      reason: reason.trim(),
+      notes: notes || '',
+      attachedFiles: attachedFiles || []
+    };
+    
+    if (!equipment.writeOffHistory) {
+      equipment.writeOffHistory = [];
+    }
+    if (!Array.isArray(equipment.writeOffHistory)) {
+      equipment.writeOffHistory = [];
+    }
+    equipment.writeOffHistory.push(writeOff);
+    
+    equipment.status = 'written_off';
+    equipment.lastModified = new Date();
+    
+    await equipment.save();
+    
+    // Логування
+    try {
+      await EventLog.create({
+        userId: user._id.toString(),
+        userName: user.name || user.login,
+        userRole: user.role,
+        action: 'update',
+        entityType: 'equipment',
+        entityId: equipment._id.toString(),
+        description: `Списано обладнання ${equipment.type}${equipment.serialNumber ? ` (№${equipment.serialNumber})` : ''}. Причина: ${reason.trim()}`,
+        details: { equipmentId: equipment._id.toString(), writeOff }
+      });
+    } catch (logErr) {
+      console.error('Помилка логування:', logErr);
+    }
+    
+    logPerformance('POST /api/equipment/:id/write-off', startTime);
+    res.json({ equipment, writtenOffQuantity: 1 });
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/:id/write-off:', error);
+    logPerformance('POST /api/equipment/:id/write-off', startTime);
     res.status(500).json({ error: error.message });
   }
 });
