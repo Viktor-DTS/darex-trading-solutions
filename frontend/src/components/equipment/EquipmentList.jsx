@@ -13,6 +13,7 @@ const ALL_COLUMNS = [
   { key: 'status', label: 'Статус', width: 120 },
   { key: 'manufacturer', label: 'Виробник', width: 150 },
   { key: 'type', label: 'Тип обладнання', width: 180 },
+  { key: 'quantity', label: 'Кількість', width: 100 },
   { key: 'serialNumber', label: 'Серійний номер', width: 150 },
   { key: 'currentWarehouse', label: 'Склад', width: 150 },
   { key: 'standbyPower', label: 'Резервна потужність', width: 150 },
@@ -526,6 +527,15 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
                       </span>
                     ) : (
                       formatValue(item.type, 'type')
+                    )}
+                  </td>
+                  <td>
+                    {item.quantity && item.quantity > 1 ? (
+                      <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
+                        {item.quantity} шт.
+                      </span>
+                    ) : (
+                      '1 шт.'
                     )}
                   </td>
                   <td>
