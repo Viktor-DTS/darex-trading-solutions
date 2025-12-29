@@ -765,10 +765,6 @@ export default function ReportBuilder({ user }) {
               <div class="stat-value">${filteredData.length}</div>
               <div class="stat-label">Записів</div>
             </div>
-            <div class="stat">
-              <div class="stat-value">${grandTotals.serviceTotal?.toLocaleString('uk-UA') || 0} ₴</div>
-              <div class="stat-label">Загальна сума</div>
-            </div>
           </div>
         </div>
         <table>
