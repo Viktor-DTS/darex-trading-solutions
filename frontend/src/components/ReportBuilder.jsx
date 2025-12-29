@@ -487,6 +487,25 @@ export default function ReportBuilder({ user }) {
     const processed = filtered.map(task => {
       const processedTask = { ...task };
       
+      // ДОДАТКОВА ПЕРЕВІРКА: якщо contactPhone вже заповнено, але це ЄДРПОУ - очищаємо
+      if (processedTask.contactPhone) {
+        const phoneDigits = String(processedTask.contactPhone).replace(/\D/g, '');
+        const edrpouDigits = processedTask.edrpou ? String(processedTask.edrpou).replace(/\D/g, '') : '';
+        
+        // Якщо це 8 цифр і співпадає з ЄДРПОУ - очищаємо
+        if (phoneDigits.length === 8 && phoneDigits === edrpouDigits) {
+          processedTask.contactPhone = '';
+        }
+        // Або якщо це 8 цифр без префіксу 0 або 38 - це скоріше за все ЄДРПОУ
+        else if (phoneDigits.length === 8 && !phoneDigits.startsWith('0') && !phoneDigits.startsWith('38')) {
+          // Перевіряємо, чи не починається з +38 або 0 в оригінальному форматі
+          const originalPhone = String(processedTask.contactPhone).trim();
+          if (!originalPhone.match(/^\+?38/) && !originalPhone.match(/^0\d/)) {
+            processedTask.contactPhone = ''; // Це ЄДРПОУ, очищаємо
+          }
+        }
+      }
+      
       // Перевіряємо чи потрібно витягувати контактні дані
       const needsContactPerson = !processedTask.contactPerson || processedTask.contactPerson.trim() === '';
       const needsContactPhone = !processedTask.contactPhone || processedTask.contactPhone.trim() === '';
