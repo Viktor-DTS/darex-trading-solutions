@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import ExcelJS from 'exceljs';
 import API_BASE_URL from '../config.js';
 import './ReportBuilder.css';
 
@@ -807,21 +808,124 @@ export default function ReportBuilder({ user }) {
     `;
   };
 
-  // Експорт в CSV
-  const exportToCSV = () => {
-    const selectedFieldsData = getOrderedFields();
-    const headers = ['№', ...selectedFieldsData.map(f => f.label)].join(';');
-    
-    const rows = filteredData.map((task, i) => 
-      [i + 1, ...selectedFieldsData.map(f => formatValue(task[f.key], f.type))].join(';')
-    );
-    
-    const csv = [headers, ...rows].join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `report_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
+  // Експорт в Excel (XLSX)
+  const exportToCSV = async () => {
+    try {
+      const selectedFieldsData = getOrderedFields();
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Звіт');
+
+      // Визначаємо заголовки
+      const headers = ['№', ...selectedFieldsData.map(f => f.label)];
+      
+      // Додаємо заголовки
+      worksheet.addRow(headers);
+      
+      // Стилізація заголовків
+      const headerRow = worksheet.getRow(1);
+      headerRow.font = { bold: true, size: 12 };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF4472C4' }
+      };
+      headerRow.font = { ...headerRow.font, color: { argb: 'FFFFFFFF' } };
+      headerRow.alignment = { 
+        vertical: 'middle', 
+        horizontal: 'center',
+        wrapText: true 
+      };
+      headerRow.height = 25;
+
+      // Додаємо дані з групуванням (якщо є)
+      if (groupBy && groupedData.length > 0 && groupedData[0] && groupedData[0].items && Array.isArray(groupedData[0].items)) {
+        // Групування є
+        let rowIndex = 2;
+        groupedData.forEach((group, groupIndex) => {
+          // Додаємо заголовок групи
+          const groupHeaderRow = worksheet.addRow([]);
+          const groupLabel = `${AVAILABLE_FIELDS.find(f => f.key === groupBy)?.label || groupBy}: ${group.groupName} (${group.items.length} записів)`;
+          groupHeaderRow.getCell(1).value = groupLabel;
+          groupHeaderRow.getCell(1).font = { bold: true, size: 11 };
+          groupHeaderRow.getCell(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFE699' }
+          };
+          groupHeaderRow.getCell(1).alignment = { vertical: 'middle', wrapText: true };
+          // Об'єднуємо комірки для заголовка групи
+          worksheet.mergeCells(rowIndex, 1, rowIndex, headers.length);
+          rowIndex++;
+
+          // Додаємо дані групи
+          group.items.forEach((task, itemIndex) => {
+            const row = worksheet.addRow([
+              `${groupIndex + 1}.${itemIndex + 1}`,
+              ...selectedFieldsData.map(f => formatValue(task[f.key], f.type))
+            ]);
+            
+            // Налаштування переносу тексту для всіх комірок
+            row.eachCell({ includeEmpty: false }, (cell) => {
+              cell.alignment = { 
+                vertical: 'middle', 
+                horizontal: 'left',
+                wrapText: true 
+              };
+            });
+            rowIndex++;
+          });
+        });
+      } else {
+        // Групування немає - просто додаємо дані
+        filteredData.forEach((task, i) => {
+          const row = worksheet.addRow([
+            i + 1,
+            ...selectedFieldsData.map(f => formatValue(task[f.key], f.type))
+          ]);
+          
+          // Налаштування переносу тексту для всіх комірок
+          row.eachCell({ includeEmpty: false }, (cell) => {
+            cell.alignment = { 
+              vertical: 'middle', 
+              horizontal: 'left',
+              wrapText: true 
+            };
+          });
+        });
+      }
+
+      // Автоматичний підбір ширини колонок
+      worksheet.columns.forEach((column, index) => {
+        let maxLength = 0;
+        column.eachCell({ includeEmpty: false }, (cell) => {
+          const cellValue = cell.value ? String(cell.value) : '';
+          const cellLength = cellValue.length;
+          if (cellLength > maxLength) {
+            maxLength = cellLength;
+          }
+        });
+        // Встановлюємо ширину з невеликим запасом, але не менше 10 і не більше 50
+        column.width = Math.min(Math.max(maxLength + 2, 10), 50);
+      });
+
+      // Заморожуємо перший рядок
+      worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+      // Генеруємо файл
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `report_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Помилка експорту:', error);
+      alert('Помилка при експорті звіту. Спробуйте ще раз.');
+    }
   };
 
   // Збереження звіту
