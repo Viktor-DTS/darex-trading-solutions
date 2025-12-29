@@ -684,7 +684,7 @@ export default function ReportBuilder({ user }) {
               <tr class="group-header">
                 <td colspan="${selectedFields.length + 1}">
                   📁 ${AVAILABLE_FIELDS.find(f => f.key === groupBy)?.label}: ${group.groupName} 
-                  (${group.items.length} записів, сума: ${(group.totals.serviceTotal || 0).toLocaleString('uk-UA')} ₴)
+                  (${group.items.length} записів)
                 </td>
               </tr>
               ${group.items.map((task, ti) => `
