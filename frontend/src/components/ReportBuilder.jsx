@@ -127,7 +127,7 @@ const AVAILABLE_FIELDS = [
 ];
 
 // Функція для витягування контактної особи та телефону з адреси
-const extractContactFromAddress = (address) => {
+const extractContactFromAddress = (address, taskEdrpou = '') => {
   if (!address || typeof address !== 'string') {
     return { contactPerson: '', contactPhone: '' };
   }
@@ -138,6 +138,17 @@ const extractContactFromAddress = (address) => {
 
   // Функція для перевірки чи число є телефоном (а не ЄДРПОУ)
   const isValidPhone = (phoneStr, contextAddress) => {
+    // Видаляємо всі нецифрові символи для перевірки
+    const digitsOnly = phoneStr.replace(/\D/g, '');
+    
+    // Перевірка: чи це число співпадає з ЄДРПОУ заявки
+    if (taskEdrpou) {
+      const edrpouDigits = String(taskEdrpou).replace(/\D/g, '');
+      if (digitsOnly === edrpouDigits) {
+        return false; // Це ЄДРПОУ заявки, не телефон
+      }
+    }
+    
     // Перевірка контексту: якщо перед числом є "ЄДРПОУ" або "ЕДРПОУ", це не телефон
     const phoneIndex = contextAddress.indexOf(phoneStr);
     if (phoneIndex > 0) {
@@ -146,9 +157,6 @@ const extractContactFromAddress = (address) => {
         return false; // Це ЄДРПОУ в контексті
       }
     }
-    
-    // Видаляємо всі нецифрові символи для перевірки
-    const digitsOnly = phoneStr.replace(/\D/g, '');
     
     // ЄДРПОУ завжди 8 цифр і не починається з 0
     // Якщо це рівно 8 цифр і не починається з 0 або 38, це скоріше за все ЄДРПОУ
@@ -180,11 +188,16 @@ const extractContactFromAddress = (address) => {
   };
 
   // Патерни для телефонів (українські формати)
+  // ВАЖЛИВО: не включаємо патерни, які можуть знайти 8-значні числа без префіксу
   const phonePatterns = [
     /(\+?38\s?\(?\d{3}\)?\s?\d{3}[\s-]?\d{2}[\s-]?\d{2})/g, // +38 (XXX) XXX XX XX
     /(\+?38\s?\d{10})/g, // +38XXXXXXXXXX
     /(0\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2})/g, // 0XX XXX XX XX
-    /(\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2})/g, // (XXX) XXX XX XX
+    // Видалено патерн /(\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2})/g - він може знайти 8-значні числа
+    // Додаємо більш специфічні патерни для місцевих форматів (9-10 цифр, але не 8)
+    // Використовуємо позитивний lookahead для перевірки, що це не 8 цифр
+    /(\d{9}(?=\D|$))/g, // Рівно 9 цифр
+    /(\d{10}(?=\D|$))/g, // Рівно 10 цифр
   ];
 
   // Знаходимо всі потенційні телефони в адресі
@@ -197,7 +210,18 @@ const extractContactFromAddress = (address) => {
   });
 
   // Фільтруємо тільки валідні телефони (виключаємо ЄДРПОУ)
-  const validPhones = foundPhones.filter(phone => isValidPhone(phone, address));
+  // Також виключаємо числа, які співпадають з ЄДРПОУ заявки
+  const validPhones = foundPhones.filter(phone => {
+    const digitsOnly = phone.replace(/\D/g, '');
+    // Якщо це 8 цифр і співпадає з ЄДРПОУ - пропускаємо
+    if (taskEdrpou && digitsOnly.length === 8) {
+      const edrpouDigits = String(taskEdrpou).replace(/\D/g, '');
+      if (digitsOnly === edrpouDigits) {
+        return false;
+      }
+    }
+    return isValidPhone(phone, address);
+  });
 
   // Беремо перший валідний телефон
   if (validPhones.length > 0) {
@@ -468,7 +492,7 @@ export default function ReportBuilder({ user }) {
       const needsContactPhone = !processedTask.contactPhone || processedTask.contactPhone.trim() === '';
       
       if ((needsContactPerson || needsContactPhone) && processedTask.address) {
-        const extracted = extractContactFromAddress(processedTask.address);
+        const extracted = extractContactFromAddress(processedTask.address, processedTask.edrpou);
         
         if (needsContactPerson && extracted.contactPerson) {
           processedTask.contactPerson = extracted.contactPerson;
