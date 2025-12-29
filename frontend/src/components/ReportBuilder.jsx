@@ -126,6 +126,94 @@ const AVAILABLE_FIELDS = [
   { key: 'invoiceUploadDate', label: 'Дата завантаження рахунку', type: 'date' },
 ];
 
+// Функція для витягування контактної особи та телефону з адреси
+const extractContactFromAddress = (address) => {
+  if (!address || typeof address !== 'string') {
+    return { contactPerson: '', contactPhone: '' };
+  }
+
+  let contactPerson = '';
+  let contactPhone = '';
+  let cleanedAddress = address.trim();
+
+  // Патерни для телефонів (українські формати)
+  const phonePatterns = [
+    /(\+?38\s?\(?\d{3}\)?\s?\d{3}[\s-]?\d{2}[\s-]?\d{2})/g, // +38 (XXX) XXX XX XX
+    /(\+?38\s?\d{10})/g, // +38XXXXXXXXXX
+    /(0\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2})/g, // 0XX XXX XX XX
+    /(\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2})/g, // (XXX) XXX XX XX
+  ];
+
+  // Знаходимо всі телефони в адресі
+  const foundPhones = [];
+  phonePatterns.forEach(pattern => {
+    const matches = cleanedAddress.match(pattern);
+    if (matches) {
+      foundPhones.push(...matches);
+    }
+  });
+
+  // Беремо перший знайдений телефон
+  if (foundPhones.length > 0) {
+    contactPhone = foundPhones[0].trim();
+    // Видаляємо телефон з адреси
+    cleanedAddress = cleanedAddress.replace(contactPhone, '').trim();
+  }
+
+  // Шукаємо контактну особу (зазвичай перед телефоном або після коми/крапки)
+  // Патерни для імен (українські імена зазвичай містять великі літери)
+  const namePatterns = [
+    /([А-ЯІЇЄҐ][а-яіїєґ']+\s+[А-ЯІЇЄҐ][а-яіїєґ']+\s+[А-ЯІЇЄҐ][а-яіїєґ']+)/, // ПІБ
+    /([А-ЯІЇЄҐ][а-яіїєґ']+\s+[А-ЯІЇЄҐ][а-яіїєґ']+)/, // Ім'я Прізвище
+    /(контакт[а-яіїєґ']*\s*:\s*([А-ЯІЇЄҐ][а-яіїєґ'\s]+))/i, // "контакт: Ім'я"
+    /(тел[а-яіїєґ']*\s*:\s*[^,]+,\s*([А-ЯІЇЄҐ][а-яіїєґ'\s]+))/i, // "тел: ..., Ім'я"
+  ];
+
+  for (const pattern of namePatterns) {
+    const match = cleanedAddress.match(pattern);
+    if (match) {
+      // Беремо останню групу (ім'я) або весь збіг
+      contactPerson = (match[match.length - 1] || match[0]).trim();
+      // Видаляємо знайдене ім'я з адреси
+      cleanedAddress = cleanedAddress.replace(match[0], '').trim();
+      break;
+    }
+  }
+
+  // Якщо не знайшли через патерни, спробуємо знайти текст перед телефоном
+  if (!contactPerson && contactPhone) {
+    const phoneIndex = address.indexOf(contactPhone);
+    if (phoneIndex > 0) {
+      const beforePhone = address.substring(0, phoneIndex).trim();
+      // Шукаємо ПІБ перед телефоном (останні 2-3 слова з великої літери)
+      const words = beforePhone.split(/[,\n]/);
+      const nameWords = words
+        .filter(w => w.trim().match(/^[А-ЯІЇЄҐ]/))
+        .slice(-3)
+        .join(' ')
+        .trim();
+      if (nameWords && nameWords.length > 3) {
+        contactPerson = nameWords;
+      }
+    }
+  }
+
+  // Очищаємо контактну особу від зайвих символів
+  if (contactPerson) {
+    contactPerson = contactPerson
+      .replace(/^контакт[а-яіїєґ']*\s*:\s*/i, '')
+      .replace(/тел[а-яіїєґ']*\s*:\s*/i, '')
+      .trim();
+  }
+
+  // Очищаємо телефон від зайвих символів
+  if (contactPhone) {
+    contactPhone = contactPhone.replace(/\s+/g, ' ').trim();
+  }
+
+  return { contactPerson, contactPhone };
+};
+
 // Готові шаблони звітів
 const REPORT_TEMPLATES = [
   {
@@ -174,6 +262,14 @@ const REPORT_TEMPLATES = [
     description: 'Використані матеріали',
     fields: ['requestNumber', 'date', 'equipment', 'oilTotal', 'filterSum', 'transportSum', 'serviceTotal'],
     groupBy: 'equipment',
+    filters: {}
+  },
+  {
+    id: 'equipment-details',
+    name: '📋 Звіт по обладнанню та контактах',
+    description: 'Детальна інформація про заявки з контактними даними',
+    fields: ['requestNumber', 'client', 'edrpou', 'address', 'equipment', 'equipmentSerial', 'contactPerson', 'contactPhone'],
+    groupBy: null,
     filters: {}
   }
 ];
@@ -257,9 +353,9 @@ export default function ReportBuilder({ user }) {
     }
   };
 
-  // Фільтрація даних
+  // Фільтрація та обробка даних (з витягуванням контактів з адреси)
   const filteredData = useMemo(() => {
-    return tasks.filter(task => {
+    const filtered = tasks.filter(task => {
       // Фільтр по датах виконання
       if (filters.dateFrom && task.date && task.date < filters.dateFrom) return false;
       if (filters.dateTo && task.date && task.date > filters.dateTo) return false;
@@ -315,6 +411,29 @@ export default function ReportBuilder({ user }) {
       }
       
       return true;
+    });
+
+    // Обробка даних: витягування контактів з адреси, якщо поля пусті
+    return filtered.map(task => {
+      const processedTask = { ...task };
+      
+      // Перевіряємо чи потрібно витягувати контактні дані
+      const needsContactPerson = !processedTask.contactPerson || processedTask.contactPerson.trim() === '';
+      const needsContactPhone = !processedTask.contactPhone || processedTask.contactPhone.trim() === '';
+      
+      if ((needsContactPerson || needsContactPhone) && processedTask.address) {
+        const extracted = extractContactFromAddress(processedTask.address);
+        
+        if (needsContactPerson && extracted.contactPerson) {
+          processedTask.contactPerson = extracted.contactPerson;
+        }
+        
+        if (needsContactPhone && extracted.contactPhone) {
+          processedTask.contactPhone = extracted.contactPhone;
+        }
+      }
+      
+      return processedTask;
     });
   }, [tasks, filters, user]);
 
