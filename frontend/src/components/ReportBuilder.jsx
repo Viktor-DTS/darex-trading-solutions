@@ -136,6 +136,49 @@ const extractContactFromAddress = (address) => {
   let contactPhone = '';
   let cleanedAddress = address.trim();
 
+  // Функція для перевірки чи число є телефоном (а не ЄДРПОУ)
+  const isValidPhone = (phoneStr, contextAddress) => {
+    // Перевірка контексту: якщо перед числом є "ЄДРПОУ" або "ЕДРПОУ", це не телефон
+    const phoneIndex = contextAddress.indexOf(phoneStr);
+    if (phoneIndex > 0) {
+      const beforePhone = contextAddress.substring(Math.max(0, phoneIndex - 50), phoneIndex).toLowerCase();
+      if (beforePhone.match(/[єе]дрпоу|edrpou/i)) {
+        return false; // Це ЄДРПОУ в контексті
+      }
+    }
+    
+    // Видаляємо всі нецифрові символи для перевірки
+    const digitsOnly = phoneStr.replace(/\D/g, '');
+    
+    // ЄДРПОУ завжди 8 цифр і не починається з 0
+    // Якщо це рівно 8 цифр і не починається з 0 або 38, це скоріше за все ЄДРПОУ
+    if (digitsOnly.length === 8 && !digitsOnly.startsWith('0') && !digitsOnly.startsWith('38')) {
+      return false; // Це ЄДРПОУ, не телефон
+    }
+    
+    // Телефон повинен мати:
+    // - Починатися з +38 або 0 (для українських номерів)
+    // - Або мати 9-10 цифр (місцеві формати)
+    // - Але не бути 8-значним числом без префіксу
+    
+    // Перевірка на український формат (+38 або 0 на початку)
+    if (phoneStr.match(/^\+?38/) || phoneStr.match(/^0\d/)) {
+      return true;
+    }
+    
+    // Перевірка на місцевий формат (9-10 цифр, але не 8)
+    if (digitsOnly.length >= 9 && digitsOnly.length <= 10) {
+      return true;
+    }
+    
+    // Якщо це 8 цифр без префіксу - це не телефон
+    if (digitsOnly.length === 8) {
+      return false;
+    }
+    
+    return true;
+  };
+
   // Патерни для телефонів (українські формати)
   const phonePatterns = [
     /(\+?38\s?\(?\d{3}\)?\s?\d{3}[\s-]?\d{2}[\s-]?\d{2})/g, // +38 (XXX) XXX XX XX
@@ -144,7 +187,7 @@ const extractContactFromAddress = (address) => {
     /(\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2})/g, // (XXX) XXX XX XX
   ];
 
-  // Знаходимо всі телефони в адресі
+  // Знаходимо всі потенційні телефони в адресі
   const foundPhones = [];
   phonePatterns.forEach(pattern => {
     const matches = cleanedAddress.match(pattern);
@@ -153,9 +196,12 @@ const extractContactFromAddress = (address) => {
     }
   });
 
-  // Беремо перший знайдений телефон
-  if (foundPhones.length > 0) {
-    contactPhone = foundPhones[0].trim();
+  // Фільтруємо тільки валідні телефони (виключаємо ЄДРПОУ)
+  const validPhones = foundPhones.filter(phone => isValidPhone(phone, address));
+
+  // Беремо перший валідний телефон
+  if (validPhones.length > 0) {
+    contactPhone = validPhones[0].trim();
     // Видаляємо телефон з адреси
     cleanedAddress = cleanedAddress.replace(contactPhone, '').trim();
   }
