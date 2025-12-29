@@ -269,8 +269,8 @@ const REPORT_TEMPLATES = [
     name: '📋 Звіт по обладнанню та контактах',
     description: 'Детальна інформація про заявки з контактними даними',
     fields: ['requestNumber', 'client', 'edrpou', 'address', 'equipment', 'equipmentSerial', 'contactPerson', 'contactPhone'],
-    groupBy: null,
-    filters: {}
+    groupBy: 'contactPhone',
+    filters: { requireContactPhone: true }
   }
 ];
 
@@ -414,7 +414,7 @@ export default function ReportBuilder({ user }) {
     });
 
     // Обробка даних: витягування контактів з адреси, якщо поля пусті
-    return filtered.map(task => {
+    const processed = filtered.map(task => {
       const processedTask = { ...task };
       
       // Перевіряємо чи потрібно витягувати контактні дані
@@ -435,7 +435,17 @@ export default function ReportBuilder({ user }) {
       
       return processedTask;
     });
-  }, [tasks, filters, user]);
+
+    // Фільтрація заявок без телефону, якщо групуємо по телефону або це потрібно для шаблону
+    if (filters.requireContactPhone || groupBy === 'contactPhone') {
+      return processed.filter(task => {
+        const phone = task.contactPhone;
+        return phone && String(phone).trim() !== '';
+      });
+    }
+
+    return processed;
+  }, [tasks, filters, user, groupBy]);
 
   // Розрахунок підсумків (повинно бути перед groupedData)
   const calculateTotals = useCallback((items) => {
