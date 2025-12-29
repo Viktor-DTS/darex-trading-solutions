@@ -446,6 +446,16 @@ export default function ReportBuilder({ user }) {
       // Фільтр по замовнику
       if (filters.client && task.client && !task.client.toLowerCase().includes(filters.client.toLowerCase())) return false;
       
+      // Виключення внутрішніх замовників (Дарекс Енерго та ДТС) - тільки для звіту по обладнанню та контактах
+      // Перевіряємо чи використовується шаблон equipment-details (по groupBy === 'contactPhone')
+      if (groupBy === 'contactPhone' && task.client) {
+        const clientLower = task.client.toLowerCase();
+        if (clientLower.includes('дарекс енерго') || clientLower.includes('дтс') || 
+            clientLower === 'дарекс енерго' || clientLower === 'дтс') {
+          return false;
+        }
+      }
+      
       // Фільтр по інженеру 1
       if (filters.engineer1 && task.engineer1 !== filters.engineer1) return false;
       
