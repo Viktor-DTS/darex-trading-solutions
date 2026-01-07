@@ -43,6 +43,22 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
         materialValueType: equipment.materialValueType || (equipment.isServiceParts ? 'service' : equipment.isElectroInstallParts ? 'electroinstall' : equipment.isInternalEquipment ? 'internal' : '')
       });
       setEquipmentType(equipment.isBatch ? 'batch' : 'single');
+      // Завантажуємо існуючі файли з бази даних
+      if (equipment.attachedFiles && Array.isArray(equipment.attachedFiles) && equipment.attachedFiles.length > 0) {
+        // Перетворюємо файли з бази в формат, який очікує компонент
+        const existingFiles = equipment.attachedFiles.map((file, index) => ({
+          id: file._id || file.cloudinaryId || `existing-${index}`,
+          cloudinaryUrl: file.cloudinaryUrl,
+          cloudinaryId: file.cloudinaryId,
+          originalName: file.originalName,
+          mimetype: file.mimetype,
+          size: file.size,
+          uploadedAt: file.uploadedAt
+        }));
+        setAttachedFiles(existingFiles);
+      } else {
+        setAttachedFiles([]);
+      }
     } else {
       // Ініціалізація для нового обладнання
       setFormData({

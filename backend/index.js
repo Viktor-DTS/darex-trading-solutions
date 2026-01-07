@@ -4188,6 +4188,51 @@ app.put('/api/equipment/:id', authenticateToken, async (req, res) => {
       }
     }
 
+    // Обробка прикріплених файлів
+    if (req.body.attachedFiles !== undefined) {
+      const oldFilesCount = equipment.attachedFiles ? equipment.attachedFiles.length : 0;
+      if (Array.isArray(req.body.attachedFiles)) {
+        equipment.attachedFiles = req.body.attachedFiles.map(file => ({
+          cloudinaryUrl: file.cloudinaryUrl,
+          cloudinaryId: file.cloudinaryId,
+          originalName: file.originalName,
+          mimetype: file.mimetype,
+          size: file.size,
+          uploadedAt: file.uploadedAt || new Date()
+        }));
+        if (oldFilesCount !== equipment.attachedFiles.length) {
+          changes.push(`attachedFiles: ${oldFilesCount} -> ${equipment.attachedFiles.length} файлів`);
+        }
+      }
+    }
+
+    // Обробка notes
+    if (req.body.notes !== undefined) {
+      const oldValue = equipment.notes;
+      equipment.notes = req.body.notes === null || req.body.notes === '' ? undefined : req.body.notes;
+      if (oldValue !== equipment.notes) {
+        changes.push(`notes: оновлено`);
+      }
+    }
+
+    // Обробка batch полів
+    if (req.body.batchName !== undefined) {
+      equipment.batchName = req.body.batchName === null || req.body.batchName === '' ? undefined : req.body.batchName;
+    }
+    if (req.body.batchUnit !== undefined) {
+      equipment.batchUnit = req.body.batchUnit === null || req.body.batchUnit === '' ? undefined : req.body.batchUnit;
+    }
+    if (req.body.batchPriceWithVAT !== undefined) {
+      const priceValue = req.body.batchPriceWithVAT === null || req.body.batchPriceWithVAT === '' ? undefined : req.body.batchPriceWithVAT;
+      equipment.batchPriceWithVAT = priceValue !== undefined && !isNaN(priceValue) ? Number(priceValue) : undefined;
+    }
+    if (req.body.currency !== undefined) {
+      equipment.currency = req.body.currency || 'грн.';
+    }
+    if (req.body.materialValueType !== undefined) {
+      equipment.materialValueType = req.body.materialValueType === null || req.body.materialValueType === '' ? undefined : req.body.materialValueType;
+    }
+
     console.log('[PUT] Зміни:', changes);
 
     equipment.lastModified = new Date();

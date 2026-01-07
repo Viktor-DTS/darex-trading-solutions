@@ -135,6 +135,68 @@ function EquipmentDetailsModal({ equipment, onClose, isPage = false }) {
               </div>
             </div>
           )}
+
+          {equipment.attachedFiles && Array.isArray(equipment.attachedFiles) && equipment.attachedFiles.length > 0 && (
+            <div className="details-section">
+              <h3>Документи та фото ({equipment.attachedFiles.length})</h3>
+              <div className="attached-files-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px', marginTop: '15px' }}>
+                {equipment.attachedFiles.map((file, index) => {
+                  const isImage = file.mimetype && file.mimetype.startsWith('image/');
+                  return (
+                    <div key={file._id || file.cloudinaryId || index} className="file-item" style={{ 
+                      border: '1px solid #444', 
+                      borderRadius: '8px', 
+                      padding: '10px', 
+                      textAlign: 'center',
+                      backgroundColor: '#1a1a1a'
+                    }}>
+                      {isImage ? (
+                        <img 
+                          src={file.cloudinaryUrl} 
+                          alt={file.originalName || 'Фото'} 
+                          style={{ 
+                            width: '100%', 
+                            height: '120px', 
+                            objectFit: 'cover', 
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => window.open(file.cloudinaryUrl, '_blank')}
+                        />
+                      ) : (
+                        <div style={{ 
+                          fontSize: '48px', 
+                          marginBottom: '10px',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => window.open(file.cloudinaryUrl, '_blank')}
+                        >
+                          📄
+                        </div>
+                      )}
+                      <div style={{ 
+                        fontSize: '12px', 
+                        color: '#aaa', 
+                        marginTop: '8px',
+                        wordBreak: 'break-word',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => window.open(file.cloudinaryUrl, '_blank')}
+                      title={file.originalName}
+                      >
+                        {file.originalName || 'Файл'}
+                      </div>
+                      {file.size && (
+                        <div style={{ fontSize: '10px', color: '#888', marginTop: '4px' }}>
+                          {(file.size / 1024).toFixed(2)} KB
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="equipment-details-footer">
