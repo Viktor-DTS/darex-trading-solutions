@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import API_BASE_URL from '../config';
 import EquipmentList from './equipment/EquipmentList';
-import EquipmentEditModal from './equipment/EquipmentEditModal';
+import ReservationModal from './inventory/ReservationModal';
 import './ManagerDashboard.css';
 
 function ManagerDashboard({ user }) {
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showViewModal, setShowViewModal] = useState(false);
+  const [showReservationModal, setShowReservationModal] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const equipmentListRef = useRef(null);
 
@@ -35,65 +35,16 @@ function ManagerDashboard({ user }) {
 
   const handleReserve = (equipment) => {
     setSelectedEquipment(equipment);
-    setShowViewModal(true);
+    setShowReservationModal(true);
   };
 
-  const handleReserveSuccess = async (equipmentId) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/equipment/${equipmentId}/reserve`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        // Оновлюємо список обладнання
-        if (equipmentListRef.current) {
-          equipmentListRef.current.refresh();
-        }
-        // Оновлюємо обране обладнання
-        const updatedEquipment = await response.json();
-        setSelectedEquipment(updatedEquipment);
-      } else {
-        const errorData = await response.json();
-        alert(errorData.error || 'Помилка резервування обладнання');
-      }
-    } catch (error) {
-      console.error('Помилка резервування:', error);
-      alert('Помилка резервування обладнання');
+  const handleReservationSuccess = () => {
+    // Оновлюємо список обладнання після успішного створення резервування
+    if (equipmentListRef.current) {
+      equipmentListRef.current.refresh();
     }
-  };
-
-  const handleCancelReserve = async (equipmentId) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/equipment/${equipmentId}/cancel-reserve`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        // Оновлюємо список обладнання
-        if (equipmentListRef.current) {
-          equipmentListRef.current.refresh();
-        }
-        // Оновлюємо обране обладнання
-        const updatedEquipment = await response.json();
-        setSelectedEquipment(updatedEquipment);
-      } else {
-        const errorData = await response.json();
-        alert(errorData.error || 'Помилка скасування резервування');
-      }
-    } catch (error) {
-      console.error('Помилка скасування резервування:', error);
-      alert('Помилка скасування резервування');
-    }
+    setShowReservationModal(false);
+    setSelectedEquipment(null);
   };
 
   return (
@@ -131,24 +82,18 @@ function ManagerDashboard({ user }) {
         </main>
       </div>
 
-      {/* Модальне вікно для перегляду та резервування */}
-      {showViewModal && selectedEquipment && (
-        <EquipmentEditModal
-          equipment={selectedEquipment}
+      {/* Модальне вікно для створення резервування */}
+      {showReservationModal && selectedEquipment && (
+        <ReservationModal
+          reservation={null}
           warehouses={warehouses}
           user={user}
+          preSelectedEquipment={selectedEquipment}
           onClose={() => {
-            setShowViewModal(false);
+            setShowReservationModal(false);
             setSelectedEquipment(null);
           }}
-          onSuccess={() => {
-            if (equipmentListRef.current) {
-              equipmentListRef.current.refresh();
-            }
-          }}
-          readOnly={true}
-          onReserve={handleReserveSuccess}
-          onCancelReserve={handleCancelReserve}
+          onSuccess={handleReservationSuccess}
         />
       )}
     </div>

@@ -6368,6 +6368,9 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
               console.warn(`[WARNING] Обладнання ${equipment._id} вже зарезервоване`);
             }
             equipment.status = 'reserved';
+            equipment.reservedBy = user._id.toString();
+            equipment.reservedByName = user.name || user.login;
+            equipment.reservedAt = new Date();
             equipment.lastModified = new Date();
             await equipment.save();
           } else {
@@ -6413,6 +6416,9 @@ app.post('/api/reservations/:id/cancel', authenticateToken, async (req, res) => 
           const equipment = await Equipment.findById(item.equipmentId);
           if (equipment && equipment.status === 'reserved') {
             equipment.status = 'in_stock';
+            equipment.reservedBy = undefined;
+            equipment.reservedByName = undefined;
+            equipment.reservedAt = undefined;
             equipment.lastModified = new Date();
             await equipment.save();
           }

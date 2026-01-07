@@ -3,7 +3,7 @@ import API_BASE_URL from '../../config';
 import { getEdrpouList, getClientData } from '../../utils/edrpouAPI';
 import './DocumentModal.css';
 
-function ReservationModal({ reservation, warehouses, user, onClose, onSuccess }) {
+function ReservationModal({ reservation, warehouses, user, onClose, onSuccess, preSelectedEquipment = null }) {
   const [formData, setFormData] = useState({
     reservationDate: new Date().toISOString().split('T')[0],
     clientName: '',
@@ -21,6 +21,7 @@ function ReservationModal({ reservation, warehouses, user, onClose, onSuccess })
   const [equipmentSearch, setEquipmentSearch] = useState('');
   const [selectedWarehouse, setSelectedWarehouse] = useState('');
   const isNew = !reservation;
+  const hasPreSelectedEquipment = !!preSelectedEquipment;
 
   useEffect(() => {
     if (reservation) {
@@ -37,12 +38,25 @@ function ReservationModal({ reservation, warehouses, user, onClose, onSuccess })
         notes: reservation.notes || ''
       });
       setSelectedEquipment(reservation.items || []);
+    } else if (preSelectedEquipment) {
+      // Якщо передано попередньо вибране обладнання, додаємо його до списку
+      const equipmentItem = {
+        equipmentId: preSelectedEquipment._id,
+        type: preSelectedEquipment.type || '',
+        serialNumber: preSelectedEquipment.serialNumber || '',
+        quantity: 1,
+        warehouse: preSelectedEquipment.currentWarehouse || '',
+        warehouseName: preSelectedEquipment.currentWarehouseName || '',
+        batchId: preSelectedEquipment.batchId || '',
+        notes: ''
+      };
+      setSelectedEquipment([equipmentItem]);
     }
-    if (!reservation) {
+    if (!reservation && !preSelectedEquipment) {
       loadAvailableEquipment();
     }
     loadEdrpouList();
-  }, []);
+  }, [preSelectedEquipment]);
 
   useEffect(() => {
     if (!reservation) {
@@ -331,8 +345,8 @@ function ReservationModal({ reservation, warehouses, user, onClose, onSuccess })
               <h3>Обладнання для резервування</h3>
             </div>
 
-            {/* Фільтри для пошуку обладнання - тільки для нових резервувань */}
-            {isNew && (
+            {/* Фільтри для пошуку обладнання - тільки для нових резервувань без попередньо вибраного обладнання */}
+            {isNew && !hasPreSelectedEquipment && (
               <>
                 <div className="form-row" style={{ marginBottom: '15px' }}>
                   <div className="form-group">
@@ -452,7 +466,7 @@ function ReservationModal({ reservation, warehouses, user, onClose, onSuccess })
                         readOnly={!isNew}
                       />
                     </div>
-                    {isNew && (
+                    {isNew && !hasPreSelectedEquipment && (
                       <button
                         type="button"
                         className="btn-remove-item"
