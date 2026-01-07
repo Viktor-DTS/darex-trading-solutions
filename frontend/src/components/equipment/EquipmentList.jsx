@@ -16,6 +16,8 @@ const ALL_COLUMNS = [
   { key: 'quantity', label: 'Кількість', width: 100 },
   { key: 'serialNumber', label: 'Серійний номер', width: 150 },
   { key: 'currentWarehouse', label: 'Склад', width: 150 },
+  { key: 'reservedByName', label: 'Хто зарезервував', width: 180 },
+  { key: 'reservationStatus', label: 'Статус резерва', width: 140 },
   { key: 'standbyPower', label: 'Резервна потужність', width: 150 },
   { key: 'primePower', label: 'Основна потужність', width: 150 },
   { key: 'phase', label: 'Фази', width: 100 },
@@ -27,7 +29,7 @@ const ALL_COLUMNS = [
   { key: 'manufactureDate', label: 'Дата виробництва', width: 150 }
 ];
 
-const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => {
+const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve, showReserveAction = false }, ref) => {
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
@@ -134,6 +136,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
     if (columnKey === 'manufactureDate') return 'date';
     if (columnKey === 'currentWarehouse') return 'select';
     if (columnKey === 'status') return 'select';
+    if (columnKey === 'reservationStatus') return 'select';
     return 'text';
   };
 
@@ -144,6 +147,9 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
     }
     if (columnKey === 'status') {
       return ['', 'На складі', 'В дорозі', 'Зарезервовано', 'Відвантажено'];
+    }
+    if (columnKey === 'reservationStatus') {
+      return ['', 'Вільне', 'Зарезервовано'];
     }
     return [];
   };
@@ -279,6 +285,10 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
           return date.toLocaleDateString('uk-UA');
         }
       } catch (e) {}
+    }
+    
+    if (key === 'reservationStatus') {
+      return value === 'reserved' ? 'Зарезервовано' : 'Вільне';
     }
     
     return String(value);
@@ -496,6 +506,23 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
                 >
                   <td className="actions-cell" onClick={(e) => e.stopPropagation()}>
                     <div className="action-buttons">
+                      {showReserveAction && onReserve && (
+                        <button
+                          className="btn-action btn-reserve"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Якщо це група партії, використовуємо перший елемент з batchItems
+                            if (item.isGrouped && item.batchItems && item.batchItems.length > 0) {
+                              onReserve(item.batchItems[0]);
+                            } else {
+                              onReserve(item);
+                            }
+                          }}
+                          title="Резервувати"
+                        >
+                          🔒 Резервувати
+                        </button>
+                      )}
                       {(user?.role === 'admin' || user?.role === 'administrator') && (
                         <button
                           className="btn-action btn-delete"
@@ -550,6 +577,12 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip }, ref) => 
                     )}
                   </td>
                   <td>{formatValue(item.currentWarehouseName || item.currentWarehouse, 'currentWarehouse')}</td>
+                  <td>{formatValue(item.reservedByName, 'reservedByName')}</td>
+                  <td>
+                    <span className={`status-badge ${item.status === 'reserved' ? 'status-reserved' : 'status-in_stock'}`}>
+                      {formatValue(item.status === 'reserved' ? 'reserved' : 'in_stock', 'reservationStatus')}
+                    </span>
+                  </td>
                   <td>{formatValue(item.standbyPower, 'standbyPower')}</td>
                   <td>{formatValue(item.primePower, 'primePower')}</td>
                   <td>{formatValue(item.phase, 'phases')}</td>

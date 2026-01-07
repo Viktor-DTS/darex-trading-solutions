@@ -6,7 +6,7 @@ import EquipmentQRModal from './EquipmentQRModal';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
 import './EquipmentEditModal.css';
 
-function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess }) {
+function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, readOnly = false, onReserve, onCancelReserve }) {
   const [formData, setFormData] = useState({});
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -245,7 +245,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
     <div className="equipment-edit-modal-overlay" onClick={onClose}>
       <div className="equipment-edit-modal" onClick={(e) => e.stopPropagation()}>
         <div className="equipment-edit-header">
-          <h2>{isNewEquipment ? 'Додати обладнання від постачальників' : 'Редагувати обладнання'}</h2>
+          <h2>{isNewEquipment ? 'Додати обладнання від постачальників' : (readOnly ? 'Перегляд обладнання' : 'Редагувати обладнання')}</h2>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         
@@ -286,15 +286,16 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
               </div>
             )}
 
-            <div className="form-section" style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => setShowScanner(true)}
-                style={{ flex: '1', minWidth: '200px', padding: '12px', fontSize: '16px' }}
-              >
-                📷 Сканувати шильдик
-              </button>
+            {!readOnly && (
+              <div className="form-section" style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setShowScanner(true)}
+                  style={{ flex: '1', minWidth: '200px', padding: '12px', fontSize: '16px' }}
+                >
+                  📷 Сканувати шильдик
+                </button>
               {!isNewEquipment && (
                 <>
                   <button
@@ -315,83 +316,86 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
                   </button>
                 </>
               )}
-            </div>
+              </div>
+            )}
 
-            <div className="form-section">
-              <h3>Тип матеріальних цінностей</h3>
-              {isNewEquipment && (
-                <>
-                  <div className="form-group">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                      <input
-                        type="radio"
-                        name="equipmentType"
-                        value="single"
-                        checked={equipmentType === 'single'}
-                        onChange={(e) => {
-                          setEquipmentType(e.target.value);
-                          // Скидаємо тип матеріальних цінностей при зміні типу обладнання
-                          setFormData(prev => ({ ...prev, materialValueType: '' }));
-                        }}
-                      />
-                      Одиничне обладнання (з серійним номером)
-                    </label>
-                  </div>
-                  <div className="form-group">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                      <input
-                        type="radio"
-                        name="equipmentType"
-                        value="batch"
-                        checked={equipmentType === 'batch'}
-                        onChange={(e) => {
-                          setEquipmentType(e.target.value);
-                          // Скидаємо тип матеріальних цінностей при зміні типу обладнання
-                          setFormData(prev => ({ ...prev, materialValueType: '' }));
-                        }}
-                      />
-                      Партія обладнання (без серійного номера - щитове обладннання для продажу - АВР, ЩР, ЩС, тощо)
-                    </label>
-                  </div>
-                </>
-              )}
-              <div className="form-group" style={{ marginTop: isNewEquipment ? '15px' : '0' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="materialValueType"
-                    value="service"
-                    checked={formData.materialValueType === 'service'}
-                    onChange={(e) => handleMaterialValueTypeChange(e.target.value)}
-                  />
-                  Комплектуючі ЗІП (Сервіс)
-                </label>
+            {!readOnly && (
+              <div className="form-section">
+                <h3>Тип матеріальних цінностей</h3>
+                {isNewEquipment && (
+                  <>
+                    <div className="form-group">
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="equipmentType"
+                          value="single"
+                          checked={equipmentType === 'single'}
+                          onChange={(e) => {
+                            setEquipmentType(e.target.value);
+                            // Скидаємо тип матеріальних цінностей при зміні типу обладнання
+                            setFormData(prev => ({ ...prev, materialValueType: '' }));
+                          }}
+                        />
+                        Одиничне обладнання (з серійним номером)
+                      </label>
+                    </div>
+                    <div className="form-group">
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="equipmentType"
+                          value="batch"
+                          checked={equipmentType === 'batch'}
+                          onChange={(e) => {
+                            setEquipmentType(e.target.value);
+                            // Скидаємо тип матеріальних цінностей при зміні типу обладнання
+                            setFormData(prev => ({ ...prev, materialValueType: '' }));
+                          }}
+                        />
+                        Партія обладнання (без серійного номера - щитове обладннання для продажу - АВР, ЩР, ЩС, тощо)
+                      </label>
+                    </div>
+                  </>
+                )}
+                <div className="form-group" style={{ marginTop: isNewEquipment ? '15px' : '0' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="materialValueType"
+                      value="service"
+                      checked={formData.materialValueType === 'service'}
+                      onChange={(e) => handleMaterialValueTypeChange(e.target.value)}
+                    />
+                    Комплектуючі ЗІП (Сервіс)
+                  </label>
+                </div>
+                <div className="form-group">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="materialValueType"
+                      value="electroinstall"
+                      checked={formData.materialValueType === 'electroinstall'}
+                      onChange={(e) => handleMaterialValueTypeChange(e.target.value)}
+                    />
+                    Комплектуючі для електромонтажних робіт (Елетромонтажний відділ)
+                  </label>
+                </div>
+                <div className="form-group">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="materialValueType"
+                      value="internal"
+                      checked={formData.materialValueType === 'internal'}
+                      onChange={(e) => handleMaterialValueTypeChange(e.target.value)}
+                    />
+                    Обладнання для внутрішніх потреб підприємства
+                  </label>
+                </div>
               </div>
-              <div className="form-group">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="materialValueType"
-                    value="electroinstall"
-                    checked={formData.materialValueType === 'electroinstall'}
-                    onChange={(e) => handleMaterialValueTypeChange(e.target.value)}
-                  />
-                  Комплектуючі для електромонтажних робіт (Елетромонтажний відділ)
-                </label>
-              </div>
-              <div className="form-group">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="materialValueType"
-                    value="internal"
-                    checked={formData.materialValueType === 'internal'}
-                    onChange={(e) => handleMaterialValueTypeChange(e.target.value)}
-                  />
-                  Обладнання для внутрішніх потреб підприємства
-                </label>
-              </div>
-            </div>
+            )}
 
             {!isNewEquipment && equipment?.isBatch && (
               <div className="form-section" style={{ backgroundColor: 'var(--surface-dark)', padding: '15px', borderRadius: '6px', marginBottom: '15px' }}>
@@ -415,6 +419,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
                   name="manufacturer"
                   value={formData.manufacturer}
                   onChange={handleChange}
+                  readOnly={readOnly}
+                  disabled={readOnly}
                 />
               </div>
               <div className="form-group">
@@ -425,6 +431,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
                   value={formData.type}
                   onChange={handleChange}
                   required
+                  readOnly={readOnly}
+                  disabled={readOnly}
                 />
               </div>
               <div className="form-group">
@@ -434,8 +442,9 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
                   name="serialNumber"
                   value={formData.serialNumber}
                   onChange={handleChange}
-                  disabled={(equipmentType === 'batch' && isNewEquipment) || (!isNewEquipment && equipment?.isBatch)}
+                  disabled={(equipmentType === 'batch' && isNewEquipment) || (!isNewEquipment && equipment?.isBatch) || readOnly}
                   required={equipmentType === 'single' && isNewEquipment}
+                  readOnly={readOnly}
                   placeholder={
                     (!isNewEquipment && equipment?.isBatch) 
                       ? 'Не застосовується для партійного обладнання' 
@@ -451,12 +460,14 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
                   <input
                     type="number"
                     name="quantity"
-                    value={formData.quantity || 1}
-                    onChange={handleChange}
-                    min="1"
-                    required
-                    placeholder="Введіть кількість"
-                  />
+                  value={formData.quantity || 1}
+                  onChange={handleChange}
+                  min="1"
+                  required
+                  placeholder="Введіть кількість"
+                  readOnly={readOnly}
+                  disabled={readOnly}
+                />
                 </div>
               )}
               <div className="form-group">
@@ -466,6 +477,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
                   value={formData.currentWarehouse}
                   onChange={handleChange}
                   required
+                  disabled={readOnly}
                 >
                   <option value="">Виберіть склад</option>
                   {warehouses.map(w => (
@@ -483,6 +495,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
                   value={formData.region}
                   onChange={handleChange}
                   placeholder="Введіть регіон"
+                  readOnly={readOnly}
+                  disabled={readOnly}
                 />
               </div>
             </div>
@@ -499,6 +513,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
                   value={formData.batchUnit}
                   onChange={handleChange}
                   required
+                  disabled={readOnly}
                 >
                   <option value="">Виберіть одиницю виміру</option>
                   <option value="шт.">шт.</option>
@@ -519,6 +534,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
                   placeholder="0.00"
                   step="0.01"
                   min="0"
+                  readOnly={readOnly}
+                  disabled={readOnly}
                 />
               </div>
               <div className="form-group">
@@ -632,13 +649,86 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
             </div>
           </div>
 
-          <div className="form-section">
-            <h3>Документи та фото</h3>
-            <EquipmentFileUpload
-              onFilesChange={setAttachedFiles}
-              uploadedFiles={attachedFiles}
-            />
-          </div>
+          {!readOnly && (
+            <div className="form-section">
+              <h3>Документи та фото</h3>
+              <EquipmentFileUpload
+                onFilesChange={setAttachedFiles}
+                uploadedFiles={attachedFiles}
+              />
+            </div>
+          )}
+          {readOnly && equipment?.attachedFiles && equipment.attachedFiles.length > 0 && (
+            <div className="form-section">
+              <h3>Документи та фото ({equipment.attachedFiles.length})</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px', marginTop: '15px' }}>
+                {equipment.attachedFiles.map((file, index) => {
+                  const isImage = file.mimetype && file.mimetype.startsWith('image/');
+                  return (
+                    <div key={file._id || file.cloudinaryId || index} style={{ 
+                      border: '1px solid #444', 
+                      borderRadius: '8px', 
+                      padding: '10px', 
+                      textAlign: 'center',
+                      backgroundColor: '#1a1a1a'
+                    }}>
+                      {isImage ? (
+                        <img 
+                          src={file.cloudinaryUrl} 
+                          alt={file.originalName || 'Фото'} 
+                          style={{ 
+                            width: '100%', 
+                            height: '120px', 
+                            objectFit: 'cover', 
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => window.open(file.cloudinaryUrl, '_blank')}
+                        />
+                      ) : (
+                        <div style={{ 
+                          fontSize: '48px', 
+                          marginBottom: '10px',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => window.open(file.cloudinaryUrl, '_blank')}
+                        >
+                          📄
+                        </div>
+                      )}
+                      <div style={{ 
+                        fontSize: '12px', 
+                        color: '#aaa', 
+                        marginTop: '8px',
+                        wordBreak: 'break-word',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => window.open(file.cloudinaryUrl, '_blank')}
+                      title={file.originalName}
+                      >
+                        {file.originalName || 'Файл'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {equipment && (equipment.reservedByName || equipment.status === 'reserved') && (
+            <div className="form-section" style={{ backgroundColor: 'var(--surface-dark)', padding: '15px', borderRadius: '6px', marginBottom: '15px' }}>
+              <h3 style={{ color: 'var(--primary)', marginBottom: '10px' }}>🔒 Резервування</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', color: 'var(--text-secondary)' }}>
+                <div><strong>Статус:</strong> {equipment.status === 'reserved' ? 'Зарезервовано' : 'Вільне'}</div>
+                {equipment.reservedByName && (
+                  <div><strong>Зарезервував:</strong> {equipment.reservedByName}</div>
+                )}
+                {equipment.reservedAt && (
+                  <div><strong>Дата резервування:</strong> {new Date(equipment.reservedAt).toLocaleDateString('uk-UA')}</div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="form-section">
             <h3>Примітки</h3>
@@ -650,17 +740,52 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess })
                 placeholder="Введіть примітки (необов'язково)"
                 rows="5"
                 style={{ width: '100%', minHeight: '120px' }}
+                readOnly={readOnly}
+                disabled={readOnly}
               />
             </div>
           </div>
 
             <div className="equipment-edit-footer">
+              {readOnly && onReserve && onCancelReserve && (
+                <>
+                  {equipment && equipment.status === 'reserved' ? (
+                    <button 
+                      type="button" 
+                      className="btn-cancel" 
+                      onClick={async () => {
+                        if (window.confirm('Ви впевнені, що хочете скасувати резервування?')) {
+                          await onCancelReserve(equipment._id);
+                          onClose();
+                        }
+                      }}
+                    >
+                      🔓 Скасувати резервування
+                    </button>
+                  ) : (
+                    <button 
+                      type="button" 
+                      className="btn-save" 
+                      onClick={async () => {
+                        if (window.confirm('Ви впевнені, що хочете зарезервувати це обладнання?')) {
+                          await onReserve(equipment._id);
+                          onClose();
+                        }
+                      }}
+                    >
+                      🔒 Зарезервувати
+                    </button>
+                  )}
+                </>
+              )}
               <button type="button" className="btn-cancel" onClick={onClose}>
-                Скасувати
+                {readOnly ? 'Закрити' : 'Скасувати'}
               </button>
-              <button type="submit" className="btn-save" disabled={loading}>
-                {loading ? 'Збереження...' : isNewEquipment ? 'Додати' : 'Зберегти'}
-              </button>
+              {!readOnly && (
+                <button type="submit" className="btn-save" disabled={loading}>
+                  {loading ? 'Збереження...' : isNewEquipment ? 'Додати' : 'Зберегти'}
+                </button>
+              )}
             </div>
           </form>
         )}

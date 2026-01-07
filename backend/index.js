@@ -403,6 +403,11 @@ const equipmentSchema = new mongoose.Schema({
     default: 'in_stock'
   },
   
+  // Резервування
+  reservedBy: String,               // ID користувача, який зарезервував
+  reservedByName: String,            // ПІБ користувача, який зарезервував
+  reservedAt: Date,                 // Дата резервування
+  
   // Історія переміщень
   movementHistory: [{
     fromWarehouse: String,
@@ -4264,6 +4269,112 @@ app.put('/api/equipment/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('[ERROR] PUT /api/equipment/:id:', error);
     logPerformance('PUT /api/equipment/:id', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Резервування обладнання
+app.post('/api/equipment/:id/reserve', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  console.log('[POST] /api/equipment/:id/reserve - Резервування обладнання:', req.params.id);
+  
+  try {
+    const equipment = await Equipment.findById(req.params.id);
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    if (equipment.status === 'reserved') {
+      return res.status(400).json({ error: 'Обладнання вже зарезервовано' });
+    }
+
+    equipment.status = 'reserved';
+    equipment.reservedBy = user._id.toString();
+    equipment.reservedByName = user.name || user.login;
+    equipment.reservedAt = new Date();
+    equipment.lastModified = new Date();
+
+    await equipment.save();
+
+    // Логування
+    try {
+      await EventLog.create({
+        userId: user._id.toString(),
+        userName: user.name || user.login,
+        userRole: user.role,
+        action: 'reserve',
+        entityType: 'equipment',
+        entityId: equipment._id.toString(),
+        description: `Зарезервовано обладнання ${equipment.type} (№${equipment.serialNumber || 'без номера'})`,
+        details: { reservedByName: equipment.reservedByName }
+      });
+    } catch (logErr) {
+      console.error('Помилка логування:', logErr);
+    }
+
+    logPerformance('POST /api/equipment/:id/reserve', startTime);
+    res.json(equipment);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/:id/reserve:', error);
+    logPerformance('POST /api/equipment/:id/reserve', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Скасування резервування обладнання
+app.post('/api/equipment/:id/cancel-reserve', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  console.log('[POST] /api/equipment/:id/cancel-reserve - Скасування резервування:', req.params.id);
+  
+  try {
+    const equipment = await Equipment.findById(req.params.id);
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    if (equipment.status !== 'reserved') {
+      return res.status(400).json({ error: 'Обладнання не зарезервовано' });
+    }
+
+    equipment.status = 'in_stock';
+    equipment.reservedBy = undefined;
+    equipment.reservedByName = undefined;
+    equipment.reservedAt = undefined;
+    equipment.lastModified = new Date();
+
+    await equipment.save();
+
+    // Логування
+    try {
+      await EventLog.create({
+        userId: user._id.toString(),
+        userName: user.name || user.login,
+        userRole: user.role,
+        action: 'cancel_reserve',
+        entityType: 'equipment',
+        entityId: equipment._id.toString(),
+        description: `Скасовано резервування обладнання ${equipment.type} (№${equipment.serialNumber || 'без номера'})`,
+        details: {}
+      });
+    } catch (logErr) {
+      console.error('Помилка логування:', logErr);
+    }
+
+    logPerformance('POST /api/equipment/:id/cancel-reserve', startTime);
+    res.json(equipment);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/:id/cancel-reserve:', error);
+    logPerformance('POST /api/equipment/:id/cancel-reserve', startTime);
     res.status(500).json({ error: error.message });
   }
 });

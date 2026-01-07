@@ -14,6 +14,7 @@ import AnalyticsDashboard from './components/AnalyticsDashboard';
 import TasksStatisticsBar from './components/TasksStatisticsBar';
 import EquipmentPage from './components/equipment/EquipmentPage';
 import InventoryDashboard from './components/InventoryDashboard';
+import ManagerDashboard from './components/ManagerDashboard';
 import API_BASE_URL from './config';
 
 // Доступні панелі
@@ -22,6 +23,7 @@ const PANELS = [
   { id: 'operator', label: 'Оператор', icon: '📞' },
   { id: 'warehouse', label: 'Зав. склад', icon: '📦' },
   { id: 'inventory', label: 'Складський облік', icon: '📋' },
+  { id: 'manager', label: 'Менеджери', icon: '👔' },
   { id: 'accountant', label: 'Бух рахунки', icon: '📄' },
   { id: 'accountantApproval', label: 'Бух на затвердженні', icon: '💰' },
   { id: 'regional', label: 'Регіональний керівник', icon: '👔' },
@@ -362,6 +364,8 @@ function App() {
         return <WarehouseDashboard user={user} />;
       case 'inventory':
         return <InventoryDashboard user={user} />;
+      case 'manager':
+        return <ManagerDashboard user={user} />;
       case 'accountant':
         return <AccountantDashboard user={user} />;
       case 'accountantApproval':
