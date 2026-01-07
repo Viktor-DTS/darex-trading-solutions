@@ -34,6 +34,195 @@ function EquipmentDetailsModal({ equipment, onClose, isPage = false }) {
     return labels[status] || status;
   };
 
+  // Функція для відкриття галереї зображень
+  const openGalleryInNewWindow = (files, startIndex = 0) => {
+    const imageFiles = files.filter(f => f.mimetype && f.mimetype.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+
+    const galleryWindow = window.open('', '_blank', 'width=1200,height=800');
+    if (!galleryWindow) return;
+
+    const imagesData = imageFiles.map(f => ({
+      url: f.cloudinaryUrl,
+      name: f.originalName || 'Фото',
+      description: ''
+    }));
+
+    galleryWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Галерея зображень</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            background: #1a1a2e; 
+            color: white; 
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+          }
+          .header {
+            background: #16213e;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .header h2 { font-size: 18px; }
+          .nav-buttons { display: flex; gap: 10px; }
+          .nav-btn {
+            background: #0f3460;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+          }
+          .nav-btn:hover { background: #1a4f7a; }
+          .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+          .main-image {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+          }
+          .main-image img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+          }
+          .image-info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-align: center;
+          }
+          .thumbnails {
+            background: #16213e;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            justify-content: center;
+          }
+          .thumb {
+            width: 80px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 5px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+          }
+          .thumb:hover { border-color: #4CAF50; }
+          .thumb.active { border-color: #4CAF50; }
+          .counter {
+            font-size: 14px;
+            color: #aaa;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>🖼️ Галерея зображень</h2>
+          <div class="nav-buttons">
+            <button class="nav-btn" onclick="prevImage()">⬅️ Попереднє</button>
+            <span class="counter" id="counter">1 / ${imageFiles.length}</span>
+            <button class="nav-btn" onclick="nextImage()">Наступне ➡️</button>
+            <button class="nav-btn" onclick="downloadImage()">⬇️ Завантажити</button>
+            <button class="nav-btn" onclick="window.close()">✕ Закрити</button>
+          </div>
+        </div>
+        <div class="main-image">
+          <img id="mainImg" src="${imagesData[startIndex].url}" alt="${imagesData[startIndex].name}" />
+          <div class="image-info">
+            <div id="imgName">${imagesData[startIndex].name}</div>
+            <div id="imgDesc">${imagesData[startIndex].description}</div>
+          </div>
+        </div>
+        <div class="thumbnails" id="thumbnails">
+          ${imagesData.map((img, i) => `
+            <img class="thumb ${i === startIndex ? 'active' : ''}" 
+                 src="${img.url}" 
+                 onclick="showImage(${i})" 
+                 alt="${img.name}" />
+          `).join('')}
+        </div>
+        <script>
+          const images = ${JSON.stringify(imagesData)};
+          let currentIndex = ${startIndex};
+          
+          function showImage(index) {
+            currentIndex = index;
+            document.getElementById('mainImg').src = images[index].url;
+            document.getElementById('imgName').textContent = images[index].name;
+            document.getElementById('imgDesc').textContent = images[index].description || '';
+            document.getElementById('counter').textContent = (index + 1) + ' / ' + images.length;
+            document.querySelectorAll('.thumb').forEach((t, i) => {
+              t.classList.toggle('active', i === index);
+            });
+          }
+          
+          function prevImage() {
+            showImage((currentIndex - 1 + images.length) % images.length);
+          }
+          
+          function nextImage() {
+            showImage((currentIndex + 1) % images.length);
+          }
+          
+          function downloadImage() {
+            const link = document.createElement('a');
+            link.href = images[currentIndex].url;
+            link.download = images[currentIndex].name;
+            link.click();
+          }
+          
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') prevImage();
+            if (e.key === 'ArrowRight') nextImage();
+            if (e.key === 'Escape') window.close();
+          });
+        </script>
+      </body>
+      </html>
+    `);
+    galleryWindow.document.close();
+  };
+
+  // Обробник перегляду файлу
+  const handleViewFile = (file, event) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    const isImage = file.mimetype && file.mimetype.startsWith('image/');
+    
+    if (isImage) {
+      // Відкриваємо зображення в новому вікні з галереєю
+      const imageFiles = equipment.attachedFiles.filter(f => f.mimetype && f.mimetype.startsWith('image/'));
+      const imageIndex = imageFiles.findIndex(f => 
+        (f._id && file._id && f._id === file._id) || 
+        (f.cloudinaryId && file.cloudinaryId && f.cloudinaryId === file.cloudinaryId) ||
+        (f.cloudinaryUrl === file.cloudinaryUrl)
+      );
+      openGalleryInNewWindow(equipment.attachedFiles, imageIndex >= 0 ? imageIndex : 0);
+    } else {
+      // Для не-зображень відкриваємо в новій вкладці
+      window.open(file.cloudinaryUrl, '_blank');
+    }
+  };
+
   const containerClass = isPage 
     ? 'equipment-details-page' 
     : 'equipment-details-modal-overlay';
@@ -138,7 +327,30 @@ function EquipmentDetailsModal({ equipment, onClose, isPage = false }) {
 
           {equipment.attachedFiles && Array.isArray(equipment.attachedFiles) && equipment.attachedFiles.length > 0 && (
             <div className="details-section">
-              <h3>Документи та фото ({equipment.attachedFiles.length})</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <h3>Документи та фото ({equipment.attachedFiles.length})</h3>
+                {equipment.attachedFiles.filter(f => f.mimetype && f.mimetype.startsWith('image/')).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const imageFiles = equipment.attachedFiles.filter(f => f.mimetype && f.mimetype.startsWith('image/'));
+                      openGalleryInNewWindow(equipment.attachedFiles, 0);
+                    }}
+                    style={{
+                      background: '#0f3460',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '5px',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                    title="Відкрити галерею зображень"
+                  >
+                    🖼️ Галерея ({equipment.attachedFiles.filter(f => f.mimetype && f.mimetype.startsWith('image/')).length})
+                  </button>
+                )}
+              </div>
               <div className="attached-files-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px', marginTop: '15px' }}>
                 {equipment.attachedFiles.map((file, index) => {
                   const isImage = file.mimetype && file.mimetype.startsWith('image/');
@@ -161,7 +373,7 @@ function EquipmentDetailsModal({ equipment, onClose, isPage = false }) {
                             borderRadius: '4px',
                             cursor: 'pointer'
                           }}
-                          onClick={() => window.open(file.cloudinaryUrl, '_blank')}
+                          onClick={(e) => handleViewFile(file, e)}
                         />
                       ) : (
                         <div style={{ 
@@ -169,7 +381,7 @@ function EquipmentDetailsModal({ equipment, onClose, isPage = false }) {
                           marginBottom: '10px',
                           cursor: 'pointer'
                         }}
-                        onClick={() => window.open(file.cloudinaryUrl, '_blank')}
+                        onClick={(e) => handleViewFile(file, e)}
                         >
                           📄
                         </div>
@@ -181,7 +393,7 @@ function EquipmentDetailsModal({ equipment, onClose, isPage = false }) {
                         wordBreak: 'break-word',
                         cursor: 'pointer'
                       }}
-                      onClick={() => window.open(file.cloudinaryUrl, '_blank')}
+                      onClick={(e) => handleViewFile(file, e)}
                       title={file.originalName}
                       >
                         {file.originalName || 'Файл'}
