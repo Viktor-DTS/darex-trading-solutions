@@ -14,6 +14,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
   const [showScanner, setShowScanner] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
   const [equipmentType, setEquipmentType] = useState('single'); // 'single' або 'batch'
   const isNewEquipment = !equipment;
 
@@ -753,11 +755,9 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                     <button 
                       type="button" 
                       className="btn-cancel" 
-                      onClick={async () => {
-                        if (window.confirm('Ви впевнені, що хочете скасувати резервування?')) {
-                          await onCancelReserve(equipment._id);
-                          onClose();
-                        }
+                      onClick={() => {
+                        setConfirmAction('cancel');
+                        setShowConfirmModal(true);
                       }}
                     >
                       🔓 Скасувати резервування
@@ -766,11 +766,9 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                     <button 
                       type="button" 
                       className="btn-save" 
-                      onClick={async () => {
-                        if (window.confirm('Ви впевнені, що хочете зарезервувати це обладнання?')) {
-                          await onReserve(equipment._id);
-                          onClose();
-                        }
+                      onClick={() => {
+                        setConfirmAction('reserve');
+                        setShowConfirmModal(true);
                       }}
                     >
                       🔒 Зарезервувати
@@ -804,6 +802,106 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
           equipment={equipment}
           onClose={() => setShowHistory(false)}
         />
+      )}
+
+      {/* Модальне вікно підтвердження резервування */}
+      {showConfirmModal && (
+        <div className="modal-overlay" onClick={() => setShowConfirmModal(false)}>
+          <div className="modal-content confirm-modal" onClick={(e) => e.stopPropagation()} style={{
+            maxWidth: '500px',
+            padding: '20px',
+            backgroundColor: 'var(--surface)',
+            borderRadius: '8px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+          }}>
+            <div className="modal-header" style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+              paddingBottom: '15px',
+              borderBottom: '1px solid var(--border)'
+            }}>
+              <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--text)' }}>
+                {confirmAction === 'reserve' ? '🔒 Підтвердження резервування' : '🔓 Підтвердження скасування резервування'}
+              </h2>
+              <button 
+                className="btn-close" 
+                onClick={() => setShowConfirmModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                  padding: '0',
+                  width: '30px',
+                  height: '30px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ marginBottom: '20px', color: 'var(--text)' }}>
+              <p style={{ margin: 0, fontSize: '14px' }}>
+                {confirmAction === 'reserve' 
+                  ? 'Ви впевнені, що хочете зарезервувати це обладнання?'
+                  : 'Ви впевнені, що хочете скасувати резервування цього обладнання?'}
+              </p>
+            </div>
+            <div style={{
+              display: 'flex',
+              gap: '10px',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                type="button"
+                className="btn-cancel"
+                onClick={() => setShowConfirmModal(false)}
+                style={{
+                  padding: '10px 20px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '5px',
+                  background: 'var(--surface-dark)',
+                  color: 'var(--text)',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Скасувати
+              </button>
+              <button
+                type="button"
+                className={confirmAction === 'reserve' ? 'btn-save' : 'btn-cancel'}
+                onClick={async () => {
+                  setShowConfirmModal(false);
+                  if (confirmAction === 'reserve' && onReserve) {
+                    await onReserve(equipment._id);
+                    onClose();
+                  } else if (confirmAction === 'cancel' && onCancelReserve) {
+                    await onCancelReserve(equipment._id);
+                    onClose();
+                  }
+                }}
+                style={{
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderRadius: '5px',
+                  background: confirmAction === 'reserve' ? 'var(--primary)' : '#dc3545',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                {confirmAction === 'reserve' ? 'Зарезервувати' : 'Скасувати резервування'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

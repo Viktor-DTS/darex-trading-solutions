@@ -114,16 +114,18 @@ function ManagerDashboard({ user }) {
             <div className="loading-indicator">Завантаження...</div>
           ) : (
             <div className="manager-tab-content">
-              <div className="manager-header">
+              <div className="manager-header" style={{ flexShrink: 0 }}>
                 <h2>Залишки на складах</h2>
               </div>
-              <EquipmentList
-                ref={equipmentListRef}
-                user={user}
-                warehouses={warehouses}
-                onReserve={handleReserve}
-                showReserveAction={true}
-              />
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <EquipmentList
+                  ref={equipmentListRef}
+                  user={user}
+                  warehouses={warehouses}
+                  onReserve={handleReserve}
+                  showReserveAction={true}
+                />
+              </div>
             </div>
           )}
         </main>
