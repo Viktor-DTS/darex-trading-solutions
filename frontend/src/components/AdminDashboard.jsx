@@ -871,6 +871,7 @@ function AdminDashboard({ user }) {
     { key: 'operator', label: 'Оператор' },
     { key: 'warehouse', label: 'Зав. склад' },
     { key: 'inventory', label: 'Складський облік' },
+    { key: 'manager', label: 'Менеджери' },
     { key: 'accountant', label: 'Бух. рахунки' },
     { key: 'accountantApproval', label: 'Бух. на Затвердженні' },
     { key: 'regional', label: 'Регіональний керівник' },

@@ -34,16 +34,17 @@ const PANELS = [
 
 // Права доступу за замовчуванням (резервні, якщо база недоступна)
 const DEFAULT_ACCESS_RULES = {
-  admin: ['service', 'operator', 'warehouse', 'inventory', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
-  administrator: ['service', 'operator', 'warehouse', 'inventory', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
+  admin: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
+  administrator: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
   operator: ['operator'],
   accountant: ['accountant', 'accountantApproval', 'inventory', 'reports', 'analytics'],
   buhgalteria: ['accountant', 'accountantApproval', 'inventory', 'reports', 'analytics'],
   warehouse: ['warehouse', 'inventory', 'service'],
   zavsklad: ['warehouse', 'inventory', 'service'],
-  regkerivn: ['regional', 'service', 'reports', 'analytics', 'inventory'],
-  regional: ['regional', 'service', 'reports', 'analytics', 'inventory'],
+  regkerivn: ['regional', 'service', 'reports', 'analytics', 'inventory', 'manager'],
+  regional: ['regional', 'service', 'reports', 'analytics', 'inventory', 'manager'],
   service: ['service'],
+  manager: ['manager', 'inventory'],
 };
 
 // Функція для конвертації правил з бази { role: { panel: 'full'|'read'|'none' } } в масив панелей
