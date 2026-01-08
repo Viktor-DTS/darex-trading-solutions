@@ -2308,15 +2308,36 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
       
       // Завантажуємо файл в Cloudinary через API (для Excel файлів потрібен resource_type: 'raw')
       try {
+        // Виправляємо кодування назви файлу
+        let correctedName = file.originalname;
+        try {
+          const decoded = Buffer.from(correctedName, 'latin1').toString('utf8');
+          if (decoded && decoded !== correctedName && !decoded.includes('')) {
+            correctedName = decoded;
+          }
+        } catch (error) {
+          console.log('[FILES] Не вдалося декодувати назву файлу:', error);
+        }
+        
         // Визначаємо resource_type на основі MIME типу
         const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
         const isImage = imageTypes.includes(file.mimetype);
         const resourceType = isImage ? 'image' : 'raw';
         
+        // Витягуємо розширення файлу з оригінальної назви
+        const fileExtension = correctedName.split('.').pop() || '';
+        const baseName = correctedName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+        
+        // Формуємо public_id з розширенням для правильного визначення формату
+        const uniqueId = `${req.params.taskId}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const publicId = fileExtension ? `${uniqueId}.${fileExtension}` : uniqueId;
+        
         console.log('[FILES] Завантаження в Cloudinary:', {
-          originalname: file.originalname,
+          originalname: correctedName,
           mimetype: file.mimetype,
-          resource_type: resourceType
+          resource_type: resourceType,
+          extension: fileExtension,
+          public_id: publicId
         });
         
         // Завантажуємо файл в Cloudinary через API
@@ -2325,7 +2346,7 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
             {
               folder: 'newservicegidra/work-files',
               resource_type: resourceType,
-              public_id: `${req.params.taskId}_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+              public_id: publicId,
               overwrite: false,
               invalidate: true
             },
@@ -2343,7 +2364,7 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
           uploadStream.end(file.buffer);
         });
         
-        console.log('[FILES] Файл завантажено в Cloudinary:', uploadResult.public_id);
+        console.log('[FILES] Файл завантажено в Cloudinary:', uploadResult.public_id, 'format:', uploadResult.format);
         
         // Виправляємо кодування назви файлу
         let correctedName = file.originalname;
