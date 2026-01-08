@@ -2269,17 +2269,46 @@ const fileSchema = new mongoose.Schema({
 const File = mongoose.model('File', fileSchema);
 
 // Multer Storage для файлів виконаних робіт (всі типи файлів)
-// Використовуємо CloudinaryStorage як для договорів - використовуємо 'auto' для автоматичного визначення типу
+// Важливо: Cloudinary може зберігати PDF як raw (Format=N/A) якщо лишити 'auto'.
+// Щоб було як у "Договори" (PDF визначається як Image/PDF) — форсуємо PDF -> resource_type: 'image'.
+// Excel/Word залишаємо raw (це нормальний тип для офісних документів в Cloudinary).
 const workFilesStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: {
-    folder: 'newservicegidra/work-files',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'],
-    resource_type: 'auto',  // 'auto' як для договорів - автоматично визначає тип (PDF як image, Excel як raw)
-    use_filename: true,  // Використовуємо оригінальну назву файлу з розширенням
-    unique_filename: true,  // Додаємо унікальний суфікс для уникнення конфліктів
-    overwrite: false,
-    invalidate: true
+  params: (req, file) => {
+    const originalName = file?.originalname || '';
+    const mimetype = file?.mimetype || '';
+    const dotIdx = originalName.lastIndexOf('.');
+    const ext = dotIdx >= 0 ? originalName.slice(dotIdx + 1).toLowerCase() : '';
+
+    const isImage =
+      mimetype.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+    const isPdf = mimetype === 'application/pdf' || ext === 'pdf';
+
+    // PDF -> image (щоб Format в Cloudinary був PDF, як у договорах)
+    const resourceType = isImage || isPdf ? 'image' : 'raw';
+
+    // Робимо стабільний public_id (без кирилиці/пробілів), але зберігаємо ориг. назву в MongoDB як originalName.
+    const uid = `${req.params.taskId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const params = {
+      folder: 'newservicegidra/work-files',
+      resource_type: resourceType,
+      overwrite: false,
+      invalidate: true,
+      public_id: uid
+    };
+
+    // allowed_formats залежно від типу
+    if (resourceType === 'image') {
+      params.allowed_formats = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'];
+    } else {
+      params.allowed_formats = ['doc', 'docx', 'xls', 'xlsx', 'txt'];
+      // Спроба допомогти Cloudinary проставити формат для raw
+      if (ext) params.format = ext;
+      if (originalName) params.filename_override = originalName;
+    }
+
+    return params;
   }
 });
 
@@ -2409,13 +2438,26 @@ app.delete('/api/files/:fileId', authenticateToken, async (req, res) => {
     }
     
     // Видаляємо файл з Cloudinary
+    // У Cloudinary destroy вимагає коректний resource_type для raw.
+    // Спробуємо image -> raw, щоб працювало для PDF/зображень і для Excel/Doc.
     if (file.cloudinaryId) {
+      const destroyWithType = async (resource_type) =>
+        cloudinary.uploader.destroy(file.cloudinaryId, { resource_type });
+
       try {
-        await cloudinary.uploader.destroy(file.cloudinaryId, { resource_type: 'auto' });
-        console.log('[FILES] Файл видалено з Cloudinary:', file.cloudinaryId);
-      } catch (cloudinaryError) {
-        console.error('[FILES] Помилка видалення з Cloudinary:', cloudinaryError);
-        // Продовжуємо видалення з БД навіть якщо не вдалося видалити з Cloudinary
+        await destroyWithType('image');
+        console.log('[FILES] Файл видалено з Cloudinary (image):', file.cloudinaryId);
+      } catch (errImage) {
+        try {
+          await destroyWithType('raw');
+          console.log('[FILES] Файл видалено з Cloudinary (raw):', file.cloudinaryId);
+        } catch (errRaw) {
+          console.error('[FILES] Помилка видалення з Cloudinary (image/raw):', {
+            image: errImage?.message || errImage,
+            raw: errRaw?.message || errRaw
+          });
+          // Продовжуємо видалення з БД навіть якщо не вдалося видалити з Cloudinary
+        }
       }
     }
     
@@ -2429,224 +2471,6 @@ app.delete('/api/files/:fileId', authenticateToken, async (req, res) => {
     console.error('[FILES] Помилка видалення файлу:', error);
     logPerformance('DELETE /api/files/:fileId', startTime);
     res.status(500).json({ error: 'Помилка видалення файлу: ' + error.message });
-  }
-});
-
-// ============================================
-// РАХУНКИ
-// ============================================
-        const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-        const isImage = imageTypes.includes(file.mimetype);
-        // Для Excel та інших документів використовуємо 'raw' (Cloudinary не підтримує Excel як окремий тип)
-        // Формат буде визначено через параметр 'format' та 'filename_override'
-        const resourceType = isImage ? 'image' : 'raw';
-        
-        // Витягуємо розширення файлу з оригінальної назви
-        const fileExtension = correctedName.split('.').pop()?.toLowerCase() || '';
-        
-        // Мапування MIME типів до форматів для Excel та інших документів
-        const mimeToFormat = {
-          'application/vnd.ms-excel': 'xls',
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-          'application/msword': 'doc',
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-          'application/pdf': 'pdf',
-          'text/plain': 'txt'
-        };
-        
-        // Визначаємо формат на основі MIME типу або розширення
-        let detectedFormat = mimeToFormat[file.mimetype] || fileExtension;
-        
-        // Формуємо public_id з унікальним ідентифікатором та обов'язково додаємо розширення
-        // Розширення в кінці public_id критично важливе для визначення формату Cloudinary
-        const uniqueId = `${req.params.taskId}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-        // Обов'язково додаємо розширення до public_id для raw файлів
-        const publicId = fileExtension ? `${uniqueId}.${fileExtension}` : uniqueId;
-        
-        console.log('[FILES] Завантаження в Cloudinary:', {
-          originalname: correctedName,
-          mimetype: file.mimetype,
-          resource_type: resourceType,
-          extension: fileExtension,
-          detected_format: detectedFormat,
-          public_id: publicId
-        });
-        
-        // Формуємо параметри завантаження
-        const uploadParams = {
-          folder: 'newservicegidra/work-files',
-          resource_type: resourceType,
-          public_id: publicId,
-          overwrite: false,
-          invalidate: true
-        };
-        
-        // Для raw файлів використовуємо filename_override та format для збереження формату
-        // Також додаємо метадані для збереження інформації про формат
-        if (resourceType === 'raw' && correctedName) {
-          uploadParams.filename_override = correctedName;
-          // Явно вказуємо формат для правильного визначення Cloudinary
-          if (detectedFormat) {
-            uploadParams.format = detectedFormat;
-          }
-          // Додаємо метадані для збереження інформації про формат
-          uploadParams.context = {
-            format: detectedFormat || fileExtension,
-            original_filename: correctedName,
-            file_type: detectedFormat || fileExtension
-          };
-          // Також додаємо теги для легшого пошуку
-          uploadParams.tags = [`format_${detectedFormat || fileExtension}`, 'excel_file', 'document'];
-        }
-        
-        // Завантажуємо файл в Cloudinary через API
-        const uploadResult = await new Promise((resolve, reject) => {
-          const uploadStream = cloudinary.uploader.upload_stream(
-            uploadParams,
-            (error, result) => {
-              if (error) {
-                console.error('[FILES] Cloudinary upload error:', error);
-                reject(error);
-              } else {
-                resolve(result);
-              }
-            }
-          );
-          
-          // Записуємо buffer в stream
-          uploadStream.end(file.buffer);
-        });
-        
-        console.log('[FILES] Файл завантажено в Cloudinary:', {
-          public_id: uploadResult.public_id,
-          format: uploadResult.format,
-          resource_type: uploadResult.resource_type,
-          secure_url: uploadResult.secure_url,
-          url: uploadResult.url
-        });
-        
-        // Виправляємо кодування назви файлу
-        let correctedName = file.originalname;
-      try {
-        const decoded = Buffer.from(correctedName, 'latin1').toString('utf8');
-        if (decoded && decoded !== correctedName && !decoded.includes('�')) {
-          correctedName = decoded;
-        }
-      } catch (error) {
-        console.log('[FILES] Не вдалося декодувати назву файлу:', error);
-      }
-      
-        // Створюємо запис в MongoDB
-        const fileRecord = new File({
-          taskId: req.params.taskId,
-          originalName: correctedName,
-          filename: cloudinaryId,
-          cloudinaryId: cloudinaryId,
-          cloudinaryUrl: fileUrl,
-          mimetype: file.mimetype,
-          size: file.size,
-          description: description
-        });
-
-        const savedFile = await fileRecord.save();
-        console.log('[FILES] Файл збережено в БД:', savedFile._id);
-        
-        uploadedFiles.push({
-          id: savedFile._id,
-          originalName: savedFile.originalName,
-          cloudinaryUrl: savedFile.cloudinaryUrl,
-          size: savedFile.size,
-          uploadDate: savedFile.uploadDate,
-          description: savedFile.description,
-          mimetype: savedFile.mimetype
-        });
-      } catch (fileError) {
-        console.error('[FILES] Помилка обробки файлу:', file.originalname, fileError);
-        // Продовжуємо обробку інших файлів навіть якщо один не вдався
-        continue;
-      }
-    }
-
-    console.log('[FILES] Успішно завантажено файлів:', uploadedFiles.length);
-    logPerformance('POST /api/files/upload/:taskId', startTime, uploadedFiles.length);
-    
-    res.json({ 
-      success: true, 
-      message: `Завантажено ${uploadedFiles.length} файлів`,
-      files: uploadedFiles 
-    });
-
-  } catch (error) {
-    console.error('[FILES] Помилка завантаження файлів:', error);
-    logPerformance('POST /api/files/upload/:taskId', startTime);
-    res.status(500).json({ error: 'Помилка завантаження файлів: ' + error.message });
-  }
-});
-
-// Отримання списку файлів завдання
-app.get('/api/files/task/:taskId', authenticateToken, async (req, res) => {
-  const startTime = Date.now();
-  try {
-    console.log('[FILES] Отримання файлів для завдання:', req.params.taskId);
-    
-    const files = await File.find({ taskId: req.params.taskId }).sort({ uploadDate: -1 }).lean();
-    
-    console.log('[FILES] Знайдено файлів:', files.length);
-    
-    const fileList = files.map(file => ({
-      id: file._id,
-      originalName: file.originalName,
-      cloudinaryUrl: file.cloudinaryUrl,
-      size: file.size,
-      uploadDate: file.uploadDate,
-      description: file.description,
-      mimetype: file.mimetype
-    }));
-    
-    logPerformance('GET /api/files/task/:taskId', startTime, fileList.length);
-    res.json(fileList);
-  } catch (error) {
-    console.error('[FILES] Помилка отримання файлів:', error);
-    logPerformance('GET /api/files/task/:taskId', startTime);
-    res.status(500).json({ error: 'Помилка отримання файлів' });
-  }
-});
-
-// Видалення файлу
-app.delete('/api/files/:fileId', authenticateToken, async (req, res) => {
-  const startTime = Date.now();
-  try {
-    console.log('[FILES] Видалення файлу:', req.params.fileId);
-    
-    const file = await File.findById(req.params.fileId);
-    if (!file) {
-      return res.status(404).json({ error: 'Файл не знайдено' });
-    }
-
-    // Видаляємо з Cloudinary
-    if (file.cloudinaryId) {
-      try {
-        await cloudinary.uploader.destroy(file.cloudinaryId);
-        console.log('[FILES] Файл видалено з Cloudinary:', file.cloudinaryId);
-      } catch (cloudinaryError) {
-        console.error('[FILES] Помилка видалення з Cloudinary:', cloudinaryError);
-        // Продовжуємо видалення з БД навіть якщо помилка в Cloudinary
-      }
-    }
-
-    // Видаляємо з MongoDB
-    await File.findByIdAndDelete(req.params.fileId);
-    console.log('[FILES] Файл видалено з БД:', req.params.fileId);
-    
-    logPerformance('DELETE /api/files/:fileId', startTime);
-    res.json({ 
-      success: true,
-      message: 'Файл видалено' 
-    });
-  } catch (error) {
-    console.error('[FILES] Помилка видалення файлу:', error);
-    logPerformance('DELETE /api/files/:fileId', startTime);
-    res.status(500).json({ error: 'Помилка видалення файлу' });
   }
 });
 
