@@ -2269,24 +2269,17 @@ const fileSchema = new mongoose.Schema({
 const File = mongoose.model('File', fileSchema);
 
 // Multer Storage для файлів виконаних робіт (всі типи файлів)
-// Використовуємо CloudinaryStorage як для договорів - використовуємо 'image' для всіх файлів (PDF, Excel тощо)
+// Використовуємо CloudinaryStorage як для договорів - використовуємо 'auto' для автоматичного визначення типу
 const workFilesStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: (req, file) => {
-    // Витягуємо розширення файлу з оригінальної назви
-    const fileExtension = file.originalname.split('.').pop()?.toLowerCase() || '';
-    // Створюємо унікальний ID з розширенням для збереження формату в URL
-    const uniqueId = `${req.params.taskId}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    const publicId = fileExtension ? `${uniqueId}.${fileExtension}` : uniqueId;
-    
-    return {
-      folder: 'newservicegidra/work-files',
-      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'],
-      resource_type: 'image',  // 'image' як для договорів - працює для PDF та Excel
-      public_id: publicId,  // Встановлюємо public_id з розширенням для збереження формату в URL
-      overwrite: false,
-      invalidate: true
-    };
+  params: {
+    folder: 'newservicegidra/work-files',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'],
+    resource_type: 'auto',  // 'auto' як для договорів - автоматично визначає тип (PDF як image, Excel як raw)
+    use_filename: true,  // Використовуємо оригінальну назву файлу з розширенням
+    unique_filename: true,  // Додаємо унікальний суфікс для уникнення конфліктів
+    overwrite: false,
+    invalidate: true
   }
 });
 
