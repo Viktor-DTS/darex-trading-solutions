@@ -27,6 +27,8 @@ function TestingDashboard({ user }) {
     engineer3: ''
   });
   const [serviceEngineers, setServiceEngineers] = useState([]);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
   const [uploadingFiles, setUploadingFiles] = useState(false);
 
   const loadRequests = useCallback(async () => {
@@ -144,6 +146,40 @@ function TestingDashboard({ user }) {
       )
     }));
   };
+
+  // Функції для галереї
+  const openGallery = (index) => {
+    setGalleryIndex(index);
+    setGalleryOpen(true);
+  };
+
+  const closeGallery = () => {
+    setGalleryOpen(false);
+  };
+
+  const nextImage = () => {
+    if (!selectedEquipment?.testingFiles) return;
+    const imageFiles = selectedEquipment.testingFiles.filter(f => f.mimetype?.startsWith('image/'));
+    setGalleryIndex((prev) => (prev + 1) % imageFiles.length);
+  };
+
+  const prevImage = () => {
+    if (!selectedEquipment?.testingFiles) return;
+    const imageFiles = selectedEquipment.testingFiles.filter(f => f.mimetype?.startsWith('image/'));
+    setGalleryIndex((prev) => (prev - 1 + imageFiles.length) % imageFiles.length);
+  };
+
+  // Обробка клавіш для галереї
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!galleryOpen) return;
+      if (e.key === 'ArrowRight') nextImage();
+      if (e.key === 'ArrowLeft') prevImage();
+      if (e.key === 'Escape') closeGallery();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [galleryOpen, selectedEquipment]);
 
   const handleCompleteTesting = async (status) => {
     if (!selectedEquipment) return;
@@ -595,27 +631,34 @@ function TestingDashboard({ user }) {
                 <div className="files-section">
                   <h4>Завантажені файли ({selectedEquipment.testingFiles.length}):</h4>
                   <div className="files-grid">
-                    {selectedEquipment.testingFiles.map((file, index) => (
-                      <div key={file.cloudinaryId || index} className="file-item">
-                        {file.mimetype?.startsWith('image/') ? (
-                          <img 
-                            src={file.cloudinaryUrl} 
-                            alt={file.originalName}
-                            onClick={() => window.open(file.cloudinaryUrl, '_blank')}
-                          />
-                        ) : (
-                          <div 
-                            className="file-icon"
-                            onClick={() => window.open(file.cloudinaryUrl, '_blank')}
-                          >
-                            📄
-                          </div>
-                        )}
-                        <span className="file-name" title={file.originalName}>
-                          {file.originalName}
-                        </span>
-                      </div>
-                    ))}
+                    {selectedEquipment.testingFiles.map((file, index) => {
+                      const imageFiles = selectedEquipment.testingFiles.filter(f => f.mimetype?.startsWith('image/'));
+                      const imageIndex = imageFiles.findIndex(f => f.cloudinaryId === file.cloudinaryId || f.cloudinaryUrl === file.cloudinaryUrl);
+                      
+                      return (
+                        <div key={file.cloudinaryId || index} className="file-item">
+                          {file.mimetype?.startsWith('image/') ? (
+                            <img 
+                              src={file.cloudinaryUrl} 
+                              alt={file.originalName}
+                              onClick={() => openGallery(imageIndex >= 0 ? imageIndex : 0)}
+                            />
+                          ) : (
+                            <div 
+                              className="file-icon"
+                              onClick={() => window.open(file.cloudinaryUrl, '_blank')}
+                            >
+                              {file.mimetype?.includes('pdf') ? '📕' : 
+                               file.mimetype?.includes('excel') || file.mimetype?.includes('spreadsheet') ? '📗' :
+                               file.mimetype?.includes('word') || file.mimetype?.includes('document') ? '📘' : '📄'}
+                            </div>
+                          )}
+                          <span className="file-name" title={file.originalName}>
+                            {file.originalName}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -733,6 +776,60 @@ function TestingDashboard({ user }) {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Галерея для перегляду зображень */}
+      {galleryOpen && selectedEquipment?.testingFiles && (
+        <div className="gallery-overlay" onClick={closeGallery}>
+          <div className="gallery-container" onClick={e => e.stopPropagation()}>
+            <button className="gallery-close" onClick={closeGallery}>×</button>
+            
+            {(() => {
+              const imageFiles = selectedEquipment.testingFiles.filter(f => f.mimetype?.startsWith('image/'));
+              if (imageFiles.length === 0) return null;
+              const currentFile = imageFiles[galleryIndex];
+              
+              return (
+                <>
+                  <div className="gallery-main">
+                    <button className="gallery-nav gallery-prev" onClick={prevImage} disabled={imageFiles.length <= 1}>
+                      ‹
+                    </button>
+                    <div className="gallery-image-container">
+                      <img 
+                        src={currentFile?.cloudinaryUrl} 
+                        alt={currentFile?.originalName}
+                        className="gallery-image"
+                      />
+                    </div>
+                    <button className="gallery-nav gallery-next" onClick={nextImage} disabled={imageFiles.length <= 1}>
+                      ›
+                    </button>
+                  </div>
+                  
+                  <div className="gallery-info">
+                    <span className="gallery-filename">{currentFile?.originalName}</span>
+                    <span className="gallery-counter">{galleryIndex + 1} / {imageFiles.length}</span>
+                  </div>
+                  
+                  {imageFiles.length > 1 && (
+                    <div className="gallery-thumbnails">
+                      {imageFiles.map((file, idx) => (
+                        <img
+                          key={file.cloudinaryId || idx}
+                          src={file.cloudinaryUrl}
+                          alt={file.originalName}
+                          className={`gallery-thumbnail ${idx === galleryIndex ? 'active' : ''}`}
+                          onClick={() => setGalleryIndex(idx)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
