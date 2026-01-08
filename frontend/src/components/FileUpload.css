@@ -287,9 +287,8 @@
   background: rgba(15, 23, 42, 0.6);
   border: 1px solid rgba(71, 85, 105, 0.5);
   border-radius: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .file-meta {

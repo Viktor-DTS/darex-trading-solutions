@@ -5,6 +5,7 @@ import './FileUpload.css';
 const FileUpload = ({ taskId, onFilesUploaded }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [description, setDescription] = useState('');
+  const [descriptionAuto, setDescriptionAuto] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,9 +20,19 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
     }
   }, [taskId]);
 
+  const getDefaultDescriptionForFiles = (files) => {
+    if (!files || files.length === 0) return '';
+    if (files.length === 1) return files[0].name || '';
+    const first = files[0].name || '';
+    return `${first} (+${files.length - 1})`;
+  };
+
   const handleFileSelect = (event) => {
     const files = Array.from(event.target.files);
     setSelectedFiles(files);
+    // За замовчуванням опис = назва файлу (для всіх вибраних файлів)
+    setDescriptionAuto(true);
+    setDescription(getDefaultDescriptionForFiles(files));
     setError('');
   };
 
@@ -60,6 +71,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
         // Очищаємо форму
         setSelectedFiles([]);
         setDescription('');
+        setDescriptionAuto(true);
         // Перезавантажуємо список файлів
         await loadFiles();
         // Повідомляємо батьківський компонент
@@ -406,7 +418,10 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
           <input
             type="text"
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => {
+              setDescription(e.target.value);
+              setDescriptionAuto(false);
+            }}
             placeholder="Введіть опис файлу (необов'язково)"
             className="description-field"
           />
@@ -460,11 +475,12 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                 <div className="file-info">
                   <span className="file-icon">{getFileIcon(file.mimetype)}</span>
                   <div className="file-details">
-                    {file.description && (
-                      <div className="file-description-top" title={file.description}>
-                        📝 {file.description}
-                      </div>
-                    )}
+                    <div
+                      className="file-description-top"
+                      title={file.description || 'Опис відсутній'}
+                    >
+                      📝 <b>Опис:</b> {file.description ? file.description : '—'}
+                    </div>
                     <div className="file-name">
                       <a 
                         href={file.cloudinaryUrl} 
