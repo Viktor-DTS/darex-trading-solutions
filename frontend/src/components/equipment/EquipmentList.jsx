@@ -670,11 +670,33 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
           equipment={selectedEquipment}
           warehouses={warehouses}
           user={user}
+          readOnly={showReserveAction}
           onClose={() => {
             setShowEditModal(false);
             setSelectedEquipment(null);
           }}
           onSuccess={handleEditSuccess}
+          onReserve={showReserveAction && onReserve ? async (id) => {
+            await onReserve(selectedEquipment);
+            setShowEditModal(false);
+            setSelectedEquipment(null);
+          } : null}
+          onCancelReserve={showReserveAction && onReserve ? async (id) => {
+            // Тут потрібен cancelReserve, але поки використаємо onReserve для toggle
+            try {
+              const token = localStorage.getItem('token');
+              await fetch(`${API_BASE_URL}/equipment/${id}/cancel-reserve`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+              refreshEquipment();
+            } catch (err) {
+              console.error('Помилка скасування резервування:', err);
+            }
+          } : null}
         />
       )}
     </div>

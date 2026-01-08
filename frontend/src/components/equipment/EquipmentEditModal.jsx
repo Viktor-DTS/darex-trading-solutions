@@ -320,6 +320,20 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
               )}
               </div>
             )}
+            
+            {/* Кнопка Історія в режимі readOnly */}
+            {readOnly && !isNewEquipment && (
+              <div className="form-section" style={{ marginBottom: '20px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowHistory(true)}
+                  style={{ padding: '12px 24px', fontSize: '16px' }}
+                >
+                  📋 Історія
+                </button>
+              </div>
+            )}
 
             {!readOnly && (
               <div className="form-section">
