@@ -319,6 +319,19 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
     return '📎';
   };
 
+  const getFileTypeLabel = (file) => {
+    const mimetype = file?.mimetype || '';
+    const name = file?.originalName || '';
+    const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+
+    if (mimetype.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'Зображення';
+    if (mimetype.includes('pdf') || ext === 'pdf') return 'PDF';
+    if (mimetype.includes('spreadsheet') || mimetype.includes('excel') || ['xls', 'xlsx'].includes(ext)) return 'Excel';
+    if (mimetype.includes('word') || mimetype.includes('document') || ['doc', 'docx'].includes(ext)) return 'Word';
+    if (mimetype.includes('text') || ext === 'txt') return 'Текст';
+    return ext ? ext.toUpperCase() : 'Файл';
+  };
+
   const loadFiles = async () => {
     if (!taskId) {
       setUploadedFiles([]);
@@ -447,6 +460,11 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                 <div className="file-info">
                   <span className="file-icon">{getFileIcon(file.mimetype)}</span>
                   <div className="file-details">
+                    {file.description && (
+                      <div className="file-description-top" title={file.description}>
+                        📝 {file.description}
+                      </div>
+                    )}
                     <div className="file-name">
                       <a 
                         href={file.cloudinaryUrl} 
@@ -457,8 +475,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                       </a>
                     </div>
                     <div className="file-meta">
-                      {formatFileSize(file.size)} • {formatDate(file.uploadDate)}
-                      {file.description && <span className="file-description"> • {file.description}</span>}
+                      Тип: {getFileTypeLabel(file)} • {formatFileSize(file.size)} • {formatDate(file.uploadDate)}
                     </div>
                   </div>
                 </div>
