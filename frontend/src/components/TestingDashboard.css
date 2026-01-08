@@ -425,6 +425,121 @@
   background: #218838;
 }
 
+/* Form sections */
+.form-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+  margin: 20px 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.form-section-title:first-of-type {
+  margin-top: 0;
+}
+
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-dark);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.form-group select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.form-group textarea {
+  min-height: 60px;
+}
+
+/* File upload styling */
+.file-upload-label {
+  display: block;
+  cursor: pointer;
+}
+
+.file-upload-label input[type="file"] {
+  display: none;
+}
+
+.file-upload-btn {
+  display: block;
+  padding: 15px 20px;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface-dark);
+  color: var(--text);
+  text-align: center;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.file-upload-btn:hover {
+  border-color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.1);
+}
+
+/* Testing results section */
+.testing-results-section {
+  margin-top: 20px;
+}
+
+.conclusion-badge-container {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.conclusion-badge {
+  display: inline-block;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.conclusion-badge.passed {
+  background: #28a745;
+  color: white;
+}
+
+.conclusion-badge.partial {
+  background: #ffc107;
+  color: #212529;
+}
+
+.conclusion-badge.failed {
+  background: #dc3545;
+  color: white;
+}
+
+.result-block {
+  background: var(--surface-dark);
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+}
+
+.result-block h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.result-block p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .testing-dashboard {

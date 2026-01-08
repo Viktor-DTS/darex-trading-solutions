@@ -520,6 +520,10 @@ const equipmentSchema = new mongoose.Schema({
   testingCompletedByName: String,    // ПІБ тестувальника
   testingDate: Date,                 // Дата завершення тестування (встановлюється автоматично)
   testingNotes: String,              // Примітки по тестуванню
+  testingResult: String,             // Детальний результат тестування
+  testingMaterials: String,          // Використані матеріали
+  testingProcedure: String,          // Процедура тестування
+  testingConclusion: String,         // Висновок тестування: 'passed', 'failed', 'partial'
   testingFiles: [{                   // Файли тестування
     cloudinaryUrl: String,
     cloudinaryId: String,
@@ -4793,13 +4797,17 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
       return res.status(400).json({ error: 'Заявка не в статусі "В роботі"' });
     }
 
-    const { status, notes } = req.body; // status: 'completed' або 'failed'
+    const { status, notes, result, materials, procedure, conclusion } = req.body; // status: 'completed' або 'failed'
     
     equipment.testingStatus = status === 'failed' ? 'failed' : 'completed';
     equipment.testingCompletedBy = user._id.toString();
     equipment.testingCompletedByName = user.name || user.login;
     equipment.testingDate = new Date();
     equipment.testingNotes = notes || '';
+    equipment.testingResult = result || '';
+    equipment.testingMaterials = materials || '';
+    equipment.testingProcedure = procedure || '';
+    equipment.testingConclusion = conclusion || (status === 'failed' ? 'failed' : 'passed');
     equipment.lastModified = new Date();
 
     await equipment.save();

@@ -16,6 +16,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
   const [showHistory, setShowHistory] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [showTestingInfo, setShowTestingInfo] = useState(false);
   const [equipmentType, setEquipmentType] = useState('single'); // 'single' або 'batch'
   const isNewEquipment = !equipment;
 
@@ -560,6 +561,23 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                       disabled
                     />
                   </div>
+                  {/* Кнопка "Інформація по тесту" - активна тільки якщо тест завершено */}
+                  <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setShowTestingInfo(true)}
+                      disabled={!equipment?.testingStatus || equipment?.testingStatus === 'none' || equipment?.testingStatus === 'requested' || equipment?.testingStatus === 'in_progress'}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        opacity: (equipment?.testingStatus === 'completed' || equipment?.testingStatus === 'failed') ? 1 : 0.5,
+                        cursor: (equipment?.testingStatus === 'completed' || equipment?.testingStatus === 'failed') ? 'pointer' : 'not-allowed'
+                      }}
+                    >
+                      📋 Інформація по тесту
+                    </button>
+                  </div>
                 </>
               )}
             </div>
@@ -968,6 +986,268 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                 }}
               >
                 {confirmAction === 'reserve' ? 'Зарезервувати' : 'Скасувати резервування'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модальне вікно інформації по тестуванню */}
+      {showTestingInfo && equipment && (
+        <div className="modal-overlay" onClick={() => setShowTestingInfo(false)}>
+          <div className="modal-content testing-info-modal" onClick={(e) => e.stopPropagation()} style={{
+            maxWidth: '700px',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            padding: '0',
+            backgroundColor: 'var(--surface)',
+            borderRadius: '12px',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+          }}>
+            <div className="modal-header" style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '20px',
+              borderBottom: '1px solid var(--border)',
+              position: 'sticky',
+              top: 0,
+              background: 'var(--surface)',
+              zIndex: 10
+            }}>
+              <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--text)' }}>
+                📋 Інформація по тестуванню
+              </h2>
+              <button 
+                className="btn-close" 
+                onClick={() => setShowTestingInfo(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                  padding: '0',
+                  width: '30px',
+                  height: '30px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ padding: '20px' }}>
+              {/* Обладнання */}
+              <div style={{ 
+                background: 'var(--surface-dark)', 
+                padding: '15px', 
+                borderRadius: '8px',
+                marginBottom: '20px'
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Тип обладнання:</span>
+                    <div style={{ color: 'var(--text)', fontWeight: '500' }}>{equipment.type || '—'}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Серійний номер:</span>
+                    <div style={{ color: 'var(--text)', fontWeight: '500' }}>{equipment.serialNumber || '—'}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Виробник:</span>
+                    <div style={{ color: 'var(--text)', fontWeight: '500' }}>{equipment.manufacturer || '—'}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Склад:</span>
+                    <div style={{ color: 'var(--text)', fontWeight: '500' }}>{equipment.currentWarehouseName || '—'}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Висновок тестування */}
+              {equipment.testingConclusion && (
+                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '12px 24px',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    backgroundColor: 
+                      equipment.testingConclusion === 'passed' ? '#28a745' :
+                      equipment.testingConclusion === 'partial' ? '#ffc107' : '#dc3545',
+                    color: equipment.testingConclusion === 'partial' ? '#212529' : 'white'
+                  }}>
+                    {equipment.testingConclusion === 'passed' && '✅ Тест пройдено повністю'}
+                    {equipment.testingConclusion === 'partial' && '⚠️ Тест пройдено частково'}
+                    {equipment.testingConclusion === 'failed' && '❌ Тест не пройдено'}
+                  </span>
+                </div>
+              )}
+
+              {/* Інформація про тест */}
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '1fr 1fr', 
+                gap: '15px',
+                marginBottom: '20px'
+              }}>
+                <div style={{ background: 'var(--surface-dark)', padding: '12px', borderRadius: '6px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Тестував:</span>
+                  <div style={{ color: 'var(--text)', fontWeight: '500' }}>{equipment.testingCompletedByName || '—'}</div>
+                </div>
+                <div style={{ background: 'var(--surface-dark)', padding: '12px', borderRadius: '6px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Дата тестування:</span>
+                  <div style={{ color: 'var(--text)', fontWeight: '500' }}>
+                    {equipment.testingDate ? new Date(equipment.testingDate).toLocaleDateString('uk-UA', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    }) : '—'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Деталі тестування */}
+              {equipment.testingProcedure && (
+                <div style={{ 
+                  background: 'var(--surface-dark)', 
+                  padding: '15px', 
+                  borderRadius: '8px',
+                  marginBottom: '15px'
+                }}>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--primary)' }}>📋 Процедура тестування</h4>
+                  <p style={{ margin: 0, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{equipment.testingProcedure}</p>
+                </div>
+              )}
+
+              {equipment.testingResult && (
+                <div style={{ 
+                  background: 'var(--surface-dark)', 
+                  padding: '15px', 
+                  borderRadius: '8px',
+                  marginBottom: '15px'
+                }}>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--primary)' }}>📊 Результат тестування</h4>
+                  <p style={{ margin: 0, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{equipment.testingResult}</p>
+                </div>
+              )}
+
+              {equipment.testingMaterials && (
+                <div style={{ 
+                  background: 'var(--surface-dark)', 
+                  padding: '15px', 
+                  borderRadius: '8px',
+                  marginBottom: '15px'
+                }}>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--primary)' }}>🔧 Використані матеріали</h4>
+                  <p style={{ margin: 0, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{equipment.testingMaterials}</p>
+                </div>
+              )}
+
+              {equipment.testingNotes && (
+                <div style={{ 
+                  background: 'var(--surface-dark)', 
+                  padding: '15px', 
+                  borderRadius: '8px',
+                  marginBottom: '15px'
+                }}>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--primary)' }}>📝 Додаткові примітки</h4>
+                  <p style={{ margin: 0, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{equipment.testingNotes}</p>
+                </div>
+              )}
+
+              {/* Файли тестування */}
+              {equipment.testingFiles && equipment.testingFiles.length > 0 && (
+                <div style={{ 
+                  background: 'var(--surface-dark)', 
+                  padding: '15px', 
+                  borderRadius: '8px'
+                }}>
+                  <h4 style={{ margin: '0 0 15px 0', fontSize: '14px', color: 'var(--primary)' }}>📎 Файли тестування ({equipment.testingFiles.length})</h4>
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                    gap: '12px'
+                  }}>
+                    {equipment.testingFiles.map((file, index) => (
+                      <div 
+                        key={file.cloudinaryId || index} 
+                        style={{ textAlign: 'center', cursor: 'pointer' }}
+                        onClick={() => window.open(file.cloudinaryUrl, '_blank')}
+                      >
+                        {file.mimetype?.startsWith('image/') ? (
+                          <img 
+                            src={file.cloudinaryUrl} 
+                            alt={file.originalName}
+                            style={{
+                              width: '100%',
+                              height: '80px',
+                              objectFit: 'cover',
+                              borderRadius: '6px',
+                              border: '1px solid var(--border)'
+                            }}
+                          />
+                        ) : (
+                          <div style={{
+                            width: '100%',
+                            height: '80px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'var(--surface)',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border)',
+                            fontSize: '32px'
+                          }}>
+                            {file.mimetype?.includes('pdf') ? '📕' : 
+                             file.mimetype?.includes('excel') || file.mimetype?.includes('spreadsheet') ? '📗' :
+                             file.mimetype?.includes('word') || file.mimetype?.includes('document') ? '📘' : '📄'}
+                          </div>
+                        )}
+                        <span style={{
+                          display: 'block',
+                          marginTop: '6px',
+                          fontSize: '10px',
+                          color: 'var(--text-secondary)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }} title={file.originalName}>
+                          {file.originalName}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ 
+              padding: '15px 20px', 
+              borderTop: '1px solid var(--border)',
+              display: 'flex',
+              justifyContent: 'flex-end'
+            }}>
+              <button 
+                onClick={() => setShowTestingInfo(false)}
+                style={{
+                  padding: '10px 24px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  background: 'var(--primary)',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                Закрити
               </button>
             </div>
           </div>

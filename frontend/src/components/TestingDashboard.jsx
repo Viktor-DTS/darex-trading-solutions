@@ -16,7 +16,13 @@ function TestingDashboard({ user }) {
   const [activeTab, setActiveTab] = useState('pending'); // 'pending', 'in_progress', 'completed'
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [notes, setNotes] = useState('');
+  const [testingForm, setTestingForm] = useState({
+    notes: '',
+    result: '',
+    materials: '',
+    procedure: '',
+    conclusion: 'passed'
+  });
   const [uploadingFiles, setUploadingFiles] = useState(false);
 
   const loadRequests = useCallback(async () => {
@@ -73,8 +79,18 @@ function TestingDashboard({ user }) {
 
   const handleOpenComplete = (equipment) => {
     setSelectedEquipment(equipment);
-    setNotes(equipment.testingNotes || '');
+    setTestingForm({
+      notes: equipment.testingNotes || '',
+      result: equipment.testingResult || '',
+      materials: equipment.testingMaterials || '',
+      procedure: equipment.testingProcedure || '',
+      conclusion: equipment.testingConclusion || 'passed'
+    });
     setShowModal(true);
+  };
+
+  const handleFormChange = (field, value) => {
+    setTestingForm(prev => ({ ...prev, [field]: value }));
   };
 
   const handleCompleteTesting = async (status) => {
@@ -88,13 +104,20 @@ function TestingDashboard({ user }) {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ status, notes })
+        body: JSON.stringify({ 
+          status, 
+          notes: testingForm.notes,
+          result: testingForm.result,
+          materials: testingForm.materials,
+          procedure: testingForm.procedure,
+          conclusion: status === 'failed' ? 'failed' : testingForm.conclusion
+        })
       });
       
       if (response.ok) {
         setShowModal(false);
         setSelectedEquipment(null);
-        setNotes('');
+        setTestingForm({ notes: '', result: '', materials: '', procedure: '', conclusion: 'passed' });
         loadRequests();
       } else {
         const error = await response.json();
@@ -347,25 +370,74 @@ function TestingDashboard({ user }) {
 
               {activeTab !== 'completed' && (
                 <>
+                  <div className="form-section-title">📝 Інформація по тестуванню</div>
+                  
                   <div className="form-group">
-                    <label>Примітки по тестуванню:</label>
+                    <label>Процедура тестування:</label>
                     <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Введіть результати та примітки по тестуванню..."
-                      rows={4}
+                      value={testingForm.procedure}
+                      onChange={(e) => handleFormChange('procedure', e.target.value)}
+                      placeholder="Опишіть проведену процедуру тестування..."
+                      rows={3}
                     />
                   </div>
 
                   <div className="form-group">
-                    <label>Файли тестування:</label>
-                    <input 
-                      type="file" 
-                      multiple 
-                      onChange={handleUploadFiles}
-                      disabled={uploadingFiles}
+                    <label>Результат тестування:</label>
+                    <textarea
+                      value={testingForm.result}
+                      onChange={(e) => handleFormChange('result', e.target.value)}
+                      placeholder="Детальний результат тестування..."
+                      rows={3}
                     />
-                    {uploadingFiles && <span className="uploading">Завантаження...</span>}
+                  </div>
+
+                  <div className="form-group">
+                    <label>Використані матеріали:</label>
+                    <textarea
+                      value={testingForm.materials}
+                      onChange={(e) => handleFormChange('materials', e.target.value)}
+                      placeholder="Перелік матеріалів, що використовувались при тестуванні..."
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Висновок:</label>
+                    <select 
+                      value={testingForm.conclusion}
+                      onChange={(e) => handleFormChange('conclusion', e.target.value)}
+                    >
+                      <option value="passed">✅ Тест пройдено повністю</option>
+                      <option value="partial">⚠️ Тест пройдено частково</option>
+                      <option value="failed">❌ Тест не пройдено</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Додаткові примітки:</label>
+                    <textarea
+                      value={testingForm.notes}
+                      onChange={(e) => handleFormChange('notes', e.target.value)}
+                      placeholder="Додаткові зауваження та примітки..."
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="form-section-title">📎 Файли тестування</div>
+                  <div className="form-group">
+                    <label className="file-upload-label">
+                      <input 
+                        type="file" 
+                        multiple 
+                        onChange={handleUploadFiles}
+                        disabled={uploadingFiles}
+                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                      />
+                      <span className="file-upload-btn">
+                        {uploadingFiles ? '⏳ Завантаження...' : '📁 Обрати файли (фото, PDF, Excel, Word)'}
+                      </span>
+                    </label>
                   </div>
                 </>
               )}
@@ -399,10 +471,52 @@ function TestingDashboard({ user }) {
                 </div>
               )}
 
-              {selectedEquipment.testingNotes && activeTab === 'completed' && (
-                <div className="notes-section">
-                  <h4>Примітки:</h4>
-                  <p>{selectedEquipment.testingNotes}</p>
+              {activeTab === 'completed' && (
+                <div className="testing-results-section">
+                  {selectedEquipment.testingConclusion && (
+                    <div className="conclusion-badge-container">
+                      <span className={`conclusion-badge ${selectedEquipment.testingConclusion}`}>
+                        {selectedEquipment.testingConclusion === 'passed' && '✅ Тест пройдено'}
+                        {selectedEquipment.testingConclusion === 'partial' && '⚠️ Частково пройдено'}
+                        {selectedEquipment.testingConclusion === 'failed' && '❌ Тест не пройдено'}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {selectedEquipment.testingProcedure && (
+                    <div className="result-block">
+                      <h4>📋 Процедура тестування:</h4>
+                      <p>{selectedEquipment.testingProcedure}</p>
+                    </div>
+                  )}
+                  
+                  {selectedEquipment.testingResult && (
+                    <div className="result-block">
+                      <h4>📊 Результат тестування:</h4>
+                      <p>{selectedEquipment.testingResult}</p>
+                    </div>
+                  )}
+                  
+                  {selectedEquipment.testingMaterials && (
+                    <div className="result-block">
+                      <h4>🔧 Використані матеріали:</h4>
+                      <p>{selectedEquipment.testingMaterials}</p>
+                    </div>
+                  )}
+                  
+                  {selectedEquipment.testingNotes && (
+                    <div className="result-block">
+                      <h4>📝 Примітки:</h4>
+                      <p>{selectedEquipment.testingNotes}</p>
+                    </div>
+                  )}
+
+                  {selectedEquipment.testingCompletedByName && (
+                    <div className="info-row">
+                      <span className="label">Тестував:</span>
+                      <span className="value">{selectedEquipment.testingCompletedByName}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
