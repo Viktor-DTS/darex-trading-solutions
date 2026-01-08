@@ -4806,13 +4806,19 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
 
     const { status, notes, result, materials, procedure, conclusion, engineer1, engineer2, engineer3 } = req.body;
     
+    // Фільтруємо матеріали - видаляємо порожні записи
+    let filteredMaterials = [];
+    if (Array.isArray(materials)) {
+      filteredMaterials = materials.filter(m => m && m.type && m.type.trim() !== '');
+    }
+    
     equipment.testingStatus = status === 'failed' ? 'failed' : 'completed';
     equipment.testingCompletedBy = user._id.toString();
     equipment.testingCompletedByName = user.name || user.login;
     equipment.testingDate = new Date();
     equipment.testingNotes = notes || '';
     equipment.testingResult = result || '';
-    equipment.testingMaterials = Array.isArray(materials) ? materials : [];
+    equipment.testingMaterials = filteredMaterials;
     equipment.testingProcedure = procedure || '';
     equipment.testingConclusion = conclusion || (status === 'failed' ? 'failed' : 'passed');
     equipment.testingEngineer1 = engineer1 || '';
@@ -4826,8 +4832,9 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
     res.json(equipment);
   } catch (error) {
     console.error('[ERROR] POST /api/equipment/:id/complete-testing:', error);
+    console.error('[ERROR] Request body:', JSON.stringify(req.body, null, 2));
     logPerformance('POST /api/equipment/:id/complete-testing', startTime);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message, details: error.errors ? Object.keys(error.errors) : null });
   }
 });
 
