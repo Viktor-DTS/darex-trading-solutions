@@ -39,6 +39,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const { Readable } = require('stream');
 
 // Cloudinary конфігурація
 console.log('[CLOUDINARY] CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET');
@@ -2267,6 +2268,93 @@ const fileSchema = new mongoose.Schema({
 });
 
 const File = mongoose.model('File', fileSchema);
+
+// ============================================
+// ПУБЛІЧНЕ ВІДКРИТТЯ/ЗАВАНТАЖЕННЯ ФАЙЛІВ (ДЛЯ EXCEL ms-excel: без Authorization header)
+// ============================================
+// Видаємо короткий токен через авторизований /api ендпойнт, а сам файл віддаємо через public URL з token query.
+
+// Отримати короткий токен для відкриття файла (2 хв)
+app.get('/api/files/open-token/:fileId', authenticateToken, async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    const file = await File.findById(fileId).lean();
+    if (!file) return res.status(404).json({ error: 'Файл не знайдено' });
+
+    const token = jwt.sign(
+      { type: 'file-open', fileId: String(fileId) },
+      JWT_SECRET,
+      { expiresIn: '2m' }
+    );
+
+    res.json({ token });
+  } catch (error) {
+    console.error('[FILES] Помилка генерації open-token:', error);
+    res.status(500).json({ error: 'Помилка генерації токена' });
+  }
+});
+
+// Публічний стрім файла (Excel/Office можуть тягнути без Bearer header)
+app.get('/files/open/:fileId', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { fileId } = req.params;
+    const token = req.query.token;
+
+    if (!token) return res.status(401).send('Missing token');
+
+    let payload;
+    try {
+      payload = jwt.verify(token, JWT_SECRET);
+    } catch (e) {
+      return res.status(403).send('Invalid token');
+    }
+
+    if (!payload || payload.type !== 'file-open' || String(payload.fileId) !== String(fileId)) {
+      return res.status(403).send('Token mismatch');
+    }
+
+    const file = await File.findById(fileId).lean();
+    if (!file) return res.status(404).send('Not found');
+
+    if (!file.cloudinaryUrl) return res.status(404).send('Missing file url');
+
+    const upstream = await fetch(file.cloudinaryUrl);
+    if (!upstream.ok) {
+      console.error('[FILES] Upstream fetch failed:', upstream.status, file.cloudinaryUrl);
+      return res.status(502).send('Upstream error');
+    }
+
+    const contentType =
+      file.mimetype ||
+      upstream.headers.get('content-type') ||
+      'application/octet-stream';
+
+    const filename = file.originalName || 'file';
+    const encoded = encodeURIComponent(filename);
+
+    res.setHeader('Content-Type', contentType);
+    // attachment працює і для скачування, і для відкриття через ms-excel:ofe|u|
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encoded}`);
+
+    const contentLength = upstream.headers.get('content-length');
+    if (contentLength) res.setHeader('Content-Length', contentLength);
+
+    // Стрімимо тіло відповіді
+    if (upstream.body) {
+      Readable.fromWeb(upstream.body).pipe(res);
+    } else {
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      res.end(buf);
+    }
+
+    logPerformance('GET /files/open/:fileId', startTime);
+  } catch (error) {
+    console.error('[FILES] Помилка public open:', error);
+    logPerformance('GET /files/open/:fileId', startTime);
+    res.status(500).send('Server error');
+  }
+});
 
 // Multer Storage для файлів виконаних робіт (всі типи файлів)
 // Важливо: Cloudinary може зберігати PDF як raw (Format=N/A) якщо лишити 'auto'.

@@ -144,8 +144,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       const tryOpenInExcelThenDownload = (url, filename) => {
         // Windows + встановлений Office: відкриваємо напряму через protocol handler.
         // Якщо протокол не підтримується — просто скачується файл.
-        const attachUrl = toCloudinaryAttachmentUrl(url, filename);
-        const excelProtocolUrl = `ms-excel:ofe|u|${attachUrl}`;
+        const excelProtocolUrl = `ms-excel:ofe|u|${url}`;
 
         let didLeavePage = false;
         const markLeave = () => { didLeavePage = true; };
@@ -166,7 +165,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
         window.setTimeout(() => {
           try { document.body.removeChild(iframe); } catch {}
           if (!didLeavePage) {
-            downloadFile(attachUrl, filename);
+            downloadFile(url, filename);
           }
         }, 1200);
       };
@@ -190,7 +189,34 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       }
 
       if (isExcel) {
-        tryOpenInExcelThenDownload(url, originalName);
+        (async () => {
+          try {
+            const fileId = getFileId(file);
+            const bearer = localStorage.getItem('token');
+            const tokenResp = await fetch(`${API_BASE_URL}/files/open-token/${fileId}`, {
+              headers: { Authorization: `Bearer ${bearer}` }
+            });
+
+            if (!tokenResp.ok) {
+              // fallback: просто завантаження
+              downloadFile(toCloudinaryAttachmentUrl(url, originalName), originalName);
+              return;
+            }
+
+            const tokenData = await tokenResp.json();
+            const openToken = tokenData?.token;
+            if (!openToken) {
+              downloadFile(toCloudinaryAttachmentUrl(url, originalName), originalName);
+              return;
+            }
+
+            const publicBase = API_BASE_URL.replace(/\/api\/?$/, '');
+            const openUrl = `${publicBase}/files/open/${fileId}?token=${encodeURIComponent(openToken)}`;
+            tryOpenInExcelThenDownload(openUrl, originalName);
+          } catch (e) {
+            downloadFile(toCloudinaryAttachmentUrl(url, originalName), originalName);
+          }
+        })();
         return;
       }
 
