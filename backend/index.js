@@ -2269,13 +2269,24 @@ const fileSchema = new mongoose.Schema({
 const File = mongoose.model('File', fileSchema);
 
 // Multer Storage для файлів виконаних робіт (всі типи файлів)
-// Використовуємо CloudinaryStorage як для договорів - працює добре для PDF та інших форматів
+// Використовуємо CloudinaryStorage як для договорів - використовуємо 'image' для всіх файлів (PDF, Excel тощо)
 const workFilesStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: {
-    folder: 'newservicegidra/work-files',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'],
-    resource_type: 'auto'  // 'auto' як для договорів - автоматично визначає тип
+  params: (req, file) => {
+    // Витягуємо розширення файлу з оригінальної назви
+    const fileExtension = file.originalname.split('.').pop()?.toLowerCase() || '';
+    // Створюємо унікальний ID з розширенням для збереження формату в URL
+    const uniqueId = `${req.params.taskId}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const publicId = fileExtension ? `${uniqueId}.${fileExtension}` : uniqueId;
+    
+    return {
+      folder: 'newservicegidra/work-files',
+      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'],
+      resource_type: 'image',  // 'image' як для договорів - працює для PDF та Excel
+      public_id: publicId,  // Встановлюємо public_id з розширенням для збереження формату в URL
+      overwrite: false,
+      invalidate: true
+    };
   }
 });
 
