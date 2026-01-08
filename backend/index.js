@@ -4808,50 +4808,41 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
       filteredMaterials = materials.filter(m => m && m.type && m.type.trim() !== '');
     }
     
-    equipment.testingStatus = status === 'failed' ? 'failed' : 'completed';
-    equipment.testingCompletedBy = user._id.toString();
-    equipment.testingCompletedByName = user.name || user.login;
-    equipment.testingDate = new Date();
-    equipment.testingNotes = notes || '';
-    equipment.testingResult = result || '';
-    equipment.testingMaterialsJson = JSON.stringify(filteredMaterials);
-    equipment.testingProcedure = procedure || '';
-    equipment.testingConclusion = conclusion || (status === 'failed' ? 'failed' : 'passed');
-    equipment.testingEngineer1 = engineer1 || '';
-    equipment.testingEngineer2 = engineer2 || '';
-    equipment.testingEngineer3 = engineer3 || '';
-    equipment.lastModified = new Date();
-
-    // Використовуємо updateOne замість save() щоб уникнути валідації старого поля testingMaterials
-    // Це безпечно - ми не чіпаємо заявки (Task), тільки обладнання (Equipment)
-    await Equipment.updateOne(
-      { _id: equipment._id },
+    // Використовуємо findByIdAndUpdate з runValidators: false щоб уникнути валідації
+    // Це необхідно, оскільки в базі може бути старе поле testingMaterials з неправильним типом
+    const updated = await Equipment.findByIdAndUpdate(
+      equipment._id,
       {
         $set: {
-          testingStatus: equipment.testingStatus,
-          testingCompletedBy: equipment.testingCompletedBy,
-          testingCompletedByName: equipment.testingCompletedByName,
-          testingDate: equipment.testingDate,
-          testingNotes: equipment.testingNotes,
-          testingResult: equipment.testingResult,
-          testingMaterialsJson: equipment.testingMaterialsJson,
-          testingProcedure: equipment.testingProcedure,
-          testingConclusion: equipment.testingConclusion,
-          testingEngineer1: equipment.testingEngineer1,
-          testingEngineer2: equipment.testingEngineer2,
-          testingEngineer3: equipment.testingEngineer3,
-          lastModified: equipment.lastModified
+          testingStatus: status === 'failed' ? 'failed' : 'completed',
+          testingCompletedBy: user._id.toString(),
+          testingCompletedByName: user.name || user.login,
+          testingDate: new Date(),
+          testingNotes: notes || '',
+          testingResult: result || '',
+          testingMaterialsJson: JSON.stringify(filteredMaterials),
+          testingProcedure: procedure || '',
+          testingConclusion: conclusion || (status === 'failed' ? 'failed' : 'passed'),
+          testingEngineer1: engineer1 || '',
+          testingEngineer2: engineer2 || '',
+          testingEngineer3: engineer3 || '',
+          lastModified: new Date()
         },
-        $unset: { testingMaterials: "" } // Безпечно видаляємо тільки в Equipment, не в Task
+        $unset: { testingMaterials: "" } // Видаляємо старе поле testingMaterials, якщо воно існує
+      },
+      { 
+        new: true, 
+        runValidators: false, // Вимкнути валідацію, щоб уникнути помилок з testingMaterials
+        lean: false
       }
     );
     
-    // Оновлюємо локальний об'єкт для повернення
-    const updated = await Equipment.findById(equipment._id);
-    Object.assign(equipment, updated);
+    if (!updated) {
+      return res.status(404).json({ error: 'Обладнання не знайдено після оновлення' });
+    }
 
     logPerformance('POST /api/equipment/:id/complete-testing', startTime);
-    res.json(equipment);
+    res.json(updated);
   } catch (error) {
     console.error('[ERROR] POST /api/equipment/:id/complete-testing:', error);
     console.error('[ERROR] Request body:', JSON.stringify(req.body, null, 2));
