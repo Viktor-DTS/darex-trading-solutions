@@ -4869,6 +4869,53 @@ app.post('/api/equipment/:id/testing-files', authenticateToken, uploadWorkFiles.
   }
 });
 
+// Видалення файлу тестування
+app.delete('/api/equipment/:id/testing-files/:fileId', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  console.log('[DELETE] /api/equipment/:id/testing-files/:fileId - Видалення файлу:', req.params.id, req.params.fileId);
+  
+  try {
+    const equipment = await Equipment.findById(req.params.id);
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+
+    const fileId = req.params.fileId;
+    const fileIndex = equipment.testingFiles?.findIndex(f => 
+      f.cloudinaryId === fileId || f._id?.toString() === fileId
+    );
+
+    if (fileIndex === -1 || fileIndex === undefined) {
+      return res.status(404).json({ error: 'Файл не знайдено' });
+    }
+
+    const fileToDelete = equipment.testingFiles[fileIndex];
+
+    // Видаляємо з Cloudinary
+    if (fileToDelete.cloudinaryId) {
+      try {
+        await cloudinary.uploader.destroy(fileToDelete.cloudinaryId, { resource_type: 'raw' });
+      } catch (cloudErr) {
+        console.warn('[WARNING] Не вдалося видалити з Cloudinary:', cloudErr.message);
+        // Продовжуємо видалення з бази навіть якщо Cloudinary помилка
+      }
+    }
+
+    // Видаляємо з масиву
+    equipment.testingFiles.splice(fileIndex, 1);
+    equipment.lastModified = new Date();
+
+    await equipment.save();
+
+    logPerformance('DELETE /api/equipment/:id/testing-files/:fileId', startTime);
+    res.json({ success: true, equipment });
+  } catch (error) {
+    console.error('[ERROR] DELETE /api/equipment/:id/testing-files/:fileId:', error);
+    logPerformance('DELETE /api/equipment/:id/testing-files/:fileId', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Скасувати заявку на тестування
 app.post('/api/equipment/:id/cancel-testing', authenticateToken, async (req, res) => {
   const startTime = Date.now();

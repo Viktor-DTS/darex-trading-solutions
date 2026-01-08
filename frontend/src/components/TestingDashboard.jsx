@@ -257,6 +257,35 @@ function TestingDashboard({ user }) {
     }
   };
 
+  const handleDeleteFile = async (file) => {
+    if (!selectedEquipment) return;
+    if (!window.confirm(`Видалити файл "${file.originalName}"?`)) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const fileId = file.cloudinaryId || file._id;
+      
+      const response = await fetch(`${API_BASE_URL}/equipment/${selectedEquipment._id}/testing-files/${fileId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setSelectedEquipment(result.equipment);
+        loadRequests();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Помилка видалення файлу');
+      }
+    } catch (error) {
+      console.error('Помилка:', error);
+      alert('Помилка з\'єднання з сервером');
+    }
+  };
+
   const handleCancelTesting = async (equipment) => {
     if (!window.confirm('Скасувати заявку на тестування?')) return;
     
@@ -636,26 +665,37 @@ function TestingDashboard({ user }) {
                       const imageIndex = imageFiles.findIndex(f => f.cloudinaryId === file.cloudinaryId || f.cloudinaryUrl === file.cloudinaryUrl);
                       
                       return (
-                        <div key={file.cloudinaryId || index} className="file-item">
-                          {file.mimetype?.startsWith('image/') ? (
-                            <img 
-                              src={file.cloudinaryUrl} 
-                              alt={file.originalName}
-                              onClick={() => openGallery(imageIndex >= 0 ? imageIndex : 0)}
-                            />
-                          ) : (
-                            <div 
-                              className="file-icon"
-                              onClick={() => window.open(file.cloudinaryUrl, '_blank')}
+                        <div key={file.cloudinaryId || index} className="file-item-wrapper">
+                          <div className="file-item">
+                            {file.mimetype?.startsWith('image/') ? (
+                              <img 
+                                src={file.cloudinaryUrl} 
+                                alt={file.originalName}
+                                onClick={() => openGallery(imageIndex >= 0 ? imageIndex : 0)}
+                              />
+                            ) : (
+                              <div 
+                                className="file-icon"
+                                onClick={() => window.open(file.cloudinaryUrl, '_blank')}
+                              >
+                                {file.mimetype?.includes('pdf') ? '📕' : 
+                                 file.mimetype?.includes('excel') || file.mimetype?.includes('spreadsheet') ? '📗' :
+                                 file.mimetype?.includes('word') || file.mimetype?.includes('document') ? '📘' : '📄'}
+                              </div>
+                            )}
+                            <span className="file-name" title={file.originalName}>
+                              {file.originalName}
+                            </span>
+                          </div>
+                          {activeTab !== 'completed' && (
+                            <button 
+                              className="file-delete-btn"
+                              onClick={() => handleDeleteFile(file)}
+                              title="Видалити файл"
                             >
-                              {file.mimetype?.includes('pdf') ? '📕' : 
-                               file.mimetype?.includes('excel') || file.mimetype?.includes('spreadsheet') ? '📗' :
-                               file.mimetype?.includes('word') || file.mimetype?.includes('document') ? '📘' : '📄'}
-                            </div>
+                              ✕
+                            </button>
                           )}
-                          <span className="file-name" title={file.originalName}>
-                            {file.originalName}
-                          </span>
                         </div>
                       );
                     })}
