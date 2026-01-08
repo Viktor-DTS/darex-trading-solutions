@@ -521,11 +521,7 @@ const equipmentSchema = new mongoose.Schema({
   testingDate: Date,                 // Дата завершення тестування (встановлюється автоматично)
   testingNotes: String,              // Примітки по тестуванню
   testingResult: String,             // Детальний результат тестування
-  testingMaterials: [{               // Використані матеріали
-    type: String,                    // Тип матеріалу
-    quantity: String,                // Кількість
-    unit: String                     // Одиниця виміру (опціонально)
-  }],
+  testingMaterials: { type: mongoose.Schema.Types.Mixed, default: [] }, // Використані матеріали [{type, quantity, unit}]
   testingProcedure: String,          // Процедура тестування
   testingConclusion: String,         // Висновок тестування: 'passed', 'failed', 'partial'
   testingEngineer1: String,          // Сервісний інженер №1
