@@ -2340,14 +2340,11 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
         // Визначаємо формат на основі MIME типу або розширення
         let detectedFormat = mimeToFormat[file.mimetype] || fileExtension;
         
-        // Очищаємо назву файлу від спеціальних символів, але зберігаємо розширення
-        const sanitizedName = correctedName.replace(/[^a-zA-Z0-9_.-]/g, '_');
-        
-        // Формуємо public_id з унікальним префіксом та оригінальною назвою (очищеною) з розширенням
-        // Це дозволить Cloudinary правильно визначити формат на основі розширення
+        // Формуємо public_id з унікальним ідентифікатором та обов'язково додаємо розширення
+        // Розширення в кінці public_id критично важливе для визначення формату Cloudinary
         const uniqueId = `${req.params.taskId}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-        // Використовуємо очищену назву файлу з розширенням для збереження формату
-        const publicId = sanitizedName ? `${uniqueId}_${sanitizedName}` : (fileExtension ? `${uniqueId}.${fileExtension}` : uniqueId);
+        // Обов'язково додаємо розширення до public_id для raw файлів
+        const publicId = fileExtension ? `${uniqueId}.${fileExtension}` : uniqueId;
         
         console.log('[FILES] Завантаження в Cloudinary:', {
           originalname: correctedName,
@@ -2367,7 +2364,13 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
           invalidate: true
         };
         
-        // Для raw файлів явно вказуємо формат, якщо він визначений
+        // Для raw файлів використовуємо filename_override для збереження розширення
+        // Це дозволить Cloudinary правильно визначити формат файлу
+        if (resourceType === 'raw' && correctedName) {
+          uploadParams.filename_override = correctedName;
+        }
+        
+        // Також явно вказуємо формат, якщо він визначений
         if (resourceType === 'raw' && detectedFormat) {
           uploadParams.format = detectedFormat;
         }
