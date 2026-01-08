@@ -309,8 +309,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           ]);
         });
 
-      // Завантажуємо користувачів для вибору інженерів
-      fetch(`${API_BASE_URL}/users`, {
+      // Завантажуємо користувачів для вибору інженерів (включно зі звільненими для редагування заявок)
+      fetch(`${API_BASE_URL}/users?includeDismissed=true`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
         .then(res => res.json())
