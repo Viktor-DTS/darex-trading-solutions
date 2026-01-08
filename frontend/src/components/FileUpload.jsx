@@ -141,33 +141,18 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
         }
       };
 
-      const tryOpenInExcelThenDownload = (url, filename) => {
-        // Windows + встановлений Office: відкриваємо напряму через protocol handler.
-        // Якщо протокол не підтримується — просто скачується файл.
-        const excelProtocolUrl = `ms-excel:ofe|u|${url}`;
-
-        let didLeavePage = false;
-        const markLeave = () => { didLeavePage = true; };
-
-        const onBlur = () => markLeave();
-        const onVis = () => { if (document.hidden) markLeave(); };
-
-        window.addEventListener('blur', onBlur, { once: true });
-        document.addEventListener('visibilitychange', onVis, { once: true });
-
-        // Використовуємо прихований iframe, щоб не ламати поточну сторінку
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = excelProtocolUrl;
-        document.body.appendChild(iframe);
-
-        // Якщо Excel не відкрився (немає handler) — fallback на download
-        window.setTimeout(() => {
-          try { document.body.removeChild(iframe); } catch {}
-          if (!didLeavePage) {
-            downloadFile(url, filename);
-          }
-        }, 1200);
+      const launchExternalHandler = (protocolUrl) => {
+        try {
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = protocolUrl;
+          document.body.appendChild(iframe);
+          window.setTimeout(() => {
+            try { document.body.removeChild(iframe); } catch {}
+          }, 1500);
+        } catch {
+          // ignore
+        }
       };
 
       // Для не-зображень: PDF відкриваємо напряму, Excel - пробуємо через встановлений Excel, інакше скачуємо
@@ -189,34 +174,16 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       }
 
       if (isExcel) {
-        (async () => {
-          try {
-            const fileId = getFileId(file);
-            const bearer = localStorage.getItem('token');
-            const tokenResp = await fetch(`${API_BASE_URL}/files/open-token/${fileId}`, {
-              headers: { Authorization: `Bearer ${bearer}` }
-            });
+        // Варіант 2: завжди завантажуємо, а потім best-effort намагаємось відкрити через Excel (якщо у користувача є handler).
+        const attachUrl = toCloudinaryAttachmentUrl(url, originalName);
+        downloadFile(attachUrl, originalName);
 
-            if (!tokenResp.ok) {
-              // fallback: просто завантаження
-              downloadFile(toCloudinaryAttachmentUrl(url, originalName), originalName);
-              return;
-            }
-
-            const tokenData = await tokenResp.json();
-            const openToken = tokenData?.token;
-            if (!openToken) {
-              downloadFile(toCloudinaryAttachmentUrl(url, originalName), originalName);
-              return;
-            }
-
-            const publicBase = API_BASE_URL.replace(/\/api\/?$/, '');
-            const openUrl = `${publicBase}/files/open/${fileId}?token=${encodeURIComponent(openToken)}`;
-            tryOpenInExcelThenDownload(openUrl, originalName);
-          } catch (e) {
-            downloadFile(toCloudinaryAttachmentUrl(url, originalName), originalName);
-          }
-        })();
+        // Спроба відкрити через Excel по URL (може працювати/не працювати залежно від Office користувача).
+        // Якщо не спрацює — файл вже в Завантаженнях.
+        window.setTimeout(() => {
+          const excelProtocolUrl = `ms-excel:ofe|u|${attachUrl}`;
+          launchExternalHandler(excelProtocolUrl);
+        }, 800);
         return;
       }
 
