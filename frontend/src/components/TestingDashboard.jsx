@@ -19,7 +19,7 @@ function TestingDashboard({ user }) {
   const [testingForm, setTestingForm] = useState({
     notes: '',
     result: '',
-    materials: '',
+    materials: [], // Масив об'єктів { type, quantity, unit }
     procedure: '',
     conclusion: 'passed'
   });
@@ -82,7 +82,7 @@ function TestingDashboard({ user }) {
     setTestingForm({
       notes: equipment.testingNotes || '',
       result: equipment.testingResult || '',
-      materials: equipment.testingMaterials || '',
+      materials: equipment.testingMaterials || [],
       procedure: equipment.testingProcedure || '',
       conclusion: equipment.testingConclusion || 'passed'
     });
@@ -91,6 +91,30 @@ function TestingDashboard({ user }) {
 
   const handleFormChange = (field, value) => {
     setTestingForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Функції для роботи з матеріалами
+  const handleAddMaterial = () => {
+    setTestingForm(prev => ({
+      ...prev,
+      materials: [...prev.materials, { type: '', quantity: '', unit: 'шт.' }]
+    }));
+  };
+
+  const handleRemoveMaterial = (index) => {
+    setTestingForm(prev => ({
+      ...prev,
+      materials: prev.materials.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleMaterialChange = (index, field, value) => {
+    setTestingForm(prev => ({
+      ...prev,
+      materials: prev.materials.map((mat, i) => 
+        i === index ? { ...mat, [field]: value } : mat
+      )
+    }));
   };
 
   const handleCompleteTesting = async (status) => {
@@ -117,7 +141,7 @@ function TestingDashboard({ user }) {
       if (response.ok) {
         setShowModal(false);
         setSelectedEquipment(null);
-        setTestingForm({ notes: '', result: '', materials: '', procedure: '', conclusion: 'passed' });
+        setTestingForm({ notes: '', result: '', materials: [], procedure: '', conclusion: 'passed' });
         loadRequests();
       } else {
         const error = await response.json();
@@ -392,14 +416,55 @@ function TestingDashboard({ user }) {
                     />
                   </div>
 
-                  <div className="form-group">
+                  <div className="form-group materials-group">
                     <label>Використані матеріали:</label>
-                    <textarea
-                      value={testingForm.materials}
-                      onChange={(e) => handleFormChange('materials', e.target.value)}
-                      placeholder="Перелік матеріалів, що використовувались при тестуванні..."
-                      rows={3}
-                    />
+                    <div className="materials-list">
+                      {testingForm.materials.map((material, index) => (
+                        <div key={index} className="material-row">
+                          <input
+                            type="text"
+                            placeholder="Тип матеріалу"
+                            value={material.type}
+                            onChange={(e) => handleMaterialChange(index, 'type', e.target.value)}
+                            className="material-type"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Кількість"
+                            value={material.quantity}
+                            onChange={(e) => handleMaterialChange(index, 'quantity', e.target.value)}
+                            className="material-quantity"
+                          />
+                          <select
+                            value={material.unit}
+                            onChange={(e) => handleMaterialChange(index, 'unit', e.target.value)}
+                            className="material-unit"
+                          >
+                            <option value="шт.">шт.</option>
+                            <option value="л.">л.</option>
+                            <option value="кг.">кг.</option>
+                            <option value="м.">м.</option>
+                            <option value="комплект">комплект</option>
+                            <option value="упаковка">упаковка</option>
+                          </select>
+                          <button
+                            type="button"
+                            className="btn-remove-material"
+                            onClick={() => handleRemoveMaterial(index)}
+                            title="Видалити"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="btn-add-material"
+                        onClick={handleAddMaterial}
+                      >
+                        ➕ Додати матеріал
+                      </button>
+                    </div>
                   </div>
 
                   <div className="form-group">
@@ -497,10 +562,25 @@ function TestingDashboard({ user }) {
                     </div>
                   )}
                   
-                  {selectedEquipment.testingMaterials && (
+                  {selectedEquipment.testingMaterials && selectedEquipment.testingMaterials.length > 0 && (
                     <div className="result-block">
                       <h4>🔧 Використані матеріали:</h4>
-                      <p>{selectedEquipment.testingMaterials}</p>
+                      <table className="materials-table">
+                        <thead>
+                          <tr>
+                            <th>Тип матеріалу</th>
+                            <th>Кількість</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedEquipment.testingMaterials.map((mat, idx) => (
+                            <tr key={idx}>
+                              <td>{mat.type || '—'}</td>
+                              <td>{mat.quantity} {mat.unit}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                   

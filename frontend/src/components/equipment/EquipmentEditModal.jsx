@@ -1138,7 +1138,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                 </div>
               )}
 
-              {equipment.testingMaterials && (
+              {equipment.testingMaterials && equipment.testingMaterials.length > 0 && (
                 <div style={{ 
                   background: 'var(--surface-dark)', 
                   padding: '15px', 
@@ -1146,7 +1146,46 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   marginBottom: '15px'
                 }}>
                   <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--primary)' }}>🔧 Використані матеріали</h4>
-                  <p style={{ margin: 0, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{equipment.testingMaterials}</p>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ 
+                          padding: '8px 12px', 
+                          textAlign: 'left', 
+                          borderBottom: '1px solid var(--border)',
+                          color: 'var(--text)',
+                          fontSize: '13px',
+                          fontWeight: '600'
+                        }}>Тип матеріалу</th>
+                        <th style={{ 
+                          padding: '8px 12px', 
+                          textAlign: 'left', 
+                          borderBottom: '1px solid var(--border)',
+                          color: 'var(--text)',
+                          fontSize: '13px',
+                          fontWeight: '600'
+                        }}>Кількість</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {equipment.testingMaterials.map((mat, idx) => (
+                        <tr key={idx}>
+                          <td style={{ 
+                            padding: '8px 12px', 
+                            borderBottom: '1px solid var(--border)',
+                            color: 'var(--text)',
+                            fontSize: '13px'
+                          }}>{mat.type || '—'}</td>
+                          <td style={{ 
+                            padding: '8px 12px', 
+                            borderBottom: '1px solid var(--border)',
+                            color: 'var(--text)',
+                            fontSize: '13px'
+                          }}>{mat.quantity} {mat.unit}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
 

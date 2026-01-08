@@ -521,7 +521,11 @@ const equipmentSchema = new mongoose.Schema({
   testingDate: Date,                 // Дата завершення тестування (встановлюється автоматично)
   testingNotes: String,              // Примітки по тестуванню
   testingResult: String,             // Детальний результат тестування
-  testingMaterials: String,          // Використані матеріали
+  testingMaterials: [{               // Використані матеріали
+    type: String,                    // Тип матеріалу
+    quantity: String,                // Кількість
+    unit: String                     // Одиниця виміру (опціонально)
+  }],
   testingProcedure: String,          // Процедура тестування
   testingConclusion: String,         // Висновок тестування: 'passed', 'failed', 'partial'
   testingFiles: [{                   // Файли тестування
