@@ -17,6 +17,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
   const [showTestingInfo, setShowTestingInfo] = useState(false);
+  const [testingGalleryOpen, setTestingGalleryOpen] = useState(false);
+  const [testingGalleryIndex, setTestingGalleryIndex] = useState(0);
   const [equipmentType, setEquipmentType] = useState('single'); // 'single' або 'batch'
   const isNewEquipment = !equipment;
 
@@ -1258,54 +1260,66 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                     gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
                     gap: '12px'
                   }}>
-                    {equipment.testingFiles.map((file, index) => (
-                      <div 
-                        key={file.cloudinaryId || index} 
-                        style={{ textAlign: 'center', cursor: 'pointer' }}
-                        onClick={() => window.open(file.cloudinaryUrl, '_blank')}
-                      >
-                        {file.mimetype?.startsWith('image/') ? (
-                          <img 
-                            src={file.cloudinaryUrl} 
-                            alt={file.originalName}
-                            style={{
+                    {equipment.testingFiles.map((file, index) => {
+                      const imageFiles = equipment.testingFiles.filter(f => f.mimetype?.startsWith('image/'));
+                      const imageIndex = imageFiles.findIndex(f => f.cloudinaryId === file.cloudinaryId || f.cloudinaryUrl === file.cloudinaryUrl);
+                      
+                      return (
+                        <div 
+                          key={file.cloudinaryId || index} 
+                          style={{ textAlign: 'center', cursor: 'pointer' }}
+                          onClick={() => {
+                            if (file.mimetype?.startsWith('image/')) {
+                              setTestingGalleryIndex(imageIndex >= 0 ? imageIndex : 0);
+                              setTestingGalleryOpen(true);
+                            } else {
+                              window.open(file.cloudinaryUrl, '_blank');
+                            }
+                          }}
+                        >
+                          {file.mimetype?.startsWith('image/') ? (
+                            <img 
+                              src={file.cloudinaryUrl} 
+                              alt={file.originalName}
+                              style={{
+                                width: '100%',
+                                height: '80px',
+                                objectFit: 'cover',
+                                borderRadius: '6px',
+                                border: '1px solid var(--border)'
+                              }}
+                            />
+                          ) : (
+                            <div style={{
                               width: '100%',
                               height: '80px',
-                              objectFit: 'cover',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: 'var(--surface)',
                               borderRadius: '6px',
-                              border: '1px solid var(--border)'
-                            }}
-                          />
-                        ) : (
-                          <div style={{
-                            width: '100%',
-                            height: '80px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: 'var(--surface)',
-                            borderRadius: '6px',
-                            border: '1px solid var(--border)',
-                            fontSize: '32px'
-                          }}>
-                            {file.mimetype?.includes('pdf') ? '📕' : 
-                             file.mimetype?.includes('excel') || file.mimetype?.includes('spreadsheet') ? '📗' :
-                             file.mimetype?.includes('word') || file.mimetype?.includes('document') ? '📘' : '📄'}
-                          </div>
-                        )}
-                        <span style={{
-                          display: 'block',
-                          marginTop: '6px',
-                          fontSize: '10px',
-                          color: 'var(--text-secondary)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
-                        }} title={file.originalName}>
-                          {file.originalName}
-                        </span>
-                      </div>
-                    ))}
+                              border: '1px solid var(--border)',
+                              fontSize: '32px'
+                            }}>
+                              {file.mimetype?.includes('pdf') ? '📕' : 
+                               file.mimetype?.includes('excel') || file.mimetype?.includes('spreadsheet') ? '📗' :
+                               file.mimetype?.includes('word') || file.mimetype?.includes('document') ? '📘' : '📄'}
+                            </div>
+                          )}
+                          <span style={{
+                            display: 'block',
+                            marginTop: '6px',
+                            fontSize: '10px',
+                            color: 'var(--text-secondary)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }} title={file.originalName}>
+                            {file.originalName}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1333,6 +1347,151 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                 Закрити
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Галерея для файлів тестування */}
+      {testingGalleryOpen && equipment?.testingFiles && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.95)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 3000,
+            padding: '20px'
+          }}
+          onClick={() => setTestingGalleryOpen(false)}
+        >
+          <div 
+            style={{
+              width: '100%',
+              maxWidth: '1200px',
+              maxHeight: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              position: 'relative'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <button 
+              onClick={() => setTestingGalleryOpen(false)}
+              style={{
+                position: 'absolute',
+                top: '-40px',
+                right: 0,
+                background: 'none',
+                border: 'none',
+                color: 'white',
+                fontSize: '40px',
+                cursor: 'pointer',
+                padding: 0,
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 10
+              }}
+            >
+              ×
+            </button>
+            
+            {(() => {
+              const imageFiles = equipment.testingFiles.filter(f => f.mimetype?.startsWith('image/'));
+              if (imageFiles.length === 0) return null;
+              const currentFile = imageFiles[testingGalleryIndex];
+              
+              return (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', flex: 1, minHeight: 0 }}>
+                    <button 
+                      onClick={() => setTestingGalleryIndex((prev) => (prev - 1 + imageFiles.length) % imageFiles.length)}
+                      disabled={imageFiles.length <= 1}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: 'none',
+                        color: 'white',
+                        fontSize: '48px',
+                        cursor: imageFiles.length <= 1 ? 'default' : 'pointer',
+                        padding: '20px 15px',
+                        borderRadius: '8px',
+                        opacity: imageFiles.length <= 1 ? 0.3 : 1
+                      }}
+                    >
+                      ‹
+                    </button>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 0, maxHeight: '70vh' }}>
+                      <img 
+                        src={currentFile?.cloudinaryUrl} 
+                        alt={currentFile?.originalName}
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '70vh',
+                          objectFit: 'contain',
+                          borderRadius: '8px',
+                          boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)'
+                        }}
+                      />
+                    </div>
+                    <button 
+                      onClick={() => setTestingGalleryIndex((prev) => (prev + 1) % imageFiles.length)}
+                      disabled={imageFiles.length <= 1}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: 'none',
+                        color: 'white',
+                        fontSize: '48px',
+                        cursor: imageFiles.length <= 1 ? 'default' : 'pointer',
+                        padding: '20px 15px',
+                        borderRadius: '8px',
+                        opacity: imageFiles.length <= 1 ? 0.3 : 1
+                      }}
+                    >
+                      ›
+                    </button>
+                  </div>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', color: 'white' }}>
+                    <span style={{ fontSize: '14px', opacity: 0.8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
+                      {currentFile?.originalName}
+                    </span>
+                    <span style={{ fontSize: '14px', fontWeight: 600, background: 'rgba(255, 255, 255, 0.1)', padding: '6px 12px', borderRadius: '20px' }}>
+                      {testingGalleryIndex + 1} / {imageFiles.length}
+                    </span>
+                  </div>
+                  
+                  {imageFiles.length > 1 && (
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', padding: '15px 0', overflowX: 'auto', maxWidth: '100%' }}>
+                      {imageFiles.map((file, idx) => (
+                        <img
+                          key={file.cloudinaryId || idx}
+                          src={file.cloudinaryUrl}
+                          alt={file.originalName}
+                          onClick={() => setTestingGalleryIndex(idx)}
+                          style={{
+                            width: '60px',
+                            height: '60px',
+                            objectFit: 'cover',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            opacity: idx === testingGalleryIndex ? 1 : 0.5,
+                            border: idx === testingGalleryIndex ? '2px solid var(--primary)' : '2px solid transparent',
+                            flexShrink: 0
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
