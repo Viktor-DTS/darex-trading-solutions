@@ -115,7 +115,45 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       const imageIndex = imageFiles.findIndex(f => getFileId(f) === getFileId(file));
       openGalleryInNewWindow(imageFiles, imageIndex >= 0 ? imageIndex : 0);
     } else {
-      // Для не-зображень: PDF відкриваємо напряму, Excel/Word - через онлайн переглядач
+      const downloadFile = (url, filename) => {
+        const link = document.createElement('a');
+        link.href = url;
+        if (filename) link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      };
+
+      const tryOpenInExcelThenDownload = (url, filename) => {
+        // Windows + встановлений Office: відкриваємо напряму через protocol handler.
+        // Якщо протокол не підтримується — просто скачується файл.
+        const excelProtocolUrl = `ms-excel:ofe|u|${url}`;
+
+        let didLeavePage = false;
+        const markLeave = () => { didLeavePage = true; };
+
+        const onBlur = () => markLeave();
+        const onVis = () => { if (document.hidden) markLeave(); };
+
+        window.addEventListener('blur', onBlur, { once: true });
+        document.addEventListener('visibilitychange', onVis, { once: true });
+
+        // Використовуємо прихований iframe, щоб не ламати поточну сторінку
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = excelProtocolUrl;
+        document.body.appendChild(iframe);
+
+        // Якщо Excel не відкрився (немає handler) — fallback на download
+        window.setTimeout(() => {
+          try { document.body.removeChild(iframe); } catch {}
+          if (!didLeavePage) {
+            downloadFile(url, filename);
+          }
+        }, 1200);
+      };
+
+      // Для не-зображень: PDF відкриваємо напряму, Excel - пробуємо через встановлений Excel, інакше скачуємо
       const url = file.cloudinaryUrl;
       const originalName = file.originalName || '';
       const ext = originalName.includes('.') ? originalName.split('.').pop().toLowerCase() : '';
@@ -127,20 +165,14 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
         mimetype.includes('excel') ||
         ext === 'xls' ||
         ext === 'xlsx';
-      const isWord =
-        mimetype.includes('word') ||
-        mimetype.includes('document') ||
-        ext === 'doc' ||
-        ext === 'docx';
 
       if (isPdf) {
         window.open(url, '_blank', 'noopener,noreferrer');
         return;
       }
 
-      if (isExcel || isWord) {
-        const viewerUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`;
-        window.open(viewerUrl, '_blank', 'noopener,noreferrer');
+      if (isExcel) {
+        tryOpenInExcelThenDownload(url, originalName);
         return;
       }
 
