@@ -4239,6 +4239,38 @@ app.get('/api/equipment/statistics', authenticateToken, async (req, res) => {
   }
 });
 
+// ============================================
+// ТЕСТУВАННЯ ОБЛАДНАННЯ - GET запит (має бути ПЕРЕД /:id)
+// ============================================
+app.get('/api/equipment/testing-requests', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { status } = req.query;
+    
+    // Якщо status містить кому - це масив статусів
+    let statusArray = ['requested', 'in_progress'];
+    if (status) {
+      statusArray = status.includes(',') ? status.split(',') : [status];
+    }
+    
+    const filter = {
+      testingStatus: { $in: statusArray }
+    };
+    
+    const equipment = await Equipment.find(filter)
+      .sort({ testingRequestedAt: -1 })
+      .lean();
+    
+    console.log('[DEBUG] GET /api/equipment/testing-requests:', { status, statusArray, found: equipment.length });
+    logPerformance('GET /api/equipment/testing-requests', startTime, equipment.length);
+    res.json(equipment);
+  } catch (error) {
+    console.error('[ERROR] GET /api/equipment/testing-requests:', error);
+    logPerformance('GET /api/equipment/testing-requests', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Отримання деталей обладнання
 app.get('/api/equipment/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();
@@ -4541,33 +4573,6 @@ app.post('/api/equipment/:id/cancel-reserve', authenticateToken, async (req, res
   } catch (error) {
     console.error('[ERROR] POST /api/equipment/:id/cancel-reserve:', error);
     logPerformance('POST /api/equipment/:id/cancel-reserve', startTime);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ============================================
-// ТЕСТУВАННЯ ОБЛАДНАННЯ
-// ============================================
-
-// Отримання списку заявок на тестування
-app.get('/api/equipment/testing-requests', authenticateToken, async (req, res) => {
-  const startTime = Date.now();
-  try {
-    const { status } = req.query;
-    
-    const filter = {
-      testingStatus: { $in: status ? [status] : ['requested', 'in_progress'] }
-    };
-    
-    const equipment = await Equipment.find(filter)
-      .sort({ testingRequestedAt: -1 })
-      .lean();
-    
-    logPerformance('GET /api/equipment/testing-requests', startTime, equipment.length);
-    res.json(equipment);
-  } catch (error) {
-    console.error('[ERROR] GET /api/equipment/testing-requests:', error);
-    logPerformance('GET /api/equipment/testing-requests', startTime);
     res.status(500).json({ error: error.message });
   }
 });
