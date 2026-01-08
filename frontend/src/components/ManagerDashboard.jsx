@@ -6,6 +6,7 @@ import './ManagerDashboard.css';
 function ManagerDashboard({ user }) {
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('stock'); // 'stock' або 'history'
   const [showReservationModal, setShowReservationModal] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [reservationForm, setReservationForm] = useState({
@@ -14,11 +15,38 @@ function ManagerDashboard({ user }) {
     endDate: ''
   });
   const [reservationLoading, setReservationLoading] = useState(false);
+  const [reservationHistory, setReservationHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const equipmentListRef = useRef(null);
 
   useEffect(() => {
     loadWarehouses();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'history') {
+      loadReservationHistory();
+    }
+  }, [activeTab]);
+
+  const loadReservationHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/equipment/reservation-history`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setReservationHistory(data);
+      }
+    } catch (err) {
+      console.error('Помилка завантаження історії:', err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   const loadWarehouses = async () => {
     try {
@@ -138,9 +166,19 @@ function ManagerDashboard({ user }) {
         <aside className="manager-sidebar">
           <nav className="manager-sidebar-nav">
             <div className="sidebar-section-title">Менеджери</div>
-            <button className="manager-sidebar-tab active">
+            <button 
+              className={`manager-sidebar-tab ${activeTab === 'stock' ? 'active' : ''}`}
+              onClick={() => setActiveTab('stock')}
+            >
               <span className="tab-icon">📦</span>
               <span className="tab-label">Залишки на складах</span>
+            </button>
+            <button 
+              className={`manager-sidebar-tab ${activeTab === 'history' ? 'active' : ''}`}
+              onClick={() => setActiveTab('history')}
+            >
+              <span className="tab-icon">📋</span>
+              <span className="tab-label">Історія резервування</span>
             </button>
           </nav>
         </aside>
@@ -148,7 +186,7 @@ function ManagerDashboard({ user }) {
         <main className="manager-main-content">
           {loading ? (
             <div className="loading-indicator">Завантаження...</div>
-          ) : (
+          ) : activeTab === 'stock' ? (
             <div className="manager-tab-content">
               <div className="manager-header" style={{ flexShrink: 0 }}>
                 <h2>Залишки на складах</h2>
@@ -162,6 +200,76 @@ function ManagerDashboard({ user }) {
                   onRequestTesting={handleRequestTesting}
                   showReserveAction={true}
                 />
+              </div>
+            </div>
+          ) : (
+            <div className="manager-tab-content">
+              <div className="manager-header" style={{ flexShrink: 0 }}>
+                <h2>📋 Історія резервування</h2>
+              </div>
+              <div className="reservation-history-container">
+                {historyLoading ? (
+                  <div className="loading-indicator">Завантаження історії...</div>
+                ) : reservationHistory.length === 0 ? (
+                  <div className="no-history">Історія резервувань порожня</div>
+                ) : (
+                  <table className="history-table">
+                    <thead>
+                      <tr>
+                        <th>Дата і час</th>
+                        <th>Дія</th>
+                        <th>Обладнання</th>
+                        <th>Серійний номер</th>
+                        <th>Клієнт</th>
+                        <th>Виконавець</th>
+                        <th>Деталі</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reservationHistory.map((record, index) => (
+                        <tr key={index} className={record.action === 'reserved' ? 'row-reserved' : 'row-cancelled'}>
+                          <td>
+                            {new Date(record.date).toLocaleDateString('uk-UA', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </td>
+                          <td>
+                            <span className={`action-badge ${record.action}`}>
+                              {record.action === 'reserved' ? '🔒 Резервування' : '🔓 Зняття резерву'}
+                            </span>
+                          </td>
+                          <td>{record.equipmentType || '—'}</td>
+                          <td>{record.equipmentSerial || '—'}</td>
+                          <td>{record.clientName || '—'}</td>
+                          <td>{record.userName || '—'}</td>
+                          <td>
+                            {record.action === 'reserved' ? (
+                              <>
+                                {record.endDate && (
+                                  <div>До: {new Date(record.endDate).toLocaleDateString('uk-UA')}</div>
+                                )}
+                                {record.notes && <div>Примітки: {record.notes}</div>}
+                              </>
+                            ) : (
+                              <>
+                                {record.cancelReason === 'expired' && <span className="cancel-reason expired">⏰ Автоматично (термін)</span>}
+                                {record.cancelReason === 'admin' && <span className="cancel-reason admin">👔 Адміністратор</span>}
+                                {record.cancelReason === 'manual' && <span className="cancel-reason manual">👤 Власник</span>}
+                                {record.cancelledByName && record.cancelledByName !== record.userName && (
+                                  <div>Резервував: {record.cancelledByName}</div>
+                                )}
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
           )}

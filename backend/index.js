@@ -412,6 +412,20 @@ const equipmentSchema = new mongoose.Schema({
   reservationNotes: String,         // Примітки до резервування
   reservationEndDate: Date,         // Дата закінчення резервування
   
+  // Історія резервувань
+  reservationHistory: [{
+    action: { type: String, enum: ['reserved', 'cancelled'] }, // Тип дії
+    date: Date,                       // Дата та час дії
+    userId: String,                   // ID користувача
+    userName: String,                 // ПІБ користувача
+    clientName: String,               // Назва клієнта (при резервуванні)
+    endDate: Date,                    // Дата закінчення (при резервуванні)
+    notes: String,                    // Примітки
+    cancelReason: String,             // Причина скасування: 'manual', 'expired', 'admin'
+    cancelledBy: String,              // Хто скасував (якщо інший користувач)
+    cancelledByName: String           // ПІБ того, хто скасував
+  }],
+  
   // Історія переміщень
   movementHistory: [{
     fromWarehouse: String,
@@ -4243,6 +4257,49 @@ app.get('/api/equipment/statistics', authenticateToken, async (req, res) => {
 });
 
 // ============================================
+// ІСТОРІЯ РЕЗЕРВУВАНЬ - GET запит (має бути ПЕРЕД /:id)
+// ============================================
+app.get('/api/equipment/reservation-history', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    // Знаходимо все обладнання з історією резервувань
+    const equipment = await Equipment.find({
+      'reservationHistory.0': { $exists: true }
+    })
+    .select('type serialNumber manufacturer currentWarehouseName reservationHistory')
+    .lean();
+    
+    // Збираємо всі записи історії в один масив
+    const allHistory = [];
+    
+    for (const eq of equipment) {
+      if (eq.reservationHistory && eq.reservationHistory.length > 0) {
+        for (const record of eq.reservationHistory) {
+          allHistory.push({
+            ...record,
+            equipmentId: eq._id,
+            equipmentType: eq.type,
+            equipmentSerial: eq.serialNumber,
+            equipmentManufacturer: eq.manufacturer,
+            equipmentWarehouse: eq.currentWarehouseName
+          });
+        }
+      }
+    }
+    
+    // Сортуємо за датою (найновіші спочатку)
+    allHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    logPerformance('GET /api/equipment/reservation-history', startTime, allHistory.length);
+    res.json(allHistory);
+  } catch (error) {
+    console.error('[ERROR] GET /api/equipment/reservation-history:', error);
+    logPerformance('GET /api/equipment/reservation-history', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
 // ТЕСТУВАННЯ ОБЛАДНАННЯ - GET запит (має бути ПЕРЕД /:id)
 // ============================================
 app.get('/api/equipment/testing-requests', authenticateToken, async (req, res) => {
@@ -4508,6 +4565,20 @@ app.post('/api/equipment/:id/reserve', authenticateToken, async (req, res) => {
     equipment.reservationNotes = notes || '';
     equipment.reservationEndDate = endDate ? new Date(endDate) : null;
     equipment.lastModified = new Date();
+    
+    // Додаємо до історії резервувань
+    if (!equipment.reservationHistory) {
+      equipment.reservationHistory = [];
+    }
+    equipment.reservationHistory.push({
+      action: 'reserved',
+      date: new Date(),
+      userId: user._id.toString(),
+      userName: user.name || user.login,
+      clientName: clientName.trim(),
+      endDate: endDate ? new Date(endDate) : null,
+      notes: notes || ''
+    });
 
     await equipment.save();
 
@@ -4566,6 +4637,31 @@ app.post('/api/equipment/:id/cancel-reserve', authenticateToken, async (req, res
         error: 'Скасувати резервування може тільки адміністратор або той, хто його створив' 
       });
     }
+
+    // Визначаємо причину скасування
+    let cancelReason = 'manual';
+    if (isExpired) {
+      cancelReason = 'expired';
+    } else if (isAdmin && !isOwner) {
+      cancelReason = 'admin';
+    }
+
+    // Додаємо до історії резервувань
+    if (!equipment.reservationHistory) {
+      equipment.reservationHistory = [];
+    }
+    equipment.reservationHistory.push({
+      action: 'cancelled',
+      date: new Date(),
+      userId: user._id.toString(),
+      userName: user.name || user.login,
+      clientName: equipment.reservationClientName,
+      cancelReason: cancelReason,
+      cancelledBy: equipment.reservedBy,
+      cancelledByName: equipment.reservedByName,
+      notes: cancelReason === 'expired' ? 'Автоматичне скасування: закінчився термін резервування' : 
+             cancelReason === 'admin' ? `Скасовано адміністратором: ${user.name || user.login}` : ''
+    });
 
     equipment.status = 'in_stock';
     equipment.reservedBy = undefined;

@@ -285,3 +285,109 @@
   cursor: not-allowed;
 }
 
+/* Історія резервувань */
+.reservation-history-container {
+  flex: 1;
+  overflow: auto;
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.no-history {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+}
+
+.history-table th,
+.history-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-table th {
+  background: var(--surface-dark);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.history-table tbody tr {
+  transition: background 0.2s ease;
+}
+
+.history-table tbody tr:hover {
+  background: var(--surface-dark);
+}
+
+.history-table td {
+  color: var(--text);
+  font-size: 13px;
+  vertical-align: top;
+}
+
+.row-reserved {
+  border-left: 3px solid #28a745;
+}
+
+.row-cancelled {
+  border-left: 3px solid #dc3545;
+}
+
+.action-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.action-badge.reserved {
+  background: #28a745;
+  color: white;
+}
+
+.action-badge.cancelled {
+  background: #dc3545;
+  color: white;
+}
+
+.cancel-reason {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.cancel-reason.expired {
+  background: #ffc107;
+  color: #212529;
+}
+
+.cancel-reason.admin {
+  background: #6f42c1;
+  color: white;
+}
+
+.cancel-reason.manual {
+  background: #17a2b8;
+  color: white;
+}
+
