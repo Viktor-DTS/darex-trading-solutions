@@ -4,34 +4,34 @@
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   text-align: center;
   white-space: nowrap;
 }
 
 .status-in_stock {
-  background-color: #d4edda;
-  color: #155724;
+  background-color: #28a745 !important;
+  color: white !important;
 }
 
 .status-in_transit {
-  background-color: #fff3cd;
-  color: #856404;
+  background-color: #ffc107 !important;
+  color: #212529 !important;
 }
 
 .status-reserved {
-  background-color: #cce5ff;
-  color: #004085;
+  background-color: #6f42c1 !important;
+  color: white !important;
 }
 
 .status-shipped {
-  background-color: #f8d7da;
-  color: #721c24;
+  background-color: #dc3545 !important;
+  color: white !important;
 }
 
 .status-deleted {
-  background-color: #e2e3e5;
-  color: #383d41;
+  background-color: #6c757d !important;
+  color: white !important;
 }
 
 /* Статуси тестування */
