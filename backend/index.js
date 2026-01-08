@@ -528,6 +528,9 @@ const equipmentSchema = new mongoose.Schema({
   }],
   testingProcedure: String,          // Процедура тестування
   testingConclusion: String,         // Висновок тестування: 'passed', 'failed', 'partial'
+  testingEngineer1: String,          // Сервісний інженер №1
+  testingEngineer2: String,          // Сервісний інженер №2
+  testingEngineer3: String,          // Сервісний інженер №3
   testingFiles: [{                   // Файли тестування
     cloudinaryUrl: String,
     cloudinaryId: String,
@@ -4801,7 +4804,7 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
       return res.status(400).json({ error: 'Заявка не в статусі "В роботі"' });
     }
 
-    const { status, notes, result, materials, procedure, conclusion } = req.body; // status: 'completed' або 'failed'
+    const { status, notes, result, materials, procedure, conclusion, engineer1, engineer2, engineer3 } = req.body;
     
     equipment.testingStatus = status === 'failed' ? 'failed' : 'completed';
     equipment.testingCompletedBy = user._id.toString();
@@ -4809,9 +4812,12 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
     equipment.testingDate = new Date();
     equipment.testingNotes = notes || '';
     equipment.testingResult = result || '';
-    equipment.testingMaterials = materials || '';
+    equipment.testingMaterials = Array.isArray(materials) ? materials : [];
     equipment.testingProcedure = procedure || '';
     equipment.testingConclusion = conclusion || (status === 'failed' ? 'failed' : 'passed');
+    equipment.testingEngineer1 = engineer1 || '';
+    equipment.testingEngineer2 = engineer2 || '';
+    equipment.testingEngineer3 = engineer3 || '';
     equipment.lastModified = new Date();
 
     await equipment.save();

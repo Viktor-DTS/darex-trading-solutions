@@ -21,8 +21,12 @@ function TestingDashboard({ user }) {
     result: '',
     materials: [], // Масив об'єктів { type, quantity, unit }
     procedure: '',
-    conclusion: 'passed'
+    conclusion: 'passed',
+    engineer1: '',
+    engineer2: '',
+    engineer3: ''
   });
+  const [serviceEngineers, setServiceEngineers] = useState([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
 
   const loadRequests = useCallback(async () => {
@@ -54,6 +58,27 @@ function TestingDashboard({ user }) {
     loadRequests();
   }, [loadRequests]);
 
+  // Завантаження списку сервісних інженерів
+  useEffect(() => {
+    const loadEngineers = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/users`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const users = await response.json();
+          // Фільтруємо тільки сервісних інженерів
+          const engineers = users.filter(u => u.role === 'service');
+          setServiceEngineers(engineers);
+        }
+      } catch (error) {
+        console.error('Помилка завантаження інженерів:', error);
+      }
+    };
+    loadEngineers();
+  }, []);
+
   const handleTakeToWork = async (equipment) => {
     try {
       const token = localStorage.getItem('token');
@@ -84,7 +109,10 @@ function TestingDashboard({ user }) {
       result: equipment.testingResult || '',
       materials: equipment.testingMaterials || [],
       procedure: equipment.testingProcedure || '',
-      conclusion: equipment.testingConclusion || 'passed'
+      conclusion: equipment.testingConclusion || 'passed',
+      engineer1: equipment.testingEngineer1 || '',
+      engineer2: equipment.testingEngineer2 || '',
+      engineer3: equipment.testingEngineer3 || ''
     });
     setShowModal(true);
   };
@@ -134,14 +162,17 @@ function TestingDashboard({ user }) {
           result: testingForm.result,
           materials: testingForm.materials,
           procedure: testingForm.procedure,
-          conclusion: status === 'failed' ? 'failed' : testingForm.conclusion
+          conclusion: status === 'failed' ? 'failed' : testingForm.conclusion,
+          engineer1: testingForm.engineer1,
+          engineer2: testingForm.engineer2,
+          engineer3: testingForm.engineer3
         })
       });
       
       if (response.ok) {
         setShowModal(false);
         setSelectedEquipment(null);
-        setTestingForm({ notes: '', result: '', materials: [], procedure: '', conclusion: 'passed' });
+        setTestingForm({ notes: '', result: '', materials: [], procedure: '', conclusion: 'passed', engineer1: '', engineer2: '', engineer3: '' });
         loadRequests();
       } else {
         const error = await response.json();
@@ -492,6 +523,46 @@ function TestingDashboard({ user }) {
                     </select>
                   </div>
 
+                  <div className="form-section-title">👷 Сервісні інженери</div>
+                  <div className="engineers-grid">
+                    <div className="form-group">
+                      <label>Сервісний інженер №1:</label>
+                      <select 
+                        value={testingForm.engineer1}
+                        onChange={(e) => handleFormChange('engineer1', e.target.value)}
+                      >
+                        <option value="">— Не вибрано —</option>
+                        {serviceEngineers.map(eng => (
+                          <option key={eng._id || eng.login} value={eng.name}>{eng.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Сервісний інженер №2:</label>
+                      <select 
+                        value={testingForm.engineer2}
+                        onChange={(e) => handleFormChange('engineer2', e.target.value)}
+                      >
+                        <option value="">— Не вибрано —</option>
+                        {serviceEngineers.map(eng => (
+                          <option key={eng._id || eng.login} value={eng.name}>{eng.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Сервісний інженер №3:</label>
+                      <select 
+                        value={testingForm.engineer3}
+                        onChange={(e) => handleFormChange('engineer3', e.target.value)}
+                      >
+                        <option value="">— Не вибрано —</option>
+                        {serviceEngineers.map(eng => (
+                          <option key={eng._id || eng.login} value={eng.name}>{eng.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
                   <div className="form-group">
                     <label>Додаткові примітки:</label>
                     <textarea
@@ -608,6 +679,32 @@ function TestingDashboard({ user }) {
                     <div className="info-row">
                       <span className="label">Тестував:</span>
                       <span className="value">{selectedEquipment.testingCompletedByName}</span>
+                    </div>
+                  )}
+
+                  {(selectedEquipment.testingEngineer1 || selectedEquipment.testingEngineer2 || selectedEquipment.testingEngineer3) && (
+                    <div className="result-block">
+                      <h4>👷 Сервісні інженери:</h4>
+                      <div className="engineers-list">
+                        {selectedEquipment.testingEngineer1 && (
+                          <div className="engineer-item">
+                            <span className="engineer-label">№1:</span>
+                            <span className="engineer-name">{selectedEquipment.testingEngineer1}</span>
+                          </div>
+                        )}
+                        {selectedEquipment.testingEngineer2 && (
+                          <div className="engineer-item">
+                            <span className="engineer-label">№2:</span>
+                            <span className="engineer-name">{selectedEquipment.testingEngineer2}</span>
+                          </div>
+                        )}
+                        {selectedEquipment.testingEngineer3 && (
+                          <div className="engineer-item">
+                            <span className="engineer-label">№3:</span>
+                            <span className="engineer-name">{selectedEquipment.testingEngineer3}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

@@ -1201,6 +1201,37 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                 </div>
               )}
 
+              {(equipment.testingEngineer1 || equipment.testingEngineer2 || equipment.testingEngineer3) && (
+                <div style={{ 
+                  background: 'var(--surface-dark)', 
+                  padding: '15px', 
+                  borderRadius: '8px',
+                  marginBottom: '15px'
+                }}>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--primary)' }}>👷 Сервісні інженери</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {equipment.testingEngineer1 && (
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '13px', minWidth: '30px' }}>№1:</span>
+                        <span style={{ color: 'var(--text)', fontSize: '13px' }}>{equipment.testingEngineer1}</span>
+                      </div>
+                    )}
+                    {equipment.testingEngineer2 && (
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '13px', minWidth: '30px' }}>№2:</span>
+                        <span style={{ color: 'var(--text)', fontSize: '13px' }}>{equipment.testingEngineer2}</span>
+                      </div>
+                    )}
+                    {equipment.testingEngineer3 && (
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '13px', minWidth: '30px' }}>№3:</span>
+                        <span style={{ color: 'var(--text)', fontSize: '13px' }}>{equipment.testingEngineer3}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Файли тестування */}
               {equipment.testingFiles && equipment.testingFiles.length > 0 && (
                 <div style={{ 
