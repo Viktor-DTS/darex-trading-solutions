@@ -2269,31 +2269,9 @@ const fileSchema = new mongoose.Schema({
 const File = mongoose.model('File', fileSchema);
 
 // Multer Storage для файлів виконаних робіт (всі типи файлів)
-// Використовуємо кастомний storage для правильної обробки Excel та інших документів
-const workFilesStorage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: (req, file) => {
-    // Визначаємо resource_type на основі MIME типу
-    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-    const isImage = imageTypes.includes(file.mimetype);
-    
-    // Логуємо інформацію про файл для діагностики
-    console.log('[FILES] Завантаження файлу:', {
-      originalname: file.originalname,
-      mimetype: file.mimetype,
-      resource_type: isImage ? 'image' : 'raw'
-    });
-    
-    return {
-      folder: 'newservicegidra/work-files',
-      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'],
-      resource_type: isImage ? 'image' : 'raw' // Excel, Word, PDF - raw, зображення - image
-    };
-  }
-});
-
+// Використовуємо memoryStorage та завантажуємо в Cloudinary вручну для правильної обробки Excel
 const uploadWorkFiles = multer({
-  storage: workFilesStorage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 20 * 1024 * 1024 // 20MB
   }
@@ -2328,12 +2306,47 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
     for (const file of req.files) {
       console.log('[FILES] Обробка файлу:', file.originalname);
       
-      // Визначаємо URL файлу
-      let fileUrl = file.path || file.secure_url || '';
-      let cloudinaryId = file.public_id || '';
-      
-      // Виправляємо кодування назви файлу
-      let correctedName = file.originalname;
+      // Завантажуємо файл в Cloudinary через API (для Excel файлів потрібен resource_type: 'raw')
+      try {
+        // Визначаємо resource_type на основі MIME типу
+        const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+        const isImage = imageTypes.includes(file.mimetype);
+        const resourceType = isImage ? 'image' : 'raw';
+        
+        console.log('[FILES] Завантаження в Cloudinary:', {
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+          resource_type: resourceType
+        });
+        
+        // Завантажуємо файл в Cloudinary через API
+        const uploadResult = await new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            {
+              folder: 'newservicegidra/work-files',
+              resource_type: resourceType,
+              public_id: `${req.params.taskId}_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+              overwrite: false,
+              invalidate: true
+            },
+            (error, result) => {
+              if (error) {
+                console.error('[FILES] Cloudinary upload error:', error);
+                reject(error);
+              } else {
+                resolve(result);
+              }
+            }
+          );
+          
+          // Записуємо buffer в stream
+          uploadStream.end(file.buffer);
+        });
+        
+        console.log('[FILES] Файл завантажено в Cloudinary:', uploadResult.public_id);
+        
+        // Виправляємо кодування назви файлу
+        let correctedName = file.originalname;
       try {
         const decoded = Buffer.from(correctedName, 'latin1').toString('utf8');
         if (decoded && decoded !== correctedName && !decoded.includes('�')) {
@@ -2343,30 +2356,35 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
         console.log('[FILES] Не вдалося декодувати назву файлу:', error);
       }
       
-      // Створюємо запис в MongoDB
-      const fileRecord = new File({
-        taskId: req.params.taskId,
-        originalName: correctedName,
-        filename: file.filename,
-        cloudinaryId: cloudinaryId,
-        cloudinaryUrl: fileUrl,
-        mimetype: file.mimetype,
-        size: file.size,
-        description: description
-      });
+        // Створюємо запис в MongoDB
+        const fileRecord = new File({
+          taskId: req.params.taskId,
+          originalName: correctedName,
+          filename: uploadResult.public_id,
+          cloudinaryId: uploadResult.public_id,
+          cloudinaryUrl: uploadResult.secure_url,
+          mimetype: file.mimetype,
+          size: file.size,
+          description: description
+        });
 
-      const savedFile = await fileRecord.save();
-      console.log('[FILES] Файл збережено в БД:', savedFile._id);
-      
-      uploadedFiles.push({
-        id: savedFile._id,
-        originalName: savedFile.originalName,
-        cloudinaryUrl: savedFile.cloudinaryUrl,
-        size: savedFile.size,
-        uploadDate: savedFile.uploadDate,
-        description: savedFile.description,
-        mimetype: savedFile.mimetype
-      });
+        const savedFile = await fileRecord.save();
+        console.log('[FILES] Файл збережено в БД:', savedFile._id);
+        
+        uploadedFiles.push({
+          id: savedFile._id,
+          originalName: savedFile.originalName,
+          cloudinaryUrl: savedFile.cloudinaryUrl,
+          size: savedFile.size,
+          uploadDate: savedFile.uploadDate,
+          description: savedFile.description,
+          mimetype: savedFile.mimetype
+        });
+      } catch (fileError) {
+        console.error('[FILES] Помилка обробки файлу:', file.originalname, fileError);
+        // Продовжуємо обробку інших файлів навіть якщо один не вдався
+        continue;
+      }
     }
 
     console.log('[FILES] Успішно завантажено файлів:', uploadedFiles.length);
