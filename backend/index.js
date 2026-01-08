@@ -2367,13 +2367,21 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
         };
         
         // Для raw файлів використовуємо filename_override та format для збереження формату
-        // Це дозволить Cloudinary правильно визначити формат файлу в метаданих
+        // Також додаємо метадані для збереження інформації про формат
         if (resourceType === 'raw' && correctedName) {
           uploadParams.filename_override = correctedName;
           // Явно вказуємо формат для правильного визначення Cloudinary
           if (detectedFormat) {
             uploadParams.format = detectedFormat;
           }
+          // Додаємо метадані для збереження інформації про формат
+          uploadParams.context = {
+            format: detectedFormat || fileExtension,
+            original_filename: correctedName,
+            file_type: detectedFormat || fileExtension
+          };
+          // Також додаємо теги для легшого пошуку
+          uploadParams.tags = [`format_${detectedFormat || fileExtension}`, 'excel_file', 'document'];
         }
         
         // Завантажуємо файл в Cloudinary через API
