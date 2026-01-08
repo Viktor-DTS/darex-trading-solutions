@@ -479,30 +479,33 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
           <div className="files-list">
             {uploadedFiles.map((file) => (
               <div key={getFileId(file)} className="file-item">
-                <div className="file-info">
-                  <span className="file-icon">{getFileIcon(file.mimetype)}</span>
-                  <div className="file-details">
-                    <div
-                      className="file-description-top"
-                      title={file.description || 'Опис відсутній'}
-                    >
-                      📝 <b>Опис:</b> {file.description ? file.description : '—'}
-                    </div>
-                    <div className="file-name">
-                      <a 
-                        href={file.cloudinaryUrl} 
-                        className="file-link"
-                        onClick={(e) => handleViewFile(file, e)}
-                      >
-                        {file.originalName}
-                      </a>
-                    </div>
-                    <div className="file-meta">
-                      Тип: {getFileTypeLabel(file)} • {formatFileSize(file.size)} • {formatDate(file.uploadDate)}
+                <div
+                  className="file-description-top"
+                  title={file.description || 'Опис відсутній'}
+                >
+                  📝 <b>Опис:</b> {file.description ? file.description : '—'}
+                </div>
+
+                <div className="file-main-row">
+                  <div className="file-info">
+                    <span className="file-icon">{getFileIcon(file.mimetype)}</span>
+                    <div className="file-details">
+                      <div className="file-name">
+                        <a 
+                          href={file.cloudinaryUrl} 
+                          className="file-link"
+                          onClick={(e) => handleViewFile(file, e)}
+                        >
+                          {file.originalName}
+                        </a>
+                      </div>
+                      <div className="file-meta">
+                        Тип: {getFileTypeLabel(file)} • {formatFileSize(file.size)} • {formatDate(file.uploadDate)}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="file-actions">
+
+                  <div className="file-actions">
                   <button
                     type="button"
                     onClick={(e) => handleViewFile(file, e)}
@@ -570,6 +573,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                   >
                     🗑️
                   </button>
+                  </div>
                 </div>
               </div>
             ))}
