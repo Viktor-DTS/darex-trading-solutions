@@ -13,6 +13,7 @@ function GlobalSearch({ user }) {
   };
 
   const [searchData, setSearchData] = useState({
+    requestNumber: '',
     edrpou: '',
     engineSerial: '',
     customerEquipmentNumber: '',
@@ -90,7 +91,7 @@ function GlobalSearch({ user }) {
 
   const handleSearch = async () => {
     // Перевірка, чи заповнено хоча б одне поле
-    if (!searchData.edrpou.trim() && !searchData.engineSerial.trim() && !searchData.customerEquipmentNumber.trim()) {
+    if (!searchData.requestNumber.trim() && !searchData.edrpou.trim() && !searchData.engineSerial.trim() && !searchData.customerEquipmentNumber.trim()) {
       setError('Будь ласка, заповніть хоча б одне поле для пошуку');
       return;
     }
@@ -180,6 +181,22 @@ function GlobalSearch({ user }) {
       <div className="search-form">
         <div className="search-form-row">
           <div className="search-form-field">
+            <label htmlFor="requestNumber">Номер заявки</label>
+            <input
+              type="text"
+              id="requestNumber"
+              value={searchData.requestNumber}
+              onChange={(e) => handleInputChange('requestNumber', e.target.value)}
+              placeholder="Введіть номер заявки"
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleSearch();
+                }
+              }}
+            />
+          </div>
+
+          <div className="search-form-field">
             <label htmlFor="edrpou">ЄДРПОУ</label>
             <input
               type="text"
@@ -258,6 +275,7 @@ function GlobalSearch({ user }) {
             className="btn-clear"
             onClick={() => {
               setSearchData({
+                requestNumber: '',
                 edrpou: '',
                 engineSerial: '',
                 customerEquipmentNumber: '',

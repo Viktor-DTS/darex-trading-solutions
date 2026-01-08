@@ -1711,10 +1711,14 @@ app.get('/api/tasks/:id', async (req, res) => {
 app.post('/api/tasks/global-search', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { edrpou, engineSerial, customerEquipmentNumber, region } = req.body;
+    const { requestNumber, edrpou, engineSerial, customerEquipmentNumber, region } = req.body;
     
     // Будуємо умови пошуку
     const matchConditions = {};
+    
+    if (requestNumber && requestNumber.trim()) {
+      matchConditions.requestNumber = { $regex: new RegExp(requestNumber.trim(), 'i') };
+    }
     
     if (edrpou && edrpou.trim()) {
       matchConditions.edrpou = { $regex: new RegExp(edrpou.trim(), 'i') };
