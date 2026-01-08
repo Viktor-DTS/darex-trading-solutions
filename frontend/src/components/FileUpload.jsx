@@ -112,7 +112,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
     if (isImage) {
       // Відкриваємо зображення в новому вікні з галереєю
       const imageFiles = uploadedFiles.filter(f => f.mimetype && f.mimetype.startsWith('image/'));
-      const imageIndex = imageFiles.findIndex(f => f.id === file.id);
+      const imageIndex = imageFiles.findIndex(f => getFileId(f) === getFileId(file));
       openGalleryInNewWindow(imageFiles, imageIndex >= 0 ? imageIndex : 0);
     } else {
       // Для не-зображень відкриваємо в новій вкладці
@@ -321,6 +321,8 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
     return new Date(dateString).toLocaleString('uk-UA');
   };
 
+  const getFileId = (file) => file?.id || file?._id || file?.cloudinaryId || '';
+
   const getFileIcon = (mimetype) => {
     if (!mimetype) return '📎';
     if (mimetype.startsWith('image/')) return '🖼️';
@@ -362,7 +364,12 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       
       if (response.ok) {
         const files = await response.json();
-        setUploadedFiles(files);
+        // Нормалізуємо поля під фронтенд (бекенд може повертати _id)
+        const normalized = (Array.isArray(files) ? files : []).map((f) => ({
+          ...f,
+          id: f?.id || f?._id || f?.cloudinaryId
+        }));
+        setUploadedFiles(normalized);
       } else {
         console.error('Помилка завантаження файлів');
       }
@@ -471,7 +478,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
         ) : (
           <div className="files-list">
             {uploadedFiles.map((file) => (
-              <div key={file.id} className="file-item">
+              <div key={getFileId(file)} className="file-item">
                 <div className="file-info">
                   <span className="file-icon">{getFileIcon(file.mimetype)}</span>
                   <div className="file-details">
@@ -556,7 +563,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      handleDeleteFile(file.id);
+                      handleDeleteFile(getFileId(file));
                     }}
                     className="delete-button"
                     title="Видалити файл"
