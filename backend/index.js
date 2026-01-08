@@ -2325,31 +2325,58 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
         const resourceType = isImage ? 'image' : 'raw';
         
         // Витягуємо розширення файлу з оригінальної назви
-        const fileExtension = correctedName.split('.').pop() || '';
-        const baseName = correctedName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const fileExtension = correctedName.split('.').pop()?.toLowerCase() || '';
         
-        // Формуємо public_id з розширенням для правильного визначення формату
+        // Мапування MIME типів до форматів для Excel та інших документів
+        const mimeToFormat = {
+          'application/vnd.ms-excel': 'xls',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+          'application/msword': 'doc',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+          'application/pdf': 'pdf',
+          'text/plain': 'txt'
+        };
+        
+        // Визначаємо формат на основі MIME типу або розширення
+        let detectedFormat = mimeToFormat[file.mimetype] || fileExtension;
+        
+        // Очищаємо назву файлу від спеціальних символів, але зберігаємо розширення
+        const sanitizedName = correctedName.replace(/[^a-zA-Z0-9_.-]/g, '_');
+        const baseName = sanitizedName.replace(/\.[^/.]+$/, '');
+        
+        // Формуємо public_id з оригінальною назвою (очищеною) та унікальним ідентифікатором
+        // Обов'язково додаємо розширення для правильного визначення формату
         const uniqueId = `${req.params.taskId}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-        const publicId = fileExtension ? `${uniqueId}.${fileExtension}` : uniqueId;
+        const publicId = fileExtension ? `${baseName}_${uniqueId}.${fileExtension}` : `${baseName}_${uniqueId}`;
         
         console.log('[FILES] Завантаження в Cloudinary:', {
           originalname: correctedName,
           mimetype: file.mimetype,
           resource_type: resourceType,
           extension: fileExtension,
+          detected_format: detectedFormat,
           public_id: publicId
         });
+        
+        // Формуємо параметри завантаження
+        const uploadParams = {
+          folder: 'newservicegidra/work-files',
+          resource_type: resourceType,
+          public_id: publicId,
+          overwrite: false,
+          invalidate: true
+        };
+        
+        // Для raw файлів додаємо format якщо він визначений
+        if (resourceType === 'raw' && detectedFormat && detectedFormat !== fileExtension) {
+          // Використовуємо розширення в public_id, що має допомогти Cloudinary визначити формат
+          uploadParams.format = detectedFormat;
+        }
         
         // Завантажуємо файл в Cloudinary через API
         const uploadResult = await new Promise((resolve, reject) => {
           const uploadStream = cloudinary.uploader.upload_stream(
-            {
-              folder: 'newservicegidra/work-files',
-              resource_type: resourceType,
-              public_id: publicId,
-              overwrite: false,
-              invalidate: true
-            },
+            uploadParams,
             (error, result) => {
               if (error) {
                 console.error('[FILES] Cloudinary upload error:', error);
