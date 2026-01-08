@@ -115,75 +115,33 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       const imageIndex = imageFiles.findIndex(f => getFileId(f) === getFileId(file));
       openGalleryInNewWindow(imageFiles, imageIndex >= 0 ? imageIndex : 0);
     } else {
-      const downloadFile = (url, filename) => {
-        const link = document.createElement('a');
-        link.href = url;
-        if (filename) link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      };
-
-      const toCloudinaryAttachmentUrl = (url, filename) => {
-        // Для Cloudinary додаємо fl_attachment:<filename>, щоб Excel краще тягнув файл по URL
-        // (і щоб ім'я/розширення були очевидні для клієнта).
-        try {
-          if (!url || !url.includes('/upload/')) return url;
-          const safeName = (filename || '').trim();
-          if (!safeName) {
-            return url.replace('/upload/', '/upload/fl_attachment/');
-          }
-          // Cloudinary expects transformation segment; encode filename to be safe for URL path
-          const encodedName = encodeURIComponent(safeName);
-          return url.replace('/upload/', `/upload/fl_attachment:${encodedName}/`);
-        } catch {
-          return url;
-        }
-      };
-
-      const launchExternalHandler = (protocolUrl) => {
-        try {
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = protocolUrl;
-          document.body.appendChild(iframe);
-          window.setTimeout(() => {
-            try { document.body.removeChild(iframe); } catch {}
-          }, 1500);
-        } catch {
-          // ignore
-        }
-      };
-
-      // Для не-зображень: PDF відкриваємо напряму, Excel - пробуємо через встановлений Excel, інакше скачуємо
+      // Для не-зображень: PDF відкриваємо напряму, Excel/Word — скачуємо
       const url = file.cloudinaryUrl;
       const originalName = file.originalName || '';
       const ext = originalName.includes('.') ? originalName.split('.').pop().toLowerCase() : '';
 
       const mimetype = file.mimetype || '';
       const isPdf = mimetype.includes('pdf') || ext === 'pdf';
-      const isExcel =
+      const isOfficeDoc =
         mimetype.includes('spreadsheet') ||
         mimetype.includes('excel') ||
-        ext === 'xls' ||
-        ext === 'xlsx';
+        mimetype.includes('word') ||
+        mimetype.includes('document') ||
+        ['xls', 'xlsx', 'doc', 'docx'].includes(ext);
 
       if (isPdf) {
         window.open(url, '_blank', 'noopener,noreferrer');
         return;
       }
 
-      if (isExcel) {
-        // Варіант 2: завжди завантажуємо, а потім best-effort намагаємось відкрити через Excel (якщо у користувача є handler).
-        const attachUrl = toCloudinaryAttachmentUrl(url, originalName);
-        downloadFile(attachUrl, originalName);
-
-        // Спроба відкрити через Excel по URL (може працювати/не працювати залежно від Office користувача).
-        // Якщо не спрацює — файл вже в Завантаженнях.
-        window.setTimeout(() => {
-          const excelProtocolUrl = `ms-excel:ofe|u|${attachUrl}`;
-          launchExternalHandler(excelProtocolUrl);
-        }, 800);
+      if (isOfficeDoc) {
+        // Для Excel/Word просто скачуємо — користувач відкриє файл сам
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = originalName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
         return;
       }
 
