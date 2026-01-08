@@ -317,10 +317,6 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString('uk-UA');
-  };
-
   const getFileId = (file) => file?.id || file?._id || file?.cloudinaryId || '';
 
   const getFileIcon = (mimetype) => {
@@ -331,19 +327,6 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
     if (mimetype.includes('excel') || mimetype.includes('spreadsheet')) return '📊';
     if (mimetype.includes('text')) return '📄';
     return '📎';
-  };
-
-  const getFileTypeLabel = (file) => {
-    const mimetype = file?.mimetype || '';
-    const name = file?.originalName || '';
-    const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
-
-    if (mimetype.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'Зображення';
-    if (mimetype.includes('pdf') || ext === 'pdf') return 'PDF';
-    if (mimetype.includes('spreadsheet') || mimetype.includes('excel') || ['xls', 'xlsx'].includes(ext)) return 'Excel';
-    if (mimetype.includes('word') || mimetype.includes('document') || ['doc', 'docx'].includes(ext)) return 'Word';
-    if (mimetype.includes('text') || ext === 'txt') return 'Текст';
-    return ext ? ext.toUpperCase() : 'Файл';
   };
 
   const loadFiles = async () => {
@@ -499,9 +482,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
                           {file.originalName}
                         </a>
                       </div>
-                      <div className="file-meta">
-                        Тип: {getFileTypeLabel(file)} • {formatFileSize(file.size)} • {formatDate(file.uploadDate)}
-                      </div>
+                      {/* meta removed by request */}
                     </div>
                   </div>
 
