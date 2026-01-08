@@ -105,3 +105,30 @@
   color: var(--text-secondary);
 }
 
+/* Жовтий горизонтальний скролбар */
+.manager-dashboard ::-webkit-scrollbar {
+  height: 12px;
+  width: 12px;
+}
+
+.manager-dashboard ::-webkit-scrollbar-track {
+  background: var(--surface-dark);
+  border-radius: 6px;
+}
+
+.manager-dashboard ::-webkit-scrollbar-thumb {
+  background: #ffc107;
+  border-radius: 6px;
+  border: 2px solid var(--surface-dark);
+}
+
+.manager-dashboard ::-webkit-scrollbar-thumb:hover {
+  background: #e0a800;
+}
+
+/* Firefox */
+.manager-dashboard * {
+  scrollbar-color: #ffc107 var(--surface-dark);
+  scrollbar-width: thin;
+}
+
