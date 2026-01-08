@@ -124,10 +124,28 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
         document.body.removeChild(link);
       };
 
+      const toCloudinaryAttachmentUrl = (url, filename) => {
+        // Для Cloudinary додаємо fl_attachment:<filename>, щоб Excel краще тягнув файл по URL
+        // (і щоб ім'я/розширення були очевидні для клієнта).
+        try {
+          if (!url || !url.includes('/upload/')) return url;
+          const safeName = (filename || '').trim();
+          if (!safeName) {
+            return url.replace('/upload/', '/upload/fl_attachment/');
+          }
+          // Cloudinary expects transformation segment; encode filename to be safe for URL path
+          const encodedName = encodeURIComponent(safeName);
+          return url.replace('/upload/', `/upload/fl_attachment:${encodedName}/`);
+        } catch {
+          return url;
+        }
+      };
+
       const tryOpenInExcelThenDownload = (url, filename) => {
         // Windows + встановлений Office: відкриваємо напряму через protocol handler.
         // Якщо протокол не підтримується — просто скачується файл.
-        const excelProtocolUrl = `ms-excel:ofe|u|${url}`;
+        const attachUrl = toCloudinaryAttachmentUrl(url, filename);
+        const excelProtocolUrl = `ms-excel:ofe|u|${attachUrl}`;
 
         let didLeavePage = false;
         const markLeave = () => { didLeavePage = true; };
@@ -148,7 +166,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
         window.setTimeout(() => {
           try { document.body.removeChild(iframe); } catch {}
           if (!didLeavePage) {
-            downloadFile(url, filename);
+            downloadFile(attachUrl, filename);
           }
         }, 1200);
       };
