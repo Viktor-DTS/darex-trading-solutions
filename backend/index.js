@@ -2342,12 +2342,12 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
         
         // Очищаємо назву файлу від спеціальних символів, але зберігаємо розширення
         const sanitizedName = correctedName.replace(/[^a-zA-Z0-9_.-]/g, '_');
-        const baseName = sanitizedName.replace(/\.[^/.]+$/, '');
         
-        // Формуємо public_id з оригінальною назвою (очищеною) та унікальним ідентифікатором
-        // Обов'язково додаємо розширення для правильного визначення формату
+        // Формуємо public_id з унікальним префіксом та оригінальною назвою (очищеною) з розширенням
+        // Це дозволить Cloudinary правильно визначити формат на основі розширення
         const uniqueId = `${req.params.taskId}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-        const publicId = fileExtension ? `${baseName}_${uniqueId}.${fileExtension}` : `${baseName}_${uniqueId}`;
+        // Використовуємо очищену назву файлу з розширенням для збереження формату
+        const publicId = sanitizedName ? `${uniqueId}_${sanitizedName}` : (fileExtension ? `${uniqueId}.${fileExtension}` : uniqueId);
         
         console.log('[FILES] Завантаження в Cloudinary:', {
           originalname: correctedName,
@@ -2367,9 +2367,8 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
           invalidate: true
         };
         
-        // Для raw файлів додаємо format якщо він визначений
-        if (resourceType === 'raw' && detectedFormat && detectedFormat !== fileExtension) {
-          // Використовуємо розширення в public_id, що має допомогти Cloudinary визначити формат
+        // Для raw файлів явно вказуємо формат, якщо він визначений
+        if (resourceType === 'raw' && detectedFormat) {
           uploadParams.format = detectedFormat;
         }
         
