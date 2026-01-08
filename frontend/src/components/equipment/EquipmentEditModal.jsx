@@ -1138,56 +1138,69 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                 </div>
               )}
 
-              {equipment.testingMaterials && equipment.testingMaterials.length > 0 && (
-                <div style={{ 
-                  background: 'var(--surface-dark)', 
-                  padding: '15px', 
-                  borderRadius: '8px',
-                  marginBottom: '15px'
-                }}>
-                  <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--primary)' }}>🔧 Використані матеріали</h4>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr>
-                        <th style={{ 
-                          padding: '8px 12px', 
-                          textAlign: 'left', 
-                          borderBottom: '1px solid var(--border)',
-                          color: 'var(--text)',
-                          fontSize: '13px',
-                          fontWeight: '600'
-                        }}>Тип матеріалу</th>
-                        <th style={{ 
-                          padding: '8px 12px', 
-                          textAlign: 'left', 
-                          borderBottom: '1px solid var(--border)',
-                          color: 'var(--text)',
-                          fontSize: '13px',
-                          fontWeight: '600'
-                        }}>Кількість</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {equipment.testingMaterials.map((mat, idx) => (
-                        <tr key={idx}>
-                          <td style={{ 
+              {(() => {
+                let materials = [];
+                if (equipment.testingMaterialsJson) {
+                  try {
+                    materials = JSON.parse(equipment.testingMaterialsJson);
+                  } catch (e) { /* ignore */ }
+                } else if (Array.isArray(equipment.testingMaterials)) {
+                  materials = equipment.testingMaterials;
+                }
+                
+                if (materials.length === 0) return null;
+                
+                return (
+                  <div style={{ 
+                    background: 'var(--surface-dark)', 
+                    padding: '15px', 
+                    borderRadius: '8px',
+                    marginBottom: '15px'
+                  }}>
+                    <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--primary)' }}>🔧 Використані матеріали</h4>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ 
                             padding: '8px 12px', 
+                            textAlign: 'left', 
                             borderBottom: '1px solid var(--border)',
                             color: 'var(--text)',
-                            fontSize: '13px'
-                          }}>{mat.type || '—'}</td>
-                          <td style={{ 
+                            fontSize: '13px',
+                            fontWeight: '600'
+                          }}>Тип матеріалу</th>
+                          <th style={{ 
                             padding: '8px 12px', 
+                            textAlign: 'left', 
                             borderBottom: '1px solid var(--border)',
                             color: 'var(--text)',
-                            fontSize: '13px'
-                          }}>{mat.quantity} {mat.unit}</td>
+                            fontSize: '13px',
+                            fontWeight: '600'
+                          }}>Кількість</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                      </thead>
+                      <tbody>
+                        {materials.map((mat, idx) => (
+                          <tr key={idx}>
+                            <td style={{ 
+                              padding: '8px 12px', 
+                              borderBottom: '1px solid var(--border)',
+                              color: 'var(--text)',
+                              fontSize: '13px'
+                            }}>{mat.type || '—'}</td>
+                            <td style={{ 
+                              padding: '8px 12px', 
+                              borderBottom: '1px solid var(--border)',
+                              color: 'var(--text)',
+                              fontSize: '13px'
+                            }}>{mat.quantity} {mat.unit}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
 
               {equipment.testingNotes && (
                 <div style={{ 

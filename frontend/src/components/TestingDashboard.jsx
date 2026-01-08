@@ -106,10 +106,23 @@ function TestingDashboard({ user }) {
 
   const handleOpenComplete = (equipment) => {
     setSelectedEquipment(equipment);
+    
+    // Парсимо матеріали з JSON
+    let parsedMaterials = [];
+    if (equipment.testingMaterialsJson) {
+      try {
+        parsedMaterials = JSON.parse(equipment.testingMaterialsJson);
+      } catch (e) {
+        console.error('Помилка парсингу матеріалів:', e);
+      }
+    } else if (Array.isArray(equipment.testingMaterials)) {
+      parsedMaterials = equipment.testingMaterials;
+    }
+    
     setTestingForm({
       notes: equipment.testingNotes || '',
       result: equipment.testingResult || '',
-      materials: equipment.testingMaterials || [],
+      materials: parsedMaterials,
       procedure: equipment.testingProcedure || '',
       conclusion: equipment.testingConclusion || 'passed',
       engineer1: equipment.testingEngineer1 || '',
@@ -729,27 +742,40 @@ function TestingDashboard({ user }) {
                     </div>
                   )}
                   
-                  {selectedEquipment.testingMaterials && selectedEquipment.testingMaterials.length > 0 && (
-                    <div className="result-block">
-                      <h4>🔧 Використані матеріали:</h4>
-                      <table className="materials-table">
-                        <thead>
-                          <tr>
-                            <th>Тип матеріалу</th>
-                            <th>Кількість</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedEquipment.testingMaterials.map((mat, idx) => (
-                            <tr key={idx}>
-                              <td>{mat.type || '—'}</td>
-                              <td>{mat.quantity} {mat.unit}</td>
+                  {(() => {
+                    let materials = [];
+                    if (selectedEquipment.testingMaterialsJson) {
+                      try {
+                        materials = JSON.parse(selectedEquipment.testingMaterialsJson);
+                      } catch (e) { /* ignore */ }
+                    } else if (Array.isArray(selectedEquipment.testingMaterials)) {
+                      materials = selectedEquipment.testingMaterials;
+                    }
+                    
+                    if (materials.length === 0) return null;
+                    
+                    return (
+                      <div className="result-block">
+                        <h4>🔧 Використані матеріали:</h4>
+                        <table className="materials-table">
+                          <thead>
+                            <tr>
+                              <th>Тип матеріалу</th>
+                              <th>Кількість</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                          </thead>
+                          <tbody>
+                            {materials.map((mat, idx) => (
+                              <tr key={idx}>
+                                <td>{mat.type || '—'}</td>
+                                <td>{mat.quantity} {mat.unit}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
                   
                   {selectedEquipment.testingNotes && (
                     <div className="result-block">

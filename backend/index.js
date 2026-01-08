@@ -521,7 +521,7 @@ const equipmentSchema = new mongoose.Schema({
   testingDate: Date,                 // Дата завершення тестування (встановлюється автоматично)
   testingNotes: String,              // Примітки по тестуванню
   testingResult: String,             // Детальний результат тестування
-  testingMaterials: { type: mongoose.Schema.Types.Mixed, default: [] }, // Використані матеріали [{type, quantity, unit}]
+  testingMaterialsJson: String,      // Використані матеріали у форматі JSON [{type, quantity, unit}]
   testingProcedure: String,          // Процедура тестування
   testingConclusion: String,         // Висновок тестування: 'passed', 'failed', 'partial'
   testingEngineer1: String,          // Сервісний інженер №1
@@ -4802,7 +4802,7 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
 
     const { status, notes, result, materials, procedure, conclusion, engineer1, engineer2, engineer3 } = req.body;
     
-    // Фільтруємо матеріали - видаляємо порожні записи
+    // Фільтруємо матеріали - видаляємо порожні записи та зберігаємо як JSON
     let filteredMaterials = [];
     if (Array.isArray(materials)) {
       filteredMaterials = materials.filter(m => m && m.type && m.type.trim() !== '');
@@ -4814,7 +4814,7 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
     equipment.testingDate = new Date();
     equipment.testingNotes = notes || '';
     equipment.testingResult = result || '';
-    equipment.testingMaterials = filteredMaterials;
+    equipment.testingMaterialsJson = JSON.stringify(filteredMaterials);
     equipment.testingProcedure = procedure || '';
     equipment.testingConclusion = conclusion || (status === 'failed' ? 'failed' : 'passed');
     equipment.testingEngineer1 = engineer1 || '';
