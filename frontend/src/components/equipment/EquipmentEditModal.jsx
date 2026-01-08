@@ -515,6 +515,53 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   disabled={readOnly}
                 />
               </div>
+              {/* Поля тестування - тільки для існуючого обладнання */}
+              {!isNewEquipment && (
+                <>
+                  <div className="form-group">
+                    <label>Статус тестування</label>
+                    <input
+                      type="text"
+                      value={
+                        equipment?.testingStatus === 'none' || !equipment?.testingStatus ? 'Не тестувалось' :
+                        equipment?.testingStatus === 'requested' ? 'Очікує тестування' :
+                        equipment?.testingStatus === 'in_progress' ? 'В роботі' :
+                        equipment?.testingStatus === 'completed' ? 'Тест пройдено' :
+                        equipment?.testingStatus === 'failed' ? 'Тест не пройдено' : '—'
+                      }
+                      readOnly
+                      disabled
+                      style={{
+                        backgroundColor: 
+                          equipment?.testingStatus === 'completed' ? '#d4edda' :
+                          equipment?.testingStatus === 'failed' ? '#f8d7da' :
+                          equipment?.testingStatus === 'in_progress' ? '#d1ecf1' :
+                          equipment?.testingStatus === 'requested' ? '#fff3cd' : '#e9ecef',
+                        color:
+                          equipment?.testingStatus === 'completed' ? '#155724' :
+                          equipment?.testingStatus === 'failed' ? '#721c24' :
+                          equipment?.testingStatus === 'in_progress' ? '#0c5460' :
+                          equipment?.testingStatus === 'requested' ? '#856404' : '#495057'
+                      }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Дата тестування</label>
+                    <input
+                      type="text"
+                      value={equipment?.testingDate ? new Date(equipment.testingDate).toLocaleDateString('uk-UA', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }) : '—'}
+                      readOnly
+                      disabled
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

@@ -34,6 +34,46 @@
   color: #383d41;
 }
 
+/* Статуси тестування */
+.testing-none {
+  background-color: #6c757d;
+  color: white;
+}
+
+.testing-requested {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.testing-progress {
+  background-color: #17a2b8;
+  color: white;
+}
+
+.testing-completed {
+  background-color: #28a745;
+  color: white;
+}
+
+.testing-failed {
+  background-color: #dc3545;
+  color: white;
+}
+
+/* Кнопка тесту */
+.btn-test {
+  background-color: #6f42c1 !important;
+  color: white !important;
+}
+
+.btn-test:hover {
+  background-color: #5a32a3 !important;
+}
+
+.btn-test:disabled {
+  cursor: not-allowed;
+}
+
 /* Контейнер таблиці */
 .equipment-table-container {
   width: 100%;

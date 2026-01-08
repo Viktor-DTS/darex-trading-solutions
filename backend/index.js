@@ -487,6 +487,31 @@ const equipmentSchema = new mongoose.Schema({
     uploadedAt: { type: Date, default: Date.now }
   }],
   
+  // Тестування обладнання
+  testingStatus: {
+    type: String,
+    enum: ['none', 'requested', 'in_progress', 'completed', 'failed'],
+    default: 'none'
+  },
+  testingRequestedBy: String,        // ID користувача, який подав заявку на тест
+  testingRequestedByName: String,    // ПІБ користувача
+  testingRequestedAt: Date,          // Дата подачі заявки на тест
+  testingTakenBy: String,            // ID тестувальника, який взяв в роботу
+  testingTakenByName: String,        // ПІБ тестувальника
+  testingTakenAt: Date,              // Дата взяття в роботу
+  testingCompletedBy: String,        // ID тестувальника, який завершив тест
+  testingCompletedByName: String,    // ПІБ тестувальника
+  testingDate: Date,                 // Дата завершення тестування (встановлюється автоматично)
+  testingNotes: String,              // Примітки по тестуванню
+  testingFiles: [{                   // Файли тестування
+    cloudinaryUrl: String,
+    cloudinaryId: String,
+    originalName: String,
+    mimetype: String,
+    size: Number,
+    uploadedAt: { type: Date, default: Date.now }
+  }],
+  
   // Метадані
   addedBy: String,                  // ID користувача
   addedByName: String,               // Ім'я користувача
@@ -506,6 +531,7 @@ equipmentSchema.index({ region: 1 });
 equipmentSchema.index({ type: 1 });
 equipmentSchema.index({ batchId: 1 });
 equipmentSchema.index({ batchId: 1, currentWarehouse: 1 }); // Для швидкого пошуку партій на складі
+equipmentSchema.index({ testingStatus: 1 }); // Для швидкого пошуку заявок на тестування
 
 const Equipment = mongoose.model('Equipment', equipmentSchema);
 
@@ -4515,6 +4541,221 @@ app.post('/api/equipment/:id/cancel-reserve', authenticateToken, async (req, res
   } catch (error) {
     console.error('[ERROR] POST /api/equipment/:id/cancel-reserve:', error);
     logPerformance('POST /api/equipment/:id/cancel-reserve', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// ТЕСТУВАННЯ ОБЛАДНАННЯ
+// ============================================
+
+// Отримання списку заявок на тестування
+app.get('/api/equipment/testing-requests', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { status } = req.query;
+    
+    const filter = {
+      testingStatus: { $in: status ? [status] : ['requested', 'in_progress'] }
+    };
+    
+    const equipment = await Equipment.find(filter)
+      .sort({ testingRequestedAt: -1 })
+      .lean();
+    
+    logPerformance('GET /api/equipment/testing-requests', startTime, equipment.length);
+    res.json(equipment);
+  } catch (error) {
+    console.error('[ERROR] GET /api/equipment/testing-requests:', error);
+    logPerformance('GET /api/equipment/testing-requests', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Подати заявку на тестування
+app.post('/api/equipment/:id/request-testing', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  console.log('[POST] /api/equipment/:id/request-testing - Заявка на тестування:', req.params.id);
+  
+  try {
+    const equipment = await Equipment.findById(req.params.id);
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    if (equipment.testingStatus !== 'none' && equipment.testingStatus !== 'completed' && equipment.testingStatus !== 'failed') {
+      return res.status(400).json({ error: 'Обладнання вже подано на тестування' });
+    }
+
+    equipment.testingStatus = 'requested';
+    equipment.testingRequestedBy = user._id.toString();
+    equipment.testingRequestedByName = user.name || user.login;
+    equipment.testingRequestedAt = new Date();
+    equipment.lastModified = new Date();
+
+    await equipment.save();
+
+    logPerformance('POST /api/equipment/:id/request-testing', startTime);
+    res.json(equipment);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/:id/request-testing:', error);
+    logPerformance('POST /api/equipment/:id/request-testing', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Взяти заявку на тестування в роботу
+app.post('/api/equipment/:id/take-testing', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  console.log('[POST] /api/equipment/:id/take-testing - Взяття в роботу:', req.params.id);
+  
+  try {
+    const equipment = await Equipment.findById(req.params.id);
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    if (equipment.testingStatus !== 'requested') {
+      return res.status(400).json({ error: 'Заявка не в статусі "Очікує"' });
+    }
+
+    equipment.testingStatus = 'in_progress';
+    equipment.testingTakenBy = user._id.toString();
+    equipment.testingTakenByName = user.name || user.login;
+    equipment.testingTakenAt = new Date();
+    equipment.lastModified = new Date();
+
+    await equipment.save();
+
+    logPerformance('POST /api/equipment/:id/take-testing', startTime);
+    res.json(equipment);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/:id/take-testing:', error);
+    logPerformance('POST /api/equipment/:id/take-testing', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Завершити тестування
+app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  console.log('[POST] /api/equipment/:id/complete-testing - Завершення тестування:', req.params.id);
+  
+  try {
+    const equipment = await Equipment.findById(req.params.id);
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    if (equipment.testingStatus !== 'in_progress') {
+      return res.status(400).json({ error: 'Заявка не в статусі "В роботі"' });
+    }
+
+    const { status, notes } = req.body; // status: 'completed' або 'failed'
+    
+    equipment.testingStatus = status === 'failed' ? 'failed' : 'completed';
+    equipment.testingCompletedBy = user._id.toString();
+    equipment.testingCompletedByName = user.name || user.login;
+    equipment.testingDate = new Date();
+    equipment.testingNotes = notes || '';
+    equipment.lastModified = new Date();
+
+    await equipment.save();
+
+    logPerformance('POST /api/equipment/:id/complete-testing', startTime);
+    res.json(equipment);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/:id/complete-testing:', error);
+    logPerformance('POST /api/equipment/:id/complete-testing', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Завантаження файлів тестування
+app.post('/api/equipment/:id/testing-files', authenticateToken, uploadWorkFiles.array('files', 10), async (req, res) => {
+  const startTime = Date.now();
+  console.log('[POST] /api/equipment/:id/testing-files - Завантаження файлів тестування:', req.params.id);
+  
+  try {
+    const equipment = await Equipment.findById(req.params.id);
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'Файли не завантажено' });
+    }
+
+    const newFiles = req.files.map(file => ({
+      cloudinaryUrl: file.path || file.secure_url,
+      cloudinaryId: file.public_id || file.filename,
+      originalName: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      uploadedAt: new Date()
+    }));
+
+    equipment.testingFiles = [...(equipment.testingFiles || []), ...newFiles];
+    equipment.lastModified = new Date();
+
+    await equipment.save();
+
+    logPerformance('POST /api/equipment/:id/testing-files', startTime);
+    res.json({ files: newFiles, equipment });
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/:id/testing-files:', error);
+    logPerformance('POST /api/equipment/:id/testing-files', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Скасувати заявку на тестування
+app.post('/api/equipment/:id/cancel-testing', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  console.log('[POST] /api/equipment/:id/cancel-testing - Скасування заявки:', req.params.id);
+  
+  try {
+    const equipment = await Equipment.findById(req.params.id);
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    equipment.testingStatus = 'none';
+    equipment.testingRequestedBy = undefined;
+    equipment.testingRequestedByName = undefined;
+    equipment.testingRequestedAt = undefined;
+    equipment.testingTakenBy = undefined;
+    equipment.testingTakenByName = undefined;
+    equipment.testingTakenAt = undefined;
+    equipment.lastModified = new Date();
+
+    await equipment.save();
+
+    logPerformance('POST /api/equipment/:id/cancel-testing', startTime);
+    res.json(equipment);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/:id/cancel-testing:', error);
+    logPerformance('POST /api/equipment/:id/cancel-testing', startTime);
     res.status(500).json({ error: error.message });
   }
 });

@@ -47,6 +47,37 @@ function ManagerDashboard({ user }) {
     setSelectedEquipment(null);
   };
 
+  const handleRequestTesting = async (equipment) => {
+    if (!window.confirm(`Подати обладнання "${equipment.type}" (${equipment.serialNumber || 'без серійного номера'}) на тестування?`)) {
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/equipment/${equipment._id}/request-testing`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        alert('Заявку на тестування подано успішно!');
+        // Оновлюємо список
+        if (equipmentListRef.current) {
+          equipmentListRef.current.refresh();
+        }
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Помилка подачі заявки на тестування');
+      }
+    } catch (error) {
+      console.error('Помилка:', error);
+      alert('Помилка з\'єднання з сервером');
+    }
+  };
+
   return (
     <div className="manager-dashboard">
       <div className="manager-dashboard-main">
@@ -74,6 +105,7 @@ function ManagerDashboard({ user }) {
                   user={user}
                   warehouses={warehouses}
                   onReserve={handleReserve}
+                  onRequestTesting={handleRequestTesting}
                   showReserveAction={true}
                 />
               </div>

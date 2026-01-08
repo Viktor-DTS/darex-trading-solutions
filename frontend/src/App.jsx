@@ -15,6 +15,7 @@ import TasksStatisticsBar from './components/TasksStatisticsBar';
 import EquipmentPage from './components/equipment/EquipmentPage';
 import InventoryDashboard from './components/InventoryDashboard';
 import ManagerDashboard from './components/ManagerDashboard';
+import TestingDashboard from './components/TestingDashboard';
 import API_BASE_URL from './config';
 
 // Доступні панелі
@@ -24,6 +25,7 @@ const PANELS = [
   { id: 'warehouse', label: 'Зав. склад', icon: '📦' },
   { id: 'inventory', label: 'Складський облік', icon: '📋' },
   { id: 'manager', label: 'Менеджери', icon: '👔' },
+  { id: 'testing', label: 'Відділ тестування', icon: '🧪' },
   { id: 'accountant', label: 'Бух рахунки', icon: '📄' },
   { id: 'accountantApproval', label: 'Бух на затвердженні', icon: '💰' },
   { id: 'regional', label: 'Регіональний керівник', icon: '👔' },
@@ -34,8 +36,8 @@ const PANELS = [
 
 // Права доступу за замовчуванням (резервні, якщо база недоступна)
 const DEFAULT_ACCESS_RULES = {
-  admin: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
-  administrator: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
+  admin: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'testing', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
+  administrator: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'testing', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
   operator: ['operator'],
   accountant: ['accountant', 'accountantApproval', 'inventory', 'reports', 'analytics'],
   buhgalteria: ['accountant', 'accountantApproval', 'inventory', 'reports', 'analytics'],
@@ -44,6 +46,8 @@ const DEFAULT_ACCESS_RULES = {
   regkerivn: ['regional', 'service', 'reports', 'analytics', 'inventory', 'manager'],
   regional: ['regional', 'service', 'reports', 'analytics', 'inventory', 'manager'],
   service: ['service'],
+  testing: ['testing'],
+  tester: ['testing'],
   manager: ['manager', 'inventory'],
 };
 
@@ -367,6 +371,8 @@ function App() {
         return <InventoryDashboard user={user} />;
       case 'manager':
         return <ManagerDashboard user={user} />;
+      case 'testing':
+        return <TestingDashboard user={user} />;
       case 'accountant':
         return <AccountantDashboard user={user} />;
       case 'accountantApproval':
