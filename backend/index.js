@@ -2269,12 +2269,26 @@ const fileSchema = new mongoose.Schema({
 const File = mongoose.model('File', fileSchema);
 
 // Multer Storage для файлів виконаних робіт (всі типи файлів)
+// Використовуємо кастомний storage для правильної обробки Excel та інших документів
 const workFilesStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: {
-    folder: 'newservicegidra/work-files',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'],
-    resource_type: 'auto'
+  params: (req, file) => {
+    // Визначаємо resource_type на основі MIME типу
+    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    const isImage = imageTypes.includes(file.mimetype);
+    
+    // Логуємо інформацію про файл для діагностики
+    console.log('[FILES] Завантаження файлу:', {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      resource_type: isImage ? 'image' : 'raw'
+    });
+    
+    return {
+      folder: 'newservicegidra/work-files',
+      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'],
+      resource_type: isImage ? 'image' : 'raw' // Excel, Word, PDF - raw, зображення - image
+    };
   }
 });
 
@@ -2286,7 +2300,19 @@ const uploadWorkFiles = multer({
 });
 
 // Завантаження файлів для заявки
-app.post('/api/files/upload/:taskId', authenticateToken, uploadWorkFiles.array('files', 10), async (req, res) => {
+app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
+  uploadWorkFiles.array('files', 10)(req, res, (err) => {
+    if (err) {
+      console.error('[FILES] Multer error:', err.message);
+      console.error('[FILES] Multer error stack:', err.stack);
+      return res.status(500).json({ 
+        error: 'Помилка завантаження файлу', 
+        details: err.message 
+      });
+    }
+    next();
+  });
+}, async (req, res) => {
   const startTime = Date.now();
   try {
     console.log('[FILES] Завантаження файлів для завдання:', req.params.taskId);

@@ -67,12 +67,25 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
           onFilesUploaded(result.files);
         }
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Помилка завантаження файлів');
+        // Перевіряємо, чи відповідь є JSON
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            setError(errorData.error || errorData.details || 'Помилка завантаження файлів');
+          } catch (jsonError) {
+            setError(`Помилка завантаження файлів (${response.status})`);
+          }
+        } else {
+          // Якщо сервер повернув HTML замість JSON
+          const errorText = await response.text();
+          console.error('Помилка сервера (HTML):', errorText.substring(0, 200));
+          setError(`Помилка завантаження файлів (${response.status}). Перевірте формат файлу та його розмір.`);
+        }
       }
     } catch (error) {
       console.error('Помилка завантаження:', error);
-      setError('Помилка завантаження файлів');
+      setError(error.message || 'Помилка завантаження файлів. Перевірте підключення до сервера.');
     } finally {
       setUploading(false);
     }
