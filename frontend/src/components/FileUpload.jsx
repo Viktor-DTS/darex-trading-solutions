@@ -115,8 +115,37 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
       const imageIndex = imageFiles.findIndex(f => getFileId(f) === getFileId(file));
       openGalleryInNewWindow(imageFiles, imageIndex >= 0 ? imageIndex : 0);
     } else {
-      // Для не-зображень відкриваємо в новій вкладці
-      window.open(file.cloudinaryUrl, '_blank');
+      // Для не-зображень: PDF відкриваємо напряму, Excel/Word - через онлайн переглядач
+      const url = file.cloudinaryUrl;
+      const originalName = file.originalName || '';
+      const ext = originalName.includes('.') ? originalName.split('.').pop().toLowerCase() : '';
+
+      const mimetype = file.mimetype || '';
+      const isPdf = mimetype.includes('pdf') || ext === 'pdf';
+      const isExcel =
+        mimetype.includes('spreadsheet') ||
+        mimetype.includes('excel') ||
+        ext === 'xls' ||
+        ext === 'xlsx';
+      const isWord =
+        mimetype.includes('word') ||
+        mimetype.includes('document') ||
+        ext === 'doc' ||
+        ext === 'docx';
+
+      if (isPdf) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      if (isExcel || isWord) {
+        const viewerUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`;
+        window.open(viewerUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      // fallback для інших типів
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
   };
 
