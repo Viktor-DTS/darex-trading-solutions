@@ -552,24 +552,46 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
   // Список сервісних інженерів для вибраного регіону
   const serviceEngineers = useMemo(() => {
-    return users.filter(u => {
-      if (u.role !== 'service') return false;
-      if (u.dismissed === true || u.dismissed === 'true') return false; // Прибираємо звільнених
-      
-      // Якщо регіон не вибрано або "Україна" - показуємо всіх інженерів
-      if (!formData.serviceRegion || formData.serviceRegion === 'Україна') return true;
-      
-      // Перевіряємо збіг регіону
-      // Якщо у інженера мультирегіон (містить кому) - перевіряємо чи входить вибраний регіон
-      if (u.region && u.region.includes(',')) {
-        const engineerRegions = u.region.split(',').map(r => r.trim());
-        return engineerRegions.includes(formData.serviceRegion);
-      }
-      
-      // Звичайна перевірка регіону
-      return u.region === formData.serviceRegion;
-    });
-  }, [users, formData.serviceRegion]);
+    // Збираємо імена інженерів, вже призначених на цю заявку (для режиму редагування)
+    const assignedEngineers = [
+      formData.engineer1,
+      formData.engineer2,
+      formData.engineer3,
+      formData.engineer4,
+      formData.engineer5,
+      formData.engineer6
+    ].filter(Boolean);
+
+    return users
+      .filter(u => {
+        if (u.role !== 'service') return false;
+        
+        // Якщо інженер вже призначений на заявку — показуємо його (навіть якщо звільнений)
+        const isAssigned = assignedEngineers.includes(u.name);
+        if (isAssigned) return true;
+        
+        // Для нових призначень — прибираємо звільнених
+        if (u.dismissed === true || u.dismissed === 'true') return false;
+        
+        // Якщо регіон не вибрано або "Україна" - показуємо всіх інженерів
+        if (!formData.serviceRegion || formData.serviceRegion === 'Україна') return true;
+        
+        // Перевіряємо збіг регіону
+        // Якщо у інженера мультирегіон (містить кому) - перевіряємо чи входить вибраний регіон
+        if (u.region && u.region.includes(',')) {
+          const engineerRegions = u.region.split(',').map(r => r.trim());
+          return engineerRegions.includes(formData.serviceRegion);
+        }
+        
+        // Звичайна перевірка регіону
+        return u.region === formData.serviceRegion;
+      })
+      .map(u => ({
+        ...u,
+        // Додаємо позначку для звільнених
+        displayName: (u.dismissed === true || u.dismissed === 'true') ? `${u.name} (звільнений)` : u.name
+      }));
+  }, [users, formData.serviceRegion, formData.engineer1, formData.engineer2, formData.engineer3, formData.engineer4, formData.engineer5, formData.engineer6]);
 
   // Авторозрахунок сум
   const calculations = useMemo(() => {
@@ -2095,7 +2117,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       <select name="engineer1" value={formData.engineer1} onChange={handleChange}>
                         <option value="">...</option>
                         {serviceEngineers.map(eng => (
-                          <option key={eng.login} value={eng.name}>{eng.name}</option>
+                          <option key={eng.login} value={eng.name}>{eng.displayName}</option>
                         ))}
                       </select>
                     </div>
@@ -2104,7 +2126,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       <select name="engineer2" value={formData.engineer2} onChange={handleChange}>
                         <option value="">...</option>
                         {serviceEngineers.map(eng => (
-                          <option key={eng.login} value={eng.name}>{eng.name}</option>
+                          <option key={eng.login} value={eng.name}>{eng.displayName}</option>
                         ))}
                       </select>
                     </div>
@@ -2113,7 +2135,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       <select name="engineer3" value={formData.engineer3} onChange={handleChange}>
                         <option value="">...</option>
                         {serviceEngineers.map(eng => (
-                          <option key={eng.login} value={eng.name}>{eng.name}</option>
+                          <option key={eng.login} value={eng.name}>{eng.displayName}</option>
                         ))}
                       </select>
                     </div>
@@ -2122,7 +2144,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       <select name="engineer4" value={formData.engineer4} onChange={handleChange}>
                         <option value="">...</option>
                         {serviceEngineers.map(eng => (
-                          <option key={eng.login} value={eng.name}>{eng.name}</option>
+                          <option key={eng.login} value={eng.name}>{eng.displayName}</option>
                         ))}
                       </select>
                     </div>
@@ -2131,7 +2153,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       <select name="engineer5" value={formData.engineer5} onChange={handleChange}>
                         <option value="">...</option>
                         {serviceEngineers.map(eng => (
-                          <option key={eng.login} value={eng.name}>{eng.name}</option>
+                          <option key={eng.login} value={eng.name}>{eng.displayName}</option>
                         ))}
                       </select>
                     </div>
@@ -2140,7 +2162,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       <select name="engineer6" value={formData.engineer6} onChange={handleChange}>
                         <option value="">...</option>
                         {serviceEngineers.map(eng => (
-                          <option key={eng.login} value={eng.name}>{eng.name}</option>
+                          <option key={eng.login} value={eng.name}>{eng.displayName}</option>
                         ))}
                       </select>
                     </div>
@@ -2153,7 +2175,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         <select name="engineer1" value={formData.engineer1} onChange={handleChange} required={formData.status === 'Виконано' && panelType === 'service'}>
                           <option value="">Виберіть...</option>
                           {serviceEngineers.map(eng => (
-                            <option key={eng.login} value={eng.name}>{eng.name}</option>
+                            <option key={eng.login} value={eng.name}>{eng.displayName}</option>
                           ))}
                         </select>
                       </div>
@@ -2162,7 +2184,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         <select name="engineer2" value={formData.engineer2} onChange={handleChange}>
                           <option value="">Виберіть...</option>
                           {serviceEngineers.map(eng => (
-                            <option key={eng.login} value={eng.name}>{eng.name}</option>
+                            <option key={eng.login} value={eng.name}>{eng.displayName}</option>
                           ))}
                         </select>
                       </div>
@@ -2173,7 +2195,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         <select name="engineer3" value={formData.engineer3} onChange={handleChange}>
                           <option value="">Виберіть...</option>
                           {serviceEngineers.map(eng => (
-                            <option key={eng.login} value={eng.name}>{eng.name}</option>
+                            <option key={eng.login} value={eng.name}>{eng.displayName}</option>
                           ))}
                         </select>
                       </div>
@@ -2182,7 +2204,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         <select name="engineer4" value={formData.engineer4} onChange={handleChange}>
                           <option value="">Виберіть...</option>
                           {serviceEngineers.map(eng => (
-                            <option key={eng.login} value={eng.name}>{eng.name}</option>
+                            <option key={eng.login} value={eng.name}>{eng.displayName}</option>
                           ))}
                         </select>
                       </div>
@@ -2193,7 +2215,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         <select name="engineer5" value={formData.engineer5} onChange={handleChange}>
                           <option value="">Виберіть...</option>
                           {serviceEngineers.map(eng => (
-                            <option key={eng.login} value={eng.name}>{eng.name}</option>
+                            <option key={eng.login} value={eng.name}>{eng.displayName}</option>
                           ))}
                         </select>
                       </div>
@@ -2202,7 +2224,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         <select name="engineer6" value={formData.engineer6} onChange={handleChange}>
                           <option value="">Виберіть...</option>
                           {serviceEngineers.map(eng => (
-                            <option key={eng.login} value={eng.name}>{eng.name}</option>
+                            <option key={eng.login} value={eng.name}>{eng.displayName}</option>
                           ))}
                         </select>
                       </div>
