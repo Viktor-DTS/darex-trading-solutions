@@ -548,28 +548,53 @@
 .materials-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 15px;
 }
 
 .material-row {
   display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.material-type {
-  flex: 2;
-  padding: 10px 12px;
+  gap: 15px;
+  align-items: flex-start;
+  padding: 15px;
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-dark);
-  color: var(--text);
-  font-size: 14px;
+  border-radius: 8px;
 }
 
-.material-quantity {
+.material-fields {
   flex: 1;
-  min-width: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.material-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.material-field-row {
+  display: flex;
+  gap: 15px;
+}
+
+.quantity-group {
+  flex: 1;
+}
+
+.unit-group {
+  flex: 1;
+}
+
+.material-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.material-type-input {
+  width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -578,9 +603,19 @@
   font-size: 14px;
 }
 
-.material-unit {
-  width: 100px;
-  padding: 10px 8px;
+.material-quantity-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-dark);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.material-unit-select {
+  width: 100%;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-dark);
@@ -589,28 +624,29 @@
   cursor: pointer;
 }
 
-.material-type:focus,
-.material-quantity:focus,
-.material-unit:focus {
+.material-type-input:focus,
+.material-quantity-input:focus,
+.material-unit-select:focus {
   outline: none;
   border-color: var(--primary);
 }
 
 .btn-remove-material {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border: none;
   border-radius: 6px;
   background: #dc3545;
   color: white;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background 0.2s ease;
   flex-shrink: 0;
+  margin-top: 22px;
 }
 
 .btn-remove-material:hover {
@@ -618,9 +654,9 @@
 }
 
 .btn-add-material {
-  padding: 10px 16px;
+  padding: 12px 20px;
   border: 2px dashed var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text);
   cursor: pointer;

@@ -421,32 +421,45 @@ function TestingDashboard({ user }) {
                     <div className="materials-list">
                       {testingForm.materials.map((material, index) => (
                         <div key={index} className="material-row">
-                          <input
-                            type="text"
-                            placeholder="Тип матеріалу"
-                            value={material.type}
-                            onChange={(e) => handleMaterialChange(index, 'type', e.target.value)}
-                            className="material-type"
-                          />
-                          <input
-                            type="text"
-                            placeholder="Кількість"
-                            value={material.quantity}
-                            onChange={(e) => handleMaterialChange(index, 'quantity', e.target.value)}
-                            className="material-quantity"
-                          />
-                          <select
-                            value={material.unit}
-                            onChange={(e) => handleMaterialChange(index, 'unit', e.target.value)}
-                            className="material-unit"
-                          >
-                            <option value="шт.">шт.</option>
-                            <option value="л.">л.</option>
-                            <option value="кг.">кг.</option>
-                            <option value="м.">м.</option>
-                            <option value="комплект">комплект</option>
-                            <option value="упаковка">упаковка</option>
-                          </select>
+                          <div className="material-fields">
+                            <div className="material-field-group">
+                              <label className="material-label">Тип матеріалу:</label>
+                              <input
+                                type="text"
+                                placeholder="Введіть назву матеріалу"
+                                value={material.type}
+                                onChange={(e) => handleMaterialChange(index, 'type', e.target.value)}
+                                className="material-type-input"
+                              />
+                            </div>
+                            <div className="material-field-row">
+                              <div className="material-field-group quantity-group">
+                                <label className="material-label">Кількість:</label>
+                                <input
+                                  type="text"
+                                  placeholder="0"
+                                  value={material.quantity}
+                                  onChange={(e) => handleMaterialChange(index, 'quantity', e.target.value)}
+                                  className="material-quantity-input"
+                                />
+                              </div>
+                              <div className="material-field-group unit-group">
+                                <label className="material-label">Од. виміру:</label>
+                                <select
+                                  value={material.unit}
+                                  onChange={(e) => handleMaterialChange(index, 'unit', e.target.value)}
+                                  className="material-unit-select"
+                                >
+                                  <option value="шт.">шт.</option>
+                                  <option value="л.">л.</option>
+                                  <option value="кг.">кг.</option>
+                                  <option value="м.">м.</option>
+                                  <option value="комплект">комплект</option>
+                                  <option value="упаковка">упаковка</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
                           <button
                             type="button"
                             className="btn-remove-material"
