@@ -2322,9 +2322,9 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
         // Визначаємо resource_type на основі MIME типу
         const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
         const isImage = imageTypes.includes(file.mimetype);
-        // Для Excel та інших документів використовуємо 'auto' замість 'raw' для автоматичного визначення формату
-        // 'raw' не зберігає розширення в URL та може не визначати формат правильно
-        const resourceType = isImage ? 'image' : 'auto';
+        // Для Excel та інших документів використовуємо 'raw' (Cloudinary не підтримує Excel як окремий тип)
+        // Формат буде визначено через параметр 'format' та 'filename_override'
+        const resourceType = isImage ? 'image' : 'raw';
         
         // Витягуємо розширення файлу з оригінальної назви
         const fileExtension = correctedName.split('.').pop()?.toLowerCase() || '';
@@ -2366,11 +2366,14 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
           invalidate: true
         };
         
-        // Для не-зображень (auto/raw) використовуємо filename_override для збереження оригінальної назви з розширенням
-        // Це дозволить Cloudinary правильно визначити формат файлу на основі розширення
-        // Важливо: public_id також має містити розширення для правильного визначення формату
-        if (resourceType === 'auto' && correctedName) {
+        // Для raw файлів використовуємо filename_override та format для збереження формату
+        // Це дозволить Cloudinary правильно визначити формат файлу в метаданих
+        if (resourceType === 'raw' && correctedName) {
           uploadParams.filename_override = correctedName;
+          // Явно вказуємо формат для правильного визначення Cloudinary
+          if (detectedFormat) {
+            uploadParams.format = detectedFormat;
+          }
         }
         
         // Завантажуємо файл в Cloudinary через API
