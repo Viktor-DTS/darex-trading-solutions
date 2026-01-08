@@ -4822,7 +4822,33 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
     equipment.testingEngineer3 = engineer3 || '';
     equipment.lastModified = new Date();
 
-    await equipment.save();
+    // Використовуємо updateOne замість save() щоб уникнути валідації старого поля testingMaterials
+    // Це безпечно - ми не чіпаємо заявки (Task), тільки обладнання (Equipment)
+    await Equipment.updateOne(
+      { _id: equipment._id },
+      {
+        $set: {
+          testingStatus: equipment.testingStatus,
+          testingCompletedBy: equipment.testingCompletedBy,
+          testingCompletedByName: equipment.testingCompletedByName,
+          testingDate: equipment.testingDate,
+          testingNotes: equipment.testingNotes,
+          testingResult: equipment.testingResult,
+          testingMaterialsJson: equipment.testingMaterialsJson,
+          testingProcedure: equipment.testingProcedure,
+          testingConclusion: equipment.testingConclusion,
+          testingEngineer1: equipment.testingEngineer1,
+          testingEngineer2: equipment.testingEngineer2,
+          testingEngineer3: equipment.testingEngineer3,
+          lastModified: equipment.lastModified
+        },
+        $unset: { testingMaterials: "" } // Безпечно видаляємо тільки в Equipment, не в Task
+      }
+    );
+    
+    // Оновлюємо локальний об'єкт для повернення
+    const updated = await Equipment.findById(equipment._id);
+    Object.assign(equipment, updated);
 
     logPerformance('POST /api/equipment/:id/complete-testing', startTime);
     res.json(equipment);
