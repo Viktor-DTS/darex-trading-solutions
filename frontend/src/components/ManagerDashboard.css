@@ -132,3 +132,156 @@
   scrollbar-width: thin;
 }
 
+/* Модальне вікно резервування */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.reservation-form-modal {
+  background: var(--surface);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.reservation-form-modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.reservation-form-modal .modal-header h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+}
+
+.reservation-form-modal .btn-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.reservation-form-modal .btn-close:hover {
+  background: var(--surface-dark);
+  color: var(--text);
+}
+
+.reservation-form-modal .modal-body {
+  padding: 20px;
+}
+
+.reservation-form-modal .equipment-info-block {
+  background: var(--surface-dark);
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.reservation-form-modal .form-group {
+  margin-bottom: 16px;
+}
+
+.reservation-form-modal .form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.reservation-form-modal .form-group .required {
+  color: #dc3545;
+}
+
+.reservation-form-modal .form-group input,
+.reservation-form-modal .form-group textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-dark);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.reservation-form-modal .form-group input:focus,
+.reservation-form-modal .form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.reservation-form-modal .form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.reservation-form-modal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.reservation-form-modal .btn-cancel {
+  padding: 10px 20px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-dark);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.reservation-form-modal .btn-cancel:hover {
+  background: var(--surface);
+}
+
+.reservation-form-modal .btn-primary {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  background: var(--primary);
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.reservation-form-modal .btn-primary:hover {
+  background: var(--primary-dark);
+}
+
+.reservation-form-modal .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+

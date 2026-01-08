@@ -16,6 +16,7 @@ const ALL_COLUMNS = [
   { key: 'quantity', label: 'Кількість', width: 100 },
   { key: 'serialNumber', label: 'Серійний номер', width: 150 },
   { key: 'currentWarehouse', label: 'Склад', width: 150 },
+  { key: 'reservationClientName', label: 'Клієнт резервування', width: 200 },
   { key: 'reservedByName', label: 'Хто зарезервував', width: 180 },
   { key: 'reservationStatus', label: 'Статус резерва', width: 140 },
   { key: 'testingStatus', label: 'Статус тестування', width: 160 },
@@ -543,6 +544,11 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                             }
                           }}
                           title="Резервувати"
+                          disabled={item.status === 'reserved'}
+                          style={{
+                            opacity: item.status === 'reserved' ? 0.5 : 1,
+                            cursor: item.status === 'reserved' ? 'not-allowed' : 'pointer'
+                          }}
                         >
                           🔒 Резервувати
                         </button>
@@ -620,6 +626,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                     )}
                   </td>
                   <td>{formatValue(item.currentWarehouseName || item.currentWarehouse, 'currentWarehouse')}</td>
+                  <td>{formatValue(item.reservationClientName, 'reservationClientName')}</td>
                   <td>{formatValue(item.reservedByName, 'reservedByName')}</td>
                   <td>
                     <span className={`status-badge ${item.status === 'reserved' ? 'status-reserved' : 'status-in_stock'}`}>

@@ -783,11 +783,20 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
               <h3 style={{ color: 'var(--primary)', marginBottom: '10px' }}>🔒 Резервування</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', color: 'var(--text-secondary)' }}>
                 <div><strong>Статус:</strong> {equipment.status === 'reserved' ? 'Зарезервовано' : 'Вільне'}</div>
+                {equipment.reservationClientName && (
+                  <div><strong>Клієнт:</strong> {equipment.reservationClientName}</div>
+                )}
                 {equipment.reservedByName && (
                   <div><strong>Зарезервував:</strong> {equipment.reservedByName}</div>
                 )}
                 {equipment.reservedAt && (
                   <div><strong>Дата резервування:</strong> {new Date(equipment.reservedAt).toLocaleDateString('uk-UA')}</div>
+                )}
+                {equipment.reservationEndDate && (
+                  <div><strong>Дата закінчення:</strong> {new Date(equipment.reservationEndDate).toLocaleDateString('uk-UA')}</div>
+                )}
+                {equipment.reservationNotes && (
+                  <div><strong>Примітки:</strong> {equipment.reservationNotes}</div>
                 )}
               </div>
             </div>

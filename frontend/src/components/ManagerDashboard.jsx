@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import API_BASE_URL from '../config';
 import EquipmentList from './equipment/EquipmentList';
-import ReservationModal from './inventory/ReservationModal';
 import './ManagerDashboard.css';
 
 function ManagerDashboard({ user }) {
@@ -9,6 +8,12 @@ function ManagerDashboard({ user }) {
   const [loading, setLoading] = useState(true);
   const [showReservationModal, setShowReservationModal] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
+  const [reservationForm, setReservationForm] = useState({
+    clientName: '',
+    notes: '',
+    endDate: ''
+  });
+  const [reservationLoading, setReservationLoading] = useState(false);
   const equipmentListRef = useRef(null);
 
   useEffect(() => {
@@ -34,8 +39,57 @@ function ManagerDashboard({ user }) {
   };
 
   const handleReserve = (equipment) => {
+    if (equipment.status === 'reserved') {
+      alert('Це обладнання вже зарезервовано');
+      return;
+    }
     setSelectedEquipment(equipment);
+    setReservationForm({ clientName: '', notes: '', endDate: '' });
     setShowReservationModal(true);
+  };
+
+  const handleReservationSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!reservationForm.clientName.trim()) {
+      alert('Введіть назву клієнта');
+      return;
+    }
+    
+    setReservationLoading(true);
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/equipment/${selectedEquipment._id}/reserve`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          clientName: reservationForm.clientName,
+          notes: reservationForm.notes,
+          endDate: reservationForm.endDate || null
+        })
+      });
+      
+      if (response.ok) {
+        alert('Обладнання успішно зарезервовано!');
+        if (equipmentListRef.current) {
+          equipmentListRef.current.refresh();
+        }
+        setShowReservationModal(false);
+        setSelectedEquipment(null);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Помилка резервування');
+      }
+    } catch (error) {
+      console.error('Помилка:', error);
+      alert('Помилка з\'єднання з сервером');
+    } finally {
+      setReservationLoading(false);
+    }
   };
 
   const handleReservationSuccess = () => {
@@ -114,19 +168,77 @@ function ManagerDashboard({ user }) {
         </main>
       </div>
 
-      {/* Модальне вікно для створення резервування */}
+      {/* Модальне вікно для резервування */}
       {showReservationModal && selectedEquipment && (
-        <ReservationModal
-          reservation={null}
-          warehouses={warehouses}
-          user={user}
-          preSelectedEquipment={selectedEquipment}
-          onClose={() => {
-            setShowReservationModal(false);
-            setSelectedEquipment(null);
-          }}
-          onSuccess={handleReservationSuccess}
-        />
+        <div className="modal-overlay" onClick={() => setShowReservationModal(false)}>
+          <div className="modal-content reservation-form-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🔒 Резервування обладнання</h3>
+              <button className="btn-close" onClick={() => setShowReservationModal(false)}>×</button>
+            </div>
+            
+            <form onSubmit={handleReservationSubmit}>
+              <div className="modal-body">
+                <div className="equipment-info-block">
+                  <div><strong>Тип:</strong> {selectedEquipment.type}</div>
+                  <div><strong>Серійний номер:</strong> {selectedEquipment.serialNumber || '—'}</div>
+                  <div><strong>Виробник:</strong> {selectedEquipment.manufacturer || '—'}</div>
+                  <div><strong>Склад:</strong> {selectedEquipment.currentWarehouseName || selectedEquipment.currentWarehouse || '—'}</div>
+                </div>
+                
+                <div className="form-group">
+                  <label>Назва клієнта <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    value={reservationForm.clientName}
+                    onChange={(e) => setReservationForm(prev => ({ ...prev, clientName: e.target.value }))}
+                    placeholder="Введіть назву клієнта"
+                    required
+                    autoFocus
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label>Дата закінчення резервування</label>
+                  <input
+                    type="date"
+                    value={reservationForm.endDate}
+                    onChange={(e) => setReservationForm(prev => ({ ...prev, endDate: e.target.value }))}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label>Примітки</label>
+                  <textarea
+                    value={reservationForm.notes}
+                    onChange={(e) => setReservationForm(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Введіть примітки (необов'язково)"
+                    rows={3}
+                  />
+                </div>
+              </div>
+              
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="btn-cancel"
+                  onClick={() => setShowReservationModal(false)}
+                  disabled={reservationLoading}
+                >
+                  Скасувати
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn-primary"
+                  disabled={reservationLoading || !reservationForm.clientName.trim()}
+                >
+                  {reservationLoading ? 'Резервування...' : '🔒 Зарезервувати'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

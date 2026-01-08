@@ -408,6 +408,9 @@ const equipmentSchema = new mongoose.Schema({
   reservedBy: String,               // ID користувача, який зарезервував
   reservedByName: String,            // ПІБ користувача, який зарезервував
   reservedAt: Date,                 // Дата резервування
+  reservationClientName: String,    // Назва клієнта для резервування
+  reservationNotes: String,         // Примітки до резервування
+  reservationEndDate: Date,         // Дата закінчення резервування
   
   // Історія переміщень
   movementHistory: [{
@@ -4491,10 +4494,19 @@ app.post('/api/equipment/:id/reserve', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Обладнання вже зарезервовано' });
     }
 
+    const { clientName, notes, endDate } = req.body;
+    
+    if (!clientName || !clientName.trim()) {
+      return res.status(400).json({ error: 'Назва клієнта обов\'язкова' });
+    }
+
     equipment.status = 'reserved';
     equipment.reservedBy = user._id.toString();
     equipment.reservedByName = user.name || user.login;
     equipment.reservedAt = new Date();
+    equipment.reservationClientName = clientName.trim();
+    equipment.reservationNotes = notes || '';
+    equipment.reservationEndDate = endDate ? new Date(endDate) : null;
     equipment.lastModified = new Date();
 
     await equipment.save();
@@ -4508,8 +4520,8 @@ app.post('/api/equipment/:id/reserve', authenticateToken, async (req, res) => {
         action: 'reserve',
         entityType: 'equipment',
         entityId: equipment._id.toString(),
-        description: `Зарезервовано обладнання ${equipment.type} (№${equipment.serialNumber || 'без номера'})`,
-        details: { reservedByName: equipment.reservedByName }
+        description: `Зарезервовано обладнання ${equipment.type} (№${equipment.serialNumber || 'без номера'}) для клієнта ${clientName}`,
+        details: { reservedByName: equipment.reservedByName, clientName }
       });
     } catch (logErr) {
       console.error('Помилка логування:', logErr);
@@ -4544,10 +4556,24 @@ app.post('/api/equipment/:id/cancel-reserve', authenticateToken, async (req, res
       return res.status(400).json({ error: 'Обладнання не зарезервовано' });
     }
 
+    // Перевірка прав на скасування: адмін, той хто зарезервував, або закінчився термін
+    const isAdmin = ['admin', 'administrator'].includes(user.role);
+    const isOwner = equipment.reservedBy === user._id.toString();
+    const isExpired = equipment.reservationEndDate && new Date(equipment.reservationEndDate) < new Date();
+    
+    if (!isAdmin && !isOwner && !isExpired) {
+      return res.status(403).json({ 
+        error: 'Скасувати резервування може тільки адміністратор або той, хто його створив' 
+      });
+    }
+
     equipment.status = 'in_stock';
     equipment.reservedBy = undefined;
     equipment.reservedByName = undefined;
     equipment.reservedAt = undefined;
+    equipment.reservationClientName = undefined;
+    equipment.reservationNotes = undefined;
+    equipment.reservationEndDate = undefined;
     equipment.lastModified = new Date();
 
     await equipment.save();
