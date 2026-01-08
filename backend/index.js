@@ -4786,7 +4786,9 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
   console.log('[POST] /api/equipment/:id/complete-testing - Завершення тестування:', req.params.id);
   
   try {
-    const equipment = await Equipment.findById(req.params.id);
+    // Використовуємо .lean() щоб уникнути валідації Mongoose при завантаженні
+    // Це необхідно, оскільки в базі може бути старе поле testingMaterials з неправильним типом
+    const equipment = await Equipment.findById(req.params.id).lean();
     if (!equipment) {
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
@@ -4808,35 +4810,35 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
       filteredMaterials = materials.filter(m => m && m.type && m.type.trim() !== '');
     }
     
-    // Використовуємо прямий MongoDB запит через колекцію, щоб повністю обійти валідацію Mongoose
+    // Використовуємо findOneAndUpdate з вимкненою валідацією та strict: false
     // Це необхідно, оскільки в базі може бути старе поле testingMaterials з неправильним типом
-    const updateData = {
-      $set: {
-        testingStatus: status === 'failed' ? 'failed' : 'completed',
-        testingCompletedBy: user._id.toString(),
-        testingCompletedByName: user.name || user.login,
-        testingDate: new Date(),
-        testingNotes: notes || '',
-        testingResult: result || '',
-        testingMaterialsJson: JSON.stringify(filteredMaterials),
-        testingProcedure: procedure || '',
-        testingConclusion: conclusion || (status === 'failed' ? 'failed' : 'passed'),
-        testingEngineer1: engineer1 || '',
-        testingEngineer2: engineer2 || '',
-        testingEngineer3: engineer3 || '',
-        lastModified: new Date()
+    const updated = await Equipment.findOneAndUpdate(
+      { _id: equipment._id },
+      {
+        $set: {
+          testingStatus: status === 'failed' ? 'failed' : 'completed',
+          testingCompletedBy: user._id.toString(),
+          testingCompletedByName: user.name || user.login,
+          testingDate: new Date(),
+          testingNotes: notes || '',
+          testingResult: result || '',
+          testingMaterialsJson: JSON.stringify(filteredMaterials),
+          testingProcedure: procedure || '',
+          testingConclusion: conclusion || (status === 'failed' ? 'failed' : 'passed'),
+          testingEngineer1: engineer1 || '',
+          testingEngineer2: engineer2 || '',
+          testingEngineer3: engineer3 || '',
+          lastModified: new Date()
+        },
+        $unset: { testingMaterials: "" } // Видаляємо старе поле testingMaterials, якщо воно існує
       },
-      $unset: { testingMaterials: "" } // Видаляємо старе поле testingMaterials, якщо воно існує
-    };
-    
-    // Використовуємо прямий MongoDB запит для оновлення, щоб обійти валідацію Mongoose
-    await mongoose.connection.db.collection('equipment').updateOne(
-      { _id: new mongoose.Types.ObjectId(equipment._id) },
-      updateData
+      {
+        new: true,
+        runValidators: false,
+        strict: false, // Дозволяє оновити документ навіть якщо поля не в схемі
+        lean: true // Повертаємо простий об'єкт без валідації
+      }
     );
-    
-    // Завантажуємо оновлений документ
-    const updated = await Equipment.findById(equipment._id).lean();
     
     if (!updated) {
       return res.status(404).json({ error: 'Обладнання не знайдено після оновлення' });
