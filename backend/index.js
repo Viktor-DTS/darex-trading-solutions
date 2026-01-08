@@ -4808,34 +4808,35 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
       filteredMaterials = materials.filter(m => m && m.type && m.type.trim() !== '');
     }
     
-    // Використовуємо findByIdAndUpdate з runValidators: false щоб уникнути валідації
+    // Використовуємо прямий MongoDB запит через колекцію, щоб повністю обійти валідацію Mongoose
     // Це необхідно, оскільки в базі може бути старе поле testingMaterials з неправильним типом
-    const updated = await Equipment.findByIdAndUpdate(
-      equipment._id,
-      {
-        $set: {
-          testingStatus: status === 'failed' ? 'failed' : 'completed',
-          testingCompletedBy: user._id.toString(),
-          testingCompletedByName: user.name || user.login,
-          testingDate: new Date(),
-          testingNotes: notes || '',
-          testingResult: result || '',
-          testingMaterialsJson: JSON.stringify(filteredMaterials),
-          testingProcedure: procedure || '',
-          testingConclusion: conclusion || (status === 'failed' ? 'failed' : 'passed'),
-          testingEngineer1: engineer1 || '',
-          testingEngineer2: engineer2 || '',
-          testingEngineer3: engineer3 || '',
-          lastModified: new Date()
-        },
-        $unset: { testingMaterials: "" } // Видаляємо старе поле testingMaterials, якщо воно існує
+    const updateData = {
+      $set: {
+        testingStatus: status === 'failed' ? 'failed' : 'completed',
+        testingCompletedBy: user._id.toString(),
+        testingCompletedByName: user.name || user.login,
+        testingDate: new Date(),
+        testingNotes: notes || '',
+        testingResult: result || '',
+        testingMaterialsJson: JSON.stringify(filteredMaterials),
+        testingProcedure: procedure || '',
+        testingConclusion: conclusion || (status === 'failed' ? 'failed' : 'passed'),
+        testingEngineer1: engineer1 || '',
+        testingEngineer2: engineer2 || '',
+        testingEngineer3: engineer3 || '',
+        lastModified: new Date()
       },
-      { 
-        new: true, 
-        runValidators: false, // Вимкнути валідацію, щоб уникнути помилок з testingMaterials
-        lean: false
-      }
+      $unset: { testingMaterials: "" } // Видаляємо старе поле testingMaterials, якщо воно існує
+    };
+    
+    // Використовуємо прямий MongoDB запит для оновлення, щоб обійти валідацію Mongoose
+    await mongoose.connection.db.collection('equipment').updateOne(
+      { _id: new mongoose.Types.ObjectId(equipment._id) },
+      updateData
     );
+    
+    // Завантажуємо оновлений документ
+    const updated = await Equipment.findById(equipment._id).lean();
     
     if (!updated) {
       return res.status(404).json({ error: 'Обладнання не знайдено після оновлення' });
