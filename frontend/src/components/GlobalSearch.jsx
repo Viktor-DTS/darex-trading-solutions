@@ -63,6 +63,7 @@ function GlobalSearch({ user }) {
       if (!groupsMap.has(key)) {
         groupsMap.set(key, {
           key,
+          requestNumber: task.requestNumber || '',
           client: task.client || '',
           edrpou: task.edrpou || '',
           equipment: task.equipment || '',
@@ -76,15 +77,20 @@ function GlobalSearch({ user }) {
     });
     
     // Сортуємо заявки в кожній групі від новіших до старіших (по даті заявки)
-    const groups = Array.from(groupsMap.values()).map(group => ({
-      ...group,
-      tasks: group.tasks.sort((a, b) => {
+    const groups = Array.from(groupsMap.values()).map(group => {
+      const sortedTasks = group.tasks.sort((a, b) => {
         const dateA = new Date(a.requestDate || a.date || 0);
         const dateB = new Date(b.requestDate || b.date || 0);
         return dateB - dateA; // Від новіших до старіших
-      }),
-      count: group.tasks.length
-    }));
+      });
+      return {
+        ...group,
+        tasks: sortedTasks,
+        // Показуємо номер останньої (найновішої) заявки
+        requestNumber: sortedTasks[0]?.requestNumber || group.requestNumber || '',
+        count: group.tasks.length
+      };
+    });
     
     return groups;
   };
@@ -312,6 +318,7 @@ function GlobalSearch({ user }) {
                 <tr>
                   <th>Дія</th>
                   <th>Кількість заявок</th>
+                  <th>Номер заявки</th>
                   <th>Замовник</th>
                   <th>ЄДРПОУ</th>
                   <th>Тип обладнання</th>
@@ -332,6 +339,7 @@ function GlobalSearch({ user }) {
                       </button>
                     </td>
                     <td>{group.count}</td>
+                    <td>{group.requestNumber}</td>
                     <td>{group.client}</td>
                     <td>{group.edrpou}</td>
                     <td>{group.equipment}</td>
