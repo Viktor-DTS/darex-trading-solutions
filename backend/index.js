@@ -2322,7 +2322,9 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
         // Визначаємо resource_type на основі MIME типу
         const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
         const isImage = imageTypes.includes(file.mimetype);
-        const resourceType = isImage ? 'image' : 'raw';
+        // Для Excel та інших документів використовуємо 'auto' замість 'raw' для автоматичного визначення формату
+        // 'raw' не зберігає розширення в URL та може не визначати формат правильно
+        const resourceType = isImage ? 'image' : 'auto';
         
         // Витягуємо розширення файлу з оригінальної назви
         const fileExtension = correctedName.split('.').pop()?.toLowerCase() || '';
@@ -2364,15 +2366,11 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
           invalidate: true
         };
         
-        // Для raw файлів використовуємо filename_override для збереження розширення
-        // Це дозволить Cloudinary правильно визначити формат файлу
-        if (resourceType === 'raw' && correctedName) {
+        // Для не-зображень (auto/raw) використовуємо filename_override для збереження оригінальної назви з розширенням
+        // Це дозволить Cloudinary правильно визначити формат файлу на основі розширення
+        // Важливо: public_id також має містити розширення для правильного визначення формату
+        if (resourceType === 'auto' && correctedName) {
           uploadParams.filename_override = correctedName;
-        }
-        
-        // Також явно вказуємо формат, якщо він визначений
-        if (resourceType === 'raw' && detectedFormat) {
-          uploadParams.format = detectedFormat;
         }
         
         // Завантажуємо файл в Cloudinary через API
@@ -2393,7 +2391,13 @@ app.post('/api/files/upload/:taskId', authenticateToken, (req, res, next) => {
           uploadStream.end(file.buffer);
         });
         
-        console.log('[FILES] Файл завантажено в Cloudinary:', uploadResult.public_id, 'format:', uploadResult.format);
+        console.log('[FILES] Файл завантажено в Cloudinary:', {
+          public_id: uploadResult.public_id,
+          format: uploadResult.format,
+          resource_type: uploadResult.resource_type,
+          secure_url: uploadResult.secure_url,
+          url: uploadResult.url
+        });
         
         // Виправляємо кодування назви файлу
         let correctedName = file.originalname;
