@@ -58,12 +58,12 @@ try {
   
   if (!checkFile(expressRouter, 'express/lib/router/index.js') || 
       !checkFile(expressApp, 'express/lib/application.js')) {
-    console.warn('[postinstall] Express appears broken. Forcing clean reinstall...');
+    console.warn('[postinstall] Express appears broken. Forcing clean reinstall from package-lock.json...');
     try {
-      // Remove express and reinstall it
-      execSync('npm uninstall express', { cwd: projectRoot, stdio: 'inherit' });
-      execSync('npm install express@^4.18.2 --save-exact', { cwd: projectRoot, stdio: 'inherit' });
-      console.log('[postinstall] Express reinstalled successfully.');
+      // Reinstall express using exact version from package-lock.json (4.22.1)
+      // This ensures we use the exact same version that was working before
+      execSync('npm install express@4.22.1 --no-save', { cwd: projectRoot, stdio: 'inherit' });
+      console.log('[postinstall] Express reinstalled successfully (version 4.22.1 from package-lock.json).');
     } catch (err) {
       console.error('[postinstall] Failed to reinstall Express:', err.message);
       // Don't fail - let the app try to start and show the real error
