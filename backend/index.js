@@ -4794,18 +4794,13 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
   console.log('[POST] /api/equipment/:id/complete-testing - Завершення тестування:', req.params.id);
   
   try {
-    // Використовуємо прямий MongoDB запит для завантаження, щоб повністю обійти валідацію Mongoose
-    // Це необхідно, оскільки в базі є старе поле testingMaterials з неправильним типом
-    const equipmentDoc = await mongoose.connection.db.collection('equipment').findOne(
-      { _id: new mongoose.Types.ObjectId(req.params.id) }
-    );
+    // Оскільки поле testingMaterials видалено зі схеми, можна використати звичайний Mongoose метод
+    // Валідація більше не спрацює, оскільки Mongoose не знає про це поле
+    const equipment = await Equipment.findById(req.params.id).lean();
     
-    if (!equipmentDoc) {
+    if (!equipment) {
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
-    
-    // Конвертуємо MongoDB документ в простий об'єкт
-    const equipment = equipmentDoc;
 
     const user = await User.findOne({ login: req.user.login });
     if (!user) {
@@ -4824,68 +4819,53 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
       filteredMaterials = materials.filter(m => m && m.type && m.type.trim() !== '');
     }
     
-    // Використовуємо прямий MongoDB запит через колекцію, щоб повністю обійти валідацію Mongoose
-    // Це необхідно, оскільки в базі є старе поле testingMaterials з неправильним типом
-    // Зберігаємо матеріали в нове поле testingMaterialsArray (масив об'єктів)
-    // Старе поле testingMaterialsJson залишаємо для сумісності
-    // Видаляємо старе поле testingMaterials, щоб уникнути помилок валідації
-    const updateData = {
-      $set: {
-        testingStatus: status === 'failed' ? 'failed' : 'completed',
-        testingCompletedBy: user._id.toString(),
-        testingCompletedByName: user.name || user.login,
-        testingDate: new Date(),
-        testingNotes: notes || '',
-        testingResult: result || '',
-        testingMaterialsArray: filteredMaterials, // Нове поле - масив об'єктів (правильна структура)
-        testingMaterialsJson: JSON.stringify(filteredMaterials), // Старе поле для сумісності
-        testingProcedure: procedure || '',
-        testingConclusion: conclusion || (status === 'failed' ? 'failed' : 'passed'),
-        testingEngineer1: engineer1 || '',
-        testingEngineer2: engineer2 || '',
-        testingEngineer3: engineer3 || '',
-        lastModified: new Date()
+    // Оскільки поле testingMaterials видалено зі схеми, можна використати звичайний Mongoose метод
+    // Валідація більше не спрацює, оскільки Mongoose не знає про це поле
+    const updated = await Equipment.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          testingStatus: status === 'failed' ? 'failed' : 'completed',
+          testingCompletedBy: user._id.toString(),
+          testingCompletedByName: user.name || user.login,
+          testingDate: new Date(),
+          testingNotes: notes || '',
+          testingResult: result || '',
+          testingMaterialsArray: filteredMaterials, // Нове поле - масив об'єктів (правильна структура)
+          testingMaterialsJson: JSON.stringify(filteredMaterials), // Старе поле для сумісності
+          testingProcedure: procedure || '',
+          testingConclusion: conclusion || (status === 'failed' ? 'failed' : 'passed'),
+          testingEngineer1: engineer1 || '',
+          testingEngineer2: engineer2 || '',
+          testingEngineer3: engineer3 || '',
+          lastModified: new Date()
+        },
+        $unset: { 
+          testingMaterials: "" // Видаляємо старе поле testingMaterials, щоб уникнути помилок валідації
+        }
       },
-      $unset: { 
-        testingMaterials: "" // Видаляємо старе поле testingMaterials, щоб уникнути помилок валідації
-      }
-    };
-    
-    // Використовуємо прямий MongoDB запит - це повністю обходить валідацію Mongoose
-    // Використовуємо updateOne замість findOneAndUpdate, щоб не повертати документ і уникнути валідації
-    const updateResult = await mongoose.connection.db.collection('equipment').updateOne(
-      { _id: new mongoose.Types.ObjectId(equipment._id) },
-      updateData,
-      { 
-        bypassDocumentValidation: true // Обходимо валідацію MongoDB
+      {
+        new: true,
+        runValidators: false, // Вимкнути валідацію (на всяк випадок)
+        lean: true // Повертаємо простий об'єкт
       }
     );
     
-    if (updateResult.matchedCount === 0) {
-      return res.status(404).json({ error: 'Обладнання не знайдено після оновлення' });
-    }
-    
-    // Завантажуємо оновлений документ через прямий MongoDB запит (не через Mongoose)
-    const updatedDoc = await mongoose.connection.db.collection('equipment').findOne(
-      { _id: new mongoose.Types.ObjectId(equipment._id) }
-    );
-    
-    if (!updatedDoc) {
+    if (!updated) {
       return res.status(404).json({ error: 'Обладнання не знайдено після оновлення' });
     }
     
     // Видаляємо поле testingMaterials з результату, якщо воно все ще є (для безпеки)
-    if (updatedDoc.testingMaterials !== undefined) {
-      delete updatedDoc.testingMaterials;
+    if (updated.testingMaterials !== undefined) {
+      delete updated.testingMaterials;
     }
 
     logPerformance('POST /api/equipment/:id/complete-testing', startTime);
     
-    // Повертаємо результат безпосередньо з MongoDB, обходячи будь-яку валідацію
     // Конвертуємо _id в рядок для сумісності з фронтендом
     const responseData = {
-      ...updatedDoc,
-      _id: updatedDoc._id.toString()
+      ...updated,
+      _id: updated._id.toString()
     };
     
     res.json(responseData);
