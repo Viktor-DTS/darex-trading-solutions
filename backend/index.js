@@ -4852,29 +4852,58 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
     };
     
     // Використовуємо прямий MongoDB запит - це повністю обходить валідацію Mongoose
-    const updateResult = await mongoose.connection.db.collection('equipment').findOneAndUpdate(
+    // Використовуємо updateOne замість findOneAndUpdate, щоб не повертати документ і уникнути валідації
+    const updateResult = await mongoose.connection.db.collection('equipment').updateOne(
       { _id: new mongoose.Types.ObjectId(equipment._id) },
       updateData,
       { 
-        returnDocument: 'after', // Повертаємо оновлений документ
         bypassDocumentValidation: true // Обходимо валідацію MongoDB
       }
     );
     
-    if (!updateResult || !updateResult.value) {
+    if (updateResult.matchedCount === 0) {
       return res.status(404).json({ error: 'Обладнання не знайдено після оновлення' });
     }
     
-    // Конвертуємо MongoDB документ в об'єкт
-    const updated = updateResult.value;
+    // Завантажуємо оновлений документ через прямий MongoDB запит (не через Mongoose)
+    const updatedDoc = await mongoose.connection.db.collection('equipment').findOne(
+      { _id: new mongoose.Types.ObjectId(equipment._id) }
+    );
+    
+    if (!updatedDoc) {
+      return res.status(404).json({ error: 'Обладнання не знайдено після оновлення' });
+    }
+    
+    // Видаляємо поле testingMaterials з результату, якщо воно все ще є (для безпеки)
+    if (updatedDoc.testingMaterials !== undefined) {
+      delete updatedDoc.testingMaterials;
+    }
 
     logPerformance('POST /api/equipment/:id/complete-testing', startTime);
-    res.json(updated);
+    
+    // Повертаємо результат безпосередньо з MongoDB, обходячи будь-яку валідацію
+    // Конвертуємо _id в рядок для сумісності з фронтендом
+    const responseData = {
+      ...updatedDoc,
+      _id: updatedDoc._id.toString()
+    };
+    
+    res.json(responseData);
   } catch (error) {
     console.error('[ERROR] POST /api/equipment/:id/complete-testing:', error);
     console.error('[ERROR] Request body:', JSON.stringify(req.body, null, 2));
+    console.error('[ERROR] Stack:', error.stack);
     logPerformance('POST /api/equipment/:id/complete-testing', startTime);
-    res.status(500).json({ error: error.message, details: error.errors ? Object.keys(error.errors) : null });
+    
+    // Детальна інформація про помилку
+    const errorResponse = {
+      error: error.message,
+      details: error.errors ? Object.keys(error.errors) : null,
+      name: error.name,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    };
+    
+    res.status(500).json(errorResponse);
   }
 });
 
