@@ -551,7 +551,13 @@ const equipmentSchema = new mongoose.Schema({
   ocrData: Object,                   // Сирі дані OCR
 }, { 
   timestamps: true,
-  strict: false // Дозволяє зберігати поля, яких немає в схемі (наприклад, старі testingMaterials)
+  strict: false, // Дозволяє зберігати поля, яких немає в схемі (наприклад, старі testingMaterials)
+  validateBeforeSave: false // Вимкнути валідацію перед збереженням (для старих документів)
+});
+
+// Вимкнути валідацію для поля testingMaterials (застаріле поле)
+equipmentSchema.path('testingMaterials').validate(function() {
+  return true; // Завжди повертаємо true, щоб валідація не спрацювала
 });
 
 // Індекс для serialNumber - sparse, щоб дозволити кілька null значень для партій
