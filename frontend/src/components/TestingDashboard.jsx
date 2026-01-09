@@ -36,8 +36,6 @@ function TestingDashboard({ user }) {
   const [materialUnits, setMaterialUnits] = useState([]);
   const [showMaterialTypeDropdown, setShowMaterialTypeDropdown] = useState({});
   const [filteredMaterialTypes, setFilteredMaterialTypes] = useState({});
-  const [showUnitDropdown, setShowUnitDropdown] = useState({});
-  const [filteredUnits, setFilteredUnits] = useState({});
 
   const loadRequests = useCallback(async () => {
     try {
@@ -213,17 +211,6 @@ function TestingDashboard({ user }) {
       setFilteredMaterialTypes(prev => ({ ...prev, [index]: [] }));
     }
 
-    // Автодоповнення для одиниці виміру
-    if (field === 'unit' && value.trim()) {
-      const filtered = materialUnits.filter(unit => 
-        unit.toLowerCase().includes(value.toLowerCase())
-      );
-      setFilteredUnits(prev => ({ ...prev, [index]: filtered }));
-      setShowUnitDropdown(prev => ({ ...prev, [index]: filtered.length > 0 }));
-    } else if (field === 'unit' && !value.trim()) {
-      setShowUnitDropdown(prev => ({ ...prev, [index]: false }));
-      setFilteredUnits(prev => ({ ...prev, [index]: [] }));
-    }
   };
 
   const handleMaterialTypeSelect = (index, type) => {
@@ -235,17 +222,6 @@ function TestingDashboard({ user }) {
     }));
     setShowMaterialTypeDropdown(prev => ({ ...prev, [index]: false }));
     setFilteredMaterialTypes(prev => ({ ...prev, [index]: [] }));
-  };
-
-  const handleUnitSelect = (index, unit) => {
-    setTestingForm(prev => ({
-      ...prev,
-      materials: prev.materials.map((mat, i) => 
-        i === index ? { ...mat, unit } : mat
-      )
-    }));
-    setShowUnitDropdown(prev => ({ ...prev, [index]: false }));
-    setFilteredUnits(prev => ({ ...prev, [index]: [] }));
   };
 
   // Функції для галереї
@@ -699,59 +675,33 @@ function TestingDashboard({ user }) {
                                   className="material-quantity-input"
                                 />
                               </div>
-                              <div className="material-field-group unit-group autocomplete-wrapper">
+                              <div className="material-field-group unit-group">
                                 <label className="material-label">Од. виміру:</label>
-                                <input
-                                  type="text"
-                                  placeholder="шт."
+                                <select
                                   value={material.unit}
                                   onChange={(e) => handleMaterialChange(index, 'unit', e.target.value)}
-                                  onBlur={() => setTimeout(() => {
-                                    setShowUnitDropdown(prev => ({ ...prev, [index]: false }));
-                                  }, 200)}
-                                  onFocus={() => {
-                                    if (material.unit && materialUnits.some(u => u.toLowerCase().includes(material.unit.toLowerCase()))) {
-                                      const filtered = materialUnits.filter(unit => 
-                                        unit.toLowerCase().includes(material.unit.toLowerCase())
-                                      );
-                                      setFilteredUnits(prev => ({ ...prev, [index]: filtered }));
-                                      setShowUnitDropdown(prev => ({ ...prev, [index]: filtered.length > 0 }));
-                                    }
-                                  }}
-                                  className="material-unit-input"
-                                  autoComplete="off"
-                                  list={`unit-options-${index}`}
-                                />
-                                <datalist id={`unit-options-${index}`}>
-                                  {materialUnits.map((unit, idx) => (
-                                    <option key={idx} value={unit} />
-                                  ))}
-                                  <option value="шт." />
-                                  <option value="л." />
-                                  <option value="кг." />
-                                  <option value="м." />
-                                  <option value="комплект" />
-                                  <option value="упаковка" />
-                                </datalist>
-                                {/* Dropdown з автодоповненням для одиниці виміру */}
-                                {showUnitDropdown[index] && filteredUnits[index] && filteredUnits[index].length > 0 && (
-                                  <div className="autocomplete-dropdown">
-                                    {filteredUnits[index].slice(0, 10).map((unit, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="autocomplete-item"
-                                        onClick={() => handleUnitSelect(index, unit)}
-                                      >
-                                        {unit}
-                                      </div>
-                                    ))}
-                                    {filteredUnits[index].length > 10 && (
-                                      <div className="autocomplete-more">
-                                        ... та ще {filteredUnits[index].length - 10}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
+                                  className="material-unit-select"
+                                >
+                                  <option value="">Виберіть...</option>
+                                  {/* Стандартні одиниці */}
+                                  <option value="шт.">шт.</option>
+                                  <option value="л.">л.</option>
+                                  <option value="кг.">кг.</option>
+                                  <option value="м.">м.</option>
+                                  <option value="комплект">комплект</option>
+                                  <option value="упаковка">упаковка</option>
+                                  {/* Одиниці з бази даних (якщо є) */}
+                                  {materialUnits.length > 0 && (
+                                    <>
+                                      {materialUnits
+                                        .filter(unit => !['шт.', 'л.', 'кг.', 'м.', 'комплект', 'упаковка'].includes(unit))
+                                        .map((unit, idx) => (
+                                          <option key={`db-${idx}`} value={unit}>{unit}</option>
+                                        ))
+                                      }
+                                    </>
+                                  )}
+                                </select>
                               </div>
                             </div>
                           </div>
