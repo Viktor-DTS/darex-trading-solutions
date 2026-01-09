@@ -2861,6 +2861,75 @@ app.get('/api/equipment-data/:equipmentType', authenticateToken, async (req, res
   }
 });
 
+// Отримання унікальних типів матеріалів з тестувань (для автодоповнення)
+app.get('/api/testing-materials-types', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    console.log('[DEBUG] GET /api/testing-materials-types - запит отримано');
+    
+    // Знаходимо всі обладнання з завершеними тестуваннями
+    const equipment = await Equipment.find({
+      $or: [
+        { testingMaterialsArray: { $exists: true, $ne: [] } },
+        { testingMaterialsJson: { $exists: true, $ne: '' } }
+      ]
+    }).lean();
+    
+    const materialTypes = new Set();
+    const materialUnits = new Set();
+    
+    // Збираємо унікальні типи матеріалів та одиниці виміру
+    equipment.forEach(eq => {
+      let materials = [];
+      
+      // Перевіряємо нове поле testingMaterialsArray
+      if (Array.isArray(eq.testingMaterialsArray) && eq.testingMaterialsArray.length > 0) {
+        materials = eq.testingMaterialsArray;
+      } else if (eq.testingMaterialsArray && typeof eq.testingMaterialsArray === 'string') {
+        // Якщо це рядок JSON
+        try {
+          materials = JSON.parse(eq.testingMaterialsArray);
+        } catch (e) {
+          // Ігноруємо помилки парсингу
+        }
+      } else if (eq.testingMaterialsJson) {
+        // Старе поле
+        try {
+          materials = JSON.parse(eq.testingMaterialsJson);
+        } catch (e) {
+          // Ігноруємо помилки парсингу
+        }
+      }
+      
+      // Додаємо типи та одиниці виміру
+      if (Array.isArray(materials)) {
+        materials.forEach(mat => {
+          if (mat && typeof mat === 'object') {
+            if (mat.type && mat.type.trim()) {
+              materialTypes.add(mat.type.trim());
+            }
+            if (mat.unit && mat.unit.trim()) {
+              materialUnits.add(mat.unit.trim());
+            }
+          }
+        });
+      }
+    });
+    
+    const result = {
+      types: Array.from(materialTypes).sort(),
+      units: Array.from(materialUnits).sort()
+    };
+    
+    console.log('[DEBUG] GET /api/testing-materials-types - знайдено типів:', result.types.length, 'одиниць:', result.units.length);
+    logPerformance('GET /api/testing-materials-types', startTime, result.types.length);
+    res.json(result);
+  } catch (error) {
+    console.error('[ERROR] GET /api/testing-materials-types - помилка:', error);
+    logPerformance('GET /api/testing-materials-types', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // ============================================
 // API ENDPOINTS ДЛЯ ЗАПИТІВ НА РАХУНКИ

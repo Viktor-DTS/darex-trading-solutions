@@ -30,6 +30,14 @@ function TestingDashboard({ user }) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  
+  // Стан для автодоповнення матеріалів
+  const [materialTypes, setMaterialTypes] = useState([]);
+  const [materialUnits, setMaterialUnits] = useState([]);
+  const [showMaterialTypeDropdown, setShowMaterialTypeDropdown] = useState({});
+  const [filteredMaterialTypes, setFilteredMaterialTypes] = useState({});
+  const [showUnitDropdown, setShowUnitDropdown] = useState({});
+  const [filteredUnits, setFilteredUnits] = useState({});
 
   const loadRequests = useCallback(async () => {
     try {
@@ -80,6 +88,28 @@ function TestingDashboard({ user }) {
     };
     loadEngineers();
   }, []);
+
+  // Завантаження списку типів матеріалів для автодоповнення
+  useEffect(() => {
+    const loadMaterialSuggestions = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/testing-materials-types`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setMaterialTypes(data.types || []);
+          setMaterialUnits(data.units || []);
+        }
+      } catch (error) {
+        console.error('Помилка завантаження підказок матеріалів:', error);
+      }
+    };
+    if (showModal) {
+      loadMaterialSuggestions();
+    }
+  }, [showModal]);
 
   const handleTakeToWork = async (equipment) => {
     try {
@@ -170,6 +200,52 @@ function TestingDashboard({ user }) {
         i === index ? { ...mat, [field]: value } : mat
       )
     }));
+
+    // Автодоповнення для типу матеріалу
+    if (field === 'type' && value.trim()) {
+      const filtered = materialTypes.filter(type => 
+        type.toLowerCase().includes(value.toLowerCase())
+      );
+      setFilteredMaterialTypes(prev => ({ ...prev, [index]: filtered }));
+      setShowMaterialTypeDropdown(prev => ({ ...prev, [index]: filtered.length > 0 }));
+    } else if (field === 'type' && !value.trim()) {
+      setShowMaterialTypeDropdown(prev => ({ ...prev, [index]: false }));
+      setFilteredMaterialTypes(prev => ({ ...prev, [index]: [] }));
+    }
+
+    // Автодоповнення для одиниці виміру
+    if (field === 'unit' && value.trim()) {
+      const filtered = materialUnits.filter(unit => 
+        unit.toLowerCase().includes(value.toLowerCase())
+      );
+      setFilteredUnits(prev => ({ ...prev, [index]: filtered }));
+      setShowUnitDropdown(prev => ({ ...prev, [index]: filtered.length > 0 }));
+    } else if (field === 'unit' && !value.trim()) {
+      setShowUnitDropdown(prev => ({ ...prev, [index]: false }));
+      setFilteredUnits(prev => ({ ...prev, [index]: [] }));
+    }
+  };
+
+  const handleMaterialTypeSelect = (index, type) => {
+    setTestingForm(prev => ({
+      ...prev,
+      materials: prev.materials.map((mat, i) => 
+        i === index ? { ...mat, type } : mat
+      )
+    }));
+    setShowMaterialTypeDropdown(prev => ({ ...prev, [index]: false }));
+    setFilteredMaterialTypes(prev => ({ ...prev, [index]: [] }));
+  };
+
+  const handleUnitSelect = (index, unit) => {
+    setTestingForm(prev => ({
+      ...prev,
+      materials: prev.materials.map((mat, i) => 
+        i === index ? { ...mat, unit } : mat
+      )
+    }));
+    setShowUnitDropdown(prev => ({ ...prev, [index]: false }));
+    setFilteredUnits(prev => ({ ...prev, [index]: [] }));
   };
 
   // Функції для галереї
@@ -582,7 +658,7 @@ function TestingDashboard({ user }) {
                       {testingForm.materials.map((material, index) => (
                         <div key={index} className="material-row">
                           <div className="material-fields">
-                            <div className="material-field-group">
+                            <div className="material-field-group autocomplete-wrapper">
                               <label className="material-label">Тип матеріалу:</label>
                               <input
                                 type="text"
@@ -590,7 +666,27 @@ function TestingDashboard({ user }) {
                                 value={material.type}
                                 onChange={(e) => handleMaterialChange(index, 'type', e.target.value)}
                                 className="material-type-input"
+                                autoComplete="off"
                               />
+                              {/* Dropdown з автодоповненням для типу матеріалу */}
+                              {showMaterialTypeDropdown[index] && filteredMaterialTypes[index] && filteredMaterialTypes[index].length > 0 && (
+                                <div className="autocomplete-dropdown">
+                                  {filteredMaterialTypes[index].slice(0, 10).map((type, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="autocomplete-item"
+                                      onClick={() => handleMaterialTypeSelect(index, type)}
+                                    >
+                                      {type}
+                                    </div>
+                                  ))}
+                                  {filteredMaterialTypes[index].length > 10 && (
+                                    <div className="autocomplete-more">
+                                      ... та ще {filteredMaterialTypes[index].length - 10}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <div className="material-field-row">
                               <div className="material-field-group quantity-group">
@@ -603,20 +699,47 @@ function TestingDashboard({ user }) {
                                   className="material-quantity-input"
                                 />
                               </div>
-                              <div className="material-field-group unit-group">
+                              <div className="material-field-group unit-group autocomplete-wrapper">
                                 <label className="material-label">Од. виміру:</label>
-                                <select
+                                <input
+                                  type="text"
+                                  placeholder="шт."
                                   value={material.unit}
                                   onChange={(e) => handleMaterialChange(index, 'unit', e.target.value)}
-                                  className="material-unit-select"
-                                >
-                                  <option value="шт.">шт.</option>
-                                  <option value="л.">л.</option>
-                                  <option value="кг.">кг.</option>
-                                  <option value="м.">м.</option>
-                                  <option value="комплект">комплект</option>
-                                  <option value="упаковка">упаковка</option>
-                                </select>
+                                  className="material-unit-input"
+                                  autoComplete="off"
+                                  list={`unit-options-${index}`}
+                                />
+                                <datalist id={`unit-options-${index}`}>
+                                  {materialUnits.map((unit, idx) => (
+                                    <option key={idx} value={unit} />
+                                  ))}
+                                  <option value="шт." />
+                                  <option value="л." />
+                                  <option value="кг." />
+                                  <option value="м." />
+                                  <option value="комплект" />
+                                  <option value="упаковка" />
+                                </datalist>
+                                {/* Dropdown з автодоповненням для одиниці виміру */}
+                                {showUnitDropdown[index] && filteredUnits[index] && filteredUnits[index].length > 0 && (
+                                  <div className="autocomplete-dropdown">
+                                    {filteredUnits[index].slice(0, 10).map((unit, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="autocomplete-item"
+                                        onClick={() => handleUnitSelect(index, unit)}
+                                      >
+                                        {unit}
+                                      </div>
+                                    ))}
+                                    {filteredUnits[index].length > 10 && (
+                                      <div className="autocomplete-more">
+                                        ... та ще {filteredUnits[index].length - 10}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
