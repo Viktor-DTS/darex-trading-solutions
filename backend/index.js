@@ -554,9 +554,8 @@ const equipmentSchema = new mongoose.Schema({
   strict: false // Дозволяє зберігати поля, яких немає в схемі (наприклад, старе поле testingMaterials залишається в базі, але Mongoose його не валідує)
 });
 
-// Індекс для serialNumber - sparse, щоб дозволити кілька null значень для партій
-equipmentSchema.index({ serialNumber: 1 }, { sparse: true, unique: false });
 // Compound unique index для type + serialNumber (тільки для одиничного обладнання)
+// Простий індекс для serialNumber видалено - compound індекс покриває пошук по serialNumber
 equipmentSchema.index({ type: 1, serialNumber: 1 }, { unique: true, sparse: true, partialFilterExpression: { serialNumber: { $ne: null } } });
 equipmentSchema.index({ currentWarehouse: 1 });
 equipmentSchema.index({ status: 1 });
@@ -585,7 +584,7 @@ const Warehouse = mongoose.model('Warehouse', warehouseSchema);
 
 // Схема для документів надходження
 const receiptDocumentSchema = new mongoose.Schema({
-  documentNumber: { type: String, required: true, unique: true },
+  documentNumber: { type: String, required: true }, // unique: true видалено - індекс створюється через schema.index()
   documentDate: { type: Date, default: Date.now },
   supplier: String, // Постачальник
   supplierEdrpou: String,
@@ -634,7 +633,7 @@ const movementItemSchema = new mongoose.Schema({
 }, { _id: false });
 
 const movementDocumentSchema = new mongoose.Schema({
-  documentNumber: { type: String, required: true, unique: true },
+  documentNumber: { type: String, required: true }, // unique: true видалено - індекс створюється через schema.index()
   documentDate: { type: Date, default: Date.now },
   fromWarehouse: { type: String, required: true },
   fromWarehouseName: String,
@@ -664,7 +663,7 @@ const MovementDocument = mongoose.model('MovementDocument', movementDocumentSche
 
 // Схема для документів відвантаження
 const shipmentDocumentSchema = new mongoose.Schema({
-  documentNumber: { type: String, required: true, unique: true },
+  documentNumber: { type: String, required: true }, // unique: true видалено - індекс створюється через schema.index()
   documentDate: { type: Date, default: Date.now },
   shippedTo: { type: String, required: true }, // Назва клієнта
   clientEdrpou: String,
@@ -706,7 +705,7 @@ const ShipmentDocument = mongoose.model('ShipmentDocument', shipmentDocumentSche
 
 // Схема для документів інвентаризації
 const inventoryDocumentSchema = new mongoose.Schema({
-  documentNumber: { type: String, required: true, unique: true },
+  documentNumber: { type: String, required: true }, // unique: true видалено - індекс створюється через schema.index()
   documentDate: { type: Date, default: Date.now },
   warehouse: { type: String, required: true },
   warehouseName: String,
@@ -755,7 +754,7 @@ const reservationItemSchema = new mongoose.Schema({
 
 // Схема для резервування товарів
 const reservationSchema = new mongoose.Schema({
-  reservationNumber: { type: String, required: true, unique: true },
+  reservationNumber: { type: String, required: true }, // unique: true видалено - індекс створюється через schema.index()
   reservationDate: { type: Date, default: Date.now },
   clientName: String,
   clientEdrpou: String,
