@@ -112,6 +112,13 @@ function TestingDashboard({ user }) {
     if (Array.isArray(equipment.testingMaterialsArray) && equipment.testingMaterialsArray.length > 0) {
       // Нове поле - масив об'єктів
       parsedMaterials = equipment.testingMaterialsArray;
+    } else if (equipment.testingMaterialsArray && typeof equipment.testingMaterialsArray === 'string') {
+      // Якщо testingMaterialsArray є рядком (старе значення), парсимо його
+      try {
+        parsedMaterials = JSON.parse(equipment.testingMaterialsArray);
+      } catch (e) {
+        console.error('Помилка парсингу testingMaterialsArray:', e);
+      }
     } else if (equipment.testingMaterialsJson) {
       // Старе поле - JSON рядок
       try {

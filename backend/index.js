@@ -523,11 +523,7 @@ const equipmentSchema = new mongoose.Schema({
   testingResult: String,             // Детальний результат тестування
   // testingMaterials - ВИДАЛЕНО ЗІ СХЕМИ - старе поле залишається в базі завдяки strict: false, але Mongoose його не валідує
   testingMaterialsJson: String,      // Використані матеріали у форматі JSON [{type, quantity, unit}] (старе поле)
-  testingMaterialsArray: [{         // Використані матеріали у форматі масиву об'єктів (нове поле)
-    type: String,                    // Тип матеріалу (наприклад: "Олива SAE10W40")
-    quantity: String,                // Кількість (наприклад: "14")
-    unit: String                     // Одиниця виміру (наприклад: "л.")
-  }],
+  testingMaterialsArray: mongoose.Schema.Types.Mixed, // Використані матеріали - Mixed тип, щоб уникнути валідації старих даних (може бути масив об'єктів або рядок JSON)
   testingProcedure: String,          // Процедура тестування
   testingConclusion: String,         // Висновок тестування: 'passed', 'failed', 'partial'
   testingEngineer1: String,          // Сервісний інженер №1
