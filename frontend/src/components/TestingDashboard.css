@@ -150,6 +150,16 @@
   background: var(--primary-dark);
 }
 
+.btn-return {
+  background: #ffc107;
+  color: #000;
+  margin-left: 8px;
+}
+
+.btn-return:hover {
+  background: #e0a800;
+}
+
 .btn-cancel {
   background: #6c757d;
   color: white;

@@ -245,6 +245,36 @@ function TestingDashboard({ user }) {
     }
   };
 
+  const handleReturnTesting = async (equipment) => {
+    if (!equipment) return;
+    
+    if (!window.confirm('Ви впевнені, що хочете повернути це тестування на повторне тестування? Статус зміниться на "В роботі".')) {
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/equipment/${equipment._id}/return-testing`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        loadRequests();
+        alert('Тестування повернено на повторне тестування');
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Помилка повернення тестування');
+      }
+    } catch (error) {
+      console.error('Помилка:', error);
+      alert('Помилка з\'єднання з сервером');
+    }
+  };
+
   const handleUploadFiles = async (e) => {
     if (!selectedEquipment || !e.target.files || e.target.files.length === 0) return;
     
@@ -444,16 +474,25 @@ function TestingDashboard({ user }) {
                       </button>
                     )}
                     {activeTab === 'completed' && (
-                      <button 
-                        className="btn-action btn-view"
-                        onClick={() => {
-                          setSelectedEquipment(item);
-                          setShowModal(true);
-                        }}
-                        title="Переглянути"
-                      >
-                        👁️ Деталі
-                      </button>
+                      <>
+                        <button 
+                          className="btn-action btn-view"
+                          onClick={() => {
+                            setSelectedEquipment(item);
+                            setShowModal(true);
+                          }}
+                          title="Переглянути"
+                        >
+                          👁️ Деталі
+                        </button>
+                        <button 
+                          className="btn-action btn-return"
+                          onClick={() => handleReturnTesting(item)}
+                          title="Повернути на тест"
+                        >
+                          🔄 Повернути на тест
+                        </button>
+                      </>
                     )}
                   </td>
                   <td>{getStatusBadge(item.testingStatus)}</td>

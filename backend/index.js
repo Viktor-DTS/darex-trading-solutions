@@ -5004,6 +5004,65 @@ app.post('/api/equipment/:id/cancel-testing', authenticateToken, async (req, res
   }
 });
 
+// Повернути завершене тестування на повторне тестування
+app.post('/api/equipment/:id/return-testing', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  console.log('[POST] /api/equipment/:id/return-testing - Повернення тестування:', req.params.id);
+  
+  try {
+    const equipment = await Equipment.findById(req.params.id).lean();
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+
+    if (equipment.testingStatus !== 'completed' && equipment.testingStatus !== 'failed') {
+      return res.status(400).json({ error: 'Можна повернути тільки завершені або не пройдені тести' });
+    }
+
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    // Повертаємо статус на "in_progress" і зберігаємо інформацію про попереднє тестування
+    const updated = await Equipment.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          testingStatus: 'in_progress',
+          testingTakenBy: user._id.toString(),
+          testingTakenByName: user.name || user.login,
+          testingTakenAt: new Date(),
+          lastModified: new Date()
+        }
+      },
+      {
+        new: true,
+        runValidators: false,
+        lean: true
+      }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Обладнання не знайдено після оновлення' });
+    }
+
+    logPerformance('POST /api/equipment/:id/return-testing', startTime);
+    
+    // Конвертуємо _id в рядок для сумісності з фронтендом
+    const responseData = {
+      ...updated,
+      _id: updated._id.toString()
+    };
+    
+    res.json(responseData);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/:id/return-testing:', error);
+    logPerformance('POST /api/equipment/:id/return-testing', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Видалення обладнання (тільки для admin/administrator)
 app.delete('/api/equipment/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();
