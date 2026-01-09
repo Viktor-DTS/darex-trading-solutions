@@ -706,6 +706,18 @@ function TestingDashboard({ user }) {
                                   placeholder="шт."
                                   value={material.unit}
                                   onChange={(e) => handleMaterialChange(index, 'unit', e.target.value)}
+                                  onBlur={() => setTimeout(() => {
+                                    setShowUnitDropdown(prev => ({ ...prev, [index]: false }));
+                                  }, 200)}
+                                  onFocus={() => {
+                                    if (material.unit && materialUnits.some(u => u.toLowerCase().includes(material.unit.toLowerCase()))) {
+                                      const filtered = materialUnits.filter(unit => 
+                                        unit.toLowerCase().includes(material.unit.toLowerCase())
+                                      );
+                                      setFilteredUnits(prev => ({ ...prev, [index]: filtered }));
+                                      setShowUnitDropdown(prev => ({ ...prev, [index]: filtered.length > 0 }));
+                                    }
+                                  }}
                                   className="material-unit-input"
                                   autoComplete="off"
                                   list={`unit-options-${index}`}
