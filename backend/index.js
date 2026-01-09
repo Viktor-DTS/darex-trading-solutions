@@ -521,6 +521,7 @@ const equipmentSchema = new mongoose.Schema({
   testingDate: Date,                 // Дата завершення тестування (встановлюється автоматично)
   testingNotes: String,              // Примітки по тестуванню
   testingResult: String,             // Детальний результат тестування
+  testingMaterials: mongoose.Schema.Types.Mixed, // ЗАСТАРІЛЕ ПОЛЕ - не використовувати! Залишено для сумісності зі старими документами
   testingMaterialsJson: String,      // Використані матеріали у форматі JSON [{type, quantity, unit}] (старе поле)
   testingMaterialsArray: [{         // Використані матеріали у форматі масиву об'єктів (нове поле)
     type: String,                    // Тип матеріалу (наприклад: "Олива SAE10W40")
