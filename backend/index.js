@@ -4791,12 +4791,18 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
   console.log('[POST] /api/equipment/:id/complete-testing - Завершення тестування:', req.params.id);
   
   try {
-    // Використовуємо .lean() щоб уникнути валідації Mongoose при завантаженні
-    // Це необхідно, оскільки в базі може бути старе поле testingMaterials з неправильним типом
-    const equipment = await Equipment.findById(req.params.id).lean();
-    if (!equipment) {
+    // Використовуємо прямий MongoDB запит для завантаження, щоб повністю обійти валідацію Mongoose
+    // Це необхідно, оскільки в базі є старе поле testingMaterials з неправильним типом
+    const equipmentDoc = await mongoose.connection.db.collection('equipment').findOne(
+      { _id: new mongoose.Types.ObjectId(req.params.id) }
+    );
+    
+    if (!equipmentDoc) {
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
+    
+    // Конвертуємо MongoDB документ в простий об'єкт
+    const equipment = equipmentDoc;
 
     const user = await User.findOne({ login: req.user.login });
     if (!user) {
