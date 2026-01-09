@@ -548,7 +548,10 @@ const equipmentSchema = new mongoose.Schema({
   lastModified: { type: Date, default: Date.now },
   photoUrl: String,                 // URL фото шильдика
   ocrData: Object,                   // Сирі дані OCR
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  strict: false // Дозволяє зберігати поля, яких немає в схемі (наприклад, старі testingMaterials)
+});
 
 // Індекс для serialNumber - sparse, щоб дозволити кілька null значень для партій
 equipmentSchema.index({ serialNumber: 1 }, { sparse: true, unique: false });
@@ -4825,6 +4828,7 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
     // Це необхідно, оскільки в базі є старе поле testingMaterials з неправильним типом
     // Зберігаємо матеріали в нове поле testingMaterialsArray (масив об'єктів)
     // Старе поле testingMaterialsJson залишаємо для сумісності
+    // Видаляємо старе поле testingMaterials, щоб уникнути помилок валідації
     const updateData = {
       $set: {
         testingStatus: status === 'failed' ? 'failed' : 'completed',
@@ -4841,8 +4845,10 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
         testingEngineer2: engineer2 || '',
         testingEngineer3: engineer3 || '',
         lastModified: new Date()
+      },
+      $unset: { 
+        testingMaterials: "" // Видаляємо старе поле testingMaterials, щоб уникнути помилок валідації
       }
-      // Старі поля testingMaterials не чіпаємо - вони залишаються для сумісності
     };
     
     // Використовуємо прямий MongoDB запит - це повністю обходить валідацію Mongoose
