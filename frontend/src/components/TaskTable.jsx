@@ -258,6 +258,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     if (columnKey === 'approvedByWarehouse') return 'select';
     if (columnKey === 'approvedByAccountant') return 'select';
     if (columnKey === 'approvedByRegionalManager') return 'select';
+    if (columnKey === 'work') return 'select'; // Найменування робіт
     // Текстові
     return 'text';
   };
@@ -277,6 +278,8 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       case 'approvedByAccountant':
       case 'approvedByRegionalManager':
         return ['', 'На розгляді', 'Підтверджено', 'Відмова'];
+      case 'work':
+        return ['', 'ТО', 'ТО-1', 'ТО-2', 'ТО-3', 'ТО-4', 'ПНР', 'Ремонт в цеху', 'Ремонт на місті', 'Діагностика', 'Діагностика+ремонт', 'Ремонт в цеху (волонтерство)', 'Гарантійний ремонт в цеху', 'Гарантійний ремонт на місті', 'Предпродажна підготовка', 'Продаж ЗІП', 'Перекомутація', 'Внутрішні роботи (завантаження)', 'Внутрішні роботи (розвантаження)'];
       default:
         return [];
     }
