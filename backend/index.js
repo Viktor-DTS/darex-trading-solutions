@@ -521,7 +521,7 @@ const equipmentSchema = new mongoose.Schema({
   testingDate: Date,                 // Дата завершення тестування (встановлюється автоматично)
   testingNotes: String,              // Примітки по тестуванню
   testingResult: String,             // Детальний результат тестування
-  testingMaterials: mongoose.Schema.Types.Mixed, // ЗАСТАРІЛЕ ПОЛЕ - не використовувати! Залишено для сумісності зі старими документами
+  // testingMaterials - ВИДАЛЕНО ЗІ СХЕМИ - старе поле залишається в базі завдяки strict: false, але Mongoose його не валідує
   testingMaterialsJson: String,      // Використані матеріали у форматі JSON [{type, quantity, unit}] (старе поле)
   testingMaterialsArray: [{         // Використані матеріали у форматі масиву об'єктів (нове поле)
     type: String,                    // Тип матеріалу (наприклад: "Олива SAE10W40")
@@ -551,13 +551,7 @@ const equipmentSchema = new mongoose.Schema({
   ocrData: Object,                   // Сирі дані OCR
 }, { 
   timestamps: true,
-  strict: false, // Дозволяє зберігати поля, яких немає в схемі (наприклад, старі testingMaterials)
-  validateBeforeSave: false // Вимкнути валідацію перед збереженням (для старих документів)
-});
-
-// Вимкнути валідацію для поля testingMaterials (застаріле поле)
-equipmentSchema.path('testingMaterials').validate(function() {
-  return true; // Завжди повертаємо true, щоб валідація не спрацювала
+  strict: false // Дозволяє зберігати поля, яких немає в схемі (наприклад, старе поле testingMaterials залишається в базі, але Mongoose його не валідує)
 });
 
 // Індекс для serialNumber - sparse, щоб дозволити кілька null значень для партій
