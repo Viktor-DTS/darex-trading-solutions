@@ -554,7 +554,61 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         return;
       }
       
-      // Звичайна фільтрація
+      // Спеціальна логіка для поля "work" (Найменування робіт) з підтримкою виключень
+      if (key === 'work') {
+        result = result.filter(task => {
+          let taskValue = task[key];
+          if (taskValue === null || taskValue === undefined) taskValue = '';
+          
+          const taskValueStr = String(taskValue).toLowerCase();
+          
+          // Перевірка чи є виключення через мінус (наприклад: "гаран -ремонт в цеху")
+          if (filterValue.includes(' -')) {
+            // Розділяємо на частини: включення та виключення
+            const parts = filterValue.split(' -');
+            const includeFilter = parts[0].trim(); // Частина перед першим мінусом
+            const excludeFilters = parts.slice(1).map(e => e.trim()); // Всі частини після мінусів
+            
+            // Якщо є частина включення - перевіряємо її
+            if (includeFilter) {
+              if (!taskValueStr.includes(includeFilter)) {
+                return false; // Не містить потрібний текст - виключаємо
+              }
+            }
+            
+            // Перевіряємо всі виключення
+            for (const excludeFilter of excludeFilters) {
+              if (excludeFilter && taskValueStr.includes(excludeFilter)) {
+                return false; // Містить виключений текст - виключаємо
+              }
+            }
+            
+            return true; // Пройшов всі перевірки
+          }
+          
+          // Спеціальна обробка для "гаран" (автоматичне виключення не гарантійних ремонтів)
+          if (filterValue.includes('гаран')) {
+            if (!taskValueStr.includes('гаран')) {
+              return false;
+            }
+            
+            // Автоматично виключаємо не гарантійні ремонти
+            const isNonWarrantyRepair = 
+              (taskValueStr.includes('ремонт в цеху') && !taskValueStr.includes('гарантійний')) ||
+              (taskValueStr.includes('ремонт на місті') && !taskValueStr.includes('гарантійний'));
+            
+            if (isNonWarrantyRepair) {
+              return false;
+            }
+          }
+          
+          // Стандартний пошук підрядка для всіх інших випадків
+          return taskValueStr.includes(filterValue);
+        });
+        return;
+      }
+      
+      // Звичайна фільтрація для інших полів
       // Для select полів використовуємо точне порівняння, для текстових - includes
       const filterType = getFilterType(key);
       result = result.filter(task => {
