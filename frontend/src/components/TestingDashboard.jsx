@@ -107,15 +107,20 @@ function TestingDashboard({ user }) {
   const handleOpenComplete = (equipment) => {
     setSelectedEquipment(equipment);
     
-    // Парсимо матеріали з JSON
+    // Парсимо матеріали - спочатку перевіряємо нове поле testingMaterialsArray
     let parsedMaterials = [];
-    if (equipment.testingMaterialsJson) {
+    if (Array.isArray(equipment.testingMaterialsArray) && equipment.testingMaterialsArray.length > 0) {
+      // Нове поле - масив об'єктів
+      parsedMaterials = equipment.testingMaterialsArray;
+    } else if (equipment.testingMaterialsJson) {
+      // Старе поле - JSON рядок
       try {
         parsedMaterials = JSON.parse(equipment.testingMaterialsJson);
       } catch (e) {
         console.error('Помилка парсингу матеріалів:', e);
       }
     } else if (Array.isArray(equipment.testingMaterials)) {
+      // Дуже старе поле (якщо ще є)
       parsedMaterials = equipment.testingMaterials;
     }
     
@@ -744,7 +749,10 @@ function TestingDashboard({ user }) {
                   
                   {(() => {
                     let materials = [];
-                    if (selectedEquipment.testingMaterialsJson) {
+                    // Спочатку перевіряємо нове поле testingMaterialsArray
+                    if (Array.isArray(selectedEquipment.testingMaterialsArray) && selectedEquipment.testingMaterialsArray.length > 0) {
+                      materials = selectedEquipment.testingMaterialsArray;
+                    } else if (selectedEquipment.testingMaterialsJson) {
                       try {
                         materials = JSON.parse(selectedEquipment.testingMaterialsJson);
                       } catch (e) { /* ignore */ }

@@ -1142,7 +1142,10 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
 
               {(() => {
                 let materials = [];
-                if (equipment.testingMaterialsJson) {
+                // Спочатку перевіряємо нове поле testingMaterialsArray
+                if (Array.isArray(equipment.testingMaterialsArray) && equipment.testingMaterialsArray.length > 0) {
+                  materials = equipment.testingMaterialsArray;
+                } else if (equipment.testingMaterialsJson) {
                   try {
                     materials = JSON.parse(equipment.testingMaterialsJson);
                   } catch (e) { /* ignore */ }
