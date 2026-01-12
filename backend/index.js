@@ -4952,6 +4952,74 @@ app.post('/api/equipment/:id/complete-testing', authenticateToken, async (req, r
   }
 });
 
+// Оновлення даних завершеного тестування (редагування)
+app.put('/api/equipment/:id/update-testing', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  console.log('[PUT] /api/equipment/:id/update-testing - Оновлення даних тестування:', req.params.id);
+
+  try {
+    const equipment = await Equipment.findById(req.params.id).lean();
+
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    // Перевіряємо чи тест завершений
+    if (equipment.testingStatus !== 'completed' && equipment.testingStatus !== 'failed') {
+      return res.status(400).json({ error: 'Можна редагувати тільки завершені тести' });
+    }
+
+    const { notes, result, materials, procedure, conclusion, engineer1, engineer2, engineer3 } = req.body;
+
+    // Фільтруємо матеріали - видаляємо порожні записи
+    let filteredMaterials = [];
+    if (Array.isArray(materials)) {
+      filteredMaterials = materials.filter(m => m && m.type && m.type.trim() !== '');
+    }
+
+    // Оновлюємо дані тестування
+    const updated = await Equipment.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          testingNotes: notes || '',
+          testingResult: result || '',
+          testingMaterialsArray: filteredMaterials,
+          testingMaterialsJson: JSON.stringify(filteredMaterials),
+          testingProcedure: procedure || '',
+          testingConclusion: conclusion || 'passed',
+          testingEngineer1: engineer1 || '',
+          testingEngineer2: engineer2 || '',
+          testingEngineer3: engineer3 || '',
+          testingEditedBy: user.name || user.login,
+          testingEditedAt: new Date()
+        }
+      },
+      { new: true }
+    ).lean();
+
+    console.log('[SUCCESS] Дані тестування оновлено для обладнання:', req.params.id);
+    logPerformance('PUT /api/equipment/:id/update-testing', startTime);
+
+    res.json({ 
+      success: true, 
+      equipment: {
+        ...updated,
+        _id: updated._id.toString()
+      }
+    });
+  } catch (error) {
+    console.error('[ERROR] PUT /api/equipment/:id/update-testing:', error);
+    logPerformance('PUT /api/equipment/:id/update-testing', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Завантаження файлів тестування
 app.post('/api/equipment/:id/testing-files', authenticateToken, uploadWorkFiles.array('files', 10), async (req, res) => {
   const startTime = Date.now();

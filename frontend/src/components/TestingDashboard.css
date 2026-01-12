@@ -160,6 +160,29 @@
   background: #e0a800;
 }
 
+.btn-edit {
+  background: #17a2b8;
+  color: white;
+}
+
+.btn-edit:hover {
+  background: #138496;
+}
+
+.btn-edit-mode {
+  background: #17a2b8;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn-edit-mode:hover {
+  background: #138496;
+}
+
 .btn-cancel {
   background: #6c757d;
   color: white;

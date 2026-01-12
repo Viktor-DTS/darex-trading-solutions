@@ -30,6 +30,8 @@ function TestingDashboard({ user }) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   
   // Стан для автодоповнення матеріалів
   const [materialTypes, setMaterialTypes] = useState([]);
@@ -132,8 +134,9 @@ function TestingDashboard({ user }) {
     }
   };
 
-  const handleOpenComplete = (equipment) => {
+  const handleOpenComplete = (equipment, startEditing = false) => {
     setSelectedEquipment(equipment);
+    setIsEditing(startEditing);
     
     // Парсимо матеріали - спочатку перевіряємо нове поле testingMaterialsArray
     let parsedMaterials = [];
@@ -294,6 +297,49 @@ function TestingDashboard({ user }) {
     } catch (error) {
       console.error('Помилка:', error);
       alert('Помилка з\'єднання з сервером');
+    }
+  };
+
+  // Функція збереження редагування завершеного тесту
+  const handleSaveTestingEdit = async () => {
+    if (!selectedEquipment) return;
+    
+    try {
+      setSavingEdit(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/equipment/${selectedEquipment._id}/update-testing`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          notes: testingForm.notes,
+          result: testingForm.result,
+          materials: testingForm.materials,
+          procedure: testingForm.procedure,
+          conclusion: testingForm.conclusion,
+          engineer1: testingForm.engineer1,
+          engineer2: testingForm.engineer2,
+          engineer3: testingForm.engineer3
+        })
+      });
+      
+      if (response.ok) {
+        const updatedEquipment = await response.json();
+        setSelectedEquipment(updatedEquipment.equipment || updatedEquipment);
+        setIsEditing(false);
+        loadRequests();
+        alert('Зміни збережено успішно!');
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Помилка збереження змін');
+      }
+    } catch (error) {
+      console.error('Помилка:', error);
+      alert('Помилка з\'єднання з сервером');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -528,14 +574,11 @@ function TestingDashboard({ user }) {
                     {activeTab === 'completed' && (
                       <>
                         <button 
-                          className="btn-action btn-view"
-                          onClick={() => {
-                            setSelectedEquipment(item);
-                            setShowModal(true);
-                          }}
-                          title="Переглянути"
+                          className="btn-action btn-edit"
+                          onClick={() => handleOpenComplete(item, true)}
+                          title="Редагувати"
                         >
-                          👁️ Деталі
+                          ✏️ Редагувати
                         </button>
                         <button 
                           className="btn-action btn-return"
@@ -604,7 +647,7 @@ function TestingDashboard({ user }) {
                 )}
               </div>
 
-              {activeTab !== 'completed' && (
+              {(activeTab !== 'completed' || isEditing) && (
                 <>
                   <div className="form-section-title">📝 Інформація по тестуванню</div>
                   
@@ -805,6 +848,8 @@ function TestingDashboard({ user }) {
                 </>
               )}
 
+              {/* Показуємо файли для завершених тестів в режимі перегляду (не редагування) */}
+
               {selectedEquipment.testingFiles && selectedEquipment.testingFiles.length > 0 && (
                 <div className="files-section">
                   <h4>Завантажені файли ({selectedEquipment.testingFiles.length}):</h4>
@@ -852,7 +897,7 @@ function TestingDashboard({ user }) {
                 </div>
               )}
 
-              {activeTab === 'completed' && (
+              {activeTab === 'completed' && !isEditing && (
                 <div className="testing-results-section">
                   {selectedEquipment.testingConclusion && (
                     <div className="conclusion-badge-container">
@@ -978,6 +1023,46 @@ function TestingDashboard({ user }) {
                   onClick={() => handleCompleteTesting('completed')}
                 >
                   ✅ Тест пройдено
+                </button>
+              </div>
+            )}
+
+            {/* Футер для режиму редагування завершених тестів */}
+            {activeTab === 'completed' && isEditing && (
+              <div className="modal-footer">
+                <button 
+                  className="btn-cancel"
+                  onClick={() => {
+                    setIsEditing(false);
+                    setShowModal(false);
+                  }}
+                >
+                  Скасувати
+                </button>
+                <button 
+                  className="btn-success"
+                  onClick={handleSaveTestingEdit}
+                  disabled={savingEdit}
+                >
+                  {savingEdit ? '⏳ Збереження...' : '💾 Зберегти зміни'}
+                </button>
+              </div>
+            )}
+
+            {/* Футер для режиму перегляду завершених тестів */}
+            {activeTab === 'completed' && !isEditing && (
+              <div className="modal-footer">
+                <button 
+                  className="btn-cancel"
+                  onClick={() => setShowModal(false)}
+                >
+                  Закрити
+                </button>
+                <button 
+                  className="btn-edit-mode"
+                  onClick={() => setIsEditing(true)}
+                >
+                  ✏️ Редагувати
                 </button>
               </div>
             )}
