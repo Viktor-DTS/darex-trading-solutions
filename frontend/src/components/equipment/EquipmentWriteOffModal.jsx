@@ -40,14 +40,20 @@ function EquipmentWriteOffModal({ equipment, warehouses, onClose, onSuccess }) {
     setLoadingEquipment(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/equipment?status=in_stock`, {
+      // Завантажуємо обладнання зі статусами in_stock та reserved
+      const response = await fetch(`${API_BASE_URL}/equipment`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
       if (response.ok) {
         const data = await response.json();
-        // Фільтруємо тільки обладнання на складі (не списане, не видалене)
-        setEquipmentList(data.filter(eq => !eq.deleted && eq.status !== 'written_off' && eq.status !== 'deleted'));
+        // Фільтруємо тільки обладнання на складі (не списане, не видалене, але включаємо зарезервоване)
+        setEquipmentList(data.filter(eq => 
+          !eq.deleted && 
+          eq.status !== 'written_off' && 
+          eq.status !== 'deleted' &&
+          (eq.status === 'in_stock' || eq.status === 'reserved' || !eq.status)
+        ));
       }
     } catch (error) {
       console.error('Помилка завантаження обладнання:', error);
@@ -73,8 +79,9 @@ function EquipmentWriteOffModal({ equipment, warehouses, onClose, onSuccess }) {
     const singleItems = [];
     
     equipmentList.forEach(eq => {
+      const isAvailable = eq.status === 'in_stock' || eq.status === 'reserved' || !eq.status;
       // Обладнання з batchId (стара логіка партій)
-      if (eq.isBatch && eq.batchId && eq.status === 'in_stock') {
+      if (eq.isBatch && eq.batchId && isAvailable) {
         const key = `${eq.batchId}-${eq.currentWarehouse || eq.currentWarehouseName}`;
         if (!groups[key]) {
           groups[key] = {
@@ -88,11 +95,11 @@ function EquipmentWriteOffModal({ equipment, warehouses, onClose, onSuccess }) {
         groups[key].batchCount++;
       } 
       // Обладнання без серійного номера з quantity > 1 (нова логіка)
-      else if ((!eq.serialNumber || eq.serialNumber.trim() === '') && eq.quantity > 1 && eq.status === 'in_stock') {
+      else if ((!eq.serialNumber || eq.serialNumber.trim() === '') && eq.quantity > 1 && isAvailable) {
         singleItems.push(eq);
       } 
       // Звичайне одиничне обладнання
-      else {
+      else if (isAvailable) {
         singleItems.push(eq);
       }
     });

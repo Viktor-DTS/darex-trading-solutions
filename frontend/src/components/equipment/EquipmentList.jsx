@@ -10,7 +10,8 @@ import './EquipmentList.css';
 
 // Визначення всіх колонок
 const ALL_COLUMNS = [
-  { key: 'status', label: 'Статус', width: 120 },
+  { key: 'status', label: 'Статус на складі', width: 140 },
+  { key: 'reservationStatus', label: 'Статус Резерву', width: 140 },
   { key: 'manufacturer', label: 'Виробник', width: 150 },
   { key: 'type', label: 'Тип обладнання', width: 180 },
   { key: 'quantity', label: 'Кількість', width: 100 },
@@ -18,7 +19,6 @@ const ALL_COLUMNS = [
   { key: 'currentWarehouse', label: 'Склад', width: 150 },
   { key: 'reservationClientName', label: 'Клієнт резервування', width: 200 },
   { key: 'reservedByName', label: 'Хто зарезервував', width: 180 },
-  { key: 'reservationStatus', label: 'Статус резерва', width: 140 },
   { key: 'testingStatus', label: 'Статус тестування', width: 160 },
   { key: 'testingDate', label: 'Дата тестування', width: 140 },
   { key: 'standbyPower', label: 'Резервна потужність', width: 150 },
@@ -149,10 +149,10 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
       return ['', ...uniqueWarehouses];
     }
     if (columnKey === 'status') {
-      return ['', 'На складі', 'В дорозі', 'Зарезервовано', 'Відвантажено'];
+      return ['', 'На складі', 'В дорозі', 'Відвантажено'];
     }
     if (columnKey === 'reservationStatus') {
-      return ['', 'Вільне', 'Зарезервовано'];
+      return ['', 'Всі', 'Вільна', 'Зарезервовано'];
     }
     return [];
   };
@@ -212,6 +212,10 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
               if (key === 'status') {
                 const statusLabel = getStatusLabel(item.status || '');
                 return statusLabel === filterValue;
+              }
+              if (key === 'reservationStatus') {
+                const reservationStatus = getReservationStatusLabel(item);
+                return reservationStatus === filterValue;
               }
               const itemValue = item[key];
               return String(itemValue || '') === filterValue;
@@ -300,13 +304,21 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
   const getStatusLabel = (status) => {
     const labels = {
       'in_stock': 'На складі',
-      'reserved': 'Зарезервовано',
+      'reserved': 'На складі', // Зарезервоване також показуємо як "На складі" в колонці статусу на складі
       'shipped': 'Відвантажено',
       'in_transit': 'В дорозі',
       'written_off': 'Списано',
       'deleted': 'Видалено'
     };
-    return labels[status] || status;
+    return labels[status] || status || 'На складі';
+  };
+
+  const getReservationStatusLabel = (item) => {
+    // Перевіряємо, чи є резервування
+    if (item.status === 'reserved' || item.reservedByName || item.reservationClientName) {
+      return 'Зарезервовано';
+    }
+    return 'Вільна';
   };
 
   const getTestingStatusLabel = (status) => {
@@ -597,6 +609,11 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                       {getStatusLabel(item.status || 'in_stock')}
                     </span>
                   </td>
+                  <td>
+                    <span className={`status-badge ${getReservationStatusLabel(item) === 'Зарезервовано' ? 'status-reserved' : 'status-in_stock'}`}>
+                      {getReservationStatusLabel(item)}
+                    </span>
+                  </td>
                   <td>{formatValue(item.manufacturer, 'manufacturer')}</td>
                   <td>
                     {item.isGrouped && item.batchCount ? (
@@ -628,11 +645,6 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                   <td>{formatValue(item.currentWarehouseName || item.currentWarehouse, 'currentWarehouse')}</td>
                   <td>{formatValue(item.reservationClientName, 'reservationClientName')}</td>
                   <td>{formatValue(item.reservedByName, 'reservedByName')}</td>
-                  <td>
-                    <span className={`status-badge ${item.status === 'reserved' ? 'status-reserved' : 'status-in_stock'}`}>
-                      {formatValue(item.status === 'reserved' ? 'reserved' : 'in_stock', 'reservationStatus')}
-                    </span>
-                  </td>
                   <td>
                     <span className={`status-badge ${getTestingStatusClass(item.testingStatus)}`}>
                       {getTestingStatusLabel(item.testingStatus)}
