@@ -1436,13 +1436,13 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
               value={formData.requestNumber} 
               onChange={handleChange}
               placeholder={isNewTask ? "Буде згенеровано автоматично після вибору регіону" : ""}
-              readOnly={!isNewTask}
+              readOnly={!isNewTask && !(user?.role === 'administrator' || user?.role === 'admin')}
               style={{
                 maxWidth: '400px',
                 margin: '0 auto',
                 display: 'block',
                 textAlign: 'center',
-                ...(!isNewTask ? { backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed', color: '#ff0000', fontWeight: 'bold' } : { color: '#ff0000', fontWeight: 'bold' })
+                ...(!isNewTask && !(user?.role === 'administrator' || user?.role === 'admin') ? { backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed', color: '#ff0000', fontWeight: 'bold' } : { color: '#ff0000', fontWeight: 'bold' })
               }}
             />
           </div>
