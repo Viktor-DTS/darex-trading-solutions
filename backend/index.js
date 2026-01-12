@@ -3249,13 +3249,21 @@ app.post('/api/invoice-requests/:id/upload', authenticateToken, (req, res, next)
       await request.save();
       
       // Оновлюємо Task з посиланням на InvoiceRequest
-      await Task.findByIdAndUpdate(requestIdOrTaskId, {
+      const taskUpdateData = {
         invoiceRequestId: request._id.toString(),
         invoiceFile: req.file.path,
         invoiceFileName: correctedFileName,
         invoice: invoiceNumber,
-        invoiceUploadDate: new Date()
-      });
+        invoiceUploadDate: new Date() // Це дата завантаження рахунку
+      };
+      // Встановлюємо invoiceRequestDate, якщо вона ще не встановлена
+      // (якщо користувач завантажує рахунок без попереднього створення запиту, це фактично заявка на рахунок)
+      const currentTask = await Task.findById(requestIdOrTaskId);
+      if (currentTask && !currentTask.invoiceRequestDate) {
+        taskUpdateData.invoiceRequestDate = new Date();
+        console.log('[INVOICE] Автоматично встановлено invoiceRequestDate при завантаженні рахунку (без попереднього запиту)');
+      }
+      await Task.findByIdAndUpdate(requestIdOrTaskId, taskUpdateData);
     } else {
       // Виправляємо кодування назви файлу (кирилиця)
       let correctedFileName = req.file.originalname;
@@ -3280,12 +3288,20 @@ app.post('/api/invoice-requests/:id/upload', authenticateToken, (req, res, next)
       
       // Оновлюємо Task
       if (request.taskId) {
-        await Task.findByIdAndUpdate(request.taskId, {
+        const taskUpdateData = {
           invoiceFile: req.file.path,
           invoiceFileName: correctedFileName,
           invoice: invoiceNumber,
-          invoiceUploadDate: new Date()
-        });
+          invoiceUploadDate: new Date() // Це дата завантаження рахунку
+        };
+        // Встановлюємо invoiceRequestDate, якщо вона ще не встановлена
+        // (якщо користувач завантажує рахунок без попереднього створення запиту, це фактично заявка на рахунок)
+        const currentTask = await Task.findById(request.taskId);
+        if (currentTask && !currentTask.invoiceRequestDate) {
+          taskUpdateData.invoiceRequestDate = new Date();
+          console.log('[INVOICE] Автоматично встановлено invoiceRequestDate при оновленні рахунку (без попереднього запиту)');
+        }
+        await Task.findByIdAndUpdate(request.taskId, taskUpdateData);
       }
     }
     
@@ -3379,11 +3395,19 @@ app.post('/api/invoice-requests/:id/upload-act', authenticateToken, uploadInvoic
       await request.save();
       
       // Оновлюємо Task з посиланням на InvoiceRequest
-      await Task.findByIdAndUpdate(requestIdOrTaskId, {
+      const taskUpdateData = {
         invoiceRequestId: request._id.toString(),
         actFile: req.file.path,
         actFileName: correctedActFileName
-      });
+      };
+      // Встановлюємо invoiceRequestDate, якщо вона ще не встановлена
+      // (якщо користувач завантажує акт без попереднього створення запиту, це фактично заявка на рахунок)
+      const currentTask = await Task.findById(requestIdOrTaskId);
+      if (currentTask && !currentTask.invoiceRequestDate) {
+        taskUpdateData.invoiceRequestDate = new Date();
+        console.log('[INVOICE] Автоматично встановлено invoiceRequestDate при завантаженні акту (без попереднього запиту)');
+      }
+      await Task.findByIdAndUpdate(requestIdOrTaskId, taskUpdateData);
     } else {
       // Виправляємо кодування назви файлу (кирилиця)
       let correctedActFileName = req.file.originalname;
@@ -3403,10 +3427,18 @@ app.post('/api/invoice-requests/:id/upload-act', authenticateToken, uploadInvoic
       
       // Оновлюємо Task
       if (request.taskId) {
-        await Task.findByIdAndUpdate(request.taskId, {
+        const taskUpdateData = {
           actFile: req.file.path,
           actFileName: correctedActFileName
-        });
+        };
+        // Встановлюємо invoiceRequestDate, якщо вона ще не встановлена
+        // (якщо користувач завантажує акт без попереднього створення запиту, це фактично заявка на рахунок)
+        const currentTask = await Task.findById(request.taskId);
+        if (currentTask && !currentTask.invoiceRequestDate) {
+          taskUpdateData.invoiceRequestDate = new Date();
+          console.log('[INVOICE] Автоматично встановлено invoiceRequestDate при оновленні акту (без попереднього запиту)');
+        }
+        await Task.findByIdAndUpdate(request.taskId, taskUpdateData);
       }
     }
     
