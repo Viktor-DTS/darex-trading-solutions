@@ -8,6 +8,27 @@ import EquipmentDetailsModal from './EquipmentDetailsModal';
 import EquipmentEditModal from './EquipmentEditModal';
 import './EquipmentList.css';
 
+// Функції для обробки статусів (винесені за межі компонента)
+const getStatusLabel = (status) => {
+  const labels = {
+    'in_stock': 'На складі',
+    'reserved': 'На складі', // Зарезервоване також показуємо як "На складі" в колонці статусу на складі
+    'shipped': 'Відвантажено',
+    'in_transit': 'В дорозі',
+    'written_off': 'Списано',
+    'deleted': 'Видалено'
+  };
+  return labels[status] || status || 'На складі';
+};
+
+const getReservationStatusLabel = (item) => {
+  // Перевіряємо, чи є резервування
+  if (item.status === 'reserved' || item.reservedByName || item.reservationClientName) {
+    return 'Зарезервовано';
+  }
+  return 'Вільна';
+};
+
 // Визначення всіх колонок
 const ALL_COLUMNS = [
   { key: 'status', label: 'Статус на складі', width: 140 },
@@ -299,26 +320,6 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
     }
     
     return String(value);
-  };
-
-  const getStatusLabel = (status) => {
-    const labels = {
-      'in_stock': 'На складі',
-      'reserved': 'На складі', // Зарезервоване також показуємо як "На складі" в колонці статусу на складі
-      'shipped': 'Відвантажено',
-      'in_transit': 'В дорозі',
-      'written_off': 'Списано',
-      'deleted': 'Видалено'
-    };
-    return labels[status] || status || 'На складі';
-  };
-
-  const getReservationStatusLabel = (item) => {
-    // Перевіряємо, чи є резервування
-    if (item.status === 'reserved' || item.reservedByName || item.reservationClientName) {
-      return 'Зарезервовано';
-    }
-    return 'Вільна';
   };
 
   const getTestingStatusLabel = (status) => {
