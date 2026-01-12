@@ -182,9 +182,12 @@
   flex: 1;
   min-height: 0;
   min-width: 0;
-  height: 0;
   position: relative;
   width: 100%;
+  -webkit-overflow-scrolling: touch;
+  /* Забезпечуємо видимість горизонтального скролу */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--surface-dark);
 }
 
 .equipment-table-wrapper::-webkit-scrollbar {
@@ -209,8 +212,8 @@
 
 /* Таблиця */
 .equipment-table {
-  width: 100%;
-  min-width: max-content;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 12px;
   table-layout: auto;
