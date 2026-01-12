@@ -19,73 +19,140 @@ function ReceiptApproval({ user, warehouses }) {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      // Завантажуємо документи переміщення зі статусом in_transit
-      const response = await fetch(`${API_BASE_URL}/documents/movement?status=in_transit`, {
+      
+      // Спочатку завантажуємо всі товари в дорозі
+      const equipmentResponse = await fetch(`${API_BASE_URL}/equipment?status=in_transit`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (response.ok) {
-        const documents = await response.json();
+      if (!equipmentResponse.ok) {
+        const error = await equipmentResponse.json();
+        console.error('[ERROR] Помилка завантаження товарів:', error);
+        alert(`Помилка завантаження: ${error.error || 'Невідома помилка'}`);
+        setLoading(false);
+        return;
+      }
+
+      const allEquipment = await equipmentResponse.json();
+      console.log('[DEBUG] Завантажено товарів в дорозі:', allEquipment.length);
+
+      if (allEquipment.length === 0) {
+        setMovementDocuments([]);
+        setLoading(false);
+        return;
+      }
+
+      // Створюємо мапу товарів по ID
+      const equipmentMap = new Map(allEquipment.map(eq => [eq._id, eq]));
+
+      // Завантажуємо всі документи переміщення (не тільки in_transit, щоб знайти всі пов'язані)
+      const documentsResponse = await fetch(`${API_BASE_URL}/documents/movement`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      let documents = [];
+      if (documentsResponse.ok) {
+        documents = await documentsResponse.json();
         console.log('[DEBUG] Завантажено документів переміщення:', documents.length);
-        
-        // Збираємо всі ID товарів з усіх документів
-        const allEquipmentIds = new Set(
-          documents.flatMap(doc => 
-            (doc.items || []).map(item => item.equipmentId).filter(Boolean)
-          )
-        );
-        
-        // Завантажуємо всі товари в дорозі одним запитом
-        let allEquipment = [];
-        if (allEquipmentIds.size > 0) {
-          try {
-            const allInTransitResponse = await fetch(`${API_BASE_URL}/equipment?status=in_transit`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (allInTransitResponse.ok) {
-              const allInTransit = await allInTransitResponse.json();
-              // Фільтруємо тільки ті товари, які є в документах
-              allEquipment = allInTransit.filter(eq => allEquipmentIds.has(eq._id));
-            }
-          } catch (err) {
-            console.error('Помилка завантаження товарів:', err);
-          }
-        }
-        
-        // Створюємо мапу для швидкого пошуку
-        const equipmentMap = new Map(allEquipment.map(eq => [eq._id, eq]));
-        
-        // Для кожного документа додаємо товари
-        const documentsWithItems = documents.map((doc) => {
-          const items = [];
-          if (doc.items && doc.items.length > 0) {
-            for (const item of doc.items) {
-              if (item.equipmentId) {
-                const equipment = equipmentMap.get(item.equipmentId);
-                // Перевіряємо, чи товар дійсно в дорозі
-                if (equipment && equipment.status === 'in_transit') {
-                  items.push({
-                    ...equipment,
-                    quantity: item.quantity || 1,
-                    notes: item.notes || ''
-                  });
-                }
+      }
+
+      // Групуємо товари по документах переміщення
+      const documentsWithItems = [];
+      const equipmentInDocuments = new Set();
+
+      // Спочатку додаємо товари, які є в документах
+      for (const doc of documents) {
+        const items = [];
+        if (doc.items && doc.items.length > 0) {
+          for (const item of doc.items) {
+            if (item.equipmentId) {
+              const equipment = equipmentMap.get(item.equipmentId);
+              if (equipment && equipment.status === 'in_transit') {
+                items.push({
+                  ...equipment,
+                  quantity: item.quantity || 1,
+                  notes: item.notes || ''
+                });
+                equipmentInDocuments.add(equipment._id);
               }
             }
           }
-          return {
+        }
+        
+        // Додаємо документ тільки якщо в ньому є товари в дорозі
+        if (items.length > 0) {
+          documentsWithItems.push({
             ...doc,
             items,
             totalItems: items.length
-          };
-        });
-        
-        setMovementDocuments(documentsWithItems);
-      } else {
-        const error = await response.json();
-        console.error('[ERROR] Помилка завантаження:', error);
-        alert(`Помилка завантаження: ${error.error || 'Невідома помилка'}`);
+          });
+        }
       }
+
+      // Додаємо товари, які не в документах (створюємо "віртуальні" документи)
+      const equipmentNotInDocuments = allEquipment.filter(eq => !equipmentInDocuments.has(eq._id));
+      
+      if (equipmentNotInDocuments.length > 0) {
+        // Групуємо по останньому переміщенню з історії
+        const groupedByMovement = equipmentNotInDocuments.reduce((acc, eq) => {
+          const lastMovement = eq.movementHistory && eq.movementHistory.length > 0 
+            ? eq.movementHistory[eq.movementHistory.length - 1]
+            : null;
+          
+          if (lastMovement) {
+            const key = `${lastMovement.fromWarehouse}_${lastMovement.toWarehouse}_${new Date(lastMovement.date).toISOString().split('T')[0]}`;
+            if (!acc[key]) {
+              acc[key] = {
+                fromWarehouse: lastMovement.fromWarehouse,
+                fromWarehouseName: lastMovement.fromWarehouseName,
+                toWarehouse: lastMovement.toWarehouse,
+                toWarehouseName: lastMovement.toWarehouseName,
+                documentDate: lastMovement.date,
+                createdByName: lastMovement.movedByName,
+                items: []
+              };
+            }
+            acc[key].items.push({
+              ...eq,
+              quantity: 1,
+              notes: lastMovement.notes || ''
+            });
+          } else {
+            // Якщо немає історії, створюємо окремий документ для кожного товару
+            const key = `single_${eq._id}`;
+            acc[key] = {
+              fromWarehouse: eq.currentWarehouse,
+              fromWarehouseName: eq.currentWarehouseName,
+              toWarehouse: eq.currentWarehouse,
+              toWarehouseName: eq.currentWarehouseName,
+              documentDate: new Date(),
+              createdByName: 'Невідомо',
+              items: [{
+                ...eq,
+                quantity: 1,
+                notes: ''
+              }]
+            };
+          }
+          return acc;
+        }, {});
+
+        // Додаємо віртуальні документи
+        Object.values(groupedByMovement).forEach(doc => {
+          documentsWithItems.push({
+            _id: `virtual_${Date.now()}_${Math.random()}`,
+            documentNumber: 'Без документа',
+            ...doc,
+            totalItems: doc.items.length,
+            isVirtual: true
+          });
+        });
+      }
+
+      console.log('[DEBUG] Підготовлено документів для відображення:', documentsWithItems.length);
+      console.log('[DEBUG] Документи з товарами:', documentsWithItems.filter(d => d.totalItems > 0).length);
+      console.log('[DEBUG] Загальна кількість товарів:', documentsWithItems.reduce((sum, d) => sum + (d.totalItems || 0), 0));
+      setMovementDocuments(documentsWithItems);
     } catch (error) {
       console.error('Помилка завантаження документів переміщення:', error);
       alert('Помилка завантаження документів переміщення');
@@ -290,8 +357,8 @@ function ReceiptApproval({ user, warehouses }) {
                                 style={{ cursor: 'pointer' }}
                               >
                                 <td>
-                                  <div style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
-                                    {doc.documentNumber || '—'}
+                                  <div style={{ fontWeight: 'bold', color: doc.isVirtual ? '#ffc107' : 'var(--primary)' }}>
+                                    {doc.documentNumber || (doc.isVirtual ? 'Без документа' : '—')}
                                   </div>
                                 </td>
                                 <td>

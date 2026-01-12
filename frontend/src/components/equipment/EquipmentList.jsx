@@ -489,7 +489,8 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
 
       {/* Таблиця */}
       <div className="equipment-table-wrapper">
-        <table className="equipment-table">
+        <div className="equipment-table-wrapper-inner">
+          <table className="equipment-table">
           <thead>
             {/* Рядок заголовків */}
             <tr>
@@ -668,6 +669,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Модальні вікна */}
