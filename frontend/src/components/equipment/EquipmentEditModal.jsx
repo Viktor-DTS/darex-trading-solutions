@@ -567,14 +567,15 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
                     <button
                       type="button"
-                      className="btn-secondary"
+                      className={equipment?.testingStatus === 'completed' ? 'btn-testing-success' : 'btn-secondary'}
                       onClick={() => setShowTestingInfo(true)}
                       disabled={!equipment?.testingStatus || equipment?.testingStatus === 'none' || equipment?.testingStatus === 'requested' || equipment?.testingStatus === 'in_progress'}
                       style={{
                         width: '100%',
                         padding: '10px',
                         opacity: (equipment?.testingStatus === 'completed' || equipment?.testingStatus === 'failed') ? 1 : 0.5,
-                        cursor: (equipment?.testingStatus === 'completed' || equipment?.testingStatus === 'failed') ? 'pointer' : 'not-allowed'
+                        cursor: (equipment?.testingStatus === 'completed' || equipment?.testingStatus === 'failed') ? 'pointer' : 'not-allowed',
+                        transition: 'all 0.2s'
                       }}
                     >
                       📋 Інформація по тесту
