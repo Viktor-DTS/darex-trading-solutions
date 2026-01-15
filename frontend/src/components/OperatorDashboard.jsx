@@ -10,15 +10,18 @@ function OperatorDashboard({ user }) {
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+  const [isReadOnlyMode, setIsReadOnlyMode] = useState(false);
 
   const handleRowClick = (task) => {
     setEditingTask(task);
+    setIsReadOnlyMode(activeTab === 'archive');
     setShowAddTaskModal(true);
   };
 
   const handleCloseModal = () => {
     setShowAddTaskModal(false);
     setEditingTask(null);
+    setIsReadOnlyMode(false);
   };
 
   const tabs = [
@@ -102,6 +105,7 @@ function OperatorDashboard({ user }) {
           initialData={editingTask || {}}
           user={user}
           panelType="operator"
+          readOnly={isReadOnlyMode}
           onSave={(savedTask) => {
             handleCloseModal();
             setTimeout(() => {
