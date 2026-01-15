@@ -232,7 +232,7 @@ function AccountantApprovalDashboard({ user }) {
 
   const handleRowClick = (task) => {
     setEditingTask(task);
-    setIsReadOnlyMode(false);
+    setIsReadOnlyMode(activeTab === 'archive');
     setShowAddTaskModal(true);
   };
 
