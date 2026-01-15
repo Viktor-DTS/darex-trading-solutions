@@ -136,7 +136,7 @@ function isRejected(value) {
   return value === false || value === 'Відмова';
 }
 
-function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service' }) {
+function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service', onViewClick = null }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -173,6 +173,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   const [deletingTaskId, setDeletingTaskId] = useState(null);
   
   const [showFilters, setShowFilters] = useState(true);
+  const canShowViewButton = typeof onViewClick === 'function';
 
   // Зберігаємо фільтри в localStorage при зміні
   useEffect(() => {
@@ -1111,13 +1112,15 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                        columnsArea === 'operator' || 
                        columnsArea === 'warehouse' || 
                        columnsArea === 'accountant-approval' || 
-                       columnsArea === 'regional') ? '130px' : '70px', 
+                       columnsArea === 'regional' ||
+                       canShowViewButton) ? '170px' : '70px', 
                 minWidth: (status === 'accountantInvoiceRequests' || 
                           columnsArea === 'service' || 
                           columnsArea === 'operator' || 
                           columnsArea === 'warehouse' || 
                           columnsArea === 'accountant-approval' || 
-                          columnsArea === 'regional') ? '130px' : '70px' 
+                          columnsArea === 'regional' ||
+                          canShowViewButton) ? '170px' : '70px' 
               }} rowSpan={showFilters ? 2 : 1}>
                 <div className="th-content">Дії</div>
               </th>
@@ -1311,6 +1314,18 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                             ❌ Відхилити
                           </button>
                         </div>
+                      )}
+                      {canShowViewButton && (
+                        <button
+                          className="btn-view-task"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onViewClick(task);
+                          }}
+                          title="Перегляд заявки"
+                        >
+                          👁️ Перегляд
+                        </button>
                       )}
                       {canDeleteTask() && (
                         <button

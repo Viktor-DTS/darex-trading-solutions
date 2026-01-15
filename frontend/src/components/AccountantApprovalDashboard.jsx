@@ -12,6 +12,7 @@ function AccountantApprovalDashboard({ user }) {
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+  const [isReadOnlyMode, setIsReadOnlyMode] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0); // Ключ для оновлення таблиці
@@ -231,12 +232,20 @@ function AccountantApprovalDashboard({ user }) {
 
   const handleRowClick = (task) => {
     setEditingTask(task);
+    setIsReadOnlyMode(false);
+    setShowAddTaskModal(true);
+  };
+
+  const handleViewClick = (task) => {
+    setEditingTask(task);
+    setIsReadOnlyMode(true);
     setShowAddTaskModal(true);
   };
 
   const handleCloseModal = () => {
     setShowAddTaskModal(false);
     setEditingTask(null);
+    setIsReadOnlyMode(false);
   };
 
   const tabs = [
@@ -304,6 +313,7 @@ function AccountantApprovalDashboard({ user }) {
               showRejectedApprovals={false}
               showRejectedInvoices={false}
               onRowClick={handleRowClick}
+              onViewClick={handleViewClick}
               onApprove={handleApprove}
               showApproveButtons={activeTab === 'pending'}
               approveRole="accountant"
@@ -330,6 +340,7 @@ function AccountantApprovalDashboard({ user }) {
           user={user}
           panelType="accountant"
           debtOnly={activeTab === 'debt'}
+          readOnly={isReadOnlyMode}
           onSave={(savedTask) => {
             handleCloseModal();
             loadTasks();

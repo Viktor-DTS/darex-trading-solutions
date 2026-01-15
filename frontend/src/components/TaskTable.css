@@ -481,6 +481,30 @@
   padding: 3px 6px;
 }
 
+/* Кнопка перегляду */
+.btn-view-task {
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-view-task:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
+}
+
+.btn-view-task:active {
+  transform: translateY(0);
+}
+
 /* Кнопка видалення */
 .btn-delete-task {
   padding: 4px 8px;

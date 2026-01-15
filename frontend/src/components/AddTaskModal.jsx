@@ -202,6 +202,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const [users, setUsers] = useState([]);
   // Режим оптимізації для панелей бухгалтерів
   const isAccountantMode = panelType === 'accountant';
+  // Режим тільки для читання (всі поля заблоковані)
+  const isReadOnly = readOnly === true;
   
   const [showSections, setShowSections] = useState({
     basic: isAccountantMode ? true : true,
@@ -666,6 +668,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   }, [formData]);
 
   const handleChange = (e) => {
+    if (isReadOnly) return;
     const { name, value, type, checked } = e.target;
     
     // Спеціальна обробка для ЄДРПОУ (автозаповнення)
@@ -710,6 +713,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
   // Обробник вибору ЄДРПОУ з автодоповнення
   const handleEdrpouSelect = (edrpou) => {
+    if (isReadOnly) return;
     console.log('[DEBUG] handleEdrpouSelect - вибрано ЄДРПОУ:', edrpou);
     setFormData(prev => ({ ...prev, edrpou: edrpou }));
     setShowEdrpouDropdown(false);
@@ -738,12 +742,14 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
   // Обробник застосування даних обладнання з модального вікна
   const handleEquipmentDataApply = (updates) => {
+    if (isReadOnly) return;
     console.log('[DEBUG] handleEquipmentDataApply - оновлення форми:', updates);
     setFormData(prev => ({ ...prev, ...updates }));
   };
 
   // Обробник завантаження файлу договору
   const handleContractFileChange = async (e) => {
+    if (isReadOnly) return;
     const file = e.target.files[0];
     if (!file) return;
 
@@ -798,6 +804,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
   // Видалення файлу договору
   const handleRemoveContractFile = () => {
+    if (isReadOnly) return;
     setFormData(prev => ({
       ...prev,
       contractFile: ''
@@ -932,6 +939,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
   // Вибір існуючого договору
   const handleSelectExistingContract = (contract) => {
+    if (isReadOnly) return;
     setFormData(prev => ({
       ...prev,
       contractFile: contract.url
@@ -941,6 +949,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
   // Відкриття вибору існуючих договорів
   const openContractSelector = () => {
+    if (isReadOnly) return;
     loadExistingContracts();
     setShowContractSelector(true);
   };
@@ -958,6 +967,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isReadOnly) return;
     setLoading(true);
     setError(null);
 
@@ -1341,9 +1351,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const isApprovedTask = formData.approvedByAccountant === 'Підтверджено' || formData.approvedByAccountant === true;
   const isDebtOnlyMode = debtOnly && isApprovedTask;
   
-  // Режим тільки для читання (всі поля заблоковані)
-  const isReadOnly = readOnly === true;
-
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className={`modal-content ${isDebtOnlyMode ? 'debt-only-mode' : ''} ${isReadOnly ? 'read-only-mode' : ''} ${isAccountantMode ? 'accountant-mode' : ''}`} onClick={(e) => e.stopPropagation()}>
@@ -1826,6 +1833,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       _id: initialData?._id || initialData?.id
                     }}
                     user={user}
+                    readOnly={isReadOnly}
                     onRequest={() => {
                       console.log('[DEBUG] Запит на рахунок створено');
                     }}
@@ -1841,6 +1849,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       name="debtStatus"
                       value={formData.debtStatus || 'Заборгованість'}
                       onChange={(e) => {
+                        if (isReadOnly) return;
                         const newValue = e.target.value;
                         setFormData({
                           ...formData,
@@ -1859,6 +1868,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         name="debtStatusCheckbox"
                         checked={formData.debtStatusCheckbox || false}
                         onChange={(e) => {
+                          if (isReadOnly) return;
                           const checked = e.target.checked;
                           setFormData({
                             ...formData,
@@ -2461,6 +2471,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 <div className="section-content">
                   <FileUpload 
                     taskId={initialData?._id || initialData?.id} 
+                    readOnly={isReadOnly}
                     onFilesUploaded={(files) => {
                       console.log('[DEBUG] Завантажено файли:', files);
                     }}
@@ -2474,9 +2485,11 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             <button type="button" className="btn-secondary" onClick={onClose}>
               Скасувати
             </button>
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? 'Збереження...' : 'Зберегти'}
-            </button>
+            {!isReadOnly && (
+              <button type="submit" className="btn-primary" disabled={loading}>
+                {loading ? 'Збереження...' : 'Зберегти'}
+              </button>
+            )}
           </div>
         </form>
       </div>

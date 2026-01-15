@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 import './InvoiceRequestBlock.css';
 
-const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
+const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly = false }) => {
   const [showModal, setShowModal] = useState(false);
   const [invoiceRequest, setInvoiceRequest] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -211,7 +211,7 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
             )}
 
             {/* Кнопка повторного запиту при відмові */}
-            {invoiceRequest.status === 'rejected' && (
+            {invoiceRequest.status === 'rejected' && !readOnly && (
               <button 
                 type="button"
                 className="btn-request-again"
@@ -289,19 +289,21 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded }) => {
               </p>
             )}
             
-            <button 
-              type="button"
-              className={task.invoiceRejectionReason ? 'btn-request-again' : 'btn-request'}
-              onClick={() => {
-                if (!task.invoiceRecipientDetails || task.invoiceRecipientDetails.trim() === '') {
-                  alert('Не заповнене поле "Реквізити отримувача рахунку".\n\nПрошу заповнити це поле.');
-                  return;
-                }
-                setShowModal(true);
-              }}
-            >
-              {task.invoiceRejectionReason ? '🔄 Подати запит знову' : '📋 Запросити рахунок'}
-            </button>
+            {!readOnly && (
+              <button 
+                type="button"
+                className={task.invoiceRejectionReason ? 'btn-request-again' : 'btn-request'}
+                onClick={() => {
+                  if (!task.invoiceRecipientDetails || task.invoiceRecipientDetails.trim() === '') {
+                    alert('Не заповнене поле "Реквізити отримувача рахунку".\n\nПрошу заповнити це поле.');
+                    return;
+                  }
+                  setShowModal(true);
+                }}
+              >
+                {task.invoiceRejectionReason ? '🔄 Подати запит знову' : '📋 Запросити рахунок'}
+              </button>
+            )}
           </div>
         )}
       </div>

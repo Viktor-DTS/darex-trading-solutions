@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 import './FileUpload.css';
 
-const FileUpload = ({ taskId, onFilesUploaded }) => {
+const FileUpload = ({ taskId, onFilesUploaded, readOnly = false }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [description, setDescription] = useState('');
   const [descriptionAuto, setDescriptionAuto] = useState(true);
@@ -28,6 +28,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
   };
 
   const handleFileSelect = (event) => {
+    if (readOnly) return;
     const files = Array.from(event.target.files);
     setSelectedFiles(files);
     // За замовчуванням опис = назва файлу (для всіх вибраних файлів)
@@ -37,6 +38,7 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
   };
 
   const handleUpload = async () => {
+    if (readOnly) return;
     if (selectedFiles.length === 0) {
       setError('Виберіть файли для завантаження');
       return;
@@ -399,70 +401,71 @@ const FileUpload = ({ taskId, onFilesUploaded }) => {
     <div className="file-upload-container">
       <h3>📁 Файли виконаних робіт</h3>
       
-      {/* Завантаження нових файлів */}
-      <div className="upload-section">
-        <h4>📤 Завантажити нові файли</h4>
-        
-        <div className="file-input-container">
-          <input
-            type="file"
-            multiple
-            onChange={handleFileSelect}
-            accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-            className="file-input"
-            id="file-upload-input"
-          />
-          <label htmlFor="file-upload-input" className="file-input-label">
-            {selectedFiles.length > 0 
-              ? `Вибрано ${selectedFiles.length} файлів`
-              : '📂 Вибрати файли'
-            }
-          </label>
-        </div>
-        
-        {selectedFiles.length > 0 && (
-          <div className="selected-files">
-            <h5>Вибрані файли:</h5>
-            <ul>
-              {selectedFiles.map((file, index) => (
-                <li key={index}>
-                  {getFileIcon(file.type)} {file.name} ({formatFileSize(file.size)})
-                </li>
-              ))}
-            </ul>
+      {!readOnly && (
+        <div className="upload-section">
+          <h4>📤 Завантажити нові файли</h4>
+          
+          <div className="file-input-container">
+            <input
+              type="file"
+              multiple
+              onChange={handleFileSelect}
+              accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+              className="file-input"
+              id="file-upload-input"
+            />
+            <label htmlFor="file-upload-input" className="file-input-label">
+              {selectedFiles.length > 0 
+                ? `Вибрано ${selectedFiles.length} файлів`
+                : '📂 Вибрати файли'
+              }
+            </label>
           </div>
-        )}
-        
-        <div className="description-input">
-          <label>Опис файлу (для всіх):</label>
-          <input
-            type="text"
-            value={description}
-            onChange={(e) => {
-              setDescription(e.target.value);
-              setDescriptionAuto(false);
-            }}
-            placeholder="Введіть опис файлу (необов'язково)"
-            className="description-field"
-          />
-        </div>
-        
-        <button
-          onClick={handleUpload}
-          disabled={uploading || selectedFiles.length === 0 || !taskId}
-          className="upload-button"
-        >
-          {uploading ? '⏳ Завантаження...' : '📤 Завантажити файли'}
-        </button>
-        
-        {!taskId && (
-          <div className="warning-message">
-            ⚠️ Щоб завантажити файли, спочатку збережіть заявку
+          
+          {selectedFiles.length > 0 && (
+            <div className="selected-files">
+              <h5>Вибрані файли:</h5>
+              <ul>
+                {selectedFiles.map((file, index) => (
+                  <li key={index}>
+                    {getFileIcon(file.type)} {file.name} ({formatFileSize(file.size)})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          
+          <div className="description-input">
+            <label>Опис файлу (для всіх):</label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                setDescriptionAuto(false);
+              }}
+              placeholder="Введіть опис файлу (необов'язково)"
+              className="description-field"
+            />
           </div>
-        )}
-        
-        {error && <div className="error-message">❌ {error}</div>}
-      </div>
+          
+          <button
+            onClick={handleUpload}
+            disabled={uploading || selectedFiles.length === 0 || !taskId}
+            className="upload-button"
+          >
+            {uploading ? '⏳ Завантаження...' : '📤 Завантажити файли'}
+          </button>
+          
+          {!taskId && (
+            <div className="warning-message">
+              ⚠️ Щоб завантажити файли, спочатку збережіть заявку
+            </div>
+          )}
+          
+          {error && <div className="error-message">❌ {error}</div>}
+        </div>
+      )}
       
       {/* Завантажені файли */}
       <div className="uploaded-files-section">

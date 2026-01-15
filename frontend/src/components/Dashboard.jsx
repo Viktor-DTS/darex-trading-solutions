@@ -14,6 +14,7 @@ function Dashboard({ user, panelType = 'service' }) {
   const [showRejectedInvoices, setShowRejectedInvoices] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+  const [isReadOnlyMode, setIsReadOnlyMode] = useState(false);
 
   const handleRowClick = (task) => {
     // Перевірка: підтверджені бухгалтером заявки можуть редагувати тільки admin/administrator
@@ -21,17 +22,27 @@ function Dashboard({ user, panelType = 'service' }) {
     const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
     
     if (isApprovedByAccountant && !isAdmin) {
-      alert('Редагування підтверджених бухгалтером заявок доступне тільки для адміністраторів.');
+      setEditingTask(task);
+      setIsReadOnlyMode(true);
+      setShowAddTaskModal(true);
       return;
     }
     
     setEditingTask(task);
+    setIsReadOnlyMode(false);
+    setShowAddTaskModal(true);
+  };
+
+  const handleViewClick = (task) => {
+    setEditingTask(task);
+    setIsReadOnlyMode(true);
     setShowAddTaskModal(true);
   };
 
   const handleCloseModal = () => {
     setShowAddTaskModal(false);
     setEditingTask(null);
+    setIsReadOnlyMode(false);
   };
 
   const handleLogisticsTaskClick = (task) => {
@@ -42,7 +53,7 @@ function Dashboard({ user, panelType = 'service' }) {
   const tabs = [
     { id: 'notDone', label: 'Невиконані заявки', icon: '📋' },
     { id: 'pending', label: 'Очікують підтвердження', icon: '⏳' },
-    { id: 'done', label: 'Заявки на підтвердженні у завсклада та бухгалтера', icon: '✅' },
+    { id: 'done', label: 'Архів заявок', icon: '✅' },
     { id: 'blocked', label: 'Заблоковані', icon: '🚫' },
     { id: 'contracts', label: 'Договори', icon: '📄' },
     { id: 'logistics', label: 'Логістика', icon: '🗺️' },
@@ -127,6 +138,7 @@ function Dashboard({ user, panelType = 'service' }) {
               showRejectedApprovals={showRejectedApprovals}
               showRejectedInvoices={showRejectedInvoices}
               onRowClick={handleRowClick}
+              onViewClick={handleViewClick}
               columnsArea={panelType}
             />
           )}
@@ -148,6 +160,7 @@ function Dashboard({ user, panelType = 'service' }) {
           onClose={handleCloseModal}
           user={user}
           initialData={editingTask || {}}
+          readOnly={isReadOnlyMode}
           onSave={(savedTask) => {
             handleCloseModal();
             setTimeout(() => {

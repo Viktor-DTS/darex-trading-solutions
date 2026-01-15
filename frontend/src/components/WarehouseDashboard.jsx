@@ -21,6 +21,7 @@ function WarehouseDashboard({ user }) {
   const [showShipModal, setShowShipModal] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
+  const [isReadOnlyMode, setIsReadOnlyMode] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -181,12 +182,20 @@ function WarehouseDashboard({ user }) {
 
   const handleRowClick = (task) => {
     setEditingTask(task);
+    setIsReadOnlyMode(false);
+    setShowAddTaskModal(true);
+  };
+
+  const handleViewClick = (task) => {
+    setEditingTask(task);
+    setIsReadOnlyMode(true);
     setShowAddTaskModal(true);
   };
 
   const handleCloseModal = () => {
     setShowAddTaskModal(false);
     setEditingTask(null);
+    setIsReadOnlyMode(false);
   };
 
   const tabs = [
@@ -323,6 +332,7 @@ function WarehouseDashboard({ user }) {
               showRejectedApprovals={false}
               showRejectedInvoices={false}
               onRowClick={handleRowClick}
+              onViewClick={handleViewClick}
               onApprove={handleApprove}
               showApproveButtons={activeTab === 'pending'}
               approveRole="warehouse"
@@ -348,6 +358,7 @@ function WarehouseDashboard({ user }) {
           initialData={editingTask || {}}
           user={user}
           panelType="warehouse"
+          readOnly={isReadOnlyMode}
           onSave={(savedTask) => {
             handleCloseModal();
             loadTasks();
