@@ -807,7 +807,8 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     }
     
     // Дата з часом (datetime)
-    if (key && (key.includes('At') || key === 'autoCreatedAt' || key === 'autoCompletedAt')) {
+    if (key && (key.includes('At') || key === 'autoCreatedAt' || key === 'autoCompletedAt' || 
+                key === 'invoiceRequestDate' || key === 'invoiceUploadDate')) {
       try {
         const date = new Date(value);
         if (!isNaN(date.getTime())) {

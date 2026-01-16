@@ -989,6 +989,8 @@ app.get('/api/tasks', async (req, res) => {
           rejectionReason: { $ifNull: ['$invoiceRequest.rejectionReason', null] },
           rejectedBy: { $ifNull: ['$invoiceRequest.rejectedBy', null] },
           rejectedAt: { $ifNull: ['$invoiceRequest.rejectedAt', null] },
+          // Явно додаємо invoiceRequestDate з Task (воно зберігається в Task, а не в InvoiceRequest)
+          invoiceRequestDate: { $ifNull: ['$invoiceRequestDate', null] },
           invoiceRequestId: { 
             $cond: {
               if: { $ne: ['$invoiceRequest', null] },
