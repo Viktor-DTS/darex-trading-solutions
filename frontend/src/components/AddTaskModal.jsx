@@ -348,6 +348,46 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   // Флаг для запобігання повторної генерації
   const isGeneratingRef = useRef(false);
 
+  // Функція для перезавантаження даних завдання з сервера
+  const reloadTaskData = useCallback(async () => {
+    const taskId = initialData?._id || initialData?.id;
+    if (!taskId) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const updatedTask = await response.json();
+        
+        // Оновлюємо formData з новими даними, зберігаючи поточні зміни користувача
+        setFormData(prevFormData => ({
+          ...prevFormData,
+          // Оновлюємо тільки поля, які могли змінитися на сервері
+          invoiceRequestDate: formatDateForInput(updatedTask.invoiceRequestDate),
+          invoiceUploadDate: formatDateForInput(updatedTask.invoiceUploadDate),
+          invoiceRequestId: updatedTask.invoiceRequestId,
+          invoiceFile: updatedTask.invoiceFile || prevFormData.invoiceFile,
+          invoiceFileName: updatedTask.invoiceFileName || prevFormData.invoiceFileName,
+          invoice: updatedTask.invoice || prevFormData.invoice,
+          needInvoice: updatedTask.needInvoice !== undefined ? updatedTask.needInvoice : prevFormData.needInvoice,
+          needAct: updatedTask.needAct !== undefined ? updatedTask.needAct : prevFormData.needAct
+        }));
+
+        // Викликаємо onSave для оновлення батьківського компонента
+        if (onSave) {
+          onSave(updatedTask);
+        }
+      }
+    } catch (error) {
+      console.error('Помилка перезавантаження даних завдання:', error);
+    }
+  }, [initialData?._id, initialData?.id, onSave]);
+
   useEffect(() => {
     if (open) {
       // Скидаємо флаги
@@ -1834,8 +1874,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     }}
                     user={user}
                     readOnly={isReadOnly}
-                    onRequest={() => {
+                    onRequest={async () => {
                       console.log('[DEBUG] Запит на рахунок створено');
+                      // Перезавантажуємо дані завдання, щоб отримати оновлену дату заявки на рахунок
+                      await reloadTaskData();
                     }}
                   />
                 )}

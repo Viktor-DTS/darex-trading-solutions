@@ -990,7 +990,20 @@ app.get('/api/tasks', async (req, res) => {
           rejectedBy: { $ifNull: ['$invoiceRequest.rejectedBy', null] },
           rejectedAt: { $ifNull: ['$invoiceRequest.rejectedAt', null] },
           // Явно додаємо invoiceRequestDate з Task (воно зберігається в Task, а не в InvoiceRequest)
-          invoiceRequestDate: { $ifNull: ['$invoiceRequestDate', null] },
+          // Якщо invoiceRequestDate відсутнє, але є InvoiceRequest - використовуємо createdAt з InvoiceRequest
+          invoiceRequestDate: {
+            $cond: {
+              if: { $ne: ['$invoiceRequestDate', null] },
+              then: '$invoiceRequestDate',
+              else: {
+                $cond: {
+                  if: { $ne: ['$invoiceRequest', null] },
+                  then: '$invoiceRequest.createdAt',
+                  else: null
+                }
+              }
+            }
+          },
           invoiceRequestId: { 
             $cond: {
               if: { $ne: ['$invoiceRequest', null] },
@@ -1752,6 +1765,24 @@ app.get('/api/tasks/:id', async (req, res) => {
     if (!task) {
       return res.status(404).json({ error: 'Задачу не знайдено' });
     }
+    
+    // Якщо є invoiceRequestId, але немає invoiceRequestDate - встановлюємо з InvoiceRequest.createdAt
+    if (task.invoiceRequestId && !task.invoiceRequestDate) {
+      try {
+        const invoiceRequest = await InvoiceRequest.findById(task.invoiceRequestId).lean();
+        if (invoiceRequest && invoiceRequest.createdAt) {
+          // Оновлюємо Task з датою з InvoiceRequest
+          await Task.findByIdAndUpdate(req.params.id, {
+            invoiceRequestDate: invoiceRequest.createdAt
+          });
+          task.invoiceRequestDate = invoiceRequest.createdAt;
+          console.log(`[INVOICE] Встановлено invoiceRequestDate з InvoiceRequest для завдання ${req.params.id}`);
+        }
+      } catch (invoiceError) {
+        console.error('[INVOICE] Помилка при отриманні InvoiceRequest:', invoiceError);
+      }
+    }
+    
     logPerformance('GET /api/tasks/:id', startTime);
     res.json({ ...task, id: task._id.toString() });
   } catch (error) {
