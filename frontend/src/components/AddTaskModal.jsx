@@ -1057,6 +1057,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       if (!formData.work) {
         missingFields.push('Найменування робіт');
       }
+      if (!formData.equipment) {
+        missingFields.push('Тип обладнання');
+      }
+      if (!formData.equipmentSerial) {
+        missingFields.push('Заводський номер обладнання');
+      }
     }
     
     if (missingFields.length > 0) {
@@ -2006,7 +2012,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 {/* Рядок: Тип обладнання, Заводський номер обладнання, Модель двигуна, Зав. № двигуна, Інвент. № обладнання від замовника */}
                 <div className="form-row five-cols">
                   <div className="form-group autocomplete-wrapper">
-                    <label>Тип обладнання</label>
+                    <label>Тип обладнання {panelType === 'operator' && <span className="required">*</span>}</label>
                     <input 
                       type="text" 
                       name="equipment" 
@@ -2014,6 +2020,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       onChange={handleChange}
                       placeholder="Введіть тип обладнання..."
                       autoComplete="off"
+                      required={panelType === 'operator'}
                     />
                     {/* Dropdown з автодоповненням для типу обладнання */}
                     {showEquipmentDropdown && filteredEquipmentTypes.length > 0 && (
@@ -2039,8 +2046,14 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     )}
                   </div>
                   <div className="form-group">
-                    <label>Заводський номер обладнання</label>
-                    <input type="text" name="equipmentSerial" value={formData.equipmentSerial} onChange={handleChange} />
+                    <label>Заводський номер обладнання {panelType === 'operator' && <span className="required">*</span>}</label>
+                    <input 
+                      type="text" 
+                      name="equipmentSerial" 
+                      value={formData.equipmentSerial} 
+                      onChange={handleChange}
+                      required={panelType === 'operator'}
+                    />
                   </div>
                   <div className="form-group">
                     <label>Модель двигуна</label>
