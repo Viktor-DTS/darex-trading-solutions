@@ -121,6 +121,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     edrpou: '',
     client: '',
     requestNumber: '',
+    requestAuthor: '', // Автор заявки (ПІБ користувача)
     address: '',
     requestDesc: '',
     plannedDate: '',
@@ -431,7 +432,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         setFormData({
           ...initialFormData,
           serviceRegion: initRegion,
-          requestNumber: '' // Завжди очищаємо номер для нової заявки
+          requestNumber: '', // Завжди очищаємо номер для нової заявки
+          requestAuthor: user?.name || user?.login || '' // Автоматично встановлюємо ПІБ користувача
         });
         // Скидаємо попередній регіон - номер згенерується якщо є фіксований регіон
         prevServiceRegionRef.current = '';
@@ -1474,24 +1476,42 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             </div>
           )}
 
-          {/* Номер заявки/наряду - першим і по центру */}
-          <div className="form-group" style={{ textAlign: 'center', marginBottom: '16px' }}>
-            <label style={{ fontSize: '14px', fontWeight: '600' }}>Номер заявки/наряду {isNewTask && '(автогенерація)'}</label>
-            <input 
-              type="text" 
-              name="requestNumber" 
-              value={formData.requestNumber} 
-              onChange={handleChange}
-              placeholder={isNewTask ? "Буде згенеровано автоматично після вибору регіону" : ""}
-              readOnly={!isNewTask && !(user?.role === 'administrator' || user?.role === 'admin')}
-              style={{
-                maxWidth: '400px',
-                margin: '0 auto',
-                display: 'block',
-                textAlign: 'center',
-                ...(!isNewTask && !(user?.role === 'administrator' || user?.role === 'admin') ? { backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed', color: '#ff0000', fontWeight: 'bold' } : { color: '#ff0000', fontWeight: 'bold' })
-              }}
-            />
+          {/* Номер заявки/наряду та Автор заявки - в одному рядку */}
+          <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', alignItems: 'flex-end' }}>
+            <div className="form-group" style={{ flex: 1, textAlign: 'center' }}>
+              <label style={{ fontSize: '14px', fontWeight: '600' }}>Номер заявки/наряду {isNewTask && '(автогенерація)'}</label>
+              <input 
+                type="text" 
+                name="requestNumber" 
+                value={formData.requestNumber} 
+                onChange={handleChange}
+                placeholder={isNewTask ? "Буде згенеровано автоматично після вибору регіону" : ""}
+                readOnly={!isNewTask && !(user?.role === 'administrator' || user?.role === 'admin')}
+                style={{
+                  width: '100%',
+                  textAlign: 'center',
+                  ...(!isNewTask && !(user?.role === 'administrator' || user?.role === 'admin') ? { backgroundColor: 'var(--surface)', opacity: 0.7, cursor: 'not-allowed', color: '#ff0000', fontWeight: 'bold' } : { color: '#ff0000', fontWeight: 'bold' })
+                }}
+              />
+            </div>
+            <div className="form-group" style={{ flex: 1, textAlign: 'center' }}>
+              <label style={{ fontSize: '14px', fontWeight: '600' }}>Автор заявки</label>
+              <input 
+                type="text" 
+                name="requestAuthor" 
+                value={formData.requestAuthor || ''} 
+                readOnly={true}
+                placeholder="ПІБ користувача"
+                style={{
+                  width: '100%',
+                  textAlign: 'center',
+                  backgroundColor: 'var(--surface)',
+                  opacity: 0.7,
+                  cursor: 'not-allowed',
+                  color: 'var(--text-primary)'
+                }}
+              />
+            </div>
           </div>
 
           {/* Основна інформація */}
