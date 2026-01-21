@@ -137,6 +137,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     engineModel: '',
     engineSerial: '',
     customerEquipmentNumber: '',
+    equipmentOperatingHours: '', // Напрацювання мотогодин обладнання
     work: '',
     date: '',
     engineer1: '',
@@ -2066,6 +2067,20 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                   <div className="form-group">
                     <label>Інвент. № обладнання від замовника</label>
                     <input type="text" name="customerEquipmentNumber" value={formData.customerEquipmentNumber} onChange={handleChange} />
+                  </div>
+                </div>
+
+                {/* Напрацювання мотогодин обладнання */}
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Напрацювання мотогодин обладнання</label>
+                    <input 
+                      type="text" 
+                      name="equipmentOperatingHours" 
+                      value={formData.equipmentOperatingHours || ''} 
+                      onChange={handleChange}
+                      placeholder="Введіть напрацювання мотогодин"
+                    />
                   </div>
                 </div>
 
