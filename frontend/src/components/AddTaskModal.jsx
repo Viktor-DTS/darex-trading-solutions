@@ -1010,69 +1010,74 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isReadOnly) return;
+    // Дозволяємо збереження в режимі read-only тільки якщо дозволено редагування заборгованості в архіві
+    if (isReadOnly && !allowDebtEditInArchive) return;
     setLoading(true);
     setError(null);
 
-    // Валідація обов'язкових полів
-    const missingFields = [];
-    
-    if (!formData.company) {
-      missingFields.push('Компанія виконавець');
-    }
-    if (!formData.status) {
-      missingFields.push('Статус заявки');
-    }
-    if (!formData.serviceRegion) {
-      missingFields.push('Регіон сервісного відділу');
-    }
-    if (!formData.client) {
-      missingFields.push('Замовник');
-    }
-    if (!formData.requestDesc) {
-      missingFields.push('Опис заявки');
-    }
-    if (!formData.contactPhone) {
-      missingFields.push('Тел. контактної особи');
-    }
-    
-    // Якщо статус "Виконано", додаткові обов'язкові поля
-    if (formData.status === 'Виконано') {
-      if (!formData.date) {
-        missingFields.push('Дата проведення робіт');
+    // В режимі редагування заборгованості в архіві пропускаємо валідацію обов'язкових полів
+    // оскільки ми зберігаємо тільки поле debtStatus
+    if (!allowDebtEditInArchive) {
+      // Валідація обов'язкових полів
+      const missingFields = [];
+      
+      if (!formData.company) {
+        missingFields.push('Компанія виконавець');
       }
-      if (!formData.paymentType || formData.paymentType === 'не вибрано') {
-        missingFields.push('Вид оплати');
+      if (!formData.status) {
+        missingFields.push('Статус заявки');
       }
-      // Для сервісної служби - обов'язкове поле "Сервісний інженер №1"
-      if (panelType === 'service' && !formData.engineer1) {
-        missingFields.push('Сервісний інженер №1');
+      if (!formData.serviceRegion) {
+        missingFields.push('Регіон сервісного відділу');
       }
-    }
-    
-    // Для панелі оператора - обов'язкові поля
-    if (panelType === 'operator') {
-      if (!formData.plannedDate) {
-        missingFields.push('Запланована дата робіт');
+      if (!formData.client) {
+        missingFields.push('Замовник');
       }
-      if (!formData.work) {
-        missingFields.push('Найменування робіт');
+      if (!formData.requestDesc) {
+        missingFields.push('Опис заявки');
       }
-      if (!formData.equipment) {
-        missingFields.push('Тип обладнання');
+      if (!formData.contactPhone) {
+        missingFields.push('Тел. контактної особи');
       }
-      if (!formData.equipmentSerial) {
-        missingFields.push('Заводський номер обладнання');
+      
+      // Якщо статус "Виконано", додаткові обов'язкові поля
+      if (formData.status === 'Виконано') {
+        if (!formData.date) {
+          missingFields.push('Дата проведення робіт');
+        }
+        if (!formData.paymentType || formData.paymentType === 'не вибрано') {
+          missingFields.push('Вид оплати');
+        }
+        // Для сервісної служби - обов'язкове поле "Сервісний інженер №1"
+        if (panelType === 'service' && !formData.engineer1) {
+          missingFields.push('Сервісний інженер №1');
+        }
       }
-    }
-    
-    if (missingFields.length > 0) {
-      setMissingFieldsModal({
-        open: true,
-        fields: missingFields
-      });
-      setLoading(false);
-      return;
+      
+      // Для панелі оператора - обов'язкові поля
+      if (panelType === 'operator') {
+        if (!formData.plannedDate) {
+          missingFields.push('Запланована дата робіт');
+        }
+        if (!formData.work) {
+          missingFields.push('Найменування робіт');
+        }
+        if (!formData.equipment) {
+          missingFields.push('Тип обладнання');
+        }
+        if (!formData.equipmentSerial) {
+          missingFields.push('Заводський номер обладнання');
+        }
+      }
+      
+      if (missingFields.length > 0) {
+        setMissingFieldsModal({
+          open: true,
+          fields: missingFields
+        });
+        setLoading(false);
+        return;
+      }
     }
 
     // Перевірка: якщо бухгалтер встановив "Відмова" - показуємо модальне вікно
