@@ -341,6 +341,7 @@ function AccountantApprovalDashboard({ user }) {
           panelType="accountant"
           debtOnly={activeTab === 'debt'}
           readOnly={isReadOnlyMode}
+          allowDebtEditInArchive={activeTab === 'archive'}
           onSave={(savedTask) => {
             handleCloseModal();
             loadTasks();

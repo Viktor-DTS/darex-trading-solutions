@@ -112,7 +112,7 @@ const formatDateOnly = (dateValue) => {
   }
 };
 
-function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType = 'service', debtOnly = false, readOnly = false, hideDebtFields = false }) {
+function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType = 'service', debtOnly = false, readOnly = false, hideDebtFields = false, allowDebtEditInArchive = false }) {
   const initialFormData = {
     status: 'Заявка',
     requestDate: new Date().toISOString().split('T')[0],
@@ -1911,14 +1911,14 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
 
                 {/* Заборгованість по документам - приховуємо якщо hideDebtFields */}
                 {!hideDebtFields && (
-                <div className="form-group debt-status-group">
+                <div className={`form-group debt-status-group ${allowDebtEditInArchive ? 'debt-editable-in-archive' : ''}`}>
                   <label>Заборгованість по актам виконаних робіт (оригінали)</label>
                   <div className="debt-controls">
                     <select
                       name="debtStatus"
                       value={formData.debtStatus || 'Заборгованість'}
                       onChange={(e) => {
-                        if (isReadOnly) return;
+                        if (isReadOnly && !allowDebtEditInArchive) return;
                         const newValue = e.target.value;
                         setFormData({
                           ...formData,
@@ -1926,7 +1926,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                           debtStatusCheckbox: newValue === 'Документи в наявності'
                         });
                       }}
-                      disabled={isDebtOnlyMode ? false : !['admin', 'administrator', 'buhgalteria'].includes(user?.role)}
+                      disabled={isDebtOnlyMode ? false : (allowDebtEditInArchive ? false : !['admin', 'administrator', 'buhgalteria'].includes(user?.role))}
+                      style={allowDebtEditInArchive ? { pointerEvents: 'auto', opacity: 1, cursor: 'pointer' } : {}}
                     >
                       <option value="Заборгованість">Заборгованість</option>
                       <option value="Документи в наявності">Документи в наявності</option>
@@ -1937,7 +1938,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         name="debtStatusCheckbox"
                         checked={formData.debtStatusCheckbox || false}
                         onChange={(e) => {
-                          if (isReadOnly) return;
+                          if (isReadOnly && !allowDebtEditInArchive) return;
                           const checked = e.target.checked;
                           setFormData({
                             ...formData,
@@ -1945,7 +1946,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                             debtStatus: checked ? 'Документи в наявності' : 'Заборгованість'
                           });
                         }}
-                        disabled={isDebtOnlyMode ? false : !['admin', 'administrator', 'buhgalteria'].includes(user?.role)}
+                        disabled={isDebtOnlyMode ? false : (allowDebtEditInArchive ? false : !['admin', 'administrator', 'buhgalteria'].includes(user?.role))}
+                        style={allowDebtEditInArchive ? { pointerEvents: 'auto', opacity: 1, cursor: 'pointer' } : {}}
                       />
                       <span className="debt-checkbox-text">Документи в наявності</span>
                     </label>
@@ -2575,7 +2577,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             <button type="button" className="btn-secondary" onClick={onClose}>
               Скасувати
             </button>
-            {!isReadOnly && (
+            {(!isReadOnly || allowDebtEditInArchive) && (
               <button type="submit" className="btn-primary" disabled={loading}>
                 {loading ? 'Збереження...' : 'Зберегти'}
               </button>

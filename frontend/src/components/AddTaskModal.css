@@ -188,6 +188,15 @@
   cursor: not-allowed;
 }
 
+/* Виняток для поля "Заборгованість" в архіві бухгалтера */
+.read-only-mode .debt-editable-in-archive select,
+.read-only-mode .debt-editable-in-archive input[type="checkbox"] {
+  background: #ffffff;
+  opacity: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
