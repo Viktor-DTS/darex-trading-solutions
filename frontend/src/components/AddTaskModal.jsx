@@ -20,6 +20,43 @@ const getRegionCode = (region) => {
   return result;
 };
 
+// Функція для перевірки унікальності номера заявки
+const checkRequestNumberUnique = async (requestNumber) => {
+  try {
+    if (!requestNumber || !requestNumber.trim()) {
+      return true; // Порожній номер вважаємо унікальним (буде згенеровано новий)
+    }
+    
+    const token = localStorage.getItem('token');
+    const trimmedNumber = requestNumber.trim();
+    
+    // Використовуємо глобальний пошук для перевірки унікальності (точний пошук)
+    const response = await fetch(`${API_BASE_URL}/tasks/global-search`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ requestNumber: trimmedNumber })
+    });
+    
+    if (!response.ok) {
+      console.warn('[WARNING] Помилка перевірки унікальності номера, вважаємо унікальним');
+      return true; // У разі помилки вважаємо унікальним
+    }
+    
+    const tasks = await response.json();
+    // Перевіряємо точну відповідність (не regex match)
+    const exactMatch = tasks && tasks.some(task => task.requestNumber && task.requestNumber.trim() === trimmedNumber);
+    const isUnique = !exactMatch;
+    console.log(`[DEBUG] checkRequestNumberUnique: ${trimmedNumber} - ${isUnique ? 'унікальний' : 'дублікат'}`);
+    return isUnique;
+  } catch (error) {
+    console.error('Помилка при перевірці унікальності номера заявки:', error);
+    return true; // У разі помилки вважаємо унікальним
+  }
+};
+
 // Функція для генерації наступного номера заявки
 const generateNextRequestNumber = async (region) => {
   try {
@@ -1175,21 +1212,73 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         taskData.autoCreatedAt = new Date().toISOString();
       }
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(taskData)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Помилка збереження' }));
-        throw new Error(errorData.error || 'Помилка збереження заявки');
+      // При редагуванні завжди використовуємо оригінальний номер заявки
+      if (taskId && initialData?.requestNumber) {
+        taskData.requestNumber = initialData.requestNumber;
+        console.log(`[DEBUG] Редагування заявки - використовуємо оригінальний номер: ${initialData.requestNumber}`);
       }
 
-      const savedTask = await response.json();
+      // Для нових заявок: перевірка унікальності номера заявки з повторною генерацією при дублікаті
+      let savedTask = null;
+      let currentTaskData = { ...taskData };
+      const maxRetries = 5; // Максимальна кількість спроб
+      let retryCount = 0;
+      let isSaved = false;
+
+      while (!isSaved && retryCount < maxRetries) {
+        // Для нових заявок перевіряємо унікальність номера (при редагуванні номер не змінюється)
+        if (!taskId && currentTaskData.requestNumber) {
+          const isUnique = await checkRequestNumberUnique(currentTaskData.requestNumber);
+          
+          if (!isUnique) {
+            console.warn(`[WARNING] Номер заявки ${currentTaskData.requestNumber} вже існує. Генеруємо новий номер...`);
+            
+            // Перевіряємо наявність регіону для генерації нового номера
+            if (!currentTaskData.serviceRegion) {
+              throw new Error('Неможливо згенерувати новий номер заявки: не вказано регіон сервісного відділу');
+            }
+            
+            // Очищаємо номер заявки
+            currentTaskData.requestNumber = '';
+            setFormData(prev => ({ ...prev, requestNumber: '' }));
+            
+            // Генеруємо новий номер
+            const newNumber = await generateNextRequestNumber(currentTaskData.serviceRegion);
+            currentTaskData.requestNumber = newNumber;
+            setFormData(prev => ({ ...prev, requestNumber: newNumber }));
+            console.log(`[DEBUG] Згенеровано новий номер заявки: ${newNumber}`);
+            
+            retryCount++;
+            // Невелика затримка перед повторною спробою
+            await new Promise(resolve => setTimeout(resolve, 100));
+            continue; // Повторюємо перевірку з новим номером
+          }
+        }
+
+        // Спроба збереження
+        const response = await fetch(url, {
+          method,
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(currentTaskData)
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Помилка збереження' }));
+          throw new Error(errorData.error || 'Помилка збереження заявки');
+        }
+
+        savedTask = await response.json();
+        isSaved = true;
+        console.log(`[DEBUG] Заявка успішно збережена з номером: ${savedTask.requestNumber || currentTaskData.requestNumber}`);
+      }
+
+      // Якщо не вдалося зберегти після всіх спроб
+      if (!isSaved || !savedTask) {
+        throw new Error('Не вдалося зберегти заявку після кількох спроб генерації унікального номера. Спробуйте ще раз.');
+      }
       console.log(`[DEBUG] Заявка ${taskId ? 'оновлена' : 'створена'}:`, savedTask);
       
       // Зберігаємо координати для нової заявки, якщо адреса була вибрана з Google Places
