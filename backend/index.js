@@ -1239,10 +1239,11 @@ app.get('/api/tasks/filter', async (req, res) => {
           matchStage.debtStatus = { $ne: 'Документи в наявності' };
           break;
         case 'paymentDebt':
-          // Заборгованість по оплаті: виконані заявки без дати оплати
+          // Заборгованість по оплаті: виконані заявки без дати оплати, не затверджені бухгалтером (не в архіві)
           // paymentType: Готівка, Безготівка, На карту, Інше; виключаємо Внутрішні роботи; виключаємо суму 0 або пусте
           matchStage.status = 'Виконано';
           matchStage.paymentType = { $in: ['Готівка', 'Безготівка', 'На карту', 'Інше'] };
+          matchStage.approvedByAccountant = { $nin: ['Підтверджено', true] };
           matchStage.$and = [
             { $or: [ { paymentDate: null }, { paymentDate: '' }, { paymentDate: { $exists: false } } ] },
             { $or: [ { internalWork: { $ne: true } }, { internalWork: null }, { internalWork: false }, { internalWork: { $exists: false } } ] },
