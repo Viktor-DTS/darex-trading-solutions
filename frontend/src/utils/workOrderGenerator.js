@@ -38,7 +38,13 @@ export const generateWorkOrder = (task) => {
     edrpou: task.edrpou || '',
     requestDesc: task.requestDesc || '',
     contactPerson: task.contactPerson || '',
-    contactPhone: task.contactPhone || ''
+    contactPhone: task.contactPhone || '',
+    // Матеріали для автозаповнення п. 6.1 (перелік матеріалів)
+    oilType: (task.oilType || '').toString().trim(),
+    filterName: (task.filterName || '').toString().trim(),
+    fuelFilterName: (task.fuelFilterName || '').toString().trim(),
+    airFilterName: (task.airFilterName || '').toString().trim(),
+    antifreezeType: (task.antifreezeType || '').toString().trim()
   };
 
   // Перевіряємо умову для номера наряду
@@ -107,6 +113,27 @@ const openWorkOrderInNewWindow = (htmlContent) => {
     console.error('Помилка створення документа:', error);
     alert('Помилка створення документа. Перевірте консоль для деталей.');
   }
+};
+
+// Рядки таблиці 6.1 (перелік матеріалів): автозаповнення Найменування з Тип оливи, Масляний/Паливний/Повітряний фільтр, Антифриз
+const buildMaterialsTableRows = (data) => {
+  const names = [
+    data.oilType,
+    data.filterName,
+    data.fuelFilterName,
+    data.airFilterName,
+    data.antifreezeType
+  ].filter(n => n && String(n).trim());
+  return Array.from({ length: 8 }, (_, i) => `
+              <tr>
+                <td>${i + 1}</td>
+                <td>${names[i] || ''}</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+            `).join('');
 };
 
 // Повний шаблон ДТС (як в оригінальному проекті)
@@ -487,16 +514,7 @@ const generateDTSTemplate = (data, workOrderNumber, formattedDate, engineers) =>
             </tr>
           </thead>
           <tbody>
-            ${Array.from({length: 8}, (_, i) => `
-              <tr>
-                <td>${i + 1}</td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td></td>
-              </tr>
-            `).join('')}
+            ${buildMaterialsTableRows(data)}
           </tbody>
         </table>
         
@@ -1034,16 +1052,7 @@ const generateDarexEnergyTemplate = (data, workOrderNumber, formattedDate, engin
             </tr>
           </thead>
           <tbody>
-            ${Array.from({length: 8}, (_, i) => `
-              <tr>
-                <td>${i + 1}</td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td></td>
-              </tr>
-            `).join('')}
+            ${buildMaterialsTableRows(data)}
           </tbody>
         </table>
         
