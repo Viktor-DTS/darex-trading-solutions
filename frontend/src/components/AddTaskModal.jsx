@@ -382,41 +382,45 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     }
   }, [open]);
 
-  // Завантаження боргу по оплаті для замовника (для банеру в модалці)
+  // Перевірка боргу по оплаті для замовника (банер при заповненні Замовник або ЄДРПОУ — і для нової заявки, і при редагуванні)
   useEffect(() => {
     if (!open) {
       setClientPaymentDebt(null);
       return;
     }
-    const edrpou = (initialData?.edrpou || '').toString().trim();
-    const client = (initialData?.client || '').toString().trim();
+    const edrpou = (formData.edrpou || '').toString().trim();
+    const client = (formData.client || '').toString().trim();
     if (!edrpou && !client) {
       setClientPaymentDebt(null);
       return;
     }
-    const token = localStorage.getItem('token');
-    fetch(`${API_BASE_URL}/tasks/filter?status=paymentDebt&region=`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(res => res.ok ? res.json() : [])
-      .then(tasks => {
-        const match = (t) => {
-          const tEdrpou = (t.edrpou || '').toString().trim();
-          const tClient = (t.client || '').toString().trim();
-          if (edrpou && tEdrpou && tEdrpou.toLowerCase() === edrpou.toLowerCase()) return true;
-          if (client && tClient && tClient.toLowerCase().includes(client.toLowerCase())) return true;
-          return false;
-        };
-        const list = Array.isArray(tasks) ? tasks.filter(match) : [];
-        if (list.length === 0) {
-          setClientPaymentDebt(null);
-          return;
-        }
-        const sum = list.reduce((acc, t) => acc + parseNumber(t.serviceTotal), 0);
-        setClientPaymentDebt({ count: list.length, sum });
+    const DEBOUNCE_MS = 500;
+    const timer = setTimeout(() => {
+      const token = localStorage.getItem('token');
+      fetch(`${API_BASE_URL}/tasks/filter?status=paymentDebt&region=`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       })
-      .catch(() => setClientPaymentDebt(null));
-  }, [open, initialData?.edrpou, initialData?.client]);
+        .then(res => res.ok ? res.json() : [])
+        .then(tasks => {
+          const match = (t) => {
+            const tEdrpou = (t.edrpou || '').toString().trim();
+            const tClient = (t.client || '').toString().trim();
+            if (edrpou && tEdrpou && tEdrpou.toLowerCase() === edrpou.toLowerCase()) return true;
+            if (client && tClient && tClient.toLowerCase().includes(client.toLowerCase())) return true;
+            return false;
+          };
+          const list = Array.isArray(tasks) ? tasks.filter(match) : [];
+          if (list.length === 0) {
+            setClientPaymentDebt(null);
+            return;
+          }
+          const sum = list.reduce((acc, t) => acc + parseNumber(t.serviceTotal), 0);
+          setClientPaymentDebt({ count: list.length, sum });
+        })
+        .catch(() => setClientPaymentDebt(null));
+    }, DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [open, formData.edrpou, formData.client]);
 
   // Визначаємо чи це нова заявка (немає id)
   const isNewTask = !initialData.id && !initialData._id;
