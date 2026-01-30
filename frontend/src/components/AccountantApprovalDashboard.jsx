@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import TaskTable from './TaskTable';
+import TaskTable, { clearTasksCache } from './TaskTable';
 import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
 import AccountantReportsModal from './AccountantReportsModal';
@@ -141,6 +141,7 @@ function AccountantApprovalDashboard({ user }) {
           console.error('Помилка логування:', logErr);
         }
         
+        clearTasksCache();
         await loadTasks();
         setRefreshKey(prev => prev + 1);
       } else {
@@ -219,6 +220,7 @@ function AccountantApprovalDashboard({ user }) {
         }
         
         setRejectModal({ open: false, taskId: null, comment: '', returnTo: 'service' });
+        clearTasksCache();
         await loadTasks();
         setRefreshKey(prev => prev + 1);
       } else {
@@ -344,6 +346,7 @@ function AccountantApprovalDashboard({ user }) {
           allowDebtEditInArchive={activeTab === 'archive'}
           onSave={(savedTask) => {
             handleCloseModal();
+            clearTasksCache();
             loadTasks();
             setRefreshKey(prev => prev + 1);
           }}

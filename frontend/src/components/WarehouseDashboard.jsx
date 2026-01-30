@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import TaskTable from './TaskTable';
+import TaskTable, { clearTasksCache } from './TaskTable';
 import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
 import EquipmentScanner from './equipment/EquipmentScanner';
@@ -164,7 +164,7 @@ function WarehouseDashboard({ user }) {
           console.error('Помилка логування:', logErr);
         }
         
-        // Перезавантажуємо список
+        clearTasksCache();
         await loadTasks();
         
         // Якщо підтверджено - переходимо в архів
@@ -361,6 +361,7 @@ function WarehouseDashboard({ user }) {
           readOnly={isReadOnlyMode}
           onSave={(savedTask) => {
             handleCloseModal();
+            clearTasksCache();
             loadTasks();
           }}
         />

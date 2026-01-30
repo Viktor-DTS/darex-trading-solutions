@@ -5,6 +5,7 @@ import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
 import LogisticsMap from './LogisticsMap';
 import GlobalSearch from './GlobalSearch';
+import { buildTaskDataFromExisting } from '../utils/taskCopyForCreate';
 import './Dashboard.css';
 
 function Dashboard({ user, panelType = 'service' }) {
@@ -47,6 +48,14 @@ function Dashboard({ user, panelType = 'service' }) {
 
   const handleLogisticsTaskClick = (task) => {
     setEditingTask(task);
+    setShowAddTaskModal(true);
+  };
+
+  /** Відкрити модалку «Додати заявку» з полями, заповненими на основі обраної заявки (клієнт, обладнання тощо). */
+  const handleCreateFromTask = (task) => {
+    const baseTask = buildTaskDataFromExisting(task);
+    setEditingTask(baseTask);
+    setIsReadOnlyMode(false);
     setShowAddTaskModal(true);
   };
 
@@ -140,6 +149,7 @@ function Dashboard({ user, panelType = 'service' }) {
               onRowClick={handleRowClick}
               onViewClick={handleViewClick}
               columnsArea={panelType}
+              onCreateFromTask={handleCreateFromTask}
             />
           )}
         </main>

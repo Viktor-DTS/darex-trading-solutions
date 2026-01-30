@@ -1157,9 +1157,12 @@ app.get('/api/tasks/filter', async (req, res) => {
             break;
         }
       });
-      
+
       if (statusConditions.length > 0) {
         matchStage.$or = statusConditions;
+      } else if (statusArray.length > 0) {
+        // Мобільний додаток: буквальні значення статусів (наприклад "Заявка,В роботі,Виконано")
+        matchStage.status = { $in: statusArray.map(s => s.trim()) };
       }
     }
     // Одиничний статус (старий функціонал)

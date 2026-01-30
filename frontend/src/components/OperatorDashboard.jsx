@@ -3,6 +3,7 @@ import TaskTable from './TaskTable';
 import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
 import ContractsTable from './ContractsTable';
+import { buildTaskDataFromExisting } from '../utils/taskCopyForCreate';
 import './Dashboard.css';
 
 function OperatorDashboard({ user }) {
@@ -22,6 +23,14 @@ function OperatorDashboard({ user }) {
     setShowAddTaskModal(false);
     setEditingTask(null);
     setIsReadOnlyMode(false);
+  };
+
+  /** Відкрити модалку «Додати заявку» з полями на основі обраної заявки. */
+  const handleCreateFromTask = (task) => {
+    const baseTask = buildTaskDataFromExisting(task);
+    setEditingTask(baseTask);
+    setIsReadOnlyMode(false);
+    setShowAddTaskModal(true);
   };
 
   const tabs = [
@@ -84,6 +93,7 @@ function OperatorDashboard({ user }) {
               showRejectedInvoices={false}
               onRowClick={handleRowClick}
               columnsArea="operator"
+              onCreateFromTask={handleCreateFromTask}
             />
           )}
         </main>

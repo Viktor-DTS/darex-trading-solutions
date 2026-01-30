@@ -464,21 +464,52 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         });
         prevServiceRegionRef.current = initialData.serviceRegion || '';
       } else {
-        // Нова заявка
-        // Якщо користувач має конкретний регіон (не "Україна") - встановлюємо його
-        const initRegion = user?.region && user.region !== 'Україна' ? user.region : '';
-        setFormData({
-          ...initialFormData,
-          serviceRegion: initRegion,
-          requestNumber: '', // Завжди очищаємо номер для нової заявки
-          requestAuthor: user?.name || user?.login || '' // Автоматично встановлюємо ПІБ користувача
-        });
-        // Скидаємо попередній регіон - номер згенерується якщо є фіксований регіон
-        prevServiceRegionRef.current = '';
+        // Нова заявка або нова заявка на основі даної (шаблон без id/_id)
+        const hasTemplateData = initialData && Object.keys(initialData).filter(k => k !== 'id' && k !== '_id').length > 0;
+        if (hasTemplateData) {
+          setFormData({
+            ...initialFormData,
+            ...initialData,
+            serviceRegion: initialData.serviceRegion || (user?.region && user.region !== 'Україна' ? user.region : ''),
+            requestNumber: '',
+            requestAuthor: user?.name || user?.login || '',
+            contractFile: initialData.contractFile || '',
+            requestDate: formatDateOnly(initialData.requestDate) || initialFormData.requestDate,
+            plannedDate: '',
+            date: '',
+            paymentDate: '',
+            paymentType: 'не вибрано',
+            invoice: '',
+            work: '',
+            bonusApprovalDate: '',
+            approvedByWarehouse: 'На розгляді',
+            warehouseComment: '',
+            approvedByAccountant: 'На розгляді',
+            accountantComment: '',
+            autoCreatedAt: '',
+            autoCompletedAt: '',
+            autoWarehouseApprovedAt: '',
+            autoAccountantApprovedAt: '',
+            invoiceRequestDate: '',
+            invoiceUploadDate: '',
+            needInvoice: initialData.needInvoice ?? initialFormData.needInvoice,
+            needAct: initialData.needAct ?? initialFormData.needAct
+          });
+          prevServiceRegionRef.current = initialData.serviceRegion || '';
+        } else {
+          const initRegion = user?.region && user.region !== 'Україна' ? user.region : '';
+          setFormData({
+            ...initialFormData,
+            serviceRegion: initRegion,
+            requestNumber: '',
+            requestAuthor: user?.name || user?.login || ''
+          });
+          prevServiceRegionRef.current = '';
+        }
       }
       setError(null);
     }
-  }, [open, user, isNewTask]);
+  }, [open, user, isNewTask, initialData]);
 
   // Ініціалізація Google Places Autocomplete для поля адреси
   useEffect(() => {

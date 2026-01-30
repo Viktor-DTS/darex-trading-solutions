@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
+import { clearTasksCache } from './components/TaskTable';
 import OperatorDashboard from './components/OperatorDashboard';
 import WarehouseDashboard from './components/WarehouseDashboard';
 import AccountantDashboard from './components/AccountantDashboard';
@@ -209,10 +210,11 @@ function App() {
                 setCurrentPanel(defaultPanel);
               }
             } else if (response.status === 401) {
-              // Токен невалідний (401) - очищаємо localStorage
+              // Токен невалідний (401) - очищаємо localStorage та кеш заявок
               localStorage.removeItem('token');
               localStorage.removeItem('user');
               localStorage.removeItem('currentPanel');
+              clearTasksCache();
             } else {
               // Інша помилка (не 401) - використовуємо збережені дані
               // Можливо, тимчасові проблеми з сервером
@@ -246,8 +248,9 @@ function App() {
           }
           }
         } else {
-          // Немає даних користувача - очищаємо токен
+          // Немає даних користувача - очищаємо токен та кеш заявок
           localStorage.removeItem('token');
+          clearTasksCache();
         }
       }
       setLoading(false);
@@ -337,6 +340,7 @@ function App() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('currentPanel');
+    clearTasksCache();
   };
 
   const handlePanelChange = (panelId) => {

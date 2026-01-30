@@ -4,6 +4,24 @@ import API_BASE_URL from '../config';
 import { generateWorkOrder } from '../utils/workOrderGenerator';
 import './TaskTable.css';
 
+// Кеш списку заявок на клієнті (TTL 90 с) — менше запитів при перемиканні вкладок
+const tasksCache = {};
+const TASKS_CACHE_TTL_MS = 90 * 1000;
+
+function getCachedTasks(cacheKey) {
+  const entry = tasksCache[cacheKey];
+  if (!entry || Date.now() - entry.timestamp > TASKS_CACHE_TTL_MS) return null;
+  return entry.data;
+}
+
+function setCachedTasks(cacheKey, data) {
+  tasksCache[cacheKey] = { data, timestamp: Date.now() };
+}
+
+export function clearTasksCache() {
+  Object.keys(tasksCache).forEach((k) => delete tasksCache[k]);
+}
+
 // Всі можливі колонки (всі поля з оригінального проекту)
 const ALL_COLUMNS = [
   // Основна інформація
@@ -136,7 +154,7 @@ function isRejected(value) {
   return value === false || value === 'Відмова';
 }
 
-function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service', onViewClick = null }) {
+function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service', onViewClick = null, onCreateFromTask = null }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -352,8 +370,8 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
           console.error('Помилка логування:', logErr);
         }
         
-        // Видаляємо заявку з локального стану
         setTasks(prev => prev.filter(t => (t._id || t.id) !== taskId));
+        clearTasksCache();
         console.log('[DEBUG] Заявку успішно видалено:', taskId);
       } else {
         const errorData = await response.json();
@@ -466,39 +484,56 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     }
   }, [user, columnsArea]);
 
-  // Завантаження завдань
+  // Завантаження завдань (з кешем 90 с — менше навантаження на сервер при перемиканні вкладок)
   useEffect(() => {
     const loadTasks = async () => {
-      setLoading(true);
       setError(null);
-      
-      try {
-        const token = localStorage.getItem('token');
-        let url;
-        
-        // Якщо активні чекбокси - завантажуємо з обох вкладок (notDone та pending)
-        if (showRejectedApprovals || showRejectedInvoices) {
-          url = `${API_BASE_URL}/tasks/filter?statuses=notDone,pending&region=${user?.region || ''}`;
-        } else if (status) {
-          url = `${API_BASE_URL}/tasks/filter?status=${status}&region=${user?.region || ''}`;
-          // Додаємо параметр showAllInvoices для панелі бухгалтера
-          if (status === 'accountantInvoiceRequests') {
-            url += `&showAllInvoices=${showAllInvoices}`;
-          }
-        } else {
-          url = `${API_BASE_URL}/tasks?region=${user?.region || ''}`;
+
+      const token = localStorage.getItem('token');
+      let url;
+
+      if (showRejectedApprovals || showRejectedInvoices) {
+        url = `${API_BASE_URL}/tasks/filter?statuses=notDone,pending&region=${user?.region || ''}`;
+      } else if (status) {
+        url = `${API_BASE_URL}/tasks/filter?status=${status}&region=${user?.region || ''}`;
+        if (status === 'accountantInvoiceRequests') {
+          url += `&showAllInvoices=${showAllInvoices}`;
         }
-        
+      } else {
+        url = `${API_BASE_URL}/tasks?region=${user?.region || ''}`;
+      }
+
+      const cached = getCachedTasks(url);
+      if (cached) {
+        setTasks(cached);
+        setLoading(false);
+        // Оновлення у фоні
+        try {
+          const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setTasks(data);
+            setCachedTasks(url, data);
+          }
+        } catch (_) { /* залишаємо кеш */ }
+        return;
+      }
+
+      setLoading(true);
+      try {
         const response = await fetch(url, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        
+
         if (!response.ok) {
           throw new Error('Помилка завантаження завдань');
         }
-        
+
         const data = await response.json();
         setTasks(data);
+        setCachedTasks(url, data);
       } catch (err) {
         setError(err.message);
         console.error('Помилка завантаження завдань:', err);
@@ -1228,6 +1263,19 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                           title="Створити наряд на виконання робіт"
                         >
                           📋
+                        </button>
+                      )}
+                      {/* Створити заявку на основі даної — тільки сервісна служба та оператор */}
+                      {(columnsArea === 'service' || columnsArea === 'operator') && onCreateFromTask && (
+                        <button
+                          className="btn-work-order"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCreateFromTask(task);
+                          }}
+                          title="Створити нову заявку на основі цієї (те саме обладнання/клієнт)"
+                        >
+                          ➕ На основі
                         </button>
                       )}
                       {/* Кнопки дій для бух.рахунки - компактні */}
