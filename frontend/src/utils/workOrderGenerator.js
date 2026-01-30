@@ -115,15 +115,16 @@ const openWorkOrderInNewWindow = (htmlContent) => {
   }
 };
 
-// Рядки таблиці 6.1 (перелік матеріалів): автозаповнення Найменування з Тип оливи, Масляний/Паливний/Повітряний фільтр, Антифриз
+// Рядки таблиці 6.1 (перелік матеріалів): автозаповнення Найменування у форматі "назва поля - значення поля"
 const buildMaterialsTableRows = (data) => {
-  const names = [
-    data.oilType,
-    data.filterName,
-    data.fuelFilterName,
-    data.airFilterName,
-    data.antifreezeType
-  ].filter(n => n && String(n).trim());
+  const items = [
+    { label: 'Тип оливи', value: (data.oilType || '').toString().trim() },
+    { label: 'Масляний фільтр: Назва', value: (data.filterName || '').toString().trim() },
+    { label: 'Паливний фільтр: Назва', value: (data.fuelFilterName || '').toString().trim() },
+    { label: 'Повітряний фільтр: Назва', value: (data.airFilterName || '').toString().trim() },
+    { label: 'Антифриз: Тип', value: (data.antifreezeType || '').toString().trim() }
+  ].filter(it => it.value);
+  const names = items.map(it => `${it.label} - ${it.value}`);
   return Array.from({ length: 8 }, (_, i) => `
               <tr>
                 <td>${i + 1}</td>
