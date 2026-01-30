@@ -495,7 +495,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             needInvoice: initialData.needInvoice ?? initialFormData.needInvoice,
             needAct: initialData.needAct ?? initialFormData.needAct
           });
-          prevServiceRegionRef.current = initialData.serviceRegion || '';
+          // Не оновлюємо prevServiceRegionRef, щоб ефект автогенерації номера побачив зміну регіону і згенерував номер
+          prevServiceRegionRef.current = '';
         } else {
           const initRegion = user?.region && user.region !== 'Україна' ? user.region : '';
           setFormData({
