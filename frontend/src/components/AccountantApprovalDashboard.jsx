@@ -47,6 +47,9 @@ function AccountantApprovalDashboard({ user }) {
         case 'debt':
           statusParam = 'accountantDebt';
           break;
+        case 'paymentDebt':
+          statusParam = 'paymentDebt';
+          break;
         case 'allExceptApproved':
           statusParam = 'allExceptApproved';
           break;
@@ -254,6 +257,7 @@ function AccountantApprovalDashboard({ user }) {
     { id: 'pending', label: 'Заявка на підтвердженні', icon: '⏳' },
     { id: 'archive', label: 'Архів виконаних заявок', icon: '📁' },
     { id: 'debt', label: 'Заборгованість по документам', icon: '💰' },
+    { id: 'paymentDebt', label: 'Заборгованість по оплаті', icon: '💳' },
     { id: 'allExceptApproved', label: 'Всі заявки окрім затвердженні до оплати на премію', icon: '📋' }
   ];
 
@@ -308,6 +312,7 @@ function AccountantApprovalDashboard({ user }) {
                 activeTab === 'pending' ? 'accountantPending' :
                 activeTab === 'archive' ? 'done' :
                 activeTab === 'debt' ? 'accountantDebt' :
+                activeTab === 'paymentDebt' ? 'paymentDebt' :
                 activeTab === 'allExceptApproved' ? 'allExceptApproved' :
                 'accountantPending'
               }

@@ -154,7 +154,7 @@ function isRejected(value) {
   return value === false || value === 'Відмова';
 }
 
-function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service', onViewClick = null, onCreateFromTask = null }) {
+function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service', onViewClick = null, onCreateFromTask = null, onTasksLoaded = null }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -507,6 +507,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       if (cached) {
         setTasks(cached);
         setLoading(false);
+        if (onTasksLoaded) onTasksLoaded(cached);
         // Оновлення у фоні
         try {
           const response = await fetch(url, {
@@ -516,6 +517,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
             const data = await response.json();
             setTasks(data);
             setCachedTasks(url, data);
+            if (onTasksLoaded) onTasksLoaded(data);
           }
         } catch (_) { /* залишаємо кеш */ }
         return;
@@ -534,6 +536,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         const data = await response.json();
         setTasks(data);
         setCachedTasks(url, data);
+        if (onTasksLoaded) onTasksLoaded(data);
       } catch (err) {
         setError(err.message);
         console.error('Помилка завантаження завдань:', err);
@@ -545,7 +548,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     if (user) {
       loadTasks();
     }
-  }, [user, status, showRejectedApprovals, showRejectedInvoices, showAllInvoices]);
+  }, [user, status, showRejectedApprovals, showRejectedInvoices, showAllInvoices, onTasksLoaded]);
 
   // Відсортовані та відфільтровані завдання
   const filteredAndSortedTasks = useMemo(() => {

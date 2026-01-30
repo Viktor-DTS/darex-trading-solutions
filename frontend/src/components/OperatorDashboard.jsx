@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import TaskTable from './TaskTable';
 import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
@@ -12,6 +12,27 @@ function OperatorDashboard({ user }) {
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [isReadOnlyMode, setIsReadOnlyMode] = useState(false);
+  const [paymentDebtTasks, setPaymentDebtTasks] = useState([]);
+
+  const parseSum = (val) => {
+    if (val == null || val === '') return 0;
+    const s = String(val).replace(/\s/g, '').replace(',', '.');
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  };
+
+  const paymentDebtSummary = useMemo(() => {
+    if (activeTab !== 'paymentDebt' || !paymentDebtTasks.length) return null;
+    const totalSum = paymentDebtTasks.reduce((acc, t) => acc + parseSum(t.serviceTotal), 0);
+    const byClient = {};
+    paymentDebtTasks.forEach(t => {
+      const key = (t.edrpou && String(t.edrpou).trim()) || (t.client && String(t.client).trim()) || '—';
+      if (!byClient[key]) byClient[key] = { count: 0, sum: 0, name: t.client || '—' };
+      byClient[key].count += 1;
+      byClient[key].sum += parseSum(t.serviceTotal);
+    });
+    return { total: paymentDebtTasks.length, totalSum, byClient: Object.entries(byClient) };
+  }, [activeTab, paymentDebtTasks]);
 
   const handleRowClick = (task) => {
     setEditingTask(task);
@@ -36,6 +57,7 @@ function OperatorDashboard({ user }) {
   const tabs = [
     { id: 'inProgress', label: 'Заявки на виконанні', icon: '📋' },
     { id: 'archive', label: 'Архів виконаних заявок', icon: '📁' },
+    { id: 'paymentDebt', label: 'Заборгованість по оплаті', icon: '💳' },
     { id: 'contracts', label: 'Договори', icon: '📄' }
   ];
 
@@ -85,16 +107,37 @@ function OperatorDashboard({ user }) {
           {activeTab === 'contracts' ? (
             <ContractsTable user={user} />
           ) : (
-            <TaskTable 
-              user={user} 
-              status={activeTab}
-              onColumnSettingsClick={() => setShowColumnSettings(true)}
-              showRejectedApprovals={false}
-              showRejectedInvoices={false}
-              onRowClick={handleRowClick}
-              columnsArea="operator"
-              onCreateFromTask={handleCreateFromTask}
-            />
+            <>
+              {activeTab === 'paymentDebt' && paymentDebtSummary && (
+                <div className="payment-debt-summary">
+                  <div className="payment-debt-stats">
+                    <span>Всього заявок: <strong>{paymentDebtSummary.total}</strong></span>
+                    <span>Сума боргу: <strong>{paymentDebtSummary.totalSum.toFixed(2)} грн</strong></span>
+                  </div>
+                  {paymentDebtSummary.byClient.length > 0 && (
+                    <div className="payment-debt-by-client">
+                      <div className="payment-debt-by-client-title">По замовниках:</div>
+                      <ul>
+                        {paymentDebtSummary.byClient.map(([key, { count, sum, name }]) => (
+                          <li key={key}>{name || key}: {count} заявок, {sum.toFixed(2)} грн</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              <TaskTable 
+                user={user} 
+                status={activeTab}
+                onColumnSettingsClick={() => setShowColumnSettings(true)}
+                showRejectedApprovals={false}
+                showRejectedInvoices={false}
+                onRowClick={handleRowClick}
+                columnsArea="operator"
+                onCreateFromTask={handleCreateFromTask}
+                onTasksLoaded={activeTab === 'paymentDebt' ? setPaymentDebtTasks : undefined}
+              />
+            </>
           )}
         </main>
       </div>

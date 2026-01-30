@@ -1238,6 +1238,17 @@ app.get('/api/tasks/filter', async (req, res) => {
           matchStage.paymentType = { $exists: true, $ne: '', $ne: 'не вибрано', $nin: ['Готівка', 'Інше'] };
           matchStage.debtStatus = { $ne: 'Документи в наявності' };
           break;
+        case 'paymentDebt':
+          // Заборгованість по оплаті: виконані заявки без дати оплати
+          // paymentType: Готівка, Безготівка, На карту, Інше; виключаємо Внутрішні роботи; виключаємо суму 0 або пусте
+          matchStage.status = 'Виконано';
+          matchStage.paymentType = { $in: ['Готівка', 'Безготівка', 'На карту', 'Інше'] };
+          matchStage.$and = [
+            { $or: [ { paymentDate: null }, { paymentDate: '' }, { paymentDate: { $exists: false } } ] },
+            { $or: [ { internalWork: { $ne: true } }, { internalWork: null }, { internalWork: false }, { internalWork: { $exists: false } } ] },
+            { $expr: { $gt: [ { $convert: { input: { $ifNull: ['$serviceTotal', 0] }, to: 'double', onError: 0, onNull: 0 } }, 0 ] } }
+          ];
+          break;
         case 'allExceptApproved':
           // Всі заявки окрім затвердженні до оплати на премію:
           // Показуємо всі заявки, окрім тих, де Підтвердження бухгалтера = 'Підтверджено'

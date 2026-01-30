@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import AddTaskModal from './AddTaskModal';
+import TaskTable from './TaskTable';
 import './RegionalDashboard.css';
 
 function RegionalDashboard({ user }) {
@@ -9,7 +10,7 @@ function RegionalDashboard({ user }) {
   const [loading, setLoading] = useState(true);
   
   // Вкладки
-  const [activeTab, setActiveTab] = useState('personnel'); // 'personnel' | 'debt'
+  const [activeTab, setActiveTab] = useState('personnel'); // 'personnel' | 'debt' | 'paymentDebt'
   
   // Стан для модального вікна перегляду заявки
   const [viewingTask, setViewingTask] = useState(null);
@@ -875,7 +876,31 @@ function RegionalDashboard({ user }) {
         >
           💰 Заборгованість по документам ({debtTasks.length})
         </button>
+        <button 
+          className={`tab-btn ${activeTab === 'paymentDebt' ? 'active' : ''}`}
+          onClick={() => setActiveTab('paymentDebt')}
+        >
+          💳 Заборгованість по оплаті
+        </button>
       </div>
+
+      {/* Вкладка заборгованості по оплаті */}
+      {activeTab === 'paymentDebt' && (
+        <div className="debt-section payment-debt-section">
+          <div className="debt-header">
+            <h3>💳 Заборгованість по оплаті</h3>
+            <p className="debt-description">
+              Виконані заявки без заповненої дати оплати (вид оплати Готівка, Безготівка, На карту, Інше), без внутрішніх робіт
+            </p>
+          </div>
+          <TaskTable
+            user={user}
+            status="paymentDebt"
+            onRowClick={handleViewTask}
+            columnsArea="service"
+          />
+        </div>
+      )}
 
       {/* Вкладка заборгованості по документам */}
       {activeTab === 'debt' && (

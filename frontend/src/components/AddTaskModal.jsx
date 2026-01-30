@@ -325,6 +325,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     fields: []
   });
 
+  // Заборгованість по оплаті для поточного замовника (для банеру)
+  const [clientPaymentDebt, setClientPaymentDebt] = useState(null);
+
   // Завантаження регіонів та користувачів
   useEffect(() => {
     if (open) {
@@ -378,6 +381,42 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         .catch(err => console.error('Помилка завантаження типів обладнання:', err));
     }
   }, [open]);
+
+  // Завантаження боргу по оплаті для замовника (для банеру в модалці)
+  useEffect(() => {
+    if (!open) {
+      setClientPaymentDebt(null);
+      return;
+    }
+    const edrpou = (initialData?.edrpou || '').toString().trim();
+    const client = (initialData?.client || '').toString().trim();
+    if (!edrpou && !client) {
+      setClientPaymentDebt(null);
+      return;
+    }
+    const token = localStorage.getItem('token');
+    fetch(`${API_BASE_URL}/tasks/filter?status=paymentDebt&region=`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.ok ? res.json() : [])
+      .then(tasks => {
+        const match = (t) => {
+          const tEdrpou = (t.edrpou || '').toString().trim();
+          const tClient = (t.client || '').toString().trim();
+          if (edrpou && tEdrpou && tEdrpou.toLowerCase() === edrpou.toLowerCase()) return true;
+          if (client && tClient && tClient.toLowerCase().includes(client.toLowerCase())) return true;
+          return false;
+        };
+        const list = Array.isArray(tasks) ? tasks.filter(match) : [];
+        if (list.length === 0) {
+          setClientPaymentDebt(null);
+          return;
+        }
+        const sum = list.reduce((acc, t) => acc + parseNumber(t.serviceTotal), 0);
+        setClientPaymentDebt({ count: list.length, sum });
+      })
+      .catch(() => setClientPaymentDebt(null));
+  }, [open, initialData?.edrpou, initialData?.client]);
 
   // Визначаємо чи це нова заявка (немає id)
   const isNewTask = !initialData.id && !initialData._id;
@@ -1542,6 +1581,13 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           {error && (
             <div className="form-error">
               {error}
+            </div>
+          )}
+
+          {/* Банер: у замовника є заборгованість по оплаті */}
+          {clientPaymentDebt && clientPaymentDebt.count > 0 && (
+            <div className="client-payment-debt-banner">
+              💳 У цього замовника є заборгованість по оплаті: <strong>{clientPaymentDebt.count}</strong> заявок на суму <strong>{clientPaymentDebt.sum.toFixed(2)} грн</strong>
             </div>
           )}
 
