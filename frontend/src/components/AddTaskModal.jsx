@@ -1831,6 +1831,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
             {showSections.client && (
               <div className="section-content">
+                {/* Банер заборгованості по оплаті — перший рядок секції Клієнт та адреса */}
+                {clientPaymentDebt && clientPaymentDebt.count > 0 && (
+                  <div className="client-payment-debt-banner">
+                    💳 У цього замовника є заборгованість по оплаті: <strong>{clientPaymentDebt.count}</strong> заявок на суму <strong>{clientPaymentDebt.sum.toFixed(2)} грн</strong>
+                  </div>
+                )}
                 {/* Рядок: Замовник, ЄДРПОУ */}
                 <div className="form-row two-cols">
                   <div className="form-group">
