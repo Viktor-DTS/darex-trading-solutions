@@ -1,7 +1,7 @@
 name: dts_mobile
 description: DTS mobile app (Flutter) for service, warehouse, testing, and manager panels.
 publish_to: "none"
-version: 0.2.0+2
+version: 0.3.0+3
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
