@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Доступ в інтернет (обов'язково для API-запитів) -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Дозволи для фото (камера та галерея) у сервісних заявках та тестуванні -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />

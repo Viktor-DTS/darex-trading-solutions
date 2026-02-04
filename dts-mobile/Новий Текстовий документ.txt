@@ -1,1 +1,6 @@
 flutter run
+
+C:\dts-service\dts-mobile\build\app\outputs\flutter-apk
+
+   cd c:\dts-service\dts-mobile
+   flutter build apk

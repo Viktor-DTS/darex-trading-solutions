@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/equipment.dart';
 import '../../core/models/movement_document.dart';
+import '../../core/models/receipt_document.dart';
 import '../../core/models/shipment_document.dart';
 import '../../core/models/warehouse.dart';
 import '../../core/services/auth_service.dart';
-import '../../core/services/equipment_service.dart';
 import '../../core/services/document_service.dart';
+import '../../core/services/equipment_service.dart';
 import '../../core/services/warehouse_service.dart';
 import 'add_equipment_screen.dart';
 import 'batch_move_ship_screen.dart';
 import 'document_details_screen.dart';
+import 'equipment_details_screen.dart';
+import 'select_equipment_action_screen.dart';
 
 class WarehouseScreen extends StatefulWidget {
   const WarehouseScreen({super.key});
@@ -32,6 +35,7 @@ class _WarehouseScreenState extends State<WarehouseScreen>
   final Set<String> _selectedInTransit = {};
   List<MovementDocument> _movementDocs = [];
   List<ShipmentDocument> _shipmentDocs = [];
+  List<ReceiptDocument> _receiptDocs = [];
   bool _docsLoading = false;
 
   @override
@@ -83,9 +87,12 @@ class _WarehouseScreenState extends State<WarehouseScreen>
           await DocumentService.instance.fetchMovementDocuments();
       final shipmentDocs =
           await DocumentService.instance.fetchShipmentDocuments();
+      final receiptDocs =
+          await DocumentService.instance.fetchReceiptDocuments();
       setState(() {
         _movementDocs = movementDocs;
         _shipmentDocs = shipmentDocs;
+        _receiptDocs = receiptDocs;
       });
     } finally {
       setState(() {
@@ -147,30 +154,83 @@ class _WarehouseScreenState extends State<WarehouseScreen>
     if (_error != null) {
       return Center(child: Text(_error!));
     }
-    if (_equipment.isEmpty) {
-      return const Center(child: Text('Немає обладнання'));
-    }
 
-    return ListView.separated(
-      itemCount: _equipment.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, index) {
-        final item = _equipment[index];
-        return ListTile(
-          title: Text(item.type ?? 'Обладнання'),
-          subtitle: Text(
-            [
-              item.serialNumber ?? 'Серійний номер не вказано',
-              item.currentWarehouseName ?? 'Склад не вказано',
-            ].join(' · '),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _equipment.isEmpty ? null : _openSelectEquipmentForMove,
+                  icon: const Icon(Icons.swap_horiz, size: 20),
+                  label: const Text('Переміщення'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _equipment.isEmpty ? null : _openSelectEquipmentForShip,
+                  icon: const Icon(Icons.local_shipping, size: 20),
+                  label: const Text('Відвантаження'),
+                ),
+              ),
+            ],
           ),
-          trailing: _buildActions(item),
-          onTap: () {
-            // TODO: details / actions (move, ship, write-off).
-          },
-        );
-      },
+        ),
+        const Divider(height: 1),
+        if (_equipment.isEmpty)
+          const Expanded(child: Center(child: Text('Немає обладнання')))
+        else
+          Expanded(
+            child: ListView.separated(
+              itemCount: _equipment.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final item = _equipment[index];
+                return ListTile(
+                  title: Text(item.type ?? 'Обладнання'),
+                  subtitle: Text(
+                    [
+                      item.serialNumber ?? 'Серійний номер не вказано',
+                      item.currentWarehouseName ?? 'Склад не вказано',
+                    ].join(' · '),
+                  ),
+                  trailing: _buildActions(item),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => EquipmentDetailsScreen(equipmentId: item.id),
+                      ),
+                    );
+                    _loadEquipment();
+                  },
+                );
+              },
+            ),
+          ),
+      ],
     );
+  }
+
+  Future<void> _openSelectEquipmentForMove() async {
+    final equipment = await Navigator.of(context).push<Equipment>(
+      MaterialPageRoute(
+        builder: (_) => const SelectEquipmentActionScreen(action: 'move'),
+      ),
+    );
+    if (equipment != null) _showMoveDialog(equipment);
+  }
+
+  Future<void> _openSelectEquipmentForShip() async {
+    final equipment = await Navigator.of(context).push<Equipment>(
+      MaterialPageRoute(
+        builder: (_) => const SelectEquipmentActionScreen(action: 'ship'),
+      ),
+    );
+    if (equipment != null) _showShipDialog(equipment);
   }
 
   Widget _buildActions(Equipment item) {
@@ -273,12 +333,34 @@ class _WarehouseScreenState extends State<WarehouseScreen>
     if (_docsLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_movementDocs.isEmpty && _shipmentDocs.isEmpty) {
+    if (_receiptDocs.isEmpty && _movementDocs.isEmpty && _shipmentDocs.isEmpty) {
       return const Center(child: Text('Немає документів'));
     }
 
     return ListView(
       children: [
+        if (_receiptDocs.isNotEmpty)
+          _buildDocSection(
+            title: 'Надходження',
+            children: _receiptDocs
+                .map(
+                  (doc) => ListTile(
+                    title: Text(doc.documentNumber),
+                    subtitle: Text(
+                      '${doc.warehouseName ?? doc.warehouse ?? '—'}${doc.supplier != null && doc.supplier!.isNotEmpty ? ' · ${doc.supplier}' : ''}',
+                    ),
+                    trailing: Text(doc.status ?? ''),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => DocumentDetailsScreen.receipt(receiptDocument: doc),
+                        ),
+                      );
+                    },
+                  ),
+                )
+                .toList(),
+          ),
         if (_movementDocs.isNotEmpty)
           _buildDocSection(
             title: 'Переміщення',

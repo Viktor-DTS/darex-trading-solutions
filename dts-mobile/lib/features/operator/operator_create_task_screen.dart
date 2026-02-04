@@ -39,6 +39,9 @@ class _OperatorCreateTaskScreenState extends State<OperatorCreateTaskScreen> {
   final _contactPersonController = TextEditingController();
   final _contactPhoneController = TextEditingController();
   final _invoiceRecipientController = TextEditingController();
+  final _companyController = TextEditingController();
+  final _equipmentController = TextEditingController();
+  final _equipmentSerialController = TextEditingController();
 
   @override
   void initState() {
@@ -62,6 +65,9 @@ class _OperatorCreateTaskScreenState extends State<OperatorCreateTaskScreen> {
     _contactPersonController.dispose();
     _contactPhoneController.dispose();
     _invoiceRecipientController.dispose();
+    _companyController.dispose();
+    _equipmentController.dispose();
+    _equipmentSerialController.dispose();
     super.dispose();
   }
 
@@ -128,6 +134,9 @@ class _OperatorCreateTaskScreenState extends State<OperatorCreateTaskScreen> {
       _contactPersonController,
       _contactPhoneController,
       _invoiceRecipientController,
+      _companyController,
+      _equipmentController,
+      _equipmentSerialController,
     ];
     for (final controller in controllers) {
       controller.addListener(_scheduleDraftSave);
@@ -151,6 +160,9 @@ class _OperatorCreateTaskScreenState extends State<OperatorCreateTaskScreen> {
       'contactPerson': _contactPersonController.text,
       'contactPhone': _contactPhoneController.text,
       'invoiceRecipientDetails': _invoiceRecipientController.text,
+      'company': _companyController.text,
+      'equipment': _equipmentController.text,
+      'equipmentSerial': _equipmentSerialController.text,
     };
     await DraftService.instance.saveOperatorDraft(draft);
   }
@@ -198,6 +210,9 @@ class _OperatorCreateTaskScreenState extends State<OperatorCreateTaskScreen> {
       _contactPhoneController.text = draft['contactPhone']?.toString() ?? '';
       _invoiceRecipientController.text =
           draft['invoiceRecipientDetails']?.toString() ?? '';
+      _companyController.text = draft['company']?.toString() ?? '';
+      _equipmentController.text = draft['equipment']?.toString() ?? '';
+      _equipmentSerialController.text = draft['equipmentSerial']?.toString() ?? '';
     });
   }
 
@@ -238,9 +253,6 @@ class _OperatorCreateTaskScreenState extends State<OperatorCreateTaskScreen> {
       if (client.isEmpty) {
         throw 'Вкажіть назву клієнта';
       }
-      if (edrpou.isEmpty) {
-        throw 'Вкажіть ЄДРПОУ';
-      }
       if (address.isEmpty) {
         throw 'Вкажіть адресу';
       }
@@ -256,6 +268,18 @@ class _OperatorCreateTaskScreenState extends State<OperatorCreateTaskScreen> {
       if (contactPhone.isEmpty) {
         throw 'Вкажіть телефон контактної особи';
       }
+      final company = _companyController.text.trim();
+      final equipment = _equipmentController.text.trim();
+      final equipmentSerial = _equipmentSerialController.text.trim();
+      if (company.isEmpty) {
+        throw 'Вкажіть компанію виконавець';
+      }
+      if (equipment.isEmpty) {
+        throw 'Вкажіть тип обладнання';
+      }
+      if (equipmentSerial.isEmpty) {
+        throw 'Вкажіть заводський номер обладнання';
+      }
 
       await TaskService.instance.createTask({
         'status': 'Заявка',
@@ -269,6 +293,9 @@ class _OperatorCreateTaskScreenState extends State<OperatorCreateTaskScreen> {
         'plannedDate': plannedDate,
         'contactPerson': _contactPersonController.text.trim(),
         'contactPhone': contactPhone,
+        'company': company,
+        'equipment': equipment,
+        'equipmentSerial': equipmentSerial,
       });
 
       if (!mounted) return;
@@ -304,7 +331,7 @@ class _OperatorCreateTaskScreenState extends State<OperatorCreateTaskScreen> {
               TextField(
                 controller: _edrpouController,
                 decoration: const InputDecoration(
-                  labelText: 'ЄДРПОУ',
+                  labelText: 'ЄДРПОУ (не обов\'язково)',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -432,6 +459,37 @@ class _OperatorCreateTaskScreenState extends State<OperatorCreateTaskScreen> {
           isActive: _currentStep >= 4,
         ),
         Step(
+          title: const Text('Обладнання'),
+          content: Column(
+            children: [
+              TextField(
+                controller: _companyController,
+                decoration: const InputDecoration(
+                  labelText: 'Компанія виконавець *',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _equipmentController,
+                decoration: const InputDecoration(
+                  labelText: 'Тип обладнання *',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _equipmentSerialController,
+                decoration: const InputDecoration(
+                  labelText: 'Заводський номер обладнання *',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          isActive: _currentStep >= 5,
+        ),
+        Step(
           title: const Text('Контакт'),
           content: Column(
             children: [
@@ -457,7 +515,7 @@ class _OperatorCreateTaskScreenState extends State<OperatorCreateTaskScreen> {
               ),
             ],
           ),
-          isActive: _currentStep >= 5,
+          isActive: _currentStep >= 6,
         ),
       ];
 
