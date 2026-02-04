@@ -12,18 +12,19 @@
   overflow: hidden;
 }
 
+/* Ширина сайдбару під масштаб 80%: 210*0.8=168px, згорнутий 52*0.8≈42px */
 .inventory-sidebar-wrap {
   display: flex;
   align-items: stretch;
-  width: 210px;
-  min-width: 210px;
+  width: 168px;
+  min-width: 168px;
   transition: width 0.2s ease, min-width 0.2s ease;
   position: relative;
 }
 
 .inventory-sidebar-wrap-collapsed {
-  width: 52px;
-  min-width: 52px;
+  width: 42px;
+  min-width: 42px;
 }
 
 .inventory-sidebar {
@@ -35,14 +36,33 @@
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 12px;
-  padding-bottom: 28px;
+  padding: 0;
   gap: 0;
   overflow: hidden;
 }
 
+.inventory-sidebar:not(.inventory-sidebar-collapsed) {
+  padding: 0;
+}
+
+/* Контент сайдбару в масштабі 80% (як основна панель) */
+.inventory-sidebar-scaled {
+  transform: scale(0.8);
+  transform-origin: 0 0;
+  width: 125%;
+  min-height: 125%;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  padding-bottom: 28px;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+}
+
 .inventory-sidebar-collapsed {
-  padding: 12px 8px;
+  padding: 8px 6px;
+  justify-content: flex-start;
 }
 
 .inventory-sidebar-collapsed .sidebar-section-title,
@@ -53,7 +73,7 @@
 
 .inventory-sidebar-collapsed .inventory-sidebar-tab {
   justify-content: center;
-  padding: 10px;
+  padding: 6px;
 }
 
 .inventory-sidebar-toggle {

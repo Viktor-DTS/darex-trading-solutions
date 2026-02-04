@@ -269,37 +269,54 @@ function InventoryDashboard({ user }) {
       <div className="inventory-dashboard-main">
         <div className={`inventory-sidebar-wrap ${sidebarCollapsed ? 'inventory-sidebar-wrap-collapsed' : ''}`}>
           <aside className={`inventory-sidebar ${sidebarCollapsed ? 'inventory-sidebar-collapsed' : ''}`}>
-            <nav className="inventory-sidebar-nav">
-              {!sidebarCollapsed && <div className="sidebar-section-title">Складський облік</div>}
-              {tabs.map(tab => (
-                <button
-                  key={tab.id}
-                  className={`inventory-sidebar-tab ${activeTab === tab.id ? 'active' : ''}`}
-                  onClick={() => {
-                    setActiveTab(tab.id);
-                    if (tab.id === 'approval') loadInTransitCount();
-                  }}
-                  title={sidebarCollapsed ? tab.label : undefined}
-                >
-                  <span className="tab-icon">{tab.icon}</span>
-                  {!sidebarCollapsed && (
-                    <>
+            {sidebarCollapsed ? (
+              <>
+                <nav className="inventory-sidebar-nav">
+                  {tabs.map(tab => (
+                    <button
+                      key={tab.id}
+                      className={`inventory-sidebar-tab ${activeTab === tab.id ? 'active' : ''}`}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        if (tab.id === 'approval') loadInTransitCount();
+                      }}
+                      title={tab.label}
+                    >
+                      <span className="tab-icon">{tab.icon}</span>
+                    </button>
+                  ))}
+                </nav>
+              </>
+            ) : (
+              <div className="inventory-sidebar-scaled">
+                <nav className="inventory-sidebar-nav">
+                  <div className="sidebar-section-title">Складський облік</div>
+                  {tabs.map(tab => (
+                    <button
+                      key={tab.id}
+                      className={`inventory-sidebar-tab ${activeTab === tab.id ? 'active' : ''}`}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        if (tab.id === 'approval') loadInTransitCount();
+                      }}
+                    >
+                      <span className="tab-icon">{tab.icon}</span>
                       <span className="tab-label">{tab.label}</span>
                       {tab.badge !== undefined && tab.badge > 0 && (
                         <span className="tab-badge">{tab.badge}</span>
                       )}
-                    </>
-                  )}
-                </button>
-              ))}
-            </nav>
-            {!sidebarCollapsed && activeTab === 'stock' && (
-              <div className="inventory-sidebar-nomenclature">
-                <CategoryTree
-                  selectedId={selectedCategoryId}
-                  onSelectCategory={(id) => setSelectedCategoryId(id)}
-                  showAllOption
-                />
+                    </button>
+                  ))}
+                </nav>
+                {activeTab === 'stock' && (
+                  <div className="inventory-sidebar-nomenclature">
+                    <CategoryTree
+                      selectedId={selectedCategoryId}
+                      onSelectCategory={(id) => setSelectedCategoryId(id)}
+                      showAllOption
+                    />
+                  </div>
+                )}
               </div>
             )}
           </aside>
