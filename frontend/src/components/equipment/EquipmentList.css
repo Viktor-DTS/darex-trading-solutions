@@ -192,10 +192,11 @@
   box-sizing: border-box;
 }
 
-/* Внутрішній контейнер для таблиці */
+/* Внутрішній контейнер — ширина по контенту таблиці, щоб wrapper показував горизонтальний скрол */
 .equipment-table-wrapper-inner {
   overflow: visible;
-  width: 100%;
+  min-width: 100%;
+  width: max-content;
 }
 
 /* Стилі для скролбарів wrapper'а */
