@@ -782,6 +782,21 @@ app.get('/api/ping', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Версія мобільного додатку — для перевірки оновлень при вході (дистаційний апдейт)
+// Змінюйте APP_VERSION / APP_MIN_VERSION при випуску нової збірки; посилання на магазини — за потреби
+app.get('/api/app-version', (req, res) => {
+  const latestVersion = process.env.APP_VERSION || '0.1.0';
+  const minVersion = process.env.APP_MIN_VERSION || '0.1.0';
+  const forceUpdate = process.env.APP_FORCE_UPDATE === 'true';
+  res.json({
+    latest_version: latestVersion,
+    min_version: minVersion,
+    force_update: forceUpdate,
+    android_store_url: process.env.APP_ANDROID_STORE_URL || 'https://play.google.com/store/apps/details?id=com.example.dts_mobile',
+    ios_store_url: process.env.APP_IOS_STORE_URL || 'https://apps.apple.com/app/dts-mobile/id000000000',
+  });
+});
+
 // ============================================
 // АВТЕНТИФІКАЦІЯ (публічний endpoint)
 // ============================================
