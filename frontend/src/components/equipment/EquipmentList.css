@@ -178,7 +178,7 @@
 
 /* Обгортка таблиці — як у Сервісній службі: фіксована висота, обидва скролбари в межах області */
 .equipment-table-wrapper {
-  overflow-x: auto;
+  overflow-x: scroll; /* завжди видимий горизонтальний скролбар внизу таблиці */
   overflow-y: auto;
   flex: 1;
   min-height: 0;
