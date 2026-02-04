@@ -153,7 +153,7 @@
 .inventory-main-content {
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 20px;
   background: var(--background);
@@ -185,7 +185,13 @@
 .inventory-stock-list {
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.inventory-stock-list > .inventory-header {
+  flex-shrink: 0;
 }
 
 .inventory-header {
