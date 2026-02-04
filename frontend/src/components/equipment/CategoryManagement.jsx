@@ -11,11 +11,19 @@ function flattenForSelect(nodes, level = 0) {
   return list;
 }
 
+// Зібрати id вузла та всіх нащадків (для виключення з вибору батька при редагуванні)
+function collectIds(node) {
+  const ids = [node._id?.toString?.() || node.id];
+  (node.children || []).forEach((ch) => ids.push(...collectIds(ch)));
+  return ids;
+}
+
 export default function CategoryManagement({ user }) {
   const [tree, setTree] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
   const [form, setForm] = useState({ parentId: '', name: '', itemKind: 'equipment', sortOrder: 0 });
   const [saving, setSaving] = useState(false);
   const [migrateResult, setMigrateResult] = useState('');
@@ -78,7 +86,8 @@ export default function CategoryManagement({ user }) {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Видалити цю групу? (Повинно не мати дочірніх груп і номенклатури)')) return;
+    if (!window.confirm('Видалити цю групу? Система перевірить: якщо в групі є дочірні групи або номенклатура — видалення буде заборонено, щоб товари не зникли.')) return;
+    setError('');
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE_URL}/categories/${id}`, {
@@ -92,6 +101,51 @@ export default function CategoryManagement({ user }) {
       loadTree();
     } catch (e) {
       setError(e.message);
+    }
+  };
+
+  const handleEdit = (node) => {
+    setEditingCategory(node);
+    setForm({
+      parentId: node.parentId?.toString?.() || node.parentId || '',
+      name: node.name || '',
+      itemKind: node.itemKind || 'equipment',
+      sortOrder: node.sortOrder ?? 0
+    });
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingCategory || !form.name.trim()) return;
+    setSaving(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('token');
+      const id = editingCategory._id?.toString?.() || editingCategory.id;
+      const res = await fetch(`${API_BASE_URL}/categories/${id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          parentId: form.parentId || null,
+          itemKind: form.itemKind,
+          sortOrder: Number(form.sortOrder) || 0
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Помилка збереження');
+      }
+      setEditingCategory(null);
+      setForm({ parentId: '', name: '', itemKind: 'equipment', sortOrder: 0 });
+      loadTree();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -118,6 +172,11 @@ export default function CategoryManagement({ user }) {
   };
 
   const flatList = flattenForSelect(tree);
+  const editingIds = editingCategory ? collectIds(editingCategory) : [];
+  const parentOptions = flatList.filter((c) => {
+    const cid = c._id?.toString?.() || c.id;
+    return !editingIds.includes(cid);
+  });
 
   return (
     <div className="category-management">
@@ -127,7 +186,7 @@ export default function CategoryManagement({ user }) {
           Корені: <strong>Товари</strong> (обладнання для продажу) та <strong>Деталі та комплектуючі</strong>. Можна додавати нові батьківські (кореневі) групи або підгрупи до існуючих.
         </p>
         <div className="category-management-actions">
-          <button type="button" className="btn-primary" onClick={() => setShowForm(true)}>
+          <button type="button" className="btn-primary" onClick={() => { setShowForm(true); setEditingCategory(null); setForm({ parentId: '', name: '', itemKind: 'equipment', sortOrder: 0 }); }}>
             + Додати групу
           </button>
           <button type="button" className="btn-secondary" onClick={handleMigrate} disabled={saving}>
@@ -138,16 +197,19 @@ export default function CategoryManagement({ user }) {
         {error && <p className="category-management-message error">{error}</p>}
       </div>
 
-      {showForm && (
-        <form className="category-form" onSubmit={handleCreate}>
-          <h3>Нова група</h3>
+      {(showForm || editingCategory) && (
+        <form
+          className="category-form"
+          onSubmit={editingCategory ? handleEditSubmit : handleCreate}
+        >
+          <h3>{editingCategory ? 'Редагувати групу' : 'Нова група'}</h3>
           <div className="form-row">
             <label>Батьківська група</label>
             <select
               value={form.parentId}
               onChange={(e) => {
                 const id = e.target.value;
-                const cat = flatList.find(c => String(c._id || c.id) === String(id));
+                const cat = (editingCategory ? parentOptions : flatList).find(c => String(c._id || c.id) === String(id));
                 setForm(f => ({
                   ...f,
                   parentId: id,
@@ -155,8 +217,8 @@ export default function CategoryManagement({ user }) {
                 }));
               }}
             >
-              <option value="">— Нова коренева (батьківська) група —</option>
-              {flatList.map((c) => (
+              <option value="">— Коренева (батьківська) група —</option>
+              {(editingCategory ? parentOptions : flatList).map((c) => (
                 <option key={c._id} value={c._id?.toString?.() || c._id}>
                   {'\u00A0'.repeat((c.level || 0) * 2)}{c.name}
                 </option>
@@ -193,9 +255,17 @@ export default function CategoryManagement({ user }) {
           </div>
           <div className="form-actions">
             <button type="submit" disabled={saving || !form.name.trim()}>
-              {saving ? 'Збереження...' : 'Зберегти'}
+              {saving ? 'Збереження...' : (editingCategory ? 'Зберегти' : 'Створити')}
             </button>
-            <button type="button" onClick={() => { setShowForm(false); setError(''); }}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(false);
+                setEditingCategory(null);
+                setForm({ parentId: '', name: '', itemKind: 'equipment', sortOrder: 0 });
+                setError('');
+              }}
+            >
               Скасувати
             </button>
           </div>
@@ -207,7 +277,13 @@ export default function CategoryManagement({ user }) {
       ) : (
         <div className="category-tree-list">
           {tree.map((root) => (
-            <CategoryNode key={root._id} node={root} onDelete={handleDelete} onRefresh={loadTree} />
+            <CategoryNode
+              key={root._id}
+              node={root}
+              onDelete={handleDelete}
+              onEdit={handleEdit}
+              onRefresh={loadTree}
+            />
           ))}
         </div>
       )}
@@ -215,10 +291,9 @@ export default function CategoryManagement({ user }) {
   );
 }
 
-function CategoryNode({ node, onDelete, onRefresh, level = 0 }) {
+function CategoryNode({ node, onDelete, onEdit, onRefresh, level = 0 }) {
   const [expanded, setExpanded] = useState(true);
   const hasChildren = node.children && node.children.length > 0;
-  const isRoot = level === 0;
 
   return (
     <div className="category-node" style={{ marginLeft: level * 20 }}>
@@ -228,16 +303,21 @@ function CategoryNode({ node, onDelete, onRefresh, level = 0 }) {
         </span>
         <span className="category-node-name">{node.name}</span>
         <span className="category-node-kind">{node.itemKind === 'equipment' ? 'Товари' : 'Деталі'}</span>
-        {!isRoot && (
-          <button type="button" className="btn-delete-small" onClick={() => onDelete(node._id)} title="Видалити групу">
+        <span className="category-node-actions">
+          {onEdit && (
+            <button type="button" className="btn-edit-small" onClick={() => onEdit(node)} title="Редагувати групу">
+              Редагувати
+            </button>
+          )}
+          <button type="button" className="btn-delete-small" onClick={() => onDelete(node._id)} title="Видалити групу (перевіряється наявність підгруп і номенклатури)">
             Видалити
           </button>
-        )}
+        </span>
       </div>
       {hasChildren && expanded && (
         <div className="category-node-children">
           {node.children.map((child) => (
-            <CategoryNode key={child._id} node={child} onDelete={onDelete} onRefresh={onRefresh} level={level + 1} />
+            <CategoryNode key={child._id} node={child} onDelete={onDelete} onEdit={onEdit} onRefresh={onRefresh} level={level + 1} />
           ))}
         </div>
       )}

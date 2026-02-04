@@ -131,6 +131,26 @@
   color: var(--text-secondary);
 }
 
+.category-node-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-edit-small {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--primary);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-edit-small:hover {
+  background: rgba(0, 123, 255, 0.1);
+}
+
 .btn-delete-small {
   padding: 4px 10px;
   font-size: 12px;
