@@ -141,19 +141,6 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
         }));
       }
     }
-
-    // Якщо змінюється тип матеріальних цінностей, скидаємо інші опції
-    if (name === 'materialValueType') {
-      // Вже встановлено через setFormData вище
-    }
-  };
-
-  const handleMaterialValueTypeChange = (value) => {
-    // Встановлюємо вибране значення (радіо-кнопки автоматично скидають інші через однаковий name)
-    setFormData(prev => ({
-      ...prev,
-      materialValueType: value
-    }));
   };
 
   const handleSubmit = async (e) => {
@@ -379,11 +366,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                           name="equipmentType"
                           value="single"
                           checked={equipmentType === 'single'}
-                          onChange={(e) => {
-                            setEquipmentType(e.target.value);
-                            // Скидаємо тип матеріальних цінностей при зміні типу обладнання
-                            setFormData(prev => ({ ...prev, materialValueType: '' }));
-                          }}
+                          onChange={(e) => setEquipmentType(e.target.value)}
                         />
                         Одиничне обладнання (з серійним номером)
                       </label>
@@ -395,11 +378,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                           name="equipmentType"
                           value="batch"
                           checked={equipmentType === 'batch'}
-                          onChange={(e) => {
-                            setEquipmentType(e.target.value);
-                            // Скидаємо тип матеріальних цінностей при зміні типу обладнання
-                            setFormData(prev => ({ ...prev, materialValueType: '' }));
-                          }}
+                          onChange={(e) => setEquipmentType(e.target.value)}
                         />
                         Партія обладнання (без серійного номера - щитове обладннання для продажу - АВР, ЩР, ЩС, тощо)
                       </label>
@@ -407,42 +386,6 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   </>
                 )}
                 <div className="form-group" style={{ marginTop: isNewEquipment ? '15px' : '0' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name="materialValueType"
-                      value="service"
-                      checked={formData.materialValueType === 'service'}
-                      onChange={(e) => handleMaterialValueTypeChange(e.target.value)}
-                    />
-                    Комплектуючі ЗІП (Сервіс)
-                  </label>
-                </div>
-                <div className="form-group">
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name="materialValueType"
-                      value="electroinstall"
-                      checked={formData.materialValueType === 'electroinstall'}
-                      onChange={(e) => handleMaterialValueTypeChange(e.target.value)}
-                    />
-                    Комплектуючі для електромонтажних робіт (Елетромонтажний відділ)
-                  </label>
-                </div>
-                <div className="form-group">
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name="materialValueType"
-                      value="internal"
-                      checked={formData.materialValueType === 'internal'}
-                      onChange={(e) => handleMaterialValueTypeChange(e.target.value)}
-                    />
-                    Обладнання для внутрішніх потреб підприємства
-                  </label>
-                </div>
-                <div className="form-group" style={{ marginTop: '12px' }}>
                   <label>Група номенклатури (дерево 1С)</label>
                   <select
                     name="categoryId"
