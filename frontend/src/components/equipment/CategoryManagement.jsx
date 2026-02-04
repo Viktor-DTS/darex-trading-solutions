@@ -124,11 +124,11 @@ export default function CategoryManagement({ user }) {
       <div className="category-management-header">
         <h2>Дерево категорій номенклатури (1С)</h2>
         <p className="category-management-desc">
-          Два корені: <strong>Товари</strong> (обладнання для продажу) та <strong>Деталі та комплектуючі</strong>. Додавайте підгрупи для структурування.
+          Корені: <strong>Товари</strong> (обладнання для продажу) та <strong>Деталі та комплектуючі</strong>. Можна додавати нові батьківські (кореневі) групи або підгрупи до існуючих.
         </p>
         <div className="category-management-actions">
           <button type="button" className="btn-primary" onClick={() => setShowForm(true)}>
-            + Додати підгрупу
+            + Додати групу
           </button>
           <button type="button" className="btn-secondary" onClick={handleMigrate} disabled={saving}>
             Мігрувати обладнання без групи
@@ -140,9 +140,9 @@ export default function CategoryManagement({ user }) {
 
       {showForm && (
         <form className="category-form" onSubmit={handleCreate}>
-          <h3>Нова підгрупа</h3>
+          <h3>Нова група</h3>
           <div className="form-row">
-            <label>Батьківська група *</label>
+            <label>Батьківська група</label>
             <select
               value={form.parentId}
               onChange={(e) => {
@@ -154,9 +154,8 @@ export default function CategoryManagement({ user }) {
                   itemKind: cat ? cat.itemKind : f.itemKind
                 }));
               }}
-              required
             >
-              <option value="">— Оберіть батьківську групу —</option>
+              <option value="">— Нова коренева (батьківська) група —</option>
               {flatList.map((c) => (
                 <option key={c._id} value={c._id?.toString?.() || c._id}>
                   {'\u00A0'.repeat((c.level || 0) * 2)}{c.name}
