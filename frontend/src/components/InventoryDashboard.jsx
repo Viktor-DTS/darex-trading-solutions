@@ -317,7 +317,9 @@ function InventoryDashboard({ user }) {
           {loading ? (
             <div className="loading-indicator">Завантаження...</div>
           ) : (
-            renderTabContent()
+            <div className="inventory-scaled-wrapper">
+              {renderTabContent()}
+            </div>
           )}
         </main>
       </div>

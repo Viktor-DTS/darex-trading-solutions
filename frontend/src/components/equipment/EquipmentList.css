@@ -176,20 +176,19 @@
   font-size: 11px;
 }
 
-/* Обгортка таблиці */
+/* Обгортка таблиці — як у Сервісній службі: фіксована висота, обидва скролбари в межах області */
 .equipment-table-wrapper {
-  overflow-x: scroll; /* Завжди показуємо горизонтальний скрол */
+  overflow-x: auto;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+  height: 0;
   min-width: 0;
   position: relative;
   width: 100%;
   -webkit-overflow-scrolling: touch;
-  /* Забезпечуємо видимість горизонтального скролу завжди */
   scrollbar-width: thin;
-  scrollbar-color: #ffc107 #2d3748; /* Жовтий скрол для Firefox */
-  /* Використовуємо box-sizing для правильного розрахунку */
+  scrollbar-color: #ffc107 #2d3748;
   box-sizing: border-box;
 }
 
