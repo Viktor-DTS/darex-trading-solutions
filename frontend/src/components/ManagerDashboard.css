@@ -94,16 +94,45 @@
   flex-direction: column;
 }
 
-/* Контейнер прокрутки: займає 100% висоти, вертикальна та горизонтальна прокрутка тут */
+/* Як у Складському обліку: wrapper без скролу, таблиця в окремому viewport зі скролом всередині */
 .manager-scaled-wrapper {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  box-sizing: border-box;
 }
 
-/* Масштаб 80%: внутрішній блок 125%, відступ знизу під панель «Заявки» */
-.manager-scaled-inner {
+/* Тільки заголовок у масштабі 80% (вкладка «Залишки на складах») */
+.manager-scaled-inner.manager-stock-header-only {
+  width: 125%;
+  transform: scale(0.8);
+  transform-origin: 0 0;
+  flex-shrink: 0;
+  padding: 0;
+  margin: -0.25em 0 0 0;
+}
+
+/* Область таблиці: фіксована висота, скрол всередині — горизонтальний скролбар завжди під таблицею */
+.manager-table-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.manager-table-viewport .equipment-table-container {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Масштаб 80% для вкладки «Історія резервування» (весь контент) */
+.manager-scaled-inner:not(.manager-stock-header-only) {
   width: 125%;
   min-height: 125%;
   transform: scale(0.8);
@@ -113,6 +142,9 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 /* Як у Складському обліку: min-height: 0 для ланцюжка flex, щоб з’явилися прокрутки */

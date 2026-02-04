@@ -190,13 +190,14 @@ function ManagerDashboard({ user }) {
             <div className="loading-indicator">Завантаження...</div>
           ) : (
             <div className="manager-scaled-wrapper">
-              <div className="manager-scaled-inner">
           {activeTab === 'stock' ? (
-            <div className="manager-tab-content">
-              <div className="manager-header" style={{ flexShrink: 0 }}>
-                <h2>Залишки на складах</h2>
+            <>
+              <div className="manager-scaled-inner manager-stock-header-only">
+                <div className="manager-header">
+                  <h2>Залишки на складах</h2>
+                </div>
               </div>
-              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <div className="manager-table-viewport">
                 <EquipmentList
                   ref={equipmentListRef}
                   user={user}
@@ -206,8 +207,9 @@ function ManagerDashboard({ user }) {
                   showReserveAction={true}
                 />
               </div>
-            </div>
+            </>
           ) : (
+            <div className="manager-scaled-inner">
             <div className="manager-tab-content">
               <div className="manager-header" style={{ flexShrink: 0 }}>
                 <h2>📋 Історія резервування</h2>
@@ -277,8 +279,8 @@ function ManagerDashboard({ user }) {
                 )}
               </div>
             </div>
-          )}
               </div>
+          )}
           </div>
         )}
         </main>
