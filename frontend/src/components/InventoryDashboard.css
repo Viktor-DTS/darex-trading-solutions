@@ -153,21 +153,42 @@
 .inventory-main-content {
   flex: 1;
   min-width: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   padding: 20px;
   background: var(--background);
+  display: flex;
+  flex-direction: column;
 }
 
 .inventory-tab-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   max-width: 1600px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .inventory-stock-with-tree {
+  flex: 1;
+  min-height: 0;
   display: flex;
   gap: 20px;
   max-width: none;
+}
+
+/* Інші вкладки: останній дочірній елемент заповнює простір і прокручується */
+.inventory-tab-content > .inventory-header {
+  flex-shrink: 0;
+}
+
+.inventory-tab-content > .documents-placeholder,
+.inventory-tab-content > div:not(.inventory-header):not(.inventory-stock-with-tree):not(.inventory-stock-list) {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .inventory-category-tree {
