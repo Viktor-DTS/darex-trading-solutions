@@ -168,28 +168,19 @@ function InventoryDashboard({ user }) {
     switch (activeTab) {
       case 'stock':
         return (
-          <div className="inventory-tab-content inventory-stock-with-tree">
-            <aside className="inventory-category-tree">
-              <CategoryTree
-                selectedId={selectedCategoryId}
-                onSelectCategory={(id) => setSelectedCategoryId(id)}
-                showAllOption
-              />
-            </aside>
-            <div className="inventory-stock-list">
-              <div className="inventory-header">
-                <h2>Залишки на складах</h2>
-              </div>
-              <EquipmentList
-                ref={equipmentListRef}
-                user={user}
-                warehouses={warehouses}
-                onMove={handleMove}
-                onShip={handleShip}
-                categoryId={selectedCategoryId}
-                includeSubtree
-              />
+          <div className="inventory-tab-content inventory-stock-list-only">
+            <div className="inventory-header">
+              <h2>Залишки на складах</h2>
             </div>
+            <EquipmentList
+              ref={equipmentListRef}
+              user={user}
+              warehouses={warehouses}
+              onMove={handleMove}
+              onShip={handleShip}
+              categoryId={selectedCategoryId}
+              includeSubtree
+            />
           </div>
         );
 
@@ -278,30 +269,39 @@ function InventoryDashboard({ user }) {
       <div className="inventory-dashboard-main">
         <div className={`inventory-sidebar-wrap ${sidebarCollapsed ? 'inventory-sidebar-wrap-collapsed' : ''}`}>
           <aside className={`inventory-sidebar ${sidebarCollapsed ? 'inventory-sidebar-collapsed' : ''}`}>
-          <nav className="inventory-sidebar-nav">
-            {!sidebarCollapsed && <div className="sidebar-section-title">Складський облік</div>}
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                className={`inventory-sidebar-tab ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  if (tab.id === 'approval') loadInTransitCount();
-                }}
-                title={sidebarCollapsed ? tab.label : undefined}
-              >
-                <span className="tab-icon">{tab.icon}</span>
-                {!sidebarCollapsed && (
-                  <>
-                    <span className="tab-label">{tab.label}</span>
-                    {tab.badge !== undefined && tab.badge > 0 && (
-                      <span className="tab-badge">{tab.badge}</span>
-                    )}
-                  </>
-                )}
-              </button>
-            ))}
-          </nav>
+            <nav className="inventory-sidebar-nav">
+              {!sidebarCollapsed && <div className="sidebar-section-title">Складський облік</div>}
+              {tabs.map(tab => (
+                <button
+                  key={tab.id}
+                  className={`inventory-sidebar-tab ${activeTab === tab.id ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    if (tab.id === 'approval') loadInTransitCount();
+                  }}
+                  title={sidebarCollapsed ? tab.label : undefined}
+                >
+                  <span className="tab-icon">{tab.icon}</span>
+                  {!sidebarCollapsed && (
+                    <>
+                      <span className="tab-label">{tab.label}</span>
+                      {tab.badge !== undefined && tab.badge > 0 && (
+                        <span className="tab-badge">{tab.badge}</span>
+                      )}
+                    </>
+                  )}
+                </button>
+              ))}
+            </nav>
+            {!sidebarCollapsed && activeTab === 'stock' && (
+              <div className="inventory-sidebar-nomenclature">
+                <CategoryTree
+                  selectedId={selectedCategoryId}
+                  onSelectCategory={(id) => setSelectedCategoryId(id)}
+                  showAllOption
+                />
+              </div>
+            )}
           </aside>
           <button
             type="button"

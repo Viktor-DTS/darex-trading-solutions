@@ -30,15 +30,15 @@
   width: 100%;
   flex: 1;
   min-width: 0;
+  min-height: 0;
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   padding: 12px;
   padding-bottom: 28px;
-  gap: 14px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  gap: 0;
+  overflow: hidden;
 }
 
 .inventory-sidebar-collapsed {
@@ -87,6 +87,24 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
+  flex-shrink: 0;
+}
+
+/* Дерево номенклатури в сайдбарі — тільки на вкладці «Залишки на складах»; при зростанні дерева прокручується */
+.inventory-sidebar-nomenclature {
+  flex: 1;
+  min-height: 0;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.inventory-sidebar-nomenclature .category-tree {
+  min-height: 0;
 }
 
 .sidebar-section-title {
@@ -171,12 +189,21 @@
   width: 100%;
 }
 
-.inventory-stock-with-tree {
+/* Вкладка «Залишки на складах»: контент без окремого сайдбару (дерево в лівому сайдбарі) */
+.inventory-stock-list-only {
   flex: 1;
   min-height: 0;
   display: flex;
-  gap: 20px;
-  max-width: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+.inventory-stock-list-only > .inventory-header {
+  flex-shrink: 0;
+}
+.inventory-stock-list-only > .equipment-table-container {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Інші вкладки: останній дочірній елемент заповнює простір і прокручується */
@@ -185,34 +212,10 @@
 }
 
 .inventory-tab-content > .documents-placeholder,
-.inventory-tab-content > div:not(.inventory-header):not(.inventory-stock-with-tree):not(.inventory-stock-list) {
+.inventory-tab-content > div:not(.inventory-header):not(.inventory-stock-list-only) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-}
-
-.inventory-category-tree {
-  width: 220px;
-  min-width: 220px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
-  height: fit-content;
-  max-height: calc(100vh - 180px);
-  overflow-y: auto;
-}
-
-.inventory-stock-list {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.inventory-stock-list > .inventory-header {
-  flex-shrink: 0;
 }
 
 .inventory-header {
