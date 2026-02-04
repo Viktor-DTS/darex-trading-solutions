@@ -12,9 +12,24 @@
   overflow: hidden;
 }
 
-.inventory-sidebar {
+.inventory-sidebar-wrap {
+  display: flex;
+  align-items: stretch;
   width: 210px;
   min-width: 210px;
+  transition: width 0.2s ease, min-width 0.2s ease;
+  position: relative;
+}
+
+.inventory-sidebar-wrap-collapsed {
+  width: 52px;
+  min-width: 52px;
+}
+
+.inventory-sidebar {
+  width: 100%;
+  flex: 1;
+  min-width: 0;
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
@@ -23,6 +38,49 @@
   padding-bottom: 28px;
   gap: 14px;
   overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.inventory-sidebar-collapsed {
+  padding: 12px 8px;
+}
+
+.inventory-sidebar-collapsed .sidebar-section-title,
+.inventory-sidebar-collapsed .tab-label,
+.inventory-sidebar-collapsed .tab-badge {
+  display: none;
+}
+
+.inventory-sidebar-collapsed .inventory-sidebar-tab {
+  justify-content: center;
+  padding: 10px;
+}
+
+.inventory-sidebar-toggle {
+  position: absolute;
+  top: 10px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.inventory-sidebar-toggle:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
 }
 
 .inventory-sidebar-nav {
@@ -94,6 +152,8 @@
 
 .inventory-main-content {
   flex: 1;
+  min-width: 0;
+  overflow-x: auto;
   overflow-y: auto;
   padding: 20px;
   background: var(--background);
@@ -125,6 +185,7 @@
 .inventory-stock-list {
   flex: 1;
   min-width: 0;
+  overflow-x: auto;
 }
 
 .inventory-header {

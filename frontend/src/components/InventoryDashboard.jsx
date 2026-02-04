@@ -27,7 +27,20 @@ function InventoryDashboard({ user }) {
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [inTransitCount, setInTransitCount] = useState(0);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('inventory_sidebar_collapsed') === 'true';
+    } catch { return false; }
+  });
   const equipmentListRef = useRef(null);
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem('inventory_sidebar_collapsed', String(next)); } catch (_) {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     loadWarehouses();
@@ -263,30 +276,42 @@ function InventoryDashboard({ user }) {
   return (
     <div className="inventory-dashboard">
       <div className="inventory-dashboard-main">
-        <aside className="inventory-sidebar">
+        <div className={`inventory-sidebar-wrap ${sidebarCollapsed ? 'inventory-sidebar-wrap-collapsed' : ''}`}>
+          <aside className={`inventory-sidebar ${sidebarCollapsed ? 'inventory-sidebar-collapsed' : ''}`}>
           <nav className="inventory-sidebar-nav">
-            <div className="sidebar-section-title">Складський облік</div>
+            {!sidebarCollapsed && <div className="sidebar-section-title">Складський облік</div>}
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 className={`inventory-sidebar-tab ${activeTab === tab.id ? 'active' : ''}`}
                 onClick={() => {
                   setActiveTab(tab.id);
-                  if (tab.id === 'approval') {
-                    // Оновлюємо лічильник при відкритті вкладки
-                    loadInTransitCount();
-                  }
+                  if (tab.id === 'approval') loadInTransitCount();
                 }}
+                title={sidebarCollapsed ? tab.label : undefined}
               >
                 <span className="tab-icon">{tab.icon}</span>
-                <span className="tab-label">{tab.label}</span>
-                {tab.badge !== undefined && tab.badge > 0 && (
-                  <span className="tab-badge">{tab.badge}</span>
+                {!sidebarCollapsed && (
+                  <>
+                    <span className="tab-label">{tab.label}</span>
+                    {tab.badge !== undefined && tab.badge > 0 && (
+                      <span className="tab-badge">{tab.badge}</span>
+                    )}
+                  </>
                 )}
               </button>
             ))}
           </nav>
-        </aside>
+          </aside>
+          <button
+            type="button"
+            className="inventory-sidebar-toggle"
+            onClick={toggleSidebar}
+            title={sidebarCollapsed ? 'Розгорнути панель' : 'Згорнути панель'}
+          >
+            {sidebarCollapsed ? '▶' : '◀'}
+          </button>
+        </div>
 
         <main className="inventory-main-content">
           {loading ? (
