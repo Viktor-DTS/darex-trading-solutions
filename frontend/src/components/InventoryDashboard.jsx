@@ -6,7 +6,6 @@ import EquipmentMoveModal from './equipment/EquipmentMoveModal';
 import EquipmentShipModal from './equipment/EquipmentShipModal';
 import EquipmentWriteOffModal from './equipment/EquipmentWriteOffModal';
 import EquipmentStatistics from './equipment/EquipmentStatistics';
-import WarehouseManagement from './equipment/WarehouseManagement';
 import ReceiptDocuments from './inventory/ReceiptDocuments';
 import MovementDocuments from './inventory/MovementDocuments';
 import ShipmentDocuments from './inventory/ShipmentDocuments';
@@ -70,6 +69,7 @@ function InventoryDashboard({ user }) {
     }
   };
 
+  // Управління складами доступне тільки в панелі Адміністратор
   const tabs = [
     { id: 'stock', label: 'Залишки на складах', icon: '📦' },
     { id: 'receipt', label: 'Надходження', icon: '📥' },
@@ -79,7 +79,6 @@ function InventoryDashboard({ user }) {
     { id: 'approval', label: 'Затвердження отримання товару', icon: '✅', badge: inTransitCount },
     { id: 'inventory', label: 'Інвентаризація', icon: '📋' },
     { id: 'reservations', label: 'Резервування', icon: '🔒' },
-    { id: 'warehouses', label: 'Управління складами', icon: '🏢' },
     { id: 'reports', label: 'Звіти', icon: '📊' },
     { id: 'statistics', label: 'Статистика', icon: '📈' },
   ];
@@ -236,9 +235,6 @@ function InventoryDashboard({ user }) {
 
       case 'reservations':
         return <Reservations warehouses={warehouses} user={user} />;
-
-      case 'warehouses':
-        return <WarehouseManagement user={user} />;
 
       case 'reports':
         return <InventoryReports warehouses={warehouses} />;
