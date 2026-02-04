@@ -190,6 +190,7 @@ function ManagerDashboard({ user }) {
             <div className="loading-indicator">Завантаження...</div>
           ) : (
             <div className="manager-scaled-wrapper">
+              <div className="manager-scaled-inner">
           {activeTab === 'stock' ? (
             <div className="manager-tab-content">
               <div className="manager-header" style={{ flexShrink: 0 }}>
@@ -277,6 +278,7 @@ function ManagerDashboard({ user }) {
               </div>
             </div>
           )}
+              </div>
           </div>
         )}
         </main>
