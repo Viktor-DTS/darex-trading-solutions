@@ -176,7 +176,7 @@
   font-size: 11px;
 }
 
-/* Обгортка таблиці — як у Сервісній службі: фіксована висота, обидва скролбари в межах області */
+/* Обгортка таблиці — як у Сервісній службі: фіксована висота, відступ знизу під панель «Заявки» */
 .equipment-table-wrapper {
   overflow-x: scroll; /* завжди видимий горизонтальний скролбар внизу таблиці */
   overflow-y: auto;
@@ -186,6 +186,8 @@
   min-width: 0;
   position: relative;
   width: 100%;
+  margin-bottom: 26px; /* щоб горизонтальний скрол не перекривала панель «Заявки: Не взято...» (22px + 4px) */
+  padding-bottom: 0;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: #ffc107 #2d3748;
@@ -199,10 +201,11 @@
   width: max-content;
 }
 
-/* Стилі для скролбарів wrapper'а */
+/* Стилі для скролбарів wrapper'а — вище за панель статистики (z-index 998) */
 .equipment-table-wrapper::-webkit-scrollbar {
-  height: 18px; /* Горизонтальний скролбар */
-  width: 18px; /* Вертикальний скролбар */
+  height: 18px;
+  width: 18px;
+  z-index: 1000;
 }
 
 .equipment-table-wrapper::-webkit-scrollbar-track {
