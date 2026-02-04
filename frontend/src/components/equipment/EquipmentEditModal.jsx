@@ -6,8 +6,18 @@ import EquipmentQRModal from './EquipmentQRModal';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
 import './EquipmentEditModal.css';
 
+function flattenCategories(nodes, level = 0) {
+  let list = [];
+  (nodes || []).forEach((n) => {
+    list.push({ ...n, level });
+    if (n.children && n.children.length) list = list.concat(flattenCategories(n.children, level + 1));
+  });
+  return list;
+}
+
 function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, readOnly = false, onReserve, onCancelReserve }) {
   const [formData, setFormData] = useState({});
+  const [categoriesFlat, setCategoriesFlat] = useState([]);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -45,7 +55,9 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
         batchPriceWithVAT: equipment.batchPriceWithVAT !== undefined ? String(equipment.batchPriceWithVAT) : '',
         currency: equipment.currency || 'грн.',
         notes: equipment.notes || '',
-        materialValueType: equipment.materialValueType || (equipment.isServiceParts ? 'service' : equipment.isElectroInstallParts ? 'electroinstall' : equipment.isInternalEquipment ? 'internal' : '')
+        materialValueType: equipment.materialValueType || (equipment.isServiceParts ? 'service' : equipment.isElectroInstallParts ? 'electroinstall' : equipment.isInternalEquipment ? 'internal' : ''),
+        categoryId: equipment.categoryId ? (equipment.categoryId._id || equipment.categoryId).toString() : '',
+        itemKind: equipment.itemKind || 'equipment'
       });
       setEquipmentType(equipment.isBatch ? 'batch' : 'single');
       // Завантажуємо існуючі файли з бази даних
@@ -88,11 +100,28 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
         batchPriceWithVAT: '',
         currency: 'грн.',
         notes: '',
-        materialValueType: ''
+        materialValueType: '',
+        categoryId: '',
+        itemKind: 'equipment'
       });
       setEquipmentType('single');
     }
   }, [equipment, user]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE_URL}/categories?tree=true`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const tree = await res.json();
+        if (!cancelled) setCategoriesFlat(flattenCategories(Array.isArray(tree) ? tree : []));
+      } catch (_) {}
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -412,6 +441,31 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                     />
                     Обладнання для внутрішніх потреб підприємства
                   </label>
+                </div>
+                <div className="form-group" style={{ marginTop: '12px' }}>
+                  <label>Група номенклатури (дерево 1С)</label>
+                  <select
+                    name="categoryId"
+                    value={formData.categoryId || ''}
+                    onChange={(e) => {
+                      const id = e.target.value || '';
+                      const cat = categoriesFlat.find(c => (c._id || c.id) === id);
+                      setFormData(prev => ({
+                        ...prev,
+                        categoryId: id,
+                        itemKind: cat ? cat.itemKind : (prev.itemKind || 'equipment')
+                      }));
+                    }}
+                    readOnly={readOnly}
+                    disabled={readOnly}
+                  >
+                    <option value="">— Не обрано —</option>
+                    {categoriesFlat.map((c) => (
+                      <option key={c._id} value={c._id?.toString?.() || c._id}>
+                        {'\u00A0'.repeat((c.level || 0) * 2)}{c.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             )}

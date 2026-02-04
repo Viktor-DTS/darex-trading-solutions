@@ -31,6 +31,7 @@ const getReservationStatusLabel = (item) => {
 
 // Визначення всіх колонок
 const ALL_COLUMNS = [
+  { key: 'itemKind', label: 'Тип номенклатури', width: 140 },
   { key: 'status', label: 'Статус на складі', width: 140 },
   { key: 'reservationStatus', label: 'Статус Резерву', width: 140 },
   { key: 'manufacturer', label: 'Виробник', width: 150 },
@@ -53,7 +54,7 @@ const ALL_COLUMNS = [
   { key: 'manufactureDate', label: 'Дата виробництва', width: 150 }
 ];
 
-const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve, onRequestTesting, showReserveAction = false }, ref) => {
+const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve, onRequestTesting, showReserveAction = false, categoryId = null, includeSubtree = true }, ref) => {
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
@@ -106,13 +107,19 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
 
   useEffect(() => {
     loadEquipment();
-  }, []);
+  }, [categoryId, includeSubtree]);
 
   const loadEquipment = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/equipment`, {
+      const params = new URLSearchParams();
+      if (categoryId) {
+        params.set('categoryId', categoryId);
+        if (includeSubtree) params.set('includeSubtree', 'true');
+      }
+      const url = params.toString() ? `${API_BASE_URL}/equipment?${params}` : `${API_BASE_URL}/equipment`;
+      const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -161,6 +168,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
     if (columnKey === 'currentWarehouse') return 'select';
     if (columnKey === 'status') return 'select';
     if (columnKey === 'reservationStatus') return 'select';
+    if (columnKey === 'itemKind') return 'select';
     return 'text';
   };
 
@@ -174,6 +182,9 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
     }
     if (columnKey === 'reservationStatus') {
       return ['', 'Всі', 'Вільна', 'Зарезервовано'];
+    }
+    if (columnKey === 'itemKind') {
+      return ['', 'Товари', 'Деталі'];
     }
     return [];
   };
@@ -237,6 +248,10 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
               if (key === 'reservationStatus') {
                 const reservationStatus = getReservationStatusLabel(item);
                 return reservationStatus === filterValue;
+              }
+              if (key === 'itemKind') {
+                const kind = filterValue === 'Товари' ? 'equipment' : filterValue === 'Деталі' ? 'parts' : null;
+                return kind ? (item.itemKind || 'equipment') === kind : true;
               }
               const itemValue = item[key];
               return String(itemValue || '') === filterValue;
@@ -606,6 +621,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                       )}
                     </div>
                   </td>
+                  <td>{item.itemKind === 'parts' ? 'Деталі' : 'Товари'}</td>
                   <td>
                     <span className={`status-badge ${getStatusClass(item.status || 'in_stock')}`}>
                       {getStatusLabel(item.status || 'in_stock')}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import API_BASE_URL from '../config';
 import EquipmentList from './equipment/EquipmentList';
+import CategoryTree from './equipment/CategoryTree';
 import EquipmentEditModal from './equipment/EquipmentEditModal';
 import EquipmentMoveModal from './equipment/EquipmentMoveModal';
 import EquipmentShipModal from './equipment/EquipmentShipModal';
@@ -25,6 +26,7 @@ function InventoryDashboard({ user }) {
   const [showWriteOffModal, setShowWriteOffModal] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [inTransitCount, setInTransitCount] = useState(0);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const equipmentListRef = useRef(null);
 
   useEffect(() => {
@@ -153,17 +155,28 @@ function InventoryDashboard({ user }) {
     switch (activeTab) {
       case 'stock':
         return (
-          <div className="inventory-tab-content">
-            <div className="inventory-header">
-              <h2>Залишки на складах</h2>
+          <div className="inventory-tab-content inventory-stock-with-tree">
+            <aside className="inventory-category-tree">
+              <CategoryTree
+                selectedId={selectedCategoryId}
+                onSelectCategory={(id) => setSelectedCategoryId(id)}
+                showAllOption
+              />
+            </aside>
+            <div className="inventory-stock-list">
+              <div className="inventory-header">
+                <h2>Залишки на складах</h2>
+              </div>
+              <EquipmentList
+                ref={equipmentListRef}
+                user={user}
+                warehouses={warehouses}
+                onMove={handleMove}
+                onShip={handleShip}
+                categoryId={selectedCategoryId}
+                includeSubtree
+              />
             </div>
-            <EquipmentList
-              ref={equipmentListRef}
-              user={user}
-              warehouses={warehouses}
-              onMove={handleMove}
-              onShip={handleShip}
-            />
           </div>
         );
 

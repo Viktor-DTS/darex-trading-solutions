@@ -104,6 +104,29 @@
   margin: 0 auto;
 }
 
+.inventory-stock-with-tree {
+  display: flex;
+  gap: 20px;
+  max-width: none;
+}
+
+.inventory-category-tree {
+  width: 220px;
+  min-width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  height: fit-content;
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+}
+
+.inventory-stock-list {
+  flex: 1;
+  min-width: 0;
+}
+
 .inventory-header {
   margin-bottom: 20px;
   display: flex;

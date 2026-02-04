@@ -386,6 +386,10 @@ const equipmentSchema = new mongoose.Schema({
     default: '' 
   },  // 'service' - Комплектуючі ЗІП (Сервіс), 'electroinstall' - Комплектуючі для електромонтажних робіт, 'internal' - Обладнання для внутрішніх потреб
   
+  // Дерево номенклатури (1С-стиль): товари vs деталі/комплектуючі
+  categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', default: null },
+  itemKind: { type: String, enum: ['equipment', 'parts'], default: 'equipment' }, // equipment - для продажу, parts - деталі/комплектуючі
+  
   // Поля для партійного обладнання
   isBatch: { type: Boolean, default: false },  // Чи це партія
   quantity: { type: Number, default: 1, min: 1 },  // Кількість одиниць (для партій)
@@ -562,8 +566,22 @@ equipmentSchema.index({ type: 1 });
 equipmentSchema.index({ batchId: 1 });
 equipmentSchema.index({ batchId: 1, currentWarehouse: 1 }); // Для швидкого пошуку партій на складі
 equipmentSchema.index({ testingStatus: 1 }); // Для швидкого пошуку заявок на тестування
+equipmentSchema.index({ categoryId: 1 });
+equipmentSchema.index({ itemKind: 1 });
 
 const Equipment = mongoose.model('Equipment', equipmentSchema);
+
+// Схема груп номенклатури (дерево як в 1С: Товари / Деталі та комплектуючі)
+const categorySchema = new mongoose.Schema({
+  parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', default: null },
+  name: { type: String, required: true },
+  itemKind: { type: String, enum: ['equipment', 'parts'], required: true },
+  sortOrder: { type: Number, default: 0 }
+}, { timestamps: true });
+
+categorySchema.index({ parentId: 1 });
+categorySchema.index({ itemKind: 1 });
+const Category = mongoose.model('Category', categorySchema);
 
 // Схема для складів
 const warehouseSchema = new mongoose.Schema({
@@ -3872,6 +3890,200 @@ app.delete('/api/warehouses/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// ============================================
+// API ДЕРЕВА КАТЕГОРІЙ НОМЕНКЛАТУРИ (1С-стиль)
+// ============================================
+
+async function ensureRootCategories() {
+  const count = await Category.countDocuments({ parentId: null });
+  if (count >= 2) return;
+  const roots = await Category.find({ parentId: null }).lean();
+  const hasEquipment = roots.some(r => r.itemKind === 'equipment');
+  const hasParts = roots.some(r => r.itemKind === 'parts');
+  if (!hasEquipment) {
+    await Category.create({ parentId: null, name: 'Товари', itemKind: 'equipment', sortOrder: 0 });
+  }
+  if (!hasParts) {
+    await Category.create({ parentId: null, name: 'Деталі та комплектуючі', itemKind: 'parts', sortOrder: 1 });
+  }
+}
+
+// Список категорій (плоский) або дерево
+app.get('/api/categories', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    await ensureRootCategories();
+    const { itemKind, tree } = req.query;
+    const query = {};
+    if (itemKind && ['equipment', 'parts'].includes(itemKind)) query.itemKind = itemKind;
+    const list = await Category.find(query).sort({ sortOrder: 1, name: 1 }).lean();
+    if (tree === 'true') {
+      const byParent = {};
+      list.forEach(c => {
+        const pid = c.parentId ? c.parentId.toString() : 'root';
+        if (!byParent[pid]) byParent[pid] = [];
+        byParent[pid].push({ ...c, children: [] });
+      });
+      const build = (pid) => (byParent[pid] || []).map(node => ({
+        ...node,
+        children: build(node._id.toString())
+      }));
+      const roots = build('root');
+      logPerformance('GET /api/categories?tree=true', startTime, roots.length);
+      return res.json(roots);
+    }
+    logPerformance('GET /api/categories', startTime, list.length);
+    res.json(list);
+  } catch (error) {
+    console.error('[ERROR] GET /api/categories:', error);
+    logPerformance('GET /api/categories', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Дерево категорій (зручний ендпоінт)
+app.get('/api/categories/tree', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    await ensureRootCategories();
+    const { itemKind } = req.query;
+    const query = {};
+    if (itemKind && ['equipment', 'parts'].includes(itemKind)) query.itemKind = itemKind;
+    const list = await Category.find(query).sort({ sortOrder: 1, name: 1 }).lean();
+    const byParent = {};
+    list.forEach(c => {
+      const pid = c.parentId ? c.parentId.toString() : 'root';
+      if (!byParent[pid]) byParent[pid] = [];
+      byParent[pid].push({ ...c, children: [] });
+    });
+    const build = (pid) => (byParent[pid] || []).map(node => ({
+      ...node,
+      children: build(node._id.toString())
+    }));
+    const tree = build('root');
+    logPerformance('GET /api/categories/tree', startTime, tree.length);
+    res.json(tree);
+  } catch (error) {
+    console.error('[ERROR] GET /api/categories/tree:', error);
+    logPerformance('GET /api/categories/tree', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Створення групи
+app.post('/api/categories', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const { parentId, name, itemKind, sortOrder } = req.body;
+    if (!name || !itemKind || !['equipment', 'parts'].includes(itemKind)) {
+      return res.status(400).json({ error: 'Потрібні name та itemKind (equipment|parts)' });
+    }
+    const category = await Category.create({
+      parentId: parentId || null,
+      name: name.trim(),
+      itemKind,
+      sortOrder: typeof sortOrder === 'number' ? sortOrder : 0
+    });
+    logPerformance('POST /api/categories', startTime);
+    res.status(201).json(category);
+  } catch (error) {
+    console.error('[ERROR] POST /api/categories:', error);
+    logPerformance('POST /api/categories', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Оновлення групи
+app.put('/api/categories/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const { name, parentId, itemKind, sortOrder } = req.body;
+    const update = {};
+    if (name !== undefined) update.name = name.trim();
+    if (parentId !== undefined) update.parentId = parentId || null;
+    if (itemKind !== undefined && ['equipment', 'parts'].includes(itemKind)) update.itemKind = itemKind;
+    if (sortOrder !== undefined) update.sortOrder = Number(sortOrder);
+    const category = await Category.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+    if (!category) return res.status(404).json({ error: 'Категорію не знайдено' });
+    logPerformance('PUT /api/categories/:id', startTime);
+    res.json(category);
+  } catch (error) {
+    console.error('[ERROR] PUT /api/categories/:id:', error);
+    logPerformance('PUT /api/categories/:id', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Видалення групи (тільки якщо немає дочірніх груп і немає обладнання в цій групі)
+app.delete('/api/categories/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const id = req.params.id;
+    const children = await Category.countDocuments({ parentId: id });
+    if (children > 0) {
+      return res.status(400).json({ error: 'Неможливо видалити: є дочірні групи. Спочатку видаліть або перемістіть їх.' });
+    }
+    const equipmentCount = await Equipment.countDocuments({ categoryId: id });
+    if (equipmentCount > 0) {
+      return res.status(400).json({ error: `Неможливо видалити: в цій групі є номенклатура (${equipmentCount} од.). Перепризначте їх в іншу групу.` });
+    }
+    const category = await Category.findByIdAndDelete(id);
+    if (!category) return res.status(404).json({ error: 'Категорію не знайдено' });
+    logPerformance('DELETE /api/categories/:id', startTime);
+    res.json({ message: 'Категорію видалено' });
+  } catch (error) {
+    console.error('[ERROR] DELETE /api/categories/:id:', error);
+    logPerformance('DELETE /api/categories/:id', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Міграція: прив'язати існуюче обладнання без categoryId до кореневих груп (за materialValueType)
+app.post('/api/categories/migrate-equipment', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    await ensureRootCategories();
+    const roots = await Category.find({ parentId: null }).lean();
+    const rootEquipment = roots.find(r => r.itemKind === 'equipment');
+    const rootParts = roots.find(r => r.itemKind === 'parts');
+    if (!rootEquipment || !rootParts) {
+      return res.status(500).json({ error: 'Кореневі категорії не знайдено' });
+    }
+    const withoutCategory = await Equipment.find({
+      $or: [{ categoryId: null }, { categoryId: { $exists: false } }]
+    }).select('_id materialValueType');
+    let updated = 0;
+    for (const eq of withoutCategory) {
+      const isParts = ['service', 'electroinstall', 'internal'].includes(eq.materialValueType || '');
+      const itemKind = isParts ? 'parts' : 'equipment';
+      const categoryId = isParts ? rootParts._id : rootEquipment._id;
+      await Equipment.updateOne(
+        { _id: eq._id },
+        { $set: { categoryId, itemKind } }
+      );
+      updated++;
+    }
+    logPerformance('POST /api/categories/migrate-equipment', startTime);
+    res.json({ message: `Оновлено записів: ${updated}` });
+  } catch (error) {
+    console.error('[ERROR] POST /api/categories/migrate-equipment:', error);
+    logPerformance('POST /api/categories/migrate-equipment', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Завантаження фото обладнання на Cloudinary
 app.post('/api/equipment/upload-photo', authenticateToken, uploadEquipmentPhoto.single('photo'), async (req, res) => {
   const startTime = Date.now();
@@ -4186,8 +4398,8 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
           ...cleanedData,
           isBatch: false, // Не партія, просто обладнання без серійного номера
           quantity: quantity, // Вся кількість в одному записі
-          // batchId та batchIndex не встановлюємо взагалі (не передаємо поле)
-          // serialNumber не встановлюємо (не передаємо поле взагалі)
+          categoryId: equipmentData.categoryId || null,
+          itemKind: ['equipment', 'parts'].includes(equipmentData.itemKind) ? equipmentData.itemKind : 'equipment',
           addedBy: user._id.toString(),
           addedByName: user.name || user.login,
           currentWarehouse: warehouse,
@@ -4224,7 +4436,8 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
         ...cleanedData,
         isBatch: false,
         quantity: 1,
-        // batchId та batchIndex не встановлюємо взагалі (не передаємо поле)
+        categoryId: equipmentData.categoryId || null,
+        itemKind: ['equipment', 'parts'].includes(equipmentData.itemKind) ? equipmentData.itemKind : 'equipment',
         addedBy: user._id.toString(),
         addedByName: user.name || user.login,
         currentWarehouse: warehouse,
@@ -4296,16 +4509,38 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
   }
 });
 
+// Допоміжна: зібрати id усіх нащадків категорії (включно з id)
+async function getCategoryDescendantIds(categoryId) {
+  const ids = [typeof categoryId === 'string' ? new mongoose.Types.ObjectId(categoryId) : categoryId];
+  let level = [ids[0]];
+  while (level.length) {
+    const children = await Category.find({ parentId: { $in: level } }).select('_id').lean();
+    const childIds = children.map(c => c._id);
+    ids.push(...childIds);
+    level = childIds;
+  }
+  return ids;
+}
+
 // Отримання списку обладнання
 app.get('/api/equipment', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { warehouse, status, region, search } = req.query;
+    const { warehouse, status, region, search, categoryId, itemKind, includeSubtree } = req.query;
     const query = {};
     
     if (warehouse) query.currentWarehouse = warehouse;
     if (status) query.status = status;
     if (region) query.region = region;
+    if (itemKind && ['equipment', 'parts'].includes(itemKind)) query.itemKind = itemKind;
+    if (categoryId) {
+      if (includeSubtree === 'true') {
+        const categoryIds = await getCategoryDescendantIds(categoryId);
+        query.categoryId = { $in: categoryIds };
+      } else {
+        query.categoryId = categoryId;
+      }
+    }
     if (search) {
       query.$or = [
         { serialNumber: { $regex: search, $options: 'i' } },
@@ -4687,6 +4922,12 @@ app.put('/api/equipment/:id', authenticateToken, async (req, res) => {
     }
     if (req.body.materialValueType !== undefined) {
       equipment.materialValueType = req.body.materialValueType === null || req.body.materialValueType === '' ? undefined : req.body.materialValueType;
+    }
+    if (req.body.categoryId !== undefined) {
+      equipment.categoryId = req.body.categoryId === null || req.body.categoryId === '' ? null : req.body.categoryId;
+    }
+    if (req.body.itemKind !== undefined && ['equipment', 'parts'].includes(req.body.itemKind)) {
+      equipment.itemKind = req.body.itemKind;
     }
 
     console.log('[PUT] Зміни:', changes);

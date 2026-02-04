@@ -1,0 +1,172 @@
+.category-management {
+  padding: 20px;
+  max-width: 900px;
+}
+
+.category-management-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 22px;
+  color: var(--text-primary);
+}
+
+.category-management-desc {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 0 0 16px 0;
+}
+
+.category-management-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.category-management-message {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.category-management-message.success {
+  color: var(--success, #0a0);
+}
+
+.category-management-message.error {
+  color: var(--error, #c00);
+}
+
+.category-form {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.category-form h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+}
+
+.category-form .form-row {
+  margin-bottom: 12px;
+}
+
+.category-form .form-row label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.category-form .form-row input,
+.category-form .form-row select {
+  width: 100%;
+  max-width: 400px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.category-form .form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.category-form .form-actions button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.category-form .form-actions button[type="submit"] {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+}
+
+.category-form .form-actions button[type="button"] {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.category-tree-list {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.category-node {
+  margin-bottom: 4px;
+}
+
+.category-node-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--background);
+}
+
+.category-node-toggle {
+  width: 16px;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.category-node-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.category-node-kind {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.btn-delete-small {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-delete-small:hover {
+  background: var(--error, #fee);
+  color: var(--error, #c00);
+}
+
+.btn-primary {
+  padding: 8px 16px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  padding: 8px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
