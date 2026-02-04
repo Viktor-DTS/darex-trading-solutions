@@ -1,13 +1,7 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import TaskTable, { clearTasksCache } from './TaskTable';
 import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
-import EquipmentScanner from './equipment/EquipmentScanner';
-import EquipmentList from './equipment/EquipmentList';
-import EquipmentEditModal from './equipment/EquipmentEditModal';
-import EquipmentMoveModal from './equipment/EquipmentMoveModal';
-import EquipmentShipModal from './equipment/EquipmentShipModal';
-import EquipmentStatistics from './equipment/EquipmentStatistics';
 import API_BASE_URL from '../config';
 import './Dashboard.css';
 
@@ -15,39 +9,14 @@ function WarehouseDashboard({ user }) {
   const [activeTab, setActiveTab] = useState('pending');
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
-  const [showAddEquipmentModal, setShowAddEquipmentModal] = useState(false);
-  const [showMoveModal, setShowMoveModal] = useState(false);
-  const [showShipModal, setShowShipModal] = useState(false);
-  const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
   const [isReadOnlyMode, setIsReadOnlyMode] = useState(false);
   const [tasks, setTasks] = useState([]);
-  const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const equipmentListRef = useRef(null);
 
-  // Завантаження завдань та складів
   useEffect(() => {
     loadTasks();
-    loadWarehouses();
   }, [user]);
-
-  const loadWarehouses = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/warehouses`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setWarehouses(data);
-      }
-    } catch (err) {
-      console.error('Помилка завантаження складів:', err);
-    }
-  };
 
   const loadTasks = async () => {
     setLoading(true);
@@ -198,49 +167,12 @@ function WarehouseDashboard({ user }) {
     setIsReadOnlyMode(false);
   };
 
+  // Складський облік та Статистика — в окремій панелі (Складський облік у верхній навігації)
   const tabs = [
     { id: 'pending', label: 'Заявки на підтвердженні', icon: '⏳' },
     { id: 'approvedWarehouse', label: 'Архів підтверджених', icon: '✅' },
     { id: 'archive', label: 'Архів виконаних заявок', icon: '📁' },
-    { id: 'equipment', label: 'Складський облік', icon: '📦' },
-    { id: 'statistics', label: 'Статистика', icon: '📊' },
   ];
-
-  const handleEquipmentAdded = () => {
-    setShowScanner(false);
-    // Оновлюємо список обладнання
-    if (equipmentListRef.current) {
-      equipmentListRef.current.refresh();
-    }
-  };
-
-  const handleMove = (equipment) => {
-    setSelectedEquipment(equipment);
-    setShowMoveModal(true);
-  };
-
-  const handleShip = (equipment) => {
-    setSelectedEquipment(equipment);
-    setShowShipModal(true);
-  };
-
-  const handleMoveSuccess = () => {
-    setShowMoveModal(false);
-    setSelectedEquipment(null);
-    // Оновлюємо список обладнання
-    if (equipmentListRef.current) {
-      equipmentListRef.current.refresh();
-    }
-  };
-
-  const handleShipSuccess = () => {
-    setShowShipModal(false);
-    setSelectedEquipment(null);
-    // Оновлюємо список обладнання
-    if (equipmentListRef.current) {
-      equipmentListRef.current.refresh();
-    }
-  };
 
   return (
     <div className="dashboard no-header">
@@ -277,48 +209,7 @@ function WarehouseDashboard({ user }) {
 
         {/* Table Area */}
         <main className="table-area">
-          {activeTab === 'equipment' ? (
-            <div className="equipment-tab">
-              <div className="equipment-tab-header">
-                <h2>Складський облік обладнання</h2>
-                <div className="equipment-header-buttons">
-                  <button 
-                    className="btn-primary"
-                    onClick={() => setShowAddEquipmentModal(true)}
-                  >
-                    ➕ Додати обладнання від постачальників
-                  </button>
-                  <button 
-                    className="btn-primary"
-                    onClick={() => {
-                      setSelectedEquipment(null);
-                      setShowMoveModal(true);
-                    }}
-                  >
-                    📦 Зробити переміщення між складами
-                  </button>
-                  <button 
-                    className="btn-primary"
-                    onClick={() => {
-                      setSelectedEquipment(null);
-                      setShowShipModal(true);
-                    }}
-                  >
-                    🚚 Зробити відвантаження замовнику
-                  </button>
-                </div>
-              </div>
-              <EquipmentList
-                ref={equipmentListRef}
-                user={user}
-                warehouses={warehouses}
-                onMove={handleMove}
-                onShip={handleShip}
-              />
-            </div>
-          ) : activeTab === 'statistics' ? (
-            <EquipmentStatistics warehouses={warehouses} />
-          ) : loading ? (
+          {loading ? (
             <div className="loading-indicator">Завантаження...</div>
           ) : (
             <TaskTable 
@@ -367,52 +258,6 @@ function WarehouseDashboard({ user }) {
         />
       )}
 
-      {showScanner && (
-        <EquipmentScanner
-          user={user}
-          warehouses={warehouses}
-          onEquipmentAdded={handleEquipmentAdded}
-          onClose={() => setShowScanner(false)}
-        />
-      )}
-
-      {showAddEquipmentModal && (
-        <EquipmentEditModal
-          equipment={null}
-          warehouses={warehouses}
-          user={user}
-          onClose={() => setShowAddEquipmentModal(false)}
-          onSuccess={() => {
-            setShowAddEquipmentModal(false);
-            if (equipmentListRef.current) {
-              equipmentListRef.current.refresh();
-            }
-          }}
-        />
-      )}
-
-      {showMoveModal && (
-        <EquipmentMoveModal
-          equipment={selectedEquipment}
-          warehouses={warehouses}
-          onClose={() => {
-            setShowMoveModal(false);
-            setSelectedEquipment(null);
-          }}
-          onSuccess={handleMoveSuccess}
-        />
-      )}
-
-      {showShipModal && (
-        <EquipmentShipModal
-          equipment={selectedEquipment}
-          onClose={() => {
-            setShowShipModal(false);
-            setSelectedEquipment(null);
-          }}
-          onSuccess={handleShipSuccess}
-        />
-      )}
     </div>
   );
 }
