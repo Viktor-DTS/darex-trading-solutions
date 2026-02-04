@@ -32,6 +32,8 @@ if (process.env.NODE_ENV === 'production') {
   console.log('[ENV] MONGODB_URI preview:', process.env.MONGODB_URI ? process.env.MONGODB_URI.substring(0, 20) + '...' : 'NOT SET');
 }
 
+const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -783,18 +785,34 @@ app.get('/api/ping', (req, res) => {
 });
 
 // Версія мобільного додатку — для перевірки оновлень при вході (дистаційний апдейт)
-// Змінюйте APP_VERSION / APP_MIN_VERSION при випуску нової збірки; посилання на магазини — за потреби
-app.get('/api/app-version', (req, res) => {
-  const latestVersion = process.env.APP_VERSION || '0.1.0';
-  const minVersion = process.env.APP_MIN_VERSION || '0.1.0';
-  const forceUpdate = process.env.APP_FORCE_UPDATE === 'true';
-  res.json({
-    latest_version: latestVersion,
-    min_version: minVersion,
-    force_update: forceUpdate,
+// Джерело правди: backend/app-version.json (при релізі оновіть його разом із pubspec.yaml у dts-mobile)
+// Env-змінні на Render лишаються запасним варіантом, якщо файлу немає
+function getAppVersionConfig() {
+  const p = path.join(__dirname, 'app-version.json');
+  try {
+    if (fs.existsSync(p)) {
+      const data = JSON.parse(fs.readFileSync(p, 'utf8'));
+      return {
+        latest_version: data.latest_version ?? process.env.APP_VERSION ?? '0.1.0',
+        min_version: data.min_version ?? process.env.APP_MIN_VERSION ?? '0.1.0',
+        force_update: data.force_update === true || process.env.APP_FORCE_UPDATE === 'true',
+        android_store_url: data.android_store_url ?? process.env.APP_ANDROID_STORE_URL ?? 'https://play.google.com/store/apps/details?id=com.example.dts_mobile',
+        ios_store_url: data.ios_store_url ?? process.env.APP_IOS_STORE_URL ?? 'https://apps.apple.com/app/dts-mobile/id000000000',
+      };
+    }
+  } catch (e) {
+    console.warn('[app-version] Could not read app-version.json, using env:', e.message);
+  }
+  return {
+    latest_version: process.env.APP_VERSION || '0.1.0',
+    min_version: process.env.APP_MIN_VERSION || '0.1.0',
+    force_update: process.env.APP_FORCE_UPDATE === 'true',
     android_store_url: process.env.APP_ANDROID_STORE_URL || 'https://play.google.com/store/apps/details?id=com.example.dts_mobile',
     ios_store_url: process.env.APP_IOS_STORE_URL || 'https://apps.apple.com/app/dts-mobile/id000000000',
-  });
+  };
+}
+app.get('/api/app-version', (req, res) => {
+  res.json(getAppVersionConfig());
 });
 
 // ============================================

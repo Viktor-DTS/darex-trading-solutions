@@ -1,0 +1,8 @@
+{
+  "_comment": "При релізі оновіть latest_version так само, як version у dts-mobile/pubspec.yaml",
+  "latest_version": "0.2.0",
+  "min_version": "0.1.0",
+  "force_update": false,
+  "android_store_url": "https://play.google.com/store/apps/details?id=com.example.dts_mobile",
+  "ios_store_url": "https://apps.apple.com/app/dts-mobile/id000000000"
+}
