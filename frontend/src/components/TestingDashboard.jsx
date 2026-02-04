@@ -489,6 +489,7 @@ function TestingDashboard({ user }) {
 
   return (
     <div className="testing-dashboard">
+      <div className="testing-scaled-wrapper">
       <div className="testing-header">
         <h2>🧪 Відділ тестування</h2>
         <p className="testing-description">Управління заявками на тестування обладнання</p>
@@ -1123,6 +1124,7 @@ function TestingDashboard({ user }) {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -8,15 +8,31 @@
 .manager-dashboard-main {
   display: flex;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
+/* Ширина сайдбару під масштаб 80%: 180*0.8=144px */
 .manager-sidebar {
-  width: 180px;
+  width: 144px;
+  min-width: 144px;
   background: var(--surface);
   border-right: 1px solid var(--border);
-  overflow-y: auto;
+  overflow: hidden;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Контент сайдбару в масштабі 80% */
+.manager-sidebar-scaled {
+  transform: scale(0.8);
+  transform-origin: 0 0;
+  width: 125%;
+  min-height: 125%;
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .manager-sidebar-nav {
@@ -70,11 +86,24 @@
 
 .manager-main-content {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
-  padding: 20px;
+  padding: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Відображення панелі Менеджери на 80% (як у Складському обліку) */
+.manager-scaled-wrapper {
+  width: 125%;
+  height: 125%;
+  transform: scale(0.8);
+  transform-origin: 0 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  box-sizing: border-box;
 }
 
 .manager-tab-content {

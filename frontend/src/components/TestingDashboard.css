@@ -1,7 +1,22 @@
 .testing-dashboard {
-  padding: 20px;
+  padding: 0;
   max-width: 100%;
-  overflow-x: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Відображення панелі Відділ тестування на 80% (як у Складському обліку) */
+.testing-scaled-wrapper {
+  width: 125%;
+  height: 125%;
+  transform: scale(0.8);
+  transform-origin: 0 0;
+  padding: 12px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .testing-header {

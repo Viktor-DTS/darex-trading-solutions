@@ -164,29 +164,33 @@ function ManagerDashboard({ user }) {
     <div className="manager-dashboard">
       <div className="manager-dashboard-main">
         <aside className="manager-sidebar">
-          <nav className="manager-sidebar-nav">
-            <div className="sidebar-section-title">Менеджери</div>
-            <button 
-              className={`manager-sidebar-tab ${activeTab === 'stock' ? 'active' : ''}`}
-              onClick={() => setActiveTab('stock')}
-            >
-              <span className="tab-icon">📦</span>
-              <span className="tab-label">Залишки на складах</span>
-            </button>
-            <button 
-              className={`manager-sidebar-tab ${activeTab === 'history' ? 'active' : ''}`}
-              onClick={() => setActiveTab('history')}
-            >
-              <span className="tab-icon">📋</span>
-              <span className="tab-label">Історія резервування</span>
-            </button>
-          </nav>
+          <div className="manager-sidebar-scaled">
+            <nav className="manager-sidebar-nav">
+              <div className="sidebar-section-title">Менеджери</div>
+              <button 
+                className={`manager-sidebar-tab ${activeTab === 'stock' ? 'active' : ''}`}
+                onClick={() => setActiveTab('stock')}
+              >
+                <span className="tab-icon">📦</span>
+                <span className="tab-label">Залишки на складах</span>
+              </button>
+              <button 
+                className={`manager-sidebar-tab ${activeTab === 'history' ? 'active' : ''}`}
+                onClick={() => setActiveTab('history')}
+              >
+                <span className="tab-icon">📋</span>
+                <span className="tab-label">Історія резервування</span>
+              </button>
+            </nav>
+          </div>
         </aside>
 
         <main className="manager-main-content">
           {loading ? (
             <div className="loading-indicator">Завантаження...</div>
-          ) : activeTab === 'stock' ? (
+          ) : (
+            <div className="manager-scaled-wrapper">
+          {activeTab === 'stock' ? (
             <div className="manager-tab-content">
               <div className="manager-header" style={{ flexShrink: 0 }}>
                 <h2>Залишки на складах</h2>
@@ -271,6 +275,7 @@ function ManagerDashboard({ user }) {
                   </table>
                 )}
               </div>
+            </div>
             </div>
           )}
         </main>
