@@ -168,12 +168,13 @@
   color: white;
 }
 
+/* Масштабування як у Сервісній службі: менший padding контенту */
 .inventory-main-content {
   flex: 1;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  padding: 20px;
+  padding: 12px;
   background: var(--background);
   display: flex;
   flex-direction: column;
@@ -189,16 +190,25 @@
   width: 100%;
 }
 
-/* Вкладка «Залишки на складах»: контент без окремого сайдбару (дерево в лівому сайдбарі) */
+/* Вкладка «Залишки на складах»: контент без окремого сайдбару (дерево в лівому сайдбарі), повна ширина як у Сервісній */
 .inventory-stock-list-only {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  max-width: none;
+  margin: 0;
 }
+/* Компактний заголовок на вкладці «Залишки на складах» — більше місця для таблиці */
 .inventory-stock-list-only > .inventory-header {
   flex-shrink: 0;
+  margin-bottom: 8px;
+}
+.inventory-stock-list-only > .inventory-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
 }
 .inventory-stock-list-only > .equipment-table-container {
   flex: 1;
