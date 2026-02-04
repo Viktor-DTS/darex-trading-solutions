@@ -509,7 +509,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
           <thead>
             {/* Рядок заголовків */}
             <tr>
-              <th style={{ width: '200px', minWidth: '200px' }} rowSpan={showFilters ? 2 : 1}>
+              <th style={{ width: '130px', minWidth: '130px' }} rowSpan={showFilters ? 2 : 1}>
                 <div className="th-content">Дія</div>
               </th>
               {ALL_COLUMNS.map(col => (
