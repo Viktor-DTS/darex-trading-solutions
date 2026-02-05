@@ -673,18 +673,19 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     };
   }, [open, isAccountantMode]);
 
-  // Автогенерація номера заявки при відкритті форми (нова або редагування):
-  // якщо поле "Номер заявки/наряду" порожнє і "Регіон сервісного відділу" вибраний (не "Виберіть регіон", не "Україна") — викликати ендпоїнт і підставити номер
+  // Автогенерація номера заявки тільки якщо номера ще немає: у будь-якому випадку спочатку перевіряємо — якщо є номер, новий не генеруємо
   useEffect(() => {
     const autoFillRequestNumber = async () => {
       if (isGeneratingRef.current) return;
       if (!open) return;
 
+      const hasNumber = (initialData?.requestNumber && String(initialData.requestNumber).trim()) ||
+        (formData.requestNumber && String(formData.requestNumber).trim());
+      if (hasNumber) return;
+
       const currentRegion = formData.serviceRegion;
       const regionSelected = currentRegion && currentRegion.trim() !== '' && currentRegion !== 'Україна';
-      const numberEmpty = !formData.requestNumber || !String(formData.requestNumber).trim();
-
-      if (!regionSelected || !numberEmpty) return;
+      if (!regionSelected) return;
 
       try {
         isGeneratingRef.current = true;
@@ -701,7 +702,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     };
 
     autoFillRequestNumber();
-  }, [open, formData.serviceRegion, formData.requestNumber]);
+  }, [open, initialData?._id, initialData?.id, initialData?.requestNumber, formData.serviceRegion, formData.requestNumber]);
 
   // Список сервісних інженерів для вибраного регіону
   const serviceEngineers = useMemo(() => {
