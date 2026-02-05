@@ -482,6 +482,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           ...initialFormData,
           ...initialData,
           serviceRegion: initialData.serviceRegion || (user?.region && user.region !== 'Україна' ? user.region : ''),
+          requestNumber: initialData.requestNumber || '',
           // Файл договору
           contractFile: initialData.contractFile || '',
           // Форматуємо дати для date inputs
@@ -673,23 +674,20 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   }, [open, isAccountantMode]);
 
   // Автоматичне заповнення номера заявки при виборі/зміні регіону (тільки для нових заявок)
+  // Також генерує номер при відкритті "створити на основі" — коли регіон вже є, а номера ще немає
   useEffect(() => {
     const autoFillRequestNumber = async () => {
-      // Запобігаємо повторній генерації
       if (isGeneratingRef.current) return;
-      
-      // Тільки для нових заявок
       if (!isNewTask || !open) return;
-      
-      // Тільки для конкретних регіонів (НЕ пустий і НЕ "Україна")
+
       const currentRegion = formData.serviceRegion;
       if (!currentRegion || currentRegion === 'Україна') return;
-      
+      if (formData.requestNumber && String(formData.requestNumber).trim()) return;
+
       const prevRegion = prevServiceRegionRef.current;
-      
-      // Генеруємо номер тільки якщо регіон ЗМІНИВСЯ
+      // Генеруємо: або регіон змінився, або відкрили форму з шаблоном (регіон є, номера немає)
       if (prevRegion === currentRegion) return;
-      
+
       try {
         isGeneratingRef.current = true;
         console.log('[DEBUG] AddTaskModal - генеруємо новий номер заявки для регіону:', currentRegion);
@@ -703,9 +701,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         isGeneratingRef.current = false;
       }
     };
-    
+
     autoFillRequestNumber();
-  }, [formData.serviceRegion, open, isNewTask]);
+  }, [formData.serviceRegion, formData.requestNumber, open, isNewTask]);
 
   // Список сервісних інженерів для вибраного регіону
   const serviceEngineers = useMemo(() => {
@@ -1287,10 +1285,25 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         taskData.autoCreatedAt = new Date().toISOString();
       }
 
-      // При редагуванні завжди використовуємо оригінальний номер заявки
-      if (taskId && initialData?.requestNumber) {
-        taskData.requestNumber = initialData.requestNumber;
-        console.log(`[DEBUG] Редагування заявки - використовуємо оригінальний номер: ${initialData.requestNumber}`);
+      // При редагуванні завжди використовуємо оригінальний номер заявки (або з форми, якщо адмін змінив)
+      if (taskId) {
+        const editNumber = (taskData.requestNumber && String(taskData.requestNumber).trim()) || initialData?.requestNumber || '';
+        if (editNumber) {
+          taskData.requestNumber = editNumber;
+          console.log(`[DEBUG] Редагування заявки - номер: ${taskData.requestNumber}`);
+        }
+      }
+
+      // Для нової заявки: якщо номер порожній, але є регіон — генеруємо перед збереженням
+      if (!taskId && (!taskData.requestNumber || !String(taskData.requestNumber).trim()) && taskData.serviceRegion && taskData.serviceRegion !== 'Україна') {
+        try {
+          const generated = await generateNextRequestNumber(taskData.serviceRegion);
+          taskData.requestNumber = generated;
+          setFormData(prev => ({ ...prev, requestNumber: generated }));
+          console.log(`[DEBUG] Згенеровано номер заявки перед збереженням: ${generated}`);
+        } catch (err) {
+          console.error('Помилка генерації номера перед збереженням:', err);
+        }
       }
 
       // Для нових заявок: перевірка унікальності номера заявки з повторною генерацією при дублікаті
