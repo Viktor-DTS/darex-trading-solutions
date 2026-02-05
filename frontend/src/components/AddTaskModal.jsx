@@ -673,24 +673,22 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     };
   }, [open, isAccountantMode]);
 
-  // Автоматичне заповнення номера заявки при виборі/зміні регіону (тільки для нових заявок)
-  // Також генерує номер при відкритті "створити на основі" — коли регіон вже є, а номера ще немає
+  // Автогенерація номера заявки при відкритті форми (нова або редагування):
+  // якщо поле "Номер заявки/наряду" порожнє і "Регіон сервісного відділу" вибраний (не "Виберіть регіон", не "Україна") — викликати ендпоїнт і підставити номер
   useEffect(() => {
     const autoFillRequestNumber = async () => {
       if (isGeneratingRef.current) return;
-      if (!isNewTask || !open) return;
+      if (!open) return;
 
       const currentRegion = formData.serviceRegion;
-      if (!currentRegion || currentRegion === 'Україна') return;
-      if (formData.requestNumber && String(formData.requestNumber).trim()) return;
+      const regionSelected = currentRegion && currentRegion.trim() !== '' && currentRegion !== 'Україна';
+      const numberEmpty = !formData.requestNumber || !String(formData.requestNumber).trim();
 
-      const prevRegion = prevServiceRegionRef.current;
-      // Генеруємо: або регіон змінився, або відкрили форму з шаблоном (регіон є, номера немає)
-      if (prevRegion === currentRegion) return;
+      if (!regionSelected || !numberEmpty) return;
 
       try {
         isGeneratingRef.current = true;
-        console.log('[DEBUG] AddTaskModal - генеруємо новий номер заявки для регіону:', currentRegion);
+        console.log('[DEBUG] AddTaskModal - генеруємо номер заявки для регіону:', currentRegion);
         const nextNumber = await generateNextRequestNumber(currentRegion);
         console.log('[DEBUG] AddTaskModal - згенеровано номер заявки:', nextNumber);
         setFormData(prev => ({ ...prev, requestNumber: nextNumber }));
@@ -703,7 +701,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     };
 
     autoFillRequestNumber();
-  }, [formData.serviceRegion, formData.requestNumber, open, isNewTask]);
+  }, [open, formData.serviceRegion, formData.requestNumber]);
 
   // Список сервісних інженерів для вибраного регіону
   const serviceEngineers = useMemo(() => {
