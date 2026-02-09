@@ -149,6 +149,28 @@ const ALL_COLUMNS = [
   { key: 'contractFile', label: 'Файл договору', width: 150 },
 ];
 
+// Колонки за замовчуванням (якщо налаштувань з сервера немає або вони невалідні)
+const DEFAULT_VISIBLE_COLUMNS = [
+  'requestNumber',
+  'requestDate',
+  'client',
+  'address',
+  'equipment',
+  'equipmentSerial',
+  'work',
+  'date',
+  'engineer1',
+  'engineer2',
+  'serviceRegion',
+  'status',
+  'serviceTotal',
+  'paymentDate',
+  'invoice',
+  'approvedByWarehouse',
+  'approvedByAccountant',
+  'approvedByRegionalManager'
+];
+
 // Функція для перевірки відмови (як в оригінальному проекті)
 function isRejected(value) {
   return value === false || value === 'Відмова';
@@ -384,28 +406,6 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       setDeletingTaskId(null);
     }
   };
-
-  // Основні колонки за замовчуванням (якщо налаштувань немає)
-  const DEFAULT_VISIBLE_COLUMNS = [
-    'requestNumber',
-    'requestDate',
-    'client',
-    'address',
-    'equipment',
-    'equipmentSerial',
-    'work',
-    'date',
-    'engineer1',
-    'engineer2',
-    'serviceRegion',
-    'status',
-    'serviceTotal',
-    'paymentDate',
-    'invoice',
-    'approvedByWarehouse',
-    'approvedByAccountant',
-    'approvedByRegionalManager'
-  ];
 
   // Завантаження налаштувань колонок (як в оригінальному проекті)
   useEffect(() => {
