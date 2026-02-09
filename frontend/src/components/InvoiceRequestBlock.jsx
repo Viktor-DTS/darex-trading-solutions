@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 import './InvoiceRequestBlock.css';
 
-const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly = false }) => {
+const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly = false, onBeforeOpenModal = null }) => {
   const [showModal, setShowModal] = useState(false);
   const [invoiceRequest, setInvoiceRequest] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -293,10 +293,14 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
               <button 
                 type="button"
                 className={task.invoiceRejectionReason ? 'btn-request-again' : 'btn-request'}
-                onClick={() => {
+                onClick={async () => {
                   if (!task.invoiceRecipientDetails || task.invoiceRecipientDetails.trim() === '') {
                     alert('Не заповнене поле "Реквізити отримувача рахунку".\n\nПрошу заповнити це поле.');
                     return;
+                  }
+                  if (onBeforeOpenModal) {
+                    const ok = await onBeforeOpenModal();
+                    if (!ok) return;
                   }
                   setShowModal(true);
                 }}

@@ -488,15 +488,75 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           needAct: updatedTask.needAct !== undefined ? updatedTask.needAct : prevFormData.needAct
         }));
 
-        // Викликаємо onSave для оновлення батьківського компонента
+        // Оновлюємо батька (список), але форму не закриваємо — користувач може далі редагувати і натиснути «Зберегти»
         if (onSave) {
-          onSave(updatedTask);
+          onSave(updatedTask, { keepModalOpen: true });
         }
       }
     } catch (error) {
       console.error('Помилка перезавантаження даних завдання:', error);
     }
   }, [initialData?._id, initialData?.id, onSave]);
+
+  // Збереження заявки без валідації (перед відкриттям модалки «Запросити рахунок»). Форма не закривається.
+  const saveTaskToServer = useCallback(async () => {
+    const taskId = initialData?._id || initialData?.id;
+    if (!taskId) return false;
+
+    try {
+      const token = localStorage.getItem('token');
+      let bonusApprovalDate = formData.bonusApprovalDate;
+      if (
+        !bonusApprovalDate &&
+        formData.status === 'Виконано' &&
+        formData.approvedByWarehouse === 'Підтверджено' &&
+        formData.approvedByAccountant === 'Підтверджено'
+      ) {
+        bonusApprovalDate = calculations.autoBonusApprovalDate;
+      }
+      const taskData = {
+        ...formData,
+        oilTotal: calculations.oilTotal,
+        filterSum: calculations.filterSum,
+        fuelFilterSum: calculations.fuelFilterSum,
+        airFilterSum: calculations.airFilterSum,
+        antifreezeSum: calculations.antifreezeSum,
+        workPrice: calculations.workPrice,
+        bonusApprovalDate: bonusApprovalDate
+      };
+      if (initialData?.approvedByWarehouse !== 'Підтверджено' && formData.approvedByWarehouse === 'Підтверджено' && initialData?.approvedByAccountant === 'Відмова') {
+        taskData.approvedByAccountant = 'На розгляді';
+      }
+      if (initialData?.approvedByWarehouse !== 'Відмова' && formData.approvedByWarehouse === 'Відмова') {
+        taskData.status = 'В роботі';
+      }
+      if (initialData?.status === 'В роботі' && formData.status === 'Виконано') {
+        if (initialData?.approvedByWarehouse === 'Відмова') taskData.approvedByWarehouse = 'На розгляді';
+        if (initialData?.approvedByAccountant === 'Відмова') taskData.approvedByAccountant = 'На розгляді';
+      }
+      taskData.requestNumber = (taskData.requestNumber && String(taskData.requestNumber).trim()) || initialData?.requestNumber || '';
+
+      const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(taskData)
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        setError(errData.error || 'Помилка збереження заявки');
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('Помилка збереження заявки (перед запитом на рахунок):', err);
+      setError(err.message || 'Помилка збереження');
+      return false;
+    }
+  }, [formData, calculations, initialData]);
 
   useEffect(() => {
     if (open) {
@@ -2132,9 +2192,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     }}
                     user={user}
                     readOnly={isReadOnly}
+                    onBeforeOpenModal={async () => {
+                      // Спочатку зберігаємо заявку з поточними даними форми (без валідації), потім відкривається модалка запиту на рахунок
+                      return await saveTaskToServer();
+                    }}
                     onRequest={async () => {
                       console.log('[DEBUG] Запит на рахунок створено');
-                      // Перезавантажуємо дані завдання, щоб отримати оновлену дату заявки на рахунок
                       await reloadTaskData();
                     }}
                   />
