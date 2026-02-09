@@ -1068,8 +1068,8 @@ function RegionalDashboard({ user }) {
           panelType="regional"
           readOnly={true}
           hideDebtFields={true}
-          onSave={() => {
-            handleCloseViewModal();
+          onSave={(savedTask, options) => {
+            if (!options?.keepModalOpen) handleCloseViewModal();
           }}
         />
       )}

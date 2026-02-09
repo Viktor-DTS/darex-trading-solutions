@@ -250,8 +250,8 @@ function WarehouseDashboard({ user }) {
           user={user}
           panelType="warehouse"
           readOnly={isReadOnlyMode}
-          onSave={(savedTask) => {
-            handleCloseModal();
+          onSave={(savedTask, options) => {
+            if (!options?.keepModalOpen) handleCloseModal();
             clearTasksCache();
             loadTasks();
           }}

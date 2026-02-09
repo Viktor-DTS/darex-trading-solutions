@@ -562,8 +562,8 @@ function AccountantDashboard({ user }) {
           initialData={editingTask || {}}
           user={user}
           panelType="accountant"
-          onSave={(savedTask) => {
-            handleCloseModal();
+          onSave={(savedTask, options) => {
+            if (!options?.keepModalOpen) handleCloseModal();
             setRefreshKey(prev => prev + 1);
           }}
         />

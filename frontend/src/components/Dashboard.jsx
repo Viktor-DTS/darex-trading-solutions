@@ -172,9 +172,9 @@ function Dashboard({ user, panelType = 'service' }) {
           user={user}
           initialData={editingTask || {}}
           readOnly={isReadOnlyMode}
-          onSave={(savedTask) => {
-            handleCloseModal();
-            setTimeout(() => {
+          onSave={(savedTask, options) => {
+            if (!options?.keepModalOpen) handleCloseModal();
+            if (!options?.keepModalOpen) setTimeout(() => {
               window.location.reload();
             }, 500);
           }}

@@ -1505,7 +1505,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       if (!verification.match) {
         console.warn('[DEBUG] Не всі поля збереглися. Розбіжності:', verification.mismatchedFields);
         setError('Нестабільний інтернет. Не всі дані збереглися. Спробуйте ще раз натиснути «Зберегти».');
-        if (onSave) onSave(savedTask);
+        if (onSave) onSave(savedTask, { keepModalOpen: true });
         alert('⚠️ Нестабільний інтернет. Не всі дані збереглися. Спробуйте ще раз зберегти.\n\nФорма залишається відкритою.');
         return;
       }

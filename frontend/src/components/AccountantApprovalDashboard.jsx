@@ -349,8 +349,8 @@ function AccountantApprovalDashboard({ user }) {
           debtOnly={activeTab === 'debt'}
           readOnly={isReadOnlyMode}
           allowDebtEditInArchive={activeTab === 'archive'}
-          onSave={(savedTask) => {
-            handleCloseModal();
+          onSave={(savedTask, options) => {
+            if (!options?.keepModalOpen) handleCloseModal();
             clearTasksCache();
             loadTasks();
             setRefreshKey(prev => prev + 1);
