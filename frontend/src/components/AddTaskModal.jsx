@@ -20,6 +20,34 @@ const getRegionCode = (region) => {
   return result;
 };
 
+// Нормалізація значення для порівняння (дати, числа, порожні)
+const normalizeForCompare = (val) => {
+  if (val === null || val === undefined) return '';
+  if (val === '') return '';
+  if (typeof val === 'number' && !Number.isNaN(val)) return String(val);
+  if (typeof val === 'boolean') return val ? 'true' : 'false';
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+    return trimmed;
+  }
+  if (val instanceof Date) return val.toISOString().slice(0, 10);
+  if (typeof val === 'object') return JSON.stringify(val);
+  return String(val);
+};
+
+// Порівняння відправлених даних з тим, що повернув сервер (перевірка при нестабільному інтернеті)
+const taskDataMatchesSaved = (sent, saved) => {
+  const mismatched = [];
+  for (const key of Object.keys(sent)) {
+    if (key === '_id' || key === 'id' || key === '__v') continue;
+    const a = normalizeForCompare(sent[key]);
+    const b = normalizeForCompare(saved[key]);
+    if (a !== b) mismatched.push(key);
+  }
+  return { match: mismatched.length === 0, mismatchedFields: mismatched };
+};
+
 // Функція для перевірки унікальності номера заявки
 const checkRequestNumberUnique = async (requestNumber) => {
   try {
@@ -1471,11 +1499,20 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       } catch (logErr) {
         console.error('[ERROR] Помилка логування:', logErr);
       }
-      
+
+      // Перевірка: чи всі відправлені дані збереглися (актуальні при нестабільному інтернеті)
+      const verification = taskDataMatchesSaved(currentTaskData, savedTask);
+      if (!verification.match) {
+        console.warn('[DEBUG] Не всі поля збереглися. Розбіжності:', verification.mismatchedFields);
+        setError('Нестабільний інтернет. Не всі дані збереглися. Спробуйте ще раз натиснути «Зберегти».');
+        if (onSave) onSave(savedTask);
+        alert('⚠️ Нестабільний інтернет. Не всі дані збереглися. Спробуйте ще раз зберегти.\n\nФорма залишається відкритою.');
+        return;
+      }
+
       if (onSave) {
         onSave(savedTask);
       }
-      
       onClose();
       alert(taskId ? 'Заявку успішно оновлено!' : 'Заявку успішно створено!');
     } catch (err) {
