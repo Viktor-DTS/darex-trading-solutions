@@ -2480,7 +2480,13 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 <div className="form-row two-cols">
                   <div className="form-group" style={{flex: 2}}>
                     <label>Інші матеріали: Опис інших матеріалів</label>
-                    <input type="text" name="otherMaterials" value={formData.otherMaterials} onChange={handleChange} />
+                    <textarea
+                      name="otherMaterials"
+                      value={formData.otherMaterials}
+                      onChange={handleChange}
+                      rows={4}
+                      style={{ minHeight: '100px', resize: 'both', width: '100%', padding: '0.5rem' }}
+                    />
                   </div>
                   <div className="form-group">
                     <label>Загальна ціна, грн</label>
