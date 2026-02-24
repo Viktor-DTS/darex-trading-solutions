@@ -515,6 +515,34 @@ export default function AnalyticsDashboard({ user }) {
       .slice(0, 15);
   }, [filteredTasks]);
 
+  // Статистика по операторах: користувачі з роллю operator → фільтруємо заявки по полю "Автор заявки" (requestAuthor)
+  const operatorData = useMemo(() => {
+    const operatorUsers = users.filter(u => u.role === 'operator');
+    const operatorIdentifiers = new Set(
+      operatorUsers.flatMap(u => [(u.name || '').trim(), (u.login || '').trim()].filter(Boolean))
+    );
+    
+    const operatorTasks = filteredTasks.filter(task => {
+      const author = (task.requestAuthor || '').trim();
+      if (!author) return false;
+      return operatorIdentifiers.has(author);
+    });
+    
+    const byOperator = {};
+    operatorTasks.forEach(task => {
+      const name = (task.requestAuthor || '').trim() || 'Невідомо';
+      if (!byOperator[name]) {
+        byOperator[name] = { name, tasks: 0 };
+      }
+      byOperator[name].tasks++;
+    });
+    
+    return {
+      totalByOperators: operatorTasks.length,
+      byOperator: Object.values(byOperator).sort((a, b) => b.tasks - a.tasks)
+    };
+  }, [filteredTasks, users]);
+
   // Порівняльна аналітика (попередній період)
   const comparisonData = useMemo(() => {
     const currentYear = filters.year;
@@ -964,6 +992,12 @@ export default function AnalyticsDashboard({ user }) {
           👥 Команда
         </button>
         <button 
+          className={`tab-btn ${activeTab === 'operators' ? 'active' : ''}`}
+          onClick={() => setActiveTab('operators')}
+        >
+          📞 Робота операторів
+        </button>
+        <button 
           className={`tab-btn ${activeTab === 'clients' ? 'active' : ''}`}
           onClick={() => setActiveTab('clients')}
         >
@@ -1178,6 +1212,70 @@ export default function AnalyticsDashboard({ user }) {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* РОБОТА ОПЕРАТОРІВ */}
+      {activeTab === 'operators' && (
+        <div className="tab-content">
+          <div className="kpi-grid">
+            <div className="kpi-card blue" title="Загальна кількість заявок, внесених операторами (роль operator) за вибраний період та регіон">
+              <div className="kpi-icon">📋</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{operatorData.totalByOperators}</div>
+                <div className="kpi-label">Заявок внесли оператори</div>
+              </div>
+            </div>
+            <div className="kpi-card teal" title="Кількість операторів, які створили хоча б одну заявку за період">
+              <div className="kpi-icon">👤</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{operatorData.byOperator.length}</div>
+                <div className="kpi-label">Активних операторів</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="chart-card full-width" title="Кількість заявок, внесених кожним оператором за вибраний період">
+            <h3>📞 Заявки по операторах</h3>
+            {operatorData.byOperator.length > 0 ? (
+              <SimpleBarChart 
+                data={operatorData.byOperator} 
+                dataKey="tasks" 
+                nameKey="name" 
+                horizontal={true} 
+              />
+            ) : (
+              <p className="no-data-message">
+                Немає даних. Виберіть рік та регіон, переконайтесь що заявки мають заповнене поле «Автор заявки», 
+                і що автори є користувачами з роллю «Оператор».
+              </p>
+            )}
+          </div>
+
+          <div className="data-table-card" title="Детальна таблиця: кількість заявок, внесених кожним оператором">
+            <h3>📋 Детальна статистика операторів</h3>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>№</th>
+                  <th>Оператор</th>
+                  <th>Заявок внесено</th>
+                </tr>
+              </thead>
+              <tbody>
+                {operatorData.byOperator.map((op, i) => (
+                  <tr key={op.login}>
+                    <td>{i + 1}</td>
+                    <td>{op.name}</td>
+                    <td>{op.tasks}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {operatorData.byOperator.length === 0 && (
+              <p className="no-data-message">Немає даних за вибраний період</p>
+            )}
           </div>
         </div>
       )}

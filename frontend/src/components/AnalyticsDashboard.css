@@ -549,6 +549,14 @@
   line-height: 1.6;
 }
 
+.no-data-message {
+  color: #888;
+  padding: 2rem;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 .recommendations-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
