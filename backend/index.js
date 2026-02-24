@@ -8033,9 +8033,14 @@ class TelegramService {
     if (task.warehouseComment) commentsInfo += `\n📦 <b>Коментар складу:</b> ${task.warehouseComment}`;
     if (task.accountantComment) commentsInfo += `\n💰 <b>Коментар бухгалтера:</b> ${task.accountantComment}`;
     
-    const createdBy = type === 'task_created' 
-      ? (user?.name || user?.login || 'Система')
-      : (task.createdBy || task.engineer1 || user?.name || 'Система');
+    // "Створив" — завжди автор заявки (requestAuthor), не інженер. Для task_created — user як fallback
+    const createdBy = (task.requestAuthor && task.requestAuthor.trim())
+      || (type === 'task_created' ? (user?.name || user?.login) : null)
+      || task.createdByName
+      || task.createdBy
+      || task.engineer1
+      || user?.name
+      || 'Система';
 
     const typeNames = {
       'task_created': '🆕 Нова заявка',
