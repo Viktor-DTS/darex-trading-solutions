@@ -193,6 +193,7 @@ export default function AnalyticsDashboard({ user }) {
     year: new Date().getFullYear(),
     month: '',
     region: '',
+    company: '',
     period: 'year' // year, month, quarter
   });
 
@@ -236,10 +237,21 @@ export default function AnalyticsDashboard({ user }) {
     }
   };
 
+  // Унікальні компанії виконавці для фільтра
+  const companies = useMemo(() => {
+    const set = new Set();
+    tasks.forEach(t => {
+      const c = (t.company || '').trim();
+      if (c) set.add(c);
+    });
+    return Array.from(set).sort();
+  }, [tasks]);
+
   // Фільтрація даних
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
       if (filters.region && task.serviceRegion !== filters.region) return false;
+      if (filters.company && (task.company || '').trim() !== filters.company) return false;
       
       const taskDate = task.date || task.requestDate;
       if (taskDate) {
@@ -959,6 +971,16 @@ export default function AnalyticsDashboard({ user }) {
             <option value="">Всі регіони</option>
             {regions.map(r => (
               <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+          <select 
+            value={filters.company} 
+            onChange={e => setFilters(prev => ({ ...prev, company: e.target.value }))}
+            title="Фільтр по компанії виконавцю"
+          >
+            <option value="">Всі компанії</option>
+            {companies.map(c => (
+              <option key={c} value={c}>{c}</option>
             ))}
           </select>
           <button className="btn-refresh" onClick={loadData}>🔄 Оновити</button>
