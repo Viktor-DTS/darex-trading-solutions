@@ -332,6 +332,7 @@ taskSchema.index({ taskId: 1 }); // Для InvoiceRequest
 
 // Складний індекс для швидкої фільтрації
 taskSchema.index({ status: 1, serviceRegion: 1, requestDate: -1 });
+taskSchema.index({ serviceRegion: 1, requestDate: -1 }); // Для GET /api/tasks з фільтром по регіону
 
 const Task = mongoose.model('Task', taskSchema);
 
@@ -568,6 +569,9 @@ equipmentSchema.index({ batchId: 1, currentWarehouse: 1 }); // Для швидк
 equipmentSchema.index({ testingStatus: 1 }); // Для швидкого пошуку заявок на тестування
 equipmentSchema.index({ categoryId: 1 });
 equipmentSchema.index({ itemKind: 1 });
+// Compound-індекс для вартісного звіту, статистики та списку обладнання (isDeleted + status + currentWarehouse)
+equipmentSchema.index({ isDeleted: 1, status: 1, currentWarehouse: 1 });
+equipmentSchema.index({ isDeleted: 1, addedAt: -1 }); // Для сортування списку без видалених
 
 const Equipment = mongoose.model('Equipment', equipmentSchema);
 
@@ -674,7 +678,8 @@ const movementDocumentSchema = new mongoose.Schema({
 
 movementDocumentSchema.index({ documentNumber: 1 }, { unique: true });
 movementDocumentSchema.index({ documentDate: -1 });
-movementDocumentSchema.index({ fromWarehouse: 1, toWarehouse: 1 });
+movementDocumentSchema.index({ fromWarehouse: 1, documentDate: -1 });
+movementDocumentSchema.index({ toWarehouse: 1, documentDate: -1 }); // Для фільтра $or по складу
 const MovementDocument = mongoose.model('MovementDocument', movementDocumentSchema);
 
 // Схема для документів відвантаження
@@ -4527,7 +4532,7 @@ app.get('/api/equipment', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
     const { warehouse, status, region, search, categoryId, itemKind, includeSubtree } = req.query;
-    const query = {};
+    const query = { isDeleted: { $ne: true } }; // Виключаємо видалене обладнання (для ефективного індексу)
     
     if (warehouse) query.currentWarehouse = warehouse;
     if (status) query.status = status;
@@ -6990,8 +6995,6 @@ app.get('/api/documents/movement', authenticateToken, async (req, res) => {
     const { warehouse, status, dateFrom, dateTo } = req.query;
     const query = {};
     
-    console.log('[DEBUG] GET /api/documents/movement - параметри:', { warehouse, status, dateFrom, dateTo });
-    
     if (warehouse) {
       query.$or = [
         { fromWarehouse: warehouse },
@@ -7013,26 +7016,9 @@ app.get('/api/documents/movement', authenticateToken, async (req, res) => {
       }
     }
     
-    console.log('[DEBUG] GET /api/documents/movement - запит:', JSON.stringify(query, null, 2));
-    
-    // Перевіряємо загальну кількість документів
-    const totalCount = await MovementDocument.countDocuments({});
-    console.log('[DEBUG] GET /api/documents/movement - всього документів в БД:', totalCount);
-    
     const documents = await MovementDocument.find(query)
       .sort({ documentDate: -1 })
       .lean();
-    
-    console.log('[DEBUG] GET /api/documents/movement - знайдено документів:', documents.length);
-    if (documents.length > 0) {
-      console.log('[DEBUG] Перший документ:', {
-        documentNumber: documents[0].documentNumber,
-        documentDate: documents[0].documentDate,
-        fromWarehouse: documents[0].fromWarehouseName,
-        toWarehouse: documents[0].toWarehouseName,
-        status: documents[0].status
-      });
-    }
     
     logPerformance('GET /api/documents/movement', startTime, documents.length);
     res.json(documents);
