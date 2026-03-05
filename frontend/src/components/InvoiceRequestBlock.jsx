@@ -153,6 +153,9 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
 
             {/* Інформація */}
             <div className="invoice-info">
+              {invoiceRequest.requesterName && (
+                <div><strong>Подав запит:</strong> {invoiceRequest.requesterName}</div>
+              )}
               <div><strong>Створено:</strong> {new Date(invoiceRequest.createdAt).toLocaleDateString('uk-UA')}</div>
               {invoiceRequest.comments && (
                 <div><strong>Коментарі:</strong> {invoiceRequest.comments}</div>

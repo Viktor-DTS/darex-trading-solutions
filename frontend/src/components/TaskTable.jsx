@@ -1252,6 +1252,12 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                           </div>
                             );
                           })()}
+                          {/* Хто подав запит - тільки для бух.рахунки */}
+                          {status === 'accountantInvoiceRequests' && task.invoiceRequesterName && (
+                            <div className="invoice-requester-compact" title="Хто подав запит на рахунок">
+                              👤 {task.invoiceRequesterName}
+                            </div>
+                          )}
                         </div>
                       )}
                       

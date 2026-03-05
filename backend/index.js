@@ -1045,6 +1045,7 @@ app.get('/api/tasks', async (req, res) => {
           rejectionReason: { $ifNull: ['$invoiceRequest.rejectionReason', null] },
           rejectedBy: { $ifNull: ['$invoiceRequest.rejectedBy', null] },
           rejectedAt: { $ifNull: ['$invoiceRequest.rejectedAt', null] },
+          invoiceRequesterName: { $ifNull: ['$invoiceRequest.requesterName', null] },
           // Явно додаємо invoiceRequestDate з Task (воно зберігається в Task, а не в InvoiceRequest)
           // Якщо invoiceRequestDate відсутнє, але є InvoiceRequest - використовуємо createdAt з InvoiceRequest
           invoiceRequestDate: {
@@ -1364,7 +1365,8 @@ app.get('/api/tasks/filter', async (req, res) => {
           rejectionReason: { $ifNull: ['$invoiceRequest.rejectionReason', null] },
           rejectedBy: { $ifNull: ['$invoiceRequest.rejectedBy', null] },
           rejectedAt: { $ifNull: ['$invoiceRequest.rejectedAt', null] },
-          invoiceRequestId: { 
+          invoiceRequesterName: { $ifNull: ['$invoiceRequest.requesterName', null] },
+          invoiceRequestId: {
             $cond: {
               if: { $ne: ['$invoiceRequest', null] },
               then: { $toString: '$invoiceRequest._id' },
