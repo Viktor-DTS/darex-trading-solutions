@@ -1,6 +1,7 @@
 /**
  * Поля, які НЕ копіюються при «Створити заявку на основі даної».
  * Вони заповняться згідно загальних правил при створенні заявки.
+ * Важливо не копіювати: дату виконання, рахунок, дату оплати, файли рахунків.
  */
 const FIELDS_TO_EXCLUDE = new Set([
   'id',
@@ -10,6 +11,7 @@ const FIELDS_TO_EXCLUDE = new Set([
   'requestDate',
   'plannedDate',
   'invoice',
+  'invoiceNumber',
   'paymentDate',
   'paymentType',
   'needInvoice',
@@ -17,11 +19,13 @@ const FIELDS_TO_EXCLUDE = new Set([
   'invoiceRequestId',
   'invoiceFile',
   'invoiceFileName',
+  'actFile',
+  'actFileName',
   'invoiceRequestDate',
   'invoiceUploadDate',
   'debtStatus',
   'debtStatusCheckbox',
-  'date',
+  'date', // дата виконанання
   'work',
   'bonusApprovalDate',
   'approvedByWarehouse',

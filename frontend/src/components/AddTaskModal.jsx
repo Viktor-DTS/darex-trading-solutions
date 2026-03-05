@@ -548,10 +548,14 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             contractFile: initialData.contractFile || '',
             requestDate: formatDateOnly(initialData.requestDate) || initialFormData.requestDate,
             plannedDate: '',
-            date: '',
-            paymentDate: '',
+            date: '',           // дата виконанання — не копіюємо
+            paymentDate: '',   // дата оплати — не копіюємо
             paymentType: 'не вибрано',
-            invoice: '',
+            invoice: '',       // номер рахунку — не копіюємо
+            invoiceFile: '',
+            invoiceFileName: '',
+            actFile: '',
+            actFileName: '',
             work: '',
             bonusApprovalDate: '',
             approvedByWarehouse: 'На розгляді',
@@ -564,8 +568,9 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             autoAccountantApprovedAt: '',
             invoiceRequestDate: '',
             invoiceUploadDate: '',
-            needInvoice: initialData.needInvoice ?? initialFormData.needInvoice,
-            needAct: initialData.needAct ?? initialFormData.needAct
+            invoiceRequestId: null,
+            needInvoice: false,  // не копіюємо — нова заявка, рахунок з нуля
+            needAct: false
           });
           // Не оновлюємо prevServiceRegionRef, щоб ефект автогенерації номера побачив зміну регіону і згенерував номер
           prevServiceRegionRef.current = '';
