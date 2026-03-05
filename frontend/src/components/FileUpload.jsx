@@ -7,6 +7,7 @@ const FileUpload = ({ taskId, onFilesUploaded, readOnly = false }) => {
   const [description, setDescription] = useState('');
   const [descriptionAuto, setDescriptionAuto] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [savingAllFiles, setSavingAllFiles] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -341,6 +342,65 @@ const FileUpload = ({ taskId, onFilesUploaded, readOnly = false }) => {
     }
   };
 
+  // Зберегти всі файли заявки в обрану папку
+  const handleSaveAllFiles = async () => {
+    if (uploadedFiles.length === 0) {
+      setError('Немає файлів для збереження');
+      return;
+    }
+    setSavingAllFiles(true);
+    setError('');
+    try {
+      // Підтримка File System Access API (Chrome, Edge)
+      if ('showDirectoryPicker' in window) {
+        const dirHandle = await window.showDirectoryPicker({
+          mode: 'readwrite',
+          startIn: 'documents'
+        });
+        const usedNames = new Map();
+        for (const file of uploadedFiles) {
+          const originalName = file.originalName || 'file';
+          let fileName = originalName;
+          const count = (usedNames.get(fileName) || 0) + 1;
+          usedNames.set(fileName, count);
+          if (count > 1) {
+            const ext = fileName.includes('.') ? fileName.split('.').pop() : '';
+            const base = ext ? fileName.slice(0, -ext.length - 1) : fileName;
+            fileName = ext ? `${base}_${count}.${ext}` : `${base}_${count}`;
+          }
+          const response = await fetch(file.cloudinaryUrl);
+          const blob = await response.blob();
+          const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+        }
+        alert(`✅ Збережено ${uploadedFiles.length} файлів`);
+      } else {
+        // Fallback: послідовне завантаження кожного файлу
+        for (const file of uploadedFiles) {
+          const link = document.createElement('a');
+          link.href = file.cloudinaryUrl;
+          link.download = file.originalName || 'file';
+          link.target = '_blank';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          await new Promise(r => setTimeout(r, 300));
+        }
+        alert(`Завантаження ${uploadedFiles.length} файлів розпочато. Перевірте папку «Завантаження».`);
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('Помилка збереження файлів:', err);
+        setError('Помилка збереження файлів');
+        alert('❌ Помилка збереження файлів. Спробуйте ще раз.');
+      }
+    } finally {
+      setSavingAllFiles(false);
+    }
+  };
+
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -471,20 +531,37 @@ const FileUpload = ({ taskId, onFilesUploaded, readOnly = false }) => {
       <div className="uploaded-files-section">
         <div className="files-section-header">
           <h4>📋 Завантажені файли</h4>
-          {imageCount > 0 && (
-            <button
-              type="button"
-              className="gallery-button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                openGalleryInNewWindow(uploadedFiles, 0);
-              }}
-              title="Відкрити галерею зображень"
-            >
-              🖼️ Галерея ({imageCount})
-            </button>
-          )}
+          <div className="files-section-buttons">
+            {uploadedFiles.length > 0 && (
+              <button
+                type="button"
+                className="save-all-files-button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSaveAllFiles();
+                }}
+                disabled={savingAllFiles}
+                title="Зберегти всі файли в обрану папку"
+              >
+                {savingAllFiles ? '⏳ Збереження...' : '💾 Зберегти всі файли'}
+              </button>
+            )}
+            {imageCount > 0 && (
+              <button
+                type="button"
+                className="gallery-button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  openGalleryInNewWindow(uploadedFiles, 0);
+                }}
+                title="Відкрити галерею зображень"
+              >
+                🖼️ Галерея ({imageCount})
+              </button>
+            )}
+          </div>
         </div>
         
         {loading ? (
