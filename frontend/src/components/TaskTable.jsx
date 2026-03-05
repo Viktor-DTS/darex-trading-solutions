@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ExcelJS from 'exceljs';
 import API_BASE_URL from '../config';
 import { generateWorkOrder } from '../utils/workOrderGenerator';
@@ -218,6 +218,30 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   const [total, setTotal] = useState(0);
   const PAGE_SIZE = 30;
 
+  // Затримка 2 с перед фільтрацією (щоб не йшли запити на кожен символ)
+  const [debouncedFilter, setDebouncedFilter] = useState('');
+  const [debouncedColumnFilters, setDebouncedColumnFilters] = useState({});
+  const debounceFirstRun = useRef(true);
+  useEffect(() => {
+    if (!enablePagination) {
+      setDebouncedFilter(filter);
+      setDebouncedColumnFilters(columnFilters);
+      debounceFirstRun.current = true;
+      return;
+    }
+    if (debounceFirstRun.current) {
+      debounceFirstRun.current = false;
+      setDebouncedFilter(filter);
+      setDebouncedColumnFilters(columnFilters);
+      return;
+    }
+    const tid = setTimeout(() => {
+      setDebouncedFilter(filter);
+      setDebouncedColumnFilters(columnFilters);
+    }, 2000);
+    return () => clearTimeout(tid);
+  }, [filter, columnFilters, enablePagination]);
+
   const [showFilters, setShowFilters] = useState(true);
   const canShowViewButton = typeof onViewClick === 'function';
 
@@ -263,10 +287,10 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     }
   }, [columnsArea]);
 
-  // При зміні фільтрів — скидаємо сторінку на 1 (для пагінації оператора)
+  // При зміні фільтрів (після затримки) — скидаємо сторінку на 1 (для пагінації оператора)
   useEffect(() => {
     if (enablePagination) setPage(1);
-  }, [filter, columnFilters, enablePagination]);
+  }, [debouncedFilter, debouncedColumnFilters, enablePagination]);
 
   // Обробник зміни фільтра колонки
   const handleColumnFilterChange = (columnKey, value) => {
@@ -511,12 +535,12 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         if (status === 'accountantInvoiceRequests') {
           url += `&showAllInvoices=${showAllInvoices}`;
         }
-        // Пагінація тільки для оператора
+        // Пагінація тільки для оператора (з затримкою debouncedFilter)
         if (enablePagination) {
           url += `&page=${page}&limit=${PAGE_SIZE}&sortField=${sortField}&sortDirection=${sortDirection}`;
-          if (filter?.trim()) url += `&filter=${encodeURIComponent(filter.trim())}`;
-          if (Object.keys(columnFilters).some(k => columnFilters[k]?.trim?.())) {
-            url += `&columnFilters=${encodeURIComponent(JSON.stringify(columnFilters))}`;
+          if (debouncedFilter?.trim()) url += `&filter=${encodeURIComponent(debouncedFilter.trim())}`;
+          if (Object.keys(debouncedColumnFilters).some(k => debouncedColumnFilters[k]?.trim?.())) {
+            url += `&columnFilters=${encodeURIComponent(JSON.stringify(debouncedColumnFilters))}`;
           }
         }
       } else {
@@ -575,7 +599,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     if (user) {
       loadTasks();
     }
-  }, [user, status, showRejectedApprovals, showRejectedInvoices, showAllInvoices, onTasksLoaded, enablePagination, page, filter, columnFilters, sortField, sortDirection]);
+  }, [user, status, showRejectedApprovals, showRejectedInvoices, showAllInvoices, onTasksLoaded, enablePagination, page, debouncedFilter, debouncedColumnFilters, sortField, sortDirection]);
 
   // Відсортовані та відфільтровані завдання
   // Для оператора з пагінацією: сервер вже відфільтрував і відсортував — використовуємо tasks як є
