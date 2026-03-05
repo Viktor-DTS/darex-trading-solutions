@@ -43,6 +43,42 @@
   font-size: 12px;
 }
 
+/* Пагінація для оператора */
+.task-table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: var(--surface-dark);
+  border-bottom: 1px solid var(--border);
+}
+
+.task-table-pagination .pagination-btn {
+  padding: 6px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.task-table-pagination .pagination-btn:hover:not(:disabled) {
+  background: var(--border);
+}
+
+.task-table-pagination .pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.task-table-pagination .pagination-info {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
 .task-table-wrapper {
   overflow-x: auto;
   overflow-y: auto;

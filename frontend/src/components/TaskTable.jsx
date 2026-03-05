@@ -212,6 +212,12 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   const [columnSettings, setColumnSettings] = useState({ visible: [], order: [], widths: {} });
   const [deletingTaskId, setDeletingTaskId] = useState(null);
   
+  // Пагінація тільки для панелі оператора
+  const enablePagination = columnsArea === 'operator';
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 30;
+
   const [showFilters, setShowFilters] = useState(true);
   const canShowViewButton = typeof onViewClick === 'function';
 
@@ -256,6 +262,11 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       console.error('Помилка завантаження фільтрів при зміні панелі:', error);
     }
   }, [columnsArea]);
+
+  // При зміні фільтрів — скидаємо сторінку на 1 (для пагінації оператора)
+  useEffect(() => {
+    if (enablePagination) setPage(1);
+  }, [filter, columnFilters, enablePagination]);
 
   // Обробник зміни фільтра колонки
   const handleColumnFilterChange = (columnKey, value) => {
@@ -485,6 +496,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   }, [user, columnsArea]);
 
   // Завантаження завдань (з кешем 90 с — менше навантаження на сервер при перемиканні вкладок)
+  // Для оператора: пагінація (page, limit), фільтри та пошук на сервері
   useEffect(() => {
     const loadTasks = async () => {
       setError(null);
@@ -499,16 +511,24 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         if (status === 'accountantInvoiceRequests') {
           url += `&showAllInvoices=${showAllInvoices}`;
         }
+        // Пагінація тільки для оператора
+        if (enablePagination) {
+          url += `&page=${page}&limit=${PAGE_SIZE}&sortField=${sortField}&sortDirection=${sortDirection}`;
+          if (filter?.trim()) url += `&filter=${encodeURIComponent(filter.trim())}`;
+          if (Object.keys(columnFilters).some(k => columnFilters[k]?.trim?.())) {
+            url += `&columnFilters=${encodeURIComponent(JSON.stringify(columnFilters))}`;
+          }
+        }
       } else {
         url = `${API_BASE_URL}/tasks?region=${user?.region || ''}`;
       }
 
-      const cached = getCachedTasks(url);
+      const useCache = !enablePagination;
+      const cached = useCache ? getCachedTasks(url) : null;
       if (cached) {
         setTasks(cached);
         setLoading(false);
         if (onTasksLoaded) onTasksLoaded(cached);
-        // Оновлення у фоні
         try {
           const response = await fetch(url, {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -534,9 +554,16 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         }
 
         const data = await response.json();
-        setTasks(data);
-        setCachedTasks(url, data);
-        if (onTasksLoaded) onTasksLoaded(data);
+        if (enablePagination && data && typeof data === 'object' && Array.isArray(data.tasks)) {
+          setTasks(data.tasks);
+          setTotal(data.total ?? 0);
+          if (onTasksLoaded) onTasksLoaded(data.tasks);
+        } else {
+          setTasks(Array.isArray(data) ? data : []);
+          setTotal(Array.isArray(data) ? data.length : 0);
+          setCachedTasks(url, Array.isArray(data) ? data : []);
+          if (onTasksLoaded) onTasksLoaded(Array.isArray(data) ? data : []);
+        }
       } catch (err) {
         setError(err.message);
         console.error('Помилка завантаження завдань:', err);
@@ -548,10 +575,12 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     if (user) {
       loadTasks();
     }
-  }, [user, status, showRejectedApprovals, showRejectedInvoices, showAllInvoices, onTasksLoaded]);
+  }, [user, status, showRejectedApprovals, showRejectedInvoices, showAllInvoices, onTasksLoaded, enablePagination, page, filter, columnFilters, sortField, sortDirection]);
 
   // Відсортовані та відфільтровані завдання
+  // Для оператора з пагінацією: сервер вже відфільтрував і відсортував — використовуємо tasks як є
   const filteredAndSortedTasks = useMemo(() => {
+    if (enablePagination) return [...tasks];
     let result = [...tasks];
 
     // Фільтрація по глобальному тексту
@@ -729,7 +758,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     });
 
     return result;
-  }, [tasks, filter, columnFilters, sortField, sortDirection, showRejectedApprovals, showRejectedInvoices, approveRole]);
+  }, [tasks, filter, columnFilters, sortField, sortDirection, showRejectedApprovals, showRejectedInvoices, approveRole, enablePagination]);
 
   // Відображені колонки в правильному порядку
   const displayedColumns = useMemo(() => {
@@ -757,6 +786,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       setSortField(field);
       setSortDirection('asc');
     }
+    if (enablePagination) setPage(1);
   };
 
   // Функція для визначення статусу рахунку (як в оригінальному проекті)
@@ -1134,9 +1164,35 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
           )}
         </div>
         <div className="toolbar-info">
-          <span>Знайдено: {filteredAndSortedTasks.length}</span>
+          <span>Знайдено: {enablePagination ? total : filteredAndSortedTasks.length}</span>
         </div>
       </div>
+
+      {/* Пагінація для оператора */}
+      {enablePagination && total > 0 && (
+        <div className="task-table-pagination">
+          <button
+            className="pagination-btn"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page <= 1 || loading}
+            title="Попередня сторінка"
+          >
+            ◀ Попередня
+          </button>
+          <span className="pagination-info">
+            Сторінка {page} з {Math.ceil(total / PAGE_SIZE) || 1}
+            {' '}({((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, total)} з {total})
+          </span>
+          <button
+            className="pagination-btn"
+            onClick={() => setPage(p => p + 1)}
+            disabled={page >= Math.ceil(total / PAGE_SIZE) || loading}
+            title="Наступна сторінка"
+          >
+            Наступна ▶
+          </button>
+        </div>
+      )}
 
       {/* Таблиця */}
       <div className="task-table-wrapper">

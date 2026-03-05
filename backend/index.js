@@ -1166,7 +1166,10 @@ app.get('/api/tasks/statistics', async (req, res) => {
 app.get('/api/tasks/filter', async (req, res) => {
   const startTime = Date.now();
   try {
-    const { status, statuses, region, sort = '-requestDate' } = req.query;
+    const { status, statuses, region, sort = '-requestDate', page, limit, filter, sortField, sortDirection, columnFilters } = req.query;
+    const isPaginated = page !== undefined && limit !== undefined && !isNaN(parseInt(limit));
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 30));
     
     // Побудова match стадії
     const matchStage = {};
@@ -1420,9 +1423,79 @@ app.get('/api/tasks/filter', async (req, res) => {
         });
       }
     }
+
+    // Пагінація (тільки коли передані page та limit — для панелі оператора)
+    if (isPaginated) {
+      // Глобальний пошук filter — пошук підрядка по основним рядковим полям
+      if (filter && typeof filter === 'string' && filter.trim()) {
+        const searchStr = filter.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = { $regex: searchStr, $options: 'i' };
+        const searchFields = ['requestNumber', 'client', 'address', 'requestDesc', 'equipment', 'equipmentSerial', 'work', 'contactPerson', 'contactPhone', 'edrpou'];
+        pipeline.push({
+          $match: {
+            $or: searchFields.map(f => ({ [f]: regex }))
+          }
+        });
+      }
+      // Фільтри по колонках
+      if (columnFilters && typeof columnFilters === 'string') {
+        try {
+          const filters = JSON.parse(columnFilters);
+          const colMatch = {};
+          for (const [key, value] of Object.entries(filters)) {
+            if (!value || String(value).trim() === '') continue;
+            const val = String(value).trim();
+            if (key.endsWith('From')) {
+              const field = key.replace('From', '');
+              colMatch[field] = colMatch[field] || {};
+              colMatch[field].$gte = new Date(val);
+            } else if (key.endsWith('To')) {
+              const field = key.replace('To', '');
+              colMatch[field] = colMatch[field] || {};
+              colMatch[field].$lte = new Date(val);
+            } else {
+              const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
+              if (filterType === 'select') {
+                colMatch[key] = val;
+              } else {
+                colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+              }
+            }
+          }
+          if (Object.keys(colMatch).length > 0) {
+            pipeline.push({ $match: colMatch });
+          }
+        } catch (e) {
+          console.warn('[tasks/filter] Invalid columnFilters JSON:', e.message);
+        }
+      }
+      // Сортування для пагінації (sortField, sortDirection)
+      const facetSortField = sortField ? sortField.replace(/^-/, '') : 'requestDate';
+      const facetSortDir = (sortDirection === 'asc') ? 1 : -1;
+      const facetSort = { [facetSortField]: facetSortDir };
+      pipeline.push({
+        $facet: {
+          total: [{ $count: 'count' }],
+          data: [
+            { $sort: facetSort },
+            { $skip: (pageNum - 1) * limitNum },
+            { $limit: limitNum }
+          ]
+        }
+      });
+    }
+
+    const aggResult = await Task.aggregate(pipeline).allowDiskUse(true);
     
-    const tasks = await Task.aggregate(pipeline).allowDiskUse(true);
-    
+    if (isPaginated) {
+      const result = aggResult[0];
+      const total = (result?.total?.[0]?.count) || 0;
+      const tasks = result?.data || [];
+      logPerformance('GET /api/tasks/filter (paginated)', startTime, tasks.length);
+      return res.json({ tasks, total, page: pageNum, limit: limitNum });
+    }
+
+    const tasks = aggResult;
     logPerformance('GET /api/tasks/filter', startTime, tasks.length);
     res.json(tasks);
   } catch (error) {
