@@ -1134,6 +1134,31 @@ app.get('/api/clients/search', authenticateToken, async (req, res) => {
   }
 });
 
+// Перевірка ЄДРПОУ: чи не належить вже іншому менеджеру
+app.get('/api/clients/check-edrpou/:edrpou', authenticateToken, async (req, res) => {
+  try {
+    const edrpou = (req.params.edrpou || '').trim();
+    const excludeClientId = req.query.excludeClientId;
+    if (!edrpou) return res.json({ exists: false });
+    const query = { edrpou: new RegExp(`^${edrpou.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') };
+    if (excludeClientId) query._id = { $ne: excludeClientId };
+    const existing = await Client.findOne(query).lean();
+    if (!existing) return res.json({ exists: false });
+    const currentLogin = req.user?.login;
+    if (existing.assignedManagerLogin === currentLogin) return res.json({ exists: true, sameManager: true });
+    const manager = await User.findOne({ login: existing.assignedManagerLogin }).select('name login').lean();
+    res.json({
+      exists: true,
+      sameManager: false,
+      assignedManagerLogin: existing.assignedManagerLogin,
+      assignedManagerName: manager?.name || existing.assignedManagerLogin,
+      clientName: existing.name
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/clients/:id', authenticateToken, async (req, res) => {
   try {
     const client = await Client.findById(req.params.id).lean();

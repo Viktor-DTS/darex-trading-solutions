@@ -37,6 +37,23 @@ export const getClient = async (id) => {
   }
 };
 
+// Перевірка ЄДРПОУ на дублікат (чи не належить іншому менеджеру)
+export const checkEdrpou = async (edrpou, excludeClientId = null) => {
+  try {
+    const trimmed = (edrpou || '').trim();
+    if (!trimmed) return { exists: false };
+    const qs = excludeClientId ? `?excludeClientId=${excludeClientId}` : '';
+    const response = await fetch(`${API_BASE_URL}/clients/check-edrpou/${encodeURIComponent(trimmed)}${qs}`, {
+      headers: getAuthHeaders()
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка перевірки ЄДРПОУ:', error);
+    return { exists: false };
+  }
+};
+
 // Пошук клієнта (для вхідного дзвінка — може повертати обмежені дані для чужих)
 export const searchClients = async (query) => {
   try {

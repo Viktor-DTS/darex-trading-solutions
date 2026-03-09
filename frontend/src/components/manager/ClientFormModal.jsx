@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { createClient, updateClient } from '../../utils/clientsAPI';
+import React, { useState, useEffect, useCallback } from 'react';
+import { createClient, updateClient, checkEdrpou } from '../../utils/clientsAPI';
 import './ClientFormModal.css';
 
 function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) {
   const [loading, setLoading] = useState(false);
+  const [edrpouConflict, setEdrpouConflict] = useState(null);
   const [form, setForm] = useState({
     edrpou: '',
     name: '',
@@ -44,12 +45,38 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
         });
       }
     }
+    setEdrpouConflict(null);
   }, [open, editClient, user]);
+
+  const validateEdrpou = useCallback(async (edrpouVal) => {
+    const trimmed = (edrpouVal || '').trim();
+    setEdrpouConflict(null);
+    if (!trimmed) return null;
+    const result = await checkEdrpou(trimmed, editClient?._id);
+    if (result.exists && !result.sameManager) {
+      const conflict = {
+        managerName: result.assignedManagerName || result.assignedManagerLogin,
+        clientName: result.clientName
+      };
+      setEdrpouConflict(conflict);
+      return conflict;
+    }
+    return null;
+  }, [editClient?._id]);
+
+  const handleEdrpouBlur = () => {
+    validateEdrpou(form.edrpou);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name?.trim()) {
       alert('Введіть назву клієнта');
+      return;
+    }
+    const conflict = await validateEdrpou(form.edrpou);
+    if (conflict) {
+      alert(`Клієнт з ЄДРПОУ ${form.edrpou} вже закріплений за менеджером ${conflict.managerName}${conflict.clientName ? ` (${conflict.clientName})` : ''}. Неможливо створити дублікат.`);
       return;
     }
 
@@ -83,12 +110,19 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
+            {edrpouConflict && (
+              <div className="edrpou-conflict-notice">
+                ⚠️ Клієнт з цим ЄДРПОУ вже закріплений за менеджером <strong>{edrpouConflict.managerName}</strong>
+                {edrpouConflict.clientName && ` (${edrpouConflict.clientName})`}.
+              </div>
+            )}
             <div className="form-group">
               <label>ЄДРПОУ</label>
               <input
                 type="text"
                 value={form.edrpou}
-                onChange={e => setForm(prev => ({ ...prev, edrpou: e.target.value }))}
+                onChange={e => { setForm(prev => ({ ...prev, edrpou: e.target.value })); setEdrpouConflict(null); }}
+                onBlur={handleEdrpouBlur}
                 placeholder="12345678"
               />
             </div>
