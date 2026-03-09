@@ -1,0 +1,125 @@
+.sale-form-modal {
+  background: var(--surface);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 700px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.sale-form-body {
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.sale-form-modal .form-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.sale-form-modal .form-row .form-group {
+  flex: 1;
+  min-width: 140px;
+}
+
+.sale-form-modal .form-group label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sale-form-modal .form-group input,
+.sale-form-modal .form-group select,
+.sale-form-modal .form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-dark);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.sale-form-modal .form-group input:focus,
+.sale-form-modal .form-group select:focus,
+.sale-form-modal .form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* Client autocomplete */
+.client-autocomplete {
+  position: relative;
+}
+
+.client-autocomplete input {
+  width: 100%;
+}
+
+.client-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.client-dropdown li {
+  padding: 10px 14px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.client-dropdown li:hover {
+  background: var(--surface-dark);
+}
+
+.client-dropdown li.empty {
+  cursor: default;
+  color: var(--text-secondary);
+}
+
+.edrpou-badge {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.sale-total-block {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: var(--surface-dark);
+  border-radius: 8px;
+  text-align: right;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.sale-total-block strong {
+  color: var(--primary);
+}
+
+.sale-form-modal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+}

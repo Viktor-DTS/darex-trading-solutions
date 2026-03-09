@@ -466,3 +466,36 @@
   color: white;
 }
 
+/* CRM client autocomplete в резервуванні */
+.reservation-form-modal .client-autocomplete {
+  position: relative;
+}
+
+.reservation-form-modal .client-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.reservation-form-modal .client-dropdown li {
+  padding: 10px 14px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.reservation-form-modal .client-dropdown li:hover {
+  background: var(--surface-dark);
+}
+

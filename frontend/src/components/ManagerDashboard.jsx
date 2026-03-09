@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import API_BASE_URL from '../config';
 import EquipmentList from './equipment/EquipmentList';
+import ClientsTab from './manager/ClientsTab';
+import SalesTab from './manager/SalesTab';
+import IncomingCallTab from './manager/IncomingCallTab';
+import { getClients } from '../utils/clientsAPI';
 import './ManagerDashboard.css';
 
 function ManagerDashboard({ user }) {
@@ -17,6 +21,9 @@ function ManagerDashboard({ user }) {
   const [reservationLoading, setReservationLoading] = useState(false);
   const [reservationHistory, setReservationHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [crmClients, setCrmClients] = useState([]);
+  const [clientSearch, setClientSearch] = useState('');
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
   const equipmentListRef = useRef(null);
 
   useEffect(() => {
@@ -66,15 +73,27 @@ function ManagerDashboard({ user }) {
     }
   };
 
-  const handleReserve = (equipment) => {
+  const handleReserve = async (equipment) => {
     if (equipment.status === 'reserved') {
       alert('Це обладнання вже зарезервовано');
       return;
     }
     setSelectedEquipment(equipment);
     setReservationForm({ clientName: '', notes: '', endDate: '' });
+    setClientSearch('');
     setShowReservationModal(true);
+    try {
+      const data = await getClients();
+      setCrmClients(Array.isArray(data) ? data : data.clients || []);
+    } catch {
+      setCrmClients([]);
+    }
   };
+
+  const filteredReservationClients = crmClients.filter(c =>
+    (c.name || '').toLowerCase().includes(clientSearch.toLowerCase()) ||
+    (c.edrpou || '').includes(clientSearch)
+  );
 
   const handleReservationSubmit = async (e) => {
     e.preventDefault();
@@ -181,6 +200,27 @@ function ManagerDashboard({ user }) {
                 <span className="tab-icon">📋</span>
                 <span className="tab-label">Історія резервування</span>
               </button>
+              <button 
+                className={`manager-sidebar-tab ${activeTab === 'clients' ? 'active' : ''}`}
+                onClick={() => setActiveTab('clients')}
+              >
+                <span className="tab-icon">👥</span>
+                <span className="tab-label">Мої клієнти</span>
+              </button>
+              <button 
+                className={`manager-sidebar-tab ${activeTab === 'sales' ? 'active' : ''}`}
+                onClick={() => setActiveTab('sales')}
+              >
+                <span className="tab-icon">💰</span>
+                <span className="tab-label">Продажі</span>
+              </button>
+              <button 
+                className={`manager-sidebar-tab ${activeTab === 'incoming' ? 'active' : ''}`}
+                onClick={() => setActiveTab('incoming')}
+              >
+                <span className="tab-icon">📞</span>
+                <span className="tab-label">Вхідний дзвінок</span>
+              </button>
             </nav>
           </div>
         </aside>
@@ -190,7 +230,19 @@ function ManagerDashboard({ user }) {
             <div className="loading-indicator">Завантаження...</div>
           ) : (
             <div className="manager-scaled-wrapper">
-          {activeTab === 'stock' ? (
+          {activeTab === 'clients' ? (
+            <div className="manager-scaled-inner">
+              <ClientsTab user={user} />
+            </div>
+          ) : activeTab === 'sales' ? (
+            <div className="manager-scaled-inner">
+              <SalesTab user={user} />
+            </div>
+          ) : activeTab === 'incoming' ? (
+            <div className="manager-scaled-inner">
+              <IncomingCallTab user={user} />
+            </div>
+          ) : activeTab === 'stock' ? (
             <>
               <div className="manager-scaled-inner manager-stock-header-only">
                 <div className="manager-header">
@@ -306,14 +358,36 @@ function ManagerDashboard({ user }) {
                 
                 <div className="form-group">
                   <label>Назва клієнта <span className="required">*</span></label>
-                  <input
-                    type="text"
-                    value={reservationForm.clientName}
-                    onChange={(e) => setReservationForm(prev => ({ ...prev, clientName: e.target.value }))}
-                    placeholder="Введіть назву клієнта"
-                    required
-                    autoFocus
-                  />
+                  <div className="client-autocomplete">
+                    <input
+                      type="text"
+                      value={clientSearch || reservationForm.clientName}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setClientSearch(v);
+                        setReservationForm(prev => ({ ...prev, clientName: v }));
+                        setShowClientDropdown(true);
+                      }}
+                      onFocus={() => setShowClientDropdown(crmClients.length > 0)}
+                      onBlur={() => setTimeout(() => setShowClientDropdown(false), 200)}
+                      placeholder="Введіть назву або оберіть з CRM"
+                      required
+                      autoFocus
+                    />
+                    {showClientDropdown && crmClients.length > 0 && (
+                      <ul className="client-dropdown">
+                        {filteredReservationClients.slice(0, 8).map(c => (
+                          <li key={c._id} onMouseDown={() => {
+                            setReservationForm(prev => ({ ...prev, clientName: c.name }));
+                            setClientSearch(c.name);
+                            setShowClientDropdown(false);
+                          }}>
+                            {c.name}{c.edrpou ? ` (${c.edrpou})` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="form-group">

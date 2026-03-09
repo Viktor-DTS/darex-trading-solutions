@@ -1,0 +1,16 @@
+{
+  "name": "darex-crm-backend",
+  "version": "1.0.0",
+  "description": "CRM backend for Darex Trading Solutions",
+  "main": "server-crm.js",
+  "scripts": {
+    "start": "node server-crm.js",
+    "dev": "node server-crm.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "mongoose": "^8.0.0"
+  }
+}

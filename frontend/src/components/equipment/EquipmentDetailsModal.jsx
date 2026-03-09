@@ -29,10 +29,13 @@ function EquipmentDetailsModal({ equipment, onClose, isPage = false }) {
       'in_stock': 'На складі',
       'reserved': 'Зарезервовано',
       'shipped': 'Відвантажено',
-      'in_transit': 'В дорозі'
+      'in_transit': 'В дорозі',
+      'sold': 'Продано'
     };
     return labels[status] || status;
   };
+
+  const hasSaleInfo = equipment.status === 'sold' || equipment.soldDate || equipment.warrantyUntil || equipment.saleAmount;
 
   // Функція для відкриття галереї зображень
   const openGalleryInNewWindow = (files, startIndex = 0) => {
@@ -264,6 +267,34 @@ function EquipmentDetailsModal({ equipment, onClose, isPage = false }) {
               </div>
             </div>
           </div>
+
+          {hasSaleInfo && (
+            <div className="details-section sale-info-section">
+              <h3>💰 Продаж та гарантія</h3>
+              <div className="details-grid">
+                {equipment.soldDate && (
+                  <div className="detail-item">
+                    <span className="detail-label">Дата продажу:</span>
+                    <span className="detail-value">{formatDate(equipment.soldDate)}</span>
+                  </div>
+                )}
+                {equipment.saleAmount != null && equipment.saleAmount > 0 && (
+                  <div className="detail-item">
+                    <span className="detail-label">Сума продажу:</span>
+                    <span className="detail-value">
+                      {new Intl.NumberFormat('uk-UA', { style: 'currency', currency: 'UAH', minimumFractionDigits: 0 }).format(equipment.saleAmount)}
+                    </span>
+                  </div>
+                )}
+                {equipment.warrantyUntil && (
+                  <div className="detail-item">
+                    <span className="detail-label">Гарантія до:</span>
+                    <span className="detail-value">{formatDate(equipment.warrantyUntil)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="details-section">
             <h3>Технічні характеристики</h3>

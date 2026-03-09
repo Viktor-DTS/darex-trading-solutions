@@ -431,9 +431,17 @@ const equipmentSchema = new mongoose.Schema({
   region: String,                    // Регіон
   status: {                          // Статус
     type: String,
-    enum: ['in_stock', 'reserved', 'shipped', 'in_transit', 'deleted', 'written_off'],
+    enum: ['in_stock', 'reserved', 'shipped', 'in_transit', 'deleted', 'written_off', 'sold'],
     default: 'in_stock'
   },
+  
+  // Продаж (CRM)
+  saleId: mongoose.Schema.Types.ObjectId,
+  soldDate: Date,
+  soldToClientId: mongoose.Schema.Types.ObjectId,
+  saleAmount: Number,
+  warrantyUntil: Date,
+  warrantyMonths: Number,
   
   // Резервування
   reservedBy: String,               // ID користувача, який зарезервував
@@ -822,6 +830,65 @@ reservationSchema.index({ reservedUntil: 1 });
 const Reservation = mongoose.model('Reservation', reservationSchema);
 
 // ============================================
+// CRM - Клієнти та продажі для менеджерів
+// ============================================
+
+const clientSchema = new mongoose.Schema({
+  edrpou: { type: String, unique: true, sparse: true },
+  name: { type: String, required: true },
+  address: String,
+  contactPerson: String,
+  contactPhone: String,
+  email: String,
+  assignedManagerLogin: { type: String, required: true },
+  region: String,
+  notes: String
+}, { timestamps: true });
+
+const Client = mongoose.model('Client', clientSchema);
+
+const additionalCostSchema = new mongoose.Schema({
+  id: String,
+  description: { type: String, required: true },
+  amount: { type: Number, required: true },
+  quantity: { type: Number, default: 1 },
+  notes: String
+}, { _id: false });
+
+const saleSchema = new mongoose.Schema({
+  clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true },
+  edrpou: { type: String, required: true },
+  managerLogin: { type: String, required: true },
+  equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment', required: true },
+  mainProductName: String,
+  mainProductSerial: String,
+  mainProductAmount: { type: Number, required: true },
+  additionalCosts: [additionalCostSchema],
+  saleDate: { type: Date, required: true },
+  warrantyMonths: { type: Number, default: 12 },
+  warrantyUntil: Date,
+  totalAmount: Number,
+  status: { type: String, enum: ['draft', 'confirmed'], default: 'confirmed' },
+  notes: String
+}, { timestamps: true });
+
+saleSchema.pre('save', function(next) {
+  const addSum = (this.additionalCosts || []).reduce(
+    (s, c) => s + (c.amount || 0) * (c.quantity || 1),
+    0
+  );
+  this.totalAmount = (this.mainProductAmount || 0) + addSum;
+  if (this.saleDate && this.warrantyMonths) {
+    const d = new Date(this.saleDate);
+    d.setMonth(d.getMonth() + this.warrantyMonths);
+    this.warrantyUntil = d;
+  }
+  next();
+});
+
+const Sale = mongoose.model('Sale', saleSchema);
+
+// ============================================
 // ОПТИМІЗОВАНІ API ENDPOINTS
 // ============================================
 
@@ -1006,6 +1073,174 @@ app.get('/api/contract-files', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('[FILES] Помилка отримання списку договорів:', error);
     res.status(500).json({ error: 'Помилка отримання списку договорів' });
+  }
+});
+
+// ============================================
+// CRM - Клієнти та продажі для менеджерів
+// ============================================
+
+function getClientWithAccessControl(client, user) {
+  if (!client) return null;
+  if (['admin', 'administrator', 'regional', 'regkerivn'].includes(user?.role)) return client;
+  if (user?.role === 'manager' && client.assignedManagerLogin === user.login) return client;
+  return {
+    _id: client._id,
+    name: client.name,
+    contactPhone: client.contactPhone,
+    assignedManagerLogin: client.assignedManagerLogin,
+    limited: true,
+    message: 'Клієнт закріплений за іншим менеджером'
+  };
+}
+
+app.get('/api/clients', authenticateToken, async (req, res) => {
+  try {
+    let query = {};
+    if (req.user?.role === 'manager') query.assignedManagerLogin = req.user.login;
+    const clients = await Client.find(query).sort({ name: 1 }).lean();
+    res.json(clients);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/clients/search', authenticateToken, async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json([]);
+    const clients = await Client.find({
+      $or: [
+        { name: new RegExp(q, 'i') },
+        { edrpou: new RegExp(q, 'i') },
+        { contactPhone: new RegExp(q, 'i') },
+        { contactPerson: new RegExp(q, 'i') }
+      ]
+    }).limit(20).lean();
+    res.json(clients.map(c => getClientWithAccessControl(c, req.user)));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/clients/:id', authenticateToken, async (req, res) => {
+  try {
+    const client = await Client.findById(req.params.id).lean();
+    if (!client) return res.status(404).json({ error: 'Клієнта не знайдено' });
+    res.json(getClientWithAccessControl(client, req.user));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/clients', authenticateToken, async (req, res) => {
+  try {
+    const body = { ...req.body };
+    if (req.user?.role === 'manager') body.assignedManagerLogin = req.user.login;
+    const client = await Client.create(body);
+    res.json(client);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/clients/:id', authenticateToken, async (req, res) => {
+  try {
+    const client = await Client.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    if (!client) return res.status(404).json({ error: 'Клієнта не знайдено' });
+    res.json(client);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/sales', authenticateToken, async (req, res) => {
+  try {
+    const { clientId, managerLogin } = req.query;
+    let query = {};
+    if (req.user?.role === 'manager') query.managerLogin = req.user.login;
+    if (clientId) query.clientId = clientId;
+    if (managerLogin) query.managerLogin = managerLogin;
+    const sales = await Sale.find(query)
+      .populate('clientId', 'name edrpou contactPhone')
+      .populate('equipmentId', 'type serialNumber')
+      .sort({ saleDate: -1 });
+    res.json(sales);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/sales/:id', authenticateToken, async (req, res) => {
+  try {
+    const sale = await Sale.findById(req.params.id).populate('clientId').populate('equipmentId');
+    if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
+    res.json(sale);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/sales', authenticateToken, async (req, res) => {
+  try {
+    const body = { ...req.body };
+    if (req.user?.role === 'manager') body.managerLogin = req.user.login;
+    const sale = await Sale.create(body);
+    if (sale.status === 'confirmed' && sale.equipmentId) {
+      await Equipment.findByIdAndUpdate(sale.equipmentId, {
+        status: 'sold',
+        saleId: sale._id,
+        soldDate: sale.saleDate,
+        soldToClientId: sale.clientId,
+        saleAmount: sale.totalAmount,
+        warrantyUntil: sale.warrantyUntil,
+        warrantyMonths: sale.warrantyMonths
+      });
+    }
+    res.json(sale);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/sales/:id', authenticateToken, async (req, res) => {
+  try {
+    const body = req.body;
+    const addSum = (body.additionalCosts || []).reduce((s, c) => s + (c.amount || 0) * (c.quantity || 1), 0);
+    body.totalAmount = (parseFloat(body.mainProductAmount) || 0) + addSum;
+    if (body.saleDate && body.warrantyMonths) {
+      const d = new Date(body.saleDate);
+      d.setMonth(d.getMonth() + parseInt(body.warrantyMonths) || 12);
+      body.warrantyUntil = d;
+    }
+    const sale = await Sale.findByIdAndUpdate(req.params.id, body, { new: true, runValidators: true });
+    if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
+    if (sale.status === 'confirmed' && sale.equipmentId) {
+      await Equipment.findByIdAndUpdate(sale.equipmentId, {
+        status: 'sold',
+        saleId: sale._id,
+        soldDate: sale.saleDate,
+        soldToClientId: sale.clientId,
+        saleAmount: sale.totalAmount,
+        warrantyUntil: sale.warrantyUntil,
+        warrantyMonths: sale.warrantyMonths
+      });
+    }
+    res.json(sale);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/sales/:id', authenticateToken, async (req, res) => {
+  try {
+    const sale = await Sale.findById(req.params.id);
+    if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
+    if (sale.status !== 'draft') return res.status(400).json({ error: 'Можна видалити тільки чернетку' });
+    await Sale.findByIdAndDelete(req.params.id);
+    res.sendStatus(204);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
