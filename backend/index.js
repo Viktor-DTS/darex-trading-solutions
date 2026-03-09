@@ -5085,17 +5085,20 @@ app.get('/api/equipment/statistics', authenticateToken, async (req, res) => {
 // ============================================
 // ІСТОРІЯ РЕЗЕРВУВАНЬ - GET запит (має бути ПЕРЕД /:id)
 // ============================================
-// Обладнання для продажу: тільки вільне (in_stock) або зарезервоване цим менеджером
+// Обладнання для продажу: тільки вільне (in_stock) або зарезервоване цим користувачем
 app.get('/api/equipment/for-sale', authenticateToken, async (req, res) => {
   try {
-    const query = { isDeleted: { $ne: true }, status: { $nin: ['deleted', 'shipped', 'sold'] } };
-    if (req.user?.role === 'manager') {
-      query.$or = [
+    const login = req.user?.login || '';
+    const query = {
+      isDeleted: { $ne: true },
+      status: { $nin: ['deleted', 'shipped', 'sold'] },
+      $or: [
         { status: 'in_stock' },
-        { status: 'reserved', reservedByLogin: req.user.login }
-      ];
-    }
+        { status: 'reserved', reservedByLogin: login }
+      ]
+    };
     const equipment = await Equipment.find(query).sort({ addedAt: -1 }).lean();
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.json(equipment);
   } catch (err) {
     res.status(500).json({ error: err.message });
