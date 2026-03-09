@@ -2,16 +2,20 @@ import 'package:flutter/material.dart';
 
 import 'core/services/app_update_service.dart';
 import 'core/services/auth_service.dart';
+import 'core/services/push_notification_service.dart';
 import 'core/services/theme_service.dart';
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/managers/managers_overview_screen.dart';
 import 'features/operator/operator_create_task_screen.dart';
 import 'features/service/service_tasks_screen.dart';
+import 'features/settings/about_screen.dart';
 import 'features/testing/testing_requests_screen.dart';
 import 'features/warehouse/quick_unload_screen.dart';
 import 'features/warehouse/qr_scanner_screen.dart';
 import 'features/warehouse/warehouse_screen.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class DtsMobileApp extends StatelessWidget {
   const DtsMobileApp({super.key});
@@ -22,6 +26,7 @@ class DtsMobileApp extends StatelessWidget {
       listenable: ThemeService.instance,
       builder: (_, __) {
         return MaterialApp(
+          navigatorKey: navigatorKey,
           title: 'DTS Mobile',
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3B82F6)),
@@ -45,6 +50,7 @@ class DtsMobileApp extends StatelessWidget {
         QrScannerScreen.routeName: (_) => const QrScannerScreen(),
         QuickUnloadScreen.routeName: (_) => const QuickUnloadScreen(),
         TestingRequestsScreen.routeName: (_) => const TestingRequestsScreen(),
+        AboutScreen.routeName: (_) => const AboutScreen(),
         ManagersOverviewScreen.routeName: (_) =>
             const ManagersOverviewScreen(),
       },
@@ -70,6 +76,18 @@ class _AuthGateState extends State<AuthGate> {
   void initState() {
     super.initState();
     _initFuture = AuthService.instance.init();
+    _setupPushTapHandler();
+  }
+
+  void _setupPushTapHandler() {
+    PushNotificationService.instance.onNotificationTapped = (_) {
+      if (AuthService.instance.isAuthenticated && navigatorKey.currentContext != null) {
+        Navigator.of(navigatorKey.currentContext!).pushNamedAndRemoveUntil(
+          HomeScreen.routeName,
+          (route) => false,
+        );
+      }
+    };
   }
 
   Future<void> _checkUpdateAndShowDialog(BuildContext context) async {
@@ -123,6 +141,7 @@ class _AuthGateState extends State<AuthGate> {
         // Після входу перевіряємо оновлення один раз і показуємо діалог при потребі
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _checkUpdateAndShowDialog(context);
+          PushNotificationService.instance.handlePendingTap();
         });
 
         if (AuthService.instance.isAuthenticated) {

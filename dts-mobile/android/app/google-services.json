@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "572401949691",
+    "project_id": "dts-mobile-push",
+    "storage_bucket": "dts-mobile-push.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:572401949691:android:2a100b9ab701babd18895e",
+        "android_client_info": {
+          "package_name": "dts.mobile.push"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCztlp1xr-gYB54M2ehypBfA-9iW22RUR0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

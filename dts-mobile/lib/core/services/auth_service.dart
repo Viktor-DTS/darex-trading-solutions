@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import '../models/user.dart';
 import '../session.dart';
 import 'api_client.dart';
+import 'push_notification_service.dart';
 import 'secure_storage.dart';
 import 'task_service.dart';
 
@@ -41,10 +42,13 @@ class AuthService {
     await SecureStorage.saveToken(token);
     await SecureStorage.saveUserJson(jsonEncode(user.toJson()));
 
+    await PushNotificationService.instance.refreshToken();
+
     return user;
   }
 
   Future<void> logout() async {
+    await PushNotificationService.instance.clearToken();
     Session.clear();
     await SecureStorage.clear();
     TaskService.instance.invalidateTasksCache();

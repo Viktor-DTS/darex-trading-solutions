@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/task.dart';
+import '../../core/widgets/error_with_retry.dart';
+import '../../core/widgets/loading_skeleton.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/task_service.dart';
 import 'task_details_screen.dart';
@@ -136,9 +138,12 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
             ),
             Expanded(
               child: _loading && _tasks.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const LoadingSkeleton()
                   : _error != null && _tasks.isEmpty
-                      ? Center(child: Text(_error!))
+                      ? ErrorWithRetry(
+                          message: _error!,
+                          onRetry: () => _loadTasks(forceRefresh: true),
+                        )
                       : _filteredTasks.isEmpty
                           ? const Center(child: Text('Немає заявок'))
                           : RefreshIndicator(

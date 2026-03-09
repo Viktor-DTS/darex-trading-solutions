@@ -100,9 +100,27 @@
 
 Після цього при наступному відкритті додатку користувачі з версією нижчою за вказану побачать діалог оновлення і зможуть завантажити новий APK з Google Drive.
 
+## Push-сповіщення (Firebase Cloud Messaging)
+
+Підтримка FCM реалізована. Для роботи потрібно:
+
+1. **Firebase Console**  
+   - Створіть проєкт на [Firebase Console](https://console.firebase.google.com).  
+   - Додайте Android-додаток з applicationId `com.example.dts_mobile`.  
+   - Завантажте `google-services.json` у папку `android/app/`.
+
+2. **FlutterFire CLI** (рекомендовано):
+   ```bash
+   dart pub global activate flutterfire_cli
+   flutterfire configure
+   ```
+   Або вручну скопіюйте `google-services.json` в `android/app/`.
+
+3. **Бекенд**  
+   Потрібні ендпоінти `POST /api/users/me/fcm-token` та `DELETE /api/users/me/fcm-token`, а також відправка push при подіях (нова заявка, зміна статусу тощо). Деталі — у `docs/PUSH_BACKEND.md`.
+
 ## Наступні кроки (опційно)
 
 - Офлайн-режим або кеш для списків.
-- Push-сповіщення для нових заявок.
 - Покращена обробка помилок мережі та повторні спроби.
 - Темна тема.

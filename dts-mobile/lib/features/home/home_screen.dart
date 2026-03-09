@@ -1,13 +1,60 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../core/services/app_update_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/theme_service.dart';
 import '../auth/login_screen.dart';
+import '../settings/about_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   static const routeName = '/home';
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((info) {
+      if (mounted) setState(() => _version = info.version);
+    });
+  }
+
+  void _showUpdateDialog(BuildContext context, AppUpdateResult result) {
+    showDialog(
+      context: context,
+      barrierDismissible: !result.forceUpdate,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Є оновлення'),
+        content: Text(
+          result.forceUpdate
+              ? 'Для роботи потрібна нова версія (${result.latestVersion}). У вас ${result.currentVersion}.'
+              : 'Доступна версія ${result.latestVersion} (у вас ${result.currentVersion}).',
+        ),
+        actions: [
+          if (!result.forceUpdate)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Пізніше'),
+            ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await AppUpdateService.instance.openStore(result.storeUrl);
+            },
+            child: const Text('Оновити'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +63,10 @@ class HomeScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('DTS Mobile'),
+        title: GestureDetector(
+          onLongPress: () => Navigator.of(context).pushNamed(AboutScreen.routeName),
+          child: const Text('DTS Mobile'),
+        ),
         actions: [
           IconButton(
             onPressed: () async {
@@ -45,6 +95,39 @@ class HomeScreen extends StatelessWidget {
           ),
           IconButton(
             onPressed: () async {
+              final result = await AppUpdateService.instance.checkForUpdate();
+              if (!context.mounted) return;
+              if (result != null) {
+                _showUpdateDialog(context, result);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('У вас актуальна версія')),
+                );
+              }
+            },
+            icon: const Icon(Icons.system_update),
+            tooltip: 'Перевірити оновлення',
+          ),
+          IconButton(
+            onPressed: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Вийти'),
+                  content: const Text('Ви впевнені, що хочете вийти з облікового запису?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Скасувати'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Вийти'),
+                    ),
+                  ],
+                ),
+              );
+              if (ok != true || !context.mounted) return;
               await AuthService.instance.logout();
               if (!context.mounted) return;
               Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
@@ -93,6 +176,18 @@ class HomeScreen extends StatelessWidget {
                             .toList(),
                       ),
               ),
+              if (_version.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pushNamed(AboutScreen.routeName),
+                  child: Text(
+                    'Версія $_version',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
