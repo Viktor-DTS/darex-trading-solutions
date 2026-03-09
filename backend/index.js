@@ -1116,6 +1116,14 @@ app.get('/api/clients', authenticateToken, async (req, res) => {
     let query = {};
     if (req.user?.role === 'manager') query.assignedManagerLogin = req.user.login;
     const clients = await Client.find(query).sort({ name: 1 }).lean();
+    if (req.user?.role !== 'manager' && clients.length > 0) {
+      const logins = [...new Set(clients.map(c => c.assignedManagerLogin).filter(Boolean))];
+      const users = await User.find({ login: { $in: logins } }).select('login name').lean();
+      const loginToName = Object.fromEntries(users.map(u => [u.login, u.name || u.login]));
+      clients.forEach(c => {
+        if (c.assignedManagerLogin) c.assignedManagerName = loginToName[c.assignedManagerLogin] || c.assignedManagerLogin;
+      });
+    }
     res.json(clients);
   } catch (err) {
     res.status(500).json({ error: err.message });

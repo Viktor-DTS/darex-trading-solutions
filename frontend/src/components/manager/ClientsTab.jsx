@@ -53,6 +53,7 @@ function ClientsTab({ user }) {
   };
 
   const formatCurrency = (v) => new Intl.NumberFormat('uk-UA', { style: 'currency', currency: 'UAH', minimumFractionDigits: 0 }).format(v || 0);
+  const showManagerColumn = user?.role !== 'manager';
 
   return (
     <div className="manager-tab-content manager-crm-tab">
@@ -85,6 +86,7 @@ function ClientsTab({ user }) {
                 <th>ЄДРПОУ</th>
                 <th>Контакт</th>
                 <th>Телефон</th>
+                {showManagerColumn && <th>Менеджер</th>}
                 <th>Дія</th>
               </tr>
             </thead>
@@ -95,6 +97,7 @@ function ClientsTab({ user }) {
                   <td>{c.edrpou || '—'}</td>
                   <td>{c.contactPerson || '—'}</td>
                   <td>{c.contactPhone || '—'}</td>
+                  {showManagerColumn && <td>{c.assignedManagerName || c.assignedManagerLogin || '—'}</td>}
                   <td onClick={e => e.stopPropagation()}>
                     <button className="btn-small" onClick={() => handleOpenCard(c._id)}>Переглянути</button>
                   </td>
