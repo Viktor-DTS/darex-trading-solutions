@@ -8,6 +8,7 @@ import 'features/managers/managers_overview_screen.dart';
 import 'features/operator/operator_create_task_screen.dart';
 import 'features/service/service_tasks_screen.dart';
 import 'features/testing/testing_requests_screen.dart';
+import 'features/warehouse/qr_scanner_screen.dart';
 import 'features/warehouse/warehouse_screen.dart';
 
 class DtsMobileApp extends StatelessWidget {
@@ -28,6 +29,7 @@ class DtsMobileApp extends StatelessWidget {
         OperatorCreateTaskScreen.routeName: (_) =>
             const OperatorCreateTaskScreen(),
         WarehouseScreen.routeName: (_) => const WarehouseScreen(),
+        QrScannerScreen.routeName: (_) => const QrScannerScreen(),
         TestingRequestsScreen.routeName: (_) => const TestingRequestsScreen(),
         ManagersOverviewScreen.routeName: (_) =>
             const ManagersOverviewScreen(),

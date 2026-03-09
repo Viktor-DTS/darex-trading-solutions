@@ -103,6 +103,7 @@ class _EquipmentDetailsScreenState extends State<EquipmentDetailsScreen> {
 
     final eq = _equipment!;
     final canMoveOrShip = eq.status == 'in_stock' || eq.status == 'reserved';
+    final canApproveReceipt = eq.status == 'in_transit';
 
     return Scaffold(
       appBar: AppBar(
@@ -179,6 +180,16 @@ class _EquipmentDetailsScreenState extends State<EquipmentDetailsScreen> {
               ),
             ],
             const SizedBox(height: 24),
+            if (canApproveReceipt)
+              FilledButton.icon(
+                onPressed: () => _approveReceipt(eq),
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Підтвердити отримання на склад'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                ),
+              ),
+            if (canApproveReceipt) const SizedBox(height: 12),
             if (canMoveOrShip)
               Row(
                 children: [
@@ -230,6 +241,42 @@ class _EquipmentDetailsScreenState extends State<EquipmentDetailsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _approveReceipt(Equipment eq) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Підтвердити отримання'),
+        content: Text(
+          'Підтвердити отримання "${eq.type ?? eq.serialNumber ?? "обладнання"}" на склад ${eq.currentWarehouseName ?? ""}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Скасувати'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Підтвердити'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await EquipmentService.instance.approveReceipt([eq.id]);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Отримання підтверджено')),
+      );
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AuthService.parseError(e))),
+      );
+    }
   }
 
   Future<void> _openMove(Equipment eq) async {

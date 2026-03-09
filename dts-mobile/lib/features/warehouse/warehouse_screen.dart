@@ -13,6 +13,7 @@ import 'add_equipment_screen.dart';
 import 'batch_move_ship_screen.dart';
 import 'document_details_screen.dart';
 import 'equipment_details_screen.dart';
+import 'qr_scanner_screen.dart';
 import 'select_equipment_action_screen.dart';
 
 class WarehouseScreen extends StatefulWidget {
@@ -116,8 +117,19 @@ class _WarehouseScreenState extends State<WarehouseScreen>
         ),
         actions: [
           IconButton(
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const QrScannerScreen()),
+              );
+              _loadEquipment();
+            },
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: 'Сканувати QR',
+          ),
+          IconButton(
             onPressed: _loadEquipment,
             icon: const Icon(Icons.refresh),
+            tooltip: 'Оновити',
           ),
         ],
       ),
@@ -269,6 +281,26 @@ class _WarehouseScreenState extends State<WarehouseScreen>
     );
   }
 
+  void _toggleInTransitSelection(String id) {
+    setState(() {
+      if (_selectedInTransit.contains(id)) {
+        _selectedInTransit.remove(id);
+      } else {
+        _selectedInTransit.add(id);
+      }
+    });
+  }
+
+  void _selectAllInTransit() {
+    setState(() {
+      if (_selectedInTransit.length == _inTransit.length) {
+        _selectedInTransit.clear();
+      } else {
+        _selectedInTransit = _inTransit.map((e) => e.id).toSet();
+      }
+    });
+  }
+
   Widget _buildInTransitList() {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
@@ -277,49 +309,136 @@ class _WarehouseScreenState extends State<WarehouseScreen>
       return Center(child: Text(_error!));
     }
     if (_inTransit.isEmpty) {
-      return const Center(child: Text('Немає обладнання в дорозі'));
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.local_shipping_outlined, size: 64, color: Theme.of(context).colorScheme.outline),
+            const SizedBox(height: 16),
+            Text(
+              'Немає обладнання в дорозі',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Після переміщення товари з\'являться тут для підтвердження отримання',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Theme.of(context).colorScheme.outline),
+            ),
+          ],
+        ),
+      );
     }
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text('Вибрано: ${_selectedInTransit.length}'),
-              ),
-              ElevatedButton(
-                onPressed: _selectedInTransit.isEmpty ? null : _approveReceipt,
-                child: const Text('Підтвердити'),
-              ),
-            ],
+        Material(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Вибрано: ${_selectedInTransit.length} з ${_inTransit.length}',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: _selectAllInTransit,
+                      icon: Icon(
+                        _selectedInTransit.length == _inTransit.length
+                            ? Icons.deselect
+                            : Icons.select_all,
+                        size: 20,
+                      ),
+                      label: Text(
+                        _selectedInTransit.length == _inTransit.length
+                            ? 'Зняти вибір'
+                            : 'Вибрати всі',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      onPressed: _selectedInTransit.isEmpty ? null : _approveReceipt,
+                      icon: const Icon(Icons.check_circle_outline, size: 20),
+                      label: Text('Підтвердити (${_selectedInTransit.length})'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
         const Divider(height: 1),
         Expanded(
-          child: ListView.separated(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8),
             itemCount: _inTransit.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final item = _inTransit[index];
               final isSelected = _selectedInTransit.contains(item.id);
-              return ListTile(
-                leading: Checkbox(
-                  value: isSelected,
-                  onChanged: (value) {
-                    setState(() {
-                      if (value == true) {
-                        _selectedInTransit.add(item.id);
-                      } else {
-                        _selectedInTransit.remove(item.id);
-                      }
-                    });
-                  },
-                ),
-                title: Text(item.type ?? 'Обладнання'),
-                subtitle: Text(
-                  item.serialNumber ?? 'Серійний номер не вказано',
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5)
+                    : null,
+                child: InkWell(
+                  onTap: () => _toggleInTransitSelection(item.id),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: isSelected,
+                          onChanged: (_) => _toggleInTransitSelection(item.id),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.type ?? 'Обладнання',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                item.serialNumber?.isNotEmpty == true
+                                    ? item.serialNumber!
+                                    : item.batchId != null
+                                        ? 'Партія: ${item.batchId}'
+                                        : '—',
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
+                              if (item.currentWarehouseName != null && item.currentWarehouseName!.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.warehouse, size: 14, color: Theme.of(context).colorScheme.primary),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'На склад: ${item.currentWarehouseName}',
+                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                              color: Theme.of(context).colorScheme.primary,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               );
             },
@@ -432,17 +551,39 @@ class _WarehouseScreenState extends State<WarehouseScreen>
   }
 
   Future<void> _approveReceipt() async {
+    if (_selectedInTransit.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Підтвердити отримання'),
+        content: Text(
+          'Затвердити отримання ${_selectedInTransit.length} одиниць обладнання на склад?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Скасувати'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Підтвердити'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     try {
       await EquipmentService.instance.approveReceipt(
         _selectedInTransit.toList(),
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Отримання підтверджено')),
+        SnackBar(content: Text('Отримання ${_selectedInTransit.length} одиниць підтверджено')),
       );
       _selectedInTransit.clear();
       _loadEquipment();
     } catch (error) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(AuthService.parseError(error))),
       );
