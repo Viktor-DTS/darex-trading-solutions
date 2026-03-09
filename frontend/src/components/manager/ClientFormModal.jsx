@@ -86,10 +86,11 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
         await updateClient(editClient._id, form);
         alert('Клієнта оновлено');
       } else {
-        await createClient(form);
+        const newClient = await createClient(form);
         alert('Клієнта створено');
+        onSuccess?.(newClient);
       }
-      onSuccess?.();
+      if (editClient) onSuccess?.();
       onClose?.();
     } catch (err) {
       alert(err.message || 'Помилка збереження');

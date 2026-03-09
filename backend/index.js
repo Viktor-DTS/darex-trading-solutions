@@ -856,14 +856,22 @@ const additionalCostSchema = new mongoose.Schema({
   notes: String
 }, { _id: false });
 
+const equipmentItemSchema = new mongoose.Schema({
+  equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
+  type: String,
+  serialNumber: String,
+  amount: { type: Number, default: 0 }
+}, { _id: false });
+
 const saleSchema = new mongoose.Schema({
   clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true },
   edrpou: { type: String, required: true },
   managerLogin: { type: String, required: true },
-  equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment', required: true },
+  equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
   mainProductName: String,
   mainProductSerial: String,
-  mainProductAmount: { type: Number, required: true },
+  mainProductAmount: { type: Number },
+  equipmentItems: [equipmentItemSchema],
   additionalCosts: [additionalCostSchema],
   saleDate: { type: Date, required: true },
   warrantyMonths: { type: Number, default: 12 },
@@ -874,11 +882,20 @@ const saleSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 saleSchema.pre('save', function(next) {
+  let mainAmount = this.mainProductAmount || 0;
+  if (this.equipmentItems && this.equipmentItems.length > 0) {
+    mainAmount = this.equipmentItems.reduce((s, i) => s + (i.amount || 0), 0);
+    this.mainProductAmount = mainAmount;
+    const first = this.equipmentItems[0];
+    if (!this.equipmentId && first) this.equipmentId = first.equipmentId;
+    if (!this.mainProductName && first) this.mainProductName = first.type;
+    if (!this.mainProductSerial && first) this.mainProductSerial = first.serialNumber;
+  }
   const addSum = (this.additionalCosts || []).reduce(
     (s, c) => s + (c.amount || 0) * (c.quantity || 1),
     0
   );
-  this.totalAmount = (this.mainProductAmount || 0) + addSum;
+  this.totalAmount = mainAmount + addSum;
   if (this.saleDate && this.warrantyMonths) {
     const d = new Date(this.saleDate);
     d.setMonth(d.getMonth() + this.warrantyMonths);
@@ -1214,7 +1231,10 @@ app.get('/api/sales', authenticateToken, async (req, res) => {
 
 app.get('/api/sales/:id', authenticateToken, async (req, res) => {
   try {
-    const sale = await Sale.findById(req.params.id).populate('clientId').populate('equipmentId');
+    const sale = await Sale.findById(req.params.id)
+      .populate('clientId')
+      .populate('equipmentId')
+      .populate('equipmentItems.equipmentId');
     if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
     res.json(sale);
   } catch (err) {
@@ -1222,21 +1242,33 @@ app.get('/api/sales/:id', authenticateToken, async (req, res) => {
   }
 });
 
+async function markEquipmentAsSold(sale) {
+  const ids = [];
+  if (sale.equipmentItems && sale.equipmentItems.length > 0) {
+    ids.push(...sale.equipmentItems.map(i => i.equipmentId).filter(Boolean));
+  } else if (sale.equipmentId) {
+    ids.push(sale.equipmentId);
+  }
+  for (const eqId of ids) {
+    await Equipment.findByIdAndUpdate(eqId, {
+      status: 'sold',
+      saleId: sale._id,
+      soldDate: sale.saleDate,
+      soldToClientId: sale.clientId,
+      saleAmount: sale.totalAmount,
+      warrantyUntil: sale.warrantyUntil,
+      warrantyMonths: sale.warrantyMonths
+    });
+  }
+}
+
 app.post('/api/sales', authenticateToken, async (req, res) => {
   try {
     const body = { ...req.body };
     if (req.user?.role === 'manager') body.managerLogin = req.user.login;
     const sale = await Sale.create(body);
-    if (sale.status === 'confirmed' && sale.equipmentId) {
-      await Equipment.findByIdAndUpdate(sale.equipmentId, {
-        status: 'sold',
-        saleId: sale._id,
-        soldDate: sale.saleDate,
-        soldToClientId: sale.clientId,
-        saleAmount: sale.totalAmount,
-        warrantyUntil: sale.warrantyUntil,
-        warrantyMonths: sale.warrantyMonths
-      });
+    if (sale.status === 'confirmed') {
+      await markEquipmentAsSold(sale);
     }
     res.json(sale);
   } catch (err) {
@@ -1247,8 +1279,13 @@ app.post('/api/sales', authenticateToken, async (req, res) => {
 app.put('/api/sales/:id', authenticateToken, async (req, res) => {
   try {
     const body = req.body;
+    let mainAmount = parseFloat(body.mainProductAmount) || 0;
+    if (body.equipmentItems && body.equipmentItems.length > 0) {
+      mainAmount = body.equipmentItems.reduce((s, i) => s + (i.amount || 0), 0);
+      body.mainProductAmount = mainAmount;
+    }
     const addSum = (body.additionalCosts || []).reduce((s, c) => s + (c.amount || 0) * (c.quantity || 1), 0);
-    body.totalAmount = (parseFloat(body.mainProductAmount) || 0) + addSum;
+    body.totalAmount = mainAmount + addSum;
     if (body.saleDate && body.warrantyMonths) {
       const d = new Date(body.saleDate);
       d.setMonth(d.getMonth() + parseInt(body.warrantyMonths) || 12);
@@ -1256,16 +1293,8 @@ app.put('/api/sales/:id', authenticateToken, async (req, res) => {
     }
     const sale = await Sale.findByIdAndUpdate(req.params.id, body, { new: true, runValidators: true });
     if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
-    if (sale.status === 'confirmed' && sale.equipmentId) {
-      await Equipment.findByIdAndUpdate(sale.equipmentId, {
-        status: 'sold',
-        saleId: sale._id,
-        soldDate: sale.saleDate,
-        soldToClientId: sale.clientId,
-        saleAmount: sale.totalAmount,
-        warrantyUntil: sale.warrantyUntil,
-        warrantyMonths: sale.warrantyMonths
-      });
+    if (sale.status === 'confirmed') {
+      await markEquipmentAsSold(sale);
     }
     res.json(sale);
   } catch (err) {
@@ -1294,8 +1323,14 @@ app.post('/api/sales/:id/cancel', authenticateToken, async (req, res) => {
     const sale = await Sale.findById(req.params.id);
     if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
     if (sale.status !== 'confirmed') return res.status(400).json({ error: 'Можна скасувати тільки підтверджений продаж' });
-    if (sale.equipmentId) {
-      await Equipment.findByIdAndUpdate(sale.equipmentId, {
+    const ids = [];
+    if (sale.equipmentItems && sale.equipmentItems.length > 0) {
+      ids.push(...sale.equipmentItems.map(i => i.equipmentId).filter(Boolean));
+    } else if (sale.equipmentId) {
+      ids.push(sale.equipmentId);
+    }
+    for (const eqId of ids) {
+      await Equipment.findByIdAndUpdate(eqId, {
         $unset: { saleId: 1, soldDate: 1, soldToClientId: 1, saleAmount: 1, warrantyUntil: 1, warrantyMonths: 1 },
         status: 'in_stock'
       });

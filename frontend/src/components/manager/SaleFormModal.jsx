@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import API_BASE_URL from '../../config';
-import { getClients, getClient } from '../../utils/clientsAPI';
+import { getClients } from '../../utils/clientsAPI';
 import { createSale, updateSale } from '../../utils/salesAPI';
 import AdditionalCostsEditor from './AdditionalCostsEditor';
+import EquipmentEditor from './EquipmentEditor';
+import ClientFormModal from './ClientFormModal';
 import './SaleFormModal.css';
 
 function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
@@ -11,15 +13,13 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
   const [equipment, setEquipment] = useState([]);
   const [clientSearch, setClientSearch] = useState('');
   const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [showClientForm, setShowClientForm] = useState(false);
 
   const [form, setForm] = useState({
     clientId: '',
     clientName: '',
     edrpou: '',
-    equipmentId: '',
-    mainProductName: '',
-    mainProductSerial: '',
-    mainProductAmount: 0,
+    equipmentItems: [{ id: crypto.randomUUID?.() || '1', equipmentId: '', type: '', serialNumber: '', amount: 0 }],
     additionalCosts: [{ id: crypto.randomUUID?.() || '1', description: '', amount: 0, quantity: 1, notes: '' }],
     saleDate: new Date().toISOString().slice(0, 10),
     warrantyMonths: 12,
@@ -30,14 +30,27 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
   useEffect(() => {
     if (open) {
       if (editSale) {
+        const eqId = editSale.equipmentId?._id || editSale.equipmentId;
+        const eqItems = editSale.equipmentItems && editSale.equipmentItems.length > 0
+          ? editSale.equipmentItems.map(i => ({
+              id: crypto.randomUUID?.() || Date.now().toString(),
+              equipmentId: i.equipmentId?._id || i.equipmentId || '',
+              type: i.type || '',
+              serialNumber: i.serialNumber || '',
+              amount: i.amount || 0
+            }))
+          : eqId ? [{
+              id: crypto.randomUUID?.() || '1',
+              equipmentId: eqId,
+              type: editSale.mainProductName || editSale.equipmentId?.type || '',
+              serialNumber: editSale.mainProductSerial || editSale.equipmentId?.serialNumber || '',
+              amount: editSale.mainProductAmount || 0
+            }] : [{ id: crypto.randomUUID?.() || '1', equipmentId: '', type: '', serialNumber: '', amount: 0 }];
         setForm({
           clientId: editSale.clientId?._id || editSale.clientId || '',
           clientName: editSale.clientId?.name || editSale.clientName || '',
           edrpou: editSale.edrpou || editSale.clientId?.edrpou || '',
-          equipmentId: editSale.equipmentId?._id || editSale.equipmentId || '',
-          mainProductName: editSale.mainProductName || editSale.equipmentId?.type || '',
-          mainProductSerial: editSale.mainProductSerial || editSale.equipmentId?.serialNumber || '',
-          mainProductAmount: editSale.mainProductAmount || 0,
+          equipmentItems: eqItems,
           additionalCosts: (editSale.additionalCosts || []).length
             ? editSale.additionalCosts.map(c => ({
                 id: c.id || crypto.randomUUID?.(),
@@ -57,16 +70,18 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
           clientId: '',
           clientName: '',
           edrpou: '',
-          equipmentId: '',
-          mainProductName: '',
-          mainProductSerial: '',
-          mainProductAmount: 0,
+          equipmentItems: [{ id: crypto.randomUUID?.() || '1', equipmentId: '', type: '', serialNumber: '', amount: 0 }],
           additionalCosts: [{ id: crypto.randomUUID?.() || '1', description: '', amount: 0, quantity: 1, notes: '' }],
           saleDate: new Date().toISOString().slice(0, 10),
           warrantyMonths: 12,
           status: 'confirmed',
           notes: ''
         });
+      }
+      if (editSale) {
+        setClientSearch(editSale.clientId?.name || editSale.clientName || '');
+      } else {
+        setClientSearch('');
       }
       loadClients();
       loadEquipment();
@@ -99,6 +114,23 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
     }
   };
 
+  const equipmentWithSale = useMemo(() => {
+    if (!editSale || !open) return equipment;
+    const fromSale = [];
+    if (editSale.equipmentItems?.length) {
+      editSale.equipmentItems.forEach(i => {
+        const eq = i.equipmentId;
+        if (eq) fromSale.push(typeof eq === 'object' ? eq : { _id: eq, type: i.type, serialNumber: i.serialNumber });
+      });
+    } else if (editSale.equipmentId) {
+      const eq = editSale.equipmentId;
+      if (eq) fromSale.push(typeof eq === 'object' ? eq : { _id: eq, type: editSale.mainProductName, serialNumber: editSale.mainProductSerial });
+    }
+    const existingIds = new Set(equipment.map(e => e._id));
+    const toAdd = fromSale.filter(eq => eq && !existingIds.has(eq._id));
+    return [...toAdd, ...equipment];
+  }, [equipment, editSale, open]);
+
   const filteredClients = clients.filter(c =>
     (c.name || '').toLowerCase().includes(clientSearch.toLowerCase()) ||
     (c.edrpou || '').includes(clientSearch)
@@ -115,19 +147,9 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
     setShowClientDropdown(false);
   };
 
-  const handleSelectEquipment = (e) => {
-    const eq = equipment.find(x => x._id === e.target.value);
-    if (eq) {
-      setForm(prev => ({
-        ...prev,
-        equipmentId: eq._id,
-        mainProductName: eq.type || '',
-        mainProductSerial: eq.serialNumber || ''
-      }));
-    }
-  };
 
-  const totalAmount = form.mainProductAmount + form.additionalCosts.reduce(
+  const totalEquipmentAmount = form.equipmentItems.reduce((s, i) => s + (i.amount || 0), 0);
+  const totalAmount = totalEquipmentAmount + form.additionalCosts.reduce(
     (s, c) => s + (c.amount || 0) * (c.quantity || 1),
     0
   );
@@ -138,12 +160,9 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
       alert('Оберіть клієнта');
       return;
     }
-    if (!form.equipmentId) {
-      alert('Оберіть обладнання');
-      return;
-    }
-    if (!form.mainProductAmount || form.mainProductAmount <= 0) {
-      alert('Вкажіть суму основного продукту');
+    const validEquipment = form.equipmentItems.filter(i => i.equipmentId && (i.amount || 0) > 0);
+    if (validEquipment.length === 0) {
+      alert('Додайте щонайменше одну позицію обладнання з сумою');
       return;
     }
 
@@ -153,10 +172,13 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
         clientId: form.clientId,
         edrpou: form.edrpou,
         managerLogin: user?.login,
-        equipmentId: form.equipmentId,
-        mainProductName: form.mainProductName,
-        mainProductSerial: form.mainProductSerial,
-        mainProductAmount: parseFloat(form.mainProductAmount),
+        equipmentItems: validEquipment.map(i => ({
+          equipmentId: i.equipmentId,
+          type: i.type,
+          serialNumber: i.serialNumber,
+          amount: parseFloat(i.amount) || 0
+        })),
+        mainProductAmount: validEquipment.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0),
         additionalCosts: form.additionalCosts
           .filter(c => c.description?.trim())
           .map(c => ({
@@ -201,61 +223,48 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
           <div className="modal-body sale-form-body">
             <div className="form-group">
               <label>Клієнт <span className="required">*</span></label>
-              <div className="client-autocomplete">
-                <input
-                  type="text"
-                  value={clientSearch}
-                  onChange={e => {
-                    setClientSearch(e.target.value);
-                    setShowClientDropdown(true);
-                    if (!e.target.value) setForm(prev => ({ ...prev, clientId: '', clientName: '', edrpou: '' }));
-                  }}
-                  onFocus={() => setShowClientDropdown(true)}
-                  onBlur={() => setTimeout(() => setShowClientDropdown(false), 200)}
-                  placeholder="Пошук за назвою або ЄДРПОУ"
-                />
-                {showClientDropdown && (
-                  <ul className="client-dropdown">
-                    {filteredClients.slice(0, 10).map(c => (
-                      <li key={c._id} onMouseDown={() => handleSelectClient(c)}>
-                        <span>{c.name}</span>
-                        {c.edrpou && <span className="edrpou-badge">{c.edrpou}</span>}
+              <div className="client-autocomplete-with-btn">
+                <div className="client-autocomplete">
+                  <input
+                    type="text"
+                    value={clientSearch}
+                    onChange={e => {
+                      setClientSearch(e.target.value);
+                      setShowClientDropdown(true);
+                      if (!e.target.value) setForm(prev => ({ ...prev, clientId: '', clientName: '', edrpou: '' }));
+                    }}
+                    onFocus={() => setShowClientDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowClientDropdown(false), 200)}
+                    placeholder="Пошук за назвою або ЄДРПОУ"
+                  />
+                  {showClientDropdown && (
+                    <ul className="client-dropdown">
+                      {filteredClients.slice(0, 10).map(c => (
+                        <li key={c._id} onMouseDown={() => handleSelectClient(c)}>
+                          <span>{c.name}</span>
+                          {c.edrpou && <span className="edrpou-badge">{c.edrpou}</span>}
+                        </li>
+                      ))}
+                      {filteredClients.length === 0 && <li className="empty">Клієнтів не знайдено</li>}
+                      <li className="add-client-item" onMouseDown={() => { setShowClientDropdown(false); setShowClientForm(true); }}>
+                        <span className="add-client-btn">+ Створити нового клієнта</span>
                       </li>
-                    ))}
-                    {filteredClients.length === 0 && <li className="empty">Клієнтів не знайдено</li>}
-                  </ul>
-                )}
+                    </ul>
+                  )}
+                </div>
+                <button type="button" className="btn-add-client" onClick={() => setShowClientForm(true)} title="Створити клієнта">
+                  + Клієнт
+                </button>
               </div>
             </div>
 
-            <div className="form-group">
-              <label>Обладнання <span className="required">*</span></label>
-              <select
-                value={form.equipmentId}
-                onChange={handleSelectEquipment}
-                required
-              >
-                <option value="">Оберіть обладнання</option>
-                {equipment.map(eq => (
-                  <option key={eq._id} value={eq._id}>
-                    {eq.type} {eq.serialNumber ? `(${eq.serialNumber})` : ''} — {eq.currentWarehouseName || eq.currentWarehouse || ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <EquipmentEditor
+              items={form.equipmentItems}
+              equipment={equipmentWithSale}
+              onChange={items => setForm(prev => ({ ...prev, equipmentItems: items }))}
+            />
 
             <div className="form-row">
-              <div className="form-group">
-                <label>Сума основного продукту (₴) <span className="required">*</span></label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.mainProductAmount || ''}
-                  onChange={e => setForm(prev => ({ ...prev, mainProductAmount: parseFloat(e.target.value) || 0 }))}
-                  required
-                />
-              </div>
               <div className="form-group">
                 <label>Дата продажу</label>
                 <input
@@ -307,6 +316,17 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
           </div>
         </form>
       </div>
+
+      <ClientFormModal
+        open={showClientForm}
+        onClose={() => setShowClientForm(false)}
+        onSuccess={(newClient) => {
+          loadClients();
+          if (newClient) handleSelectClient(newClient);
+          setShowClientForm(false);
+        }}
+        user={user}
+      />
     </div>
   );
 }

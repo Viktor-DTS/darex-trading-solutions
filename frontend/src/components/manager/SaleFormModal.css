@@ -52,6 +52,44 @@
   border-color: var(--primary);
 }
 
+/* Client autocomplete with add button */
+.client-autocomplete-with-btn {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.client-autocomplete-with-btn .client-autocomplete {
+  flex: 1;
+}
+
+.btn-add-client {
+  padding: 10px 14px;
+  border: 1px dashed var(--primary);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.btn-add-client:hover {
+  background: var(--primary);
+  color: white;
+}
+
+.client-dropdown .add-client-item {
+  border-top: 1px solid var(--border);
+  background: rgba(var(--primary-rgb, 0, 100, 200), 0.05);
+}
+
+.add-client-btn {
+  color: var(--primary);
+  font-weight: 500;
+}
+
 /* Client autocomplete */
 .client-autocomplete {
   position: relative;
