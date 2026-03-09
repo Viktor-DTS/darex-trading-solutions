@@ -1117,7 +1117,18 @@ app.get('/api/clients/search', authenticateToken, async (req, res) => {
         { contactPerson: new RegExp(q, 'i') }
       ]
     }).limit(20).lean();
-    res.json(clients.map(c => getClientWithAccessControl(c, req.user)));
+    const results = clients.map(c => getClientWithAccessControl(c, req.user));
+    const limitedLogins = [...new Set(results.filter(r => r?.limited && r.assignedManagerLogin).map(r => r.assignedManagerLogin))];
+    if (limitedLogins.length > 0) {
+      const users = await User.find({ login: { $in: limitedLogins } }).select('login name').lean();
+      const loginToName = Object.fromEntries(users.map(u => [u.login, u.name || u.login]));
+      results.forEach(r => {
+        if (r?.limited && r.assignedManagerLogin) {
+          r.assignedManagerName = loginToName[r.assignedManagerLogin] || r.assignedManagerLogin;
+        }
+      });
+    }
+    res.json(results);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1127,7 +1138,12 @@ app.get('/api/clients/:id', authenticateToken, async (req, res) => {
   try {
     const client = await Client.findById(req.params.id).lean();
     if (!client) return res.status(404).json({ error: 'Клієнта не знайдено' });
-    res.json(getClientWithAccessControl(client, req.user));
+    let result = getClientWithAccessControl(client, req.user);
+    if (result?.limited && result.assignedManagerLogin) {
+      const manager = await User.findOne({ login: result.assignedManagerLogin }).select('name login').lean();
+      if (manager) result.assignedManagerName = manager.name || manager.login;
+    }
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

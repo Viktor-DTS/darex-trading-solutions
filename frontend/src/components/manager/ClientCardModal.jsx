@@ -56,8 +56,8 @@ function ClientCardModal({ open, onClose, clientId, onEdit }) {
               {client.limited && (
                 <div className="limited-notice">
                   ⚠️ Клієнт закріплений за іншим менеджером. Показано обмежену інформацію.
-                  {client.assignedManagerLogin && (
-                    <div className="limited-manager">Менеджер: <strong>{client.assignedManagerLogin}</strong></div>
+                  {(client.assignedManagerName || client.assignedManagerLogin) && (
+                    <div className="limited-manager">Менеджер: <strong>{client.assignedManagerName || client.assignedManagerLogin}</strong></div>
                   )}
                 </div>
               )}

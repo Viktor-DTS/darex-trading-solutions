@@ -79,8 +79,8 @@ function IncomingCallTab({ user }) {
                 {r.contactPhone && (
                   <div className="result-phone">📞 {r.contactPhone}</div>
                 )}
-                {r.assignedManagerLogin && r.limited && (
-                  <div className="result-manager">Менеджер: {r.assignedManagerLogin}</div>
+                {(r.assignedManagerName || r.assignedManagerLogin) && r.limited && (
+                  <div className="result-manager">Менеджер: {r.assignedManagerName || r.assignedManagerLogin}</div>
                 )}
                 <button className="btn-small" onClick={(e) => { e.stopPropagation(); handleOpenCard(r._id); }}>
                   Переглянути
