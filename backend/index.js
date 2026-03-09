@@ -446,6 +446,7 @@ const equipmentSchema = new mongoose.Schema({
   // Резервування
   reservedBy: String,               // ID користувача, який зарезервував
   reservedByName: String,            // ПІБ користувача, який зарезервував
+  reservedByLogin: String,           // Логін менеджера (для фільтра при продажу)
   reservedAt: Date,                 // Дата резервування
   reservationClientName: String,    // Назва клієнта для резервування
   reservationNotes: String,         // Примітки до резервування
@@ -868,7 +869,7 @@ const saleSchema = new mongoose.Schema({
   warrantyMonths: { type: Number, default: 12 },
   warrantyUntil: Date,
   totalAmount: Number,
-  status: { type: String, enum: ['draft', 'confirmed'], default: 'confirmed' },
+  status: { type: String, enum: ['draft', 'confirmed', 'cancelled'], default: 'confirmed' },
   notes: String
 }, { timestamps: true });
 
@@ -1239,6 +1240,29 @@ app.delete('/api/sales/:id', authenticateToken, async (req, res) => {
     if (sale.status !== 'draft') return res.status(400).json({ error: 'Можна видалити тільки чернетку' });
     await Sale.findByIdAndDelete(req.params.id);
     res.sendStatus(204);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Скасування продажу — тільки адміністратор
+app.post('/api/sales/:id/cancel', authenticateToken, async (req, res) => {
+  try {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'administrator') {
+      return res.status(403).json({ error: 'Скасувати продаж може тільки адміністратор' });
+    }
+    const sale = await Sale.findById(req.params.id);
+    if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
+    if (sale.status !== 'confirmed') return res.status(400).json({ error: 'Можна скасувати тільки підтверджений продаж' });
+    if (sale.equipmentId) {
+      await Equipment.findByIdAndUpdate(sale.equipmentId, {
+        $unset: { saleId: 1, soldDate: 1, soldToClientId: 1, saleAmount: 1, warrantyUntil: 1, warrantyMonths: 1 },
+        status: 'in_stock'
+      });
+    }
+    sale.status = 'cancelled';
+    await sale.save();
+    res.json(sale);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -5061,6 +5085,23 @@ app.get('/api/equipment/statistics', authenticateToken, async (req, res) => {
 // ============================================
 // ІСТОРІЯ РЕЗЕРВУВАНЬ - GET запит (має бути ПЕРЕД /:id)
 // ============================================
+// Обладнання для продажу: тільки вільне (in_stock) або зарезервоване цим менеджером
+app.get('/api/equipment/for-sale', authenticateToken, async (req, res) => {
+  try {
+    const query = { isDeleted: { $ne: true }, status: { $nin: ['deleted', 'shipped', 'sold'] } };
+    if (req.user?.role === 'manager') {
+      query.$or = [
+        { status: 'in_stock' },
+        { status: 'reserved', reservedByLogin: req.user.login }
+      ];
+    }
+    const equipment = await Equipment.find(query).sort({ addedAt: -1 }).lean();
+    res.json(equipment);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/equipment/reservation-history', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
@@ -5368,6 +5409,7 @@ app.post('/api/equipment/:id/reserve', authenticateToken, async (req, res) => {
     equipment.status = 'reserved';
     equipment.reservedBy = user._id.toString();
     equipment.reservedByName = user.name || user.login;
+    equipment.reservedByLogin = user.login;
     equipment.reservedAt = new Date();
     equipment.reservationClientName = clientName.trim();
     equipment.reservationNotes = notes || '';
@@ -5474,6 +5516,7 @@ app.post('/api/equipment/:id/cancel-reserve', authenticateToken, async (req, res
     equipment.status = 'in_stock';
     equipment.reservedBy = undefined;
     equipment.reservedByName = undefined;
+    equipment.reservedByLogin = undefined;
     equipment.reservedAt = undefined;
     equipment.reservationClientName = undefined;
     equipment.reservationNotes = undefined;
@@ -7900,6 +7943,7 @@ app.post('/api/reservations', authenticateToken, async (req, res) => {
             equipment.status = 'reserved';
             equipment.reservedBy = user._id.toString();
             equipment.reservedByName = user.name || user.login;
+            equipment.reservedByLogin = user.login;
             equipment.reservedAt = new Date();
             equipment.lastModified = new Date();
             await equipment.save();
@@ -7948,6 +7992,7 @@ app.post('/api/reservations/:id/cancel', authenticateToken, async (req, res) => 
             equipment.status = 'in_stock';
             equipment.reservedBy = undefined;
             equipment.reservedByName = undefined;
+            equipment.reservedByLogin = undefined;
             equipment.reservedAt = undefined;
             equipment.lastModified = new Date();
             await equipment.save();

@@ -91,3 +91,21 @@ export const deleteSale = async (id) => {
     throw error;
   }
 };
+
+// Скасування продажу (тільки адміністратор)
+export const cancelSale = async (id) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/sales/${id}/cancel`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || `HTTP ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка скасування продажу:', error);
+    throw error;
+  }
+};

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getSales } from '../../utils/salesAPI';
+import { getSales, cancelSale } from '../../utils/salesAPI';
 import SaleFormModal from './SaleFormModal';
 import './ManagerTabs.css';
 
@@ -8,6 +8,8 @@ function SalesTab({ user }) {
   const [loading, setLoading] = useState(true);
   const [showFormModal, setShowFormModal] = useState(false);
   const [editSale, setEditSale] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
+  const isAdmin = ['admin', 'administrator'].includes(user?.role);
 
   useEffect(() => {
     loadSales();
@@ -29,6 +31,19 @@ function SalesTab({ user }) {
   const handleAddNew = () => {
     setEditSale(null);
     setShowFormModal(true);
+  };
+
+  const handleCancelSale = async (sale) => {
+    if (!window.confirm(`Скасувати продаж від ${sale.saleDate ? new Date(sale.saleDate).toLocaleDateString('uk-UA') : ''} для ${sale.clientId?.name || sale.clientName}? Обладнання повернеться на склад.`)) return;
+    setCancellingId(sale._id);
+    try {
+      await cancelSale(sale._id);
+      loadSales();
+    } catch (err) {
+      alert(err.message || 'Помилка скасування');
+    } finally {
+      setCancellingId(null);
+    }
   };
 
   const formatCurrency = (v) => new Intl.NumberFormat('uk-UA', { style: 'currency', currency: 'UAH', minimumFractionDigits: 0 }).format(v || 0);
@@ -60,11 +75,12 @@ function SalesTab({ user }) {
                 <th>Сума</th>
                 <th>Гарантія до</th>
                 <th>Статус</th>
+                {isAdmin && <th>Дія</th>}
               </tr>
             </thead>
             <tbody>
               {sales.map(s => (
-                <tr key={s._id}>
+                <tr key={s._id} className={s.status === 'cancelled' ? 'sale-cancelled' : ''}>
                   <td>{s.saleDate ? new Date(s.saleDate).toLocaleDateString('uk-UA') : '—'}</td>
                   <td>{s.clientId?.name || s.clientName || '—'}</td>
                   <td>{s.mainProductName || '—'}</td>
@@ -73,9 +89,22 @@ function SalesTab({ user }) {
                   <td>{s.warrantyUntil ? new Date(s.warrantyUntil).toLocaleDateString('uk-UA') : '—'}</td>
                   <td>
                     <span className={`sale-status-badge ${s.status || 'confirmed'}`}>
-                      {s.status === 'draft' ? 'Чернетка' : 'Підтверджено'}
+                      {s.status === 'draft' ? 'Чернетка' : s.status === 'cancelled' ? 'Скасовано' : 'Підтверджено'}
                     </span>
                   </td>
+                  {isAdmin && (
+                    <td>
+                      {s.status === 'confirmed' && (
+                        <button
+                          className="btn-small btn-cancel-sale"
+                          onClick={() => handleCancelSale(s)}
+                          disabled={cancellingId === s._id}
+                        >
+                          {cancellingId === s._id ? '...' : 'Скасувати'}
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

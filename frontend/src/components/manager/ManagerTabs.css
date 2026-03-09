@@ -93,6 +93,26 @@
   color: white;
 }
 
+.sale-status-badge.cancelled {
+  background: #dc3545;
+  color: white;
+}
+
+.sale-cancelled {
+  opacity: 0.7;
+}
+
+.btn-cancel-sale {
+  background: transparent;
+  color: #dc3545;
+  border-color: #dc3545;
+}
+
+.btn-cancel-sale:hover:not(:disabled) {
+  background: #dc3545;
+  color: white;
+}
+
 /* Incoming call tab */
 .incoming-call-tab .tab-description {
   margin: 8px 0 0;

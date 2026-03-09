@@ -86,16 +86,12 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
   const loadEquipment = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/equipment`, {
+      const response = await fetch(`${API_BASE_URL}/equipment/for-sale`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
         const data = await response.json();
-        // Доступне для продажу: на складі, зарезервоване (не відвантажене)
-        const available = (Array.isArray(data) ? data : data.equipment || []).filter(
-          eq => !eq.isDeleted && eq.status !== 'deleted' && eq.status !== 'shipped' && eq.status !== 'sold'
-        );
-        setEquipment(available);
+        setEquipment(Array.isArray(data) ? data : []);
       }
     } catch (err) {
       console.error(err);
