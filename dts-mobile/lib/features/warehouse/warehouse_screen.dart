@@ -296,7 +296,8 @@ class _WarehouseScreenState extends State<WarehouseScreen>
       if (_selectedInTransit.length == _inTransit.length) {
         _selectedInTransit.clear();
       } else {
-        _selectedInTransit = _inTransit.map((e) => e.id).toSet();
+        _selectedInTransit.clear();
+        _selectedInTransit.addAll(_inTransit.map((e) => e.id));
       }
     });
   }
