@@ -54,6 +54,29 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// Firebase Admin для push-сповіщень (мобільний додаток)
+let firebaseAdmin = null;
+try {
+  const admin = require('firebase-admin');
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    admin.initializeApp({
+      credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
+    });
+    firebaseAdmin = admin;
+    console.log('[FCM] Firebase Admin ініціалізовано (з оточення)');
+  } else {
+    const serviceAccountPath = path.join(__dirname, 'firebase-service-account.json');
+    if (fs.existsSync(serviceAccountPath)) {
+      const serviceAccount = require(serviceAccountPath);
+      admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+      firebaseAdmin = admin;
+      console.log('[FCM] Firebase Admin ініціалізовано (з файлу)');
+    }
+  }
+} catch (e) {
+  console.warn('[FCM] Firebase Admin не налаштовано:', e.message);
+}
+
 // Multer Storage для Cloudinary (договори) - як для рахунків
 const contractStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
@@ -266,6 +289,7 @@ const userSchema = new mongoose.Schema({
   columnsSettings: Object,
   id: Number,
   telegramChatId: String,
+  fcmToken: { type: String, default: null },
   lastActivity: { type: Date, default: Date.now },
   dismissed: { type: Boolean, default: false },
   notificationSettings: {
@@ -1692,10 +1716,11 @@ app.post('/api/tasks', async (req, res) => {
     const task = new Task(taskData);
     const savedTask = await task.save();
     
-    // Відправляємо Telegram сповіщення про нову заявку
+    // Відправляємо Telegram і push сповіщення про нову заявку
     try {
       const user = req.user || { login: 'system', name: 'Система' };
       await telegramService.sendTaskNotification('task_created', savedTask, user);
+      await sendFcmTaskNotification('task_created', savedTask, user);
     } catch (notificationError) {
       console.error('[TELEGRAM] Помилка при створенні заявки:', notificationError);
     }
@@ -1755,17 +1780,19 @@ app.put('/api/tasks/:id', async (req, res) => {
       // Перевіряємо тип зміни і відправляємо відповідне сповіщення
       if (updateData.status === 'Виконано' && currentTask.status !== 'Виконано') {
         await telegramService.sendTaskNotification('task_completed', task, user);
+        await sendFcmTaskNotification('task_completed', task, user);
       } else if (updateData.approvedByWarehouse === 'Підтверджено' && currentTask.approvedByWarehouse !== 'Підтверджено') {
-        // Завсклад підтвердив - сповіщаємо бухгалтера
         await telegramService.sendTaskNotification('accountant_approval', task, user);
+        await sendFcmTaskNotification('accountant_approval', task, user);
       } else if (updateData.approvedByAccountant === 'Підтверджено' && currentTask.approvedByAccountant !== 'Підтверджено') {
-        // Бухгалтер підтвердив - перевіряємо чи всі затвердили
         const allApproved = task.approvedByWarehouse === 'Підтверджено' && task.approvedByAccountant === 'Підтверджено';
         if (allApproved) {
           await telegramService.sendTaskNotification('task_approved', task, user);
+          await sendFcmTaskNotification('task_approved', task, user);
         }
       } else if (updateData.approvedByWarehouse === 'Відмова' || updateData.approvedByAccountant === 'Відмова') {
         await telegramService.sendTaskNotification('task_rejected', task, user);
+        await sendFcmTaskNotification('task_rejected', task, user);
       }
     } catch (notificationError) {
       console.error('[TELEGRAM] Помилка при оновленні заявки:', notificationError);
@@ -2083,6 +2110,36 @@ app.get('/api/users', async (req, res) => {
     logPerformance('GET /api/users', startTime);
     console.error('[ERROR] GET /api/users:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// FCM-токен для мобільного додатку (push-сповіщення)
+app.post('/api/users/me/fcm-token', authenticateToken, async (req, res) => {
+  try {
+    const { fcmToken } = req.body || {};
+    if (!fcmToken || typeof fcmToken !== 'string') {
+      return res.status(400).json({ error: 'fcmToken required' });
+    }
+    await User.findOneAndUpdate(
+      { login: req.user.login },
+      { fcmToken: fcmToken.trim() }
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[FCM] Помилка збереження токена:', err);
+    res.status(500).json({ error: 'Failed to save token' });
+  }
+});
+app.delete('/api/users/me/fcm-token', authenticateToken, async (req, res) => {
+  try {
+    await User.findOneAndUpdate(
+      { login: req.user.login },
+      { $unset: { fcmToken: 1 } }
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[FCM] Помилка очищення токена:', err);
+    res.status(500).json({ error: 'Failed to clear token' });
   }
 });
 
@@ -3174,10 +3231,11 @@ app.post('/api/invoice-requests', authenticateToken, async (req, res) => {
       invoiceRejectionUser: null
     });
     
-    // Відправляємо Telegram сповіщення про запит на рахунок
+    // Відправляємо Telegram і push сповіщення про запит на рахунок
     try {
       const user = { login: requesterId, name: requesterName };
       await telegramService.sendTaskNotification('invoice_request', task, user);
+      await sendFcmTaskNotification('invoice_request', task, user);
     } catch (notificationError) {
       console.error('[TELEGRAM] Помилка при створенні запиту на рахунок:', notificationError);
     }
@@ -3484,12 +3542,13 @@ app.post('/api/invoice-requests/:id/upload', authenticateToken, (req, res, next)
       }
     }
     
-    // Відправляємо Telegram сповіщення про завантажений рахунок
+    // Відправляємо Telegram і push сповіщення про завантажений рахунок
     try {
       const task = await Task.findById(request.taskId).lean();
       if (task) {
         const user = req.user || { login: 'system', name: 'Бухгалтер' };
         await telegramService.sendTaskNotification('invoice_completed', task, user);
+        await sendFcmTaskNotification('invoice_completed', task, user);
       }
     } catch (notificationError) {
       console.error('[TELEGRAM] Помилка при завантаженні рахунку:', notificationError);
@@ -8202,9 +8261,92 @@ class TelegramService {
       return [];
     }
   }
+
+  // Користувачі для push (мобільний додаток) — та сама логіка notificationSettings + регіон
+  async getUsersForFcmNotification(type, task) {
+    try {
+      const typeToSettingField = {
+        'task_created': 'newRequests',
+        'task_completed': 'pendingApproval',
+        'task_approval': 'pendingApproval',
+        'accountant_approval': 'accountantApproval',
+        'task_approved': 'approvedRequests',
+        'task_rejected': 'rejectedRequests',
+        'invoice_request': 'invoiceRequests',
+        'invoice_completed': 'completedInvoices'
+      };
+      const settingField = typeToSettingField[type];
+      if (!settingField) return [];
+
+      const query = {
+        fcmToken: { $exists: true, $ne: null, $ne: '' },
+        [`notificationSettings.${settingField}`]: true
+      };
+      const users = await User.find(query).lean();
+      const filtered = users.filter(u => {
+        if (u.region === 'Україна') return true;
+        return task.serviceRegion === u.region;
+      });
+      return filtered;
+    } catch (error) {
+      console.error('[FCM] Помилка getUsersForFcmNotification:', error);
+      return [];
+    }
+  }
 }
 
 const telegramService = new TelegramService();
+
+// Відправка push на мобільні пристрої
+async function sendPushToUsers(users, { title, body, data = {} }) {
+  if (!firebaseAdmin) return;
+  const tokens = users.map(u => u.fcmToken).filter(Boolean);
+  if (tokens.length === 0) return;
+
+  const msg = {
+    notification: { title, body },
+    data: Object.fromEntries(Object.entries(data).map(([k, v]) => [String(k), String(v || '')])),
+    tokens,
+    android: { priority: 'high' },
+    apns: { payload: { aps: { sound: 'default' } } }
+  };
+  try {
+    const res = await firebaseAdmin.messaging().sendEachForMulticast(msg);
+    const failed = res.responses.map((r, i) => (!r.success ? tokens[i] : null)).filter(Boolean);
+    if (failed.length) {
+      await User.updateMany({ fcmToken: { $in: failed } }, { $unset: { fcmToken: 1 } });
+    }
+  } catch (err) {
+    console.error('[FCM] Помилка відправки:', err);
+  }
+}
+
+async function sendFcmTaskNotification(type, task, user) {
+  try {
+    const users = await telegramService.getUsersForFcmNotification(type, task);
+    if (users.length === 0) return;
+
+    const titles = {
+      task_created: 'Нова заявка',
+      task_completed: 'Заявка виконана',
+      accountant_approval: 'Підтвердження завсклада',
+      task_approved: 'Заявка підтверджена',
+      task_rejected: 'Заявка відхилена',
+      invoice_request: 'Запит на рахунок',
+      invoice_completed: 'Рахунок завантажено'
+    };
+    const title = titles[type] || 'DTS';
+    const taskLabel = task.requestNumber || task.taskId || (task._id && task._id.toString()) || '';
+    const body = taskLabel ? `№${taskLabel}` : 'Нове сповіщення';
+    await sendPushToUsers(users, {
+      title,
+      body,
+      data: { type, taskId: (task._id || task.id) ? String(task._id || task.id) : '' }
+    });
+  } catch (err) {
+    console.error('[FCM] Помилка sendFcmTaskNotification:', err);
+  }
+}
 
 // Статус Telegram
 app.get('/api/telegram/status', (req, res) => {
