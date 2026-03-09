@@ -1,3 +1,7 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
+
 import '../models/equipment.dart';
 import 'api_client.dart';
 
@@ -173,6 +177,25 @@ class EquipmentService {
       '/api/equipment/scan',
       data: payload,
     );
+  }
+
+  /// Відправляє фото шильдика на сервер для OCR (Google Vision). Повертає розпізнаний текст або null.
+  Future<String?> ocrFromImage(File imageFile) async {
+    final formData = FormData.fromMap({
+      'image': await MultipartFile.fromFile(
+        imageFile.path,
+        filename: 'equipment.jpg',
+      ),
+    });
+    final response = await ApiClient.instance.dio.post<Map<String, dynamic>>(
+      '/api/equipment/ocr',
+      data: formData,
+    );
+    final data = response.data;
+    if (data != null && data['text'] != null) {
+      return data['text'] as String;
+    }
+    return null;
   }
 
   Future<void> moveBatch({

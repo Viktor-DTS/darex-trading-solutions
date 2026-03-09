@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/equipment.dart';
+import '../../core/widgets/error_with_retry.dart';
+import '../../core/widgets/loading_skeleton.dart';
 import '../../core/models/movement_document.dart';
 import '../../core/models/receipt_document.dart';
 import '../../core/models/shipment_document.dart';
 import '../../core/models/warehouse.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/document_service.dart';
+import '../../core/services/equipment_cache_service.dart';
 import '../../core/services/equipment_service.dart';
 import '../../core/services/warehouse_service.dart';
 import 'add_equipment_screen.dart';
 import 'batch_move_ship_screen.dart';
 import 'document_details_screen.dart';
 import 'equipment_details_screen.dart';
+import 'quick_unload_screen.dart';
 import 'qr_scanner_screen.dart';
 import 'select_equipment_action_screen.dart';
 
@@ -38,24 +42,42 @@ class _WarehouseScreenState extends State<WarehouseScreen>
   List<ShipmentDocument> _shipmentDocs = [];
   List<ReceiptDocument> _receiptDocs = [];
   bool _docsLoading = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  bool _isOffline = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() => setState(() {}));
     _loadEquipment();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  List<Equipment> get _filteredEquipment {
+    if (_searchQuery.trim().isEmpty) return _equipment;
+    final q = _searchQuery.trim().toLowerCase();
+    return _equipment.where((e) {
+      final type = (e.type ?? '').toLowerCase();
+      final serial = (e.serialNumber ?? '').toLowerCase();
+      final batch = (e.batchId ?? '').toLowerCase();
+      final wh = (e.currentWarehouseName ?? e.currentWarehouse ?? '').toLowerCase();
+      return type.contains(q) || serial.contains(q) || batch.contains(q) || wh.contains(q);
+    }).toList();
   }
 
   Future<void> _loadEquipment() async {
     setState(() {
       _loading = true;
       _error = null;
+      _isOffline = false;
     });
     try {
       final equipment = await EquipmentService.instance.fetchEquipment();
@@ -63,19 +85,36 @@ class _WarehouseScreenState extends State<WarehouseScreen>
           await EquipmentService.instance.fetchEquipment(status: 'in_transit');
       final warehouses = await WarehouseService.instance.fetchWarehouses();
       await _loadDocuments();
+      await EquipmentCacheService.instance.saveEquipment(
+        equipment.map((e) => {'_id': e.id, 'type': e.type, 'serialNumber': e.serialNumber, 'currentWarehouse': e.currentWarehouse, 'currentWarehouseName': e.currentWarehouseName, 'status': e.status, 'batchId': e.batchId}).toList(),
+      );
+      await EquipmentCacheService.instance.saveInTransit(
+        inTransit.map((e) => {'_id': e.id, 'type': e.type, 'serialNumber': e.serialNumber, 'currentWarehouse': e.currentWarehouse, 'currentWarehouseName': e.currentWarehouseName, 'status': e.status, 'batchId': e.batchId}).toList(),
+      );
+      if (!mounted) return;
       setState(() {
         _equipment = equipment;
         _inTransit = inTransit;
         _warehouses = warehouses;
       });
     } catch (error) {
-      setState(() {
-        _error = AuthService.parseError(error);
-      });
+      final cached = await EquipmentCacheService.instance.getEquipment();
+      final cachedTransit = await EquipmentCacheService.instance.getInTransit();
+      if (!mounted) return;
+      if ((cached != null && cached.isNotEmpty) || (cachedTransit != null && cachedTransit.isNotEmpty)) {
+        setState(() {
+          _equipment = cached != null ? cached.map(Equipment.fromJson).toList() : _equipment;
+          _inTransit = cachedTransit != null ? cachedTransit.map(Equipment.fromJson).toList() : _inTransit;
+          _error = AuthService.parseError(error);
+          _isOffline = true;
+        });
+      } else {
+        setState(() {
+          _error = AuthService.parseError(error);
+        });
+      }
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -119,6 +158,16 @@ class _WarehouseScreenState extends State<WarehouseScreen>
           IconButton(
             onPressed: () async {
               await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const QuickUnloadScreen()),
+              );
+              _loadEquipment();
+            },
+            icon: const Icon(Icons.inventory_2_outlined),
+            tooltip: 'Швидке розвантаження',
+          ),
+          IconButton(
+            onPressed: () async {
+              await Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const QrScannerScreen()),
               );
               _loadEquipment();
@@ -133,12 +182,40 @@ class _WarehouseScreenState extends State<WarehouseScreen>
           ),
         ],
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          _buildEquipmentList(),
-          _buildInTransitList(),
-          _buildDocuments(),
+          if (_isOffline)
+            Material(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.wifi_off, color: Theme.of(context).colorScheme.onErrorContainer),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Офлайн. Показано збережені дані.',
+                          style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildEquipmentList(),
+                _buildInTransitList(),
+                _buildDocuments(),
+              ],
+            ),
+          ),
         ],
       ),
       floatingActionButton: _tabController.index == 0
@@ -149,7 +226,7 @@ class _WarehouseScreenState extends State<WarehouseScreen>
                     builder: (_) => const AddEquipmentScreen(),
                   ),
                 );
-                if (result == true) {
+                if (result == true && mounted) {
                   _loadEquipment();
                 }
               },
@@ -160,16 +237,46 @@ class _WarehouseScreenState extends State<WarehouseScreen>
   }
 
   Widget _buildEquipmentList() {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+    if (_loading && _equipment.isEmpty) {
+      return const LoadingSkeleton();
     }
-    if (_error != null) {
-      return Center(child: Text(_error!));
+    if (_error != null && _equipment.isEmpty) {
+      return ErrorWithRetry(
+        message: _error!,
+        onRetry: () {
+          setState(() => _error = null);
+          _loadEquipment();
+        },
+      );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Пошук по типу, серійному, складу...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            onChanged: (v) => setState(() => _searchQuery = v),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
@@ -193,15 +300,24 @@ class _WarehouseScreenState extends State<WarehouseScreen>
           ),
         ),
         const Divider(height: 1),
-        if (_equipment.isEmpty)
-          const Expanded(child: Center(child: Text('Немає обладнання')))
+        if (_filteredEquipment.isEmpty)
+          Expanded(
+            child: Center(
+              child: Text(
+                _searchQuery.isNotEmpty ? 'Нічого не знайдено' : 'Немає обладнання',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ),
+          )
         else
           Expanded(
-            child: ListView.separated(
-              itemCount: _equipment.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final item = _equipment[index];
+            child: RefreshIndicator(
+              onRefresh: _loadEquipment,
+              child: ListView.separated(
+                itemCount: _filteredEquipment.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final item = _filteredEquipment[index];
                 return ListTile(
                   title: Text(item.type ?? 'Обладнання'),
                   subtitle: Text(
@@ -223,6 +339,7 @@ class _WarehouseScreenState extends State<WarehouseScreen>
               },
             ),
           ),
+        ),
       ],
     );
   }
@@ -303,11 +420,17 @@ class _WarehouseScreenState extends State<WarehouseScreen>
   }
 
   Widget _buildInTransitList() {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+    if (_loading && _inTransit.isEmpty) {
+      return const LoadingSkeleton();
     }
-    if (_error != null) {
-      return Center(child: Text(_error!));
+    if (_error != null && _inTransit.isEmpty) {
+      return ErrorWithRetry(
+        message: _error!,
+        onRetry: () {
+          setState(() => _error = null);
+          _loadEquipment();
+        },
+      );
     }
     if (_inTransit.isEmpty) {
       return Center(
@@ -376,9 +499,11 @@ class _WarehouseScreenState extends State<WarehouseScreen>
         ),
         const Divider(height: 1),
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: _inTransit.length,
+          child: RefreshIndicator(
+            onRefresh: _loadEquipment,
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: _inTransit.length,
             itemBuilder: (context, index) {
               final item = _inTransit[index];
               final isSelected = _selectedInTransit.contains(item.id);
@@ -443,6 +568,7 @@ class _WarehouseScreenState extends State<WarehouseScreen>
                 ),
               );
             },
+            ),
           ),
         ),
       ],
@@ -450,14 +576,25 @@ class _WarehouseScreenState extends State<WarehouseScreen>
   }
 
   Widget _buildDocuments() {
-    if (_docsLoading) {
-      return const Center(child: CircularProgressIndicator());
+    if (_docsLoading && _receiptDocs.isEmpty && _movementDocs.isEmpty && _shipmentDocs.isEmpty) {
+      return const LoadingSkeleton();
     }
     if (_receiptDocs.isEmpty && _movementDocs.isEmpty && _shipmentDocs.isEmpty) {
-      return const Center(child: Text('Немає документів'));
+      return RefreshIndicator(
+        onRefresh: _loadEquipment,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height - 200,
+            child: const Center(child: Text('Немає документів')),
+          ),
+        ),
+      );
     }
 
-    return ListView(
+    return RefreshIndicator(
+      onRefresh: _loadEquipment,
+      child: ListView(
       children: [
         if (_receiptDocs.isNotEmpty)
           _buildDocSection(
@@ -528,6 +665,7 @@ class _WarehouseScreenState extends State<WarehouseScreen>
                 .toList(),
           ),
       ],
+      ),
     );
   }
 

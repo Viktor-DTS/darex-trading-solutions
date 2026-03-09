@@ -16,6 +16,7 @@ dependencies:
   mobile_scanner: ^6.0.2
   url_launcher: ^6.3.2
   package_info_plus: ^8.1.2
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:

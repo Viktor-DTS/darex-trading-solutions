@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import 'core/services/app_update_service.dart';
 import 'core/services/auth_service.dart';
+import 'core/services/theme_service.dart';
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/managers/managers_overview_screen.dart';
 import 'features/operator/operator_create_task_screen.dart';
 import 'features/service/service_tasks_screen.dart';
 import 'features/testing/testing_requests_screen.dart';
+import 'features/warehouse/quick_unload_screen.dart';
 import 'features/warehouse/qr_scanner_screen.dart';
 import 'features/warehouse/warehouse_screen.dart';
 
@@ -16,13 +18,24 @@ class DtsMobileApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'DTS Mobile',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3B82F6)),
-        useMaterial3: true,
-      ),
-      routes: {
+    return ListenableBuilder(
+      listenable: ThemeService.instance,
+      builder: (_, __) {
+        return MaterialApp(
+          title: 'DTS Mobile',
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3B82F6)),
+            useMaterial3: true,
+          ),
+          darkTheme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF3B82F6),
+              brightness: Brightness.dark,
+            ),
+            useMaterial3: true,
+          ),
+          themeMode: ThemeService.instance.themeMode,
+          routes: {
         LoginScreen.routeName: (_) => const LoginScreen(),
         HomeScreen.routeName: (_) => const HomeScreen(),
         ServiceTasksScreen.routeName: (_) => const ServiceTasksScreen(),
@@ -30,11 +43,14 @@ class DtsMobileApp extends StatelessWidget {
             const OperatorCreateTaskScreen(),
         WarehouseScreen.routeName: (_) => const WarehouseScreen(),
         QrScannerScreen.routeName: (_) => const QrScannerScreen(),
+        QuickUnloadScreen.routeName: (_) => const QuickUnloadScreen(),
         TestingRequestsScreen.routeName: (_) => const TestingRequestsScreen(),
         ManagersOverviewScreen.routeName: (_) =>
             const ManagersOverviewScreen(),
       },
       home: const AuthGate(),
+        );
+      },
     );
   }
 }

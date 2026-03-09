@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../core/models/equipment.dart';
@@ -51,6 +52,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     final id = extractEquipmentId(raw);
     if (id == null) {
       if (!mounted) return;
+      HapticFeedback.heavyImpact();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Невірний формат QR: $raw')),
       );
@@ -63,6 +65,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       if (!mounted) return;
       final equipment = Equipment.fromJson(data);
       _lastScanned = null;
+      HapticFeedback.mediumImpact();
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => EquipmentDetailsScreen(equipmentId: equipment.id),

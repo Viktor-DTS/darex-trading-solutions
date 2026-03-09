@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/services/auth_service.dart';
+import '../../core/services/theme_service.dart';
 import '../auth/login_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -17,6 +18,31 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('DTS Mobile'),
         actions: [
+          IconButton(
+            onPressed: () async {
+              final current = ThemeService.instance.themeMode;
+              final next = switch (current) {
+                ThemeMode.light => ThemeMode.dark,
+                ThemeMode.dark => ThemeMode.system,
+                ThemeMode.system => ThemeMode.light,
+              };
+              await ThemeService.instance.setThemeMode(next);
+            },
+            icon: ListenableBuilder(
+              listenable: ThemeService.instance,
+              builder: (_, __) {
+                final mode = ThemeService.instance.themeMode;
+                return Icon(
+                  mode == ThemeMode.dark
+                      ? Icons.dark_mode
+                      : mode == ThemeMode.light
+                          ? Icons.light_mode
+                          : Icons.brightness_auto,
+                );
+              },
+            ),
+            tooltip: 'Тема',
+          ),
           IconButton(
             onPressed: () async {
               await AuthService.instance.logout();
