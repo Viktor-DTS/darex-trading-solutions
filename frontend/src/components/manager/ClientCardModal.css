@@ -53,6 +53,12 @@
   font-size: 14px;
 }
 
+.limited-notice .limited-manager {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(133, 100, 4, 0.2);
+}
+
 .client-info-block {
   background: var(--surface-dark);
   padding: 16px;

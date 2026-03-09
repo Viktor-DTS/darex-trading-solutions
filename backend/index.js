@@ -1088,7 +1088,6 @@ function getClientWithAccessControl(client, user) {
   return {
     _id: client._id,
     name: client.name,
-    contactPhone: client.contactPhone,
     assignedManagerLogin: client.assignedManagerLogin,
     limited: true,
     message: 'Клієнт закріплений за іншим менеджером'

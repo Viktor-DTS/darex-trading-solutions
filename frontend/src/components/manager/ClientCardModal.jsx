@@ -56,17 +56,20 @@ function ClientCardModal({ open, onClose, clientId, onEdit }) {
               {client.limited && (
                 <div className="limited-notice">
                   ⚠️ Клієнт закріплений за іншим менеджером. Показано обмежену інформацію.
+                  {client.assignedManagerLogin && (
+                    <div className="limited-manager">Менеджер: <strong>{client.assignedManagerLogin}</strong></div>
+                  )}
                 </div>
               )}
               <div className="client-info-block">
                 <h4>{client.name}</h4>
-                {client.edrpou && <div><strong>ЄДРПОУ:</strong> {client.edrpou}</div>}
-                {client.address && <div><strong>Адреса:</strong> {client.address}</div>}
-                {client.contactPerson && <div><strong>Контакт:</strong> {client.contactPerson}</div>}
-                {client.contactPhone && <div><strong>Телефон:</strong> {client.contactPhone}</div>}
-                {client.email && <div><strong>Email:</strong> {client.email}</div>}
-                {client.region && <div><strong>Регіон:</strong> {client.region}</div>}
-                {client.notes && <div><strong>Примітки:</strong> {client.notes}</div>}
+                {!client.limited && client.edrpou && <div><strong>ЄДРПОУ:</strong> {client.edrpou}</div>}
+                {!client.limited && client.address && <div><strong>Адреса:</strong> {client.address}</div>}
+                {!client.limited && client.contactPerson && <div><strong>Контакт:</strong> {client.contactPerson}</div>}
+                {!client.limited && client.contactPhone && <div><strong>Телефон:</strong> {client.contactPhone}</div>}
+                {!client.limited && client.email && <div><strong>Email:</strong> {client.email}</div>}
+                {!client.limited && client.region && <div><strong>Регіон:</strong> {client.region}</div>}
+                {!client.limited && client.notes && <div><strong>Примітки:</strong> {client.notes}</div>}
               </div>
 
               {!client.limited && (
