@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 
 import '../models/user.dart';
 import '../session.dart';
+import 'access_rules_service.dart';
 import 'api_client.dart';
 import 'push_notification_service.dart';
 import 'secure_storage.dart';
@@ -18,6 +19,9 @@ class AuthService {
     final token = await SecureStorage.readToken();
     final userJson = await SecureStorage.readUserJson();
     Session.loadFromJson(token, userJson);
+    if (token != null && token.isNotEmpty) {
+      await AccessRulesService.instance.loadAccessRules();
+    }
   }
 
   Future<User> login({
@@ -43,12 +47,14 @@ class AuthService {
     await SecureStorage.saveUserJson(jsonEncode(user.toJson()));
 
     await PushNotificationService.instance.refreshToken();
+    await AccessRulesService.instance.loadAccessRules();
 
     return user;
   }
 
   Future<void> logout() async {
     await PushNotificationService.instance.clearToken();
+    AccessRulesService.instance.clear();
     Session.clear();
     await SecureStorage.clear();
     TaskService.instance.invalidateTasksCache();

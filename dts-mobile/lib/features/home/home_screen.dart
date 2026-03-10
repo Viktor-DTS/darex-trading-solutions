@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../core/services/access_rules_service.dart';
 import '../../core/services/app_update_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/theme_service.dart';
@@ -18,6 +19,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _version = '';
+  List<_Module> _modules = [];
+  bool _loading = true;
 
   @override
   void initState() {
@@ -25,6 +28,19 @@ class _HomeScreenState extends State<HomeScreen> {
     PackageInfo.fromPlatform().then((info) {
       if (mounted) setState(() => _version = info.version);
     });
+    _loadModules();
+  }
+
+  Future<void> _loadModules() async {
+    final role = AuthService.instance.role ?? '';
+    await AccessRulesService.instance.getRules();
+    final panels = AccessRulesService.instance.getPanelsForRole(role);
+    if (mounted) {
+      setState(() {
+        _modules = _modulesFromPanels(panels);
+        _loading = false;
+      });
+    }
   }
 
   void _showUpdateDialog(BuildContext context, AppUpdateResult result) {
@@ -59,7 +75,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = AuthService.instance;
-    final modules = _availableModules(user.role ?? '');
 
     return Scaffold(
       appBar: AppBar(
@@ -155,26 +170,28 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               const SizedBox(height: 16),
               Expanded(
-                child: modules.isEmpty
-                    ? Center(
-                        child: Text(
-                          'Немає доступних модулів для ролі: ${user.role ?? ''}',
-                          textAlign: TextAlign.center,
-                        ),
-                      )
-                    : GridView.count(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        childAspectRatio: 1.1,
-                        children: modules
-                            .map((module) => _ModuleTile(
-                                  title: module.title,
-                                  icon: module.icon,
-                                  routeName: module.routeName,
-                                ))
-                            .toList(),
-                      ),
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _modules.isEmpty
+                        ? Center(
+                            child: Text(
+                              'Немає доступних модулів для ролі: ${user.role ?? ''}',
+                              textAlign: TextAlign.center,
+                            ),
+                          )
+                        : GridView.count(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 1.1,
+                            children: _modules
+                                .map((module) => _ModuleTile(
+                                      title: module.title,
+                                      icon: module.icon,
+                                      routeName: module.routeName,
+                                    ))
+                                .toList(),
+                          ),
               ),
               if (_version.isNotEmpty) ...[
                 const SizedBox(height: 16),
@@ -200,56 +217,38 @@ class _Module {
   const _Module({
     required this.title,
     required this.icon,
-    required this.allowedRoles,
     required this.routeName,
   });
 
   final String title;
   final IconData icon;
-  final Set<String> allowedRoles;
   final String routeName;
 }
 
-List<_Module> _availableModules(String role) {
-  const adminRoles = {'admin', 'administrator'};
-  const modules = [
-    _Module(
-      title: 'Сервісна служба',
-      icon: Icons.engineering,
-      allowedRoles: {'service', 'engineer', 'technician'},
-      routeName: '/service/tasks',
-    ),
-    _Module(
-      title: 'Оператор',
-      icon: Icons.headset_mic,
-      allowedRoles: {'operator', 'dispatcher'},
-      routeName: '/operator',
-    ),
-    _Module(
-      title: 'Складський облік',
-      icon: Icons.warehouse,
-      allowedRoles: {'warehouse', 'zavsklad'},
-      routeName: '/warehouse',
-    ),
-    _Module(
-      title: 'Відділ тестування',
-      icon: Icons.science,
-      allowedRoles: {'testing', 'tester'},
-      routeName: '/testing',
-    ),
-    _Module(
-      title: 'Менеджери',
-      icon: Icons.dashboard_customize,
-      allowedRoles: {'manager', 'regional_manager', 'director'},
-      routeName: '/managers',
-    ),
-  ];
+/// Мапа: panel IDs -> мобільний модуль (без дублікатів: warehouse+inventory -> один модуль)
+const _panelToModule = <String, _Module>{
+  'service': _Module(title: 'Сервісна служба', icon: Icons.engineering, routeName: '/service/tasks'),
+  'operator': _Module(title: 'Оператор', icon: Icons.headset_mic, routeName: '/operator'),
+  'warehouse': _Module(title: 'Складський облік', icon: Icons.warehouse, routeName: '/warehouse'),
+  'inventory': _Module(title: 'Складський облік', icon: Icons.warehouse, routeName: '/warehouse'),
+  'testing': _Module(title: 'Відділ тестування', icon: Icons.science, routeName: '/testing'),
+  'manager': _Module(title: 'Менеджери', icon: Icons.dashboard_customize, routeName: '/managers'),
+  'accountant': _Module(title: 'Менеджери', icon: Icons.dashboard_customize, routeName: '/managers'),
+  'accountantApproval': _Module(title: 'Менеджери', icon: Icons.dashboard_customize, routeName: '/managers'),
+  'regional': _Module(title: 'Менеджери', icon: Icons.dashboard_customize, routeName: '/managers'),
+};
 
-  if (adminRoles.contains(role)) {
-    return modules;
+List<_Module> _modulesFromPanels(List<String> panels) {
+  final seen = <String>{};
+  final result = <_Module>[];
+  for (final panelId in panels) {
+    final module = _panelToModule[panelId];
+    if (module != null && !seen.contains(module.routeName)) {
+      seen.add(module.routeName);
+      result.add(module);
+    }
   }
-
-  return modules.where((module) => module.allowedRoles.contains(role)).toList();
+  return result;
 }
 
 class _ModuleTile extends StatelessWidget {
