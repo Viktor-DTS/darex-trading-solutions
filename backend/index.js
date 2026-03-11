@@ -2415,6 +2415,23 @@ app.get('/api/users/:login/columns-settings/:area', async (req, res) => {
 // ============================================
 // API ДЛЯ КОРИСТУВАЧІВ
 // ============================================
+// Отримання активних користувачів (онлайн за останні 5 хвилин)
+// Важливо: має бути ПЕРЕД /api/users/:login, щоб "online" не трактувався як :login
+app.get('/api/users/online', async (req, res) => {
+  try {
+    const now = new Date();
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+    const activeUsers = await User.find(
+      { lastActivity: { $gte: fiveMinutesAgo } },
+      'login'
+    ).lean();
+    res.json(activeUsers.map(u => u.login));
+  } catch (error) {
+    console.error('[ACTIVITY] Помилка /api/users/online:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Отримання користувача за логіном
 app.get('/api/users/:login', async (req, res) => {
   const startTime = Date.now();
@@ -8415,25 +8432,6 @@ app.post('/api/users/activity', async (req, res) => {
 
 // Отримання активних користувачів (онлайн за останні 5 хвилин)
 app.get('/api/active-users', async (req, res) => {
-  try {
-    const now = new Date();
-    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-    
-    const activeUsers = await User.find(
-      { lastActivity: { $gte: fiveMinutesAgo } },
-      'login name lastActivity'
-    ).lean();
-    
-    const logins = activeUsers.map(user => user.login);
-    res.json(logins);
-  } catch (error) {
-    console.error('[ACTIVITY] Помилка:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Альтернативний ендпоінт /api/users/online
-app.get('/api/users/online', async (req, res) => {
   try {
     const now = new Date();
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
