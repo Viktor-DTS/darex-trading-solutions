@@ -1549,6 +1549,26 @@ app.get('/api/tasks/filter', async (req, res) => {
       'needInvoice', 'needAct', 'reportMonthYear',
       'invoiceRequesterName'
     ];
+    // Парсинг дати з фільтра: підтримка YYYY-MM-DD (input type="date") та DD.MM.YYYY
+    const parseFilterDate = (val, endOfDay = false) => {
+      if (!val || typeof val !== 'string') return null;
+      const s = val.trim();
+      let year, month, day;
+      const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/); // YYYY-MM-DD
+      const dmyMatch = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); // DD.MM.YYYY
+      if (isoMatch) {
+        [, year, month, day] = isoMatch.map(Number);
+      } else if (dmyMatch) {
+        [, day, month, year] = dmyMatch.map(Number);
+      } else {
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) return endOfDay ? new Date(d.setHours(23, 59, 59, 999)) : d;
+        return null;
+      }
+      if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+      const date = new Date(year, month - 1, day);
+      return endOfDay ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999) : date;
+    };
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 30));
     const showAllInvoices = req.query.showAllInvoices === 'true';
@@ -1618,12 +1638,18 @@ app.get('/api/tasks/filter', async (req, res) => {
               const val = String(value).trim();
               if (key.endsWith('From')) {
                 const field = key.replace('From', '');
-                colMatch[field] = colMatch[field] || {};
-                colMatch[field].$gte = new Date(val);
+                const parsed = parseFilterDate(val);
+                if (parsed) {
+                  colMatch[field] = colMatch[field] || {};
+                  colMatch[field].$gte = parsed;
+                }
               } else if (key.endsWith('To')) {
                 const field = key.replace('To', '');
-                colMatch[field] = colMatch[field] || {};
-                colMatch[field].$lte = new Date(val);
+                const parsed = parseFilterDate(val, true);
+                if (parsed) {
+                  colMatch[field] = colMatch[field] || {};
+                  colMatch[field].$lte = parsed;
+                }
               } else {
                 const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
                 if (filterType === 'select') {
@@ -1675,12 +1701,18 @@ app.get('/api/tasks/filter', async (req, res) => {
             const val = String(value).trim();
             if (key.endsWith('From')) {
               const field = key.replace('From', '');
-              colMatch[field] = colMatch[field] || {};
-              colMatch[field].$gte = new Date(val);
+              const parsed = parseFilterDate(val);
+              if (parsed) {
+                colMatch[field] = colMatch[field] || {};
+                colMatch[field].$gte = parsed;
+              }
             } else if (key.endsWith('To')) {
               const field = key.replace('To', '');
-              colMatch[field] = colMatch[field] || {};
-              colMatch[field].$lte = new Date(val);
+              const parsed = parseFilterDate(val, true);
+              if (parsed) {
+                colMatch[field] = colMatch[field] || {};
+                colMatch[field].$lte = parsed;
+              }
             } else {
               const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
               if (filterType === 'select') colMatch[key] = val;
@@ -1971,12 +2003,18 @@ app.get('/api/tasks/filter', async (req, res) => {
             const val = String(value).trim();
             if (key.endsWith('From')) {
               const field = key.replace('From', '');
-              colMatch[field] = colMatch[field] || {};
-              colMatch[field].$gte = new Date(val);
+              const parsed = parseFilterDate(val);
+              if (parsed) {
+                colMatch[field] = colMatch[field] || {};
+                colMatch[field].$gte = parsed;
+              }
             } else if (key.endsWith('To')) {
               const field = key.replace('To', '');
-              colMatch[field] = colMatch[field] || {};
-              colMatch[field].$lte = new Date(val);
+              const parsed = parseFilterDate(val, true);
+              if (parsed) {
+                colMatch[field] = colMatch[field] || {};
+                colMatch[field].$lte = parsed;
+              }
             } else {
               const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
               if (filterType === 'select') {

@@ -176,6 +176,27 @@ function isRejected(value) {
   return value === false || value === 'Відмова';
 }
 
+// Парсинг дати з фільтра: YYYY-MM-DD (input type="date") та DD.MM.YYYY
+function parseFilterDate(val, endOfDay = false) {
+  if (!val || typeof val !== 'string') return null;
+  const s = val.trim();
+  let year, month, day;
+  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const dmyMatch = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (isoMatch) {
+    [, year, month, day] = isoMatch.map(Number);
+  } else if (dmyMatch) {
+    [, day, month, year] = dmyMatch.map(Number);
+  } else {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return endOfDay ? new Date(d.setHours(23, 59, 59, 999)) : d;
+    return null;
+  }
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const date = new Date(year, month - 1, day);
+  return endOfDay ? new Date(year, month - 1, day, 23, 59, 59, 999) : date;
+}
+
 function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service', onViewClick = null, onCreateFromTask = null, onTasksLoaded = null, refreshTrigger = undefined }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -323,7 +344,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   // Отримати тип фільтра для колонки
   const getFilterType = (columnKey) => {
     // Дати
-    if (['requestDate', 'date', 'paymentDate', 'autoCreatedAt', 'autoCompletedAt', 
+    if (['requestDate', 'plannedDate', 'date', 'paymentDate', 'autoCreatedAt', 'autoCompletedAt', 
          'autoWarehouseApprovedAt', 'autoAccountantApprovedAt', 'invoiceRequestDate', 
          'invoiceUploadDate', 'warehouseApprovalDate', 'approvalDate', 'bonusApprovalDate'].includes(columnKey)) {
       return 'date';
@@ -647,23 +668,27 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       // Обробка дат з діапазоном
       if (key.endsWith('From')) {
         const field = key.replace('From', '');
-        result = result.filter(task => {
-          if (!task[field]) return false;
-          const taskDate = new Date(task[field]);
-          const filterDate = new Date(value);
-          return !isNaN(taskDate.getTime()) && !isNaN(filterDate.getTime()) && taskDate >= filterDate;
-        });
+        const filterDate = parseFilterDate(value);
+        if (filterDate) {
+          result = result.filter(task => {
+            if (!task[field]) return false;
+            const taskDate = new Date(task[field]);
+            return !isNaN(taskDate.getTime()) && taskDate >= filterDate;
+          });
+        }
         return;
       }
       
       if (key.endsWith('To')) {
         const field = key.replace('To', '');
-        result = result.filter(task => {
-          if (!task[field]) return false;
-          const taskDate = new Date(task[field]);
-          const filterDate = new Date(value);
-          return !isNaN(taskDate.getTime()) && !isNaN(filterDate.getTime()) && taskDate <= filterDate;
-        });
+        const filterDate = parseFilterDate(value, true);
+        if (filterDate) {
+          result = result.filter(task => {
+            if (!task[field]) return false;
+            const taskDate = new Date(task[field]);
+            return !isNaN(taskDate.getTime()) && taskDate <= filterDate;
+          });
+        }
         return;
       }
       
