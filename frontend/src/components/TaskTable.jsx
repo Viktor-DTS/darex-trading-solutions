@@ -211,9 +211,11 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   
   const [columnSettings, setColumnSettings] = useState({ visible: [], order: [], widths: {} });
   const [deletingTaskId, setDeletingTaskId] = useState(null);
+  const abortControllerRef = useRef(null);
+  const fetchIdRef = useRef(0);
   
-  // Пагінація тільки для панелі оператора
-  const enablePagination = columnsArea === 'operator';
+  // Пагінація для оператора та панелей бухгалтера (швидше завантаження)
+  const enablePagination = ['operator', 'accountant-invoice', 'accountant-approval'].includes(columnsArea);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const PAGE_SIZE = 30;
@@ -287,10 +289,10 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     }
   }, [columnsArea]);
 
-  // При зміні фільтрів (після затримки) — скидаємо сторінку на 1 (для пагінації оператора)
+  // При зміні фільтрів або статусу (вкладки) — скидаємо сторінку на 1 (для пагінації)
   useEffect(() => {
     if (enablePagination) setPage(1);
-  }, [debouncedFilter, debouncedColumnFilters, enablePagination]);
+  }, [debouncedFilter, debouncedColumnFilters, enablePagination, status]);
 
   // Обробник зміни фільтра колонки
   const handleColumnFilterChange = (columnKey, value) => {
@@ -520,8 +522,13 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   }, [user, columnsArea]);
 
   // Завантаження завдань (з кешем 90 с — менше навантаження на сервер при перемиканні вкладок)
-  // Для оператора: пагінація (page, limit), фільтри та пошук на сервері
+  // Для оператора та бухгалтера: пагінація (page, limit), фільтри та пошук на сервері
   useEffect(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    const currentFetchId = ++fetchIdRef.current;
+
     const loadTasks = async () => {
       setError(null);
 
@@ -550,34 +557,44 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       const useCache = !enablePagination && refreshTrigger === undefined;
       const cached = useCache ? getCachedTasks(url) : null;
       if (cached) {
+        if (currentFetchId !== fetchIdRef.current) return;
         setTasks(cached);
         setLoading(false);
         if (onTasksLoaded) onTasksLoaded(cached);
         try {
           const response = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 'Authorization': `Bearer ${token}` },
+            signal
           });
+          if (currentFetchId !== fetchIdRef.current) return;
           if (response.ok) {
             const data = await response.json();
             setTasks(data);
             setCachedTasks(url, data);
             if (onTasksLoaded) onTasksLoaded(data);
           }
-        } catch (_) { /* залишаємо кеш */ }
+        } catch (e) {
+          if (e?.name === 'AbortError') return;
+        }
         return;
       }
 
       setLoading(true);
       try {
         const response = await fetch(url, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          signal
         });
+
+        if (currentFetchId !== fetchIdRef.current) return;
 
         if (!response.ok) {
           throw new Error('Помилка завантаження завдань');
         }
 
         const data = await response.json();
+        if (currentFetchId !== fetchIdRef.current) return;
+
         if (enablePagination && data && typeof data === 'object' && Array.isArray(data.tasks)) {
           setTasks(data.tasks);
           setTotal(data.total ?? 0);
@@ -589,16 +606,20 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
           if (onTasksLoaded) onTasksLoaded(Array.isArray(data) ? data : []);
         }
       } catch (err) {
+        if (err?.name === 'AbortError') return;
         setError(err.message);
         console.error('Помилка завантаження завдань:', err);
       } finally {
-        setLoading(false);
+        if (currentFetchId === fetchIdRef.current) {
+          setLoading(false);
+        }
       }
     };
 
     if (user) {
       loadTasks();
     }
+    return () => abortControllerRef.current?.abort();
   }, [user, status, showRejectedApprovals, showRejectedInvoices, showAllInvoices, onTasksLoaded, enablePagination, page, debouncedFilter, debouncedColumnFilters, sortField, sortDirection, refreshTrigger]);
 
   // Відсортовані та відфільтровані завдання
