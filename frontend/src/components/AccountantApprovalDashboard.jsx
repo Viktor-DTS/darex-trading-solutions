@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import TaskTable, { clearTasksCache } from './TaskTable';
 import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
@@ -15,6 +15,10 @@ function AccountantApprovalDashboard({ user }) {
   const [isReadOnlyMode, setIsReadOnlyMode] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [refreshKey, setRefreshKey] = useState(0); // Тригер для оновлення таблиці
+  
+  const handleTasksLoaded = useCallback((data) => {
+    setTasks(Array.isArray(data) ? data : []);
+  }, []);
   
   // Стан для модального вікна відхилення
   const [rejectModal, setRejectModal] = useState({
@@ -256,7 +260,7 @@ function AccountantApprovalDashboard({ user }) {
           <TaskTable 
             user={user}
             refreshTrigger={refreshKey}
-            onTasksLoaded={(data) => setTasks(Array.isArray(data) ? data : [])}
+            onTasksLoaded={handleTasksLoaded}
             status={
                 activeTab === 'pending' ? 'accountantPending' :
                 activeTab === 'archive' ? 'done' :
