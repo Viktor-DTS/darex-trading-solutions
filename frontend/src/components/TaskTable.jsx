@@ -979,9 +979,36 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     return value.toString();
   };
 
-  // Функція для експорту в Excel
+  // Функція для експорту в Excel (при пагінації — завантажує всі відфільтровані дані)
   const handleExportToExcel = async () => {
-    if (filteredAndSortedTasks.length === 0) {
+    let tasksToExport = filteredAndSortedTasks;
+    if (enablePagination && total > filteredAndSortedTasks.length) {
+      try {
+        const token = localStorage.getItem('token');
+        let url;
+        if (showRejectedApprovals || showRejectedInvoices) {
+          url = `${API_BASE_URL}/tasks/filter?statuses=notDone,pending&region=${user?.region || ''}`;
+        } else if (status) {
+          url = `${API_BASE_URL}/tasks/filter?status=${status}&region=${user?.region || ''}`;
+          if (status === 'accountantInvoiceRequests') url += `&showAllInvoices=${showAllInvoices}`;
+          url += `&sortField=${sortField}&sortDirection=${sortDirection}`;
+          if (debouncedFilter?.trim()) url += `&filter=${encodeURIComponent(debouncedFilter.trim())}`;
+          if (Object.keys(debouncedColumnFilters).some(k => debouncedColumnFilters[k]?.trim?.())) {
+            url += `&columnFilters=${encodeURIComponent(JSON.stringify(debouncedColumnFilters))}`;
+          }
+        } else {
+          url = `${API_BASE_URL}/tasks?region=${user?.region || ''}`;
+        }
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) throw new Error('Помилка завантаження');
+        const data = await res.json();
+        tasksToExport = Array.isArray(data) ? data : (data?.tasks || []);
+      } catch (e) {
+        console.error('Помилка завантаження для експорту:', e);
+        alert('Не вдалося завантажити всі дані для експорту. Експортуються поточні ' + filteredAndSortedTasks.length + ' записів.');
+      }
+    }
+    if (tasksToExport.length === 0) {
       alert('Немає даних для експорту');
       return;
     }
@@ -1011,7 +1038,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       headerRow.height = 25;
 
       // Додавання даних
-      filteredAndSortedTasks.forEach(task => {
+      tasksToExport.forEach(task => {
         const row = displayedColumns.map(col => {
           const value = task[col.key];
           return formatValue(value, col.key);
@@ -1025,7 +1052,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         
         // Знаходимо максимальну довжину тексту в колонці
         let maxLength = col.label.length;
-        filteredAndSortedTasks.forEach(task => {
+        tasksToExport.forEach(task => {
           const value = formatValue(task[col.key], col.key);
           if (value) {
             const strValue = String(value);
