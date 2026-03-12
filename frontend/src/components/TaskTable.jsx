@@ -987,7 +987,11 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         const token = localStorage.getItem('token');
         let url;
         if (showRejectedApprovals || showRejectedInvoices) {
-          url = `${API_BASE_URL}/tasks/filter?statuses=notDone,pending&region=${user?.region || ''}`;
+          url = `${API_BASE_URL}/tasks/filter?statuses=notDone,pending&region=${user?.region || ''}&sortField=${sortField}&sortDirection=${sortDirection}`;
+          if (debouncedFilter?.trim()) url += `&filter=${encodeURIComponent(debouncedFilter.trim())}`;
+          if (Object.keys(debouncedColumnFilters).some(k => debouncedColumnFilters[k]?.trim?.())) {
+            url += `&columnFilters=${encodeURIComponent(JSON.stringify(debouncedColumnFilters))}`;
+          }
         } else if (status) {
           url = `${API_BASE_URL}/tasks/filter?status=${status}&region=${user?.region || ''}`;
           if (status === 'accountantInvoiceRequests') url += `&showAllInvoices=${showAllInvoices}`;

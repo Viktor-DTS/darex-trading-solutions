@@ -1742,6 +1742,9 @@ app.get('/api/tasks/filter', async (req, res) => {
           console.warn('[tasks/filter] accountantInvoiceRequests: Invalid columnFilters JSON:', e.message);
         }
       }
+      const sortFieldExport = (sortField || 'requestDate').replace(/^-/, '');
+      const sortDirExport = (sortDirection === 'asc') ? 1 : -1;
+      irPipeline.push({ $sort: { [sortFieldExport]: sortDirExport } });
 
       const tasks = await InvoiceRequest.aggregate(irPipeline).allowDiskUse(true);
       logPerformance('GET /api/tasks/filter (accountantInvoiceRequests optimized)', startTime, tasks.length);
@@ -1999,9 +2002,9 @@ app.get('/api/tasks/filter', async (req, res) => {
       }
     }
 
-    // Пагінація (тільки коли передані page та limit — для панелі оператора)
-    if (isPaginated) {
-      // Глобальний пошук filter — по всіх текстових полях
+    // Фільтри (filter, columnFilters) — застосовуємо коли передані, з пагінацією або без (експорт)
+    const hasFilters = (filter && typeof filter === 'string' && filter.trim()) || (columnFilters && typeof columnFilters === 'string' && columnFilters.trim());
+    if (hasFilters) {
       if (filter && typeof filter === 'string' && filter.trim()) {
         const searchStr = filter.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = { $regex: searchStr, $options: 'i' };
@@ -2046,10 +2049,14 @@ app.get('/api/tasks/filter', async (req, res) => {
           console.warn('[tasks/filter] Invalid columnFilters JSON:', e.message);
         }
       }
-      // Сортування для пагінації (sortField, sortDirection)
-      const facetSortField = sortField ? sortField.replace(/^-/, '') : 'requestDate';
-      const facetSortDir = (sortDirection === 'asc') ? 1 : -1;
-      const facetSort = { [facetSortField]: facetSortDir };
+    }
+
+    // Пагінація (тільки коли передані page та limit) або сортування для експорту
+    const facetSortField = sortField ? sortField.replace(/^-/, '') : 'requestDate';
+    const facetSortDir = (sortDirection === 'asc') ? 1 : -1;
+    const facetSort = { [facetSortField]: facetSortDir };
+
+    if (isPaginated) {
       pipeline.push({
         $facet: {
           total: [{ $count: 'count' }],
@@ -2060,6 +2067,8 @@ app.get('/api/tasks/filter', async (req, res) => {
           ]
         }
       });
+    } else if (sortField || sortDirection) {
+      pipeline.push({ $sort: facetSort });
     }
 
     const aggResult = await Task.aggregate(pipeline).allowDiskUse(true);
