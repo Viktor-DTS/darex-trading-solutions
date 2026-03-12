@@ -1534,6 +1534,21 @@ app.get('/api/tasks/filter', async (req, res) => {
   try {
     const { status, statuses, region, sort = '-requestDate', page, limit, filter, sortField, sortDirection, columnFilters } = req.query;
     const isPaginated = page !== undefined && limit !== undefined && !isNaN(parseInt(limit));
+    // Універсальний пошук — всі текстопошукові поля Task (відповідно до колонок таблиці)
+    const UNIVERSAL_SEARCH_FIELDS = [
+      'requestNumber', 'client', 'address', 'requestDesc', 'equipment', 'equipmentSerial', 'work',
+      'contactPerson', 'contactPhone', 'edrpou', 'company', 'serviceRegion', 'status',
+      'engineModel', 'engineSerial', 'customerEquipmentNumber',
+      'engineer1', 'engineer2', 'engineer3', 'engineer4', 'engineer5', 'engineer6',
+      'invoice', 'invoiceRecipientDetails', 'paymentType',
+      'filterName', 'oilFilterName', 'fuelFilterName', 'airFilterName',
+      'antifreezeType', 'otherMaterials', 'carNumber',
+      'warehouseComment', 'accountantComment', 'accountantComments', 'regionalManagerComment',
+      'comments', 'blockDetail', 'debtStatus', 'debtStatusCheckbox',
+      'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager',
+      'needInvoice', 'needAct', 'reportMonthYear',
+      'invoiceRequesterName'
+    ];
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 30));
     const showAllInvoices = req.query.showAllInvoices === 'true';
@@ -1583,14 +1598,13 @@ app.get('/api/tasks/filter', async (req, res) => {
       ];
 
       if (isPaginated) {
-        // Глобальний пошук filter — так само як у головному пайплайні + поля з InvoiceRequest
+        // Глобальний пошук filter — по всіх полях
         if (filter && typeof filter === 'string' && filter.trim()) {
           const searchStr = filter.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           const regex = { $regex: searchStr, $options: 'i' };
-          const searchFields = ['requestNumber', 'client', 'address', 'requestDesc', 'equipment', 'equipmentSerial', 'work', 'contactPerson', 'contactPhone', 'edrpou', 'invoice', 'invoiceRequesterName'];
           irPipeline.push({
             $match: {
-              $or: searchFields.map(f => ({ [f]: regex }))
+              $or: UNIVERSAL_SEARCH_FIELDS.map(f => ({ [f]: regex }))
             }
           });
         }
@@ -1650,8 +1664,7 @@ app.get('/api/tasks/filter', async (req, res) => {
       if (filter && typeof filter === 'string' && filter.trim()) {
         const searchStr = filter.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = { $regex: searchStr, $options: 'i' };
-        const searchFields = ['requestNumber', 'client', 'address', 'requestDesc', 'equipment', 'equipmentSerial', 'work', 'contactPerson', 'contactPhone', 'edrpou', 'invoice', 'invoiceRequesterName'];
-        irPipeline.push({ $match: { $or: searchFields.map(f => ({ [f]: regex })) } });
+        irPipeline.push({ $match: { $or: UNIVERSAL_SEARCH_FIELDS.map(f => ({ [f]: regex })) } });
       }
       if (columnFilters && typeof columnFilters === 'string') {
         try {
@@ -1938,14 +1951,13 @@ app.get('/api/tasks/filter', async (req, res) => {
 
     // Пагінація (тільки коли передані page та limit — для панелі оператора)
     if (isPaginated) {
-      // Глобальний пошук filter — пошук підрядка по основним рядковим полям
+      // Глобальний пошук filter — по всіх текстових полях
       if (filter && typeof filter === 'string' && filter.trim()) {
         const searchStr = filter.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = { $regex: searchStr, $options: 'i' };
-        const searchFields = ['requestNumber', 'client', 'address', 'requestDesc', 'equipment', 'equipmentSerial', 'work', 'contactPerson', 'contactPhone', 'edrpou'];
         pipeline.push({
           $match: {
-            $or: searchFields.map(f => ({ [f]: regex }))
+            $or: UNIVERSAL_SEARCH_FIELDS.map(f => ({ [f]: regex }))
           }
         });
       }
