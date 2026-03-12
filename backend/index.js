@@ -1536,7 +1536,78 @@ app.get('/api/tasks/filter', async (req, res) => {
     const isPaginated = page !== undefined && limit !== undefined && !isNaN(parseInt(limit));
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 30));
-    
+    const showAllInvoices = req.query.showAllInvoices === 'true';
+
+    // ОПТИМІЗАЦІЯ: accountantInvoiceRequests — починаємо з InvoiceRequest (192 записів), не з Task (тисячі)
+    if (status === 'accountantInvoiceRequests' && !statuses) {
+      const irMatch = showAllInvoices ? {} : { status: { $in: ['pending', 'processing'] } };
+      const taskLookupPipeline = [
+        { $match: { $expr: { $eq: [{ $toString: '$_id' }, '$$irTaskId'] } } }
+      ];
+      if (region && region !== 'Україна' && !region.includes('Загальний')) {
+        taskLookupPipeline.push({
+          $match: region.includes(',')
+            ? { serviceRegion: { $in: region.split(',').map(r => r.trim()) } }
+            : { serviceRegion: region }
+        });
+      }
+      if (showAllInvoices) {
+        taskLookupPipeline.push({ $match: { status: { $in: ['Заявка', 'В роботі', 'Виконано'] } } });
+      }
+      const irPipeline = [
+        { $match: irMatch },
+        {
+          $lookup: {
+            from: 'tasks',
+            let: { irTaskId: '$taskId' },
+            pipeline: taskLookupPipeline,
+            as: 'task'
+          }
+        },
+        { $unwind: { path: '$task', preserveNullAndEmptyArrays: false } },
+        { $addFields: {
+          'task.invoiceFile': '$invoiceFile',
+          'task.invoiceFileName': '$invoiceFileName',
+          'task.invoice': '$invoiceNumber',
+          'task.actFile': '$actFile',
+          'task.actFileName': '$actFileName',
+          'task.needInvoice': '$needInvoice',
+          'task.needAct': '$needAct',
+          'task.invoiceStatus': '$status',
+          'task.invoiceRequestId': { $toString: '$_id' },
+          'task.invoiceRequesterName': '$requesterName',
+          'task.invoiceRequestDate': { $ifNull: ['$task.invoiceRequestDate', '$createdAt'] }
+        }},
+        { $replaceRoot: { newRoot: '$task' } },
+        { $addFields: { id: { $toString: '$_id' } } }
+      ];
+
+      if (isPaginated) {
+        const facetSortField = (sortField || 'requestDate').replace(/^-/, '');
+        const facetSortDir = (sortDirection === 'asc') ? 1 : -1;
+        irPipeline.push({ $sort: { [facetSortField]: facetSortDir } });
+        irPipeline.push({
+          $facet: {
+            total: [{ $count: 'count' }],
+            data: [
+              { $skip: (pageNum - 1) * limitNum },
+              { $limit: limitNum }
+            ]
+          }
+        });
+        const aggResult = await InvoiceRequest.aggregate(irPipeline).allowDiskUse(true);
+        const result = aggResult[0];
+        const total = (result?.total?.[0]?.count) || 0;
+        const tasks = result?.data || [];
+        logPerformance('GET /api/tasks/filter (accountantInvoiceRequests optimized)', startTime, tasks.length);
+        return res.json({ tasks, total, page: pageNum, limit: limitNum });
+      }
+
+      const tasks = await InvoiceRequest.aggregate(irPipeline).allowDiskUse(true);
+      logPerformance('GET /api/tasks/filter (accountantInvoiceRequests optimized)', startTime, tasks.length);
+      return res.json(tasks);
+    }
+
     // Побудова match стадії
     const matchStage = {};
     
