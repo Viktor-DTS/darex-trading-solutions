@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import TaskTable, { clearTasksCache } from './TaskTable';
 import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
@@ -14,8 +14,7 @@ function AccountantApprovalDashboard({ user }) {
   const [editingTask, setEditingTask] = useState(null);
   const [isReadOnlyMode, setIsReadOnlyMode] = useState(false);
   const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0); // Ключ для оновлення таблиці
+  const [refreshKey, setRefreshKey] = useState(0); // Тригер для оновлення таблиці
   
   // Стан для модального вікна відхилення
   const [rejectModal, setRejectModal] = useState({
@@ -25,52 +24,6 @@ function AccountantApprovalDashboard({ user }) {
     returnTo: 'service' // 'service' або 'warehouse'
   });
   const [showReportsModal, setShowReportsModal] = useState(false);
-
-  // Завантаження завдань
-  useEffect(() => {
-    loadTasks();
-  }, [user, activeTab]);
-
-  const loadTasks = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      let statusParam = '';
-      
-      switch (activeTab) {
-        case 'pending':
-          statusParam = 'accountantPending';
-          break;
-        case 'archive':
-          statusParam = 'done';
-          break;
-        case 'debt':
-          statusParam = 'accountantDebt';
-          break;
-        case 'paymentDebt':
-          statusParam = 'paymentDebt';
-          break;
-        case 'allExceptApproved':
-          statusParam = 'allExceptApproved';
-          break;
-        default:
-          statusParam = 'accountantPending';
-      }
-      
-      const response = await fetch(`${API_BASE_URL}/tasks/filter?status=${statusParam}&region=${user?.region || ''}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setTasks(data);
-      }
-    } catch (err) {
-      console.error('Помилка завантаження завдань:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Підтвердження/відмова заявки
   const handleApprove = async (taskId, approved, comment) => {
@@ -145,7 +98,6 @@ function AccountantApprovalDashboard({ user }) {
         }
         
         clearTasksCache();
-        await loadTasks();
         setRefreshKey(prev => prev + 1);
       } else {
         alert('Помилка оновлення заявки');
@@ -224,7 +176,6 @@ function AccountantApprovalDashboard({ user }) {
         
         setRejectModal({ open: false, taskId: null, comment: '', returnTo: 'service' });
         clearTasksCache();
-        await loadTasks();
         setRefreshKey(prev => prev + 1);
       } else {
         alert('Помилка оновлення заявки');
@@ -302,13 +253,11 @@ function AccountantApprovalDashboard({ user }) {
 
         {/* Table Area */}
         <main className="table-area">
-          {loading ? (
-            <div className="loading-indicator">Завантаження...</div>
-          ) : (
-            <TaskTable 
-              key={refreshKey}
-              user={user} 
-              status={
+          <TaskTable 
+            user={user}
+            refreshTrigger={refreshKey}
+            onTasksLoaded={(data) => setTasks(Array.isArray(data) ? data : [])}
+            status={
                 activeTab === 'pending' ? 'accountantPending' :
                 activeTab === 'archive' ? 'done' :
                 activeTab === 'debt' ? 'accountantDebt' :
@@ -326,7 +275,6 @@ function AccountantApprovalDashboard({ user }) {
               approveRole="accountant"
               columnsArea="accountant-approval"
             />
-          )}
         </main>
       </div>
 
@@ -352,7 +300,6 @@ function AccountantApprovalDashboard({ user }) {
           onSave={(savedTask, options) => {
             if (!options?.keepModalOpen) handleCloseModal();
             clearTasksCache();
-            loadTasks();
             setRefreshKey(prev => prev + 1);
           }}
         />

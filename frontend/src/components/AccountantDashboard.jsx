@@ -529,8 +529,8 @@ function AccountantDashboard({ user }) {
             <div className="loading-indicator">Завантаження...</div>
           ) : (
             <TaskTable 
-              key={refreshKey}
-              user={user} 
+              user={user}
+              refreshTrigger={refreshKey}
               status={activeTab === 'allExceptApproved' ? 'allExceptApproved' : 'accountantInvoiceRequests'}
               onColumnSettingsClick={() => setShowColumnSettings(true)}
               showRejectedApprovals={false}

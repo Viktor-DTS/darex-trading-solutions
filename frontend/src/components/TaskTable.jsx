@@ -176,7 +176,7 @@ function isRejected(value) {
   return value === false || value === 'Відмова';
 }
 
-function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service', onViewClick = null, onCreateFromTask = null, onTasksLoaded = null }) {
+function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service', onViewClick = null, onCreateFromTask = null, onTasksLoaded = null, refreshTrigger = undefined }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -547,7 +547,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         url = `${API_BASE_URL}/tasks?region=${user?.region || ''}`;
       }
 
-      const useCache = !enablePagination;
+      const useCache = !enablePagination && refreshTrigger === undefined;
       const cached = useCache ? getCachedTasks(url) : null;
       if (cached) {
         setTasks(cached);
@@ -599,7 +599,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     if (user) {
       loadTasks();
     }
-  }, [user, status, showRejectedApprovals, showRejectedInvoices, showAllInvoices, onTasksLoaded, enablePagination, page, debouncedFilter, debouncedColumnFilters, sortField, sortDirection]);
+  }, [user, status, showRejectedApprovals, showRejectedInvoices, showAllInvoices, onTasksLoaded, enablePagination, page, debouncedFilter, debouncedColumnFilters, sortField, sortDirection, refreshTrigger]);
 
   // Відсортовані та відфільтровані завдання
   // Для оператора з пагінацією: сервер вже відфільтрував і відсортував — використовуємо tasks як є
