@@ -1562,12 +1562,27 @@ app.get('/api/tasks/filter', async (req, res) => {
         [, day, month, year] = dmyMatch.map(Number);
       } else {
         const d = new Date(s);
-        if (!isNaN(d.getTime())) return endOfDay ? new Date(d.setHours(23, 59, 59, 999)) : d;
-        return null;
+        if (isNaN(d.getTime())) return null;
+        const result = endOfDay ? new Date(d.setHours(23, 59, 59, 999)) : d;
+        const y = result.getFullYear(), m = String(result.getMonth() + 1).padStart(2, '0'), dayStr = String(result.getDate()).padStart(2, '0');
+        return { date: result, isoFrom: `${y}-${m}-${dayStr}`, isoTo: `${y}-${m}-${dayStr}T23:59:59.999` };
       }
       if (month < 1 || month > 12 || day < 1 || day > 31) return null;
       const date = new Date(year, month - 1, day);
-      return endOfDay ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999) : date;
+      const result = endOfDay ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999) : date;
+      const y = result.getFullYear(), m = String(result.getMonth() + 1).padStart(2, '0'), d = String(result.getDate()).padStart(2, '0');
+      return { date: result, isoFrom: `${y}-${m}-${d}`, isoTo: `${y}-${m}-${d}T23:59:59.999` };
+    };
+    // Збірка $match для дати: підтримка і Date, і string (ISO) у MongoDB
+    const buildDateMatch = (field, fromObj, toObj) => {
+      const conditions = [];
+      if (fromObj) {
+        conditions.push({ $or: [{ [field]: { $gte: fromObj.date } }, { [field]: { $gte: fromObj.isoFrom } }] });
+      }
+      if (toObj) {
+        conditions.push({ $or: [{ [field]: { $lte: toObj.date } }, { [field]: { $lte: toObj.isoTo } }] });
+      }
+      return conditions.length === 1 ? conditions[0] : { $and: conditions };
     };
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 30));
@@ -1633,6 +1648,7 @@ app.get('/api/tasks/filter', async (req, res) => {
           try {
             const filters = JSON.parse(columnFilters);
             const colMatch = {};
+            const dateFiltersByField = {};
             for (const [key, value] of Object.entries(filters)) {
               if (!value || String(value).trim() === '') continue;
               const val = String(value).trim();
@@ -1640,27 +1656,29 @@ app.get('/api/tasks/filter', async (req, res) => {
                 const field = key.replace('From', '');
                 const parsed = parseFilterDate(val);
                 if (parsed) {
-                  colMatch[field] = colMatch[field] || {};
-                  colMatch[field].$gte = parsed;
+                  dateFiltersByField[field] = dateFiltersByField[field] || {};
+                  dateFiltersByField[field].from = parsed;
                 }
               } else if (key.endsWith('To')) {
                 const field = key.replace('To', '');
                 const parsed = parseFilterDate(val, true);
                 if (parsed) {
-                  colMatch[field] = colMatch[field] || {};
-                  colMatch[field].$lte = parsed;
+                  dateFiltersByField[field] = dateFiltersByField[field] || {};
+                  dateFiltersByField[field].to = parsed;
                 }
               } else {
                 const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
-                if (filterType === 'select') {
-                  colMatch[key] = val;
-                } else {
-                  colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
-                }
+                if (filterType === 'select') colMatch[key] = val;
+                else colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
               }
             }
-            if (Object.keys(colMatch).length > 0) {
-              irPipeline.push({ $match: colMatch });
+            const matchConditions = [];
+            for (const [field, { from, to }] of Object.entries(dateFiltersByField)) {
+              matchConditions.push(buildDateMatch(field, from, to));
+            }
+            for (const [k, v] of Object.entries(colMatch)) matchConditions.push({ [k]: v });
+            if (matchConditions.length > 0) {
+              irPipeline.push({ $match: matchConditions.length === 1 ? matchConditions[0] : { $and: matchConditions } });
             }
           } catch (e) {
             console.warn('[tasks/filter] accountantInvoiceRequests: Invalid columnFilters JSON:', e.message);
@@ -1696,30 +1714,30 @@ app.get('/api/tasks/filter', async (req, res) => {
         try {
           const filters = JSON.parse(columnFilters);
           const colMatch = {};
+          const dateFiltersByField = {};
           for (const [key, value] of Object.entries(filters)) {
             if (!value || String(value).trim() === '') continue;
             const val = String(value).trim();
             if (key.endsWith('From')) {
               const field = key.replace('From', '');
               const parsed = parseFilterDate(val);
-              if (parsed) {
-                colMatch[field] = colMatch[field] || {};
-                colMatch[field].$gte = parsed;
-              }
+              if (parsed) { dateFiltersByField[field] = dateFiltersByField[field] || {}; dateFiltersByField[field].from = parsed; }
             } else if (key.endsWith('To')) {
               const field = key.replace('To', '');
               const parsed = parseFilterDate(val, true);
-              if (parsed) {
-                colMatch[field] = colMatch[field] || {};
-                colMatch[field].$lte = parsed;
-              }
+              if (parsed) { dateFiltersByField[field] = dateFiltersByField[field] || {}; dateFiltersByField[field].to = parsed; }
             } else {
               const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
               if (filterType === 'select') colMatch[key] = val;
               else colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
             }
           }
-          if (Object.keys(colMatch).length > 0) irPipeline.push({ $match: colMatch });
+          const matchConditions = [];
+          for (const [field, { from, to }] of Object.entries(dateFiltersByField)) {
+            matchConditions.push(buildDateMatch(field, from, to));
+          }
+          for (const [k, v] of Object.entries(colMatch)) matchConditions.push({ [k]: v });
+          if (matchConditions.length > 0) irPipeline.push({ $match: matchConditions.length === 1 ? matchConditions[0] : { $and: matchConditions } });
         } catch (e) {
           console.warn('[tasks/filter] accountantInvoiceRequests: Invalid columnFilters JSON:', e.message);
         }
@@ -1998,34 +2016,31 @@ app.get('/api/tasks/filter', async (req, res) => {
         try {
           const filters = JSON.parse(columnFilters);
           const colMatch = {};
+          const dateFiltersByField = {};
           for (const [key, value] of Object.entries(filters)) {
             if (!value || String(value).trim() === '') continue;
             const val = String(value).trim();
             if (key.endsWith('From')) {
               const field = key.replace('From', '');
               const parsed = parseFilterDate(val);
-              if (parsed) {
-                colMatch[field] = colMatch[field] || {};
-                colMatch[field].$gte = parsed;
-              }
+              if (parsed) { dateFiltersByField[field] = dateFiltersByField[field] || {}; dateFiltersByField[field].from = parsed; }
             } else if (key.endsWith('To')) {
               const field = key.replace('To', '');
               const parsed = parseFilterDate(val, true);
-              if (parsed) {
-                colMatch[field] = colMatch[field] || {};
-                colMatch[field].$lte = parsed;
-              }
+              if (parsed) { dateFiltersByField[field] = dateFiltersByField[field] || {}; dateFiltersByField[field].to = parsed; }
             } else {
               const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
-              if (filterType === 'select') {
-                colMatch[key] = val;
-              } else {
-                colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
-              }
+              if (filterType === 'select') colMatch[key] = val;
+              else colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
             }
           }
-          if (Object.keys(colMatch).length > 0) {
-            pipeline.push({ $match: colMatch });
+          const matchConditions = [];
+          for (const [field, { from, to }] of Object.entries(dateFiltersByField)) {
+            matchConditions.push(buildDateMatch(field, from, to));
+          }
+          for (const [k, v] of Object.entries(colMatch)) matchConditions.push({ [k]: v });
+          if (matchConditions.length > 0) {
+            pipeline.push({ $match: matchConditions.length === 1 ? matchConditions[0] : { $and: matchConditions } });
           }
         } catch (e) {
           console.warn('[tasks/filter] Invalid columnFilters JSON:', e.message);
