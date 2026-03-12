@@ -1583,6 +1583,49 @@ app.get('/api/tasks/filter', async (req, res) => {
       ];
 
       if (isPaginated) {
+        // Глобальний пошук filter — так само як у головному пайплайні + поля з InvoiceRequest
+        if (filter && typeof filter === 'string' && filter.trim()) {
+          const searchStr = filter.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = { $regex: searchStr, $options: 'i' };
+          const searchFields = ['requestNumber', 'client', 'address', 'requestDesc', 'equipment', 'equipmentSerial', 'work', 'contactPerson', 'contactPhone', 'edrpou', 'invoice', 'invoiceRequesterName'];
+          irPipeline.push({
+            $match: {
+              $or: searchFields.map(f => ({ [f]: regex }))
+            }
+          });
+        }
+        // Фільтри по колонках
+        if (columnFilters && typeof columnFilters === 'string') {
+          try {
+            const filters = JSON.parse(columnFilters);
+            const colMatch = {};
+            for (const [key, value] of Object.entries(filters)) {
+              if (!value || String(value).trim() === '') continue;
+              const val = String(value).trim();
+              if (key.endsWith('From')) {
+                const field = key.replace('From', '');
+                colMatch[field] = colMatch[field] || {};
+                colMatch[field].$gte = new Date(val);
+              } else if (key.endsWith('To')) {
+                const field = key.replace('To', '');
+                colMatch[field] = colMatch[field] || {};
+                colMatch[field].$lte = new Date(val);
+              } else {
+                const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
+                if (filterType === 'select') {
+                  colMatch[key] = val;
+                } else {
+                  colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+                }
+              }
+            }
+            if (Object.keys(colMatch).length > 0) {
+              irPipeline.push({ $match: colMatch });
+            }
+          } catch (e) {
+            console.warn('[tasks/filter] accountantInvoiceRequests: Invalid columnFilters JSON:', e.message);
+          }
+        }
         const facetSortField = (sortField || 'requestDate').replace(/^-/, '');
         const facetSortDir = (sortDirection === 'asc') ? 1 : -1;
         irPipeline.push({ $sort: { [facetSortField]: facetSortDir } });
@@ -1601,6 +1644,40 @@ app.get('/api/tasks/filter', async (req, res) => {
         const tasks = result?.data || [];
         logPerformance('GET /api/tasks/filter (accountantInvoiceRequests optimized)', startTime, tasks.length);
         return res.json({ tasks, total, page: pageNum, limit: limitNum });
+      }
+
+      // Без пагінації: застосовуємо filter і columnFilters
+      if (filter && typeof filter === 'string' && filter.trim()) {
+        const searchStr = filter.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = { $regex: searchStr, $options: 'i' };
+        const searchFields = ['requestNumber', 'client', 'address', 'requestDesc', 'equipment', 'equipmentSerial', 'work', 'contactPerson', 'contactPhone', 'edrpou', 'invoice', 'invoiceRequesterName'];
+        irPipeline.push({ $match: { $or: searchFields.map(f => ({ [f]: regex })) } });
+      }
+      if (columnFilters && typeof columnFilters === 'string') {
+        try {
+          const filters = JSON.parse(columnFilters);
+          const colMatch = {};
+          for (const [key, value] of Object.entries(filters)) {
+            if (!value || String(value).trim() === '') continue;
+            const val = String(value).trim();
+            if (key.endsWith('From')) {
+              const field = key.replace('From', '');
+              colMatch[field] = colMatch[field] || {};
+              colMatch[field].$gte = new Date(val);
+            } else if (key.endsWith('To')) {
+              const field = key.replace('To', '');
+              colMatch[field] = colMatch[field] || {};
+              colMatch[field].$lte = new Date(val);
+            } else {
+              const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
+              if (filterType === 'select') colMatch[key] = val;
+              else colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+            }
+          }
+          if (Object.keys(colMatch).length > 0) irPipeline.push({ $match: colMatch });
+        } catch (e) {
+          console.warn('[tasks/filter] accountantInvoiceRequests: Invalid columnFilters JSON:', e.message);
+        }
       }
 
       const tasks = await InvoiceRequest.aggregate(irPipeline).allowDiskUse(true);
