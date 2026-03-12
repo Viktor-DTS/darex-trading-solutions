@@ -1695,67 +1695,65 @@ app.get('/api/tasks/filter', async (req, res) => {
       }
     }
     
-    // Агрегаційний пайплайн (аналогічний до /api/tasks)
+    // $lookup потрібен тільки для accountantInvoiceRequests (панель "Бух рахунки")
+    // Для accountantPending, done, archive тощо — пропускаємо, щоб не робити 1000+ lookups
+    const needsInvoiceLookup = status === 'accountantInvoiceRequests';
+
     const pipeline = [
       { $match: matchStage },
-      { $sort: sort === '-requestDate' ? { requestDate: -1 } : { [sort.replace('-', '')]: sort.startsWith('-') ? -1 : 1 } },
-      // Lookup по taskId (конвертуємо обидва в String для гарантованого порівняння)
-      {
-        $lookup: {
-          from: 'invoicerequests',
-          let: { taskIdStr: { $toString: '$_id' } },
-          pipeline: [
-            { 
-              $match: { 
-                $expr: { 
-                  $eq: [{ $toString: '$taskId' }, '$$taskIdStr']
-                } 
-              } 
-            }
-          ],
-          as: 'invoiceRequestByTaskId'
-        }
-      },
-      {
-        $addFields: {
-          invoiceRequest: { $arrayElemAt: ['$invoiceRequestByTaskId', 0] }
-        }
-      },
-      {
-        $addFields: {
-          invoiceFile: { $ifNull: ['$invoiceRequest.invoiceFile', '$invoiceFile'] },
-          invoiceFileName: { $ifNull: ['$invoiceRequest.invoiceFileName', '$invoiceFileName'] },
-          invoice: { $ifNull: ['$invoiceRequest.invoiceNumber', '$invoice'] },
-          actFile: { $ifNull: ['$invoiceRequest.actFile', '$actFile'] },
-          actFileName: { $ifNull: ['$invoiceRequest.actFileName', '$actFileName'] },
-          needInvoice: { $ifNull: ['$invoiceRequest.needInvoice', '$needInvoice'] },
-          needAct: { $ifNull: ['$invoiceRequest.needAct', '$needAct'] },
-          invoiceStatus: { $ifNull: ['$invoiceRequest.status', null] },
-          rejectionReason: { $ifNull: ['$invoiceRequest.rejectionReason', null] },
-          rejectedBy: { $ifNull: ['$invoiceRequest.rejectedBy', null] },
-          rejectedAt: { $ifNull: ['$invoiceRequest.rejectedAt', null] },
-          invoiceRequesterName: { $ifNull: ['$invoiceRequest.requesterName', null] },
-          invoiceRequestId: {
-            $cond: {
-              if: { $ne: ['$invoiceRequest', null] },
-              then: { $toString: '$invoiceRequest._id' },
-              else: { $ifNull: ['$invoiceRequestId', null] }
+      { $sort: sort === '-requestDate' ? { requestDate: -1 } : { [sort.replace('-', '')]: sort.startsWith('-') ? -1 : 1 } }
+    ];
+
+    if (needsInvoiceLookup) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: 'invoicerequests',
+            let: { taskIdStr: { $toString: '$_id' } },
+            pipeline: [
+              { $match: { $expr: { $eq: [{ $toString: '$taskId' }, '$$taskIdStr'] } } }
+            ],
+            as: 'invoiceRequestByTaskId'
+          }
+        },
+        { $addFields: { invoiceRequest: { $arrayElemAt: ['$invoiceRequestByTaskId', 0] } } },
+        {
+          $addFields: {
+            invoiceFile: { $ifNull: ['$invoiceRequest.invoiceFile', '$invoiceFile'] },
+            invoiceFileName: { $ifNull: ['$invoiceRequest.invoiceFileName', '$invoiceFileName'] },
+            invoice: { $ifNull: ['$invoiceRequest.invoiceNumber', '$invoice'] },
+            actFile: { $ifNull: ['$invoiceRequest.actFile', '$actFile'] },
+            actFileName: { $ifNull: ['$invoiceRequest.actFileName', '$actFileName'] },
+            needInvoice: { $ifNull: ['$invoiceRequest.needInvoice', '$needInvoice'] },
+            needAct: { $ifNull: ['$invoiceRequest.needAct', '$needAct'] },
+            invoiceStatus: { $ifNull: ['$invoiceRequest.status', null] },
+            rejectionReason: { $ifNull: ['$invoiceRequest.rejectionReason', null] },
+            rejectedBy: { $ifNull: ['$invoiceRequest.rejectedBy', null] },
+            rejectedAt: { $ifNull: ['$invoiceRequest.rejectedAt', null] },
+            invoiceRequesterName: { $ifNull: ['$invoiceRequest.requesterName', null] },
+            invoiceRequestId: {
+              $cond: {
+                if: { $ne: ['$invoiceRequest', null] },
+                then: { $toString: '$invoiceRequest._id' },
+                else: { $ifNull: ['$invoiceRequestId', null] }
+              }
             }
           }
-        }
-      },
-      {
-        $project: {
-          invoiceRequestByTaskId: 0,
-          invoiceRequest: 0
-        }
-      },
-      {
+        },
+        { $project: { invoiceRequestByTaskId: 0, invoiceRequest: 0 } }
+      );
+    } else {
+      pipeline.push({
         $addFields: {
-          id: { $toString: '$_id' }
+          invoiceRequestId: { $ifNull: ['$invoiceRequestId', null] },
+          invoiceStatus: { $ifNull: ['$invoiceStatus', null] }
         }
-      }
-    ];
+      });
+    }
+
+    pipeline.push({
+      $addFields: { id: { $toString: '$_id' } }
+    });
     
     // Додаткова фільтрація для accountantInvoiceRequests по статусу InvoiceRequest
     if (status === 'accountantInvoiceRequests') {
