@@ -1,6 +1,8 @@
 .manager-dashboard {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   height: 100%;
   background: var(--background);
 }
@@ -106,18 +108,14 @@
   box-sizing: border-box;
 }
 
-/* Вкладка «Залишки на складах»: масштаб 80% як у Складському обліку — краще відображення даних на екрані */
+/* Вкладка «Залишки на складах»: таблиця до самого низу екрана (без scale — він порушував flex) */
 .manager-stock-scaled {
-  width: 125%;
-  height: 125%;
-  transform: scale(0.8);
-  transform-origin: 0 0;
   flex: 1;
   min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
+  width: 100%;
 }
 
 /* Компактний заголовок */
@@ -132,19 +130,22 @@
   margin: 0;
 }
 
-/* Область таблиці: фіксована висота, скрол всередині — горизонтальний скролбар завжди під таблицею */
+/* Область таблиці — заповнює всю вільну висоту до низу */
 .manager-table-viewport {
   flex: 1;
   min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .manager-table-viewport .equipment-table-container {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Масштаб 80% для вкладки «Історія резервування» (весь контент) */

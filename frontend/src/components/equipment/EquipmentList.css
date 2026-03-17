@@ -186,7 +186,7 @@
   min-width: 0;
   position: relative;
   width: 100%;
-  margin-bottom: 8px; /* мінімальний відступ знизу — більше висоти для таблиці */
+  margin-bottom: 4px;
   padding-bottom: 0;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;

@@ -113,10 +113,18 @@
   font-size: 12px;
 }
 
-/* Panel Content */
+/* Panel Content — контент панелі заповнює висоту до низу */
 .panel-content {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-content > * {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
