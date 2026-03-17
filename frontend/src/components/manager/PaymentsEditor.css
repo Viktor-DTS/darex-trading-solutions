@@ -1,0 +1,121 @@
+.payments-editor {
+  margin: 16px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-dark);
+}
+
+.payments-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.payments-editor-header .section-label {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.btn-add-payment {
+  padding: 6px 14px;
+  border: 1px dashed var(--primary);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.btn-add-payment:hover {
+  background: var(--primary);
+  color: white;
+}
+
+.payments-table-wrap {
+  overflow-x: auto;
+}
+
+.payments-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 400px;
+}
+
+.payments-table th,
+.payments-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.payments-table th {
+  background: var(--surface);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.payments-table td input,
+.payments-table td select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.payments-table td input:focus,
+.payments-table td select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.payments-table .col-amount { width: 120px; }
+.payments-table .col-rate { width: 90px; }
+.payments-table .col-action { width: 44px; }
+
+.btn-remove-payment {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-remove-payment:hover:not(:disabled) {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-remove-payment:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.payments-summary {
+  padding: 12px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--text);
+}
+
+.payments-summary strong {
+  color: var(--primary);
+}

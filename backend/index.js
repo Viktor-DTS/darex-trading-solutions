@@ -878,21 +878,33 @@ const equipmentItemSchema = new mongoose.Schema({
   amount: { type: Number, default: 0 }
 }, { _id: false });
 
+const paymentItemSchema = new mongoose.Schema({
+  id: String,
+  date: { type: Date, required: true },
+  amount: { type: Number, required: true },
+  currency: { type: String, default: 'UAH' },
+  rate: { type: Number, default: 1 }
+}, { _id: false });
+
 const saleSchema = new mongoose.Schema({
   clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true },
-  edrpou: { type: String, required: true },
+  edrpou: { type: String }, // Опціонально — приватнимні особи не мають ЄДРПОУ
   managerLogin: { type: String, required: true },
+  managerLogin2: String,
+  tenderEmployeeLogin: String,
   equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
   mainProductName: String,
   mainProductSerial: String,
   mainProductAmount: { type: Number },
   equipmentItems: [equipmentItemSchema],
   additionalCosts: [additionalCostSchema],
+  payments: [paymentItemSchema],
   saleDate: { type: Date, required: true },
   warrantyMonths: { type: Number, default: 12 },
   warrantyUntil: Date,
   totalAmount: Number,
-  status: { type: String, enum: ['draft', 'confirmed', 'cancelled'], default: 'confirmed' },
+  status: { type: String, enum: ['draft', 'primary_contact', 'quote_sent', 'in_progress', 'pnr', 'success', 'confirmed', 'cancelled'], default: 'primary_contact' },
+  statusHistory: [{ from: String, to: String, date: Date, userLogin: String }],
   notes: String
 }, { timestamps: true });
 
@@ -1378,17 +1390,46 @@ app.post('/api/clients/:id/interactions', authenticateToken, async (req, res) =>
 app.get('/api/sales', authenticateToken, async (req, res) => {
   try {
     const { clientId, managerLogin, forClientCheck } = req.query;
-    let query = {};
-    // для перевірки клієнта — повертаємо продажі для clientId навіть чужим менеджерам
+    const conditions = [];
     if (req.user?.role === 'manager' && forClientCheck !== 'true') {
-      query.managerLogin = req.user.login;
+      conditions.push({
+        $or: [
+          { managerLogin: req.user.login },
+          { managerLogin2: req.user.login }
+        ]
+      });
     }
-    if (clientId) query.clientId = clientId;
-    if (managerLogin) query.managerLogin = managerLogin;
+    if (managerLogin && ['admin', 'administrator', 'mgradm'].includes(req.user?.role)) {
+      conditions.push({
+        $or: [
+          { managerLogin },
+          { managerLogin2: managerLogin }
+        ]
+      });
+    } else if (managerLogin && conditions.length === 0) {
+      conditions.push({ managerLogin });
+    }
+    if (clientId) conditions.push({ clientId });
+    const query = conditions.length > 0 ? { $and: conditions } : {};
     const sales = await Sale.find(query)
       .populate('clientId', 'name edrpou contactPhone')
       .populate('equipmentId', 'type serialNumber')
-      .sort({ saleDate: -1 });
+      .sort({ saleDate: -1 })
+      .lean();
+    if (sales.length > 0) {
+      const logins = [...new Set([
+        ...sales.map(s => s.managerLogin).filter(Boolean),
+        ...sales.map(s => s.managerLogin2).filter(Boolean),
+        ...sales.map(s => s.tenderEmployeeLogin).filter(Boolean)
+      ])];
+      const users = await User.find({ login: { $in: logins } }).select('login name').lean();
+      const loginToName = Object.fromEntries(users.map(u => [u.login, u.name || u.login]));
+      sales.forEach(s => {
+        if (s.managerLogin) s.managerName = loginToName[s.managerLogin] || s.managerLogin;
+        if (s.managerLogin2) s.managerName2 = loginToName[s.managerLogin2] || s.managerLogin2;
+        if (s.tenderEmployeeLogin) s.tenderEmployeeName = loginToName[s.tenderEmployeeLogin] || s.tenderEmployeeLogin;
+      });
+    }
     res.json(sales);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1428,12 +1469,19 @@ async function markEquipmentAsSold(sale) {
   }
 }
 
+const canAssignSaleManager = (user) => ['admin', 'administrator', 'mgradm'].includes(user?.role);
+
 app.post('/api/sales', authenticateToken, async (req, res) => {
   try {
     const body = { ...req.body };
-    if (req.user?.role === 'manager') body.managerLogin = req.user.login;
+    if (req.user?.role === 'manager') {
+      body.managerLogin = req.user.login;
+      delete body.managerLogin2;
+    } else if (!canAssignSaleManager(req.user)) {
+      delete body.managerLogin2;
+    }
     const sale = await Sale.create(body);
-    if (sale.status === 'confirmed') {
+    if (sale.status === 'confirmed' || sale.status === 'success') {
       await markEquipmentAsSold(sale);
     }
     res.json(sale);
@@ -1444,7 +1492,17 @@ app.post('/api/sales', authenticateToken, async (req, res) => {
 
 app.put('/api/sales/:id', authenticateToken, async (req, res) => {
   try {
-    const body = req.body;
+    const existing = await Sale.findById(req.params.id).lean();
+    if (!existing) return res.status(404).json({ error: 'Продаж не знайдено' });
+    if (req.user?.role === 'manager') {
+      const isOwner = existing.managerLogin === req.user.login || existing.managerLogin2 === req.user.login;
+      if (!isOwner) return res.status(403).json({ error: 'Немає доступу до редагування цього продажу' });
+    }
+    const body = { ...req.body };
+    if (!canAssignSaleManager(req.user)) {
+      delete body.managerLogin;
+      delete body.managerLogin2;
+    }
     let mainAmount = parseFloat(body.mainProductAmount) || 0;
     if (body.equipmentItems && body.equipmentItems.length > 0) {
       mainAmount = body.equipmentItems.reduce((s, i) => s + (i.amount || 0), 0);
@@ -1457,9 +1515,19 @@ app.put('/api/sales/:id', authenticateToken, async (req, res) => {
       d.setMonth(d.getMonth() + parseInt(body.warrantyMonths) || 12);
       body.warrantyUntil = d;
     }
+    const prevStatus = existing.status;
+    const newStatus = body.status;
+    if (newStatus && newStatus !== prevStatus) {
+      body.statusHistory = [...(existing.statusHistory || []), {
+        from: prevStatus,
+        to: newStatus,
+        date: new Date(),
+        userLogin: req.user?.login || ''
+      }];
+    }
     const sale = await Sale.findByIdAndUpdate(req.params.id, body, { new: true, runValidators: true });
     if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
-    if (sale.status === 'confirmed') {
+    if (sale.status === 'confirmed' || sale.status === 'success') {
       await markEquipmentAsSold(sale);
     }
     res.json(sale);
@@ -1480,15 +1548,16 @@ app.delete('/api/sales/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Скасування продажу — тільки адміністратор
+// Скасування продажу — тільки адміністратор / mgradm
 app.post('/api/sales/:id/cancel', authenticateToken, async (req, res) => {
   try {
-    if (req.user?.role !== 'admin' && req.user?.role !== 'administrator') {
+    if (!canAssignSaleManager(req.user)) {
       return res.status(403).json({ error: 'Скасувати продаж може тільки адміністратор' });
     }
     const sale = await Sale.findById(req.params.id);
     if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
-    if (sale.status !== 'confirmed') return res.status(400).json({ error: 'Можна скасувати тільки підтверджений продаж' });
+    const canCancel = ['confirmed', 'success'].includes(sale.status);
+    if (!canCancel) return res.status(400).json({ error: 'Можна скасувати тільки підтверджений або успішно реалізований продаж' });
     const ids = [];
     if (sale.equipmentItems && sale.equipmentItems.length > 0) {
       ids.push(...sale.equipmentItems.map(i => i.equipmentId).filter(Boolean));
@@ -3619,6 +3688,98 @@ app.get('/api/clients/:clientId/interactions/:interactionId/files', authenticate
     const accessResult = getClientWithAccessControl(client, req.user);
     if (!accessResult || accessResult.limited) return res.status(403).json({ error: 'Немає доступу' });
     const files = await File.find({ entityType: 'interaction', entityId: req.params.interactionId }).sort({ uploadDate: -1 }).lean();
+    res.json(files);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ——— Файли угод (продажів) ———
+const saleFilesStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: (req, file) => {
+    const originalName = file?.originalname || '';
+    const mimetype = file?.mimetype || '';
+    const dotIdx = originalName.lastIndexOf('.');
+    const ext = dotIdx >= 0 ? originalName.slice(dotIdx + 1).toLowerCase() : '';
+    const isImage = mimetype.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+    const isPdf = mimetype === 'application/pdf' || ext === 'pdf';
+    const resourceType = isImage || isPdf ? 'image' : 'raw';
+    const uid = `sale_${req.params.saleId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const params = {
+      folder: 'newservicegidra/sale-files',
+      resource_type: resourceType,
+      overwrite: false,
+      invalidate: true,
+      public_id: uid
+    };
+    if (resourceType === 'image') {
+      params.allowed_formats = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'];
+    } else {
+      params.allowed_formats = ['doc', 'docx', 'xls', 'xlsx', 'txt'];
+      if (ext) params.format = ext;
+      if (originalName) params.filename_override = originalName;
+    }
+    return params;
+  }
+});
+const uploadSaleFiles = multer({ storage: saleFilesStorage, limits: { fileSize: 20 * 1024 * 1024 } });
+
+const checkSaleAccess = async (req, res, next) => {
+  try {
+    const sale = await Sale.findById(req.params.saleId).lean();
+    if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
+    const isAdmin = canAssignSaleManager(req.user);
+    const isManager = sale.managerLogin === req.user?.login || sale.managerLogin2 === req.user?.login;
+    if (!isAdmin && !isManager) return res.status(403).json({ error: 'Немає доступу до цієї угоди' });
+    next();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.post('/api/sales/:saleId/files', authenticateToken, checkSaleAccess, uploadSaleFiles.array('files', 10), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'Файли не були завантажені' });
+    const uploadedFiles = [];
+    for (const file of req.files) {
+      const fileUrl = file.path || file.secure_url || '';
+      let correctedName = file.originalname || '';
+      try {
+        const decoded = Buffer.from(correctedName, 'latin1').toString('utf8');
+        if (decoded && decoded !== correctedName) correctedName = decoded;
+      } catch (_) {}
+      const fileRecord = new File({
+        entityType: 'sale',
+        entityId: req.params.saleId,
+        originalName: correctedName,
+        filename: file.public_id || '',
+        cloudinaryId: file.public_id || '',
+        cloudinaryUrl: fileUrl,
+        mimetype: file.mimetype,
+        size: file.size,
+        description: req.body.description || ''
+      });
+      const saved = await fileRecord.save();
+      uploadedFiles.push({
+        id: saved._id,
+        originalName: saved.originalName,
+        cloudinaryUrl: saved.cloudinaryUrl,
+        size: saved.size,
+        uploadDate: saved.uploadDate,
+        mimetype: saved.mimetype
+      });
+    }
+    res.json({ success: true, files: uploadedFiles });
+  } catch (err) {
+    console.error('[FILES] Помилка завантаження файлів угоди:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/sales/:saleId/files', authenticateToken, checkSaleAccess, async (req, res) => {
+  try {
+    const files = await File.find({ entityType: 'sale', entityId: req.params.saleId }).sort({ uploadDate: -1 }).lean();
     res.json(files);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -9,7 +9,7 @@ function SalesTab({ user }) {
   const [showFormModal, setShowFormModal] = useState(false);
   const [editSale, setEditSale] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
-  const isAdmin = ['admin', 'administrator'].includes(user?.role);
+  const isAdmin = ['admin', 'administrator', 'mgradm'].includes(user?.role);
 
   useEffect(() => {
     loadSales();
@@ -48,11 +48,53 @@ function SalesTab({ user }) {
 
   const formatCurrency = (v) => new Intl.NumberFormat('uk-UA', { style: 'currency', currency: 'UAH', minimumFractionDigits: 0 }).format(v || 0);
 
+  const handleEditSale = (sale) => {
+    setEditSale(sale);
+    setShowFormModal(true);
+  };
+
+  const exportReport = () => {
+    const STATUS_LABELS = {
+      draft: 'Чернетка', primary_contact: 'Первичний контакт', quote_sent: 'Відправив КП',
+      in_progress: 'В процесі', pnr: 'ПНР', success: 'Успішно', confirmed: 'Підтверджено', cancelled: 'Скасовано'
+    };
+    const cols = [
+      'Дата', 'Клієнт', 'ЄДРПОУ', 'Менеджер', 'Менеджер 2', 'Тендер', 'Продукт', 'Серійний №',
+      'Сума', 'Гарантія до', 'Статус', 'Платежі', 'Примітки'
+    ];
+    const rows = sales.map(s => [
+      s.saleDate ? new Date(s.saleDate).toLocaleDateString('uk-UA') : '',
+      s.clientId?.name || s.clientName || '',
+      s.edrpou || s.clientId?.edrpou || '',
+      s.managerName || s.managerLogin || '',
+      s.managerName2 || s.managerLogin2 || '',
+      s.tenderEmployeeName || s.tenderEmployeeLogin || '',
+      s.mainProductName || '',
+      s.mainProductSerial || '',
+      (s.totalAmount || s.mainProductAmount || 0).toString(),
+      s.warrantyUntil ? new Date(s.warrantyUntil).toLocaleDateString('uk-UA') : '',
+      STATUS_LABELS[s.status] || s.status || '',
+      (s.payments || []).map(p => {
+        const d = p.date ? new Date(p.date).toLocaleDateString('uk-UA') : '';
+        return d ? `${d}: ${p.amount || 0} ${p.currency || 'UAH'}` : `${p.amount || 0} ${p.currency || 'UAH'}`;
+      }).join('; ') || '',
+      (s.notes || '').replace(/"/g, '""')
+    ]);
+    const csv = [cols.map(c => `"${c}"`).join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `zvit-ugod-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
   return (
     <div className="manager-tab-content manager-crm-tab">
       <div className="manager-header" style={{ flexShrink: 0 }}>
         <h2>💰 Продажі</h2>
         <div className="header-actions">
+          <button className="btn-secondary" onClick={exportReport} disabled={loading || sales.length === 0}>📊 Експорт звіту</button>
           <button className="btn-primary" onClick={handleAddNew}>+ Новий продаж</button>
         </div>
       </div>
@@ -70,6 +112,8 @@ function SalesTab({ user }) {
               <tr>
                 <th>Дата</th>
                 <th>Клієнт</th>
+                {isAdmin && <th>Менеджер</th>}
+                {isAdmin && <th>Тендер</th>}
                 <th>Продукт</th>
                 <th>Серійний №</th>
                 <th>Сума</th>
@@ -80,24 +124,37 @@ function SalesTab({ user }) {
             </thead>
             <tbody>
               {sales.map(s => (
-                <tr key={s._id} className={s.status === 'cancelled' ? 'sale-cancelled' : ''}>
+                <tr key={s._id} className={s.status === 'cancelled' ? 'sale-cancelled' : ''} onClick={() => handleEditSale(s)} style={{ cursor: 'pointer' }}>
                   <td>{s.saleDate ? new Date(s.saleDate).toLocaleDateString('uk-UA') : '—'}</td>
                   <td>{s.clientId?.name || s.clientName || '—'}</td>
+                  {isAdmin && (
+                    <td>
+                      {[s.managerName || s.managerLogin, s.managerName2 || s.managerLogin2]
+                        .filter(Boolean)
+                        .join(' / ') || '—'}
+                    </td>
+                  )}
+                  {isAdmin && (
+                    <td>{s.tenderEmployeeName || s.tenderEmployeeLogin || '—'}</td>
+                  )}
                   <td>{s.mainProductName || '—'}</td>
                   <td>{s.mainProductSerial || '—'}</td>
                   <td>{formatCurrency(s.totalAmount || s.mainProductAmount)}</td>
                   <td>{s.warrantyUntil ? new Date(s.warrantyUntil).toLocaleDateString('uk-UA') : '—'}</td>
                   <td>
-                    <span className={`sale-status-badge ${s.status || 'confirmed'}`}>
-                      {s.status === 'draft' ? 'Чернетка' : s.status === 'cancelled' ? 'Скасовано' : 'Підтверджено'}
+                    <span className={`sale-status-badge ${s.status || 'primary_contact'}`}>
+                      {s.status === 'draft' ? 'Чернетка' : s.status === 'cancelled' ? 'Скасовано' :
+                        s.status === 'primary_contact' ? 'Первичний контакт' : s.status === 'quote_sent' ? 'Відправив КП' :
+                        s.status === 'in_progress' ? 'В процесі' : s.status === 'pnr' ? 'ПНР' :
+                        s.status === 'success' ? 'Успішно' : s.status === 'confirmed' ? 'Підтверджено' : s.status || '—'}
                     </span>
                   </td>
                   {isAdmin && (
                     <td>
-                      {s.status === 'confirmed' && (
+                      {['confirmed', 'success'].includes(s.status) && (
                         <button
                           className="btn-small btn-cancel-sale"
-                          onClick={() => handleCancelSale(s)}
+                          onClick={(e) => { e.stopPropagation(); handleCancelSale(s); }}
                           disabled={cancellingId === s._id}
                         >
                           {cancellingId === s._id ? '...' : 'Скасувати'}
