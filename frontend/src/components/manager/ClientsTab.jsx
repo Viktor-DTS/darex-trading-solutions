@@ -225,6 +225,7 @@ function ClientsTab({ user }) {
         onClose={() => { setShowCardModal(false); setSelectedClientId(null); }}
         clientId={selectedClientId}
         onEdit={handleEdit}
+        user={user}
       />
     </div>
   );

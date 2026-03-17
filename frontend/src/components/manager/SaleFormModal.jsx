@@ -12,16 +12,13 @@ import './SaleFormModal.css';
 const canAssignSaleManager = (role) => ['admin', 'administrator', 'mgradm'].includes((role || '').toLowerCase());
 
 const SALE_STATUS_OPTIONS = [
-  { value: 'draft', label: 'Чернетка' },
-  { value: 'primary_contact', label: 'Первичний контакт' },
-  { value: 'quote_sent', label: 'Відправив КП' },
   { value: 'in_progress', label: 'В процесі реалізації' },
-  { value: 'pnr', label: 'ПНР' },
-  { value: 'success', label: 'Успішно реалізовано' },
-  { value: 'confirmed', label: 'Підтверджено' }
+  { value: 'success', label: 'Успішно реалізовано' }
 ];
+const STATUS_LABELS_LEGACY = { draft: 'Чернетка', primary_contact: 'Первичний контакт', quote_sent: 'Відправив КП', pnr: 'ПНР', confirmed: 'Підтверджено', cancelled: 'Скасовано' };
+const statusLabel = (v) => SALE_STATUS_OPTIONS.find(o => o.value === v)?.label || STATUS_LABELS_LEGACY[v] || v || '—';
 
-function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
+function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClient = null, user }) {
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState([]);
   const [equipment, setEquipment] = useState([]);
@@ -96,14 +93,15 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
             : [{ id: crypto.randomUUID?.() || '1', date: new Date().toISOString().slice(0, 10), amount: 0, currency: 'UAH', rate: 1 }],
           saleDate: editSale.saleDate ? new Date(editSale.saleDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
           warrantyMonths: editSale.warrantyMonths || 12,
-          status: editSale.status || 'primary_contact',
+          status: ['in_progress', 'success'].includes(editSale.status) ? editSale.status : (['success', 'confirmed'].includes(editSale.status) ? 'success' : 'in_progress'),
           notes: editSale.notes || ''
         });
       } else {
+        const client = initialClient || {};
         setForm({
-          clientId: '',
-          clientName: '',
-          edrpou: '',
+          clientId: client._id || '',
+          clientName: client.name || '',
+          edrpou: client.edrpou || '',
           managerLogin: user?.login || '',
           managerLogin2: '',
           tenderEmployeeLogin: '',
@@ -112,13 +110,14 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
           payments: [{ id: crypto.randomUUID?.() || '1', date: new Date().toISOString().slice(0, 10), amount: 0, currency: 'UAH', rate: 1 }],
           saleDate: new Date().toISOString().slice(0, 10),
           warrantyMonths: 12,
-          status: 'primary_contact',
+          status: 'in_progress',
           notes: ''
         });
+        setClientSearch(client.name || '');
       }
       if (editSale) {
         setClientSearch(editSale.clientId?.name || editSale.clientName || '');
-      } else {
+      } else if (!initialClient) {
         setClientSearch('');
       }
       loadClients();
@@ -243,7 +242,7 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
       alert('Оберіть клієнта');
       return;
     }
-    const requiresEquipment = ['in_progress', 'pnr', 'success', 'confirmed'].includes(form.status);
+    const requiresEquipment = ['in_progress', 'success'].includes(form.status);
     const validEquipment = form.equipmentItems.filter(i => i.equipmentId && (i.amount || 0) > 0);
     if (requiresEquipment && validEquipment.length === 0) {
       alert('Для цього статусу додайте щонайменше одну позицію обладнання з сумою');
@@ -399,7 +398,7 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
             <div className="form-group">
               <label>Статус угоди</label>
               <select
-                value={form.status || 'primary_contact'}
+                value={form.status || 'in_progress'}
                 onChange={e => setForm(prev => ({ ...prev, status: e.target.value }))}
               >
                 {SALE_STATUS_OPTIONS.map(o => (
@@ -464,9 +463,9 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, user }) {
                 <ul className="status-history-list">
                   {(editSale.statusHistory || []).map((h, idx) => (
                     <li key={idx}>
-                      <span className="status-from">{SALE_STATUS_OPTIONS.find(o => o.value === h.from)?.label || h.from || '—'}</span>
+                      <span className="status-from">{statusLabel(h.from)}</span>
                       <span className="status-arrow">→</span>
-                      <span className="status-to">{SALE_STATUS_OPTIONS.find(o => o.value === h.to)?.label || h.to || '—'}</span>
+                      <span className="status-to">{statusLabel(h.to)}</span>
                       <span className="status-meta">
                         {h.date ? new Date(h.date).toLocaleString('uk-UA') : ''}
                         {h.userLogin && ` · ${h.userLogin}`}

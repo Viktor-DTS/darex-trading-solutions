@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getClient, getClientInteractions, addClientInteraction, getInteractionFiles, uploadInteractionFiles, getFileOpenToken } from '../../utils/clientsAPI';
 import API_BASE_URL from '../../config';
 import { getSales } from '../../utils/salesAPI';
+import SaleFormModal from './SaleFormModal';
 import './ClientCardModal.css';
 
 const INTERACTION_TYPES = {
@@ -15,7 +16,7 @@ const INTERACTION_TYPES = {
 
 const FILES_BASE_URL = (API_BASE_URL || '').replace(/\/api\/?$/, '') || (typeof window !== 'undefined' ? window.location.origin : '');
 
-function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSearch }) {
+function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSearch, user }) {
   const [client, setClient] = useState(null);
   const [sales, setSales] = useState([]);
   const [interactions, setInteractions] = useState([]);
@@ -27,6 +28,8 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
   const [newInteractionFiles, setNewInteractionFiles] = useState([]);
   const [addingInteraction, setAddingInteraction] = useState(false);
   const [uploadingForId, setUploadingForId] = useState(null);
+  const [showSaleFormModal, setShowSaleFormModal] = useState(false);
+  const [editSale, setEditSale] = useState(null);
 
   useEffect(() => {
     if (open && clientId) {
@@ -251,7 +254,14 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
               )}
 
               <div className="client-sales-block">
-                <h4>Продажі ({sales.length})</h4>
+                <h4>
+                  Продажі ({sales.length})
+                  {!client.limited && (
+                    <button type="button" className="btn-small btn-add-sale" onClick={() => { setEditSale(null); setShowSaleFormModal(true); }}>
+                      + Новий продаж
+                    </button>
+                  )}
+                </h4>
                 {sales.length === 0 ? (
                   <p className="no-data">Немає продажів</p>
                 ) : (
@@ -266,7 +276,7 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
                     </thead>
                     <tbody>
                       {sales.slice(0, 10).map(s => (
-                        <tr key={s._id}>
+                        <tr key={s._id} onClick={() => { setEditSale(s); setShowSaleFormModal(true); }} className="clickable-row" style={{ cursor: 'pointer' }}>
                           <td>{s.saleDate ? new Date(s.saleDate).toLocaleDateString('uk-UA') : '—'}</td>
                           <td>{s.mainProductName || '—'}</td>
                           {!client.limited && <td>{formatCurrency(s.totalAmount || s.mainProductAmount)}</td>}
@@ -283,6 +293,17 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
           )}
         </div>
       </div>
+
+      {user && (
+        <SaleFormModal
+          open={showSaleFormModal}
+          onClose={() => { setShowSaleFormModal(false); setEditSale(null); }}
+          onSuccess={() => { loadData(); }}
+          editSale={editSale}
+          initialClient={!editSale && client ? client : null}
+          user={user}
+        />
+      )}
     </div>
   );
 }

@@ -19,18 +19,17 @@ function SalesTab({ user }) {
     setLoading(true);
     try {
       const data = await getSales();
-      setSales(Array.isArray(data) ? data : data.sales || []);
+      const list = Array.isArray(data) ? data : data.sales || [];
+      const inProgress = list.filter(s => ['in_progress', 'draft', 'primary_contact', 'quote_sent', 'pnr'].includes(s.status));
+      const success = list.filter(s => ['success', 'confirmed'].includes(s.status));
+      const rest = list.filter(s => !['in_progress', 'draft', 'primary_contact', 'quote_sent', 'pnr', 'success', 'confirmed'].includes(s.status));
+      setSales([...inProgress, ...success, ...rest]);
     } catch (err) {
       console.error(err);
       setSales([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleAddNew = () => {
-    setEditSale(null);
-    setShowFormModal(true);
   };
 
   const handleCancelSale = async (sale) => {
@@ -95,7 +94,6 @@ function SalesTab({ user }) {
         <h2>💰 Продажі</h2>
         <div className="header-actions">
           <button className="btn-secondary" onClick={exportReport} disabled={loading || sales.length === 0}>📊 Експорт звіту</button>
-          <button className="btn-primary" onClick={handleAddNew}>+ Новий продаж</button>
         </div>
       </div>
 
@@ -104,7 +102,7 @@ function SalesTab({ user }) {
           <div className="loading-indicator">Завантаження...</div>
         ) : sales.length === 0 ? (
           <div className="no-history">
-            Ще немає продажів. Створіть перший.
+            Ще немає продажів. Відкрийте картку клієнта та натисніть «+ Новий продаж».
           </div>
         ) : (
           <table className="history-table crm-table">
@@ -123,8 +121,12 @@ function SalesTab({ user }) {
               </tr>
             </thead>
             <tbody>
-              {sales.map(s => (
-                <tr key={s._id} className={s.status === 'cancelled' ? 'sale-cancelled' : ''} onClick={() => handleEditSale(s)} style={{ cursor: 'pointer' }}>
+              {sales.map(s => {
+                const isInProgress = ['in_progress', 'draft', 'primary_contact', 'quote_sent', 'pnr'].includes(s.status);
+                const isSuccess = ['success', 'confirmed'].includes(s.status);
+                const rowClass = s.status === 'cancelled' ? 'sale-cancelled' : isInProgress ? 'sale-row-in-progress' : isSuccess ? 'sale-row-success' : '';
+                return (
+                <tr key={s._id} className={rowClass} onClick={() => handleEditSale(s)} style={{ cursor: 'pointer' }}>
                   <td>{s.saleDate ? new Date(s.saleDate).toLocaleDateString('uk-UA') : '—'}</td>
                   <td>{s.clientId?.name || s.clientName || '—'}</td>
                   {isAdmin && (
@@ -142,11 +144,10 @@ function SalesTab({ user }) {
                   <td>{formatCurrency(s.totalAmount || s.mainProductAmount)}</td>
                   <td>{s.warrantyUntil ? new Date(s.warrantyUntil).toLocaleDateString('uk-UA') : '—'}</td>
                   <td>
-                    <span className={`sale-status-badge ${s.status || 'primary_contact'}`}>
-                      {s.status === 'draft' ? 'Чернетка' : s.status === 'cancelled' ? 'Скасовано' :
-                        s.status === 'primary_contact' ? 'Первичний контакт' : s.status === 'quote_sent' ? 'Відправив КП' :
-                        s.status === 'in_progress' ? 'В процесі' : s.status === 'pnr' ? 'ПНР' :
-                        s.status === 'success' ? 'Успішно' : s.status === 'confirmed' ? 'Підтверджено' : s.status || '—'}
+                    <span className={`sale-status-badge ${s.status || 'in_progress'}`}>
+                      {['in_progress', 'draft', 'primary_contact', 'quote_sent', 'pnr'].includes(s.status) ? 'В процесі реалізації' :
+                        ['success', 'confirmed'].includes(s.status) ? 'Успішно реалізовано' :
+                        s.status === 'cancelled' ? 'Скасовано' : s.status || '—'}
                     </span>
                   </td>
                   {isAdmin && (
@@ -163,7 +164,8 @@ function SalesTab({ user }) {
                     </td>
                   )}
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         )}
