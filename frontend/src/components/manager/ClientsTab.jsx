@@ -5,6 +5,7 @@ import ClientCardModal from './ClientCardModal';
 import './ManagerTabs.css';
 
 const PAGE_SIZE = 30;
+const SEARCH_DEBOUNCE_MS = 400;
 
 function ClientsTab({ user }) {
   const [clients, setClients] = useState([]);
@@ -21,14 +22,25 @@ function ClientsTab({ user }) {
   const [editClient, setEditClient] = useState(null);
   const [selectedClientId, setSelectedClientId] = useState(null);
 
+  const isAdmin = user?.role && ['admin', 'administrator', 'mgradm'].includes(user.role);
+
   const loadFilters = useCallback(async () => {
+    if (!isAdmin) return;
     const opts = await getClientsFilters();
     setFilterOptions(opts);
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     loadFilters();
   }, [loadFilters]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearchApplied(search);
+      setPage(1);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const loadClients = useCallback(async () => {
     setLoading(true);
@@ -37,8 +49,8 @@ function ClientsTab({ user }) {
         page,
         limit: PAGE_SIZE,
         q: searchApplied || undefined,
-        region: regionFilter || undefined,
-        manager: (user?.role && ['admin', 'administrator', 'mgradm'].includes(user.role)) ? (managerFilter || undefined) : undefined
+        region: isAdmin ? (regionFilter || undefined) : undefined,
+        manager: isAdmin ? (managerFilter || undefined) : undefined
       };
       const data = await getClients(params);
       const list = Array.isArray(data) ? data : (data.clients || []);
@@ -51,16 +63,11 @@ function ClientsTab({ user }) {
     } finally {
       setLoading(false);
     }
-  }, [page, searchApplied, regionFilter, managerFilter, user?.role]);
+  }, [page, searchApplied, regionFilter, managerFilter, isAdmin]);
 
   useEffect(() => {
     loadClients();
   }, [loadClients]);
-
-  const handleSearchApply = () => {
-    setSearchApplied(search);
-    setPage(1);
-  };
 
   const handleRegionChange = (e) => {
     setRegionFilter(e.target.value);
@@ -90,7 +97,6 @@ function ClientsTab({ user }) {
 
   const formatCurrency = (v) => new Intl.NumberFormat('uk-UA', { style: 'currency', currency: 'UAH', minimumFractionDigits: 0 }).format(v || 0);
   const showManagerColumn = user?.role !== 'manager';
-  const showManagerFilter = user?.role && ['admin', 'administrator', 'mgradm'].includes(user.role);
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
   return (
@@ -104,10 +110,8 @@ function ClientsTab({ user }) {
             placeholder="Пошук за назвою, ЄДРПОУ, телефону..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSearchApply()}
           />
-          <button type="button" className="btn-secondary" onClick={handleSearchApply}>Шукати</button>
-          {filterOptions.regions?.length > 0 && (
+          {isAdmin && filterOptions.regions?.length > 0 && (
             <select
               className="filter-select"
               value={regionFilter}
@@ -120,7 +124,7 @@ function ClientsTab({ user }) {
               ))}
             </select>
           )}
-          {showManagerFilter && filterOptions.managers?.length > 0 && (
+          {isAdmin && filterOptions.managers?.length > 0 && (
             <select
               className="filter-select"
               value={managerFilter}
