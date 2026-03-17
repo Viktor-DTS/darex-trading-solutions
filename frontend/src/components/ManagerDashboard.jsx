@@ -7,6 +7,9 @@ import IncomingCallTab from './manager/IncomingCallTab';
 import { getClients } from '../utils/clientsAPI';
 import './ManagerDashboard.css';
 
+const canSeeReservationClient = (role) => 
+  ['admin', 'administrator', 'mgradm'].includes((role || '').toLowerCase());
+
 function ManagerDashboard({ user }) {
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -317,7 +320,7 @@ function ManagerDashboard({ user }) {
                         <th>Дія</th>
                         <th>Обладнання</th>
                         <th>Серійний номер</th>
-                        <th>Клієнт</th>
+                        {canSeeReservationClient(user?.role) && <th>Клієнт</th>}
                         <th>Виконавець</th>
                         <th>Деталі</th>
                       </tr>
@@ -341,7 +344,9 @@ function ManagerDashboard({ user }) {
                           </td>
                           <td>{record.equipmentType || '—'}</td>
                           <td>{record.equipmentSerial || '—'}</td>
-                          <td>{record.clientName || '—'}</td>
+                          {canSeeReservationClient(user?.role) && (
+                            <td>{record.clientName || '—'}</td>
+                          )}
                           <td>{record.userName || '—'}</td>
                           <td>
                             {record.action === 'reserved' ? (

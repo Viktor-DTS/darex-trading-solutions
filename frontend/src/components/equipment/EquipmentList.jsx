@@ -54,7 +54,14 @@ const ALL_COLUMNS = [
   { key: 'manufactureDate', label: 'Дата виробництва', width: 150 }
 ];
 
+const canSeeReservationClient = (role) => ['admin', 'administrator', 'mgradm'].includes(role);
+
 const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve, onRequestTesting, showReserveAction = false, categoryId = null, includeSubtree = true }, ref) => {
+  const showReservationClientColumn = canSeeReservationClient(user?.role || '');
+  const visibleColumns = useMemo(() =>
+    ALL_COLUMNS.filter(col => col.key !== 'reservationClientName' || showReservationClientColumn),
+    [showReservationClientColumn]
+  );
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
@@ -512,7 +519,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
               <th className="th-actions" style={{ width: '90px', minWidth: '90px' }} rowSpan={showFilters ? 2 : 1}>
                 <div className="th-content">Дія</div>
               </th>
-              {ALL_COLUMNS.map(col => (
+              {visibleColumns.map(col => (
                 <th
                   key={col.key}
                   style={{ 
@@ -536,7 +543,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
             {/* Рядок фільтрів */}
             {showFilters && (
               <tr className="filter-row">
-                {ALL_COLUMNS.map(col => (
+                {visibleColumns.map(col => (
                   <th key={`filter-${col.key}`} className="filter-cell">
                     {renderColumnFilter(col)}
                   </th>
@@ -547,7 +554,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
           <tbody>
             {filteredAndSortedEquipment.length === 0 ? (
               <tr>
-                <td colSpan={ALL_COLUMNS.length + 1} className="empty-state">
+                <td colSpan={visibleColumns.length + 1} className="empty-state">
                   Обладнання не знайдено
                 </td>
               </tr>
@@ -663,9 +670,11 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                   <td className="cell-truncate" title={formatValue(item.currentWarehouseName || item.currentWarehouse, 'currentWarehouse')}>
                     {formatValue(item.currentWarehouseName || item.currentWarehouse, 'currentWarehouse')}
                   </td>
-                  <td className="cell-truncate" title={formatValue(item.reservationClientName, 'reservationClientName')}>
-                    {formatValue(item.reservationClientName, 'reservationClientName')}
-                  </td>
+                  {showReservationClientColumn && (
+                    <td className="cell-truncate" title={formatValue(item.reservationClientName, 'reservationClientName')}>
+                      {formatValue(item.reservationClientName, 'reservationClientName')}
+                    </td>
+                  )}
                   <td className="cell-truncate" title={formatValue(item.reservedByName, 'reservedByName')}>
                     {formatValue(item.reservedByName, 'reservedByName')}
                   </td>
