@@ -509,7 +509,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
           <thead>
             {/* Рядок заголовків */}
             <tr>
-              <th className="th-actions" style={{ width: '150px', minWidth: '150px' }} rowSpan={showFilters ? 2 : 1}>
+              <th className="th-actions" style={{ width: '90px', minWidth: '90px' }} rowSpan={showFilters ? 2 : 1}>
                 <div className="th-content">Дія</div>
               </th>
               {ALL_COLUMNS.map(col => (
@@ -559,13 +559,12 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                   style={{ cursor: 'pointer' }}
                 >
                   <td className="actions-cell" onClick={(e) => e.stopPropagation()}>
-                    <div className="action-buttons" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '3px' }}>
+                    <div className="action-buttons" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', gap: '4px' }}>
                       {showReserveAction && onReserve && (
                         <button
                           className="btn-action btn-reserve"
                           onClick={(e) => {
                             e.stopPropagation();
-                            // Якщо це група партії, використовуємо перший елемент з batchItems
                             if (item.isGrouped && item.batchItems && item.batchItems.length > 0) {
                               onReserve(item.batchItems[0]);
                             } else {
@@ -579,7 +578,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                             cursor: item.status === 'reserved' ? 'not-allowed' : 'pointer'
                           }}
                         >
-                          🔒 Резервувати
+                          🔒
                         </button>
                       )}
                       {showReserveAction && onRequestTesting && (
@@ -592,13 +591,13 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                               : item;
                             onRequestTesting(eq);
                           }}
-                          title="Подати на тест"
+                          title="На тест"
                           disabled={item.testingStatus === 'requested' || item.testingStatus === 'in_progress'}
                           style={{
                             opacity: (item.testingStatus === 'requested' || item.testingStatus === 'in_progress') ? 0.5 : 1
                           }}
                         >
-                          🧪 На тест
+                          🧪
                         </button>
                       )}
                       {(user?.role === 'admin' || user?.role === 'administrator') && (
@@ -606,7 +605,6 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                           className="btn-action btn-delete"
                           onClick={(e) => {
                             e.stopPropagation();
-                            // Якщо це група партії, використовуємо перший елемент з batchItems
                             if (item.isGrouped && item.batchItems && item.batchItems.length > 0) {
                               setSelectedEquipment(item.batchItems[0]);
                             } else {
@@ -616,7 +614,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                           }}
                           title="Видалити"
                         >
-                          🗑️ Видалити
+                          🗑️
                         </button>
                       )}
                     </div>
