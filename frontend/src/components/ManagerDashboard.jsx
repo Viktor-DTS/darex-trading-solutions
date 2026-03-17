@@ -403,7 +403,7 @@ function ManagerDashboard({ user }) {
                             setClientSearch(c.name || c.edrpou);
                             setShowClientDropdown(false);
                           }}>
-                            {c.name || c.edrpou}{(c.name && c.edrpou) ? ` (${c.edrpou})` : ''}
+                            {c.name || c.edrpou}{c.edrpou ? ` (ЄДРПОУ: ${c.edrpou})` : ''}
                           </li>
                         ))}
                       </ul>
