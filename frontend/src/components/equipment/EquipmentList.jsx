@@ -632,8 +632,10 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                       {getReservationStatusLabel(item)}
                     </span>
                   </td>
-                  <td>{formatValue(item.manufacturer, 'manufacturer')}</td>
-                  <td>
+                  <td className="cell-truncate" title={formatValue(item.manufacturer, 'manufacturer')}>
+                    {formatValue(item.manufacturer, 'manufacturer')}
+                  </td>
+                  <td className="cell-truncate" title={item.isGrouped && item.batchCount ? `${formatValue(item.type, 'type')} × ${item.batchCount} шт.` : formatValue(item.type, 'type')}>
                     {item.isGrouped && item.batchCount ? (
                       <span style={{ fontWeight: 'bold' }}>
                         {formatValue(item.type, 'type')} × {item.batchCount} шт.
@@ -660,9 +662,15 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                       formatValue(item.serialNumber, 'serialNumber')
                     )}
                   </td>
-                  <td>{formatValue(item.currentWarehouseName || item.currentWarehouse, 'currentWarehouse')}</td>
-                  <td>{formatValue(item.reservationClientName, 'reservationClientName')}</td>
-                  <td>{formatValue(item.reservedByName, 'reservedByName')}</td>
+                  <td className="cell-truncate" title={formatValue(item.currentWarehouseName || item.currentWarehouse, 'currentWarehouse')}>
+                    {formatValue(item.currentWarehouseName || item.currentWarehouse, 'currentWarehouse')}
+                  </td>
+                  <td className="cell-truncate" title={formatValue(item.reservationClientName, 'reservationClientName')}>
+                    {formatValue(item.reservationClientName, 'reservationClientName')}
+                  </td>
+                  <td className="cell-truncate" title={formatValue(item.reservedByName, 'reservedByName')}>
+                    {formatValue(item.reservedByName, 'reservedByName')}
+                  </td>
                   <td>
                     <span className={`status-badge ${getTestingStatusClass(item.testingStatus)}`}>
                       {getTestingStatusLabel(item.testingStatus)}

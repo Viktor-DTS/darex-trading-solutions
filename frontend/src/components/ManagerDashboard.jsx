@@ -243,11 +243,9 @@ function ManagerDashboard({ user }) {
               <IncomingCallTab user={user} />
             </div>
           ) : activeTab === 'stock' ? (
-            <>
-              <div className="manager-scaled-inner manager-stock-header-only">
-                <div className="manager-header">
-                  <h2>Залишки на складах</h2>
-                </div>
+            <div className="manager-stock-scaled">
+              <div className="manager-header">
+                <h2>Залишки на складах</h2>
               </div>
               <div className="manager-table-viewport">
                 <EquipmentList
@@ -259,7 +257,7 @@ function ManagerDashboard({ user }) {
                   showReserveAction={true}
                 />
               </div>
-            </>
+            </div>
           ) : (
             <div className="manager-scaled-inner">
             <div className="manager-tab-content">

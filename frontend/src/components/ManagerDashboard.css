@@ -94,7 +94,7 @@
   flex-direction: column;
 }
 
-/* Як у Складському обліку: wrapper без скролу, таблиця в окремому viewport зі скролом всередині */
+/* Як у Складському обліку: масштаб 80% для всього контенту вкладки «Залишки на складах» */
 .manager-scaled-wrapper {
   flex: 1;
   min-height: 0;
@@ -106,14 +106,30 @@
   box-sizing: border-box;
 }
 
-/* Тільки заголовок у масштабі 80% (вкладка «Залишки на складах») */
-.manager-scaled-inner.manager-stock-header-only {
+/* Вкладка «Залишки на складах»: масштаб 80% як у Складському обліку — краще відображення даних на екрані */
+.manager-stock-scaled {
   width: 125%;
+  height: 125%;
   transform: scale(0.8);
   transform-origin: 0 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* Компактний заголовок */
+.manager-stock-scaled .manager-header {
   flex-shrink: 0;
-  padding: 0;
-  margin: -0.25em 0 0 0;
+  margin-bottom: 8px;
+}
+
+.manager-stock-scaled .manager-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
 }
 
 /* Область таблиці: фіксована висота, скрол всередині — горизонтальний скролбар завжди під таблицею */
