@@ -379,9 +379,11 @@
   align-items: center;
 }
 
-/* Кнопки-іконки в один ряд */
-.btn-action {
-  padding: 4px 6px;
+/* Кнопки-іконки — ширина тільки по контенту */
+.action-buttons .btn-action {
+  padding: 4px 6px !important;
+  min-width: unset !important;
+  width: fit-content !important;
   border: none;
   border-radius: 3px;
   font-size: 14px;
@@ -391,6 +393,7 @@
   text-align: center;
   line-height: 1;
   flex-shrink: 0;
+  flex-grow: 0;
 }
 
 .btn-action:hover {
