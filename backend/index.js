@@ -3224,9 +3224,11 @@ app.post('/api/users/:login/columns-settings', async (req, res) => {
 // ФАЙЛИ ВИКОНАНИХ РОБІТ
 // ============================================
 
-// Схема для файлів
+// Схема для файлів (taskId — для заявок, entityType+entityId — для взаємодій клієнта)
 const fileSchema = new mongoose.Schema({
   taskId: String,
+  entityType: String,
+  entityId: String,
   originalName: String,
   filename: String,
   cloudinaryId: String,
@@ -3463,6 +3465,102 @@ app.post('/api/files/upload/:taskId', authenticateToken, uploadWorkFiles.array('
     console.error('[FILES] Помилка завантаження файлів:', error);
     logPerformance('POST /api/files/upload/:taskId', startTime);
     res.status(500).json({ error: 'Помилка завантаження файлів: ' + error.message });
+  }
+});
+
+// Multer Storage для файлів взаємодій (JPEG, PDF, Word — як для файлів виконаних робіт)
+const interactionFilesStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: (req, file) => {
+    const originalName = file?.originalname || '';
+    const mimetype = file?.mimetype || '';
+    const dotIdx = originalName.lastIndexOf('.');
+    const ext = dotIdx >= 0 ? originalName.slice(dotIdx + 1).toLowerCase() : '';
+    const isImage = mimetype.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+    const isPdf = mimetype === 'application/pdf' || ext === 'pdf';
+    const resourceType = isImage || isPdf ? 'image' : 'raw';
+    const uid = `interaction_${req.params.interactionId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const params = {
+      folder: 'newservicegidra/interaction-files',
+      resource_type: resourceType,
+      overwrite: false,
+      invalidate: true,
+      public_id: uid
+    };
+    if (resourceType === 'image') {
+      params.allowed_formats = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'];
+    } else {
+      params.allowed_formats = ['doc', 'docx', 'xls', 'xlsx', 'txt'];
+      if (ext) params.format = ext;
+      if (originalName) params.filename_override = originalName;
+    }
+    return params;
+  }
+});
+const uploadInteractionFiles = multer({
+  storage: interactionFilesStorage,
+  limits: { fileSize: 20 * 1024 * 1024 }
+});
+
+// Завантаження файлів для взаємодії клієнта (Подана комерційна пропозиція)
+app.post('/api/clients/:clientId/interactions/:interactionId/files', authenticateToken, async (req, res, next) => {
+  const client = await Client.findById(req.params.clientId).lean();
+  if (!client) return res.status(404).json({ error: 'Клієнта не знайдено' });
+  const accessResult = getClientWithAccessControl(client, req.user);
+  if (!accessResult || accessResult.limited) return res.status(403).json({ error: 'Немає доступу' });
+  const interaction = await Interaction.findById(req.params.interactionId).lean();
+  if (!interaction || interaction.entityId?.toString() !== req.params.clientId) return res.status(404).json({ error: 'Взаємодію не знайдено' });
+  next();
+}, uploadInteractionFiles.array('files', 10), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'Файли не були завантажені' });
+    const uploadedFiles = [];
+    for (const file of req.files) {
+      const fileUrl = file.path || file.secure_url || '';
+      let correctedName = file.originalname || '';
+      try {
+        const decoded = Buffer.from(correctedName, 'latin1').toString('utf8');
+        if (decoded && decoded !== correctedName) correctedName = decoded;
+      } catch (_) {}
+      const fileRecord = new File({
+        entityType: 'interaction',
+        entityId: req.params.interactionId,
+        originalName: correctedName,
+        filename: file.public_id || '',
+        cloudinaryId: file.public_id || '',
+        cloudinaryUrl: fileUrl,
+        mimetype: file.mimetype,
+        size: file.size,
+        description: req.body.description || ''
+      });
+      const saved = await fileRecord.save();
+      uploadedFiles.push({
+        id: saved._id,
+        originalName: saved.originalName,
+        cloudinaryUrl: saved.cloudinaryUrl,
+        size: saved.size,
+        uploadDate: saved.uploadDate,
+        mimetype: saved.mimetype
+      });
+    }
+    res.json({ success: true, files: uploadedFiles });
+  } catch (err) {
+    console.error('[FILES] Помилка завантаження файлів взаємодії:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Список файлів взаємодії
+app.get('/api/clients/:clientId/interactions/:interactionId/files', authenticateToken, async (req, res) => {
+  try {
+    const client = await Client.findById(req.params.clientId).lean();
+    if (!client) return res.status(404).json({ error: 'Клієнта не знайдено' });
+    const accessResult = getClientWithAccessControl(client, req.user);
+    if (!accessResult || accessResult.limited) return res.status(403).json({ error: 'Немає доступу' });
+    const files = await File.find({ entityType: 'interaction', entityId: req.params.interactionId }).sort({ uploadDate: -1 }).lean();
+    res.json(files);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

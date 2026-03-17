@@ -233,12 +233,13 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
               </>
             )}
             <div className="form-group">
-              <label>Регіон</label>
+              <label>Регіональний менеджер</label>
               <input
                 type="text"
                 value={form.region}
-                onChange={e => setForm(prev => ({ ...prev, region: e.target.value }))}
-                placeholder="Регіон"
+                readOnly
+                placeholder="Автозаповнення при виборі менеджера"
+                title="Заповнюється автоматично з регіону відповідального менеджера"
               />
             </div>
             <div className="form-group">

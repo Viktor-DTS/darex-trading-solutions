@@ -44,6 +44,12 @@
   border-color: var(--primary);
 }
 
+.client-form-modal .form-group input[readonly] {
+  background: rgba(255, 255, 255, 0.05);
+  cursor: default;
+  opacity: 0.9;
+}
+
 .client-form-modal .modal-body {
   padding: 20px;
 }

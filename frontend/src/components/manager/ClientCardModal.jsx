@@ -1,17 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { getClient, getClientInteractions, addClientInteraction } from '../../utils/clientsAPI';
+import { getClient, getClientInteractions, addClientInteraction, getInteractionFiles, uploadInteractionFiles, getFileOpenToken } from '../../utils/clientsAPI';
+import API_BASE_URL from '../../config';
 import { getSales } from '../../utils/salesAPI';
 import './ClientCardModal.css';
+
+const INTERACTION_TYPES = {
+  note: 'Примітка',
+  call: 'Дзвінок',
+  meeting: 'Зустріч',
+  email: 'Email',
+  commercial_proposal: 'Подана комерційна пропозиція',
+  other: 'Інше'
+};
+
+const FILES_BASE_URL = (API_BASE_URL || '').replace(/\/api\/?$/, '') || (typeof window !== 'undefined' ? window.location.origin : '');
 
 function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSearch }) {
   const [client, setClient] = useState(null);
   const [sales, setSales] = useState([]);
   const [interactions, setInteractions] = useState([]);
+  const [interactionFiles, setInteractionFiles] = useState({});
   const [loading, setLoading] = useState(false);
   const [showAddInteraction, setShowAddInteraction] = useState(false);
   const [newInteractionNotes, setNewInteractionNotes] = useState('');
   const [newInteractionType, setNewInteractionType] = useState('note');
+  const [newInteractionFiles, setNewInteractionFiles] = useState([]);
   const [addingInteraction, setAddingInteraction] = useState(false);
+  const [uploadingForId, setUploadingForId] = useState(null);
 
   useEffect(() => {
     if (open && clientId) {
@@ -30,7 +45,17 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
       ]);
       setClient(clientData);
       setSales(salesData);
-      setInteractions(Array.isArray(interactionsData) ? interactionsData : []);
+      const ints = Array.isArray(interactionsData) ? interactionsData : [];
+      setInteractions(ints);
+      const cpIds = ints.filter(i => i.type === 'commercial_proposal').map(i => i._id);
+      const filesMap = {};
+      await Promise.all(cpIds.map(async (id) => {
+        try {
+          const files = await getInteractionFiles(clientId, id);
+          filesMap[id] = Array.isArray(files) ? files : [];
+        } catch { filesMap[id] = []; }
+      }));
+      setInteractionFiles(filesMap);
     } catch (err) {
       console.error(err);
     } finally {
@@ -43,15 +68,43 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
     if (!clientId || !client || client.limited) return;
     setAddingInteraction(true);
     try {
-      await addClientInteraction(clientId, { type: newInteractionType, notes: newInteractionNotes });
+      const created = await addClientInteraction(clientId, { type: newInteractionType, notes: newInteractionNotes });
+      if (newInteractionType === 'commercial_proposal' && newInteractionFiles?.length > 0 && created?._id) {
+        await uploadInteractionFiles(clientId, created._id, newInteractionFiles);
+      }
       setNewInteractionNotes('');
       setNewInteractionType('note');
+      setNewInteractionFiles([]);
       setShowAddInteraction(false);
       loadData();
     } catch (err) {
       alert(err.message || 'Помилка');
     } finally {
       setAddingInteraction(false);
+    }
+  };
+
+  const handleUploadMoreFiles = async (interactionId, fileInput) => {
+    const files = fileInput?.files;
+    if (!files?.length || !clientId) return;
+    setUploadingForId(interactionId);
+    try {
+      await uploadInteractionFiles(clientId, interactionId, Array.from(files));
+      loadData();
+    } catch (err) {
+      alert(err.message || 'Помилка завантаження');
+    } finally {
+      setUploadingForId(null);
+      if (fileInput) fileInput.value = '';
+    }
+  };
+
+  const openFile = async (fileId) => {
+    try {
+      const token = await getFileOpenToken(fileId);
+      window.open(`${FILES_BASE_URL}/files/open/${fileId}?token=${encodeURIComponent(token)}`, '_blank');
+    } catch (err) {
+      alert(err.message || 'Не вдалося відкрити файл');
     }
   };
 
@@ -122,11 +175,9 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
                   {showAddInteraction && (
                     <form className="add-interaction-form" onSubmit={handleAddInteraction}>
                       <select value={newInteractionType} onChange={e => setNewInteractionType(e.target.value)}>
-                        <option value="note">Примітка</option>
-                        <option value="call">Дзвінок</option>
-                        <option value="meeting">Зустріч</option>
-                        <option value="email">Email</option>
-                        <option value="other">Інше</option>
+                        {Object.entries(INTERACTION_TYPES).map(([k, v]) => (
+                          <option key={k} value={k}>{v}</option>
+                        ))}
                       </select>
                       <textarea
                         value={newInteractionNotes}
@@ -134,8 +185,22 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
                         placeholder="Текст примітки..."
                         rows={2}
                       />
+                      {newInteractionType === 'commercial_proposal' && (
+                        <div className="form-group">
+                          <label>Файли (JPEG, PDF, Word)</label>
+                          <input
+                            type="file"
+                            accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
+                            multiple
+                            onChange={e => setNewInteractionFiles(Array.from(e.target.files || []))}
+                          />
+                          {newInteractionFiles.length > 0 && (
+                            <span className="files-count">{newInteractionFiles.length} файл(ів) обрано</span>
+                          )}
+                        </div>
+                      )}
                       <div className="interaction-form-actions">
-                        <button type="button" className="btn-cancel" onClick={() => { setShowAddInteraction(false); setNewInteractionNotes(''); }}>Скасувати</button>
+                        <button type="button" className="btn-cancel" onClick={() => { setShowAddInteraction(false); setNewInteractionNotes(''); setNewInteractionFiles([]); }}>Скасувати</button>
                         <button type="submit" className="btn-primary" disabled={addingInteraction}>
                           {addingInteraction ? 'Збереження...' : 'Зберегти'}
                         </button>
@@ -146,14 +211,40 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
                     <p className="no-data">Немає записів</p>
                   ) : (
                     <ul className="interactions-list">
-                      {interactions.map(i => (
-                        <li key={i._id}>
-                          <span className="interaction-type">{i.type === 'note' ? 'Примітка' : i.type === 'call' ? 'Дзвінок' : i.type === 'meeting' ? 'Зустріч' : i.type === 'email' ? 'Email' : i.type}</span>
-                          <span className="interaction-date">{i.date ? new Date(i.date).toLocaleString('uk-UA') : ''}</span>
-                          <span className="interaction-user">{i.userName || i.userLogin}</span>
-                          {i.notes && <div className="interaction-notes">{i.notes}</div>}
-                        </li>
-                      ))}
+                      {interactions.map(i => {
+                        const files = interactionFiles[i._id] || [];
+                        return (
+                          <li key={i._id}>
+                            <span className="interaction-type">{INTERACTION_TYPES[i.type] || i.type}</span>
+                            <span className="interaction-date">{i.date ? new Date(i.date).toLocaleString('uk-UA') : ''}</span>
+                            <span className="interaction-user">{i.userName || i.userLogin}</span>
+                            {i.notes && <div className="interaction-notes">{i.notes}</div>}
+                            {i.type === 'commercial_proposal' && (
+                              <div className="interaction-files">
+                                {files.length > 0 ? (
+                                  files.map(f => (
+                                    <button key={f._id} type="button" className="file-link" onClick={() => openFile(f._id)} title="Відкрити/скачати">
+                                      📎 {f.originalName || 'Файл'}
+                                    </button>
+                                  ))
+                                ) : (
+                                  <span className="no-files">Немає файлів</span>
+                                )}
+                                <label className="btn-upload-more">
+                                  <input
+                                    type="file"
+                                    accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
+                                    multiple
+                                    hidden
+                                    onChange={e => handleUploadMoreFiles(i._id, e.target)}
+                                  />
+                                  {uploadingForId === i._id ? 'Завантаження...' : '+ Завантажити файл'}
+                                </label>
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </div>

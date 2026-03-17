@@ -151,3 +151,44 @@ export const addClientInteraction = async (clientId, { type, date, notes }) => {
     throw error;
   }
 };
+
+// Файли взаємодії
+export const getInteractionFiles = async (clientId, interactionId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/clients/${clientId}/interactions/${interactionId}/files`, {
+      headers: getAuthHeaders()
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка завантаження файлів взаємодії:', error);
+    return [];
+  }
+};
+
+export const uploadInteractionFiles = async (clientId, interactionId, files, description = '') => {
+  const formData = new FormData();
+  (Array.isArray(files) ? files : [files]).forEach(f => formData.append('files', f));
+  if (description) formData.append('description', description);
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/clients/${clientId}/interactions/${interactionId}/files`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` },
+    body: formData
+  });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || `HTTP ${response.status}`);
+  }
+  return await response.json();
+};
+
+// Отримати токен для відкриття/скачування файлу
+export const getFileOpenToken = async (fileId) => {
+  const response = await fetch(`${API_BASE_URL}/files/open-token/${fileId}`, {
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const data = await response.json();
+  return data.token;
+};
