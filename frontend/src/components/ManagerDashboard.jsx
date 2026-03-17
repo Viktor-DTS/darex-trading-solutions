@@ -230,20 +230,6 @@ function ManagerDashboard({ user }) {
             <nav className="manager-sidebar-nav">
               <div className="sidebar-section-title">Менеджери</div>
               <button 
-                className={`manager-sidebar-tab ${activeTab === 'stock' ? 'active' : ''}`}
-                onClick={() => setActiveTab('stock')}
-              >
-                <span className="tab-icon">📦</span>
-                <span className="tab-label">Залишки на складах</span>
-              </button>
-              <button 
-                className={`manager-sidebar-tab ${activeTab === 'history' ? 'active' : ''}`}
-                onClick={() => setActiveTab('history')}
-              >
-                <span className="tab-icon">📋</span>
-                <span className="tab-label">Історія резервування</span>
-              </button>
-              <button 
                 className={`manager-sidebar-tab ${activeTab === 'clients' ? 'active' : ''}`}
                 onClick={() => setActiveTab('clients')}
               >
@@ -258,11 +244,25 @@ function ManagerDashboard({ user }) {
                 <span className="tab-label">Продажі</span>
               </button>
               <button 
+                className={`manager-sidebar-tab ${activeTab === 'stock' ? 'active' : ''}`}
+                onClick={() => setActiveTab('stock')}
+              >
+                <span className="tab-icon">📦</span>
+                <span className="tab-label">Залишки на складах</span>
+              </button>
+              <button 
+                className={`manager-sidebar-tab ${activeTab === 'history' ? 'active' : ''}`}
+                onClick={() => setActiveTab('history')}
+              >
+                <span className="tab-icon">📋</span>
+                <span className="tab-label">Історія резервування</span>
+              </button>
+              <button 
                 className={`manager-sidebar-tab ${activeTab === 'incoming' ? 'active' : ''}`}
                 onClick={() => setActiveTab('incoming')}
               >
                 <span className="tab-icon">📞</span>
-                <span className="tab-label">Вхідний дзвінок</span>
+                <span className="tab-label">Перевірка клієнта</span>
               </button>
             </nav>
           </div>
