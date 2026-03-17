@@ -15,6 +15,7 @@ function ManagerDashboard({ user }) {
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [reservationForm, setReservationForm] = useState({
     clientName: '',
+    edrpou: '',
     notes: '',
     endDate: ''
   });
@@ -23,7 +24,9 @@ function ManagerDashboard({ user }) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [crmClients, setCrmClients] = useState([]);
   const [clientSearch, setClientSearch] = useState('');
+  const [edrpouSearch, setEdrpouSearch] = useState('');
   const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false);
   const equipmentListRef = useRef(null);
 
   useEffect(() => {
@@ -79,8 +82,9 @@ function ManagerDashboard({ user }) {
       return;
     }
     setSelectedEquipment(equipment);
-    setReservationForm({ clientName: '', notes: '', endDate: '' });
+    setReservationForm({ clientName: '', edrpou: '', notes: '', endDate: '' });
     setClientSearch('');
+    setEdrpouSearch('');
     setShowReservationModal(true);
     try {
       const [crmData, tasksRes] = await Promise.all([
@@ -111,12 +115,24 @@ function ManagerDashboard({ user }) {
     }
   };
 
-  const searchLower = (clientSearch || '').toLowerCase().trim();
+  const handleSelectClient = (c) => {
+    const name = c.name || c.edrpou || '';
+    const edrpou = c.edrpou || '';
+    setReservationForm(prev => ({ ...prev, clientName: name, edrpou }));
+    setClientSearch(name);
+    setEdrpouSearch(edrpou);
+    setShowClientDropdown(false);
+    setShowEdrpouDropdown(false);
+  };
+
+  const searchTerm = (clientSearch || edrpouSearch || '').trim();
+  const searchLower = searchTerm.toLowerCase();
   const filteredReservationClients = crmClients.filter(c => {
     if (!c.name && !c.edrpou) return false;
-    if (!searchLower) return true;
-    return (c.name || '').toLowerCase().includes(searchLower) || (c.edrpou || '').includes(clientSearch);
+    if (!searchTerm) return true;
+    return (c.name || '').toLowerCase().includes(searchLower) || (c.edrpou || '').includes(searchTerm);
   });
+  const showDropdown = (showClientDropdown || showEdrpouDropdown) && filteredReservationClients.length > 0;
 
   const handleReservationSubmit = async (e) => {
     e.preventDefault();
@@ -138,6 +154,7 @@ function ManagerDashboard({ user }) {
         },
         body: JSON.stringify({
           clientName: reservationForm.clientName,
+          edrpou: reservationForm.edrpou || undefined,
           notes: reservationForm.notes,
           endDate: reservationForm.endDate || null
         })
@@ -377,9 +394,9 @@ function ManagerDashboard({ user }) {
                   <div><strong>Склад:</strong> {selectedEquipment.currentWarehouseName || selectedEquipment.currentWarehouse || '—'}</div>
                 </div>
                 
-                <div className="form-group">
-                  <label>Назва клієнта <span className="required">*</span></label>
-                  <div className="client-autocomplete">
+                <div className="client-edrpou-autocomplete">
+                  <div className="form-group">
+                    <label>Назва клієнта <span className="required">*</span></label>
                     <input
                       type="text"
                       value={clientSearch || reservationForm.clientName}
@@ -395,20 +412,32 @@ function ManagerDashboard({ user }) {
                       required
                       autoFocus
                     />
-                    {showClientDropdown && crmClients.length > 0 && (
-                      <ul className="client-dropdown">
-                        {filteredReservationClients.slice(0, 8).map(c => (
-                          <li key={c._id} onMouseDown={() => {
-                            setReservationForm(prev => ({ ...prev, clientName: c.name || c.edrpou }));
-                            setClientSearch(c.name || c.edrpou);
-                            setShowClientDropdown(false);
-                          }}>
-                            {c.name || c.edrpou}{c.edrpou ? ` (ЄДРПОУ: ${c.edrpou})` : ''}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
                   </div>
+                  <div className="form-group">
+                    <label>ЄДРПОУ</label>
+                    <input
+                      type="text"
+                      value={edrpouSearch || reservationForm.edrpou}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setEdrpouSearch(v);
+                        setReservationForm(prev => ({ ...prev, edrpou: v }));
+                        setShowEdrpouDropdown(true);
+                      }}
+                      onFocus={() => setShowEdrpouDropdown(crmClients.length > 0)}
+                      onBlur={() => setTimeout(() => setShowEdrpouDropdown(false), 200)}
+                      placeholder="Введіть ЄДРПОУ або назву"
+                    />
+                  </div>
+                  {showDropdown && (
+                    <ul className="client-dropdown">
+                      {filteredReservationClients.slice(0, 8).map(c => (
+                        <li key={c._id} onMouseDown={() => handleSelectClient(c)}>
+                          {c.name || c.edrpou}{c.edrpou ? ` (ЄДРПОУ: ${c.edrpou})` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
                 
                 <div className="form-group">

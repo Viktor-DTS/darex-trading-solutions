@@ -491,7 +491,8 @@
 }
 
 /* CRM client autocomplete в резервуванні */
-.reservation-form-modal .client-autocomplete {
+.reservation-form-modal .client-autocomplete,
+.reservation-form-modal .client-edrpou-autocomplete {
   position: relative;
 }
 
