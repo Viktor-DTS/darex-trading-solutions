@@ -106,3 +106,48 @@ export const updateClient = async (id, data) => {
     throw error;
   }
 };
+
+// Список користувачів (для вибору менеджерів)
+export const getUsers = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users`, { headers: getAuthHeaders() });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка завантаження користувачів:', error);
+    return [];
+  }
+};
+
+// Історія взаємодій клієнта
+export const getClientInteractions = async (clientId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/clients/${clientId}/interactions`, {
+      headers: getAuthHeaders()
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка завантаження історії:', error);
+    return [];
+  }
+};
+
+// Додати взаємодію
+export const addClientInteraction = async (clientId, { type, date, notes }) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/clients/${clientId}/interactions`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ type: type || 'note', date: date || new Date().toISOString(), notes: notes || '' })
+    });
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || `HTTP ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка додавання взаємодії:', error);
+    throw error;
+  }
+};

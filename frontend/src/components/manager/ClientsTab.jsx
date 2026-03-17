@@ -97,7 +97,13 @@ function ClientsTab({ user }) {
                   <td>{c.edrpou || '—'}</td>
                   <td>{c.contactPerson || '—'}</td>
                   <td>{c.contactPhone || '—'}</td>
-                  {showManagerColumn && <td>{c.assignedManagerName || c.assignedManagerLogin || '—'}</td>}
+                  {showManagerColumn && (
+                <td>
+                  {[c.assignedManagerName || c.assignedManagerLogin, c.assignedManagerName2 || c.assignedManagerLogin2]
+                    .filter(Boolean)
+                    .join(' / ') || '—'}
+                </td>
+              )}
                   <td onClick={e => e.stopPropagation()}>
                     <button className="btn-small" onClick={() => handleOpenCard(c._id)}>Переглянути</button>
                   </td>

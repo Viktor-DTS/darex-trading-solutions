@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { createClient, updateClient, checkEdrpou } from '../../utils/clientsAPI';
+import { createClient, updateClient, checkEdrpou, getUsers } from '../../utils/clientsAPI';
 import './ClientFormModal.css';
+
+const canAssignManager = (role) => ['admin', 'administrator', 'mgradm'].includes((role || '').toLowerCase());
 
 function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) {
   const [loading, setLoading] = useState(false);
   const [edrpouConflict, setEdrpouConflict] = useState(null);
+  const [managers, setManagers] = useState([]);
   const [form, setForm] = useState({
     edrpou: '',
     name: '',
@@ -13,9 +16,19 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
     contactPhone: '',
     email: '',
     assignedManagerLogin: '',
+    assignedManagerLogin2: '',
     region: '',
     notes: ''
   });
+
+  useEffect(() => {
+    if (open && canAssignManager(user?.role)) {
+      getUsers().then(list => {
+        const mgrs = (list || []).filter(u => (u.role || '').toLowerCase() === 'manager');
+        setManagers(mgrs);
+      });
+    }
+  }, [open, user?.role]);
 
   useEffect(() => {
     if (open) {
@@ -28,6 +41,7 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
           contactPhone: editClient.contactPhone || '',
           email: editClient.email || '',
           assignedManagerLogin: editClient.assignedManagerLogin || user?.login || '',
+          assignedManagerLogin2: editClient.assignedManagerLogin2 || '',
           region: editClient.region || '',
           notes: editClient.notes || ''
         });
@@ -40,6 +54,7 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
           contactPhone: '',
           email: '',
           assignedManagerLogin: user?.login || '',
+          assignedManagerLogin2: '',
           region: '',
           notes: ''
         });
@@ -175,6 +190,35 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
                 placeholder="email@example.com"
               />
             </div>
+            {canAssignManager(user?.role) && (
+              <>
+                <div className="form-group">
+                  <label>Відповідальний менеджер <span className="required">*</span></label>
+                  <select
+                    value={form.assignedManagerLogin}
+                    onChange={e => setForm(prev => ({ ...prev, assignedManagerLogin: e.target.value }))}
+                    required
+                  >
+                    <option value="">— Оберіть менеджера —</option>
+                    {managers.map(m => (
+                      <option key={m.login || m._id} value={m.login}>{m.name || m.login}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Другий відповідальний</label>
+                  <select
+                    value={form.assignedManagerLogin2 || ''}
+                    onChange={e => setForm(prev => ({ ...prev, assignedManagerLogin2: e.target.value || '' }))}
+                  >
+                    <option value="">— Немає —</option>
+                    {managers.filter(m => m.login !== form.assignedManagerLogin).map(m => (
+                      <option key={m.login || m._id} value={m.login}>{m.name || m.login}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
             <div className="form-group">
               <label>Регіон</label>
               <input

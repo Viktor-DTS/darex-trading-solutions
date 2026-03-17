@@ -842,11 +842,26 @@ const clientSchema = new mongoose.Schema({
   contactPhone: String,
   email: String,
   assignedManagerLogin: { type: String, required: true },
+  assignedManagerLogin2: String,
+  createdByLogin: String,
+  createdByName: String,
   region: String,
   notes: String
 }, { timestamps: true });
 
 const Client = mongoose.model('Client', clientSchema);
+
+const interactionSchema = new mongoose.Schema({
+  entityType: { type: String, required: true, default: 'client' },
+  entityId: { type: mongoose.Schema.Types.ObjectId, required: true },
+  type: { type: String, required: true },
+  date: { type: Date, default: Date.now },
+  userLogin: { type: String, required: true },
+  userName: String,
+  notes: String
+}, { timestamps: true });
+interactionSchema.index({ entityType: 1, entityId: 1, date: -1 });
+const Interaction = mongoose.model('Interaction', interactionSchema);
 
 const additionalCostSchema = new mongoose.Schema({
   id: String,
@@ -1100,8 +1115,12 @@ app.get('/api/contract-files', authenticateToken, async (req, res) => {
 
 function getClientWithAccessControl(client, user) {
   if (!client) return null;
-  if (['admin', 'administrator', 'regional', 'regkerivn'].includes(user?.role)) return client;
-  if (user?.role === 'manager' && client.assignedManagerLogin === user.login) return client;
+  if (['admin', 'administrator', 'mgradm', 'regional', 'regkerivn'].includes(user?.role)) return client;
+  const isOwner = user?.role === 'manager' && (
+    client.assignedManagerLogin === user.login ||
+    client.assignedManagerLogin2 === user.login
+  );
+  if (isOwner) return client;
   return {
     _id: client._id,
     name: client.name,
@@ -1114,14 +1133,23 @@ function getClientWithAccessControl(client, user) {
 app.get('/api/clients', authenticateToken, async (req, res) => {
   try {
     let query = {};
-    if (req.user?.role === 'manager') query.assignedManagerLogin = req.user.login;
+    if (req.user?.role === 'manager') {
+      query.$or = [
+        { assignedManagerLogin: req.user.login },
+        { assignedManagerLogin2: req.user.login }
+      ];
+    }
     const clients = await Client.find(query).sort({ name: 1 }).lean();
-    if (req.user?.role !== 'manager' && clients.length > 0) {
-      const logins = [...new Set(clients.map(c => c.assignedManagerLogin).filter(Boolean))];
+    if (clients.length > 0) {
+      const logins = [...new Set([
+        ...clients.map(c => c.assignedManagerLogin).filter(Boolean),
+        ...clients.map(c => c.assignedManagerLogin2).filter(Boolean)
+      ])];
       const users = await User.find({ login: { $in: logins } }).select('login name').lean();
       const loginToName = Object.fromEntries(users.map(u => [u.login, u.name || u.login]));
       clients.forEach(c => {
         if (c.assignedManagerLogin) c.assignedManagerName = loginToName[c.assignedManagerLogin] || c.assignedManagerLogin;
+        if (c.assignedManagerLogin2) c.assignedManagerName2 = loginToName[c.assignedManagerLogin2] || c.assignedManagerLogin2;
       });
     }
     res.json(clients);
@@ -1170,7 +1198,9 @@ app.get('/api/clients/check-edrpou/:edrpou', authenticateToken, async (req, res)
     const existing = await Client.findOne(query).lean();
     if (!existing) return res.json({ exists: false });
     const currentLogin = req.user?.login;
-    if (existing.assignedManagerLogin === currentLogin) return res.json({ exists: true, sameManager: true });
+    if (existing.assignedManagerLogin === currentLogin || existing.assignedManagerLogin2 === currentLogin) {
+      return res.json({ exists: true, sameManager: true });
+    }
     const manager = await User.findOne({ login: existing.assignedManagerLogin }).select('name login').lean();
     res.json({
       exists: true,
@@ -1192,6 +1222,14 @@ app.get('/api/clients/:id', authenticateToken, async (req, res) => {
     if (result?.limited && result.assignedManagerLogin) {
       const manager = await User.findOne({ login: result.assignedManagerLogin }).select('name login').lean();
       if (manager) result.assignedManagerName = manager.name || manager.login;
+    } else if (result && !result.limited) {
+      const logins = [client.assignedManagerLogin, client.assignedManagerLogin2].filter(Boolean);
+      if (logins.length > 0) {
+        const users = await User.find({ login: { $in: logins } }).select('login name').lean();
+        const loginToName = Object.fromEntries(users.map(u => [u.login, u.name || u.login]));
+        result.assignedManagerName = client.assignedManagerLogin ? (loginToName[client.assignedManagerLogin] || client.assignedManagerLogin) : undefined;
+        result.assignedManagerName2 = client.assignedManagerLogin2 ? (loginToName[client.assignedManagerLogin2] || client.assignedManagerLogin2) : undefined;
+      }
     }
     res.json(result);
   } catch (err) {
@@ -1199,10 +1237,19 @@ app.get('/api/clients/:id', authenticateToken, async (req, res) => {
   }
 });
 
+const canAssignManager = (user) => ['admin', 'administrator', 'mgradm'].includes(user?.role);
+
 app.post('/api/clients', authenticateToken, async (req, res) => {
   try {
     const body = { ...req.body };
+    body.createdByLogin = req.user?.login;
+    body.createdByName = req.user?.name || req.user?.login;
     if (req.user?.role === 'manager') body.assignedManagerLogin = req.user.login;
+    else if (!canAssignManager(req.user)) body.assignedManagerLogin = body.assignedManagerLogin || req.user?.login;
+    if (!canAssignManager(req.user)) {
+      delete body.assignedManagerLogin2;
+      if (body.assignedManagerLogin && req.user?.role !== 'manager') body.assignedManagerLogin = req.user.login;
+    }
     const client = await Client.create(body);
     res.json(client);
   } catch (err) {
@@ -1212,9 +1259,56 @@ app.post('/api/clients', authenticateToken, async (req, res) => {
 
 app.put('/api/clients/:id', authenticateToken, async (req, res) => {
   try {
-    const client = await Client.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-    if (!client) return res.status(404).json({ error: 'Клієнта не знайдено' });
+    const existing = await Client.findById(req.params.id).lean();
+    if (!existing) return res.status(404).json({ error: 'Клієнта не знайдено' });
+    const accessResult = getClientWithAccessControl(existing, req.user);
+    const hasAccess = accessResult && !accessResult.limited;
+    if (!hasAccess) return res.status(403).json({ error: 'Немає доступу до редагування клієнта' });
+    const body = { ...req.body };
+    if (!canAssignManager(req.user)) {
+      delete body.assignedManagerLogin;
+      delete body.assignedManagerLogin2;
+    }
+    const client = await Client.findByIdAndUpdate(req.params.id, body, { new: true, runValidators: true });
     res.json(client);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/clients/:id/interactions', authenticateToken, async (req, res) => {
+  try {
+    const client = await Client.findById(req.params.id).lean();
+    if (!client) return res.status(404).json({ error: 'Клієнта не знайдено' });
+    const accessResult = getClientWithAccessControl(client, req.user);
+    if (!accessResult || accessResult.limited) return res.status(403).json({ error: 'Немає доступу' });
+    const interactions = await Interaction.find({
+      entityType: 'client',
+      entityId: req.params.id
+    }).sort({ date: -1 }).lean();
+    res.json(interactions);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/clients/:id/interactions', authenticateToken, async (req, res) => {
+  try {
+    const client = await Client.findById(req.params.id).lean();
+    if (!client) return res.status(404).json({ error: 'Клієнта не знайдено' });
+    const accessResult = getClientWithAccessControl(client, req.user);
+    if (!accessResult || accessResult.limited) return res.status(403).json({ error: 'Немає доступу' });
+    const { type, date, notes } = req.body || {};
+    const doc = await Interaction.create({
+      entityType: 'client',
+      entityId: req.params.id,
+      type: type || 'note',
+      date: date ? new Date(date) : new Date(),
+      userLogin: req.user?.login,
+      userName: req.user?.name || req.user?.login,
+      notes: notes || ''
+    });
+    res.status(201).json(doc);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
