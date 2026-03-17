@@ -6,6 +6,7 @@ import { getFileOpenToken } from '../../utils/clientsAPI';
 import AdditionalCostsEditor from './AdditionalCostsEditor';
 import PaymentsEditor from './PaymentsEditor';
 import EquipmentEditor from './EquipmentEditor';
+import ProposedEquipmentEditor from './ProposedEquipmentEditor';
 import ClientFormModal from './ClientFormModal';
 import './SaleFormModal.css';
 
@@ -243,9 +244,12 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
       return;
     }
     const requiresEquipment = ['in_progress', 'success'].includes(form.status);
-    const validEquipment = form.equipmentItems.filter(i => i.equipmentId && (i.amount || 0) > 0);
+    const isInProgress = form.status === 'in_progress';
+    const validEquipment = isInProgress
+      ? form.equipmentItems.filter(i => ((i.type || '').trim() || (i.serialNumber || '').trim()) && (i.amount || 0) > 0)
+      : form.equipmentItems.filter(i => i.equipmentId && (i.amount || 0) > 0);
     if (requiresEquipment && validEquipment.length === 0) {
-      alert('Для цього статусу додайте щонайменше одну позицію обладнання з сумою');
+      alert(isInProgress ? 'Додайте щонайменше одну позицію запропонованого обладнання з сумою' : 'Додайте щонайменше одну позицію відвантаженого обладнання зі складу');
       return;
     }
 
@@ -258,9 +262,9 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
         managerLogin2: canAssignSaleManager(user?.role) ? (form.managerLogin2 || undefined) : undefined,
         tenderEmployeeLogin: form.tenderEmployeeLogin || undefined,
         equipmentItems: validEquipment.length > 0 ? validEquipment.map(i => ({
-          equipmentId: i.equipmentId,
-          type: i.type,
-          serialNumber: i.serialNumber,
+          ...(i.equipmentId ? { equipmentId: i.equipmentId } : {}),
+          type: (i.type || '').trim(),
+          serialNumber: (i.serialNumber || '').trim(),
           amount: parseFloat(i.amount) || 0
         })) : [],
         mainProductAmount: validEquipment.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0),
@@ -352,6 +356,16 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
               </div>
             </div>
 
+            <div className="form-group">
+              <label>ЄДРПОУ</label>
+              <input
+                type="text"
+                value={form.edrpou || ''}
+                onChange={e => setForm(prev => ({ ...prev, edrpou: e.target.value }))}
+                placeholder="Заповниться з клієнта (порожньо для приватним осіб)"
+              />
+            </div>
+
             {canAssignSaleManager(user?.role) && (
               <>
                 <div className="form-group">
@@ -407,11 +421,19 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
               </select>
             </div>
 
-            <EquipmentEditor
-              items={form.equipmentItems}
-              equipment={equipmentWithSale}
-              onChange={items => setForm(prev => ({ ...prev, equipmentItems: items }))}
-            />
+            {form.status === 'in_progress' ? (
+              <ProposedEquipmentEditor
+                items={form.equipmentItems}
+                onChange={items => setForm(prev => ({ ...prev, equipmentItems: items }))}
+              />
+            ) : (
+              <EquipmentEditor
+                items={form.equipmentItems}
+                equipment={equipmentWithSale}
+                onChange={items => setForm(prev => ({ ...prev, equipmentItems: items }))}
+                label="Відвантажене обладнання"
+              />
+            )}
 
             <div className="form-row">
               <div className="form-group">

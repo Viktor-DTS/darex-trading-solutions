@@ -1,0 +1,77 @@
+.proposed-equipment-editor {
+  margin: 16px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-dark);
+}
+
+.proposed-equipment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.proposed-equipment-header .section-label {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.proposed-equipment-table-wrap {
+  overflow-x: auto;
+}
+
+.proposed-equipment-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 450px;
+}
+
+.proposed-equipment-table th,
+.proposed-equipment-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.proposed-equipment-table th {
+  background: var(--surface);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.proposed-equipment-table td input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.proposed-equipment-table td input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.proposed-equipment-table .col-amount { width: 120px; }
+.proposed-equipment-table .col-action { width: 44px; }
+
+.proposed-equipment-summary {
+  padding: 12px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--text);
+}
+
+.proposed-equipment-summary strong {
+  color: var(--primary);
+}

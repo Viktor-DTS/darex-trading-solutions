@@ -1,7 +1,7 @@
 import React from 'react';
 import './EquipmentEditor.css';
 
-function EquipmentEditor({ items, equipment, onChange }) {
+function EquipmentEditor({ items, equipment, onChange, label = 'Відвантажене обладнання' }) {
   const addRow = () => {
     onChange([
       ...items,
@@ -39,7 +39,7 @@ function EquipmentEditor({ items, equipment, onChange }) {
   return (
     <div className="equipment-editor">
       <div className="equipment-editor-header">
-        <span className="section-label">Обладнання <span className="required">*</span></span>
+        <span className="section-label">{label} <span className="required">*</span></span>
         <button type="button" className="btn-add-equipment" onClick={addRow}>
           + Додати обладнання
         </button>
@@ -48,7 +48,8 @@ function EquipmentEditor({ items, equipment, onChange }) {
         <table className="equipment-editor-table">
           <thead>
             <tr>
-              <th>Обладнання</th>
+              <th>{label}</th>
+              <th className="col-serial">Серійний №</th>
               <th className="col-amount">Сума (₴)</th>
               <th className="col-total">Разом</th>
               <th className="col-action"></th>
