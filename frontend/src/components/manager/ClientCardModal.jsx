@@ -63,7 +63,7 @@ function ClientCardModal({ open, onClose, clientId, onEdit }) {
               )}
               <div className="client-info-block">
                 <h4>{client.name}</h4>
-                {!client.limited && client.edrpou && <div><strong>ЄДРПОУ:</strong> {client.edrpou}</div>}
+                {client.edrpou && <div><strong>ЄДРПОУ:</strong> {client.edrpou}</div>}
                 {!client.limited && client.address && <div><strong>Адреса:</strong> {client.address}</div>}
                 {!client.limited && client.contactPerson && <div><strong>Контакт:</strong> {client.contactPerson}</div>}
                 {!client.limited && client.contactPhone && <div><strong>Телефон:</strong> {client.contactPhone}</div>}
