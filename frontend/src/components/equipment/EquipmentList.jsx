@@ -559,7 +559,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                   style={{ cursor: 'pointer' }}
                 >
                   <td className="actions-cell" onClick={(e) => e.stopPropagation()}>
-                    <div className="action-buttons">
+                    <div className="action-buttons" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '3px' }}>
                       {showReserveAction && onReserve && (
                         <button
                           className="btn-action btn-reserve"
