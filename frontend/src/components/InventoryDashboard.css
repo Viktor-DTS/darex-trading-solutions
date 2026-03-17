@@ -1,6 +1,8 @@
 .inventory-dashboard {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   height: 100%;
   background: var(--background);
 }
@@ -201,15 +203,14 @@
   position: relative;
 }
 
-/* Відображення панелі Складський облік на 80% (як при масштабі браузера 80%) */
+/* Контент Складського обліку — таблиця до самого низу (без scale, як у Менеджери) */
 .inventory-scaled-wrapper {
-  width: 125%;
-  height: 125%;
-  transform: scale(0.8);
-  transform-origin: 0 0;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 12px;
+  padding: 8px;
+  width: 100%;
   box-sizing: border-box;
 }
 

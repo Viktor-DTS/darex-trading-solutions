@@ -439,12 +439,12 @@ function App() {
                     </div>
                   </nav>
                   {/* Основний вміст */}
-                  <div className={`panel-content with-selector ${currentPanel !== 'manager' ? 'with-statistics-bar' : ''}`}>
+                  <div className={`panel-content with-selector ${!['manager', 'inventory'].includes(currentPanel) ? 'with-statistics-bar' : ''}`}>
                     {renderPanel()}
                   </div>
                   
-                  {/* Панель статистики заявок — приховано в панелі Менеджери */}
-                  {currentPanel !== 'manager' && <TasksStatisticsBar user={user} />}
+                  {/* Панель статистики заявок — приховано в Менеджери та Складський облік */}
+                  {!['manager', 'inventory'].includes(currentPanel) && <TasksStatisticsBar user={user} />}
                 </div>
               )}
             </div>
