@@ -439,12 +439,12 @@ function App() {
                     </div>
                   </nav>
                   {/* Основний вміст */}
-                  <div className="panel-content with-selector with-statistics-bar">
+                  <div className={`panel-content with-selector ${currentPanel !== 'manager' ? 'with-statistics-bar' : ''}`}>
                     {renderPanel()}
                   </div>
                   
-                  {/* Панель статистики заявок */}
-                  <TasksStatisticsBar user={user} />
+                  {/* Панель статистики заявок — приховано в панелі Менеджери */}
+                  {currentPanel !== 'manager' && <TasksStatisticsBar user={user} />}
                 </div>
               )}
             </div>
