@@ -20,10 +20,11 @@ function SalesTab({ user }) {
     try {
       const data = await getSales();
       const list = Array.isArray(data) ? data : data.sales || [];
-      const inProgress = list.filter(s => ['in_progress', 'draft', 'primary_contact', 'quote_sent', 'pnr'].includes(s.status));
+      const inNegotiation = list.filter(s => ['in_negotiation', 'in_progress', 'draft', 'primary_contact', 'quote_sent', 'pnr'].includes(s.status));
+      const inRealization = list.filter(s => s.status === 'in_realization');
       const success = list.filter(s => ['success', 'confirmed'].includes(s.status));
-      const rest = list.filter(s => !['in_progress', 'draft', 'primary_contact', 'quote_sent', 'pnr', 'success', 'confirmed'].includes(s.status));
-      setSales([...inProgress, ...success, ...rest]);
+      const rest = list.filter(s => !['in_negotiation', 'in_progress', 'in_realization', 'draft', 'primary_contact', 'quote_sent', 'pnr', 'success', 'confirmed'].includes(s.status));
+      setSales([...inNegotiation, ...inRealization, ...success, ...rest]);
     } catch (err) {
       console.error(err);
       setSales([]);
@@ -55,7 +56,8 @@ function SalesTab({ user }) {
   const exportReport = () => {
     const STATUS_LABELS = {
       draft: 'Чернетка', primary_contact: 'Первичний контакт', quote_sent: 'Відправив КП',
-      in_progress: 'В процесі', pnr: 'ПНР', success: 'Успішно', confirmed: 'Підтверджено', cancelled: 'Скасовано'
+      in_negotiation: 'В процесі домовленості', in_progress: 'В процесі', in_realization: 'Реалізація угоди',
+      pnr: 'ПНР', success: 'Успішно', confirmed: 'Підтверджено', cancelled: 'Скасовано'
     };
     const cols = [
       'Дата', 'Клієнт', 'ЄДРПОУ', 'Менеджер', 'Менеджер 2', 'Тендер', 'Продукт', 'Серійний №',
@@ -75,7 +77,7 @@ function SalesTab({ user }) {
       STATUS_LABELS[s.status] || s.status || '',
       (s.payments || []).map(p => {
         const d = p.date ? new Date(p.date).toLocaleDateString('uk-UA') : '';
-        return d ? `${d}: ${p.amount || 0} ${p.currency || 'UAH'}` : `${p.amount || 0} ${p.currency || 'UAH'}`;
+        return d ? `${d}: ${p.amount || 0} ₴` : `${p.amount || 0} ₴`;
       }).join('; ') || '',
       (s.notes || '').replace(/"/g, '""')
     ]);
@@ -122,9 +124,10 @@ function SalesTab({ user }) {
             </thead>
             <tbody>
               {sales.map(s => {
-                const isInProgress = ['in_progress', 'draft', 'primary_contact', 'quote_sent', 'pnr'].includes(s.status);
+                const isInNegotiation = ['in_negotiation', 'in_progress', 'draft', 'primary_contact', 'quote_sent', 'pnr'].includes(s.status);
+                const isInRealization = s.status === 'in_realization';
                 const isSuccess = ['success', 'confirmed'].includes(s.status);
-                const rowClass = s.status === 'cancelled' ? 'sale-cancelled' : isInProgress ? 'sale-row-in-progress' : isSuccess ? 'sale-row-success' : '';
+                const rowClass = s.status === 'cancelled' ? 'sale-cancelled' : isInNegotiation ? 'sale-row-in-progress' : isInRealization ? 'sale-row-in-realization' : isSuccess ? 'sale-row-success' : '';
                 return (
                 <tr key={s._id} className={rowClass} onClick={() => handleEditSale(s)} style={{ cursor: 'pointer' }}>
                   <td>{s.saleDate ? new Date(s.saleDate).toLocaleDateString('uk-UA') : '—'}</td>
@@ -144,8 +147,9 @@ function SalesTab({ user }) {
                   <td>{formatCurrency(s.totalAmount || s.mainProductAmount)}</td>
                   <td>{s.warrantyUntil ? new Date(s.warrantyUntil).toLocaleDateString('uk-UA') : '—'}</td>
                   <td>
-                    <span className={`sale-status-badge ${s.status || 'in_progress'}`}>
-                      {['in_progress', 'draft', 'primary_contact', 'quote_sent', 'pnr'].includes(s.status) ? 'В процесі реалізації' :
+                    <span className={`sale-status-badge ${s.status || 'in_negotiation'}`}>
+                      {['in_negotiation', 'in_progress', 'draft', 'primary_contact', 'quote_sent', 'pnr'].includes(s.status) ? 'В процесі домовленості' :
+                        s.status === 'in_realization' ? 'Реалізація угоди' :
                         ['success', 'confirmed'].includes(s.status) ? 'Успішно реалізовано' :
                         s.status === 'cancelled' ? 'Скасовано' : s.status || '—'}
                     </span>

@@ -44,7 +44,7 @@
 .payments-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 400px;
+  min-width: 280px;
 }
 
 .payments-table th,
@@ -79,8 +79,7 @@
   border-color: var(--primary);
 }
 
-.payments-table .col-amount { width: 120px; }
-.payments-table .col-rate { width: 90px; }
+.payments-table .col-amount { width: 140px; }
 .payments-table .col-action { width: 44px; }
 
 .btn-remove-payment {

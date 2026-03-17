@@ -903,7 +903,7 @@ const saleSchema = new mongoose.Schema({
   warrantyMonths: { type: Number, default: 12 },
   warrantyUntil: Date,
   totalAmount: Number,
-  status: { type: String, enum: ['draft', 'primary_contact', 'quote_sent', 'in_progress', 'pnr', 'success', 'confirmed', 'cancelled'], default: 'primary_contact' },
+  status: { type: String, enum: ['draft', 'primary_contact', 'quote_sent', 'in_negotiation', 'in_progress', 'in_realization', 'pnr', 'success', 'confirmed', 'cancelled'], default: 'in_negotiation' },
   statusHistory: [{ from: String, to: String, date: Date, userLogin: String }],
   notes: String
 }, { timestamps: true });

@@ -13,10 +13,11 @@ import './SaleFormModal.css';
 const canAssignSaleManager = (role) => ['admin', 'administrator', 'mgradm'].includes((role || '').toLowerCase());
 
 const SALE_STATUS_OPTIONS = [
-  { value: 'in_progress', label: 'В процесі реалізації' },
+  { value: 'in_negotiation', label: 'В процесі домовленості' },
+  { value: 'in_realization', label: 'Реалізація угоди' },
   { value: 'success', label: 'Успішно реалізовано' }
 ];
-const STATUS_LABELS_LEGACY = { draft: 'Чернетка', primary_contact: 'Первичний контакт', quote_sent: 'Відправив КП', pnr: 'ПНР', confirmed: 'Підтверджено', cancelled: 'Скасовано' };
+const STATUS_LABELS_LEGACY = { draft: 'Чернетка', primary_contact: 'Первичний контакт', quote_sent: 'Відправив КП', pnr: 'ПНР', in_negotiation: 'В процесі домовленості', in_realization: 'Реалізація угоди', confirmed: 'Підтверджено', cancelled: 'Скасовано' };
 const statusLabel = (v) => SALE_STATUS_OPTIONS.find(o => o.value === v)?.label || STATUS_LABELS_LEGACY[v] || v || '—';
 
 function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClient = null, user }) {
@@ -94,7 +95,7 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
             : [{ id: crypto.randomUUID?.() || '1', date: new Date().toISOString().slice(0, 10), amount: 0, currency: 'UAH', rate: 1 }],
           saleDate: editSale.saleDate ? new Date(editSale.saleDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
           warrantyMonths: editSale.warrantyMonths || 12,
-          status: ['in_progress', 'success'].includes(editSale.status) ? editSale.status : (['success', 'confirmed'].includes(editSale.status) ? 'success' : 'in_progress'),
+          status: ['in_negotiation', 'in_realization', 'success'].includes(editSale.status) ? editSale.status : (['success', 'confirmed'].includes(editSale.status) ? 'success' : editSale.status === 'in_progress' ? 'in_realization' : 'in_negotiation'),
           notes: editSale.notes || ''
         });
       } else {
@@ -111,7 +112,7 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
           payments: [{ id: crypto.randomUUID?.() || '1', date: new Date().toISOString().slice(0, 10), amount: 0, currency: 'UAH', rate: 1 }],
           saleDate: new Date().toISOString().slice(0, 10),
           warrantyMonths: 12,
-          status: 'in_progress',
+          status: 'in_negotiation',
           notes: ''
         });
         setClientSearch(client.name || '');
@@ -243,13 +244,13 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
       alert('Оберіть клієнта');
       return;
     }
-    const requiresEquipment = ['in_progress', 'success'].includes(form.status);
-    const isInProgress = form.status === 'in_progress';
-    const validEquipment = isInProgress
+    const requiresEquipment = ['in_negotiation', 'in_realization', 'success'].includes(form.status);
+    const isProposedEquipment = form.status === 'in_negotiation';
+    const validEquipment = isProposedEquipment
       ? form.equipmentItems.filter(i => ((i.type || '').trim() || (i.serialNumber || '').trim()) && (i.amount || 0) > 0)
       : form.equipmentItems.filter(i => i.equipmentId && (i.amount || 0) > 0);
     if (requiresEquipment && validEquipment.length === 0) {
-      alert(isInProgress ? 'Додайте щонайменше одну позицію запропонованого обладнання з сумою' : 'Додайте щонайменше одну позицію відвантаженого обладнання зі складу');
+      alert(isProposedEquipment ? 'Додайте щонайменше одну позицію запропонованого обладнання з сумою' : 'Додайте щонайменше одну позицію відвантаженого обладнання зі складу');
       return;
     }
 
@@ -281,9 +282,7 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
           .map(p => ({
             id: p.id,
             date: p.date,
-            amount: parseFloat(p.amount) || 0,
-            currency: p.currency || 'UAH',
-            rate: parseFloat(p.rate) || 1
+            amount: parseFloat(p.amount) || 0
           })),
         saleDate: form.saleDate,
         warrantyMonths: parseInt(form.warrantyMonths) || 12,
@@ -412,7 +411,7 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
             <div className="form-group">
               <label>Статус угоди</label>
               <select
-                value={form.status || 'in_progress'}
+                value={form.status || 'in_negotiation'}
                 onChange={e => setForm(prev => ({ ...prev, status: e.target.value }))}
               >
                 {SALE_STATUS_OPTIONS.map(o => (
@@ -421,7 +420,7 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
               </select>
             </div>
 
-            {form.status === 'in_progress' ? (
+            {form.status === 'in_negotiation' ? (
               <ProposedEquipmentEditor
                 items={form.equipmentItems}
                 onChange={items => setForm(prev => ({ ...prev, equipmentItems: items }))}
@@ -438,24 +437,32 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
             <div className="form-row">
               <div className="form-group">
                 <label>Дата продажу</label>
-                <input
-                  type="date"
-                  value={form.saleDate}
-                  onChange={e => setForm(prev => ({ ...prev, saleDate: e.target.value }))}
-                  required
-                />
+                {form.status === 'in_negotiation' ? (
+                  <div className="field-placeholder">—</div>
+                ) : (
+                  <input
+                    type="date"
+                    value={form.saleDate}
+                    onChange={e => setForm(prev => ({ ...prev, saleDate: e.target.value }))}
+                    required
+                  />
+                )}
               </div>
               <div className="form-group">
                 <label>Гарантія (місяців)</label>
-                <select
-                  value={form.warrantyMonths}
-                  onChange={e => setForm(prev => ({ ...prev, warrantyMonths: parseInt(e.target.value) }))}
-                >
-                  <option value={6}>6</option>
-                  <option value={12}>12</option>
-                  <option value={24}>24</option>
-                  <option value={36}>36</option>
-                </select>
+                {form.status === 'in_negotiation' ? (
+                  <div className="field-placeholder">—</div>
+                ) : (
+                  <select
+                    value={form.warrantyMonths}
+                    onChange={e => setForm(prev => ({ ...prev, warrantyMonths: parseInt(e.target.value) }))}
+                  >
+                    <option value={6}>6</option>
+                    <option value={12}>12</option>
+                    <option value={24}>24</option>
+                    <option value={36}>36</option>
+                  </select>
+                )}
               </div>
             </div>
 
@@ -464,10 +471,17 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
               onChange={costs => setForm(prev => ({ ...prev, additionalCosts: costs }))}
             />
 
-            <PaymentsEditor
-              payments={form.payments || [{ id: '1', date: new Date().toISOString().slice(0, 10), amount: 0, currency: 'UAH', rate: 1 }]}
-              onChange={p => setForm(prev => ({ ...prev, payments: p }))}
-            />
+            {form.status === 'in_negotiation' ? (
+              <div className="form-group">
+                <label>Платежі</label>
+                <div className="field-placeholder">—</div>
+              </div>
+            ) : (
+              <PaymentsEditor
+                payments={form.payments || [{ id: '1', date: new Date().toISOString().slice(0, 10), amount: 0 }]}
+                onChange={p => setForm(prev => ({ ...prev, payments: p }))}
+              />
+            )}
 
             <div className="form-group">
               <label>Примітки</label>

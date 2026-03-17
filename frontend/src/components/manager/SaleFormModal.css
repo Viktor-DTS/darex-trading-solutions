@@ -45,6 +45,12 @@
   font-size: 14px;
 }
 
+.field-placeholder {
+  padding: 10px 12px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
 .sale-form-modal .form-group input:focus,
 .sale-form-modal .form-group select:focus,
 .sale-form-modal .form-group textarea:focus {

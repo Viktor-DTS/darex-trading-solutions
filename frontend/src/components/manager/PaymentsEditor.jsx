@@ -1,13 +1,11 @@
 import React from 'react';
 import './PaymentsEditor.css';
 
-const CURRENCIES = ['UAH', 'USD', 'EUR'];
-
 function PaymentsEditor({ payments, onChange }) {
   const addRow = () => {
     onChange([
       ...payments,
-      { id: crypto.randomUUID?.() || Date.now().toString(), date: new Date().toISOString().slice(0, 10), amount: 0, currency: 'UAH', rate: 1 }
+      { id: crypto.randomUUID?.() || Date.now().toString(), date: new Date().toISOString().slice(0, 10), amount: 0 }
     ]);
   };
 
@@ -20,20 +18,12 @@ function PaymentsEditor({ payments, onChange }) {
     onChange(payments.map(p => {
       if (p.id !== id) return p;
       const updated = { ...p, [field]: value };
-      if (field === 'amount' || field === 'rate') {
-        updated[field] = parseFloat(value) || 0;
-      }
+      if (field === 'amount') updated[field] = parseFloat(value) || 0;
       return updated;
     }));
   };
 
-  const totalUAH = payments.reduce((s, p) => {
-    const amt = p.amount || 0;
-    const rate = p.rate || 1;
-    const curr = (p.currency || 'UAH').toUpperCase();
-    if (curr === 'UAH') return s + amt;
-    return s + amt * rate;
-  }, 0);
+  const totalUAH = payments.reduce((s, p) => s + (p.amount || 0), 0);
 
   return (
     <div className="payments-editor">
@@ -48,9 +38,7 @@ function PaymentsEditor({ payments, onChange }) {
           <thead>
             <tr>
               <th>Дата</th>
-              <th className="col-amount">Сума</th>
-              <th>Валюта</th>
-              <th className="col-rate">Курс</th>
+              <th className="col-amount">Сума (₴)</th>
               <th className="col-action"></th>
             </tr>
           </thead>
@@ -74,27 +62,6 @@ function PaymentsEditor({ payments, onChange }) {
                     placeholder="0"
                   />
                 </td>
-                <td>
-                  <select
-                    value={p.currency || 'UAH'}
-                    onChange={e => updatePayment(p.id, 'currency', e.target.value)}
-                  >
-                    {CURRENCIES.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </td>
-                <td className="col-rate">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    value={p.rate ?? 1}
-                    onChange={e => updatePayment(p.id, 'rate', e.target.value)}
-                    placeholder="1"
-                    title="Курс до UAH"
-                  />
-                </td>
                 <td className="col-action">
                   <button
                     type="button"
@@ -112,7 +79,7 @@ function PaymentsEditor({ payments, onChange }) {
         </table>
       </div>
       <div className="payments-summary">
-        Разом (в UAH): <strong>{totalUAH.toLocaleString('uk-UA')} ₴</strong>
+        Разом: <strong>{totalUAH.toLocaleString('uk-UA')} ₴</strong>
       </div>
     </div>
   );

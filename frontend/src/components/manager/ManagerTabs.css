@@ -176,6 +176,14 @@
   background: rgba(40, 167, 69, 0.3);
 }
 
+.sale-row-in-realization {
+  background: rgba(13, 110, 253, 0.15);
+}
+
+.sale-row-in-realization:hover {
+  background: rgba(13, 110, 253, 0.25);
+}
+
 .btn-cancel-sale {
   background: transparent;
   color: #dc3545;
