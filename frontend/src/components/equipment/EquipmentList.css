@@ -363,8 +363,8 @@
 }
 
 .action-buttons {
-  display: flex;
-  flex-direction: row;
+  display: flex !important;
+  flex-direction: row !important;
   flex-wrap: wrap;
   gap: 3px;
   min-width: 0;
