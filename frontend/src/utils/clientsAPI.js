@@ -9,17 +9,22 @@ const getAuthHeaders = () => {
   };
 };
 
-// Список клієнтів (для manager — тільки свої)
+// Список клієнтів (params: page, limit, q/search, region, manager)
+// При page/limit повертає { clients, total, page, limit }, інакше — масив (зворотна сумісність)
 export const getClients = async (params = {}) => {
   try {
-    const qs = new URLSearchParams(params).toString();
-    const url = qs ? `${API_BASE_URL}/clients?${qs}` : `${API_BASE_URL}/clients`;
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== '' && v !== undefined && v !== null) qs.set(k, String(v));
+    });
+    const url = qs.toString() ? `${API_BASE_URL}/clients?${qs}` : `${API_BASE_URL}/clients`;
     const response = await fetch(url, { headers: getAuthHeaders() });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.json();
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error('Помилка завантаження клієнтів:', error);
-    return [];
+    return { clients: [], total: 0, page: 1, limit: 30 };
   }
 };
 
@@ -104,6 +109,18 @@ export const updateClient = async (id, data) => {
   } catch (error) {
     console.error('Помилка оновлення клієнта:', error);
     throw error;
+  }
+};
+
+// Опції для фільтрів (регіони, менеджери)
+export const getClientsFilters = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/clients/filters`, { headers: getAuthHeaders() });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка завантаження фільтрів:', error);
+    return { regions: [], managers: [] };
   }
 };
 

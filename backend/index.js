@@ -1132,14 +1132,52 @@ function getClientWithAccessControl(client, user) {
 
 app.get('/api/clients', authenticateToken, async (req, res) => {
   try {
-    let query = {};
+    const conditions = [];
     if (req.user?.role === 'manager') {
-      query.$or = [
-        { assignedManagerLogin: req.user.login },
-        { assignedManagerLogin2: req.user.login }
-      ];
+      conditions.push({
+        $or: [
+          { assignedManagerLogin: req.user.login },
+          { assignedManagerLogin2: req.user.login }
+        ]
+      });
     }
-    const clients = await Client.find(query).sort({ name: 1 }).lean();
+    const search = (req.query.q || req.query.search || '').trim();
+    if (search) {
+      const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      conditions.push({
+        $or: [
+          { name: new RegExp(esc(search), 'i') },
+          { edrpou: new RegExp(esc(search), 'i') },
+          { contactPhone: new RegExp(esc(search), 'i') },
+          { contactPerson: new RegExp(esc(search), 'i') }
+        ]
+      });
+    }
+    const regionFilter = (req.query.region || '').trim();
+    if (regionFilter) {
+      conditions.push({ region: new RegExp(regionFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') });
+    }
+    const managerFilter = (req.query.manager || req.query.assignedManagerLogin || '').trim();
+    if (managerFilter && ['admin', 'administrator', 'mgradm'].includes(req.user?.role)) {
+      conditions.push({
+        $or: [
+          { assignedManagerLogin: managerFilter },
+          { assignedManagerLogin2: managerFilter }
+        ]
+      });
+    }
+    const query = conditions.length > 0 ? { $and: conditions } : {};
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 30));
+    const usePagination = req.query.page !== undefined || req.query.limit !== undefined;
+    let clients, total;
+    if (usePagination) {
+      total = await Client.countDocuments(query);
+      clients = await Client.find(query).sort({ name: 1 }).skip((page - 1) * limit).limit(limit).lean();
+    } else {
+      clients = await Client.find(query).sort({ name: 1 }).lean();
+      total = clients.length;
+    }
     if (clients.length > 0) {
       const logins = [...new Set([
         ...clients.map(c => c.assignedManagerLogin).filter(Boolean),
@@ -1152,7 +1190,30 @@ app.get('/api/clients', authenticateToken, async (req, res) => {
         if (c.assignedManagerLogin2) c.assignedManagerName2 = loginToName[c.assignedManagerLogin2] || c.assignedManagerLogin2;
       });
     }
-    res.json(clients);
+    if (usePagination) res.json({ clients, total, page, limit });
+    else res.json(clients);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/clients/filters', authenticateToken, async (req, res) => {
+  try {
+    let baseQuery = {};
+    if (req.user?.role === 'manager') {
+      baseQuery.$or = [
+        { assignedManagerLogin: req.user.login },
+        { assignedManagerLogin2: req.user.login }
+      ];
+    }
+    const regions = await Client.distinct('region', baseQuery);
+    const managers = ['admin', 'administrator', 'mgradm'].includes(req.user?.role)
+      ? await User.find({ role: 'manager', dismissed: { $ne: true } }).select('login name').sort({ name: 1 }).lean()
+      : [];
+    res.json({
+      regions: regions.filter(Boolean).sort(),
+      managers: managers.map(m => ({ login: m.login, name: m.name || m.login }))
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
