@@ -1222,9 +1222,12 @@ app.put('/api/clients/:id', authenticateToken, async (req, res) => {
 
 app.get('/api/sales', authenticateToken, async (req, res) => {
   try {
-    const { clientId, managerLogin } = req.query;
+    const { clientId, managerLogin, forClientCheck } = req.query;
     let query = {};
-    if (req.user?.role === 'manager') query.managerLogin = req.user.login;
+    // для перевірки клієнта — повертаємо продажі для clientId навіть чужим менеджерам
+    if (req.user?.role === 'manager' && forClientCheck !== 'true') {
+      query.managerLogin = req.user.login;
+    }
     if (clientId) query.clientId = clientId;
     if (managerLogin) query.managerLogin = managerLogin;
     const sales = await Sale.find(query)

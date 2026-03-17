@@ -18,11 +18,10 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
     if (!clientId) return;
     setLoading(true);
     try {
-      const [clientData, salesData] = await Promise.all([
-        getClient(clientId),
-        getSales({ clientId })
-      ]);
+      const clientData = await getClient(clientId);
       setClient(clientData);
+      // forClientCheck: при перевірці чужого клієнта бекенд має повертати продажі (без сум) для перенаправлення
+      const salesData = await getSales({ clientId, forClientCheck: true });
       setSales(Array.isArray(salesData) ? salesData : salesData.sales || []);
     } catch (err) {
       console.error(err);
