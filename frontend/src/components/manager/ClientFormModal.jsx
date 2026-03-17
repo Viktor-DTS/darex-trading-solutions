@@ -55,13 +55,26 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
           email: '',
           assignedManagerLogin: user?.login || '',
           assignedManagerLogin2: '',
-          region: '',
+          region: user?.region || '',
           notes: ''
         });
       }
     }
     setEdrpouConflict(null);
   }, [open, editClient, user]);
+
+  // Автоматично підтягувати регіон першого менеджера
+  useEffect(() => {
+    if (!open) return;
+    const login = form.assignedManagerLogin;
+    if (!login) return;
+    if (canAssignManager(user?.role)) {
+      const m = managers.find(x => (x.login || '') === login);
+      if (m?.region) setForm(prev => ({ ...prev, region: m.region }));
+    } else {
+      if (user?.login === login && user?.region) setForm(prev => ({ ...prev, region: user.region }));
+    }
+  }, [open, form.assignedManagerLogin, managers, user?.role, user?.login, user?.region]);
 
   const validateEdrpou = useCallback(async (edrpouVal) => {
     const trimmed = (edrpouVal || '').trim();
