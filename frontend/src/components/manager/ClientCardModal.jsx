@@ -3,7 +3,7 @@ import { getClient } from '../../utils/clientsAPI';
 import { getSales } from '../../utils/salesAPI';
 import './ClientCardModal.css';
 
-function ClientCardModal({ open, onClose, clientId, onEdit }) {
+function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSearch }) {
   const [client, setClient] = useState(null);
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -63,7 +63,9 @@ function ClientCardModal({ open, onClose, clientId, onEdit }) {
               )}
               <div className="client-info-block">
                 <h4>{client.name}</h4>
-                {client.edrpou && <div><strong>ЄДРПОУ:</strong> {client.edrpou}</div>}
+                {(client.edrpou || initialClientFromSearch?.edrpou) && (
+                  <div><strong>ЄДРПОУ:</strong> {client.edrpou || initialClientFromSearch.edrpou}</div>
+                )}
                 {!client.limited && client.address && <div><strong>Адреса:</strong> {client.address}</div>}
                 {!client.limited && client.contactPerson && <div><strong>Контакт:</strong> {client.contactPerson}</div>}
                 {!client.limited && client.contactPhone && <div><strong>Телефон:</strong> {client.contactPhone}</div>}
@@ -72,35 +74,33 @@ function ClientCardModal({ open, onClose, clientId, onEdit }) {
                 {!client.limited && client.notes && <div><strong>Примітки:</strong> {client.notes}</div>}
               </div>
 
-              {!client.limited && (
-                <div className="client-sales-block">
-                  <h4>Продажі ({sales.length})</h4>
-                  {sales.length === 0 ? (
-                    <p className="no-data">Немає продажів</p>
-                  ) : (
-                    <table className="mini-sales-table">
-                      <thead>
-                        <tr>
-                          <th>Дата</th>
-                          <th>Продукт</th>
-                          <th>Сума</th>
-                          <th>Гарантія до</th>
+              <div className="client-sales-block">
+                <h4>Продажі ({sales.length})</h4>
+                {sales.length === 0 ? (
+                  <p className="no-data">Немає продажів</p>
+                ) : (
+                  <table className="mini-sales-table">
+                    <thead>
+                      <tr>
+                        <th>Дата</th>
+                        <th>Продукт</th>
+                        {!client.limited && <th>Сума</th>}
+                        <th>Гарантія до</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sales.slice(0, 10).map(s => (
+                        <tr key={s._id}>
+                          <td>{s.saleDate ? new Date(s.saleDate).toLocaleDateString('uk-UA') : '—'}</td>
+                          <td>{s.mainProductName || '—'}</td>
+                          {!client.limited && <td>{formatCurrency(s.totalAmount || s.mainProductAmount)}</td>}
+                          <td>{s.warrantyUntil ? new Date(s.warrantyUntil).toLocaleDateString('uk-UA') : '—'}</td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {sales.slice(0, 10).map(s => (
-                          <tr key={s._id}>
-                            <td>{s.saleDate ? new Date(s.saleDate).toLocaleDateString('uk-UA') : '—'}</td>
-                            <td>{s.mainProductName || '—'}</td>
-                            <td>{formatCurrency(s.totalAmount || s.mainProductAmount)}</td>
-                            <td>{s.warrantyUntil ? new Date(s.warrantyUntil).toLocaleDateString('uk-UA') : '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              )}
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </>
           ) : (
             <div className="loading-indicator">Клієнта не знайдено</div>

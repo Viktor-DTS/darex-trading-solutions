@@ -10,6 +10,7 @@ function IncomingCallTab({ user }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState(null);
+  const [selectedClientFromSearch, setSelectedClientFromSearch] = useState(null);
   const [showCardModal, setShowCardModal] = useState(false);
   const debounceRef = useRef(null);
   const requestIdRef = useRef(0);
@@ -41,8 +42,11 @@ function IncomingCallTab({ user }) {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [searchQuery]);
 
-  const handleOpenCard = (id) => {
+  const handleOpenCard = (clientOrId) => {
+    const id = typeof clientOrId === 'object' ? clientOrId._id : clientOrId;
+    const fromSearch = typeof clientOrId === 'object' ? clientOrId : null;
     setSelectedClientId(id);
+    setSelectedClientFromSearch(fromSearch);
     setShowCardModal(true);
   };
 
@@ -76,7 +80,7 @@ function IncomingCallTab({ user }) {
               <div
                 key={r._id}
                 className={`result-card ${r.limited ? 'limited' : ''}`}
-                onClick={() => handleOpenCard(r._id)}
+                onClick={() => handleOpenCard(r)}
               >
                 <div className="result-main">
                   <span className="result-name">{r.name || '—'}</span>
@@ -84,13 +88,16 @@ function IncomingCallTab({ user }) {
                     <span className="limited-badge">Закріплений за іншим менеджером</span>
                   )}
                 </div>
+                {r.edrpou && (
+                  <div className="result-edrpou">ЄДРПОУ: {r.edrpou}</div>
+                )}
                 {r.contactPhone && (
                   <div className="result-phone">📞 {r.contactPhone}</div>
                 )}
                 {(r.assignedManagerName || r.assignedManagerLogin) && r.limited && (
                   <div className="result-manager">Менеджер: {r.assignedManagerName || r.assignedManagerLogin}</div>
                 )}
-                <button className="btn-small" onClick={(e) => { e.stopPropagation(); handleOpenCard(r._id); }}>
+                <button className="btn-small" onClick={(e) => { e.stopPropagation(); handleOpenCard(r); }}>
                   Переглянути
                 </button>
               </div>
@@ -101,8 +108,9 @@ function IncomingCallTab({ user }) {
 
       <ClientCardModal
         open={showCardModal}
-        onClose={() => { setShowCardModal(false); setSelectedClientId(null); }}
+        onClose={() => { setShowCardModal(false); setSelectedClientId(null); setSelectedClientFromSearch(null); }}
         clientId={selectedClientId}
+        initialClientFromSearch={selectedClientFromSearch}
       />
     </div>
   );
