@@ -327,6 +327,13 @@
   border-color: var(--primary);
 }
 
+/* Іконка календаря в полі дати — біла (видно на темному фоні) */
+.reservation-form-modal .form-group input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.9;
+  cursor: pointer;
+}
+
 .reservation-form-modal .form-group textarea {
   resize: vertical;
   min-height: 80px;

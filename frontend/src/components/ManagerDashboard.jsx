@@ -83,17 +83,40 @@ function ManagerDashboard({ user }) {
     setClientSearch('');
     setShowReservationModal(true);
     try {
-      const data = await getClients();
-      setCrmClients(Array.isArray(data) ? data : data.clients || []);
+      const [crmData, tasksRes] = await Promise.all([
+        getClients(),
+        fetch(`${API_BASE_URL}/tasks?region=${user?.region || ''}`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        }).then(r => r.ok ? r.json() : null).then(d => Array.isArray(d) ? d : (d?.tasks || [])).catch(() => [])
+      ]);
+      const crm = Array.isArray(crmData) ? crmData : crmData.clients || [];
+      const tasks = Array.isArray(tasksRes) ? tasksRes : [];
+      const fromTasks = tasks
+        .filter(t => t.client || t.edrpou)
+        .map(t => ({ name: t.client || '', edrpou: t.edrpou || '', _id: `task-${t._id || Math.random()}`, _source: 'tasks' }));
+      const seen = new Set();
+      const merged = [...crm.map(c => ({ ...c, name: c.name || '', edrpou: c.edrpou || '', _source: 'crm' }))];
+      fromTasks.forEach(t => {
+        const key = `${(t.name || '').toLowerCase()}|${t.edrpou || ''}`;
+        if (!seen.has(key) && (t.name || t.edrpou)) {
+          seen.add(key);
+          if (!merged.some(m => (m.name || '').toLowerCase() === (t.name || '').toLowerCase() && (m.edrpou || '') === (t.edrpou || ''))) {
+            merged.push(t);
+          }
+        }
+      });
+      setCrmClients(merged);
     } catch {
       setCrmClients([]);
     }
   };
 
-  const filteredReservationClients = crmClients.filter(c =>
-    (c.name || '').toLowerCase().includes(clientSearch.toLowerCase()) ||
-    (c.edrpou || '').includes(clientSearch)
-  );
+  const searchLower = (clientSearch || '').toLowerCase().trim();
+  const filteredReservationClients = crmClients.filter(c => {
+    if (!c.name && !c.edrpou) return false;
+    if (!searchLower) return true;
+    return (c.name || '').toLowerCase().includes(searchLower) || (c.edrpou || '').includes(clientSearch);
+  });
 
   const handleReservationSubmit = async (e) => {
     e.preventDefault();
@@ -368,7 +391,7 @@ function ManagerDashboard({ user }) {
                       }}
                       onFocus={() => setShowClientDropdown(crmClients.length > 0)}
                       onBlur={() => setTimeout(() => setShowClientDropdown(false), 200)}
-                      placeholder="Введіть назву або оберіть з CRM"
+                      placeholder="Введіть назву або ЄДРПОУ, оберіть з CRM або заявок"
                       required
                       autoFocus
                     />
@@ -376,11 +399,11 @@ function ManagerDashboard({ user }) {
                       <ul className="client-dropdown">
                         {filteredReservationClients.slice(0, 8).map(c => (
                           <li key={c._id} onMouseDown={() => {
-                            setReservationForm(prev => ({ ...prev, clientName: c.name }));
-                            setClientSearch(c.name);
+                            setReservationForm(prev => ({ ...prev, clientName: c.name || c.edrpou }));
+                            setClientSearch(c.name || c.edrpou);
                             setShowClientDropdown(false);
                           }}>
-                            {c.name}{c.edrpou ? ` (${c.edrpou})` : ''}
+                            {c.name || c.edrpou}{(c.name && c.edrpou) ? ` (${c.edrpou})` : ''}
                           </li>
                         ))}
                       </ul>
