@@ -66,7 +66,6 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
     transportCosts: 0,
     pnrCosts: 0,
     representativeCosts: 0,
-    otherCosts: 0,
     discountPercent: 0,
     managerPremium: 0,
     partner: '',
@@ -131,7 +130,6 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
           transportCosts: parseFloat(editSale.transportCosts) || 0,
           pnrCosts: parseFloat(editSale.pnrCosts) || 0,
           representativeCosts: parseFloat(editSale.representativeCosts) || 0,
-          otherCosts: parseFloat(editSale.otherCosts) || 0,
           discountPercent: parseFloat(editSale.discountPercent) || 0,
           managerPremium: parseFloat(editSale.managerPremium) || 0,
           partner: editSale.partner || '',
@@ -162,7 +160,6 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
           transportCosts: 0,
           pnrCosts: 0,
           representativeCosts: 0,
-          otherCosts: 0,
           discountPercent: 0,
           managerPremium: 0,
           partner: '',
@@ -354,8 +351,7 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
   const transport = parseFloat(form.transportCosts) || 0;
   const pnr = parseFloat(form.pnrCosts) || 0;
   const representative = parseFloat(form.representativeCosts) || 0;
-  const other = parseFloat(form.otherCosts) || 0;
-  const totalWithAllExpenses = totalEquipmentAmount - transport - pnr - representative - other - additionalCostsTotal;
+  const totalWithAllExpenses = totalEquipmentAmount - transport - pnr - representative - additionalCostsTotal;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -416,7 +412,6 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
         transportCosts: parseFloat(form.transportCosts) || 0,
         pnrCosts: parseFloat(form.pnrCosts) || 0,
         representativeCosts: parseFloat(form.representativeCosts) || 0,
-        otherCosts: parseFloat(form.otherCosts) || 0,
         discountPercent: parseFloat(form.discountPercent) || 0,
         managerPremium: parseFloat(form.managerPremium) || 0,
         partner: form.partner?.trim() || undefined,
@@ -636,71 +631,6 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
                   />
                 </div>
               </div>
-              <div className="form-row form-row-4">
-                <div className="form-group">
-                  <label>Транспортні витрати, ₴</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.transportCosts || ''}
-                    onChange={e => setForm(prev => ({ ...prev, transportCosts: e.target.value }))}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>ПНР витрати, ₴</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.pnrCosts || ''}
-                    onChange={e => setForm(prev => ({ ...prev, pnrCosts: e.target.value }))}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Представницькі, ₴</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.representativeCosts || ''}
-                    onChange={e => setForm(prev => ({ ...prev, representativeCosts: e.target.value }))}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Інші витрати, ₴</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.otherCosts || ''}
-                    onChange={e => setForm(prev => ({ ...prev, otherCosts: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Знижка, %</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={form.discountPercent || ''}
-                    onChange={e => setForm(prev => ({ ...prev, discountPercent: e.target.value }))}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Премія менеджера, ₴</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.managerPremium || ''}
-                    onChange={e => setForm(prev => ({ ...prev, managerPremium: e.target.value }))}
-                  />
-                </div>
-              </div>
               <div className="form-row">
                 <div className="form-group">
                   <label>Партнер</label>
@@ -733,6 +663,18 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="form-group">
+              <label>Знижка, %</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={form.discountPercent || ''}
+                onChange={e => setForm(prev => ({ ...prev, discountPercent: e.target.value }))}
+              />
             </div>
 
             {form.status === 'in_negotiation' ? (
@@ -778,6 +720,39 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
                     <option value={36}>36</option>
                   </select>
                 )}
+              </div>
+            </div>
+
+            <div className="form-row form-row-3">
+              <div className="form-group">
+                <label>Транспортні витрати, ₴</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.transportCosts || ''}
+                  onChange={e => setForm(prev => ({ ...prev, transportCosts: e.target.value }))}
+                />
+              </div>
+              <div className="form-group">
+                <label>ПНР витрати, ₴</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.pnrCosts || ''}
+                  onChange={e => setForm(prev => ({ ...prev, pnrCosts: e.target.value }))}
+                />
+              </div>
+              <div className="form-group">
+                <label>Представницькі, ₴</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.representativeCosts || ''}
+                  onChange={e => setForm(prev => ({ ...prev, representativeCosts: e.target.value }))}
+                />
               </div>
             </div>
 
@@ -857,6 +832,17 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
                 <strong>Загальна сума з урахуванням всіх витрат на угоду:</strong>
                 <span>{totalWithAllExpenses.toLocaleString('uk-UA')} ₴</span>
               </div>
+            </div>
+
+            <div className="form-group">
+              <label>Премія менеджера, ₴</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.managerPremium || ''}
+                onChange={e => setForm(prev => ({ ...prev, managerPremium: e.target.value }))}
+              />
             </div>
           </div>
 
