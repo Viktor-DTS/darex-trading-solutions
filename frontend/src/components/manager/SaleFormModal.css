@@ -241,9 +241,19 @@
   padding: 14px 16px;
   background: var(--surface-dark);
   border-radius: 8px;
-  text-align: right;
-  font-size: 16px;
+  font-size: 15px;
   color: var(--text);
+}
+
+.sale-total-block .sale-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.sale-total-block .sale-total-row:last-child {
+  margin-bottom: 0;
 }
 
 .sale-total-block strong {

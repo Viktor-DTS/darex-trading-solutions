@@ -15,6 +15,55 @@
   flex: 1;
 }
 
+.contacts-section .contact-row {
+  margin-bottom: 10px;
+}
+
+.contacts-section .contact-row .form-group {
+  margin-bottom: 0;
+}
+
+.contacts-section .btn-remove-contact {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-dark);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.contacts-section .btn-remove-contact:hover:not(:disabled) {
+  background: #dc3545;
+  color: white;
+  border-color: #dc3545;
+}
+
+.contacts-section .btn-remove-contact:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.contacts-section .btn-add-contact {
+  margin-top: 8px;
+  padding: 8px 14px;
+  border: 1px dashed var(--primary);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.contacts-section .btn-add-contact:hover {
+  background: var(--primary);
+  color: white;
+}
+
 .client-form-modal .form-group {
   margin-bottom: 16px;
 }

@@ -840,6 +840,7 @@ const clientSchema = new mongoose.Schema({
   address: String,
   contactPerson: String,
   contactPhone: String,
+  contacts: [{ person: String, phone: String }], // Декілька контактів
   email: String,
   assignedManagerLogin: { type: String, required: true },
   assignedManagerLogin2: String,
@@ -1171,12 +1172,15 @@ app.get('/api/clients', authenticateToken, async (req, res) => {
     const search = (req.query.q || req.query.search || '').trim();
     if (search) {
       const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(esc(search), 'i');
       conditions.push({
         $or: [
-          { name: new RegExp(esc(search), 'i') },
-          { edrpou: new RegExp(esc(search), 'i') },
-          { contactPhone: new RegExp(esc(search), 'i') },
-          { contactPerson: new RegExp(esc(search), 'i') }
+          { name: searchRegex },
+          { edrpou: searchRegex },
+          { contactPhone: searchRegex },
+          { contactPerson: searchRegex },
+          { 'contacts.person': searchRegex },
+          { 'contacts.phone': searchRegex }
         ]
       });
     }
@@ -1250,12 +1254,15 @@ app.get('/api/clients/search', authenticateToken, async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
     if (!q) return res.json([]);
+    const searchRe = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     const clients = await Client.find({
       $or: [
-        { name: new RegExp(q, 'i') },
-        { edrpou: new RegExp(q, 'i') },
-        { contactPhone: new RegExp(q, 'i') },
-        { contactPerson: new RegExp(q, 'i') }
+        { name: searchRe },
+        { edrpou: searchRe },
+        { contactPhone: searchRe },
+        { contactPerson: searchRe },
+        { 'contacts.person': searchRe },
+        { 'contacts.phone': searchRe }
       ]
     }).limit(20).lean();
     const results = clients.map(c => getClientWithAccessControl(c, req.user));
@@ -1327,9 +1334,17 @@ app.get('/api/clients/:id', authenticateToken, async (req, res) => {
 
 const canAssignManager = (user) => ['admin', 'administrator', 'mgradm'].includes(user?.role);
 
+function syncClientPrimaryContact(body) {
+  if (body.contacts && Array.isArray(body.contacts) && body.contacts.length > 0) {
+    body.contactPerson = body.contacts[0].person || '';
+    body.contactPhone = body.contacts[0].phone || '';
+  }
+}
+
 app.post('/api/clients', authenticateToken, async (req, res) => {
   try {
     const body = { ...req.body };
+    syncClientPrimaryContact(body);
     body.createdByLogin = req.user?.login;
     body.createdByName = req.user?.name || req.user?.login;
     if (req.user?.role === 'manager') body.assignedManagerLogin = req.user.login;
@@ -1353,6 +1368,7 @@ app.put('/api/clients/:id', authenticateToken, async (req, res) => {
     const hasAccess = accessResult && !accessResult.limited;
     if (!hasAccess) return res.status(403).json({ error: 'Немає доступу до редагування клієнта' });
     const body = { ...req.body };
+    syncClientPrimaryContact(body);
     if (!canAssignManager(req.user)) {
       delete body.assignedManagerLogin;
       delete body.assignedManagerLogin2;

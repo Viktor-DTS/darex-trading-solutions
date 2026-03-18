@@ -347,10 +347,15 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
 
 
   const totalEquipmentAmount = form.equipmentItems.reduce((s, i) => s + (i.amount || 0), 0);
-  const totalAmount = totalEquipmentAmount + form.additionalCosts.reduce(
+  const additionalCostsTotal = form.additionalCosts.reduce(
     (s, c) => s + (c.amount || 0) * (c.quantity || 1),
     0
   );
+  const transport = parseFloat(form.transportCosts) || 0;
+  const pnr = parseFloat(form.pnrCosts) || 0;
+  const representative = parseFloat(form.representativeCosts) || 0;
+  const other = parseFloat(form.otherCosts) || 0;
+  const totalWithAllExpenses = totalEquipmentAmount - transport - pnr - representative - other - additionalCostsTotal;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -844,7 +849,14 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
             )}
 
             <div className="sale-total-block">
-              <strong>Загальна сума: {totalAmount.toLocaleString('uk-UA')} ₴</strong>
+              <div className="sale-total-row">
+                <strong>Загальна сума тільки Відвантажене обладнання:</strong>
+                <span>{totalEquipmentAmount.toLocaleString('uk-UA')} ₴</span>
+              </div>
+              <div className="sale-total-row">
+                <strong>Загальна сума з урахуванням всіх витрат на угоду:</strong>
+                <span>{totalWithAllExpenses.toLocaleString('uk-UA')} ₴</span>
+              </div>
             </div>
           </div>
 

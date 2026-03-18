@@ -12,8 +12,7 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
     edrpou: '',
     name: '',
     address: '',
-    contactPerson: '',
-    contactPhone: '',
+    contacts: [{ id: '1', person: '', phone: '' }],
     email: '',
     assignedManagerLogin: '',
     assignedManagerLogin2: '',
@@ -33,12 +32,16 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
   useEffect(() => {
     if (open) {
       if (editClient) {
+        const contacts = (editClient.contacts && editClient.contacts.length > 0)
+          ? editClient.contacts.map((c, i) => ({ id: String(i + 1), person: c.person || '', phone: c.phone || '' }))
+          : (editClient.contactPerson || editClient.contactPhone)
+            ? [{ id: '1', person: editClient.contactPerson || '', phone: editClient.contactPhone || '' }]
+            : [{ id: '1', person: '', phone: '' }];
         setForm({
           edrpou: editClient.edrpou || '',
           name: editClient.name || '',
           address: editClient.address || '',
-          contactPerson: editClient.contactPerson || '',
-          contactPhone: editClient.contactPhone || '',
+          contacts,
           email: editClient.email || '',
           assignedManagerLogin: editClient.assignedManagerLogin || user?.login || '',
           assignedManagerLogin2: editClient.assignedManagerLogin2 || '',
@@ -50,8 +53,7 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
           edrpou: '',
           name: '',
           address: '',
-          contactPerson: '',
-          contactPhone: '',
+          contacts: [{ id: '1', person: '', phone: '' }],
           email: '',
           assignedManagerLogin: user?.login || '',
           assignedManagerLogin2: '',
@@ -110,11 +112,18 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
 
     setLoading(true);
     try {
+      const validContacts = form.contacts
+        .filter(c => (c.person || '').trim() || (c.phone || '').trim())
+        .map(c => ({ person: (c.person || '').trim(), phone: (c.phone || '').trim() }));
+      const payload = {
+        ...form,
+        contacts: validContacts.length > 0 ? validContacts : [{ person: '', phone: '' }]
+      };
       if (editClient) {
-        await updateClient(editClient._id, form);
+        await updateClient(editClient._id, payload);
         alert('Клієнта оновлено');
       } else {
-        const newClient = await createClient(form);
+        const newClient = await createClient(payload);
         alert('Клієнта створено');
         onSuccess?.(newClient);
       }
@@ -174,25 +183,60 @@ function ClientFormModal({ open, onClose, onSuccess, editClient = null, user }) 
                 placeholder="Адреса"
               />
             </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Контактна особа</label>
-                <input
-                  type="text"
-                  value={form.contactPerson}
-                  onChange={e => setForm(prev => ({ ...prev, contactPerson: e.target.value }))}
-                  placeholder="ПІБ"
-                />
-              </div>
-              <div className="form-group">
-                <label>Телефон</label>
-                <input
-                  type="text"
-                  value={form.contactPhone}
-                  onChange={e => setForm(prev => ({ ...prev, contactPhone: e.target.value }))}
-                  placeholder="+380..."
-                />
-              </div>
+            <div className="form-group contacts-section">
+              <label>Контакти</label>
+              {form.contacts.map((c, idx) => (
+                <div key={c.id} className="form-row contact-row">
+                  <div className="form-group">
+                    <input
+                      type="text"
+                      value={c.person}
+                      onChange={e => setForm(prev => ({
+                        ...prev,
+                        contacts: prev.contacts.map((ct, i) =>
+                          i === idx ? { ...ct, person: e.target.value } : ct
+                        )
+                      }))}
+                      placeholder="Контактна особа"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <input
+                      type="text"
+                      value={c.phone}
+                      onChange={e => setForm(prev => ({
+                        ...prev,
+                        contacts: prev.contacts.map((ct, i) =>
+                          i === idx ? { ...ct, phone: e.target.value } : ct
+                        )
+                      }))}
+                      placeholder="Телефон"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-remove-contact"
+                    onClick={() => setForm(prev => ({
+                      ...prev,
+                      contacts: prev.contacts.filter((_, i) => i !== idx)
+                    }))}
+                    disabled={form.contacts.length <= 1}
+                    title="Видалити контакт"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="btn-add-contact"
+                onClick={() => setForm(prev => ({
+                  ...prev,
+                  contacts: [...prev.contacts, { id: String(Date.now()), person: '', phone: '' }]
+                }))}
+              >
+                + Додати контакт
+              </button>
             </div>
             <div className="form-group">
               <label>Email</label>
