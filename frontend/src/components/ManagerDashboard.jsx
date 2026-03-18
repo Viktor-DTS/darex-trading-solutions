@@ -3,6 +3,7 @@ import API_BASE_URL from '../config';
 import EquipmentList from './equipment/EquipmentList';
 import ClientsTab from './manager/ClientsTab';
 import SalesTab from './manager/SalesTab';
+import SalesReportTab from './manager/SalesReportTab';
 import IncomingCallTab from './manager/IncomingCallTab';
 import { getClients } from '../utils/clientsAPI';
 import './ManagerDashboard.css';
@@ -244,6 +245,13 @@ function ManagerDashboard({ user }) {
                 <span className="tab-label">Продажі</span>
               </button>
               <button 
+                className={`manager-sidebar-tab ${activeTab === 'report' ? 'active' : ''}`}
+                onClick={() => setActiveTab('report')}
+              >
+                <span className="tab-icon">📊</span>
+                <span className="tab-label">Звіт по угодах</span>
+              </button>
+              <button 
                 className={`manager-sidebar-tab ${activeTab === 'stock' ? 'active' : ''}`}
                 onClick={() => setActiveTab('stock')}
               >
@@ -284,6 +292,10 @@ function ManagerDashboard({ user }) {
           ) : activeTab === 'incoming' ? (
             <div className="manager-scaled-inner">
               <IncomingCallTab user={user} />
+            </div>
+          ) : activeTab === 'report' ? (
+            <div className="manager-scaled-inner">
+              <SalesReportTab user={user} />
             </div>
           ) : activeTab === 'stock' ? (
             <div className="manager-stock-scaled">

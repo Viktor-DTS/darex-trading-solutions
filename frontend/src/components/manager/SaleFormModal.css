@@ -25,6 +25,23 @@
   min-width: 140px;
 }
 
+.sale-form-modal .form-row.form-row-4 .form-group {
+  min-width: 100px;
+}
+
+.sale-form-additional-section {
+  padding: 14px 0;
+  border-top: 1px dashed var(--border);
+  margin-top: 10px;
+}
+
+.sale-form-additional-section .section-title {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
 .sale-form-modal .form-group label {
   display: block;
   margin-bottom: 6px;

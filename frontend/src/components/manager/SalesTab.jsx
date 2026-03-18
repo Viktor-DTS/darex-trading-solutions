@@ -61,7 +61,8 @@ function SalesTab({ user }) {
     };
     const cols = [
       'Дата', 'Клієнт', 'ЄДРПОУ', 'Менеджер', 'Менеджер 2', 'Тендер', 'Продукт', 'Серійний №',
-      'Сума', 'Гарантія до', 'Статус', 'Платежі', 'Примітки'
+      'Адрес ММ', 'Номер видаткової накладної', 'Спосіб оплати', 'Сума', 'Транспорт', 'ПНР', 'Знижка %', 'Премія',
+      'Інженер', 'Партнер', 'Гарантія до', 'Статус', 'Платежі', 'Примітки'
     ];
     const rows = sales.map(s => [
       s.saleDate ? new Date(s.saleDate).toLocaleDateString('uk-UA') : '',
@@ -72,7 +73,16 @@ function SalesTab({ user }) {
       s.tenderEmployeeName || s.tenderEmployeeLogin || '',
       s.mainProductName || '',
       s.mainProductSerial || '',
+      s.addressMM || '',
+      s.invoiceNumber || '',
+      s.paymentMethod || '',
       (s.totalAmount || s.mainProductAmount || 0).toString(),
+      (s.transportCosts || 0).toString(),
+      (s.pnrCosts || 0).toString(),
+      (s.discountPercent ?? '').toString(),
+      (s.managerPremium || 0).toString(),
+      s.engineer || '',
+      s.partner || '',
       s.warrantyUntil ? new Date(s.warrantyUntil).toLocaleDateString('uk-UA') : '',
       STATUS_LABELS[s.status] || s.status || '',
       (s.payments || []).map(p => {

@@ -45,7 +45,21 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
     saleDate: new Date().toISOString().slice(0, 10),
     warrantyMonths: 12,
     status: 'primary_contact',
-    notes: ''
+    notes: '',
+    addressMM: '',
+    buyer: '',
+    invoiceNumber: '',
+    paymentMethod: '',
+    engineer: '',
+    warehouseName: '',
+    transportCosts: 0,
+    pnrCosts: 0,
+    representativeCosts: 0,
+    otherCosts: 0,
+    discountPercent: 0,
+    managerPremium: 0,
+    partner: '',
+    partnerContactName: ''
   });
 
   useEffect(() => {
@@ -96,7 +110,21 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
           saleDate: editSale.saleDate ? new Date(editSale.saleDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
           warrantyMonths: editSale.warrantyMonths || 12,
           status: ['in_negotiation', 'in_realization', 'success'].includes(editSale.status) ? editSale.status : (['success', 'confirmed'].includes(editSale.status) ? 'success' : editSale.status === 'in_progress' ? 'in_realization' : 'in_negotiation'),
-          notes: editSale.notes || ''
+          notes: editSale.notes || '',
+          addressMM: editSale.addressMM || '',
+          buyer: editSale.buyer || '',
+          invoiceNumber: editSale.invoiceNumber || '',
+          paymentMethod: editSale.paymentMethod || '',
+          engineer: editSale.engineer || '',
+          warehouseName: editSale.warehouseName || '',
+          transportCosts: parseFloat(editSale.transportCosts) || 0,
+          pnrCosts: parseFloat(editSale.pnrCosts) || 0,
+          representativeCosts: parseFloat(editSale.representativeCosts) || 0,
+          otherCosts: parseFloat(editSale.otherCosts) || 0,
+          discountPercent: parseFloat(editSale.discountPercent) || 0,
+          managerPremium: parseFloat(editSale.managerPremium) || 0,
+          partner: editSale.partner || '',
+          partnerContactName: editSale.partnerContactName || ''
         });
       } else {
         const client = initialClient || {};
@@ -113,7 +141,21 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
           saleDate: new Date().toISOString().slice(0, 10),
           warrantyMonths: 12,
           status: 'in_negotiation',
-          notes: ''
+          notes: '',
+          addressMM: '',
+          buyer: '',
+          invoiceNumber: '',
+          paymentMethod: '',
+          engineer: '',
+          warehouseName: '',
+          transportCosts: 0,
+          pnrCosts: 0,
+          representativeCosts: 0,
+          otherCosts: 0,
+          discountPercent: 0,
+          managerPremium: 0,
+          partner: '',
+          partnerContactName: ''
         });
         setClientSearch(client.name || '');
       }
@@ -287,7 +329,21 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
         saleDate: form.saleDate,
         warrantyMonths: parseInt(form.warrantyMonths) || 12,
         status: form.status,
-        notes: form.notes?.trim() || ''
+        notes: form.notes?.trim() || '',
+        addressMM: form.addressMM?.trim() || undefined,
+        buyer: form.buyer?.trim() || undefined,
+        invoiceNumber: form.invoiceNumber?.trim() || undefined,
+        paymentMethod: form.paymentMethod?.trim() || undefined,
+        engineer: form.engineer?.trim() || undefined,
+        warehouseName: form.warehouseName?.trim() || undefined,
+        transportCosts: parseFloat(form.transportCosts) || 0,
+        pnrCosts: parseFloat(form.pnrCosts) || 0,
+        representativeCosts: parseFloat(form.representativeCosts) || 0,
+        otherCosts: parseFloat(form.otherCosts) || 0,
+        discountPercent: parseFloat(form.discountPercent) || 0,
+        managerPremium: parseFloat(form.managerPremium) || 0,
+        partner: form.partner?.trim() || undefined,
+        partnerContactName: form.partnerContactName?.trim() || undefined
       };
 
       if (editSale) {
@@ -406,6 +462,155 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
                   <option key={u.login || u._id} value={u.login}>{u.name || u.login}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="sale-form-additional-section">
+              <h4 className="section-title">Додаткові дані угоди</h4>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Адрес ММ (об'єкт)</label>
+                  <input
+                    type="text"
+                    value={form.addressMM || ''}
+                    onChange={e => setForm(prev => ({ ...prev, addressMM: e.target.value }))}
+                    placeholder="Адреса об'єкта"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Покупатель</label>
+                  <input
+                    type="text"
+                    value={form.buyer || ''}
+                    onChange={e => setForm(prev => ({ ...prev, buyer: e.target.value }))}
+                    placeholder="Фактичний покупець"
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Номер видаткової накладної</label>
+                  <input
+                    type="text"
+                    value={form.invoiceNumber || ''}
+                    onChange={e => setForm(prev => ({ ...prev, invoiceNumber: e.target.value }))}
+                    placeholder="Номер видаткової накладної"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Спосіб оплати</label>
+                  <input
+                    type="text"
+                    value={form.paymentMethod || ''}
+                    onChange={e => setForm(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                    placeholder="Готівка, безготівка тощо"
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Інженер</label>
+                  <input
+                    type="text"
+                    value={form.engineer || ''}
+                    onChange={e => setForm(prev => ({ ...prev, engineer: e.target.value }))}
+                    placeholder="ПІБ інженера"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Склад відвантаження</label>
+                  <input
+                    type="text"
+                    value={form.warehouseName || ''}
+                    onChange={e => setForm(prev => ({ ...prev, warehouseName: e.target.value }))}
+                    placeholder="Назва складу"
+                  />
+                </div>
+              </div>
+              <div className="form-row form-row-4">
+                <div className="form-group">
+                  <label>Транспортні витрати, ₴</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.transportCosts || ''}
+                    onChange={e => setForm(prev => ({ ...prev, transportCosts: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>ПНР витрати, ₴</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.pnrCosts || ''}
+                    onChange={e => setForm(prev => ({ ...prev, pnrCosts: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Представницькі, ₴</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.representativeCosts || ''}
+                    onChange={e => setForm(prev => ({ ...prev, representativeCosts: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Інші витрати, ₴</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.otherCosts || ''}
+                    onChange={e => setForm(prev => ({ ...prev, otherCosts: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Знижка, %</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={form.discountPercent || ''}
+                    onChange={e => setForm(prev => ({ ...prev, discountPercent: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Премія менеджера, ₴</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.managerPremium || ''}
+                    onChange={e => setForm(prev => ({ ...prev, managerPremium: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Партнер</label>
+                  <input
+                    type="text"
+                    value={form.partner || ''}
+                    onChange={e => setForm(prev => ({ ...prev, partner: e.target.value }))}
+                    placeholder="Назва партнера"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>ФІО контактної особи партнера</label>
+                  <input
+                    type="text"
+                    value={form.partnerContactName || ''}
+                    onChange={e => setForm(prev => ({ ...prev, partnerContactName: e.target.value }))}
+                    placeholder="ПІБ"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="form-group">

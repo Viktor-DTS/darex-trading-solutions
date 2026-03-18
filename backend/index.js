@@ -905,7 +905,22 @@ const saleSchema = new mongoose.Schema({
   totalAmount: Number,
   status: { type: String, enum: ['draft', 'primary_contact', 'quote_sent', 'in_negotiation', 'in_progress', 'in_realization', 'pnr', 'success', 'confirmed', 'cancelled'], default: 'in_negotiation' },
   statusHistory: [{ from: String, to: String, date: Date, userLogin: String }],
-  notes: String
+  notes: String,
+  // Додаткові поля угоди (ТЗ документ «Соглашение»)
+  addressMM: String,           // Адрес ММ (об'єкт)
+  buyer: String,              // Покупатель — фактичний покупець
+  invoiceNumber: String,      // Номер видаткової накладної
+  paymentMethod: String,      // Способ оплаты
+  engineer: String,           // Інженер
+  warehouseName: String,      // Склад відвантаження
+  transportCosts: { type: Number, default: 0 },
+  pnrCosts: { type: Number, default: 0 },
+  representativeCosts: { type: Number, default: 0 },
+  otherCosts: { type: Number, default: 0 },
+  discountPercent: { type: Number, default: 0 },
+  managerPremium: { type: Number, default: 0 },
+  partner: String,           // Партнер
+  partnerContactName: String  // ФІО контактної особи партнера
 }, { timestamps: true });
 
 saleSchema.pre('save', function(next) {
@@ -1389,7 +1404,7 @@ app.post('/api/clients/:id/interactions', authenticateToken, async (req, res) =>
 
 app.get('/api/sales', authenticateToken, async (req, res) => {
   try {
-    const { clientId, managerLogin, forClientCheck } = req.query;
+    const { clientId, managerLogin, forClientCheck, status, dateFrom, dateTo } = req.query;
     const conditions = [];
     if (req.user?.role === 'manager' && forClientCheck !== 'true') {
       conditions.push({
@@ -1410,6 +1425,17 @@ app.get('/api/sales', authenticateToken, async (req, res) => {
       conditions.push({ managerLogin });
     }
     if (clientId) conditions.push({ clientId });
+    if (status) conditions.push({ status });
+    if (dateFrom || dateTo) {
+      const dateRange = {};
+      if (dateFrom) dateRange.$gte = new Date(dateFrom);
+      if (dateTo) {
+        const d = new Date(dateTo);
+        d.setHours(23, 59, 59, 999);
+        dateRange.$lte = d;
+      }
+      conditions.push({ saleDate: dateRange });
+    }
     const query = conditions.length > 0 ? { $and: conditions } : {};
     const sales = await Sale.find(query)
       .populate('clientId', 'name edrpou contactPhone')
