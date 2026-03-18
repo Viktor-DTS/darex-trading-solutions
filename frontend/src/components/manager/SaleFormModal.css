@@ -190,7 +190,8 @@
 .sale-status-history .status-to { font-weight: 600; color: var(--text); }
 .sale-status-history .status-meta { margin-left: 10px; font-size: 12px; opacity: 0.8; }
 
-.sale-files-section .sale-files-list {
+.sale-files-section .sale-files-list,
+.sale-invoice-files-section .sale-files-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;

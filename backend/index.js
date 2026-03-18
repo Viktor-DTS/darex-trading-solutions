@@ -3812,6 +3812,55 @@ app.get('/api/sales/:saleId/files', authenticateToken, checkSaleAccess, async (r
   }
 });
 
+// Файли видаткової накладної (окремо від файлів угоди)
+app.post('/api/sales/:saleId/invoice-files', authenticateToken, checkSaleAccess, uploadSaleFiles.array('files', 10), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'Файли не були завантажені' });
+    const uploadedFiles = [];
+    for (const file of req.files) {
+      const fileUrl = file.path || file.secure_url || '';
+      let correctedName = file.originalname || '';
+      try {
+        const decoded = Buffer.from(correctedName, 'latin1').toString('utf8');
+        if (decoded && decoded !== correctedName) correctedName = decoded;
+      } catch (_) {}
+      const fileRecord = new File({
+        entityType: 'sale_invoice',
+        entityId: req.params.saleId,
+        originalName: correctedName,
+        filename: file.public_id || '',
+        cloudinaryId: file.public_id || '',
+        cloudinaryUrl: fileUrl,
+        mimetype: file.mimetype,
+        size: file.size,
+        description: req.body.description || ''
+      });
+      const saved = await fileRecord.save();
+      uploadedFiles.push({
+        id: saved._id,
+        originalName: saved.originalName,
+        cloudinaryUrl: saved.cloudinaryUrl,
+        size: saved.size,
+        uploadDate: saved.uploadDate,
+        mimetype: saved.mimetype
+      });
+    }
+    res.json({ success: true, files: uploadedFiles });
+  } catch (err) {
+    console.error('[FILES] Помилка завантаження файлів видаткової накладної:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/sales/:saleId/invoice-files', authenticateToken, checkSaleAccess, async (req, res) => {
+  try {
+    const files = await File.find({ entityType: 'sale_invoice', entityId: req.params.saleId }).sort({ uploadDate: -1 }).lean();
+    res.json(files);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Отримання списку файлів завдання
 app.get('/api/files/task/:taskId', authenticateToken, async (req, res) => {
   const startTime = Date.now();

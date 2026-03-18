@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import API_BASE_URL from '../../config';
 import { getClients, getUsers } from '../../utils/clientsAPI';
-import { createSale, updateSale, getSaleFiles, uploadSaleFiles } from '../../utils/salesAPI';
+import { createSale, updateSale, getSaleFiles, uploadSaleFiles, getSaleInvoiceFiles, uploadSaleInvoiceFiles } from '../../utils/salesAPI';
 import { getFileOpenToken } from '../../utils/clientsAPI';
 import AdditionalCostsEditor from './AdditionalCostsEditor';
 import PaymentsEditor from './PaymentsEditor';
@@ -37,7 +37,9 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [showClientForm, setShowClientForm] = useState(false);
   const [saleFiles, setSaleFiles] = useState([]);
+  const [saleInvoiceFiles, setSaleInvoiceFiles] = useState([]);
   const [filesUploading, setFilesUploading] = useState(false);
+  const [invoiceFilesUploading, setInvoiceFilesUploading] = useState(false);
   const addressMMRef = useRef(null);
   const addressMMAutocompleteRef = useRef(null);
 
@@ -181,8 +183,10 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
   useEffect(() => {
     if (open && editSale?._id) {
       getSaleFiles(editSale._id).then(setSaleFiles).catch(() => setSaleFiles([]));
+      getSaleInvoiceFiles(editSale._id).then(setSaleInvoiceFiles).catch(() => setSaleInvoiceFiles([]));
     } else {
       setSaleFiles([]);
+      setSaleInvoiceFiles([]);
     }
   }, [open, editSale?._id]);
 
@@ -281,6 +285,11 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
     return eq?.currentWarehouseName || eq?.currentWarehouse || '';
   }, [form.equipmentItems, equipmentWithSale]);
 
+  const serviceEmployees = useMemo(() =>
+    allUsers.filter(u => (u.role || '').toLowerCase() === 'service'),
+    [allUsers]
+  );
+
   const filteredClients = clients.filter(c =>
     (c.name || '').toLowerCase().includes(clientSearch.toLowerCase()) ||
     (c.edrpou || '').includes(clientSearch)
@@ -308,6 +317,20 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
       alert(err.message || 'Помилка завантаження');
     } finally {
       setFilesUploading(false);
+    }
+  };
+
+  const handleSaleInvoiceFileUpload = async (e) => {
+    if (!editSale?._id || !e.target.files?.length) return;
+    setInvoiceFilesUploading(true);
+    try {
+      const res = await uploadSaleInvoiceFiles(editSale._id, Array.from(e.target.files));
+      if (res.files?.length) setSaleInvoiceFiles(prev => [...res.files, ...prev]);
+      e.target.value = '';
+    } catch (err) {
+      alert(err.message || 'Помилка завантаження');
+    } finally {
+      setInvoiceFilesUploading(false);
     }
   };
 
@@ -513,6 +536,22 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
               </select>
             </div>
 
+            <div className="form-group">
+              <label>Інженер</label>
+              <select
+                value={form.engineer || ''}
+                onChange={e => setForm(prev => ({ ...prev, engineer: e.target.value || '' }))}
+              >
+                <option value="">— Оберіть —</option>
+                {serviceEmployees.map(u => (
+                  <option key={u.login || u._id} value={u.name || u.login}>{u.name || u.login}</option>
+                ))}
+                {form.engineer && !serviceEmployees.some(u => (u.name || u.login) === form.engineer) && (
+                  <option value={form.engineer}>{form.engineer}</option>
+                )}
+              </select>
+            </div>
+
             <div className="sale-form-additional-section">
               <h4 className="section-title">Додаткові дані угоди</h4>
               <div className="form-row">
@@ -560,16 +599,27 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
                   />
                 </div>
               </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Інженер</label>
-                  <input
-                    type="text"
-                    value={form.engineer || ''}
-                    onChange={e => setForm(prev => ({ ...prev, engineer: e.target.value }))}
-                    placeholder="ПІБ інженера"
-                  />
+              {editSale?._id && (
+                <div className="form-group sale-invoice-files-section">
+                  <label>Файли видаткової накладної</label>
+                  <div className="sale-files-list">
+                    {saleInvoiceFiles.length > 0 ? (
+                      saleInvoiceFiles.map(f => (
+                        <button key={f.id || f._id} type="button" className="sale-file-link" onClick={() => openSaleFile(f.id || f._id)} title="Відкрити/скачати">
+                          📎 {f.originalName || 'Файл'}
+                        </button>
+                      ))
+                    ) : (
+                      <span className="sale-no-files">Немає файлів</span>
+                    )}
+                    <label className="sale-btn-upload">
+                      <input type="file" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx" multiple hidden onChange={handleSaleInvoiceFileUpload} />
+                      {invoiceFilesUploading ? 'Завантаження...' : '+ Завантажити файл'}
+                    </label>
+                  </div>
                 </div>
+              )}
+              <div className="form-row">
                 <div className="form-group">
                   <label>Склад відвантаження</label>
                   <input

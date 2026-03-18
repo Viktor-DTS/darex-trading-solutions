@@ -124,6 +124,37 @@ export const getSaleFiles = async (saleId) => {
   }
 };
 
+// Файли видаткової накладної
+export const getSaleInvoiceFiles = async (saleId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/sales/${saleId}/invoice-files`, {
+      headers: getAuthHeaders()
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка завантаження файлів видаткової накладної:', error);
+    return [];
+  }
+};
+
+export const uploadSaleInvoiceFiles = async (saleId, files, description = '') => {
+  const formData = new FormData();
+  (Array.isArray(files) ? files : [files]).forEach(f => formData.append('files', f));
+  if (description) formData.append('description', description);
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/sales/${saleId}/invoice-files`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` },
+    body: formData
+  });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || `HTTP ${response.status}`);
+  }
+  return await response.json();
+};
+
 export const uploadSaleFiles = async (saleId, files, description = '') => {
   const formData = new FormData();
   (Array.isArray(files) ? files : [files]).forEach(f => formData.append('files', f));
