@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import API_BASE_URL from '../../config';
 import { getClients, getUsers } from '../../utils/clientsAPI';
 import { createSale, updateSale, getSaleFiles, uploadSaleFiles } from '../../utils/salesAPI';
@@ -17,6 +17,13 @@ const SALE_STATUS_OPTIONS = [
   { value: 'in_realization', label: 'Реалізація угоди' },
   { value: 'success', label: 'Успішно реалізовано' }
 ];
+const PAYMENT_METHOD_OPTIONS = [
+  { value: '', label: '— Оберіть —' },
+  { value: 'Безготівка', label: 'Безготівка' },
+  { value: 'Готівка', label: 'Готівка' },
+  { value: 'На карту', label: 'На карту' },
+  { value: 'Інше', label: 'Інше' }
+];
 const STATUS_LABELS_LEGACY = { draft: 'Чернетка', primary_contact: 'Первичний контакт', quote_sent: 'Відправив КП', pnr: 'ПНР', in_negotiation: 'В процесі домовленості', in_realization: 'Реалізація угоди', confirmed: 'Підтверджено', cancelled: 'Скасовано' };
 const statusLabel = (v) => SALE_STATUS_OPTIONS.find(o => o.value === v)?.label || STATUS_LABELS_LEGACY[v] || v || '—';
 
@@ -31,6 +38,8 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
   const [showClientForm, setShowClientForm] = useState(false);
   const [saleFiles, setSaleFiles] = useState([]);
   const [filesUploading, setFilesUploading] = useState(false);
+  const addressMMRef = useRef(null);
+  const addressMMAutocompleteRef = useRef(null);
 
   const [form, setForm] = useState({
     clientId: '',
@@ -177,6 +186,38 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
     }
   }, [open, editSale?._id]);
 
+  // Google Places Autocomplete для адреси ММ (як у заявках)
+  useEffect(() => {
+    if (!open) return;
+    const initAutocomplete = () => {
+      if (!addressMMRef.current) {
+        setTimeout(initAutocomplete, 100);
+        return;
+      }
+      if (typeof google === 'undefined' || !google.maps?.places) {
+        setTimeout(initAutocomplete, 100);
+        return;
+      }
+      const ac = new google.maps.places.Autocomplete(addressMMRef.current, {
+        componentRestrictions: { country: 'ua' },
+        fields: ['formatted_address'],
+        types: ['address']
+      });
+      ac.addListener('place_changed', () => {
+        const place = ac.getPlace();
+        if (place.formatted_address) {
+          setForm(prev => ({ ...prev, addressMM: place.formatted_address }));
+        }
+      });
+      addressMMAutocompleteRef.current = ac;
+    };
+    const t = setTimeout(initAutocomplete, 50);
+    return () => {
+      clearTimeout(t);
+      addressMMAutocompleteRef.current = null;
+    };
+  }, [open]);
+
   useEffect(() => {
     if (open) {
       getUsers().then(list => {
@@ -231,6 +272,14 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
     const toAdd = fromSale.filter(eq => eq && !existingIds.has(eq._id));
     return [...toAdd, ...equipment];
   }, [equipment, editSale, open]);
+
+  // Склад відвантаження — автопідстановка з першої позиції обладнання
+  const warehouseFromEquipment = useMemo(() => {
+    const firstWithId = form.equipmentItems.find(i => i.equipmentId);
+    if (!firstWithId) return '';
+    const eq = equipmentWithSale.find(e => e._id === firstWithId.equipmentId);
+    return eq?.currentWarehouseName || eq?.currentWarehouse || '';
+  }, [form.equipmentItems, equipmentWithSale]);
 
   const filteredClients = clients.filter(c =>
     (c.name || '').toLowerCase().includes(clientSearch.toLowerCase()) ||
@@ -335,7 +384,7 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
         invoiceNumber: form.invoiceNumber?.trim() || undefined,
         paymentMethod: form.paymentMethod?.trim() || undefined,
         engineer: form.engineer?.trim() || undefined,
-        warehouseName: form.warehouseName?.trim() || undefined,
+        warehouseName: (warehouseFromEquipment || form.warehouseName || '')?.trim() || undefined,
         transportCosts: parseFloat(form.transportCosts) || 0,
         pnrCosts: parseFloat(form.pnrCosts) || 0,
         representativeCosts: parseFloat(form.representativeCosts) || 0,
@@ -467,17 +516,19 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
             <div className="sale-form-additional-section">
               <h4 className="section-title">Додаткові дані угоди</h4>
               <div className="form-row">
-                <div className="form-group">
+                <div className="form-group autocomplete-wrapper">
                   <label>Адрес ММ (об'єкт)</label>
                   <input
+                    ref={addressMMRef}
                     type="text"
                     value={form.addressMM || ''}
                     onChange={e => setForm(prev => ({ ...prev, addressMM: e.target.value }))}
-                    placeholder="Адреса об'єкта"
+                    placeholder="Почніть вводити адресу..."
+                    autoComplete="off"
                   />
                 </div>
                 <div className="form-group">
-                  <label>Покупатель</label>
+                  <label>Фактичний покупець (опція)</label>
                   <input
                     type="text"
                     value={form.buyer || ''}
@@ -488,21 +539,24 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Номер видаткової накладної</label>
+                  <label>Спосіб оплати</label>
+                  <select
+                    value={form.paymentMethod || ''}
+                    onChange={e => setForm(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                  >
+                    {PAYMENT_METHOD_OPTIONS.map(o => (
+                      <option key={o.value || 'empty'} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Номер видаткової накладної/Дата</label>
                   <input
                     type="text"
                     value={form.invoiceNumber || ''}
                     onChange={e => setForm(prev => ({ ...prev, invoiceNumber: e.target.value }))}
-                    placeholder="Номер видаткової накладної"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Спосіб оплати</label>
-                  <input
-                    type="text"
-                    value={form.paymentMethod || ''}
-                    onChange={e => setForm(prev => ({ ...prev, paymentMethod: e.target.value }))}
-                    placeholder="Готівка, безготівка тощо"
+                    placeholder="Номер / Дата"
+                    disabled={form.paymentMethod !== 'Безготівка'}
                   />
                 </div>
               </div>
@@ -520,9 +574,10 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
                   <label>Склад відвантаження</label>
                   <input
                     type="text"
-                    value={form.warehouseName || ''}
-                    onChange={e => setForm(prev => ({ ...prev, warehouseName: e.target.value }))}
-                    placeholder="Назва складу"
+                    value={warehouseFromEquipment || form.warehouseName || ''}
+                    readOnly
+                    placeholder="Автоматично з обладнання"
+                    className="field-readonly"
                   />
                 </div>
               </div>
