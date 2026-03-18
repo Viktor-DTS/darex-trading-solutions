@@ -310,7 +310,8 @@
   border: 1px solid var(--border);
 }
 
-.filter-row {
+/* report-filter-row — окремий клас для звіту, щоб не конфліктувати з .filter-row в таблицях TaskTable/EquipmentList */
+.report-filter-row {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;

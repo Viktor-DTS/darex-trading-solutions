@@ -148,7 +148,7 @@ function SalesReportTab({ user }) {
       </div>
 
       <div className="report-filters">
-        <div className="filter-row">
+        <div className="report-filter-row">
           <div className="filter-group">
             <label>Статус</label>
             <select
