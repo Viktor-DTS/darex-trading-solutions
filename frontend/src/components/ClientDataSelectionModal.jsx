@@ -192,17 +192,17 @@ const ClientDataSelectionModal = ({
     
     console.log('[DEBUG] ClientDataSelectionModal - застосовуємо оновлення:', updates);
     onApply(updates);
-    onClose();
+    onClose({ applied: true });
   };
 
   if (!open) return null;
 
   return (
-    <div className="client-data-modal-overlay" onClick={onClose}>
+    <div className="client-data-modal-overlay" onClick={() => onClose({ applied: false })}>
       <div className="client-data-modal" onClick={e => e.stopPropagation()}>
         <div className="client-data-modal-header">
           <h2>🔄 Автозаповнення по ЄДРПОУ: {edrpou}</h2>
-          <button className="close-btn" onClick={onClose}>✕</button>
+          <button type="button" className="close-btn" onClick={() => onClose({ applied: false })}>✕</button>
         </div>
         
         <div className="client-data-modal-body">
@@ -509,7 +509,7 @@ const ClientDataSelectionModal = ({
         </div>
         
         <div className="client-data-modal-footer">
-          <button className="btn-cancel" onClick={onClose}>Скасувати</button>
+          <button type="button" className="btn-cancel" onClick={() => onClose({ applied: false })}>Скасувати</button>
           <button className="btn-apply" onClick={handleApply}>
             ✅ Застосувати вибране
           </button>

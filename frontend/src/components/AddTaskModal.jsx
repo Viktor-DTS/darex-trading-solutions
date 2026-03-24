@@ -8,6 +8,8 @@ import ClientDataSelectionModal from './ClientDataSelectionModal';
 import EquipmentDataSelectionModal from './EquipmentDataSelectionModal';
 import './AddTaskModal.css';
 
+const normalizeEdrpou = (s) => (s || '').toString().trim().toLowerCase();
+
 // Функція для отримання коду регіону
 const getRegionCode = (region) => {
   const regionMap = {
@@ -326,6 +328,19 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const [pdfKeysCache, setPdfKeysCache] = useState(new Map());
   const [pdfKeysLoading, setPdfKeysLoading] = useState(new Set());
   const [keysLoadingProgress, setKeysLoadingProgress] = useState({ loaded: 0, total: 0 });
+  const pdfKeysCacheRef = useRef(pdfKeysCache);
+  const formDataRef = useRef(formData);
+  const showContractSelectorRef = useRef(false);
+  const autoContractByEdrpouInFlightRef = useRef(false);
+  useEffect(() => {
+    pdfKeysCacheRef.current = pdfKeysCache;
+  }, [pdfKeysCache]);
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+  useEffect(() => {
+    showContractSelectorRef.current = showContractSelector;
+  }, [showContractSelector]);
   
   // ========== АВТОЗАПОВНЕННЯ ==========
   // Стан для автозаповнення ЄДРПОУ
@@ -918,7 +933,11 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     
     // Спеціальна обробка для ЄДРПОУ (автозаповнення)
     if (name === 'edrpou') {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      setFormData(prev => {
+        const next = { ...prev, [name]: value };
+        formDataRef.current = next;
+        return next;
+      });
       // Фільтруємо ЄДРПОУ для автодоповнення
       if (value.trim()) {
         const filtered = edrpouList.filter(edrpou => 
@@ -960,12 +979,25 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const handleEdrpouSelect = (edrpou) => {
     if (isReadOnly) return;
     console.log('[DEBUG] handleEdrpouSelect - вибрано ЄДРПОУ:', edrpou);
-    setFormData(prev => ({ ...prev, edrpou: edrpou }));
+    setFormData(prev => {
+      const next = { ...prev, edrpou };
+      formDataRef.current = next;
+      return next;
+    });
     setShowEdrpouDropdown(false);
     setFilteredEdrpouList([]);
     
     // Відкриваємо модальне вікно для вибору даних клієнта
     setClientDataModal({ open: true, edrpou: edrpou });
+  };
+
+  // Після введення ЄДРПОУ вручну — автопідстановка договору (затримка, щоб спрацював вибір з dropdown)
+  const handleEdrpouBlur = () => {
+    if (isReadOnly) return;
+    setTimeout(() => {
+      setShowEdrpouDropdown(false);
+      tryAutoFillContractByEdrpou(formDataRef.current.edrpou);
+    }, 200);
   };
 
   // Обробник вибору типу обладнання з автодоповнення
@@ -982,7 +1014,14 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   // Обробник застосування даних клієнта з модального вікна
   const handleClientDataApply = (updates) => {
     console.log('[DEBUG] handleClientDataApply - оновлення форми:', updates);
-    setFormData(prev => ({ ...prev, ...updates }));
+    setFormData(prev => {
+      const next = { ...prev, ...updates };
+      formDataRef.current = next;
+      return next;
+    });
+    setTimeout(() => {
+      tryAutoFillContractByEdrpou(formDataRef.current.edrpou);
+    }, 0);
   };
 
   // Обробник застосування даних обладнання з модального вікна
@@ -1092,87 +1131,119 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     }
   }, [pdfKeysCache, pdfKeysLoading]);
 
+  // Групування договорів по унікальному вмісту PDF (спільна логіка для ручного вибору та автопідстановки)
+  const buildUniqueContractsAsync = async (filteredData, keysMapSeed, onKeysProgress) => {
+    const keysMap = new Map(keysMapSeed);
+    const uniqueUrls = [...new Set(filteredData.map(c => c.url).filter(Boolean))];
+    if (onKeysProgress) onKeysProgress({ loaded: 0, total: uniqueUrls.length });
+
+    let loadedCount = 0;
+    for (let i = 0; i < uniqueUrls.length; i += 5) {
+      const batch = uniqueUrls.slice(i, i + 5);
+      await Promise.all(batch.map(async (url) => {
+        if (!keysMap.has(url)) {
+          try {
+            keysMap.set(url, await getPdfUniqueKey(url));
+          } catch (e) {
+            keysMap.set(url, url);
+          }
+        }
+        loadedCount++;
+        if (onKeysProgress) onKeysProgress({ loaded: loadedCount, total: uniqueUrls.length });
+      }));
+    }
+
+    const contractsMap = new Map();
+    for (const contract of filteredData) {
+      if (!contract.url) continue;
+      const pdfKey = keysMap.get(contract.url) || contract.url;
+      if (!contractsMap.has(pdfKey)) {
+        contractsMap.set(pdfKey, {
+          ...contract,
+          pdfKey,
+          urls: [contract.url],
+          filesCount: 1
+        });
+      } else {
+        const existing = contractsMap.get(pdfKey);
+        if (!existing.urls.includes(contract.url)) {
+          existing.urls.push(contract.url);
+          existing.filesCount++;
+        }
+      }
+    }
+    return { uniqueContracts: Array.from(contractsMap.values()), keysMap };
+  };
+
+  const fetchAndBuildUniqueContracts = async ({ showAll, edrpouForFilter, keysMapSeed, onKeysProgress }) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/contract-files`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) {
+      throw new Error(`contract-files ${response.status}`);
+    }
+    const data = await response.json();
+    let filteredData = data;
+    if (!showAll && edrpouForFilter && String(edrpouForFilter).trim()) {
+      const n = normalizeEdrpou(edrpouForFilter);
+      filteredData = data.filter(c => normalizeEdrpou(c.edrpou) === n);
+      console.log('[DEBUG] Після фільтрації по ЄДРПОУ:', filteredData.length);
+    }
+    return buildUniqueContractsAsync(filteredData, keysMapSeed, onKeysProgress);
+  };
+
+  // Автоматично підставити договір при одному унікальному PDF або відкрити вибір при кількох
+  const tryAutoFillContractByEdrpou = async (edrpouRaw) => {
+    if (isReadOnly) return;
+    const trimmed = (edrpouRaw || '').trim();
+    if (!trimmed) return;
+    if (formDataRef.current.contractFile) return;
+    if (showContractSelectorRef.current) return;
+    if (autoContractByEdrpouInFlightRef.current) return;
+
+    autoContractByEdrpouInFlightRef.current = true;
+    try {
+      const { uniqueContracts, keysMap } = await fetchAndBuildUniqueContracts({
+        showAll: false,
+        edrpouForFilter: trimmed,
+        keysMapSeed: pdfKeysCacheRef.current,
+        onKeysProgress: undefined
+      });
+      setPdfKeysCache(keysMap);
+      pdfKeysCacheRef.current = keysMap;
+
+      if (formDataRef.current.contractFile) return;
+
+      if (uniqueContracts.length === 1) {
+        const url = uniqueContracts[0].url;
+        setFormData(prev => (prev.contractFile ? prev : { ...prev, contractFile: url }));
+      } else if (uniqueContracts.length > 1) {
+        setExistingContracts(uniqueContracts);
+        setShowContractSelector(true);
+      }
+    } catch (error) {
+      console.error('[CONTRACT-AUTO] Помилка автопідстановки договору:', error);
+    } finally {
+      autoContractByEdrpouInFlightRef.current = false;
+    }
+  };
+
   // Завантаження списку існуючих договорів з групуванням по вмісту PDF
   const loadExistingContracts = async (showAll = false) => {
     setContractsLoading(true);
     try {
-      const token = localStorage.getItem('token');
       console.log('[DEBUG] Завантаження списку договорів...');
-      const response = await fetch(`${API_BASE_URL}/contract-files`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const { uniqueContracts, keysMap } = await fetchAndBuildUniqueContracts({
+        showAll,
+        edrpouForFilter: formData.edrpou,
+        keysMapSeed: pdfKeysCacheRef.current,
+        onKeysProgress: (p) => setKeysLoadingProgress(p)
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('[DEBUG] Отримано договорів:', data.length);
-        
-        // Фільтруємо по ЄДРПОУ якщо він вказаний (і не показуємо всі)
-        let filteredData = data;
-        if (!showAll && formData.edrpou && formData.edrpou.trim()) {
-          filteredData = data.filter(contract => contract.edrpou === formData.edrpou.trim());
-          console.log('[DEBUG] Після фільтрації по ЄДРПОУ:', filteredData.length);
-        }
-        
-        // Завантажуємо ключі PDF для всіх договорів
-        const uniqueUrls = [...new Set(filteredData.map(c => c.url).filter(Boolean))];
-        setKeysLoadingProgress({ loaded: 0, total: uniqueUrls.length });
-        
-        console.log('[DEBUG] Завантаження ключів PDF для', uniqueUrls.length, 'файлів...');
-        
-        let loadedCount = 0;
-        const keysMap = new Map(pdfKeysCache);
-        
-        // Завантажуємо ключі паралельно (по 5 одночасно)
-        for (let i = 0; i < uniqueUrls.length; i += 5) {
-          const batch = uniqueUrls.slice(i, i + 5);
-          await Promise.all(batch.map(async (url) => {
-            if (!keysMap.has(url)) {
-              try {
-                const key = await getPdfUniqueKey(url);
-                keysMap.set(url, key);
-              } catch (e) {
-                keysMap.set(url, url);
-              }
-            }
-            loadedCount++;
-            setKeysLoadingProgress({ loaded: loadedCount, total: uniqueUrls.length });
-          }));
-        }
-        
-        setPdfKeysCache(keysMap);
-        
-        // Групуємо договори по унікальному ключу PDF (як у вкладці Договори)
-        const contractsMap = new Map();
-        
-        for (const contract of filteredData) {
-          if (!contract.url) continue;
-          
-          const pdfKey = keysMap.get(contract.url) || contract.url;
-          
-          if (!contractsMap.has(pdfKey)) {
-            contractsMap.set(pdfKey, {
-              ...contract,
-              pdfKey,
-              urls: [contract.url],
-              filesCount: 1
-            });
-          } else {
-            const existing = contractsMap.get(pdfKey);
-            if (!existing.urls.includes(contract.url)) {
-              existing.urls.push(contract.url);
-              existing.filesCount++;
-            }
-          }
-        }
-        
-        const uniqueContracts = Array.from(contractsMap.values());
-        console.log('[DEBUG] Унікальних договорів (по вмісту PDF):', uniqueContracts.length);
-        
-        setExistingContracts(uniqueContracts);
-      } else {
-        console.error('[ERROR] Помилка завантаження списку договорів:', response.status);
-        setExistingContracts([]);
-      }
+      setPdfKeysCache(keysMap);
+      pdfKeysCacheRef.current = keysMap;
+      console.log('[DEBUG] Унікальних договорів (по вмісту PDF):', uniqueContracts.length);
+      setExistingContracts(uniqueContracts);
     } catch (error) {
       console.error('[ERROR] Помилка завантаження списку договорів:', error);
       setExistingContracts([]);
@@ -1964,6 +2035,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       name="edrpou" 
                       value={formData.edrpou} 
                       onChange={handleChange}
+                      onBlur={handleEdrpouBlur}
                       placeholder="Введіть ЄДРПОУ..."
                       autoComplete="off"
                     />
@@ -2894,7 +2966,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       {/* Модальне вікно автозаповнення даних клієнта */}
       <ClientDataSelectionModal
         open={clientDataModal.open}
-        onClose={() => setClientDataModal({ open: false, edrpou: '' })}
+        onClose={(detail) => {
+          setClientDataModal({ open: false, edrpou: '' });
+          if (!detail?.applied) {
+            setTimeout(() => tryAutoFillContractByEdrpou(formDataRef.current.edrpou), 0);
+          }
+        }}
         onApply={handleClientDataApply}
         edrpou={clientDataModal.edrpou}
         currentFormData={formData}
