@@ -1,7 +1,46 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { API_BASE_URL } from '../config';
 import { getPdfUniqueKey } from '../utils/pdfUtils';
 import './ContractsTable.css';
+
+const PDF_CACHE_STORAGE_PREFIX = 'darex-contracts-pdf-keys-v1:';
+
+function getPdfCacheStorageKey(user) {
+  const id = user?.login || user?.username || user?.email || 'default';
+  return `${PDF_CACHE_STORAGE_PREFIX}${encodeURIComponent(String(id))}`;
+}
+
+function readPersistedPdfMap(storageKey) {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || !Array.isArray(o.entries)) return null;
+    return new Map(o.entries);
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedPdfMap(storageKey, map) {
+  try {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify({ entries: Array.from(map.entries()) })
+    );
+  } catch (e) {
+    console.warn('[Contracts] Не вдалося зберегти кеш ключів PDF:', e);
+  }
+}
+
+function collectContractFileUrls(tasks, getContractFileUrl) {
+  const urls = new Set();
+  tasks.forEach((t) => {
+    const u = getContractFileUrl(t.contractFile);
+    if (u) urls.add(u);
+  });
+  return urls;
+}
 
 function ContractsTable({ user }) {
   const [tasks, setTasks] = useState([]);
@@ -89,7 +128,33 @@ function ContractsTable({ user }) {
     }
   }, [pdfKeysCache, pdfKeysLoading]);
 
-  // Завантажуємо ключі PDF для всіх договорів
+  // Відновлення кешу з localStorage до запуску мережевих запитів (лише нові URL обробляються заново)
+  useLayoutEffect(() => {
+    if (loading || tasks.length === 0) return;
+
+    const urlsNow = collectContractFileUrls(tasks, getContractFileUrl);
+    if (urlsNow.size === 0) return;
+
+    const storageKey = getPdfCacheStorageKey(user);
+    const stored = readPersistedPdfMap(storageKey);
+    if (!stored || stored.size === 0) return;
+
+    setPdfKeysCache((prev) => {
+      const next = new Map(prev);
+      let restored = 0;
+      for (const u of urlsNow) {
+        if (!next.has(u) && stored.has(u)) {
+          next.set(u, stored.get(u));
+          restored++;
+        }
+      }
+      if (restored === 0) return prev;
+      console.log('[PDF] З кешу браузера відновлено ключів:', restored, '/', urlsNow.size);
+      return next;
+    });
+  }, [loading, tasks, getContractFileUrl, user]);
+
+  // Завантажуємо ключі PDF лише для URL, яких ще немає в кеші (після відновлення з localStorage)
   useEffect(() => {
     if (loading || tasks.length === 0) return;
 
@@ -102,7 +167,7 @@ function ContractsTable({ user }) {
     });
 
     if (uniqueUrls.size > 0) {
-      console.log('[PDF] Завантажуємо ключі для', uniqueUrls.size, 'файлів договорів');
+      console.log('[PDF] Завантажуємо ключі для', uniqueUrls.size, 'нових файлів договорів');
       uniqueUrls.forEach(url => {
         loadPdfKey(url);
       });
@@ -128,6 +193,31 @@ function ContractsTable({ user }) {
     !loading &&
     pdfKeyProgress.total > 0 &&
     pdfKeyProgress.done < pdfKeyProgress.total;
+
+  // Повне збереження кешу після аналізу (оновлюється при появі нових URL)
+  useEffect(() => {
+    if (loading || pdfKeyProgress.total === 0) return;
+    if (pdfKeyProgress.done < pdfKeyProgress.total) return;
+
+    const urlsNow = collectContractFileUrls(tasks, getContractFileUrl);
+    if (urlsNow.size === 0) return;
+
+    const toSave = new Map();
+    for (const u of urlsNow) {
+      if (pdfKeysCache.has(u)) toSave.set(u, pdfKeysCache.get(u));
+    }
+    if (toSave.size !== urlsNow.size) return;
+
+    writePersistedPdfMap(getPdfCacheStorageKey(user), toSave);
+  }, [
+    loading,
+    tasks,
+    user,
+    pdfKeyProgress.total,
+    pdfKeyProgress.done,
+    pdfKeysCache,
+    getContractFileUrl
+  ]);
 
   // Групування заявок по ЄДРПОУ з унікальними договорами
   const contractsData = useMemo(() => {
