@@ -18,7 +18,6 @@ function ContractsTable({ user }) {
   // Кеш для ключів PDF
   const [pdfKeysCache, setPdfKeysCache] = useState(new Map());
   const [pdfKeysLoading, setPdfKeysLoading] = useState(new Set());
-  const [keysLoadingProgress, setKeysLoadingProgress] = useState({ loaded: 0, total: 0 });
 
   // Завантаження всіх заявок для договорів
   useEffect(() => {
@@ -104,17 +103,31 @@ function ContractsTable({ user }) {
 
     if (uniqueUrls.size > 0) {
       console.log('[PDF] Завантажуємо ключі для', uniqueUrls.size, 'файлів договорів');
-      setKeysLoadingProgress({ loaded: 0, total: uniqueUrls.size });
-      
-      let loaded = 0;
       uniqueUrls.forEach(url => {
-        loadPdfKey(url).then(() => {
-          loaded++;
-          setKeysLoadingProgress({ loaded, total: uniqueUrls.size });
-        });
+        loadPdfKey(url);
       });
     }
   }, [tasks, loading, getContractFileUrl, loadPdfKey, pdfKeysCache]);
+
+  // Прогрес і стан «стабілізації» таблиці (поки не пораховані ключі PDF — рядки не показуємо, щоб не стрибала верстка)
+  const pdfKeyProgress = useMemo(() => {
+    if (loading || !tasks.length) return { total: 0, done: 0 };
+    const urls = new Set();
+    tasks.forEach(t => {
+      const u = getContractFileUrl(t.contractFile);
+      if (u) urls.add(u);
+    });
+    let done = 0;
+    urls.forEach(u => {
+      if (pdfKeysCache.has(u)) done++;
+    });
+    return { total: urls.size, done };
+  }, [tasks, loading, pdfKeysCache, getContractFileUrl]);
+
+  const isAnalyzingPdfKeys =
+    !loading &&
+    pdfKeyProgress.total > 0 &&
+    pdfKeyProgress.done < pdfKeyProgress.total;
 
   // Групування заявок по ЄДРПОУ з унікальними договорами
   const contractsData = useMemo(() => {
@@ -243,21 +256,8 @@ function ContractsTable({ user }) {
 
   return (
     <div className="contracts-container">
-      {/* Прогрес завантаження ключів PDF */}
-      {keysLoadingProgress.total > 0 && keysLoadingProgress.loaded < keysLoadingProgress.total && (
-        <div className="pdf-loading-progress">
-          <span>Аналіз договорів: {keysLoadingProgress.loaded} / {keysLoadingProgress.total}</span>
-          <div className="progress-bar">
-            <div 
-              className="progress-fill" 
-              style={{ width: `${(keysLoadingProgress.loaded / keysLoadingProgress.total) * 100}%` }}
-            />
-          </div>
-        </div>
-      )}
-
       {/* Таблиця договорів */}
-      <div className="contracts-table-wrapper">
+      <div className={`contracts-table-wrapper${isAnalyzingPdfKeys ? ' contracts-table-wrapper--analyzing' : ''}`}>
         <table className="contracts-table">
           <thead>
             <tr>
@@ -306,7 +306,33 @@ function ContractsTable({ user }) {
             </tr>
           </thead>
           <tbody>
-            {filteredContracts.length === 0 ? (
+            {isAnalyzingPdfKeys ? (
+              <tr>
+                <td colSpan="7" className="contracts-analyzing-cell">
+                  <div className="contracts-analyzing-inner" role="status" aria-live="polite">
+                    <div className="contracts-analyzing-spinner" aria-hidden />
+                    <p className="contracts-analyzing-title">Аналіз унікальності договорів за вмістом PDF</p>
+                    <p className="contracts-analyzing-hint">Таблиця з’явиться після завершення — так уникаємо стрибків верстки</p>
+                    <div className="contracts-analyzing-progress">
+                      <span>
+                        Оброблено файлів: {pdfKeyProgress.done} / {pdfKeyProgress.total}
+                      </span>
+                      <div className="progress-bar">
+                        <div
+                          className="progress-fill"
+                          style={{
+                            width:
+                              pdfKeyProgress.total > 0
+                                ? `${(pdfKeyProgress.done / pdfKeyProgress.total) * 100}%`
+                                : '0%'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            ) : filteredContracts.length === 0 ? (
               <tr>
                 <td colSpan="7" className="empty-state">
                   Договори не знайдено
