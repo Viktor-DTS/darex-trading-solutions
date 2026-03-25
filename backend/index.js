@@ -9305,6 +9305,61 @@ class TelegramService {
     return baseMessage + (actions[type] || '');
   }
 
+  /**
+   * Той самий зміст, що formatTaskMessage, але без HTML — для FCM (push) і data.expandedBody.
+   */
+  formatTaskMessagePlain(type, task, user) {
+    const displayStatus = type === 'task_completed' ? 'Виконано' : (task.status || 'Н/Д');
+
+    let commentsInfo = '';
+    if (task.warehouseComment) commentsInfo += `\n📦 Коментар складу: ${task.warehouseComment}`;
+    if (task.accountantComment) commentsInfo += `\n💰 Коментар бухгалтера: ${task.accountantComment}`;
+
+    const createdBy = (task.requestAuthor && task.requestAuthor.trim())
+      || (type === 'task_created' ? (user?.name || user?.login) : null)
+      || task.createdByName
+      || task.createdBy
+      || task.engineer1
+      || user?.name
+      || 'Система';
+
+    const typeNames = {
+      task_created: '🆕 Нова заявка',
+      task_completed: '✅ Заявка виконана',
+      task_approval: '⏳ Потребує підтвердження Завсклада',
+      accountant_approval: '💰 Потребує затвердження Бухгалтера',
+      task_approved: '✅ Заявка затверджена',
+      task_rejected: '❌ Заявка відхилена',
+      invoice_request: '📄 Запит на рахунок',
+      invoice_completed: '📄 Рахунок завантажено'
+    };
+
+    const header = `🔔 ${typeNames[type] || 'Оновлення'}`;
+    const baseMessage = `${header}
+
+📋 Номер: ${task.requestNumber || 'Н/Д'}
+👤 Створив: ${createdBy}
+📊 Статус: ${displayStatus}
+📅 Дата: ${task.date || 'Н/Д'}
+📍 Регіон: ${task.serviceRegion || 'Н/Д'}
+👥 Замовник: ${task.client || 'Н/Д'}
+🏠 Адреса: ${task.address || 'Н/Д'}
+⚙️ Обладнання: ${task.equipment || 'Н/Д'}${commentsInfo}`;
+
+    const actions = {
+      task_created: '\n\n💡 Дія: Розглянути та призначити виконавця',
+      task_completed: '\n\n⏳ Очікує підтвердження від:\n• Зав. склад\n• Бухгалтер',
+      task_approval: '\n\n📋 Необхідно перевірити',
+      accountant_approval: '\n\n💰 Завсклад підтвердив. Очікує затвердження бухгалтера.',
+      task_approved: '\n\n🎉 Заявка готова!',
+      task_rejected: '\n\n⚠️ Необхідно виправити зауваження',
+      invoice_request: '\n\n📄 Подано запит на рахунок',
+      invoice_completed: '\n\n✅ Рахунок готовий до завантаження'
+    };
+
+    return baseMessage + (actions[type] || '');
+  }
+
   // Отримання Chat ID для сповіщення
   async getChatIdsForNotification(type, task) {
     try {
@@ -9395,9 +9450,13 @@ async function sendPushToUsers(users, { title, body, data = {} }) {
   const tokens = users.map(u => u.fcmToken).filter(Boolean);
   if (tokens.length === 0) return;
 
+  const dataStrings = Object.fromEntries(
+    Object.entries(data).map(([k, v]) => [String(k), v == null ? '' : String(v)])
+  );
+
   const msg = {
     notification: { title, body },
-    data: Object.fromEntries(Object.entries(data).map(([k, v]) => [String(k), String(v || '')])),
+    data: dataStrings,
     tokens,
     android: { priority: 'high' },
     apns: { payload: { aps: { sound: 'default' } } }
@@ -9418,22 +9477,40 @@ async function sendFcmTaskNotification(type, task, user) {
     const users = await telegramService.getUsersForFcmNotification(type, task);
     if (users.length === 0) return;
 
-    const titles = {
-      task_created: 'Нова заявка',
-      task_completed: 'Заявка виконана',
-      accountant_approval: 'Підтвердження завсклада',
-      task_approved: 'Заявка підтверджена',
-      task_rejected: 'Заявка відхилена',
-      invoice_request: 'Запит на рахунок',
-      invoice_completed: 'Рахунок завантажено'
-    };
-    const title = titles[type] || 'DTS';
-    const taskLabel = task.requestNumber || task.taskId || (task._id && task._id.toString()) || '';
-    const body = taskLabel ? `№${taskLabel}` : 'Нове сповіщення';
+    const fullPlain = telegramService.formatTaskMessagePlain(type, task, user);
+    const maxData = 3500;
+    const expandedBody = fullPlain.length > maxData ? `${fullPlain.slice(0, maxData)}…` : fullPlain;
+
+    const nl = expandedBody.indexOf('\n');
+    let title = nl >= 0 ? expandedBody.slice(0, nl).trim() : 'DTS';
+    let body = nl >= 0 ? expandedBody.slice(nl + 1).trim() : expandedBody;
+    if (!body) body = expandedBody;
+
+    const displayStatus = type === 'task_completed' ? 'Виконано' : (task.status || '');
+    const createdBy = (task.requestAuthor && task.requestAuthor.trim())
+      || (type === 'task_created' ? (user?.name || user?.login) : null)
+      || task.createdByName
+      || task.createdBy
+      || task.engineer1
+      || user?.name
+      || '';
+
     await sendPushToUsers(users, {
       title,
       body,
-      data: { type, taskId: (task._id || task.id) ? String(task._id || task.id) : '' }
+      data: {
+        type,
+        taskId: (task._id || task.id) ? String(task._id || task.id) : '',
+        expandedBody,
+        taskNumber: task.requestNumber != null ? String(task.requestNumber) : '',
+        createdBy: createdBy ? String(createdBy) : '',
+        status: displayStatus ? String(displayStatus) : '',
+        taskDate: task.date != null ? String(task.date) : '',
+        region: task.serviceRegion != null ? String(task.serviceRegion) : '',
+        customer: task.client != null ? String(task.client) : '',
+        address: task.address != null ? String(task.address) : '',
+        equipment: task.equipment != null ? String(task.equipment) : ''
+      }
     });
   } catch (err) {
     console.error('[FCM] Помилка sendFcmTaskNotification:', err);
