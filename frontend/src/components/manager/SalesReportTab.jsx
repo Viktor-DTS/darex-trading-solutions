@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getSales } from '../../utils/salesAPI';
+import { getSales, getRegions } from '../../utils/salesAPI';
 import { getUsers } from '../../utils/clientsAPI';
 import './ManagerTabs.css';
 
@@ -23,17 +23,19 @@ const formatCurrency = (v) => new Intl.NumberFormat('uk-UA', { style: 'currency'
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('uk-UA') : '—';
 
 function SalesReportTab({ user }) {
+  const isAdmin = ['admin', 'administrator', 'mgradm'].includes(user?.role);
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [managers, setManagers] = useState([]);
+  const [regions, setRegions] = useState([]);
   const [filters, setFilters] = useState({
     status: '',
     managerLogin: '',
     dateFrom: '',
-    dateTo: ''
+    dateTo: '',
+    region: isAdmin ? '' : (user?.region || '')
   });
   const [groupBy, setGroupBy] = useState('');
-  const isAdmin = ['admin', 'administrator', 'mgradm'].includes(user?.role);
 
   useEffect(() => {
     getUsers().then(list => {
@@ -41,6 +43,20 @@ function SalesReportTab({ user }) {
       setManagers(users.filter(u => (u.role || '').toLowerCase() === 'manager'));
     });
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setFilters(prev => ({ ...prev, region: user?.region || '' }));
+    }
+  }, [isAdmin, user?.region]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    getRegions().then(list => {
+      const arr = Array.isArray(list) ? list : [];
+      setRegions(arr);
+    });
+  }, [isAdmin]);
 
   useEffect(() => {
     loadSales();
@@ -54,6 +70,8 @@ function SalesReportTab({ user }) {
       if (filters.managerLogin && isAdmin) params.managerLogin = filters.managerLogin;
       if (filters.dateFrom) params.dateFrom = filters.dateFrom;
       if (filters.dateTo) params.dateTo = filters.dateTo;
+      const regionParam = (isAdmin ? filters.region : (user?.region || '')).trim();
+      if (regionParam) params.region = regionParam;
       const data = await getSales(params);
       const list = Array.isArray(data) ? data : data.sales || [];
       setSales(list);
@@ -177,6 +195,28 @@ function SalesReportTab({ user }) {
               </select>
             </div>
           )}
+          <div className="filter-group">
+            <label>Регіон</label>
+            {isAdmin ? (
+              <select
+                value={filters.region}
+                onChange={e => setFilters(prev => ({ ...prev, region: e.target.value }))}
+              >
+                <option value="">— Всі —</option>
+                {regions.map(r => (
+                  <option key={r.name} value={r.name}>{r.name}</option>
+                ))}
+              </select>
+            ) : (
+              <select value={user?.region || ''} disabled aria-readonly="true">
+                {user?.region ? (
+                  <option value={user.region}>{user.region}</option>
+                ) : (
+                  <option value="">— Не призначено —</option>
+                )}
+              </select>
+            )}
+          </div>
           <div className="filter-group">
             <label>Дата з</label>
             <input

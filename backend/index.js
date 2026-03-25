@@ -1420,7 +1420,15 @@ app.post('/api/clients/:id/interactions', authenticateToken, async (req, res) =>
 
 app.get('/api/sales', authenticateToken, async (req, res) => {
   try {
-    const { clientId, managerLogin, forClientCheck, status, dateFrom, dateTo } = req.query;
+    const { clientId, managerLogin, forClientCheck, status, dateFrom, dateTo, region: regionQuery } = req.query;
+    const canPickSaleRegion = ['admin', 'administrator', 'mgradm'].includes(req.user?.role);
+    const dbUser = await User.findOne({ login: req.user.login }).select('region').lean();
+    let regionFilter = '';
+    if (canPickSaleRegion) {
+      regionFilter = (regionQuery || '').trim();
+    } else {
+      regionFilter = (dbUser?.region || '').trim();
+    }
     const conditions = [];
     if (req.user?.role === 'manager' && forClientCheck !== 'true') {
       conditions.push({
@@ -1451,6 +1459,11 @@ app.get('/api/sales', authenticateToken, async (req, res) => {
         dateRange.$lte = d;
       }
       conditions.push({ saleDate: dateRange });
+    }
+    if (regionFilter && regionFilter !== 'Україна' && !regionFilter.includes('Загальний')) {
+      const esc = regionFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const clientIds = await Client.find({ region: new RegExp(esc, 'i') }).distinct('_id');
+      conditions.push({ clientId: { $in: clientIds } });
     }
     const query = conditions.length > 0 ? { $and: conditions } : {};
     const sales = await Sale.find(query)

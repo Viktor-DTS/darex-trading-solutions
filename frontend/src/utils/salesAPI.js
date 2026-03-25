@@ -9,6 +9,18 @@ const getAuthHeaders = () => {
   };
 };
 
+// Довідник регіонів (для фільтрів CRM)
+export const getRegions = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/regions`, { headers: getAuthHeaders() });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка завантаження регіонів:', error);
+    return [];
+  }
+};
+
 // Список продажів
 export const getSales = async (params = {}) => {
   try {
