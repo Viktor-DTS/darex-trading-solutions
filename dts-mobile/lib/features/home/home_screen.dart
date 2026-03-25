@@ -225,7 +225,8 @@ class _Module {
   final String routeName;
 }
 
-/// Мапа: panel IDs -> мобільний модуль (без дублікатів: warehouse+inventory -> один модуль)
+/// Мапа: panel IDs -> мобільний модуль.
+/// regional не мапить на модуль — регіональний керівник не має доступу до Менеджерів.
 const _panelToModule = <String, _Module>{
   'service': _Module(title: 'Сервісна служба', icon: Icons.engineering, routeName: '/service/tasks'),
   'operator': _Module(title: 'Оператор', icon: Icons.headset_mic, routeName: '/operator'),
@@ -235,7 +236,6 @@ const _panelToModule = <String, _Module>{
   'manager': _Module(title: 'Менеджери', icon: Icons.dashboard_customize, routeName: '/managers'),
   'accountant': _Module(title: 'Менеджери', icon: Icons.dashboard_customize, routeName: '/managers'),
   'accountantApproval': _Module(title: 'Менеджери', icon: Icons.dashboard_customize, routeName: '/managers'),
-  'regional': _Module(title: 'Менеджери', icon: Icons.dashboard_customize, routeName: '/managers'),
 };
 
 List<_Module> _modulesFromPanels(List<String> panels) {

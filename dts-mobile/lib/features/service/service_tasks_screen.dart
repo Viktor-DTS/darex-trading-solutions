@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/models/task.dart';
@@ -18,68 +20,117 @@ class ServiceTasksScreen extends StatefulWidget {
 
 class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
   final _statuses = const ['Всі', 'Заявка', 'В роботі', 'Виконано'];
   String _selectedStatus = 'Заявка';
   bool _loading = false;
+  bool _loadingMore = false;
   String? _error;
   List<Task> _tasks = [];
+  int _total = 0;
+  int _page = 1;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
-    _loadTasks();
-    _searchController.addListener(_applyFilters);
+    _loadTasks(resetPage: true);
+    _searchController.addListener(_onSearchChanged);
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     super.dispose();
   }
 
-  /// [forceRefresh] — true при pull-to-refresh або кнопці оновлення (ігнорує кеш).
-  Future<void> _loadTasks({bool forceRefresh = false}) async {
+  void _onSearchChanged() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 450), () {
+      if (mounted) _loadTasks(resetPage: true);
+    });
+  }
+
+  void _onScroll() {
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 200 &&
+        !_loadingMore &&
+        _tasks.length < _total) {
+      _loadMore();
+    }
+  }
+
+  /// [forceRefresh] — true при pull-to-refresh або кнопці оновлення.
+  /// [resetPage] — true при зміні фільтрів/пошуку.
+  Future<void> _loadTasks({
+    bool forceRefresh = false,
+    bool resetPage = false,
+  }) async {
+    if (resetPage) _page = 1;
     setState(() {
       _loading = true;
       _error = null;
+      if (resetPage) _tasks = [];
     });
 
     try {
       final region = AuthService.instance.region;
-      // Кеш 90 с на клієнті — менше запитів при перемиканні вкладок
-      final tasks = await TaskService.instance.fetchTasksFiltered(
+      final filter = _searchController.text.trim();
+      final result = await TaskService.instance.fetchTasksFiltered(
         region: region,
         sort: '-requestDate',
         status: _selectedStatus == 'Всі' ? null : _selectedStatus,
         statuses: _selectedStatus == 'Всі' ? 'Заявка,В роботі,Виконано' : null,
+        filter: filter.isEmpty ? null : filter,
+        page: 1,
+        limit: TaskService.defaultPageLimit,
         forceRefresh: forceRefresh,
       );
-      setState(() {
-        _tasks = tasks;
-      });
+      if (mounted) {
+        setState(() {
+          _tasks = result.tasks;
+          _total = result.total;
+        });
+      }
     } catch (error) {
-      setState(() {
-        _error = AuthService.parseError(error);
-      });
+      if (mounted) {
+        setState(() => _error = AuthService.parseError(error));
+      }
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  List<Task> get _filteredTasks {
-    final query = _searchController.text.trim().toLowerCase();
-    if (query.isEmpty) return _tasks;
-    return _tasks.where((task) {
-      return (task.requestNumber?.toLowerCase().contains(query) ?? false) ||
-          (task.client?.toLowerCase().contains(query) ?? false) ||
-          (task.requestDesc?.toLowerCase().contains(query) ?? false);
-    }).toList();
-  }
-
-  void _applyFilters() {
-    setState(() {});
+  Future<void> _loadMore() async {
+    if (_loadingMore || _tasks.length >= _total) return;
+    setState(() => _loadingMore = true);
+    final nextPage = _page + 1;
+    try {
+      final region = AuthService.instance.region;
+      final filter = _searchController.text.trim();
+      final result = await TaskService.instance.fetchTasksFiltered(
+        region: region,
+        sort: '-requestDate',
+        status: _selectedStatus == 'Всі' ? null : _selectedStatus,
+        statuses: _selectedStatus == 'Всі' ? 'Заявка,В роботі,Виконано' : null,
+        filter: filter.isEmpty ? null : filter,
+        page: nextPage,
+        limit: TaskService.defaultPageLimit,
+      );
+      if (mounted) {
+        setState(() {
+          _tasks = [..._tasks, ...result.tasks];
+          _page = nextPage;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
   }
 
   @override
@@ -89,7 +140,8 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
         title: const Text('Сервісні заявки'),
         actions: [
           IconButton(
-            onPressed: () => _loadTasks(forceRefresh: true),
+            onPressed: () =>
+                _loadTasks(forceRefresh: true, resetPage: true),
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -124,10 +176,8 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
                           selected: isSelected,
                           onSelected: (_) {
                             if (isSelected) return;
-                            setState(() {
-                              _selectedStatus = status;
-                            });
-                            _loadTasks();
+                            setState(() => _selectedStatus = status);
+                            _loadTasks(resetPage: true);
                           },
                         );
                       },
@@ -142,18 +192,32 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
                   : _error != null && _tasks.isEmpty
                       ? ErrorWithRetry(
                           message: _error!,
-                          onRetry: () => _loadTasks(forceRefresh: true),
+                          onRetry: () =>
+                              _loadTasks(forceRefresh: true, resetPage: true),
                         )
-                      : _filteredTasks.isEmpty
+                      : _tasks.isEmpty
                           ? const Center(child: Text('Немає заявок'))
                           : RefreshIndicator(
-                              onRefresh: () => _loadTasks(forceRefresh: true),
+                              onRefresh: () =>
+                                  _loadTasks(forceRefresh: true, resetPage: true),
                               child: ListView.separated(
-                              itemCount: _filteredTasks.length,
-                              separatorBuilder: (_, __) =>
-                                  const Divider(height: 1),
-                              itemBuilder: (context, index) {
-                                final task = _filteredTasks[index];
+                                controller: _scrollController,
+                                itemCount: _tasks.length +
+                                    (_tasks.length < _total ? 1 : 0),
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  if (index >= _tasks.length) {
+                                    return _loadingMore
+                                        ? const Padding(
+                                            padding: EdgeInsets.all(16),
+                                            child: Center(
+                                                child:
+                                                    CircularProgressIndicator()),
+                                          )
+                                        : const SizedBox.shrink();
+                                  }
+                                  final task = _tasks[index];
                                 return ListTile(
                                   title: Text(
                                     task.requestNumber ?? 'Без номера',
@@ -202,6 +266,14 @@ class _ServiceTasksScreenState extends State<ServiceTasksScreen> {
                               ),
                             ),
             ),
+            if (_total > 0)
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(
+                  'Показано ${_tasks.length} з $_total',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
           ],
         ),
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+
+import '../../core/services/push_notification_service.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -14,13 +15,11 @@ class AboutScreen extends StatefulWidget {
 class _AboutScreenState extends State<AboutScreen> {
   String _version = '—';
   String _buildNumber = '—';
-  String? _fcmToken;
 
   @override
   void initState() {
     super.initState();
     _loadVersion();
-    _loadFcmToken();
   }
 
   Future<void> _loadVersion() async {
@@ -31,13 +30,6 @@ class _AboutScreenState extends State<AboutScreen> {
         _buildNumber = info.buildNumber;
       });
     }
-  }
-
-  Future<void> _loadFcmToken() async {
-    try {
-      final token = await FirebaseMessaging.instance.getToken();
-      if (mounted) setState(() => _fcmToken = token);
-    } catch (_) {}
   }
 
   @override
@@ -73,18 +65,6 @@ class _AboutScreenState extends State<AboutScreen> {
                     ),
               ),
               const SizedBox(height: 24),
-              if (_fcmToken != null) ...[
-                Text(
-                  'FCM Token (для тесту push):',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                SelectableText(
-                  _fcmToken!,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 24),
-              ],
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -104,6 +84,22 @@ class _AboutScreenState extends State<AboutScreen> {
                     ],
                   ),
                 ),
+              ),
+              const SizedBox(height: 24),
+              FilledButton.tonalIcon(
+                onPressed: () async {
+                  await PushNotificationService.instance.showTestExpandedNotification();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'На Android розгорніть сповіщення в шторці — побачите всі поля, як у Telegram.',
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.notifications_active_outlined),
+                label: const Text('Тест push (розгорнуто)'),
               ),
             ],
           ),

@@ -16,20 +16,20 @@ class AccessRulesService {
   bool _loaded = false;
 
   /// Завантажує правила з API та кешує їх.
+  /// Якщо accessRules в MongoDB порожній або API недоступний — ніхто не отримує доступ (правила порожні).
   Future<Map<String, List<String>>> loadAccessRules() async {
     try {
       final response = await ApiClient.instance.dio.get('/api/accessRules');
       final data = response.data;
       if (data is Map<String, dynamic>) {
         _rules = _convertAccessRules(data);
+      } else {
+        _rules = {};
       }
-    } on DioException catch (e) {
-      if (e.response?.statusCode != null) {
-        // Не логуємо помилки мережі щоб не засмічувати - використовуємо fallback
-      }
-      _rules = _defaultRules;
+    } on DioException catch (_) {
+      _rules = {};
     } catch (_) {
-      _rules = _defaultRules;
+      _rules = {};
     }
     _loaded = true;
     return _rules;
@@ -42,16 +42,29 @@ class AccessRulesService {
   }
 
   /// Список panel IDs з доступом (full або read) для ролі.
+  /// Якщо accessRules порожній (MongoDB або API) — ніхто не отримує доступ.
+  /// admin/administrator завжди отримують повний доступ (усі панелі), якщо є в правилах.
   List<String> getPanelsForRole(String role) {
     if (role.isEmpty) return [];
-    if (_rules.isEmpty) return _defaultRules[role] ?? _defaultRules['service'] ?? [];
+    if (_rules.isEmpty) return [];
     final roleLower = role.toLowerCase();
+    List<String>? panels;
     final exact = _rules[role];
-    if (exact != null && exact.isNotEmpty) return exact;
-    for (final entry in _rules.entries) {
-      if (entry.key.toLowerCase() == roleLower) return entry.value;
+    if (exact != null) {
+      panels = exact;
+    } else {
+      for (final entry in _rules.entries) {
+        if (entry.key.toLowerCase() == roleLower) {
+          panels = entry.value;
+          break;
+        }
+      }
     }
-    return _defaultRules[role] ?? _defaultRules['service'] ?? [];
+    if (panels == null) return [];
+    if (roleLower == 'admin' || roleLower == 'administrator') {
+      return _allPanelIds;
+    }
+    return panels;
   }
 
   /// Очистити кеш (наприклад при logout).
@@ -81,30 +94,18 @@ class AccessRulesService {
       }
       converted[role] = list;
     }
-    for (final r in ['admin', 'administrator']) {
-      if (!converted.containsKey(r) || converted[r]!.isEmpty) {
-        converted[r] = _defaultRules[r]!;
-      }
-    }
     return converted;
   }
 
-  /// Резервні правила (як на вебі), якщо API недоступний.
-  static const _defaultRules = <String, List<String>>{
-    'admin': ['service', 'operator', 'warehouse', 'inventory', 'manager', 'testing', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
-    'administrator': ['service', 'operator', 'warehouse', 'inventory', 'manager', 'testing', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
-    'operator': ['operator'],
-    'accountant': ['accountant', 'accountantApproval', 'inventory', 'reports', 'analytics'],
-    'buhgalteria': ['accountant', 'accountantApproval', 'inventory', 'reports', 'analytics'],
-    'warehouse': ['warehouse', 'inventory', 'service'],
-    'zavsklad': ['warehouse', 'inventory', 'service'],
-    'regkerivn': ['regional', 'service', 'reports', 'analytics', 'inventory', 'manager'],
-    'regional': ['regional', 'service', 'reports', 'analytics', 'inventory', 'manager'],
-    'service': ['service'],
-    'testing': ['testing'],
-    'tester': ['testing'],
-    'manager': ['manager', 'inventory'],
-    'regionwten': ['regional', 'service', 'reports', 'analytics', 'inventory', 'manager'],
-    'adminminor': ['service', 'operator', 'warehouse', 'inventory'],
-  };
+  /// Панелі, що мають відповідні модулі в APP. admin/administrator отримують їх усі.
+  static const _allPanelIds = [
+    'service',
+    'operator',
+    'warehouse',
+    'inventory',
+    'manager',
+    'testing',
+    'accountant',
+    'accountantApproval',
+  ];
 }

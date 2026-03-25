@@ -5,8 +5,9 @@ import 'api_client.dart';
 class _TasksCacheEntry {
   final List<Task> tasks;
   final DateTime createdAt;
+  final int total;
 
-  _TasksCacheEntry(this.tasks, this.createdAt);
+  _TasksCacheEntry(this.tasks, this.createdAt, [this.total = 0]);
 
   bool isExpired(int ttlSeconds) =>
       DateTime.now().difference(createdAt).inSeconds > ttlSeconds;
@@ -18,6 +19,7 @@ class TaskService {
   static final TaskService instance = TaskService._internal();
 
   static const _cacheTtlSeconds = 90;
+  static const int defaultPageLimit = 30;
 
   final Map<String, _TasksCacheEntry> _filteredTasksCache = {};
 
@@ -26,8 +28,9 @@ class TaskService {
     String? status,
     String? statuses,
     String? sort,
+    String? filter,
   }) {
-    return 'filter_${region ?? ''}_${status ?? ''}_${statuses ?? ''}_${sort ?? ''}';
+    return 'filter_${region ?? ''}_${status ?? ''}_${statuses ?? ''}_${sort ?? ''}_${filter ?? ''}';
   }
 
   /// Очистити кеш заявок (наприклад при виході або після створення/редагування).
@@ -57,15 +60,18 @@ class TaskService {
     return [];
   }
 
-  /// Завантажує заявки з фільтром по статусу (менше навантаження на сервер і Mongo).
-  /// Якщо [forceRefresh] == false, спочатку перевіряється in-memory кеш (TTL 90 с).
+  /// Завантажує заявки з фільтром і пагінацією.
+  /// Повертає (tasks, total). filter — пошук по requestNumber, client, requestDesc (обробляється на бекенді по всіх даних).
   /// [status] — один статус ('Заявка', 'В роботі', 'Виконано').
   /// [statuses] — кілька статусів через кому (наприклад для "Всі": 'Заявка,В роботі,Виконано').
-  Future<List<Task>> fetchTasksFiltered({
+  Future<({List<Task> tasks, int total})> fetchTasksFiltered({
     String? region,
     String? status,
     String? statuses,
     String? sort,
+    String? filter,
+    int page = 1,
+    int limit = defaultPageLimit,
     bool forceRefresh = false,
   }) async {
     final cacheKey = _filterCacheKey(
@@ -73,18 +79,22 @@ class TaskService {
       status: status,
       statuses: statuses,
       sort: sort,
+      filter: filter,
     );
 
-    if (!forceRefresh) {
+    if (!forceRefresh && page == 1) {
       final cached = _filteredTasksCache[cacheKey];
       if (cached != null && !cached.isExpired(_cacheTtlSeconds)) {
-        return cached.tasks;
+        return (tasks: cached.tasks, total: cached.total);
       }
     }
 
     final params = <String, dynamic>{
+      'page': page,
+      'limit': limit,
       if (region != null && region.isNotEmpty) 'region': region,
       if (sort != null && sort.isNotEmpty) 'sort': sort,
+      if (filter != null && filter.trim().isNotEmpty) 'filter': filter.trim(),
     };
     if (status != null && status.isNotEmpty) {
       params['status'] = status;
@@ -98,15 +108,22 @@ class TaskService {
     );
 
     final data = response.data;
-    if (data is List) {
-      final tasks = data
-          .whereType<Map<String, dynamic>>()
-          .map(Task.fromJson)
-          .toList();
-      _filteredTasksCache[cacheKey] = _TasksCacheEntry(tasks, DateTime.now());
-      return tasks;
+    if (data is Map<String, dynamic>) {
+      final tasksList = data['tasks'];
+      final total = (data['total'] as num?)?.toInt() ?? 0;
+      final tasks = (tasksList is List)
+          ? tasksList
+              .whereType<Map<String, dynamic>>()
+              .map(Task.fromJson)
+              .toList()
+          : <Task>[];
+      if (page == 1) {
+        _filteredTasksCache[cacheKey] =
+            _TasksCacheEntry(tasks, DateTime.now(), total);
+      }
+      return (tasks: tasks, total: total);
     }
-    return [];
+    return (tasks: <Task>[], total: 0);
   }
 
   Future<Task> createTask(Map<String, dynamic> payload) async {

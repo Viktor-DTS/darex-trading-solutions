@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 
+import 'core/models/task.dart';
 import 'core/services/app_update_service.dart';
 import 'core/services/auth_service.dart';
 import 'core/services/push_notification_service.dart';
+import 'core/services/task_service.dart';
 import 'core/services/theme_service.dart';
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/managers/managers_overview_screen.dart';
 import 'features/operator/operator_create_task_screen.dart';
 import 'features/service/service_tasks_screen.dart';
+import 'features/service/task_details_screen.dart';
 import 'features/settings/about_screen.dart';
 import 'features/testing/testing_requests_screen.dart';
 import 'features/warehouse/quick_unload_screen.dart';
@@ -80,8 +83,34 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   void _setupPushTapHandler() {
-    PushNotificationService.instance.onNotificationTapped = (_) {
-      if (AuthService.instance.isAuthenticated && navigatorKey.currentContext != null) {
+    PushNotificationService.instance.onNotificationTapped = (data) async {
+      if (!AuthService.instance.isAuthenticated || navigatorKey.currentContext == null) return;
+
+      final taskId = data['taskId']?.toString();
+      if (taskId != null && taskId.isNotEmpty) {
+        try {
+          final taskData = await TaskService.instance.fetchTask(taskId);
+          final task = Task.fromJson(taskData);
+          if (navigatorKey.currentContext != null) {
+            Navigator.of(navigatorKey.currentContext!).pushNamedAndRemoveUntil(
+              HomeScreen.routeName,
+              (route) => false,
+            );
+            Navigator.of(navigatorKey.currentContext!).push(
+              MaterialPageRoute(
+                builder: (_) => TaskDetailsScreen(task: task),
+              ),
+            );
+          }
+        } catch (_) {
+          if (navigatorKey.currentContext != null) {
+            Navigator.of(navigatorKey.currentContext!).pushNamedAndRemoveUntil(
+              HomeScreen.routeName,
+              (route) => false,
+            );
+          }
+        }
+      } else {
         Navigator.of(navigatorKey.currentContext!).pushNamedAndRemoveUntil(
           HomeScreen.routeName,
           (route) => false,
