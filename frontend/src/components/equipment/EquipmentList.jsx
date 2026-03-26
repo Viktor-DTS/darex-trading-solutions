@@ -683,18 +683,14 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                   </td>
                   <td>
                     {getEquipmentQuantityNumber(item) > 1 ? (
-                      <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
-                        {formatEquipmentQuantityCell(item)}
-                      </span>
+                      <span style={{ fontWeight: 'bold' }}>{formatEquipmentQuantityCell(item)}</span>
                     ) : (
                       formatEquipmentQuantityCell(item)
                     )}
                   </td>
                   <td>
                     {item.isGrouped && item.batchCount ? (
-                      <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
-                        Партія: {item.batchCount} поз.
-                      </span>
+                      <span style={{ fontWeight: 'bold' }}>Партія: {item.batchCount} поз.</span>
                     ) : (
                       formatValue(item.serialNumber, 'serialNumber')
                     )}
