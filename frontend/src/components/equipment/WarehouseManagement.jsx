@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import API_BASE_URL from '../../config';
 import './WarehouseManagement.css';
 
@@ -20,13 +20,79 @@ function WarehouseManagement({ user }) {
   const [importLoading, setImportLoading] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [importError, setImportError] = useState(null);
+  const [importCategories, setImportCategories] = useState([]);
+  const [categoryListFilter, setCategoryListFilter] = useState('');
+  const [nomenclatureSelections, setNomenclatureSelections] = useState({});
+  const [mappingSaveMsg, setMappingSaveMsg] = useState(null);
+  const [mappingSaveLoading, setMappingSaveLoading] = useState(false);
+  /** 1 — вибір файлу / перевірка; 2 — вікно зіставлення категорій (відкривається автоматично, якщо є невідомі позиції) */
+  const [importModalStep, setImportModalStep] = useState(1);
 
   const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
+
+  const sortedImportCategories = useMemo(() => {
+    return [...importCategories].sort((a, b) =>
+      (a.name || '').localeCompare(b.name || '', 'uk')
+    );
+  }, [importCategories]);
+
+  const filteredCategoryReference = useMemo(() => {
+    const q = categoryListFilter.trim().toLowerCase();
+    if (!q) return sortedImportCategories;
+    return sortedImportCategories.filter(
+      (c) =>
+        (c.name || '').toLowerCase().includes(q) ||
+        String(c.id || '')
+          .toLowerCase()
+          .includes(q)
+    );
+  }, [sortedImportCategories, categoryListFilter]);
 
   useEffect(() => {
     loadWarehouses();
     loadRegions();
   }, []);
+
+  useEffect(() => {
+    if (!importModalOpen || !isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const r = await fetch(`${API_BASE_URL}/categories/for-stock-import`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (!cancelled) setImportCategories(Array.isArray(data.categories) ? data.categories : []);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [importModalOpen, isAdmin]);
+
+  useEffect(() => {
+    if (importModalStep === 2 && (!importResult?.needsCategoryMapping?.length)) {
+      setImportModalStep(1);
+    }
+  }, [importModalStep, importResult]);
+
+  useEffect(() => {
+    if (!importResult?.needsCategoryMapping?.length) {
+      setNomenclatureSelections({});
+      return;
+    }
+    const existing = importResult.existingNomenclatureCategoryMap || {};
+    const init = {};
+    importResult.needsCategoryMapping.forEach(({ nome }) => {
+      const v = existing[nome];
+      init[nome] = v != null && v !== '' ? String(v) : '';
+    });
+    setNomenclatureSelections(init);
+  }, [importResult]);
 
   const loadRegions = async () => {
     try {
@@ -172,6 +238,11 @@ function WarehouseManagement({ user }) {
     setImportResult(null);
     setImportError(null);
     setImportDryRun(true);
+    setImportCategories([]);
+    setCategoryListFilter('');
+    setNomenclatureSelections({});
+    setMappingSaveMsg(null);
+    setImportModalStep(1);
   };
 
   const closeImportModal = () => {
@@ -180,6 +251,48 @@ function WarehouseManagement({ user }) {
     setImportResult(null);
     setImportError(null);
     setImportLoading(false);
+    setImportCategories([]);
+    setCategoryListFilter('');
+    setNomenclatureSelections({});
+    setMappingSaveMsg(null);
+    setImportModalStep(1);
+  };
+
+  const handleSaveNomenclatureMap = async () => {
+    const map = {};
+    Object.entries(nomenclatureSelections).forEach(([nome, id]) => {
+      if (id && String(id).trim()) map[nome] = String(id).trim();
+    });
+    if (Object.keys(map).length === 0) {
+      setMappingSaveMsg({ type: 'err', text: 'Оберіть категорію хоча б для одного рядка справа' });
+      return;
+    }
+    setMappingSaveLoading(true);
+    setMappingSaveMsg(null);
+    try {
+      const token = localStorage.getItem('token');
+      const r = await fetch(`${API_BASE_URL}/equipment/stock-import-nomenclature-map`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ nomenclatureCategoryMap: map }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setMappingSaveMsg({ type: 'err', text: data.error || `Помилка ${r.status}` });
+        return;
+      }
+      setMappingSaveMsg({
+        type: 'ok',
+        text: `Збережено ${data.savedCount} відповідностей (діють для всіх складів). Поверніться до файлу та натисніть «Перевірити» знову або імпортуйте інший склад — ті самі назви вже підставлять категорію.`,
+      });
+    } catch (err) {
+      setMappingSaveMsg({ type: 'err', text: err.message || 'Помилка мережі' });
+    } finally {
+      setMappingSaveLoading(false);
+    }
   };
 
   const handleImportStock = async () => {
@@ -206,6 +319,11 @@ function WarehouseManagement({ user }) {
         return;
       }
       setImportResult(data);
+      if (Array.isArray(data.needsCategoryMapping) && data.needsCategoryMapping.length > 0) {
+        setImportModalStep(2);
+      } else {
+        setImportModalStep(1);
+      }
       if (!importDryRun) {
         loadWarehouses();
       }
@@ -322,88 +440,211 @@ function WarehouseManagement({ user }) {
       )}
 
       {importModalOpen && (
-        <div className="modal-overlay" onClick={closeImportModal}>
+        <div className="modal-overlay import-stock-overlay" onClick={closeImportModal}>
           <div className="modal-content import-stock-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>📥 Імпорт залишків з Excel</h2>
+              <h2>
+                {importModalStep === 2
+                  ? '🔗 Зіставлення категорій'
+                  : '📥 Імпорт залишків з Excel'}
+              </h2>
               <button type="button" className="btn-close" onClick={closeImportModal}>✕</button>
             </div>
-            <p className="import-hint">
-              Звіт 1С «Анализ доступности товаров на складах» (.xlsx). Склад у файлі має відповідати
-              налаштуванню <code>config/stock-import-rules.json</code> на сервері. Спочатку виконайте
-              перевірку без запису.
-            </p>
-            <div className="import-file-row">
-              <input
-                type="file"
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                onChange={(e) => {
-                  setImportFile(e.target.files?.[0] || null);
-                  setImportError(null);
-                  setImportResult(null);
-                }}
-              />
-            </div>
-            <label className="import-dry-run">
-              <input
-                type="checkbox"
-                checked={importDryRun}
-                onChange={(e) => setImportDryRun(e.target.checked)}
-              />
-              Лише перевірка (нічого не записувати в базу)
-            </label>
-            {importError && (
-              <div className="error-message import-err" style={{ marginBottom: 12 }}>{importError}</div>
+
+            {importModalStep === 1 && (
+              <>
+                <p className="import-hint">
+                  Звіт 1С «Анализ доступности товаров на складах» (.xlsx). Спочатку «Перевірити».
+                  Якщо система не зіставить номенклатуру з категорією проєкту —{' '}
+                  <strong>автоматично відкриється вікно зіставлення</strong> (зліва категорії, справа рядки з файлу).
+                  Збережені пари запам’ятовуються для <strong>усіх складів</strong> — та сама назва в Excel з іншого
+                  складу використає ту саму категорію.
+                </p>
+                <div className="import-file-row">
+                  <input
+                    type="file"
+                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    onChange={(e) => {
+                      setImportFile(e.target.files?.[0] || null);
+                      setImportError(null);
+                      setImportResult(null);
+                      setImportModalStep(1);
+                    }}
+                  />
+                </div>
+                <label className="import-dry-run">
+                  <input
+                    type="checkbox"
+                    checked={importDryRun}
+                    onChange={(e) => setImportDryRun(e.target.checked)}
+                  />
+                  Лише перевірка (нічого не записувати в базу)
+                </label>
+                {importError && (
+                  <div className="error-message import-err" style={{ marginBottom: 12 }}>{importError}</div>
+                )}
+                {importResult && (
+                  <div className="import-result-box">
+                    <div><strong>Результат</strong> {importResult.dryRun ? '(перевірка)' : '(імпорт)'}</div>
+                    <div>Склад у файлі: {importResult.warehouseName || '—'}</div>
+                    <div>Створено: {importResult.created ?? '—'} · Оновлено: {importResult.updated ?? '—'} · Пропущено: {importResult.skipped ?? '—'}</div>
+                    {Array.isArray(importResult.warnings) && importResult.warnings.length > 0 && (
+                      <div className="import-warn" style={{ marginTop: 8 }}>
+                        <strong>Попередження:</strong>
+                        <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                          {importResult.warnings.slice(0, 20).map((w, idx) => (
+                            <li key={idx}>{w}</li>
+                          ))}
+                          {importResult.warnings.length > 20 && (
+                            <li>… ще {importResult.warnings.length - 20}</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                    {Array.isArray(importResult.errors) && importResult.errors.length > 0 && (
+                      <div className="import-err" style={{ marginTop: 8 }}>
+                        <strong>Помилки рядків:</strong>
+                        <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                          {importResult.errors.map((w, idx) => (
+                            <li key={idx}>{w}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {importResult.details?.length > 0 && (
+                      <pre style={{ marginTop: 10 }}>
+                        {JSON.stringify(importResult.details.slice(0, 25), null, 2)}
+                        {importResult.details.length > 25 ? `\n… ще ${importResult.details.length - 25} записів` : ''}
+                      </pre>
+                    )}
+                  </div>
+                )}
+                {importResult &&
+                  Array.isArray(importResult.needsCategoryMapping) &&
+                  importResult.needsCategoryMapping.length > 0 && (
+                    <div className="import-step-banner">
+                      <span>
+                        Є {importResult.needsCategoryMapping.length} поз. без категорії — відкрито крок зіставлення.
+                        Якщо вікно не перемкнулось, натисніть кнопку.
+                      </span>
+                      <button type="button" className="btn-import-stock" onClick={() => setImportModalStep(2)}>
+                        Відкрити зіставлення категорій
+                      </button>
+                    </div>
+                  )}
+                <div className="modal-actions" style={{ marginTop: 16 }}>
+                  <button type="button" className="btn-secondary" onClick={closeImportModal}>
+                    Закрити
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleImportStock}
+                    disabled={importLoading}
+                  >
+                    {importLoading ? 'Завантаження…' : importDryRun ? 'Перевірити' : 'Імпортувати'}
+                  </button>
+                </div>
+              </>
             )}
-            {importResult && (
-              <div className="import-result-box">
-                <div><strong>Результат</strong> {importResult.dryRun ? '(перевірка)' : '(імпорт)'}</div>
-                <div>Склад: {importResult.warehouseName || '—'}</div>
-                <div>Створено: {importResult.created ?? '—'} · Оновлено: {importResult.updated ?? '—'} · Пропущено: {importResult.skipped ?? '—'}</div>
-                {Array.isArray(importResult.warnings) && importResult.warnings.length > 0 && (
-                  <div className="import-warn" style={{ marginTop: 8 }}>
-                    <strong>Попередження:</strong>
-                    <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
-                      {importResult.warnings.slice(0, 30).map((w, idx) => (
-                        <li key={idx}>{w}</li>
-                      ))}
-                      {importResult.warnings.length > 30 && (
-                        <li>… ще {importResult.warnings.length - 30}</li>
+
+            {importModalStep === 2 && importResult?.needsCategoryMapping?.length > 0 && (
+              <>
+                <p className="import-global-rules-note">
+                  Правила зберігаються в <code>nomenclatureCategoryMap</code> на сервері і діють для{' '}
+                  <strong>будь-якого складу</strong>: якщо назва номенклатури в Excel збігається з рядком, який ви
+                  зіставите тут, при імпорті з <strong>іншого складу</strong> категорія підставиться автоматично.
+                </p>
+                {importFile?.name && (
+                  <p className="import-hint" style={{ marginTop: 0 }}>
+                    Поточний файл: <strong>{importFile.name}</strong> · склад у файлі:{' '}
+                    <strong>{importResult.warehouseName}</strong>
+                  </p>
+                )}
+                <div className="import-category-split import-category-split--step2">
+                  <div className="import-category-col">
+                    <div className="import-category-col-head">Категорії проєкту</div>
+                    <input
+                      type="search"
+                      className="import-category-search"
+                      placeholder="Пошук за назвою або id…"
+                      value={categoryListFilter}
+                      onChange={(e) => setCategoryListFilter(e.target.value)}
+                    />
+                    <div className="import-category-col-scroll">
+                      {filteredCategoryReference.length === 0 ? (
+                        <div className="import-category-empty">Завантаження або нічого не знайдено</div>
+                      ) : (
+                        filteredCategoryReference.map((c) => (
+                          <div key={c.id} className="import-category-ref-row" title={c.id}>
+                            <span className="import-category-ref-name">{c.name}</span>
+                            <span className="import-category-ref-meta">
+                              {c.itemKind === 'parts' ? 'ЗІП' : 'Товар'}
+                            </span>
+                          </div>
+                        ))
                       )}
-                    </ul>
+                    </div>
                   </div>
-                )}
-                {Array.isArray(importResult.errors) && importResult.errors.length > 0 && (
-                  <div className="import-err" style={{ marginTop: 8 }}>
-                    <strong>Помилки рядків:</strong>
-                    <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
-                      {importResult.errors.map((w, idx) => (
-                        <li key={idx}>{w}</li>
+                  <div className="import-category-col">
+                    <div className="import-category-col-head">Не зіставлено з категорією (з файлу)</div>
+                    <div className="import-category-col-scroll">
+                      {importResult.needsCategoryMapping.map((row) => (
+                        <div key={row.nome} className="import-unmatched-block">
+                          <div className="import-unmatched-nome" title={row.nome}>
+                            {row.nome}
+                          </div>
+                          {row.ruleHint && (
+                            <div className="import-unmatched-hint">Підказка правила: {row.ruleHint}</div>
+                          )}
+                          <select
+                            className="import-unmatched-select"
+                            value={nomenclatureSelections[row.nome] ?? ''}
+                            onChange={(e) =>
+                              setNomenclatureSelections((prev) => ({
+                                ...prev,
+                                [row.nome]: e.target.value,
+                              }))
+                            }
+                          >
+                            <option value="">— оберіть категорію —</option>
+                            {sortedImportCategories.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name} ({c.itemKind === 'parts' ? 'ЗІП' : 'Товар'})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
+                  </div>
+                </div>
+                {mappingSaveMsg && (
+                  <div
+                    className={mappingSaveMsg.type === 'ok' ? 'import-map-msg ok' : 'import-map-msg err'}
+                    role="status"
+                  >
+                    {mappingSaveMsg.text}
                   </div>
                 )}
-                {importResult.details?.length > 0 && (
-                  <pre style={{ marginTop: 10 }}>
-                    {JSON.stringify(importResult.details.slice(0, 40), null, 2)}
-                    {importResult.details.length > 40 ? `\n… ще ${importResult.details.length - 40} записів` : ''}
-                  </pre>
-                )}
-              </div>
+                <div className="modal-actions import-step2-actions">
+                  <button type="button" className="btn-secondary" onClick={() => setImportModalStep(1)}>
+                    ← Назад до файлу
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleSaveNomenclatureMap}
+                    disabled={mappingSaveLoading || sortedImportCategories.length === 0}
+                  >
+                    {mappingSaveLoading ? 'Збереження…' : 'Зберегти відповідності (усі склади)'}
+                  </button>
+                  <button type="button" className="btn-secondary" onClick={closeImportModal}>
+                    Закрити
+                  </button>
+                </div>
+              </>
             )}
-            <div className="modal-actions" style={{ marginTop: 16 }}>
-              <button type="button" className="btn-secondary" onClick={closeImportModal}>
-                Закрити
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={handleImportStock}
-                disabled={importLoading}
-              >
-                {importLoading ? 'Завантаження…' : importDryRun ? 'Перевірити' : 'Імпортувати'}
-              </button>
-            </div>
           </div>
         </div>
       )}

@@ -28,6 +28,10 @@ const DEFAULT_RULES = {
     { pattern: 'упак', batchUnit: 'упаковка' },
   ],
   defaultBatchUnit: 'шт.',
+  /** Зіставлення: назва з правила (categoryName) → точна назва категорії в MongoDB (як у UI) */
+  categoryAliases: {},
+  /** Точна назва номенклатури з Excel → Mongo categoryId (або точна name категорії) */
+  nomenclatureCategoryMap: {},
 };
 
 function loadRules() {
@@ -41,6 +45,11 @@ function loadRules() {
         warehouse1cToName: { ...DEFAULT_RULES.warehouse1cToName, ...(file.warehouse1cToName || {}) },
         categoryRules: file.categoryRules || DEFAULT_RULES.categoryRules,
         unitRules: file.unitRules || DEFAULT_RULES.unitRules,
+        categoryAliases: { ...DEFAULT_RULES.categoryAliases, ...(file.categoryAliases || {}) },
+        nomenclatureCategoryMap: {
+          ...DEFAULT_RULES.nomenclatureCategoryMap,
+          ...(file.nomenclatureCategoryMap || {}),
+        },
       };
     }
   } catch (e) {
@@ -222,23 +231,79 @@ function resolveBatchUnit(nome, rules) {
 
 function buildCategoryIndex(categories) {
   const byName = new Map();
+  const byNameLower = new Map();
   for (const c of categories) {
     const key = (c.name || '').trim();
-    if (key && !byName.has(key)) byName.set(key, c);
+    if (!key) continue;
+    if (!byName.has(key)) byName.set(key, c);
+    const lk = key.toLowerCase();
+    if (!byNameLower.has(lk)) byNameLower.set(lk, c);
   }
-  return byName;
+  return { byName, byNameLower, all: categories };
 }
 
-function resolveCategory(nome, rules, byName) {
-  const name = nome || '';
+function isObjectIdString(s) {
+  return typeof s === 'string' && /^[a-fA-F0-9]{24}$/.test(s.trim());
+}
+
+/**
+ * Правило може містити categoryId (Mongo) або categoryName (+ опційно categoryAliases у rules).
+ */
+function findCategoryForRule(rule, index, aliases) {
+  const { byName, byNameLower, all } = index;
+  const aliasesMap = aliases || {};
+
+  if (rule.categoryId && isObjectIdString(rule.categoryId)) {
+    const id = rule.categoryId.trim();
+    const found = all.find((c) => String(c._id) === id);
+    if (found) return found;
+  }
+
+  const key = rule.categoryName;
+  if (!key || !String(key).trim()) return null;
+  const nm = String(key).trim();
+
+  let cat = byName.get(nm) || byNameLower.get(nm.toLowerCase());
+  if (cat) return cat;
+
+  const alias = aliasesMap[nm] ?? aliasesMap[key];
+  if (alias != null && String(alias).trim()) {
+    const t = String(alias).trim();
+    return byName.get(t) || byNameLower.get(t.toLowerCase());
+  }
+
+  return null;
+}
+
+function resolveCategory(nome, rules, index) {
+  const name = (nome || '').trim();
+  const nomMap = rules.nomenclatureCategoryMap || {};
+  if (name && Object.prototype.hasOwnProperty.call(nomMap, name)) {
+    const rawVal = nomMap[name];
+    if (rawVal !== null && rawVal !== undefined && String(rawVal).trim() !== '') {
+      const raw = String(rawVal).trim();
+      const { all, byName, byNameLower } = index;
+      if (isObjectIdString(raw)) {
+        const cat = all.find((c) => String(c._id) === raw);
+        if (cat) return { categoryId: cat._id, itemKind: cat.itemKind, unmatchedRule: null };
+        return { categoryId: null, itemKind: 'parts', unmatchedRule: `id:${raw}` };
+      }
+      const cat = byName.get(raw) || byNameLower.get(raw.toLowerCase());
+      if (cat) return { categoryId: cat._id, itemKind: cat.itemKind, unmatchedRule: null };
+      return { categoryId: null, itemKind: 'parts', unmatchedRule: `map:${raw}` };
+    }
+  }
+
+  const aliases = rules.categoryAliases || {};
   for (const rule of rules.categoryRules || []) {
     try {
       if (new RegExp(rule.pattern, 'i').test(name)) {
-        const cat = byName.get(rule.categoryName);
+        const cat = findCategoryForRule(rule, index, aliases);
         if (cat) {
           return { categoryId: cat._id, itemKind: cat.itemKind };
         }
-        return { categoryId: null, itemKind: rule.itemKind || 'parts', unmatchedRule: rule.categoryName };
+        const label = rule.categoryName || rule.categoryId || '—';
+        return { categoryId: null, itemKind: rule.itemKind || 'parts', unmatchedRule: label };
       }
     } catch (_) {
       /* ignore */
@@ -297,7 +362,7 @@ async function runStockImport({ Equipment, Category, Warehouse, EventLog, buffer
   }
 
   const categories = await Category.find({}).lean();
-  const byName = buildCategoryIndex(categories);
+  const categoryIndex = buildCategoryIndex(categories);
 
   const summary = {
     sheetName,
@@ -311,9 +376,12 @@ async function runStockImport({ Equipment, Category, Warehouse, EventLog, buffer
     warnings: [],
     errors: [],
     details: [],
+    needsCategoryMapping: [],
+    existingNomenclatureCategoryMap: { ...(rules.nomenclatureCategoryMap || {}) },
   };
 
   const region = warehouseDoc.region || '';
+  const unmatchedNomes = new Map();
 
   for (const item of items) {
     if (item.kind === 'serialized') {
@@ -332,13 +400,16 @@ async function runStockImport({ Equipment, Category, Warehouse, EventLog, buffer
 
     const nome = item.nome;
     const batchUnit = resolveBatchUnit(nome, rules);
-    const { categoryId, itemKind, unmatchedRule } = resolveCategory(nome, rules, byName);
+    const { categoryId, itemKind, unmatchedRule } = resolveCategory(nome, rules, categoryIndex);
 
     if (unmatchedRule && !categoryId) {
       summary.warnings.push(`Категорія «${unmatchedRule}» не знайдена в БД для: ${nome}`);
     }
     if (!categoryId) {
       summary.warnings.push(`Без categoryId (додайте категорію або правило): ${nome}`);
+      if (!unmatchedNomes.has(nome)) {
+        unmatchedNomes.set(nome, { kind: item.kind, ruleHint: unmatchedRule || null });
+      }
     }
 
     try {
@@ -474,6 +545,10 @@ async function runStockImport({ Equipment, Category, Warehouse, EventLog, buffer
       summary.errors.push(`${nome}: ${err.message}`);
     }
   }
+
+  summary.needsCategoryMapping = Array.from(unmatchedNomes.entries())
+    .map(([n, meta]) => ({ nome: n, kind: meta.kind, ruleHint: meta.ruleHint }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'uk'));
 
   if (!dryRun && (summary.created > 0 || summary.updated > 0) && EventLog) {
     try {

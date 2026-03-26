@@ -5214,6 +5214,32 @@ app.get('/api/categories/tree', authenticateToken, async (req, res) => {
   }
 });
 
+// Довідник назв/id категорій для налаштування stock-import-rules.json (імпорт залишків 1С)
+app.get('/api/categories/for-stock-import', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const list = await Category.find({}).sort({ name: 1 }).select('name itemKind parentId').lean();
+    const rows = list.map((c) => ({
+      id: String(c._id),
+      name: c.name,
+      itemKind: c.itemKind,
+      parentId: c.parentId ? String(c.parentId) : null,
+    }));
+    logPerformance('GET /api/categories/for-stock-import', startTime, rows.length);
+    res.json({
+      hint: 'Скопіюйте точне поле name у categoryAliases (ключ — з правила categoryName) або використайте categoryId у categoryRules.',
+      categories: rows,
+    });
+  } catch (error) {
+    console.error('[ERROR] GET /api/categories/for-stock-import:', error);
+    logPerformance('GET /api/categories/for-stock-import', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Створення групи
 app.post('/api/categories', authenticateToken, async (req, res) => {
   const startTime = Date.now();
@@ -5789,6 +5815,54 @@ app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), asy
     console.error('[ERROR] POST /api/equipment/import-stock-xlsx:', error);
     logPerformance('POST /api/equipment/import-stock-xlsx', startTime);
     res.status(400).json({ error: error.message });
+  }
+});
+
+// Зберегти точні відповідності «назва з Excel → categoryId» у config/stock-import-rules.json
+app.post('/api/equipment/stock-import-nomenclature-map', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const map = req.body?.nomenclatureCategoryMap;
+    if (!map || typeof map !== 'object' || Array.isArray(map)) {
+      return res.status(400).json({
+        error: 'Очікується JSON: { nomenclatureCategoryMap: { "рядок з Excel": "mongoCategoryId" } }',
+      });
+    }
+    const rulesPath = path.join(__dirname, 'config', 'stock-import-rules.json');
+    let data = {};
+    if (fs.existsSync(rulesPath)) {
+      try {
+        data = JSON.parse(fs.readFileSync(rulesPath, 'utf8'));
+      } catch (e) {
+        return res.status(500).json({ error: `Не вдалося прочитати stock-import-rules.json: ${e.message}` });
+      }
+    }
+    const cleaned = {};
+    for (const [k, v] of Object.entries(map)) {
+      const nome = String(k).trim();
+      if (!nome) continue;
+      const id = String(v).trim();
+      if (!id) continue;
+      cleaned[nome] = id;
+    }
+    if (Object.keys(cleaned).length === 0) {
+      return res.status(400).json({ error: 'Немає жодної пари з непорожнім categoryId' });
+    }
+    data.nomenclatureCategoryMap = { ...(data.nomenclatureCategoryMap || {}), ...cleaned };
+    fs.writeFileSync(rulesPath, JSON.stringify(data, null, 2), 'utf8');
+    logPerformance('POST /api/equipment/stock-import-nomenclature-map', startTime);
+    res.json({
+      ok: true,
+      savedCount: Object.keys(cleaned).length,
+      file: 'config/stock-import-rules.json',
+    });
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/stock-import-nomenclature-map:', error);
+    logPerformance('POST /api/equipment/stock-import-nomenclature-map', startTime);
+    res.status(500).json({ error: error.message });
   }
 });
 
