@@ -250,17 +250,89 @@ function EquipmentMoveModal({ equipment, warehouses = [], onClose, onSuccess }) 
   // Якщо потрібно показати вибір обладнання
   if (showSelection) {
     return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-content equipment-select-modal two-column-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-overlay modal-overlay--equipment-picker-fullscreen" onClick={onClose}>
+        <div
+          className="modal-content equipment-select-modal equipment-picker-modal-fullscreen"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="modal-header">
             <h2>📦 Переміщення обладнання</h2>
             <button className="btn-close" onClick={onClose}>✕</button>
           </div>
-          <div className="modal-body two-column-body">
-            {/* Ліва колонка - список обладнання */}
-            <div className="equipment-selection-column">
-              <h3>Доступне обладнання</h3>
-              
+          <div className="modal-body equipment-picker-three-col-body">
+            <aside className="equipment-picker-filters-column">
+              <h3 className="equipment-picker-column-title">Фільтри</h3>
+              <div className="equipment-picker-filters">
+                <div className="equipment-picker-filter-row">
+                  <label className="equipment-picker-filter-label">Склад</label>
+                  <select
+                    className="equipment-picker-select"
+                    value={filterWarehouseId}
+                    onChange={(e) => setFilterWarehouseId(e.target.value)}
+                  >
+                    <option value="">Усі склади</option>
+                    {(warehouses || []).map((w) => (
+                      <option key={w._id} value={String(w._id)}>
+                        {w.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="equipment-picker-filter-row">
+                  <label className="equipment-picker-filter-label">Тип</label>
+                  <select
+                    className="equipment-picker-select"
+                    value={filterItemKind}
+                    onChange={(e) => setFilterItemKind(e.target.value)}
+                  >
+                    <option value="">Усі типи</option>
+                    <option value="equipment">Товари</option>
+                    <option value="parts">Деталі / ЗІП</option>
+                  </select>
+                </div>
+                <div className="equipment-picker-filter-row">
+                  <label className="equipment-picker-filter-label">Категорія</label>
+                  <select
+                    className="equipment-picker-select"
+                    value={filterCategoryId}
+                    onChange={(e) => setFilterCategoryId(e.target.value)}
+                  >
+                    <option value="">Усі категорії</option>
+                    {categoryOptions.map((c) => (
+                      <option key={c._id} value={c._id}>
+                        {'\u00A0'.repeat((c.level || 0) * 2)}
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button type="button" className="equipment-picker-reset-btn" onClick={resetPickerFilters}>
+                  Скинути фільтри
+                </button>
+              </div>
+              <div className="equipment-search">
+                <input
+                  type="text"
+                  placeholder="🔍 Пошук (тип, серійний №, виробник) — на сервері…"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  className="equipment-search-input"
+                />
+                {searchInput && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchInput('')}
+                    className="equipment-search-clear"
+                    title="Очистити пошук"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </aside>
+
+            <div className="equipment-picker-available-column">
+              <h3 className="equipment-picker-column-title">Обладнання на складі</h3>
               {loadingEquipment ? (
                 <div className="loading-message">Завантаження...</div>
               ) : equipmentList.length === 0 ? (
@@ -269,103 +341,33 @@ function EquipmentMoveModal({ equipment, warehouses = [], onClose, onSuccess }) 
                     ? 'За обраними фільтрами немає доступного обладнання. Спробуйте змінити умови або скинути фільтри.'
                     : 'Немає доступного обладнання'}
                 </div>
+              ) : groupedEquipment.length === 0 ? (
+                <div className="empty-message">Немає рядків для відображення після групування.</div>
               ) : (
                 <>
-                  <div className="equipment-picker-filters">
-                    <div className="equipment-picker-filter-row">
-                      <label className="equipment-picker-filter-label">Склад</label>
-                      <select
-                        className="equipment-picker-select"
-                        value={filterWarehouseId}
-                        onChange={(e) => setFilterWarehouseId(e.target.value)}
-                      >
-                        <option value="">Усі склади</option>
-                        {(warehouses || []).map((w) => (
-                          <option key={w._id} value={String(w._id)}>
-                            {w.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="equipment-picker-filter-row">
-                      <label className="equipment-picker-filter-label">Тип</label>
-                      <select
-                        className="equipment-picker-select"
-                        value={filterItemKind}
-                        onChange={(e) => setFilterItemKind(e.target.value)}
-                      >
-                        <option value="">Усі типи</option>
-                        <option value="equipment">Товари</option>
-                        <option value="parts">Деталі / ЗІП</option>
-                      </select>
-                    </div>
-                    <div className="equipment-picker-filter-row">
-                      <label className="equipment-picker-filter-label">Категорія</label>
-                      <select
-                        className="equipment-picker-select"
-                        value={filterCategoryId}
-                        onChange={(e) => setFilterCategoryId(e.target.value)}
-                      >
-                        <option value="">Усі категорії</option>
-                        {categoryOptions.map((c) => (
-                          <option key={c._id} value={c._id}>
-                            {'\u00A0'.repeat((c.level || 0) * 2)}
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <button type="button" className="equipment-picker-reset-btn" onClick={resetPickerFilters}>
-                      Скинути фільтри
-                    </button>
+                  <div className="select-all-controls">
+                    <label className="select-all-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={
+                          groupedEquipment.length > 0 &&
+                          groupedEquipment.every((eq) =>
+                            selectedEquipmentList.find((e) => e._id === eq._id)
+                          )
+                        }
+                        onChange={handleSelectAll}
+                      />
+                      <span>
+                        Вибрати все у списку ({selectedEquipmentList.length} вибрано / {groupedEquipment.length}{' '}
+                        у списку)
+                      </span>
+                      {hasActiveFilters && (
+                        <span className="filtered-count"> · Завантажено записів: {equipmentList.length}</span>
+                      )}
+                    </label>
                   </div>
-                  <div className="equipment-search">
-                    <input
-                      type="text"
-                      placeholder="🔍 Пошук (тип, серійний №, виробник) — на сервері…"
-                      value={searchInput}
-                      onChange={(e) => setSearchInput(e.target.value)}
-                      className="equipment-search-input"
-                    />
-                    {searchInput && (
-                      <button
-                        type="button"
-                        onClick={() => setSearchInput('')}
-                        className="equipment-search-clear"
-                        title="Очистити пошук"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                  
-                  {groupedEquipment.length === 0 ? (
-                    <div className="empty-message">Немає рядків для відображення після групування.</div>
-                  ) : (
-                    <>
-                      <div className="select-all-controls">
-                        <label className="select-all-checkbox">
-                          <input
-                            type="checkbox"
-                            checked={
-                              groupedEquipment.length > 0 &&
-                              groupedEquipment.every((eq) =>
-                                selectedEquipmentList.find((e) => e._id === eq._id)
-                              )
-                            }
-                            onChange={handleSelectAll}
-                          />
-                          <span>
-                            Вибрати все у списку ({selectedEquipmentList.length} вибрано / {groupedEquipment.length}{' '}
-                            у списку)
-                          </span>
-                          {hasActiveFilters && (
-                            <span className="filtered-count"> · Завантажено записів: {equipmentList.length}</span>
-                          )}
-                        </label>
-                      </div>
-                      <div className="equipment-select-list">
-                        {groupedEquipment.map((group) => {
+                  <div className="equipment-select-list">
+                    {groupedEquipment.map((group) => {
                           const isBatch = group.isBatch && group.batchId;
                           const isQuantityBased = !isBatch && (!group.serialNumber || group.serialNumber.trim() === '') && group.quantity > 1;
                           const isSelected = selectedEquipmentList.some(e => 
@@ -441,20 +443,19 @@ function EquipmentMoveModal({ equipment, warehouses = [], onClose, onSuccess }) 
                               </div>
                             </div>
                           );
-                        })}
-                      </div>
-                    </>
-                  )}
+                    })}
+                  </div>
                 </>
               )}
             </div>
 
-            {/* Права колонка - вибране обладнання */}
             <div className="selected-equipment-column">
-              <h3>Вибране обладнання ({selectedEquipmentList.length})</h3>
+              <h3 className="equipment-picker-column-title">
+                Вибране обладнання ({selectedEquipmentList.length})
+              </h3>
               {selectedEquipmentList.length === 0 ? (
                 <div className="empty-selection-message">
-                  <p>Виберіть обладнання зі списку зліва</p>
+                  <p>Виберіть обладнання зі списку посередині</p>
                 </div>
               ) : (
                 <div className="selected-equipment-display-list">

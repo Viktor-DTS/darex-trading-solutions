@@ -178,30 +178,102 @@
   max-width: 600px;
 }
 
-.two-column-modal {
-  max-width: 1200px;
-  width: 90vw;
+.modal-overlay--equipment-picker-fullscreen {
+  padding: 0;
+  align-items: stretch;
+  justify-content: stretch;
 }
 
-.two-column-body {
-  display: flex;
-  gap: 20px;
-  min-height: 500px;
-  max-height: 70vh;
-}
-
-.equipment-selection-column {
-  flex: 1;
+.equipment-picker-modal-fullscreen.equipment-select-modal {
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.equipment-picker-modal-fullscreen .modal-body.equipment-picker-three-col-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(260px, 340px);
+  gap: 0;
+  overflow: hidden;
+}
+
+.equipment-picker-filters-column,
+.equipment-picker-available-column,
+.selected-equipment-column {
+  min-height: 0;
   min-width: 0;
 }
 
-.equipment-selection-column h3 {
+.equipment-picker-filters-column {
+  padding: 16px 18px;
+  border-right: 1px solid var(--border-color, #1a2332);
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.equipment-picker-available-column {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px;
+  overflow: hidden;
+}
+
+.equipment-picker-column-title {
   margin: 0 0 12px 0;
-  font-size: 16px;
+  font-size: 15px;
   color: var(--text-primary, #fff);
   font-weight: 600;
+}
+
+.equipment-picker-available-column .loading-message,
+.equipment-picker-available-column .empty-message {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.equipment-picker-available-column .select-all-controls {
+  flex-shrink: 0;
+}
+
+.equipment-picker-available-column .equipment-select-list {
+  flex: 1;
+  min-height: 0;
+  margin-top: 0;
+}
+
+.selected-equipment-column {
+  border-left: 1px solid var(--border-color, #1a2332);
+  padding: 16px 18px 16px 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.selected-equipment-column .selected-equipment-display-list {
+  flex: 1;
+  min-height: 0;
+}
+
+.selected-equipment-column .empty-selection-message {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.selected-equipment-column h3.equipment-picker-column-title {
+  flex-shrink: 0;
 }
 
 .equipment-picker-filters {
@@ -210,7 +282,7 @@
   gap: 8px;
   margin-bottom: 12px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border-color, #1a2332);
   border-radius: 8px;
 }
@@ -314,22 +386,6 @@
   font-size: 12px;
   font-weight: normal;
   margin-left: 4px;
-}
-
-.selected-equipment-column {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  border-left: 1px solid var(--border-color, #1a2332);
-  padding-left: 20px;
-}
-
-.selected-equipment-column h3 {
-  margin: 0 0 12px 0;
-  font-size: 16px;
-  color: var(--text-primary, #fff);
-  font-weight: 600;
 }
 
 .empty-selection-message {
@@ -512,6 +568,39 @@
   font-size: 14px;
 }
 
+@media (max-width: 900px) {
+  .equipment-picker-modal-fullscreen .modal-body.equipment-picker-three-col-body {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .equipment-picker-filters-column {
+    border-right: none;
+    border-bottom: 1px solid var(--border-color, #1a2332);
+    flex-shrink: 0;
+    max-height: 45vh;
+  }
+
+  .equipment-picker-available-column {
+    flex: 1;
+    min-height: 220px;
+    overflow: visible;
+  }
+
+  .equipment-picker-available-column .equipment-select-list {
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  .selected-equipment-column {
+    border-left: none;
+    border-top: 1px solid var(--border-color, #1a2332);
+    flex-shrink: 0;
+    max-height: 40vh;
+  }
+}
+
 @media (max-width: 768px) {
   .modal-content {
     max-width: 100%;
@@ -519,23 +608,9 @@
     border-radius: 12px 12px 0 0;
   }
 
-  .two-column-modal {
-    max-width: 100%;
-    width: 100%;
-  }
-
-  .two-column-body {
-    flex-direction: column;
-    min-height: auto;
-    max-height: none;
-  }
-
-  .selected-equipment-column {
-    border-left: none;
-    border-top: 1px solid var(--border-color, #1a2332);
-    padding-left: 0;
-    padding-top: 20px;
-    margin-top: 20px;
+  .modal-content.equipment-picker-modal-fullscreen {
+    border-radius: 0;
+    max-height: 100vh;
   }
 
   .modal-actions {
