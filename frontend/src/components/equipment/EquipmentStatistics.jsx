@@ -1,18 +1,46 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import API_BASE_URL from '../../config';
 import './EquipmentStatistics.css';
 
 function EquipmentStatistics({ warehouses }) {
   const [statistics, setStatistics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [warehouseMenuOpen, setWarehouseMenuOpen] = useState(false);
+  const warehouseSelectRef = useRef(null);
   const [filters, setFilters] = useState({
     warehouse: '',
     region: ''
   });
 
+  const warehouseTriggerLabel = useMemo(() => {
+    if (!filters.warehouse) return 'Всі склади';
+    const w = (warehouses || []).find(
+      (x) => String(x._id || x.name) === String(filters.warehouse)
+    );
+    return w?.name || 'Всі склади';
+  }, [filters.warehouse, warehouses]);
+
   useEffect(() => {
     loadStatistics();
   }, [filters]);
+
+  useEffect(() => {
+    if (!warehouseMenuOpen) return;
+    const onDocMouseDown = (e) => {
+      if (warehouseSelectRef.current && !warehouseSelectRef.current.contains(e.target)) {
+        setWarehouseMenuOpen(false);
+      }
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setWarehouseMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [warehouseMenuOpen]);
 
   const loadStatistics = async () => {
     setLoading(true);
@@ -64,18 +92,54 @@ function EquipmentStatistics({ warehouses }) {
     <div className="equipment-statistics">
       <div className="statistics-header">
         <h2>📊 Статистика обладнання</h2>
-        <div className="statistics-filters">
-          <select
-            value={filters.warehouse}
-            onChange={(e) => setFilters({ ...filters, warehouse: e.target.value })}
-          >
-            <option value="">Всі склади</option>
-            {warehouses.map(w => (
-              <option key={w._id || w.name} value={w._id || w.name}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+        <div className="statistics-filters" ref={warehouseSelectRef}>
+          <div className={`statistics-custom-select ${warehouseMenuOpen ? 'is-open' : ''}`}>
+            <button
+              type="button"
+              className="statistics-custom-select-trigger"
+              aria-expanded={warehouseMenuOpen}
+              aria-haspopup="listbox"
+              onClick={() => setWarehouseMenuOpen((o) => !o)}
+            >
+              <span className="statistics-custom-select-value">{warehouseTriggerLabel}</span>
+              <span className="statistics-custom-select-chevron" aria-hidden>
+                ▾
+              </span>
+            </button>
+            {warehouseMenuOpen && (
+              <ul className="statistics-custom-select-menu" role="listbox">
+                <li
+                  role="option"
+                  aria-selected={filters.warehouse === ''}
+                  className={filters.warehouse === '' ? 'is-active' : ''}
+                  onClick={() => {
+                    setFilters({ ...filters, warehouse: '' });
+                    setWarehouseMenuOpen(false);
+                  }}
+                >
+                  Всі склади
+                </li>
+                {(warehouses || []).map((w) => {
+                  const val = String(w._id || w.name);
+                  const selected = String(filters.warehouse) === val;
+                  return (
+                    <li
+                      key={val}
+                      role="option"
+                      aria-selected={selected}
+                      className={selected ? 'is-active' : ''}
+                      onClick={() => {
+                        setFilters({ ...filters, warehouse: val });
+                        setWarehouseMenuOpen(false);
+                      }}
+                    >
+                      {w.name}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
 
