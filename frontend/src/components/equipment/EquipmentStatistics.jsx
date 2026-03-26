@@ -80,16 +80,14 @@ function EquipmentStatistics({ warehouses }) {
     return labels[status] || status;
   };
 
-  if (loading) {
-    return <div className="statistics-loading">Завантаження статистики...</div>;
-  }
-
-  if (!statistics) {
-    return <div className="statistics-error">Помилка завантаження статистики</div>;
-  }
-
   return (
-    <div className="equipment-statistics">
+    <div className="equipment-statistics-page">
+      {loading ? (
+        <div className="statistics-loading">Завантаження статистики...</div>
+      ) : !statistics ? (
+        <div className="statistics-error">Помилка завантаження статистики</div>
+      ) : (
+        <div className="equipment-statistics">
       <div className="statistics-header">
         <h2>📊 Статистика обладнання</h2>
         <div className="statistics-filters" ref={warehouseSelectRef}>
@@ -242,6 +240,8 @@ function EquipmentStatistics({ warehouses }) {
               </div>
             ))}
           </div>
+        </div>
+      )}
         </div>
       )}
     </div>

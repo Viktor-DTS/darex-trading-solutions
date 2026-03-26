@@ -1,7 +1,20 @@
+/* Батько в InventoryDashboard має overflow:hidden — прокрутка тут */
+.equipment-statistics-page {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .equipment-statistics {
   padding: 20px;
+  padding-bottom: 32px;
   max-width: 1400px;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .statistics-header {
