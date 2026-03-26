@@ -18,3 +18,6 @@ restore-*/
 
 # Other large files
 *.0000000171
+
+# Local xlsx tooling (npm install xlsx)
+_xlsx_tool/node_modules/
