@@ -55,6 +55,53 @@
   line-height: 1.45;
 }
 
+.import-stock-modal .import-warehouse-row {
+  margin-bottom: 14px;
+}
+
+.import-stock-modal .import-warehouse-row label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+  margin-bottom: 6px;
+}
+
+.import-stock-modal .import-warehouse-select {
+  width: 100%;
+  max-width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #1a2332);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text-primary, #e2e8f0);
+  cursor: pointer;
+}
+
+.import-stock-modal .import-warehouse-select:focus {
+  outline: none;
+  border-color: rgba(100, 149, 237, 0.6);
+}
+
+.import-stock-modal .import-warehouse-badge {
+  font-weight: 500;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.import-stock-modal .import-file-warehouse-note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.import-stock-modal .import-file-warehouse-note code {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
 .import-stock-modal .import-file-row {
   margin-bottom: 14px;
 }

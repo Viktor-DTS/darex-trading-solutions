@@ -27,6 +27,7 @@ function WarehouseManagement({ user }) {
   const [mappingSaveLoading, setMappingSaveLoading] = useState(false);
   /** 1 — вибір файлу / перевірка; 2 — вікно зіставлення категорій (відкривається автоматично, якщо є невідомі позиції) */
   const [importModalStep, setImportModalStep] = useState(1);
+  const [importTargetWarehouseId, setImportTargetWarehouseId] = useState('');
 
   const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
 
@@ -79,6 +80,15 @@ function WarehouseManagement({ user }) {
       setImportModalStep(1);
     }
   }, [importModalStep, importResult]);
+
+  useEffect(() => {
+    if (!importModalOpen || !warehouses.length) return;
+    setImportTargetWarehouseId((prev) => {
+      if (prev) return prev;
+      const active = warehouses.find((w) => w.isActive !== false);
+      return String((active || warehouses[0])._id || '');
+    });
+  }, [importModalOpen, warehouses]);
 
   useEffect(() => {
     if (!importResult?.needsCategoryMapping?.length) {
@@ -243,6 +253,7 @@ function WarehouseManagement({ user }) {
     setNomenclatureSelections({});
     setMappingSaveMsg(null);
     setImportModalStep(1);
+    setImportTargetWarehouseId('');
   };
 
   const closeImportModal = () => {
@@ -256,6 +267,7 @@ function WarehouseManagement({ user }) {
     setNomenclatureSelections({});
     setMappingSaveMsg(null);
     setImportModalStep(1);
+    setImportTargetWarehouseId('');
   };
 
   const handleSaveNomenclatureMap = async () => {
@@ -300,6 +312,10 @@ function WarehouseManagement({ user }) {
       setImportError('Оберіть файл .xlsx');
       return;
     }
+    if (!importTargetWarehouseId || !String(importTargetWarehouseId).trim()) {
+      setImportError('Оберіть склад для імпорту');
+      return;
+    }
     setImportLoading(true);
     setImportError(null);
     setImportResult(null);
@@ -307,6 +323,7 @@ function WarehouseManagement({ user }) {
       const token = localStorage.getItem('token');
       const fd = new FormData();
       fd.append('file', importFile);
+      fd.append('targetWarehouseId', String(importTargetWarehouseId).trim());
       const q = importDryRun ? '?dryRun=1' : '';
       const response = await fetch(`${API_BASE_URL}/equipment/import-stock-xlsx${q}`, {
         method: 'POST',
@@ -454,12 +471,30 @@ function WarehouseManagement({ user }) {
             {importModalStep === 1 && (
               <>
                 <p className="import-hint">
-                  Звіт 1С «Анализ доступности товаров на складах» (.xlsx). Спочатку «Перевірити».
-                  Якщо система не зіставить номенклатуру з категорією проєкту —{' '}
-                  <strong>автоматично відкриється вікно зіставлення</strong> (зліва категорії, справа рядки з файлу).
-                  Збережені пари запам’ятовуються для <strong>усіх складів</strong> — та сама назва в Excel з іншого
-                  складу використає ту саму категорію.
+                  Звіт 1С «Анализ доступности товаров на складах» (.xlsx). Спочатку оберіть{' '}
+                  <strong>склад призначення</strong> — усі позиції з файлу потраплять саме туди (незалежно від
+                  назви складу в Excel). Далі «Перевірити». Якщо не вистачає категорій — відкриється зіставлення;
+                  правила категорій діють для <strong>усіх складів</strong> за однаковою назвою номенклатури.
                 </p>
+                <div className="import-warehouse-row">
+                  <label htmlFor="import-target-warehouse">Склад для імпорту *</label>
+                  <select
+                    id="import-target-warehouse"
+                    className="import-warehouse-select"
+                    value={importTargetWarehouseId}
+                    onChange={(e) => setImportTargetWarehouseId(e.target.value)}
+                  >
+                    <option value="">— оберіть склад —</option>
+                    {[...warehouses]
+                      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'uk'))
+                      .map((w) => (
+                        <option key={w._id} value={w._id}>
+                          {w.name}
+                          {w.isActive === false ? ' (неактивний)' : ''}
+                        </option>
+                      ))}
+                  </select>
+                </div>
                 <div className="import-file-row">
                   <input
                     type="file"
@@ -486,7 +521,17 @@ function WarehouseManagement({ user }) {
                 {importResult && (
                   <div className="import-result-box">
                     <div><strong>Результат</strong> {importResult.dryRun ? '(перевірка)' : '(імпорт)'}</div>
-                    <div>Склад у файлі: {importResult.warehouseName || '—'}</div>
+                    <div>
+                      <strong>Склад призначення:</strong> {importResult.warehouseName || '—'}
+                      {importResult.warehouseSource === 'ui' && (
+                        <span className="import-warehouse-badge"> (обрано вами)</span>
+                      )}
+                    </div>
+                    {importResult.fileWarehouse1c && (
+                      <div className="import-file-warehouse-note">
+                        Рядок складу в Excel: <code>{importResult.fileWarehouse1c}</code>
+                      </div>
+                    )}
                     <div>Створено: {importResult.created ?? '—'} · Оновлено: {importResult.updated ?? '—'} · Пропущено: {importResult.skipped ?? '—'}</div>
                     {Array.isArray(importResult.warnings) && importResult.warnings.length > 0 && (
                       <div className="import-warn" style={{ marginTop: 8 }}>
@@ -557,8 +602,14 @@ function WarehouseManagement({ user }) {
                 </p>
                 {importFile?.name && (
                   <p className="import-hint" style={{ marginTop: 0 }}>
-                    Поточний файл: <strong>{importFile.name}</strong> · склад у файлі:{' '}
+                    Файл: <strong>{importFile.name}</strong> · імпорт на склад:{' '}
                     <strong>{importResult.warehouseName}</strong>
+                    {importResult.fileWarehouse1c && (
+                      <>
+                        {' '}
+                        (у файлі: <code>{importResult.fileWarehouse1c}</code>)
+                      </>
+                    )}
                   </p>
                 )}
                 <div className="import-category-split import-category-split--step2">

@@ -339,8 +339,18 @@ function batchSearchQuery(type, warehouseId, region) {
  * @param {Buffer} params.buffer
  * @param {object} params.adminUser — { _id, login, name, role }
  * @param {boolean} params.dryRun
+ * @param {string} [params.targetWarehouseId] — якщо задано, імпорт на цей склад (UI); інакше склад з файлу + warehouse1cToName
  */
-async function runStockImport({ Equipment, Category, Warehouse, EventLog, buffer, adminUser, dryRun }) {
+async function runStockImport({
+  Equipment,
+  Category,
+  Warehouse,
+  EventLog,
+  buffer,
+  adminUser,
+  dryRun,
+  targetWarehouseId,
+}) {
   const rules = loadRules();
   const { sheetName, rows } = parseXlsxBuffer(buffer);
   const { warehouse1c, items } = parseAvailabilityRows(rows);
@@ -349,16 +359,32 @@ async function runStockImport({ Equipment, Category, Warehouse, EventLog, buffer
     throw new Error('У файлі не виявлено рядок складу (колонка «Склад»).');
   }
 
-  const ourWarehouseName = rules.warehouse1cToName[warehouse1c] || rules.warehouse1cToName[warehouse1c.trim()];
-  if (!ourWarehouseName) {
-    throw new Error(
-      `Немає відповідності складу в config: «${warehouse1c}». Додайте ключ у warehouse1cToName у config/stock-import-rules.json`
-    );
-  }
+  let warehouseDoc;
+  let ourWarehouseName;
+  let warehouseSource;
 
-  const warehouseDoc = await Warehouse.findOne({ name: ourWarehouseName });
-  if (!warehouseDoc) {
-    throw new Error(`Склад «${ourWarehouseName}» не знайдено в базі (колекція Warehouse).`);
+  const targetId = targetWarehouseId && String(targetWarehouseId).trim();
+  if (targetId) {
+    warehouseDoc = await Warehouse.findById(targetId);
+    if (!warehouseDoc) {
+      throw new Error(`Склад не знайдено (id: ${targetId}). Оновіть сторінку та оберіть склад зі списку.`);
+    }
+    ourWarehouseName = warehouseDoc.name;
+    warehouseSource = 'ui';
+  } else {
+    const mapped =
+      rules.warehouse1cToName[warehouse1c] || rules.warehouse1cToName[warehouse1c.trim()];
+    if (!mapped) {
+      throw new Error(
+        `Немає відповідності складу в config: «${warehouse1c}». Додайте ключ у warehouse1cToName у config/stock-import-rules.json або передайте targetWarehouseId з UI.`
+      );
+    }
+    ourWarehouseName = mapped;
+    warehouseDoc = await Warehouse.findOne({ name: ourWarehouseName });
+    if (!warehouseDoc) {
+      throw new Error(`Склад «${ourWarehouseName}» не знайдено в базі (колекція Warehouse).`);
+    }
+    warehouseSource = 'config';
   }
 
   const categories = await Category.find({}).lean();
@@ -367,8 +393,10 @@ async function runStockImport({ Equipment, Category, Warehouse, EventLog, buffer
   const summary = {
     sheetName,
     warehouse1c,
+    fileWarehouse1c: warehouse1c,
     warehouseName: ourWarehouseName,
     warehouseId: String(warehouseDoc._id),
+    warehouseSource,
     dryRun: !!dryRun,
     created: 0,
     updated: 0,

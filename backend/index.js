@@ -5795,6 +5795,7 @@ app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), asy
       return res.status(401).json({ error: 'Користувач не знайдено' });
     }
     const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true' || req.body?.dryRun === true;
+    const targetWarehouseId = req.body?.targetWarehouseId;
     const summary = await runStockImport({
       Equipment,
       Category,
@@ -5808,6 +5809,7 @@ app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), asy
         role: user.role,
       },
       dryRun,
+      targetWarehouseId,
     });
     logPerformance('POST /api/equipment/import-stock-xlsx', startTime);
     res.json(summary);
