@@ -285,6 +285,7 @@ function ManagerDashboard({ user }) {
                   selectedId={selectedCategoryId}
                   onSelectCategory={(id) => setSelectedCategoryId(id)}
                   showAllOption
+                  managerCategoryContext
                 />
               </div>
             )}
@@ -327,6 +328,7 @@ function ManagerDashboard({ user }) {
                   showReserveAction={true}
                   categoryId={selectedCategoryId}
                   includeSubtree
+                  managerCategoryContext
                 />
               </div>
             </div>

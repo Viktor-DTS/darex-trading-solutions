@@ -5223,7 +5223,9 @@ app.get('/api/categories/tree', authenticateToken, async (req, res) => {
     }));
     let tree = build('root');
     const roleLc = (req.user.role || '').toLowerCase();
-    if (['manager', 'mgradm'].includes(roleLc)) {
+    const isManagerRole = ['manager', 'mgradm'].includes(roleLc);
+    const managerCtx = ['1', 'true'].includes(String(req.query.managerCategoryContext || '').toLowerCase());
+    if (isManagerRole || managerCtx) {
       tree = filterCategoryTreeForManagers(tree);
     }
     logPerformance('GET /api/categories/tree', startTime, tree.length);
@@ -5937,7 +5939,7 @@ async function getManagerEquipmentCategoryFilterIds() {
 app.get('/api/equipment', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { warehouse, status, region, search, categoryId, itemKind, includeSubtree } = req.query;
+    const { warehouse, status, region, search, categoryId, itemKind, includeSubtree, managerCategoryContext } = req.query;
     const query = { isDeleted: { $ne: true } }; // Виключаємо видалене обладнання (для ефективного індексу)
     
     if (warehouse) query.currentWarehouse = warehouse;
@@ -5956,12 +5958,15 @@ app.get('/api/equipment', authenticateToken, async (req, res) => {
 
     const roleLc = (req.user.role || '').toLowerCase();
     const isManagerStockRole = ['manager', 'mgradm'].includes(roleLc);
+    const managerCtx = ['1', 'true'].includes(String(managerCategoryContext || '').toLowerCase());
+    const applyManagerCategoryFilter = isManagerStockRole || managerCtx;
+
     let managerAllowedIds = null;
-    if (isManagerStockRole) {
+    if (applyManagerCategoryFilter) {
       managerAllowedIds = await getManagerEquipmentCategoryFilterIds();
     }
 
-    if (isManagerStockRole && managerAllowedIds && managerAllowedIds.length > 0) {
+    if (applyManagerCategoryFilter && managerAllowedIds && managerAllowedIds.length > 0) {
       const allowedSet = new Set(managerAllowedIds.map((id) => id.toString()));
       if (subtreeIds) {
         const filtered = subtreeIds.filter((id) => allowedSet.has(id.toString()));

@@ -41,7 +41,13 @@ function CategoryTreeNode({ node, selectedId, onSelect, level = 0 }) {
   );
 }
 
-export default function CategoryTree({ selectedId, onSelectCategory, showAllOption = true }) {
+export default function CategoryTree({
+  selectedId,
+  onSelectCategory,
+  showAllOption = true,
+  /** true — дерево як у панелі менеджера (лише групи з прапорцем visibleToManagers); для адміна в «Менеджери» теж потрібно */
+  managerCategoryContext = false,
+}) {
   const [tree, setTree] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -53,7 +59,8 @@ export default function CategoryTree({ selectedId, onSelectCategory, showAllOpti
       setError('');
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_BASE_URL}/categories/tree`, {
+        const q = managerCategoryContext ? '?managerCategoryContext=1' : '';
+        const res = await fetch(`${API_BASE_URL}/categories/tree${q}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (!res.ok) throw new Error('Не вдалося завантажити дерево категорій');
@@ -70,7 +77,7 @@ export default function CategoryTree({ selectedId, onSelectCategory, showAllOpti
     };
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [managerCategoryContext]);
 
   if (loading) {
     return (

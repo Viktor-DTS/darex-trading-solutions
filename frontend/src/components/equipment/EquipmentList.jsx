@@ -81,7 +81,19 @@ function formatEquipmentQuantityCell(item) {
   return `${getEquipmentQuantityNumber(item)} ${getEquipmentBatchUnit(item)}`;
 }
 
-const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve, onRequestTesting, showReserveAction = false, categoryId = null, includeSubtree = true }, ref) => {
+const EquipmentList = forwardRef(({
+  user,
+  warehouses,
+  onMove,
+  onShip,
+  onReserve,
+  onRequestTesting,
+  showReserveAction = false,
+  categoryId = null,
+  includeSubtree = true,
+  /** true — фільтр по visibleToManagers (панель менеджера; працює й для адміна під цим контекстом) */
+  managerCategoryContext = false,
+}, ref) => {
   const showReservationClientColumn = canSeeReservationClient(user?.role || '');
   const visibleColumns = useMemo(() =>
     ALL_COLUMNS.filter(col => col.key !== 'reservationClientName' || showReservationClientColumn),
@@ -139,7 +151,7 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
 
   useEffect(() => {
     loadEquipment();
-  }, [categoryId, includeSubtree]);
+  }, [categoryId, includeSubtree, managerCategoryContext]);
 
   const loadEquipment = async () => {
     setLoading(true);
@@ -149,6 +161,9 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
       if (categoryId) {
         params.set('categoryId', categoryId);
         if (includeSubtree) params.set('includeSubtree', 'true');
+      }
+      if (managerCategoryContext) {
+        params.set('managerCategoryContext', '1');
       }
       const url = params.toString() ? `${API_BASE_URL}/equipment?${params}` : `${API_BASE_URL}/equipment`;
       const response = await fetch(url, {
