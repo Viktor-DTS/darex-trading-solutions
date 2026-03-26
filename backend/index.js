@@ -6192,6 +6192,13 @@ app.get('/api/equipment/reservation-history', authenticateToken, async (req, res
   }
 });
 
+/** Активний тест не має «висіти», якщо позицію знято зі складу (видалено, списано, відвантажено повністю). */
+function clearActiveEquipmentTesting(equipment) {
+  if (equipment.testingStatus === 'requested' || equipment.testingStatus === 'in_progress') {
+    equipment.testingStatus = 'none';
+  }
+}
+
 // ============================================
 // ТЕСТУВАННЯ ОБЛАДНАННЯ - GET запит (має бути ПЕРЕД /:id)
 // ============================================
@@ -6207,7 +6214,9 @@ app.get('/api/equipment/testing-requests', authenticateToken, async (req, res) =
     }
     
     const filter = {
-      testingStatus: { $in: statusArray }
+      testingStatus: { $in: statusArray },
+      isDeleted: { $ne: true },
+      status: { $nin: ['deleted', 'written_off'] }
     };
     
     const equipment = await Equipment.find(filter)
@@ -7060,6 +7069,7 @@ app.delete('/api/equipment/:id', authenticateToken, async (req, res) => {
     // Позначаємо як видалене (soft delete)
     equipment.isDeleted = true;
     equipment.status = 'deleted';
+    clearActiveEquipmentTesting(equipment);
     equipment.lastModified = new Date();
 
     await equipment.save();
@@ -7137,6 +7147,7 @@ app.post('/api/equipment/quantity/write-off', authenticateToken, async (req, res
     if (quantity >= availableQuantity) {
       equipment.quantity = 0;
       equipment.status = 'written_off';
+      clearActiveEquipmentTesting(equipment);
     } else {
       // Якщо списуємо частину - зменшуємо кількість
       equipment.quantity = availableQuantity - quantity;
@@ -7211,6 +7222,7 @@ app.post('/api/equipment/:id/write-off', authenticateToken, async (req, res) => 
     equipment.writeOffHistory.push(writeOff);
     
     equipment.status = 'written_off';
+    clearActiveEquipmentTesting(equipment);
     equipment.lastModified = new Date();
     
     await equipment.save();
@@ -7510,6 +7522,7 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
         // Видаляємо поточне обладнання (вся кількість переміщена)
         equipment.status = 'deleted';
         equipment.isDeleted = true;
+        clearActiveEquipmentTesting(equipment);
         equipment.lastModified = new Date();
         await equipment.save();
         
@@ -7826,6 +7839,7 @@ app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
       
       item.shipmentHistory.push(shipment);
       item.status = 'shipped';
+      clearActiveEquipmentTesting(item);
       item.lastModified = new Date();
       
       try {
@@ -7939,6 +7953,7 @@ app.post('/api/equipment/quantity/ship', authenticateToken, async (req, res) => 
       
       equipment.shipmentHistory.push(shipment);
       equipment.status = 'shipped';
+      clearActiveEquipmentTesting(equipment);
       equipment.lastModified = new Date();
       
       await equipment.save();
@@ -8152,6 +8167,7 @@ app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
     
     equipment.shipmentHistory.push(shipment);
     equipment.status = 'shipped';
+    clearActiveEquipmentTesting(equipment);
     equipment.lastModified = new Date();
     
     await equipment.save();
