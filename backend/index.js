@@ -122,6 +122,11 @@ const uploadEquipmentPhotoForOCR = multer({
   }
 });
 
+const uploadStockXlsx = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 }
+});
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -5745,6 +5750,45 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
     console.error('[ERROR] POST /api/equipment/scan:', error);
     logPerformance('POST /api/equipment/scan', startTime);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Імпорт залишків з Excel (звіт 1С «Анализ доступности товаров на складах»)
+const { runStockImport } = require('./lib/stockXlsxImport');
+app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено (потрібна роль admin)' });
+    }
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: 'Файл не завантажено (поле file, формат .xlsx)' });
+    }
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true' || req.body?.dryRun === true;
+    const summary = await runStockImport({
+      Equipment,
+      Category,
+      Warehouse,
+      EventLog,
+      buffer: req.file.buffer,
+      adminUser: {
+        _id: user._id,
+        login: user.login,
+        name: user.name,
+        role: user.role,
+      },
+      dryRun,
+    });
+    logPerformance('POST /api/equipment/import-stock-xlsx', startTime);
+    res.json(summary);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/import-stock-xlsx:', error);
+    logPerformance('POST /api/equipment/import-stock-xlsx', startTime);
+    res.status(400).json({ error: error.message });
   }
 });
 
