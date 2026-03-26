@@ -56,6 +56,31 @@ const ALL_COLUMNS = [
 
 const canSeeReservationClient = (role) => ['admin', 'administrator', 'mgradm'].includes(role);
 
+/** Одиниця виміру з картки (batchUnit); для згрупованої партії — з першого рядка, де вона задана */
+function getEquipmentBatchUnit(item) {
+  if (item?.batchUnit && String(item.batchUnit).trim()) return String(item.batchUnit).trim();
+  if (item?.batchItems?.length) {
+    const row = item.batchItems.find((b) => b?.batchUnit && String(b.batchUnit).trim());
+    if (row) return String(row.batchUnit).trim();
+  }
+  return 'шт.';
+}
+
+/** Число для колонки «Кількість»: для згрупованої партії — сума quantity по рядках */
+function getEquipmentQuantityNumber(item) {
+  if (item?.isGrouped && item.batchItems?.length) {
+    const sum = item.batchItems.reduce((s, b) => s + (Number(b.quantity) || 0), 0);
+    if (sum > 0) return sum;
+  }
+  const q = Number(item?.quantity);
+  if (Number.isFinite(q) && q > 0) return q;
+  return 1;
+}
+
+function formatEquipmentQuantityCell(item) {
+  return `${getEquipmentQuantityNumber(item)} ${getEquipmentBatchUnit(item)}`;
+}
+
 const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve, onRequestTesting, showReserveAction = false, categoryId = null, includeSubtree = true }, ref) => {
   const showReservationClientColumn = canSeeReservationClient(user?.role || '');
   const visibleColumns = useMemo(() =>
@@ -640,28 +665,35 @@ const EquipmentList = forwardRef(({ user, warehouses, onMove, onShip, onReserve,
                   <td className="cell-truncate" title={formatValue(item.manufacturer, 'manufacturer')}>
                     {formatValue(item.manufacturer, 'manufacturer')}
                   </td>
-                  <td className="cell-truncate" title={item.isGrouped && item.batchCount ? `${formatValue(item.type, 'type')} × ${item.batchCount} шт.` : formatValue(item.type, 'type')}>
+                  <td
+                    className="cell-truncate"
+                    title={
+                      item.isGrouped && item.batchCount
+                        ? `${formatValue(item.type, 'type')} × ${item.batchCount} поз. у партії`
+                        : formatValue(item.type, 'type')
+                    }
+                  >
                     {item.isGrouped && item.batchCount ? (
                       <span style={{ fontWeight: 'bold' }}>
-                        {formatValue(item.type, 'type')} × {item.batchCount} шт.
+                        {formatValue(item.type, 'type')} × {item.batchCount} поз.
                       </span>
                     ) : (
                       formatValue(item.type, 'type')
                     )}
                   </td>
                   <td>
-                    {item.quantity && item.quantity > 1 ? (
+                    {getEquipmentQuantityNumber(item) > 1 ? (
                       <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
-                        {item.quantity} шт.
+                        {formatEquipmentQuantityCell(item)}
                       </span>
                     ) : (
-                      '1 шт.'
+                      formatEquipmentQuantityCell(item)
                     )}
                   </td>
                   <td>
                     {item.isGrouped && item.batchCount ? (
                       <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
-                        Партія: {item.batchCount} шт.
+                        Партія: {item.batchCount} поз.
                       </span>
                     ) : (
                       formatValue(item.serialNumber, 'serialNumber')
