@@ -4,6 +4,15 @@
   color: var(--text-primary, #333);
 }
 
+.category-tree-header {
+  flex-shrink: 0;
+}
+
+.category-tree-scroll {
+  /* У звичайних місцях — природна висота; у сайдбарі складу — flex + overflow */
+  min-height: 0;
+}
+
 .category-tree-loading,
 .category-tree-error {
   padding: 12px;
@@ -22,6 +31,10 @@
   color: var(--text-secondary, #666);
   margin-bottom: 8px;
   padding-left: 4px;
+}
+
+.category-tree-header .category-tree-title {
+  margin-bottom: 6px;
 }
 
 .category-tree-node {

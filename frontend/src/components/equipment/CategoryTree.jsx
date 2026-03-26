@@ -73,32 +73,50 @@ export default function CategoryTree({ selectedId, onSelectCategory, showAllOpti
   }, []);
 
   if (loading) {
-    return <div className="category-tree category-tree-loading">Завантаження...</div>;
+    return (
+      <div className="category-tree category-tree-loading">
+        <div className="category-tree-header">
+          <div className="category-tree-title">Номенклатура</div>
+        </div>
+        <div className="category-tree-scroll">Завантаження...</div>
+      </div>
+    );
   }
   if (error) {
-    return <div className="category-tree category-tree-error">{error}</div>;
+    return (
+      <div className="category-tree category-tree-error">
+        <div className="category-tree-header">
+          <div className="category-tree-title">Номенклатура</div>
+        </div>
+        <div className="category-tree-scroll">{error}</div>
+      </div>
+    );
   }
 
   return (
     <div className="category-tree">
-      <div className="category-tree-title">Номенклатура</div>
-      {showAllOption && (
-        <div
-          className={`category-tree-row ${!selectedId ? 'selected' : ''}`}
-          onClick={() => onSelectCategory(null, null)}
-        >
-          <span className="category-tree-toggle"> </span>
-          <span className="category-tree-label">Всі</span>
-        </div>
-      )}
-      {tree.map((root) => (
-        <CategoryTreeNode
-          key={root._id}
-          node={root}
-          selectedId={selectedId}
-          onSelect={onSelectCategory}
-        />
-      ))}
+      <div className="category-tree-header">
+        <div className="category-tree-title">Номенклатура</div>
+        {showAllOption && (
+          <div
+            className={`category-tree-row ${!selectedId ? 'selected' : ''}`}
+            onClick={() => onSelectCategory(null, null)}
+          >
+            <span className="category-tree-toggle"> </span>
+            <span className="category-tree-label">Всі</span>
+          </div>
+        )}
+      </div>
+      <div className="category-tree-scroll">
+        {tree.map((root) => (
+          <CategoryTreeNode
+            key={root._id}
+            node={root}
+            selectedId={selectedId}
+            onSelect={onSelectCategory}
+          />
+        ))}
+      </div>
     </div>
   );
 }
