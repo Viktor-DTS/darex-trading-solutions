@@ -1,16 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import API_BASE_URL from '../../config';
 import { getEdrpouList } from '../../utils/edrpouAPI';
+import { flattenCategoriesForSelect } from '../../utils/equipmentPickerCategories';
 import ClientDataSelectionModal from '../ClientDataSelectionModal';
 import EquipmentFileUpload from './EquipmentFileUpload';
 import './EquipmentShipModal.css';
 
-function EquipmentShipModal({ equipment, onClose, onSuccess }) {
+function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess }) {
   const [selectedEquipmentList, setSelectedEquipmentList] = useState(equipment ? [equipment] : []);
   const [equipmentList, setEquipmentList] = useState([]);
   const [loadingEquipment, setLoadingEquipment] = useState(false);
   const [showSelection, setShowSelection] = useState(!equipment);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filterWarehouseId, setFilterWarehouseId] = useState('');
+  const [filterItemKind, setFilterItemKind] = useState('');
+  const [filterCategoryId, setFilterCategoryId] = useState('');
+  const [categoryOptions, setCategoryOptions] = useState([]);
   const [shippedTo, setShippedTo] = useState('');
   const [orderNumber, setOrderNumber] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
@@ -34,17 +40,83 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
   const [filteredEdrpouList, setFilteredEdrpouList] = useState([]);
   const [clientDataModal, setClientDataModal] = useState({ open: false, edrpou: '' });
 
-  // Завантаження списку обладнання, якщо не передано
   useEffect(() => {
-    if (!equipment) {
-      loadEquipment();
-    } else {
-      // Ініціалізуємо кількість для обладнання без серійного номера
-      const isQuantityBased = !equipment.batchId && (!equipment.serialNumber || equipment.serialNumber.trim() === '') && equipment.quantity > 1;
+    const t = setTimeout(() => setDebouncedSearch(searchInput), 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  useEffect(() => {
+    if (equipment) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingEquipment(true);
+      try {
+        const token = localStorage.getItem('token');
+        const params = new URLSearchParams();
+        if (filterWarehouseId) params.set('warehouse', filterWarehouseId);
+        if (filterItemKind === 'equipment' || filterItemKind === 'parts') params.set('itemKind', filterItemKind);
+        if (filterCategoryId) {
+          params.set('categoryId', filterCategoryId);
+          params.set('includeSubtree', 'true');
+        }
+        if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+        const qs = params.toString();
+        const response = await fetch(`${API_BASE_URL}/equipment${qs ? `?${qs}` : ''}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok || cancelled) return;
+        const data = await response.json();
+        setEquipmentList(
+          data.filter(
+            (eq) =>
+              !eq.deleted &&
+              eq.status !== 'written_off' &&
+              eq.status !== 'deleted' &&
+              (eq.status === 'in_stock' || eq.status === 'reserved' || !eq.status)
+          )
+        );
+      } catch (err) {
+        console.error('Помилка завантаження обладнання:', err);
+      } finally {
+        if (!cancelled) setLoadingEquipment(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [equipment, filterWarehouseId, filterItemKind, filterCategoryId, debouncedSearch]);
+
+  useEffect(() => {
+    if (equipment) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE_URL}/categories/tree`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setCategoryOptions(flattenCategoriesForSelect(Array.isArray(data) ? data : []));
+      } catch {
+        if (!cancelled) setCategoryOptions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [equipment]);
+
+  useEffect(() => {
+    if (equipment) {
+      const isQuantityBased =
+        !equipment.batchId &&
+        (!equipment.serialNumber || equipment.serialNumber.trim() === '') &&
+        equipment.quantity > 1;
       if (isQuantityBased) {
-        setQuantityBasedQuantities(prev => ({
+        setQuantityBasedQuantities((prev) => ({
           ...prev,
-          [equipment._id]: equipment.quantity || 1
+          [equipment._id]: equipment.quantity || 1,
         }));
       }
     }
@@ -58,32 +130,6 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
       })
       .catch(err => console.error('Помилка завантаження ЄДРПОУ:', err));
   }, []);
-
-  const loadEquipment = async () => {
-    setLoadingEquipment(true);
-    try {
-      const token = localStorage.getItem('token');
-      // Завантажуємо обладнання зі статусами in_stock та reserved
-      const response = await fetch(`${API_BASE_URL}/equipment`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Фільтруємо тільки доступне обладнання (не видалене, не списане, але включаємо зарезервоване)
-        setEquipmentList(data.filter(eq => 
-          !eq.deleted && 
-          eq.status !== 'written_off' && 
-          eq.status !== 'deleted' &&
-          (eq.status === 'in_stock' || eq.status === 'reserved' || !eq.status)
-        ));
-      }
-    } catch (error) {
-      console.error('Помилка завантаження обладнання:', error);
-    } finally {
-      setLoadingEquipment(false);
-    }
-  };
 
   const handleEquipmentToggle = (eq) => {
     setSelectedEquipmentList(prev => {
@@ -131,43 +177,28 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
     return [...Object.values(groups), ...singleItems];
   }, [equipmentList]);
 
-  // Фільтрація обладнання по пошуковому запиту
-  const filteredEquipmentList = useMemo(() => {
-    let result = groupedEquipment;
-    
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = groupedEquipment.filter(eq => {
-        const type = (eq.type || '').toLowerCase();
-        const serialNumber = (eq.serialNumber || '').toLowerCase();
-        const warehouse = (eq.currentWarehouseName || eq.currentWarehouse || '').toLowerCase();
-        const manufacturer = (eq.manufacturer || '').toLowerCase();
-        const region = (eq.region || '').toLowerCase();
-        const batchId = (eq.batchId || '').toLowerCase();
-        
-        return type.includes(query) ||
-               serialNumber.includes(query) ||
-               warehouse.includes(query) ||
-               manufacturer.includes(query) ||
-               region.includes(query) ||
-               batchId.includes(query);
-      });
-    }
-    
-    return result;
-  }, [groupedEquipment, searchQuery]);
+  const hasActiveFilters =
+    !!filterWarehouseId ||
+    !!filterItemKind ||
+    !!filterCategoryId ||
+    !!debouncedSearch.trim();
 
   const handleSelectAll = () => {
-    if (selectedEquipmentList.length === filteredEquipmentList.length && filteredEquipmentList.length > 0) {
-      // Знімаємо вибір з усіх відфільтрованих
-      const filteredIds = new Set(filteredEquipmentList.map(eq => eq._id));
-      setSelectedEquipmentList(prev => prev.filter(eq => !filteredIds.has(eq._id)));
+    if (selectedEquipmentList.length === groupedEquipment.length && groupedEquipment.length > 0) {
+      const filteredIds = new Set(groupedEquipment.map((eq) => eq._id));
+      setSelectedEquipmentList((prev) => prev.filter((eq) => !filteredIds.has(eq._id)));
     } else {
-      // Додаємо всі відфільтровані до вибраних
-      const filteredIds = new Set(selectedEquipmentList.map(eq => eq._id));
-      const toAdd = filteredEquipmentList.filter(eq => !filteredIds.has(eq._id));
-      setSelectedEquipmentList(prev => [...prev, ...toAdd]);
+      const filteredIds = new Set(selectedEquipmentList.map((eq) => eq._id));
+      const toAdd = groupedEquipment.filter((eq) => !filteredIds.has(eq._id));
+      setSelectedEquipmentList((prev) => [...prev, ...toAdd]);
     }
+  };
+
+  const resetPickerFilters = () => {
+    setFilterWarehouseId('');
+    setFilterItemKind('');
+    setFilterCategoryId('');
+    setSearchInput('');
   };
 
   const handleBatchSelect = (batch) => {
@@ -255,21 +286,73 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
               {loadingEquipment ? (
                 <div className="loading-message">Завантаження...</div>
               ) : equipmentList.length === 0 ? (
-                <div className="empty-message">Немає доступного обладнання</div>
+                <div className="empty-message">
+                  {hasActiveFilters
+                    ? 'За обраними фільтрами немає доступного обладнання. Спробуйте змінити умови або скинути фільтри.'
+                    : 'Немає доступного обладнання'}
+                </div>
               ) : (
                 <>
+                  <div className="equipment-picker-filters">
+                    <div className="equipment-picker-filter-row">
+                      <label className="equipment-picker-filter-label">Склад</label>
+                      <select
+                        className="equipment-picker-select"
+                        value={filterWarehouseId}
+                        onChange={(e) => setFilterWarehouseId(e.target.value)}
+                      >
+                        <option value="">Усі склади</option>
+                        {(warehouses || []).map((w) => (
+                          <option key={w._id} value={String(w._id)}>
+                            {w.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="equipment-picker-filter-row">
+                      <label className="equipment-picker-filter-label">Тип</label>
+                      <select
+                        className="equipment-picker-select"
+                        value={filterItemKind}
+                        onChange={(e) => setFilterItemKind(e.target.value)}
+                      >
+                        <option value="">Усі типи</option>
+                        <option value="equipment">Товари</option>
+                        <option value="parts">Деталі / ЗІП</option>
+                      </select>
+                    </div>
+                    <div className="equipment-picker-filter-row">
+                      <label className="equipment-picker-filter-label">Категорія</label>
+                      <select
+                        className="equipment-picker-select"
+                        value={filterCategoryId}
+                        onChange={(e) => setFilterCategoryId(e.target.value)}
+                      >
+                        <option value="">Усі категорії</option>
+                        {categoryOptions.map((c) => (
+                          <option key={c._id} value={c._id}>
+                            {'\u00A0'.repeat((c.level || 0) * 2)}
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button type="button" className="equipment-picker-reset-btn" onClick={resetPickerFilters}>
+                      Скинути фільтри
+                    </button>
+                  </div>
                   <div className="equipment-search">
                     <input
                       type="text"
-                      placeholder="🔍 Пошук по всіх полях..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="🔍 Пошук (тип, серійний №, виробник) — на сервері…"
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
                       className="equipment-search-input"
                     />
-                    {searchQuery && (
+                    {searchInput && (
                       <button
                         type="button"
-                        onClick={() => setSearchQuery('')}
+                        onClick={() => setSearchInput('')}
                         className="equipment-search-clear"
                         title="Очистити пошук"
                       >
@@ -278,26 +361,33 @@ function EquipmentShipModal({ equipment, onClose, onSuccess }) {
                     )}
                   </div>
                   
-                  {filteredEquipmentList.length === 0 ? (
-                    <div className="empty-message">Нічого не знайдено за запитом "{searchQuery}"</div>
+                  {groupedEquipment.length === 0 ? (
+                    <div className="empty-message">Немає рядків для відображення після групування.</div>
                   ) : (
                     <>
                       <div className="select-all-controls">
                         <label className="select-all-checkbox">
                           <input
                             type="checkbox"
-                            checked={filteredEquipmentList.length > 0 && 
-                                    filteredEquipmentList.every(eq => selectedEquipmentList.find(e => e._id === eq._id))}
+                            checked={
+                              groupedEquipment.length > 0 &&
+                              groupedEquipment.every((eq) =>
+                                selectedEquipmentList.find((e) => e._id === eq._id)
+                              )
+                            }
                             onChange={handleSelectAll}
                           />
-                          <span>Вибрати все ({selectedEquipmentList.length}/{equipmentList.length})</span>
-                          {searchQuery && (
-                            <span className="filtered-count"> (Знайдено: {filteredEquipmentList.length})</span>
+                          <span>
+                            Вибрати все у списку ({selectedEquipmentList.length} вибрано / {groupedEquipment.length}{' '}
+                            у списку)
+                          </span>
+                          {hasActiveFilters && (
+                            <span className="filtered-count"> · Завантажено записів: {equipmentList.length}</span>
                           )}
                         </label>
                       </div>
                       <div className="equipment-select-list">
-                        {filteredEquipmentList.map(group => {
+                        {groupedEquipment.map((group) => {
                           const isBatch = group.isBatch && group.batchId;
                           const isQuantityBased = !isBatch && (!group.serialNumber || group.serialNumber.trim() === '') && group.quantity > 1;
                           const isSelected = selectedEquipmentList.some(e => 

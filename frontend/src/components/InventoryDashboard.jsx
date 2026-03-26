@@ -379,6 +379,7 @@ function InventoryDashboard({ user }) {
       {showShipModal && (
         <EquipmentShipModal
           equipment={selectedEquipment}
+          warehouses={warehouses}
           onClose={() => {
             setShowShipModal(false);
             setSelectedEquipment(null);

@@ -5893,6 +5893,11 @@ app.post('/api/equipment/stock-import-nomenclature-map', async (req, res) => {
   }
 });
 
+/** Екранування для безпечного використання рядка користувача в MongoDB $regex */
+function escapeRegexForMongo(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Допоміжна: зібрати id усіх нащадків категорії (включно з id)
 async function getCategoryDescendantIds(categoryId) {
   const ids = [typeof categoryId === 'string' ? new mongoose.Types.ObjectId(categoryId) : categoryId];
@@ -5980,11 +5985,12 @@ app.get('/api/equipment', authenticateToken, async (req, res) => {
         : { $in: subtreeIds };
     }
 
-    if (search) {
+    if (search && String(search).trim()) {
+      const safe = escapeRegexForMongo(String(search).trim());
       query.$or = [
-        { serialNumber: { $regex: search, $options: 'i' } },
-        { type: { $regex: search, $options: 'i' } },
-        { manufacturer: { $regex: search, $options: 'i' } }
+        { serialNumber: { $regex: safe, $options: 'i' } },
+        { type: { $regex: safe, $options: 'i' } },
+        { manufacturer: { $regex: safe, $options: 'i' } },
       ];
     }
     
