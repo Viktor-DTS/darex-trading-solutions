@@ -2,7 +2,7 @@
   "warehouse1cToName": {
     "СКЛАД Белая Церковь СОЛЮШН": "Склад Біла Церква ДТС"
   },
-  "instructions_uk": "nomenclatureCategoryMap — глобально для всіх складів: однакова назва номенклатури з Excel у будь-якому файлі. Заповнюється з UI (крок зіставлення) або вручну. categoryAliases — для regex-правил (коротка назва → name з UI).",
+  "instructions_uk": "nomenclatureCategoryMap у цьому файлі — лише локальні дефолти; з UI «Зберегти відповідності» пари йдуть у MongoDB (stockimport_nomenclature_maps) і перекривають файл. categoryAliases — regex-правила (коротка назва → name з UI).",
   "categoryAliases": {},
   "nomenclatureCategoryMap": {}
 }

@@ -340,6 +340,7 @@ function batchSearchQuery(type, warehouseId, region) {
  * @param {object} params.adminUser — { _id, login, name, role }
  * @param {boolean} params.dryRun
  * @param {string} [params.targetWarehouseId] — якщо задано, імпорт на цей склад (UI); інакше склад з файлу + warehouse1cToName
+ * @param {Record<string, string>} [params.nomenclatureCategoryMapFromDb] — пари з MongoDB (перекривають файл config)
  */
 async function runStockImport({
   Equipment,
@@ -350,8 +351,12 @@ async function runStockImport({
   adminUser,
   dryRun,
   targetWarehouseId,
+  nomenclatureCategoryMapFromDb,
 }) {
   const rules = loadRules();
+  const fileNomMap = { ...(rules.nomenclatureCategoryMap || {}) };
+  const dbNomMap = { ...(nomenclatureCategoryMapFromDb || {}) };
+  rules.nomenclatureCategoryMap = { ...fileNomMap, ...dbNomMap };
   const { sheetName, rows } = parseXlsxBuffer(buffer);
   const { warehouse1c, items } = parseAvailabilityRows(rows);
 

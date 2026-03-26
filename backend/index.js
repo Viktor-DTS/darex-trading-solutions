@@ -636,6 +636,21 @@ const warehouseSchema = new mongoose.Schema({
 warehouseSchema.index({ name: 1 }, { unique: true });
 const Warehouse = mongoose.model('Warehouse', warehouseSchema);
 
+/** Один документ: точні пари «назва з Excel → categoryId» для імпорту залишків (персистентно на Render тощо). */
+const STOCK_IMPORT_NOMENCLATURE_DOC_ID = 'singleton';
+const stockImportNomenclatureSchema = new mongoose.Schema({
+  _id: { type: String, default: STOCK_IMPORT_NOMENCLATURE_DOC_ID },
+  nomenclatureCategoryMap: { type: mongoose.Schema.Types.Mixed, default: {} },
+}, { collection: 'stockimport_nomenclature_maps' });
+const StockImportNomenclature = mongoose.model('StockImportNomenclature', stockImportNomenclatureSchema);
+
+async function loadStockImportNomenclatureMap() {
+  const doc = await StockImportNomenclature.findById(STOCK_IMPORT_NOMENCLATURE_DOC_ID).lean();
+  const m = doc?.nomenclatureCategoryMap;
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return {};
+  return { ...m };
+}
+
 // ============================================
 // МОДЕЛІ ДОКУМЕНТІВ СКЛАДСЬКОГО ОБЛІКУ
 // ============================================
@@ -5214,7 +5229,7 @@ app.get('/api/categories/tree', authenticateToken, async (req, res) => {
   }
 });
 
-// Довідник назв/id категорій для налаштування stock-import-rules.json (імпорт залишків 1С)
+// Довідник назв/id категорій для імпорту залишків 1С (правила категорій у config + MongoDB)
 app.get('/api/categories/for-stock-import', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
@@ -5796,6 +5811,7 @@ app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), asy
     }
     const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true' || req.body?.dryRun === true;
     const targetWarehouseId = req.body?.targetWarehouseId;
+    const nomenclatureCategoryMapFromDb = await loadStockImportNomenclatureMap();
     const summary = await runStockImport({
       Equipment,
       Category,
@@ -5810,6 +5826,7 @@ app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), asy
       },
       dryRun,
       targetWarehouseId,
+      nomenclatureCategoryMapFromDb,
     });
     logPerformance('POST /api/equipment/import-stock-xlsx', startTime);
     res.json(summary);
@@ -5820,7 +5837,7 @@ app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), asy
   }
 });
 
-// Зберегти точні відповідності «назва з Excel → categoryId» у config/stock-import-rules.json
+// Зберегти точні відповідності «назва з Excel → categoryId» у MongoDB (персистентно; файл у repo лише дефолти)
 app.post('/api/equipment/stock-import-nomenclature-map', async (req, res) => {
   const startTime = Date.now();
   try {
@@ -5833,15 +5850,6 @@ app.post('/api/equipment/stock-import-nomenclature-map', async (req, res) => {
         error: 'Очікується JSON: { nomenclatureCategoryMap: { "рядок з Excel": "mongoCategoryId" } }',
       });
     }
-    const rulesPath = path.join(__dirname, 'config', 'stock-import-rules.json');
-    let data = {};
-    if (fs.existsSync(rulesPath)) {
-      try {
-        data = JSON.parse(fs.readFileSync(rulesPath, 'utf8'));
-      } catch (e) {
-        return res.status(500).json({ error: `Не вдалося прочитати stock-import-rules.json: ${e.message}` });
-      }
-    }
     const cleaned = {};
     for (const [k, v] of Object.entries(map)) {
       const nome = String(k).trim();
@@ -5853,13 +5861,20 @@ app.post('/api/equipment/stock-import-nomenclature-map', async (req, res) => {
     if (Object.keys(cleaned).length === 0) {
       return res.status(400).json({ error: 'Немає жодної пари з непорожнім categoryId' });
     }
-    data.nomenclatureCategoryMap = { ...(data.nomenclatureCategoryMap || {}), ...cleaned };
-    fs.writeFileSync(rulesPath, JSON.stringify(data, null, 2), 'utf8');
+    const current = await loadStockImportNomenclatureMap();
+    const merged = { ...current, ...cleaned };
+    await StockImportNomenclature.updateOne(
+      { _id: STOCK_IMPORT_NOMENCLATURE_DOC_ID },
+      { $set: { nomenclatureCategoryMap: merged } },
+      { upsert: true },
+    );
     logPerformance('POST /api/equipment/stock-import-nomenclature-map', startTime);
     res.json({
       ok: true,
       savedCount: Object.keys(cleaned).length,
-      file: 'config/stock-import-rules.json',
+      storage: 'mongodb',
+      collection: 'stockimport_nomenclature_maps',
+      totalKeys: Object.keys(merged).length,
     });
   } catch (error) {
     console.error('[ERROR] POST /api/equipment/stock-import-nomenclature-map:', error);

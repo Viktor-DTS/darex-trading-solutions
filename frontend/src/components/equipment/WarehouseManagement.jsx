@@ -298,7 +298,7 @@ function WarehouseManagement({ user }) {
       }
       setMappingSaveMsg({
         type: 'ok',
-        text: `Збережено ${data.savedCount} відповідностей (діють для всіх складів). Поверніться до файлу та натисніть «Перевірити» знову або імпортуйте інший склад — ті самі назви вже підставлять категорію.`,
+        text: `Збережено в БД ${data.savedCount} відповідностей (усього ключів у мапі: ${data.totalKeys ?? '—'}). Поверніться на крок 1 і натисніть «Перевірити» знову — збережені назви вже підставлять категорію.`,
       });
     } catch (err) {
       setMappingSaveMsg({ type: 'err', text: err.message || 'Помилка мережі' });
@@ -596,9 +596,9 @@ function WarehouseManagement({ user }) {
             {importModalStep === 2 && importResult?.needsCategoryMapping?.length > 0 && (
               <>
                 <p className="import-global-rules-note">
-                  Правила зберігаються в <code>nomenclatureCategoryMap</code> на сервері і діють для{' '}
-                  <strong>будь-якого складу</strong>: якщо назва номенклатури в Excel збігається з рядком, який ви
-                  зіставите тут, при імпорті з <strong>іншого складу</strong> категорія підставиться автоматично.
+                  Після «Зберегти відповідності» пари записуються в <strong>базу даних</strong> (колекція{' '}
+                  <code>stockimport_nomenclature_maps</code>) і не зникають після оновлення сторінки чи редеплою.
+                  Діють для <strong>будь-якого складу</strong> за збігом точної назви номенклатури в Excel.
                 </p>
                 {importFile?.name && (
                   <p className="import-hint" style={{ marginTop: 0 }}>
