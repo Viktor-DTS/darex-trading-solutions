@@ -14,6 +14,14 @@ function WarehouseManagement({ user }) {
     address: ''
   });
   const [errors, setErrors] = useState([]);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importDryRun, setImportDryRun] = useState(true);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [importError, setImportError] = useState(null);
+
+  const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
 
   useEffect(() => {
     loadWarehouses();
@@ -158,6 +166,57 @@ function WarehouseManagement({ user }) {
     }
   };
 
+  const openImportModal = () => {
+    setImportModalOpen(true);
+    setImportFile(null);
+    setImportResult(null);
+    setImportError(null);
+    setImportDryRun(true);
+  };
+
+  const closeImportModal = () => {
+    setImportModalOpen(false);
+    setImportFile(null);
+    setImportResult(null);
+    setImportError(null);
+    setImportLoading(false);
+  };
+
+  const handleImportStock = async () => {
+    if (!importFile) {
+      setImportError('Оберіть файл .xlsx');
+      return;
+    }
+    setImportLoading(true);
+    setImportError(null);
+    setImportResult(null);
+    try {
+      const token = localStorage.getItem('token');
+      const fd = new FormData();
+      fd.append('file', importFile);
+      const q = importDryRun ? '?dryRun=1' : '';
+      const response = await fetch(`${API_BASE_URL}/equipment/import-stock-xlsx${q}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setImportError(data.error || `Помилка ${response.status}`);
+        return;
+      }
+      setImportResult(data);
+      if (!importDryRun) {
+        loadWarehouses();
+      }
+    } catch (err) {
+      console.error('Імпорт залишків:', err);
+      setImportError(err.message || 'Помилка мережі');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   const handleToggleActive = async (warehouse) => {
     try {
       const token = localStorage.getItem('token');
@@ -182,9 +241,16 @@ function WarehouseManagement({ user }) {
     <div className="warehouse-management">
       <div className="management-header">
         <h2>🏢 Управління складами</h2>
-        <button className="btn-primary" onClick={() => handleOpenModal()}>
-          ➕ Додати склад
-        </button>
+        <div className="management-header-actions">
+          {isAdmin && (
+            <button type="button" className="btn-import-stock" onClick={openImportModal}>
+              📥 Імпорт залишків (1С / Excel)
+            </button>
+          )}
+          <button className="btn-primary" onClick={() => handleOpenModal()}>
+            ➕ Додати склад
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -252,6 +318,93 @@ function WarehouseManagement({ user }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {importModalOpen && (
+        <div className="modal-overlay" onClick={closeImportModal}>
+          <div className="modal-content import-stock-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>📥 Імпорт залишків з Excel</h2>
+              <button type="button" className="btn-close" onClick={closeImportModal}>✕</button>
+            </div>
+            <p className="import-hint">
+              Звіт 1С «Анализ доступности товаров на складах» (.xlsx). Склад у файлі має відповідати
+              налаштуванню <code>config/stock-import-rules.json</code> на сервері. Спочатку виконайте
+              перевірку без запису.
+            </p>
+            <div className="import-file-row">
+              <input
+                type="file"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={(e) => {
+                  setImportFile(e.target.files?.[0] || null);
+                  setImportError(null);
+                  setImportResult(null);
+                }}
+              />
+            </div>
+            <label className="import-dry-run">
+              <input
+                type="checkbox"
+                checked={importDryRun}
+                onChange={(e) => setImportDryRun(e.target.checked)}
+              />
+              Лише перевірка (нічого не записувати в базу)
+            </label>
+            {importError && (
+              <div className="error-message import-err" style={{ marginBottom: 12 }}>{importError}</div>
+            )}
+            {importResult && (
+              <div className="import-result-box">
+                <div><strong>Результат</strong> {importResult.dryRun ? '(перевірка)' : '(імпорт)'}</div>
+                <div>Склад: {importResult.warehouseName || '—'}</div>
+                <div>Створено: {importResult.created ?? '—'} · Оновлено: {importResult.updated ?? '—'} · Пропущено: {importResult.skipped ?? '—'}</div>
+                {Array.isArray(importResult.warnings) && importResult.warnings.length > 0 && (
+                  <div className="import-warn" style={{ marginTop: 8 }}>
+                    <strong>Попередження:</strong>
+                    <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                      {importResult.warnings.slice(0, 30).map((w, idx) => (
+                        <li key={idx}>{w}</li>
+                      ))}
+                      {importResult.warnings.length > 30 && (
+                        <li>… ще {importResult.warnings.length - 30}</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+                {Array.isArray(importResult.errors) && importResult.errors.length > 0 && (
+                  <div className="import-err" style={{ marginTop: 8 }}>
+                    <strong>Помилки рядків:</strong>
+                    <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                      {importResult.errors.map((w, idx) => (
+                        <li key={idx}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {importResult.details?.length > 0 && (
+                  <pre style={{ marginTop: 10 }}>
+                    {JSON.stringify(importResult.details.slice(0, 40), null, 2)}
+                    {importResult.details.length > 40 ? `\n… ще ${importResult.details.length - 40} записів` : ''}
+                  </pre>
+                )}
+              </div>
+            )}
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button type="button" className="btn-secondary" onClick={closeImportModal}>
+                Закрити
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleImportStock}
+                disabled={importLoading}
+              >
+                {importLoading ? 'Завантаження…' : importDryRun ? 'Перевірити' : 'Імпортувати'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

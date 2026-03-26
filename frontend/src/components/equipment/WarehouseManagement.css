@@ -19,6 +19,90 @@
   color: var(--text-primary, #fff);
 }
 
+.management-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-import-stock {
+  background: rgba(100, 149, 237, 0.2);
+  border: 1px solid rgba(100, 149, 237, 0.5);
+  color: #a8c4ff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.btn-import-stock:hover:not(:disabled) {
+  background: rgba(100, 149, 237, 0.35);
+  border-color: #6495ed;
+}
+
+.btn-import-stock:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.import-stock-modal .import-hint {
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+
+.import-stock-modal .import-file-row {
+  margin-bottom: 14px;
+}
+
+.import-stock-modal .import-file-row input[type="file"] {
+  width: 100%;
+  font-size: 13px;
+}
+
+.import-stock-modal .import-dry-run {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: var(--text-primary, #e2e8f0);
+  cursor: pointer;
+}
+
+.import-stock-modal .import-result-box {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-color, #1a2332);
+  max-height: 280px;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary, #cbd5e1);
+}
+
+.import-stock-modal .import-result-box pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.import-stock-modal .import-warn {
+  color: #fbbf24;
+}
+
+.import-stock-modal .import-err {
+  color: #f87171;
+}
+
 .warehouses-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
