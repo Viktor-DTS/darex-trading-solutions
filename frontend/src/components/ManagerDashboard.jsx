@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import API_BASE_URL from '../config';
 import EquipmentList from './equipment/EquipmentList';
+import CategoryTree from './equipment/CategoryTree';
 import ClientsTab from './manager/ClientsTab';
 import SalesTab from './manager/SalesTab';
 import SalesReportTab from './manager/SalesReportTab';
@@ -32,10 +33,15 @@ function ManagerDashboard({ user }) {
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false);
   const equipmentListRef = useRef(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
 
   useEffect(() => {
     loadWarehouses();
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'stock') setSelectedCategoryId(null);
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === 'history') {
@@ -273,6 +279,15 @@ function ManagerDashboard({ user }) {
                 <span className="tab-label">Перевірка клієнта</span>
               </button>
             </nav>
+            {activeTab === 'stock' && (
+              <div className="manager-sidebar-nomenclature">
+                <CategoryTree
+                  selectedId={selectedCategoryId}
+                  onSelectCategory={(id) => setSelectedCategoryId(id)}
+                  showAllOption
+                />
+              </div>
+            )}
           </div>
         </aside>
 
@@ -310,6 +325,8 @@ function ManagerDashboard({ user }) {
                   onReserve={handleReserve}
                   onRequestTesting={handleRequestTesting}
                   showReserveAction={true}
+                  categoryId={selectedCategoryId}
+                  includeSubtree
                 />
               </div>
             </div>

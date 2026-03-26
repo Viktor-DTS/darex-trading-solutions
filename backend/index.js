@@ -618,7 +618,9 @@ const categorySchema = new mongoose.Schema({
   parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', default: null },
   name: { type: String, required: true },
   itemKind: { type: String, enum: ['equipment', 'parts'], required: true },
-  sortOrder: { type: Number, default: 0 }
+  sortOrder: { type: Number, default: 0 },
+  /** Якщо true — група видима менеджерам у дереві номенклатури та в залишках (разом із нащадками). За замовчуванням false. */
+  visibleToManagers: { type: Boolean, default: false },
 }, { timestamps: true });
 
 categorySchema.index({ parentId: 1 });
@@ -5219,7 +5221,11 @@ app.get('/api/categories/tree', authenticateToken, async (req, res) => {
       ...node,
       children: build(node._id.toString())
     }));
-    const tree = build('root');
+    let tree = build('root');
+    const roleLc = (req.user.role || '').toLowerCase();
+    if (['manager', 'mgradm'].includes(roleLc)) {
+      tree = filterCategoryTreeForManagers(tree);
+    }
     logPerformance('GET /api/categories/tree', startTime, tree.length);
     res.json(tree);
   } catch (error) {
@@ -5262,7 +5268,7 @@ app.post('/api/categories', authenticateToken, async (req, res) => {
     if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
-    const { parentId, name, itemKind, sortOrder } = req.body;
+    const { parentId, name, itemKind, sortOrder, visibleToManagers } = req.body;
     if (!name || !itemKind || !['equipment', 'parts'].includes(itemKind)) {
       return res.status(400).json({ error: 'Потрібні name та itemKind (equipment|parts)' });
     }
@@ -5270,7 +5276,8 @@ app.post('/api/categories', authenticateToken, async (req, res) => {
       parentId: parentId || null,
       name: name.trim(),
       itemKind,
-      sortOrder: typeof sortOrder === 'number' ? sortOrder : 0
+      sortOrder: typeof sortOrder === 'number' ? sortOrder : 0,
+      visibleToManagers: visibleToManagers === true,
     });
     logPerformance('POST /api/categories', startTime);
     res.status(201).json(category);
@@ -5288,12 +5295,13 @@ app.put('/api/categories/:id', authenticateToken, async (req, res) => {
     if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
-    const { name, parentId, itemKind, sortOrder } = req.body;
+    const { name, parentId, itemKind, sortOrder, visibleToManagers } = req.body;
     const update = {};
     if (name !== undefined) update.name = name.trim();
     if (parentId !== undefined) update.parentId = parentId || null;
     if (itemKind !== undefined && ['equipment', 'parts'].includes(itemKind)) update.itemKind = itemKind;
     if (sortOrder !== undefined) update.sortOrder = Number(sortOrder);
+    if (visibleToManagers !== undefined) update.visibleToManagers = !!visibleToManagers;
     const category = await Category.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
     if (!category) return res.status(404).json({ error: 'Категорію не знайдено' });
     logPerformance('PUT /api/categories/:id', startTime);
@@ -5896,6 +5904,35 @@ async function getCategoryDescendantIds(categoryId) {
   return ids;
 }
 
+/** Дерево категорій лише з гілок, де є прапорець visibleToManagers (або він є у нащадка). */
+function filterCategoryTreeForManagers(nodes) {
+  if (!Array.isArray(nodes)) return [];
+  const out = [];
+  for (const node of nodes) {
+    const children = filterCategoryTreeForManagers(node.children || []);
+    const self = node.visibleToManagers === true;
+    if (self || children.length > 0) {
+      out.push({ ...node, children });
+    }
+  }
+  return out;
+}
+
+/**
+ * Якщо хоча б одна категорія з visibleToManagers — усі дозволені id (категорія + нащадки).
+ * Якщо жодної — null (обмежень немає, поведінка як раніше).
+ */
+async function getManagerEquipmentCategoryFilterIds() {
+  const seeds = await Category.find({ visibleToManagers: true }).select('_id').lean();
+  if (!seeds.length) return null;
+  const merged = new Map();
+  for (const s of seeds) {
+    const desc = await getCategoryDescendantIds(s._id);
+    desc.forEach((id) => merged.set(id.toString(), id));
+  }
+  return Array.from(merged.values());
+}
+
 // Отримання списку обладнання
 app.get('/api/equipment', authenticateToken, async (req, res) => {
   const startTime = Date.now();
@@ -5907,14 +5944,37 @@ app.get('/api/equipment', authenticateToken, async (req, res) => {
     if (status) query.status = status;
     if (region) query.region = region;
     if (itemKind && ['equipment', 'parts'].includes(itemKind)) query.itemKind = itemKind;
+
+    let subtreeIds = null;
     if (categoryId) {
       if (includeSubtree === 'true') {
-        const categoryIds = await getCategoryDescendantIds(categoryId);
-        query.categoryId = { $in: categoryIds };
+        subtreeIds = await getCategoryDescendantIds(categoryId);
       } else {
-        query.categoryId = categoryId;
+        subtreeIds = [typeof categoryId === 'string' ? new mongoose.Types.ObjectId(categoryId) : categoryId];
       }
     }
+
+    const roleLc = (req.user.role || '').toLowerCase();
+    const isManagerStockRole = ['manager', 'mgradm'].includes(roleLc);
+    let managerAllowedIds = null;
+    if (isManagerStockRole) {
+      managerAllowedIds = await getManagerEquipmentCategoryFilterIds();
+    }
+
+    if (isManagerStockRole && managerAllowedIds && managerAllowedIds.length > 0) {
+      const allowedSet = new Set(managerAllowedIds.map((id) => id.toString()));
+      if (subtreeIds) {
+        const filtered = subtreeIds.filter((id) => allowedSet.has(id.toString()));
+        query.categoryId = filtered.length ? { $in: filtered } : { $in: [] };
+      } else {
+        query.categoryId = { $in: managerAllowedIds };
+      }
+    } else if (subtreeIds) {
+      query.categoryId = subtreeIds.length === 1 && includeSubtree !== 'true'
+        ? subtreeIds[0]
+        : { $in: subtreeIds };
+    }
+
     if (search) {
       query.$or = [
         { serialNumber: { $regex: search, $options: 'i' } },

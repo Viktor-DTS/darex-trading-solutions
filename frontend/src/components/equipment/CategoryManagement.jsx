@@ -24,9 +24,16 @@ export default function CategoryManagement({ user }) {
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
-  const [form, setForm] = useState({ parentId: '', name: '', itemKind: 'equipment', sortOrder: 0 });
+  const [form, setForm] = useState({
+    parentId: '',
+    name: '',
+    itemKind: 'equipment',
+    sortOrder: 0,
+    visibleToManagers: false,
+  });
   const [saving, setSaving] = useState(false);
   const [migrateResult, setMigrateResult] = useState('');
+  const [togglingManagersId, setTogglingManagersId] = useState(null);
 
   const loadTree = async () => {
     setLoading(true);
@@ -68,7 +75,8 @@ export default function CategoryManagement({ user }) {
           parentId: form.parentId || null,
           name: form.name.trim(),
           itemKind: form.itemKind,
-          sortOrder: Number(form.sortOrder) || 0
+          sortOrder: Number(form.sortOrder) || 0,
+          visibleToManagers: !!form.visibleToManagers,
         })
       });
       if (!res.ok) {
@@ -110,7 +118,8 @@ export default function CategoryManagement({ user }) {
       parentId: node.parentId?.toString?.() || node.parentId || '',
       name: node.name || '',
       itemKind: node.itemKind || 'equipment',
-      sortOrder: node.sortOrder ?? 0
+      sortOrder: node.sortOrder ?? 0,
+      visibleToManagers: !!node.visibleToManagers,
     });
   };
 
@@ -132,7 +141,8 @@ export default function CategoryManagement({ user }) {
           name: form.name.trim(),
           parentId: form.parentId || null,
           itemKind: form.itemKind,
-          sortOrder: Number(form.sortOrder) || 0
+          sortOrder: Number(form.sortOrder) || 0,
+          visibleToManagers: !!form.visibleToManagers,
         })
       });
       if (!res.ok) {
@@ -140,7 +150,7 @@ export default function CategoryManagement({ user }) {
         throw new Error(err.error || 'Помилка збереження');
       }
       setEditingCategory(null);
-      setForm({ parentId: '', name: '', itemKind: 'equipment', sortOrder: 0 });
+      setForm({ parentId: '', name: '', itemKind: 'equipment', sortOrder: 0, visibleToManagers: false });
       loadTree();
     } catch (e) {
       setError(e.message);
@@ -178,15 +188,51 @@ export default function CategoryManagement({ user }) {
     return !editingIds.includes(cid);
   });
 
+  const handleToggleManagersVisible = async (node, next) => {
+    const id = node._id?.toString?.() || node._id;
+    if (!id) return;
+    setTogglingManagersId(id);
+    setError('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/categories/${id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ visibleToManagers: next }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Помилка збереження');
+      }
+      await loadTree();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setTogglingManagersId(null);
+    }
+  };
+
   return (
     <div className="category-management">
       <div className="category-management-header">
         <h2>Дерево категорій номенклатури (1С)</h2>
         <p className="category-management-desc">
           Корені: <strong>Товари</strong> (обладнання для продажу) та <strong>Деталі та комплектуючі</strong>. Можна додавати нові батьківські (кореневі) групи або підгрупи до існуючих.
+          Прапорець <strong>«менеджерам»</strong> біля рядка або в формі: якщо увімкнено, група та всі підгрупи показуються менеджерам у панелі «Залишки на складах»; якщо жодна група не позначена — менеджери бачать усі залишки (як раніше).
         </p>
         <div className="category-management-actions">
-          <button type="button" className="btn-primary" onClick={() => { setShowForm(true); setEditingCategory(null); setForm({ parentId: '', name: '', itemKind: 'equipment', sortOrder: 0 }); }}>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              setShowForm(true);
+              setEditingCategory(null);
+              setForm({ parentId: '', name: '', itemKind: 'equipment', sortOrder: 0, visibleToManagers: false });
+            }}
+          >
             + Додати групу
           </button>
           <button type="button" className="btn-secondary" onClick={handleMigrate} disabled={saving}>
@@ -253,6 +299,16 @@ export default function CategoryManagement({ user }) {
               onChange={(e) => setForm(f => ({ ...f, sortOrder: e.target.value }))}
             />
           </div>
+          <div className="form-row form-row-checkbox">
+            <label className="category-checkbox-label">
+              <input
+                type="checkbox"
+                checked={!!form.visibleToManagers}
+                onChange={(e) => setForm((f) => ({ ...f, visibleToManagers: e.target.checked }))}
+              />
+              <span>Показувати менеджерам у панелі «Залишки на складах»</span>
+            </label>
+          </div>
           <div className="form-actions">
             <button type="submit" disabled={saving || !form.name.trim()}>
               {saving ? 'Збереження...' : (editingCategory ? 'Зберегти' : 'Створити')}
@@ -262,7 +318,7 @@ export default function CategoryManagement({ user }) {
               onClick={() => {
                 setShowForm(false);
                 setEditingCategory(null);
-                setForm({ parentId: '', name: '', itemKind: 'equipment', sortOrder: 0 });
+                setForm({ parentId: '', name: '', itemKind: 'equipment', sortOrder: 0, visibleToManagers: false });
                 setError('');
               }}
             >
@@ -283,6 +339,8 @@ export default function CategoryManagement({ user }) {
               onDelete={handleDelete}
               onEdit={handleEdit}
               onRefresh={loadTree}
+              onToggleManagersVisible={handleToggleManagersVisible}
+              togglingManagersId={togglingManagersId}
             />
           ))}
         </div>
@@ -291,9 +349,18 @@ export default function CategoryManagement({ user }) {
   );
 }
 
-function CategoryNode({ node, onDelete, onEdit, onRefresh, level = 0 }) {
+function CategoryNode({
+  node,
+  onDelete,
+  onEdit,
+  onRefresh,
+  onToggleManagersVisible,
+  togglingManagersId,
+  level = 0,
+}) {
   const [expanded, setExpanded] = useState(true);
   const hasChildren = node.children && node.children.length > 0;
+  const nid = node._id?.toString?.() || node._id;
 
   return (
     <div className="category-node" style={{ marginLeft: level * 20 }}>
@@ -312,12 +379,36 @@ function CategoryNode({ node, onDelete, onEdit, onRefresh, level = 0 }) {
           <button type="button" className="btn-delete-small" onClick={() => onDelete(node._id)} title="Видалити групу (перевіряється наявність підгруп і номенклатури)">
             Видалити
           </button>
+          {onToggleManagersVisible && (
+            <label
+              className="category-managers-toggle"
+              title="Увімкніть, щоб група (і підгрупи) відображалась менеджерам у «Залишки на складах»"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                type="checkbox"
+                checked={!!node.visibleToManagers}
+                disabled={togglingManagersId === nid}
+                onChange={(e) => onToggleManagersVisible(node, e.target.checked)}
+              />
+              <span>менеджерам</span>
+            </label>
+          )}
         </span>
       </div>
       {hasChildren && expanded && (
         <div className="category-node-children">
           {node.children.map((child) => (
-            <CategoryNode key={child._id} node={child} onDelete={onDelete} onEdit={onEdit} onRefresh={onRefresh} level={level + 1} />
+            <CategoryNode
+              key={child._id}
+              node={child}
+              onDelete={onDelete}
+              onEdit={onEdit}
+              onRefresh={onRefresh}
+              onToggleManagersVisible={onToggleManagersVisible}
+              togglingManagersId={togglingManagersId}
+              level={level + 1}
+            />
           ))}
         </div>
       )}

@@ -1,6 +1,6 @@
 .category-management {
   padding: 20px;
-  max-width: 900px;
+  max-width: 1100px;
 }
 
 .category-management-header h2 {
@@ -69,6 +69,25 @@
   font-size: 14px;
 }
 
+.category-form .form-row-checkbox {
+  margin-top: 4px;
+}
+
+.category-checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  max-width: 480px;
+}
+
+.category-checkbox-label input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
 .category-form .form-actions {
   display: flex;
   gap: 10px;
@@ -108,7 +127,8 @@
 .category-node-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px 10px;
   padding: 8px 10px;
   border-radius: 6px;
   background: var(--background);
@@ -133,8 +153,30 @@
 
 .category-node-actions {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.category-managers-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.category-managers-toggle input {
+  cursor: pointer;
+}
+
+.category-managers-toggle input:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
 
 .btn-edit-small {

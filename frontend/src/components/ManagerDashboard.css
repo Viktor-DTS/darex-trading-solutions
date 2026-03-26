@@ -16,14 +16,15 @@
 
 /* Ширина сайдбару під масштаб 80%: 180*0.8=144px */
 .manager-sidebar {
-  width: 144px;
-  min-width: 144px;
+  width: 180px;
+  min-width: 180px;
   background: var(--surface);
   border-right: 1px solid var(--border);
   overflow: hidden;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 /* Контент сайдбару в масштабі 80% */
@@ -31,14 +32,52 @@
   transform: scale(0.8);
   transform-origin: 0 0;
   width: 125%;
-  min-height: 125%;
+  flex: 1;
+  min-height: 0;
   padding: 12px 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .manager-sidebar-nav {
   padding: 15px 0;
+  flex-shrink: 0;
+}
+
+/* Дерево номенклатури на вкладці «Залишки» (для менеджера — лише групи з прапорцем у адмінці) */
+.manager-sidebar-nomenclature {
+  flex: 1 1 0;
+  min-height: 0;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.manager-sidebar-nomenclature .category-tree {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.manager-sidebar-nomenclature .category-tree-title {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.manager-sidebar-nomenclature .category-tree-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
 }
 
 .sidebar-section-title {
