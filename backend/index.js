@@ -338,45 +338,66 @@ const globalCalculationCoefficientsSchema = new mongoose.Schema({
 }, { strict: false });
 const GlobalCalculationCoefficients = mongoose.model('GlobalCalculationCoefficients', globalCalculationCoefficientsSchema);
 
-const DEFAULT_GLOBAL_COEFFICIENT_ROWS = [
-  { id: 'service_margin_pct', label: 'Маржа сервісу, %', value: 0, note: '' },
-  { id: 'global_adjustment', label: 'Глобальний коригувальний коефіцієнт', value: 1, note: '' },
-  { id: 'logistics_coef', label: 'Коефіцієнт логістики', value: 1, note: '' }
+// Склад рядків задається лише тут; у Mongo зберігаються лише id + value
+const PROGRAMMATIC_SALES_COEFFICIENTS = [
+  {
+    id: 'sales_bonus',
+    label: 'Премія від продажів',
+    defaultValue: 0,
+    note:
+      'Відсоток начислення премії менеджерам при успішно реалізованій угоді, начислення відбувається ціна продажу мінус витрати.'
+  }
 ];
 
-function cloneDefaultCoefficientRows() {
-  return JSON.parse(JSON.stringify(DEFAULT_GLOBAL_COEFFICIENT_ROWS));
+const PROGRAMMATIC_SERVICE_COEFFICIENTS = [];
+
+function getProgrammaticCoefficientDefs(scope) {
+  return scope === 'sales' ? PROGRAMMATIC_SALES_COEFFICIENTS : PROGRAMMATIC_SERVICE_COEFFICIENTS;
 }
 
-async function ensureGlobalCoefficientsDoc(doc) {
-  let changed = false;
-  const hasNew =
-    (doc.salesRows && doc.salesRows.length) ||
-    (doc.serviceRows && doc.serviceRows.length);
-  if (!hasNew && doc.rows && doc.rows.length) {
-    doc.serviceRows = doc.rows.map((r) => ({ ...r }));
-    doc.salesRows = cloneDefaultCoefficientRows();
-    changed = true;
-  } else {
-    if (!doc.salesRows || !doc.salesRows.length) {
-      doc.salesRows = cloneDefaultCoefficientRows();
-      changed = true;
-    }
-    if (!doc.serviceRows || !doc.serviceRows.length) {
-      doc.serviceRows = cloneDefaultCoefficientRows();
-      changed = true;
+function valueMapFromSavedRows(savedRows) {
+  const m = {};
+  if (!Array.isArray(savedRows)) return m;
+  for (const r of savedRows) {
+    if (r && r.id != null) {
+      const v = r.value;
+      m[String(r.id)] =
+        typeof v === 'number' && !Number.isNaN(v) ? v : parseFloat(v) || 0;
     }
   }
-  if (changed) await doc.save();
-  return doc;
+  return m;
 }
 
-function mapCoefficientRows(bodyRows) {
-  return bodyRows.map((row, i) => ({
-    id: String(row.id || `row_${i}_${Date.now()}`),
-    label: String(row.label || '').trim() || `Коефіцієнт ${i + 1}`,
-    value: typeof row.value === 'number' && !Number.isNaN(row.value) ? row.value : parseFloat(row.value) || 0,
-    note: row.note != null ? String(row.note) : ''
+/** Повний набір для API/UI: назва та примітка з коду, значення з БД */
+function buildCoefficientRowsForScope(scope, savedRows) {
+  const defs = getProgrammaticCoefficientDefs(scope);
+  const map = valueMapFromSavedRows(savedRows);
+  return defs.map((d) => ({
+    id: d.id,
+    label: d.label,
+    note: d.note || '',
+    value: map[d.id] !== undefined ? map[d.id] : d.defaultValue
+  }));
+}
+
+/** Зберігаємо компактно { id, value }; невідомі id ігноруємо */
+function serializeCoefficientValuesForDb(scope, bodyRows) {
+  const defs = getProgrammaticCoefficientDefs(scope);
+  if (!defs.length) return [];
+  const allowed = new Set(defs.map((d) => d.id));
+  const byId = {};
+  if (Array.isArray(bodyRows)) {
+    for (const row of bodyRows) {
+      if (!row || !allowed.has(row.id)) continue;
+      const raw = row.value;
+      const v =
+        typeof raw === 'number' && !Number.isNaN(raw) ? raw : parseFloat(raw) || 0;
+      byId[row.id] = v;
+    }
+  }
+  return defs.map((d) => ({
+    id: d.id,
+    value: byId[d.id] !== undefined ? byId[d.id] : d.defaultValue
   }));
 }
 
@@ -3292,21 +3313,19 @@ app.get('/api/global-calculation-coefficients', authenticateToken, async (req, r
     let doc = await GlobalCalculationCoefficients.findOne();
     if (!doc) {
       doc = await GlobalCalculationCoefficients.create({
-        salesRows: cloneDefaultCoefficientRows(),
-        serviceRows: cloneDefaultCoefficientRows()
+        salesRows: [],
+        serviceRows: []
       });
     }
-    await ensureGlobalCoefficientsDoc(doc);
-    doc = await GlobalCalculationCoefficients.findOne();
     logPerformance('GET /api/global-calculation-coefficients', startTime);
     res.json({
       sales: {
-        rows: doc.salesRows,
+        rows: buildCoefficientRowsForScope('sales', doc.salesRows),
         updatedAt: doc.salesUpdatedAt,
         updatedByLogin: doc.salesUpdatedByLogin
       },
       service: {
-        rows: doc.serviceRows,
+        rows: buildCoefficientRowsForScope('service', doc.serviceRows),
         updatedAt: doc.serviceUpdatedAt,
         updatedByLogin: doc.serviceUpdatedByLogin
       }
@@ -3332,20 +3351,19 @@ app.post('/api/global-calculation-coefficients', authenticateToken, async (req, 
     if (!body || !Array.isArray(body.rows)) {
       return res.status(400).json({ error: 'Очікується об\'єкт з масивом rows' });
     }
-    const rows = mapCoefficientRows(body.rows);
+    const compactRows = serializeCoefficientValuesForDb(scope, body.rows);
     let doc = await GlobalCalculationCoefficients.findOne();
     if (!doc) {
-      doc = new GlobalCalculationCoefficients({});
+      doc = new GlobalCalculationCoefficients({ salesRows: [], serviceRows: [] });
     }
-    await ensureGlobalCoefficientsDoc(doc);
     const login = req.user.login || req.user.name || '';
     const now = new Date();
     if (scope === 'sales') {
-      doc.salesRows = rows;
+      doc.salesRows = compactRows;
       doc.salesUpdatedAt = now;
       doc.salesUpdatedByLogin = login;
     } else {
-      doc.serviceRows = rows;
+      doc.serviceRows = compactRows;
       doc.serviceUpdatedAt = now;
       doc.serviceUpdatedByLogin = login;
     }
@@ -3354,12 +3372,12 @@ app.post('/api/global-calculation-coefficients', authenticateToken, async (req, 
     res.json({
       success: true,
       sales: {
-        rows: doc.salesRows,
+        rows: buildCoefficientRowsForScope('sales', doc.salesRows),
         updatedAt: doc.salesUpdatedAt,
         updatedByLogin: doc.salesUpdatedByLogin
       },
       service: {
-        rows: doc.serviceRows,
+        rows: buildCoefficientRowsForScope('service', doc.serviceRows),
         updatedAt: doc.serviceUpdatedAt,
         updatedByLogin: doc.serviceUpdatedByLogin
       }

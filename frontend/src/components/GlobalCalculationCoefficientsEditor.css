@@ -71,9 +71,31 @@
   border-bottom: none;
 }
 
-.gcc-col-actions {
-  width: 48px;
-  text-align: center;
+.gcc-editor-empty {
+  margin: 16px 20px;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px dashed var(--border, #334155);
+  color: var(--text-secondary, #94a3b8);
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 720px;
+}
+
+.gcc-cell-label {
+  font-weight: 500;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.gcc-cell-value {
+  color: var(--text-primary, #e2e8f0);
+}
+
+.gcc-cell-note {
+  color: var(--text-secondary, #cbd5e1);
+  font-size: 13px;
+  line-height: 1.45;
+  max-width: 420px;
 }
 
 .gcc-input {
@@ -89,21 +111,6 @@
 
 .gcc-input-number {
   max-width: 140px;
-}
-
-.gcc-btn-remove {
-  background: transparent;
-  border: none;
-  color: #f87171;
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-
-.gcc-btn-remove:hover {
-  background: rgba(248, 113, 113, 0.15);
 }
 
 .gcc-actions {
@@ -131,8 +138,3 @@
   cursor: not-allowed;
 }
 
-.gcc-btn-secondary {
-  background: var(--surface, #1e293b);
-  color: var(--text-primary, #e2e8f0);
-  border: 1px solid var(--border, #334155);
-}
