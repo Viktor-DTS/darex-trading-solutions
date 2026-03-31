@@ -346,7 +346,34 @@ const PROGRAMMATIC_SALES_COEFFICIENTS = [
     defaultValue: 0,
     note:
       'Відсоток начислення премії менеджерам при успішно реалізованій угоді, начислення відбувається ціна продажу мінус витрати.'
+  },
+  {
+    id: 'reservation_days_negotiation',
+    label: 'Кількість днів статус резервування - "В процесі домовленості з клієнтом"',
+    defaultValue: 14,
+    integerOnly: true,
+    note: 'В процесі домовленості з клієнтом'
+  },
+  {
+    id: 'reservation_days_tender',
+    label: 'Кількість днів статус резервування - "Під тендер"',
+    defaultValue: 30,
+    integerOnly: true,
+    note: 'Під тендер'
+  },
+  {
+    id: 'reservation_days_contract',
+    label: 'Кількість днів статус резервування - "Зарезервовано за договором"',
+    defaultValue: 60,
+    integerOnly: true,
+    note: 'Зарезервовано за договором'
   }
+];
+
+const RESERVATION_BASIS_ALLOWED = [
+  'В процесі домовленості з клієнтом',
+  'Під тендер',
+  'Зарезервовано за договором'
 ];
 
 const SERVICE_WORK_COMPLETION_PCT_ID = 'service_work_completion_pct';
@@ -371,6 +398,16 @@ function roundCoefficientValue(n) {
   return Math.round(x * 100) / 100;
 }
 
+function resolveCoefficientValue(def, rawFromMap) {
+  const raw = rawFromMap !== undefined ? rawFromMap : def.defaultValue;
+  if (def.integerOnly) {
+    const x = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(',', '.')) || 0;
+    if (Number.isNaN(x) || !Number.isFinite(x)) return 0;
+    return Math.max(0, Math.round(x));
+  }
+  return roundCoefficientValue(raw);
+}
+
 function valueMapFromSavedRows(savedRows) {
   const m = {};
   if (!Array.isArray(savedRows)) return m;
@@ -378,8 +415,8 @@ function valueMapFromSavedRows(savedRows) {
     if (r && r.id != null) {
       const v = r.value;
       const raw =
-        typeof v === 'number' && !Number.isNaN(v) ? v : parseFloat(String(v).replace(',', '.')) || 0;
-      m[String(r.id)] = roundCoefficientValue(raw);
+        typeof v === 'number' && !Number.isNaN(v) ? v : parseFloat(String(v).replace(',', '.'));
+      m[String(r.id)] = Number.isNaN(raw) ? 0 : raw;
     }
   }
   return m;
@@ -393,9 +430,8 @@ function buildCoefficientRowsForScope(scope, savedRows) {
     id: d.id,
     label: d.label,
     note: d.note || '',
-    value: roundCoefficientValue(
-      map[d.id] !== undefined ? map[d.id] : d.defaultValue
-    )
+    integerOnly: !!d.integerOnly,
+    value: resolveCoefficientValue(d, map[d.id])
   }));
 }
 
@@ -413,14 +449,12 @@ function serializeCoefficientValuesForDb(scope, bodyRows) {
         typeof raw === 'number' && !Number.isNaN(raw)
           ? raw
           : parseFloat(String(raw).replace(',', '.')) || 0;
-      byId[row.id] = roundCoefficientValue(v);
+      byId[row.id] = v;
     }
   }
   return defs.map((d) => ({
     id: d.id,
-    value: roundCoefficientValue(
-      byId[d.id] !== undefined ? byId[d.id] : d.defaultValue
-    )
+    value: resolveCoefficientValue(d, byId[d.id])
   }));
 }
 
@@ -561,6 +595,7 @@ const equipmentSchema = new mongoose.Schema({
   reservationClientName: String,    // Назва клієнта для резервування
   reservationNotes: String,         // Примітки до резервування
   reservationEndDate: Date,         // Дата закінчення резервування
+  reservationBasis: String,         // Підстава резервування (текст з довідника)
   
   // Історія резервувань
   reservationHistory: [{
@@ -569,6 +604,7 @@ const equipmentSchema = new mongoose.Schema({
     userId: String,                   // ID користувача
     userName: String,                 // ПІБ користувача
     clientName: String,               // Назва клієнта (при резервуванні)
+    basis: String,                    // Підстава резервування (при резервуванні)
     endDate: Date,                    // Дата закінчення (при резервуванні)
     notes: String,                    // Примітки
     cancelReason: String,             // Причина скасування: 'manual', 'expired', 'admin'
@@ -6658,10 +6694,14 @@ app.post('/api/equipment/:id/reserve', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Обладнання вже зарезервовано' });
     }
 
-    const { clientName, notes, endDate } = req.body;
+    const { clientName, notes, endDate, reservationBasis } = req.body;
     
     if (!clientName || !clientName.trim()) {
       return res.status(400).json({ error: 'Назва клієнта обов\'язкова' });
+    }
+    const basisTrim = (reservationBasis || '').trim();
+    if (!basisTrim || !RESERVATION_BASIS_ALLOWED.includes(basisTrim)) {
+      return res.status(400).json({ error: 'Оберіть підставу резервування' });
     }
 
     equipment.status = 'reserved';
@@ -6672,6 +6712,7 @@ app.post('/api/equipment/:id/reserve', authenticateToken, async (req, res) => {
     equipment.reservationClientName = clientName.trim();
     equipment.reservationNotes = notes || '';
     equipment.reservationEndDate = endDate ? new Date(endDate) : null;
+    equipment.reservationBasis = basisTrim;
     equipment.lastModified = new Date();
     
     // Додаємо до історії резервувань
@@ -6684,6 +6725,7 @@ app.post('/api/equipment/:id/reserve', authenticateToken, async (req, res) => {
       userId: user._id.toString(),
       userName: user.name || user.login,
       clientName: clientName.trim(),
+      basis: basisTrim,
       endDate: endDate ? new Date(endDate) : null,
       notes: notes || ''
     });
@@ -6700,7 +6742,7 @@ app.post('/api/equipment/:id/reserve', authenticateToken, async (req, res) => {
         entityType: 'equipment',
         entityId: equipment._id.toString(),
         description: `Зарезервовано обладнання ${equipment.type} (№${equipment.serialNumber || 'без номера'}) для клієнта ${clientName}`,
-        details: { reservedByName: equipment.reservedByName, clientName }
+        details: { reservedByName: equipment.reservedByName, clientName, reservationBasis: basisTrim }
       });
     } catch (logErr) {
       console.error('Помилка логування:', logErr);
@@ -6779,6 +6821,7 @@ app.post('/api/equipment/:id/cancel-reserve', authenticateToken, async (req, res
     equipment.reservationClientName = undefined;
     equipment.reservationNotes = undefined;
     equipment.reservationEndDate = undefined;
+    equipment.reservationBasis = undefined;
     equipment.lastModified = new Date();
 
     await equipment.save();

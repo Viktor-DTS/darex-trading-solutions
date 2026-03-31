@@ -10,12 +10,24 @@ function roundToHundredths(n) {
   return Math.round(x * 100) / 100;
 }
 
-function formatCoefficientValueDisplay(v) {
+function formatCoefficientValueDisplay(v, integerOnly) {
+  if (integerOnly) return String(Math.max(0, Math.round(Number(v) || 0)));
   return roundToHundredths(v).toFixed(2);
 }
 
 function canEditCoefficients(role) {
   return EDIT_ROLES.includes(String(role || '').toLowerCase());
+}
+
+function normalizeCoefficientRow(r) {
+  const integerOnly = !!r.integerOnly;
+  return {
+    ...r,
+    integerOnly,
+    value: integerOnly
+      ? Math.max(0, Math.round(Number(r.value) || 0))
+      : roundToHundredths(r.value)
+  };
 }
 
 /**
@@ -40,12 +52,7 @@ function GlobalCalculationCoefficientsEditor({ user, scope, title, description }
         const data = await res.json();
         const block = scope === 'sales' ? data.sales : data.service;
         const list = Array.isArray(block?.rows) ? block.rows : [];
-        setRows(
-          list.map((r) => ({
-            ...r,
-            value: roundToHundredths(r.value)
-          }))
-        );
+        setRows(list.map(normalizeCoefficientRow));
         setMeta({
           updatedAt: block?.updatedAt,
           updatedByLogin: block?.updatedByLogin
@@ -96,12 +103,7 @@ function GlobalCalculationCoefficientsEditor({ user, scope, title, description }
         const data = await res.json();
         const block = scope === 'sales' ? data.sales : data.service;
         const list = block?.rows || rows;
-        setRows(
-          list.map((r) => ({
-            ...r,
-            value: roundToHundredths(r.value)
-          }))
-        );
+        setRows(list.map(normalizeCoefficientRow));
         setMeta({
           updatedAt: block?.updatedAt,
           updatedByLogin: block?.updatedByLogin
@@ -169,25 +171,33 @@ function GlobalCalculationCoefficientsEditor({ user, scope, title, description }
                       {editable ? (
                         <input
                           type="number"
-                          step="0.01"
+                          step={row.integerOnly ? 1 : '0.01'}
+                          min={row.integerOnly ? 0 : undefined}
                           className="gcc-input gcc-input-number"
                           value={Number.isFinite(row.value) ? row.value : ''}
-                          placeholder="0.00"
+                          placeholder={row.integerOnly ? '0' : '0.00'}
                           onChange={(e) => {
                             const t = e.target.value;
                             if (t === '') {
                               updateValue(i, 0);
                               return;
                             }
-                            const p = parseFloat(t.replace(',', '.'));
-                            if (!Number.isNaN(p)) updateValue(i, p);
+                            if (row.integerOnly) {
+                              const p = parseInt(t, 10);
+                              if (!Number.isNaN(p)) updateValue(i, Math.max(0, p));
+                            } else {
+                              const p = parseFloat(t.replace(',', '.'));
+                              if (!Number.isNaN(p)) updateValue(i, p);
+                            }
                           }}
                           onBlur={() => {
                             setRows((prev) => {
                               const next = [...prev];
                               const cur = next[i];
                               if (!cur) return prev;
-                              const r = roundToHundredths(cur.value);
+                              const r = cur.integerOnly
+                                ? Math.max(0, Math.round(Number(cur.value) || 0))
+                                : roundToHundredths(cur.value);
                               if (r === cur.value) return prev;
                               next[i] = { ...cur, value: r };
                               return next;
@@ -196,7 +206,7 @@ function GlobalCalculationCoefficientsEditor({ user, scope, title, description }
                         />
                       ) : (
                         <span className="gcc-cell-value">
-                          {formatCoefficientValueDisplay(row.value)}
+                          {formatCoefficientValueDisplay(row.value, row.integerOnly)}
                         </span>
                       )}
                     </td>

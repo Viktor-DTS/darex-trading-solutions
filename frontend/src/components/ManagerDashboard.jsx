@@ -12,6 +12,24 @@ import './ManagerDashboard.css';
 const canSeeReservationClient = (role) => 
   ['admin', 'administrator', 'mgradm'].includes((role || '').toLowerCase());
 
+const RESERVATION_BASIS_OPTIONS = [
+  'В процесі домовленості з клієнтом',
+  'Під тендер',
+  'Зарезервовано за договором'
+];
+
+const RESERVATION_DAYS_COEFFICIENT_IDS = {
+  'В процесі домовленості з клієнтом': 'reservation_days_negotiation',
+  'Під тендер': 'reservation_days_tender',
+  'Зарезервовано за договором': 'reservation_days_contract'
+};
+
+function endDateAfterDays(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + Math.max(0, Math.round(Number(days) || 0)));
+  return d.toISOString().slice(0, 10);
+}
+
 function ManagerDashboard({ user }) {
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,9 +39,12 @@ function ManagerDashboard({ user }) {
   const [reservationForm, setReservationForm] = useState({
     clientName: '',
     edrpou: '',
+    basis: '',
     notes: '',
     endDate: ''
   });
+  /** Кількість днів резерву за підставою — з коефіцієнтів фінвідділу (продажі) */
+  const [reservationDaysByBasis, setReservationDaysByBasis] = useState({});
   const [reservationLoading, setReservationLoading] = useState(false);
   const [reservationHistory, setReservationHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -92,16 +113,23 @@ function ManagerDashboard({ user }) {
       return;
     }
     setSelectedEquipment(equipment);
-    setReservationForm({ clientName: '', edrpou: '', notes: '', endDate: '' });
+    setReservationForm({ clientName: '', edrpou: '', basis: '', notes: '', endDate: '' });
+    setReservationDaysByBasis({});
     setClientSearch('');
     setEdrpouSearch('');
     setShowReservationModal(true);
     try {
-      const [crmData, tasksRes] = await Promise.all([
+      const token = localStorage.getItem('token');
+      const [crmData, tasksRes, coeffRes] = await Promise.all([
         getClients(),
         fetch(`${API_BASE_URL}/tasks?region=${user?.region || ''}`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        }).then(r => r.ok ? r.json() : null).then(d => Array.isArray(d) ? d : (d?.tasks || [])).catch(() => [])
+          headers: { Authorization: `Bearer ${token}` }
+        }).then(r => r.ok ? r.json() : null).then(d => Array.isArray(d) ? d : (d?.tasks || [])).catch(() => []),
+        fetch(`${API_BASE_URL}/global-calculation-coefficients`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null)
       ]);
       const crm = Array.isArray(crmData) ? crmData : crmData.clients || [];
       const tasks = Array.isArray(tasksRes) ? tasksRes : [];
@@ -120,8 +148,21 @@ function ManagerDashboard({ user }) {
         }
       });
       setCrmClients(merged);
+
+      const salesRows = coeffRes?.sales?.rows || [];
+      const daysMap = {};
+      for (const label of RESERVATION_BASIS_OPTIONS) {
+        const id = RESERVATION_DAYS_COEFFICIENT_IDS[label];
+        const row = salesRows.find((r) => r.id === id);
+        daysMap[label] =
+          row != null && typeof row.value === 'number' && !Number.isNaN(row.value)
+            ? Math.max(0, Math.round(row.value))
+            : 0;
+      }
+      setReservationDaysByBasis(daysMap);
     } catch {
       setCrmClients([]);
+      setReservationDaysByBasis({});
     }
   };
 
@@ -151,7 +192,11 @@ function ManagerDashboard({ user }) {
       alert('Введіть назву клієнта');
       return;
     }
-    
+    if (!reservationForm.basis.trim()) {
+      alert('Оберіть підставу резервування');
+      return;
+    }
+
     setReservationLoading(true);
     
     try {
@@ -166,7 +211,8 @@ function ManagerDashboard({ user }) {
           clientName: reservationForm.clientName,
           edrpou: reservationForm.edrpou || undefined,
           notes: reservationForm.notes,
-          endDate: reservationForm.endDate || null
+          endDate: reservationForm.endDate || null,
+          reservationBasis: reservationForm.basis.trim()
         })
       });
       
@@ -382,6 +428,7 @@ function ManagerDashboard({ user }) {
                           <td>
                             {record.action === 'reserved' ? (
                               <>
+                                {record.basis && <div>Підстава: {record.basis}</div>}
                                 {record.endDate && (
                                   <div>До: {new Date(record.endDate).toLocaleDateString('uk-UA')}</div>
                                 )}
@@ -475,6 +522,33 @@ function ManagerDashboard({ user }) {
                     </ul>
                   )}
                 </div>
+
+                <div className="form-group">
+                  <label>Підстава резервування <span className="required">*</span></label>
+                  <select
+                    required
+                    value={reservationForm.basis}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      const days = reservationDaysByBasis[v] ?? 0;
+                      setReservationForm((prev) => ({
+                        ...prev,
+                        basis: v,
+                        endDate: v && days > 0 ? endDateAfterDays(days) : prev.endDate
+                      }));
+                    }}
+                  >
+                    <option value="">— Оберіть підставу —</option>
+                    {RESERVATION_BASIS_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                        {(reservationDaysByBasis[opt] ?? 0) > 0
+                          ? ` (${reservationDaysByBasis[opt]} дн.)`
+                          : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 
                 <div className="form-group">
                   <label>Дата закінчення резервування</label>
@@ -509,7 +583,11 @@ function ManagerDashboard({ user }) {
                 <button 
                   type="submit" 
                   className="btn-primary"
-                  disabled={reservationLoading || !reservationForm.clientName.trim()}
+                  disabled={
+                    reservationLoading ||
+                    !reservationForm.clientName.trim() ||
+                    !reservationForm.basis.trim()
+                  }
                 >
                   {reservationLoading ? 'Резервування...' : '🔒 Зарезервувати'}
                 </button>
