@@ -482,7 +482,10 @@ function ManagerDashboard({ user }) {
             </div>
           ) : activeTab === 'notifications' ? (
             <div className="manager-scaled-inner">
-              <ManagerNotificationsTab onUnreadCountChange={fetchManagerNotificationsUnread} />
+              <ManagerNotificationsTab
+                onUnreadCountChange={fetchManagerNotificationsUnread}
+                description="Персональні нагадування про ваші резерви обладнання та зняття резерву (лише для вашого облікового запису)."
+              />
             </div>
           ) : (
             <div className="manager-scaled-inner">

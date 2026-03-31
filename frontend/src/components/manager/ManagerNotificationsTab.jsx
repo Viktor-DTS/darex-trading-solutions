@@ -6,10 +6,26 @@ const KIND_LABELS = {
   reservation_3d: 'Нагадування',
   reservation_1d: 'Нагадування',
   reservation_released_auto: 'Авто-зняття резерву',
-  reservation_released_admin: 'Зняття резерву'
+  reservation_released_admin: 'Зняття резерву',
+  task_invoice_uploaded: 'Рахунок по заявці',
+  task_wh_approved: 'Затверджено завскладом',
+  task_wh_rejected: 'Відхилено завскладом',
+  task_accountant_approved: 'Затверджено бухгалтером',
+  task_accountant_rejected: 'Відхилено бухгалтером'
 };
 
-function ManagerNotificationsTab({ onUnreadCountChange }) {
+function notificationTaskId(n) {
+  if (!n?.taskId) return null;
+  const id = n.taskId;
+  if (typeof id === 'string') return id;
+  if (id && typeof id === 'object' && id.$oid) return id.$oid;
+  return String(id);
+}
+
+const DEFAULT_DESCRIPTION =
+  'Персональні сповіщення для вашого облікового запису: нагадування про резерви, події по заявках регіону (рахунок, затвердження або відмова завскладом і бухгалтерією).';
+
+function ManagerNotificationsTab({ onUnreadCountChange, onOpenTask, description = DEFAULT_DESCRIPTION }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -87,9 +103,7 @@ function ManagerNotificationsTab({ onUnreadCountChange }) {
           )}
         </div>
       </div>
-      <p className="manager-notifications-desc">
-        Персональні нагадування про ваші резерви обладнання та зняття резерву (лише для вашого облікового запису).
-      </p>
+      {description ? <p className="manager-notifications-desc">{description}</p> : null}
 
       {loading ? (
         <div className="manager-notifications-loading">Завантаження…</div>
@@ -104,17 +118,38 @@ function ManagerNotificationsTab({ onUnreadCountChange }) {
             >
               <div className="manager-notification-meta">
                 <span className="manager-notification-kind">{KIND_LABELS[n.kind] || n.kind}</span>
-                <time dateTime={n.createdAt}>
-                  {n.createdAt
-                    ? new Date(n.createdAt).toLocaleString('uk-UA', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })
-                    : ''}
-                </time>
+                <span className="manager-notification-meta-right">
+                  {(() => {
+                    const tid = notificationTaskId(n);
+                    const rn = n.requestNumber && String(n.requestNumber).trim();
+                    if (tid && onOpenTask) {
+                      return (
+                        <button
+                          type="button"
+                          className="manager-notification-request-link"
+                          onClick={() => onOpenTask(tid)}
+                        >
+                          № {rn || 'Заявка'}
+                        </button>
+                      );
+                    }
+                    if (rn) {
+                      return <span className="manager-notification-request-static">№ {rn}</span>;
+                    }
+                    return null;
+                  })()}
+                  <time dateTime={n.createdAt}>
+                    {n.createdAt
+                      ? new Date(n.createdAt).toLocaleString('uk-UA', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : ''}
+                  </time>
+                </span>
               </div>
               <h3 className="manager-notification-title">{n.title}</h3>
               <p className="manager-notification-body">{n.body}</p>

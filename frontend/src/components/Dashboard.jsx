@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import API_BASE_URL from '../config';
+import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import TaskTable from './TaskTable';
 import ContractsTable from './ContractsTable';
 import ColumnSettings from './ColumnSettings';
@@ -16,6 +18,48 @@ function Dashboard({ user, panelType = 'service' }) {
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [isReadOnlyMode, setIsReadOnlyMode] = useState(false);
+  const [notificationsUnreadCount, setNotificationsUnreadCount] = useState(0);
+
+  const fetchNotificationsUnread = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res = await fetch(`${API_BASE_URL}/manager-notifications/unread-count`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotificationsUnreadCount(typeof data.count === 'number' ? data.count : 0);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotificationsUnread();
+    const id = setInterval(fetchNotificationsUnread, 60000);
+    return () => clearInterval(id);
+  }, [fetchNotificationsUnread]);
+
+  const handleOpenTaskFromNotification = useCallback(async (taskId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) {
+        alert('Не вдалося завантажити заявку');
+        return;
+      }
+      const task = await res.json();
+      setEditingTask(task);
+      setIsReadOnlyMode(true);
+      setShowAddTaskModal(true);
+    } catch {
+      alert('Помилка завантаження заявки');
+    }
+  }, []);
 
   const handleRowClick = (task) => {
     // Перевірка: підтверджені бухгалтером заявки можуть редагувати тільки admin/administrator
@@ -67,7 +111,8 @@ function Dashboard({ user, panelType = 'service' }) {
     { id: 'paymentDebt', label: 'Заборгованість по оплаті', icon: '💳' },
     { id: 'contracts', label: 'Договори', icon: '📄' },
     { id: 'logistics', label: 'Логістика', icon: '🗺️' },
-    { id: 'globalSearch', label: 'Глобальний пошук', icon: '🔍' }
+    { id: 'globalSearch', label: 'Глобальний пошук', icon: '🔍' },
+    { id: 'notifications', label: 'Системні сповіщення', icon: '🔔' }
   ];
 
   return (
@@ -95,6 +140,11 @@ function Dashboard({ user, panelType = 'service' }) {
               >
                 <span className="tab-icon">{tab.icon}</span>
                 <span className="tab-label">{tab.label}</span>
+                {tab.id === 'notifications' && notificationsUnreadCount > 0 ? (
+                  <span className="tab-count">
+                    {notificationsUnreadCount > 99 ? '99+' : notificationsUnreadCount}
+                  </span>
+                ) : null}
               </button>
             ))}
           </nav>
@@ -140,6 +190,11 @@ function Dashboard({ user, panelType = 'service' }) {
             <LogisticsMap user={user} onTaskClick={handleLogisticsTaskClick} />
           ) : activeTab === 'globalSearch' ? (
             <GlobalSearch user={user} />
+          ) : activeTab === 'notifications' ? (
+            <ManagerNotificationsTab
+              onUnreadCountChange={fetchNotificationsUnread}
+              onOpenTask={handleOpenTaskFromNotification}
+            />
           ) : (
             <TaskTable 
               user={user} 

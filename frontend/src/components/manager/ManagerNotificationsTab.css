@@ -84,6 +84,35 @@
   color: var(--text-secondary, #999);
 }
 
+.manager-notification-meta-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.manager-notification-request-link {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--primary, #6ea8fe);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.manager-notification-request-link:hover {
+  color: #9ec5fe;
+}
+
+.manager-notification-request-static {
+  font-weight: 600;
+  color: var(--text-secondary, #aaa);
+}
+
 .manager-notification-kind {
   font-weight: 600;
   color: var(--primary, #6ea8fe);

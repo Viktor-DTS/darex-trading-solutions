@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { API_BASE_URL } from '../config';
 import AddTaskModal from './AddTaskModal';
 import TaskTable from './TaskTable';
+import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import './RegionalDashboard.css';
 
 /** id коефіцієнта «Відсоток за виконану роботу» (як у backend) */
@@ -15,11 +16,12 @@ function RegionalDashboard({ user }) {
   const [loading, setLoading] = useState(true);
   
   // Вкладки
-  const [activeTab, setActiveTab] = useState('personnel'); // 'personnel' | 'debt' | 'paymentDebt'
+  const [activeTab, setActiveTab] = useState('personnel'); // 'personnel' | 'debt' | 'paymentDebt' | 'notifications'
   
   // Стан для модального вікна перегляду заявки
   const [viewingTask, setViewingTask] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [notificationsUnreadCount, setNotificationsUnreadCount] = useState(0);
   
   // Фільтри для таблиці заборгованості
   const [debtFilters, setDebtFilters] = useState({
@@ -265,6 +267,46 @@ function RegionalDashboard({ user }) {
   const handleCloseViewModal = useCallback(() => {
     setViewingTask(null);
     setShowViewModal(false);
+  }, []);
+
+  const fetchRegionalNotificationsUnread = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res = await fetch(`${API_BASE_URL}/manager-notifications/unread-count`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotificationsUnreadCount(typeof data.count === 'number' ? data.count : 0);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRegionalNotificationsUnread();
+    const id = setInterval(fetchRegionalNotificationsUnread, 60000);
+    return () => clearInterval(id);
+  }, [fetchRegionalNotificationsUnread]);
+
+  const handleOpenTaskFromNotification = useCallback(async (taskId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) {
+        alert('Не вдалося завантажити заявку');
+        return;
+      }
+      const task = await res.json();
+      setViewingTask(task);
+      setShowViewModal(true);
+    } catch {
+      alert('Помилка завантаження заявки');
+    }
   }, []);
 
   // Завантаження даних
@@ -908,25 +950,49 @@ function RegionalDashboard({ user }) {
     <div className="regional-dashboard">
       {/* Вкладки */}
       <div className="regional-tabs">
+        <button
+          type="button"
+          className={`tab-btn ${activeTab === 'notifications' ? 'active' : ''}`}
+          onClick={() => setActiveTab('notifications')}
+        >
+          🔔 Системні сповіщення
+          {notificationsUnreadCount > 0 ? (
+            <span className="regional-tab-count">
+              {notificationsUnreadCount > 99 ? '99+' : notificationsUnreadCount}
+            </span>
+          ) : null}
+        </button>
         <button 
+          type="button"
           className={`tab-btn ${activeTab === 'personnel' ? 'active' : ''}`}
           onClick={() => setActiveTab('personnel')}
         >
           👥 Звіт по персоналу
         </button>
         <button 
+          type="button"
           className={`tab-btn ${activeTab === 'debt' ? 'active' : ''}`}
           onClick={() => setActiveTab('debt')}
         >
           💰 Заборгованість по документам ({debtTasks.length})
         </button>
         <button 
+          type="button"
           className={`tab-btn ${activeTab === 'paymentDebt' ? 'active' : ''}`}
           onClick={() => setActiveTab('paymentDebt')}
         >
           💳 Заборгованість по оплаті
         </button>
       </div>
+
+      {activeTab === 'notifications' && (
+        <div className="regional-notifications-wrap debt-section">
+          <ManagerNotificationsTab
+            onUnreadCountChange={fetchRegionalNotificationsUnread}
+            onOpenTask={handleOpenTaskFromNotification}
+          />
+        </div>
+      )}
 
       {/* Вкладка заборгованості по оплаті */}
       {activeTab === 'paymentDebt' && (

@@ -311,15 +311,29 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
-/** Персональні сповіщення для менеджерів (резерви тощо) */
+/** Персональні системні сповіщення (менеджери: резерви; сервіс/регіон: заявки) */
+const MANAGER_NOTIFICATION_KINDS = [
+  'reservation_3d',
+  'reservation_1d',
+  'reservation_released_auto',
+  'reservation_released_admin',
+  'task_invoice_uploaded',
+  'task_wh_approved',
+  'task_wh_rejected',
+  'task_accountant_approved',
+  'task_accountant_rejected'
+];
+
 const managerUserNotificationSchema = new mongoose.Schema({
   recipientLogin: { type: String, required: true, index: true },
   kind: {
     type: String,
-    enum: ['reservation_3d', 'reservation_1d', 'reservation_released_auto', 'reservation_released_admin'],
+    enum: MANAGER_NOTIFICATION_KINDS,
     required: true
   },
   equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
+  taskId: { type: mongoose.Schema.Types.ObjectId, ref: 'Task' },
+  requestNumber: { type: String, default: '' },
   title: { type: String, required: true },
   body: { type: String, default: '' },
   read: { type: Boolean, default: false },
@@ -833,11 +847,59 @@ function daysUntilReservationEndCalendar(equipment) {
 }
 
 async function createManagerNotificationDeduped(doc) {
+  const payload = { ...doc };
+  if (payload.dedupeKey == null || payload.dedupeKey === '') delete payload.dedupeKey;
   try {
-    await ManagerUserNotification.create(doc);
+    await ManagerUserNotification.create(payload);
   } catch (e) {
     if (e && e.code === 11000) return;
     throw e;
+  }
+}
+
+async function getTaskNotificationRecipientLogins(task) {
+  if (!task) return [];
+  const region = String(task.serviceRegion || task.region || '').trim();
+  if (!region) return [];
+  const rows = await User.find({
+    dismissed: { $ne: true },
+    $or: [
+      { role: 'service', region },
+      { role: { $in: ['regional', 'regkerivn'] }, region }
+    ]
+  })
+    .select('login')
+    .lean();
+  const set = new Set();
+  for (const u of rows) {
+    if (u.login) set.add(String(u.login).trim());
+  }
+  return [...set];
+}
+
+/**
+ * Сповіщення сервісної служби та регіональних керівників регіону заявки.
+ * dedupeKeyPrefix — префікс; до нього додається :login для унікальності.
+ */
+async function notifyServiceRegionalForTask(task, kind, { title, body, dedupeKeyPrefix }) {
+  if (!task || !task._id) return;
+  const logins = await getTaskNotificationRecipientLogins(task);
+  const taskId = task._id;
+  const requestNumber = task.requestNumber || '';
+  for (const login of logins) {
+    const row = {
+      recipientLogin: login,
+      kind,
+      title,
+      body: body || '',
+      taskId,
+      requestNumber,
+      read: false
+    };
+    if (dedupeKeyPrefix) {
+      row.dedupeKey = `${dedupeKeyPrefix}:${login}`;
+    }
+    await createManagerNotificationDeduped(row);
   }
 }
 
@@ -2993,11 +3055,11 @@ app.put('/api/tasks/:id', async (req, res) => {
     }
     
     const task = await Task.findByIdAndUpdate(req.params.id, updateData, { new: true, lean: true });
-    
+
+    const user = req.user || { login: 'system', name: 'Система' };
+
     // Відправляємо Telegram сповіщення залежно від змін
     try {
-      const user = req.user || { login: 'system', name: 'Система' };
-      
       // Перевіряємо тип зміни і відправляємо відповідне сповіщення
       if (updateData.status === 'Виконано' && currentTask.status !== 'Виконано') {
         await telegramService.sendTaskNotification('task_completed', task, user);
@@ -3017,6 +3079,45 @@ app.put('/api/tasks/:id', async (req, res) => {
       }
     } catch (notificationError) {
       console.error('[TELEGRAM] Помилка при оновленні заявки:', notificationError);
+    }
+
+    try {
+      const uname = user.name || user.login || 'Користувач';
+      const reqNum = task.requestNumber || String(task._id);
+      if (currentTask.approvedByWarehouse !== 'Підтверджено' && task.approvedByWarehouse === 'Підтверджено') {
+        await notifyServiceRegionalForTask(task, 'task_wh_approved', {
+          title: 'Затверджено завскладом',
+          body: `Заявка ${reqNum}: підтверджено завскладом (${uname}).`,
+          dedupeKeyPrefix: `task_wh_approved:${task._id}:${task.autoWarehouseApprovedAt || ''}`
+        });
+      }
+      if (currentTask.approvedByWarehouse !== 'Відмова' && task.approvedByWarehouse === 'Відмова') {
+        const reason =
+          updateData.warehouseComment != null ? updateData.warehouseComment : task.warehouseComment || '—';
+        await notifyServiceRegionalForTask(task, 'task_wh_rejected', {
+          title: 'Відхилено завскладом',
+          body: `Заявка ${reqNum}: відмова завскладом (${uname}). Опис: ${reason}`,
+          dedupeKeyPrefix: `task_wh_rejected:${task._id}:${Date.now()}`
+        });
+      }
+      if (currentTask.approvedByAccountant !== 'Підтверджено' && task.approvedByAccountant === 'Підтверджено') {
+        await notifyServiceRegionalForTask(task, 'task_accountant_approved', {
+          title: 'Затверджено бухгалтером',
+          body: `Заявка ${reqNum}: підтверджено бухгалтером (${uname}).`,
+          dedupeKeyPrefix: `task_acc_ok:${task._id}:${task.autoAccountantApprovedAt || ''}`
+        });
+      }
+      if (currentTask.approvedByAccountant !== 'Відмова' && task.approvedByAccountant === 'Відмова') {
+        const reason =
+          updateData.accountantComment != null ? updateData.accountantComment : task.accountantComment || '—';
+        await notifyServiceRegionalForTask(task, 'task_accountant_rejected', {
+          title: 'Відхилено бухгалтером',
+          body: `Заявка ${reqNum}: відмова бухгалтера (${uname}). Опис: ${reason}`,
+          dedupeKeyPrefix: `task_acc_rej:${task._id}:${Date.now()}`
+        });
+      }
+    } catch (regionalNotifyErr) {
+      console.error('[notifyServiceRegionalForTask] PUT /api/tasks/:id:', regionalNotifyErr);
     }
     
     logPerformance('PUT /api/tasks/:id', startTime);
@@ -5122,6 +5223,16 @@ app.post('/api/invoice-requests/:id/upload', authenticateToken, (req, res, next)
         const user = req.user || { login: 'system', name: 'Бухгалтер' };
         await telegramService.sendTaskNotification('invoice_completed', task, user);
         await sendFcmTaskNotification('invoice_completed', task, user);
+        try {
+          const uname = user.name || user.login || 'Бухгалтерія';
+          const reqNum = task.requestNumber || String(task._id);
+          await notifyServiceRegionalForTask(task, 'task_invoice_uploaded', {
+            title: 'Завантажено рахунок по заявці',
+            body: `Заявка ${reqNum}: завантажено рахунок${invoiceNumber ? ` № ${invoiceNumber}` : ''} (${uname}).`
+          });
+        } catch (regN) {
+          console.error('[notify] invoice upload service/regional:', regN);
+        }
       }
     } catch (notificationError) {
       console.error('[TELEGRAM] Помилка при завантаженні рахунку:', notificationError);

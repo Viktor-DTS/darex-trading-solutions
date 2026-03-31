@@ -16,6 +16,9 @@
 }
 
 .regional-tabs .tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 12px 24px;
   border: none;
   border-radius: 8px;
@@ -25,6 +28,25 @@
   transition: all 0.2s;
   background: #2a3f54;
   color: #aaa;
+}
+
+.regional-tab-count {
+  min-width: 22px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #c62828;
+  color: #fff;
+}
+
+.regional-tabs .tab-btn.active .regional-tab-count {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+.regional-notifications-wrap {
+  max-width: 760px;
 }
 
 .regional-tabs .tab-btn.active {
