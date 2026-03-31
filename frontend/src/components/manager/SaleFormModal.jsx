@@ -12,6 +12,14 @@ import './SaleFormModal.css';
 
 const canAssignSaleManager = (role) => ['admin', 'administrator', 'mgradm'].includes((role || '').toLowerCase());
 
+const SALES_BONUS_PCT_ID = 'sales_bonus';
+
+function roundMoney(n) {
+  const x = typeof n === 'number' ? n : parseFloat(String(n).replace(',', '.'));
+  if (Number.isNaN(x) || !Number.isFinite(x)) return 0;
+  return Math.round(x * 100) / 100;
+}
+
 const SALE_STATUS_OPTIONS = [
   { value: 'in_negotiation', label: 'В процесі домовленості' },
   { value: 'in_realization', label: 'Реалізація угоди' },
@@ -40,6 +48,8 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
   const [saleInvoiceFiles, setSaleInvoiceFiles] = useState([]);
   const [filesUploading, setFilesUploading] = useState(false);
   const [invoiceFilesUploading, setInvoiceFilesUploading] = useState(false);
+  /** З /api/global-calculation-coefficients (sales): «Премія від продажів», % */
+  const [salesBonusPercent, setSalesBonusPercent] = useState(null);
   const addressMMRef = useRef(null);
   const addressMMAutocompleteRef = useRef(null);
 
@@ -186,6 +196,39 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
       setSaleInvoiceFiles([]);
     }
   }, [open, editSale?._id]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setSalesBonusPercent(null);
+          return;
+        }
+        const res = await fetch(`${API_BASE_URL}/global-calculation-coefficients`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const salesRows = data.sales?.rows || [];
+        const bonusRow = salesRows.find((r) => r.id === SALES_BONUS_PCT_ID);
+        if (!cancelled) {
+          setSalesBonusPercent(
+            bonusRow != null && typeof bonusRow.value === 'number' && !Number.isNaN(bonusRow.value)
+              ? roundMoney(bonusRow.value)
+              : 0
+          );
+        }
+      } catch (_) {
+        if (!cancelled) setSalesBonusPercent(0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   // Google Places Autocomplete для адреси ММ (як у заявках)
   useEffect(() => {
@@ -352,6 +395,12 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
   const pnr = parseFloat(form.pnrCosts) || 0;
   const representative = parseFloat(form.representativeCosts) || 0;
   const totalWithAllExpenses = totalEquipmentAmount - transport - pnr - representative - additionalCostsTotal;
+
+  const completedDealPremium = useMemo(() => {
+    const pct =
+      typeof salesBonusPercent === 'number' && !Number.isNaN(salesBonusPercent) ? salesBonusPercent : 0;
+    return roundMoney((pct / 100) * totalWithAllExpenses);
+  }, [salesBonusPercent, totalWithAllExpenses]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -831,6 +880,12 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
               <div className="sale-total-row">
                 <strong>Загальна сума з урахуванням всіх витрат на угоду:</strong>
                 <span>{totalWithAllExpenses.toLocaleString('uk-UA')} ₴</span>
+              </div>
+              <div className="sale-total-row">
+                <strong>Премія за виконану угоду:</strong>
+                <span title="Значення «Премія від продажів» (%) з Фінансового відділу ÷ 100 × сума з урахуванням витрат">
+                  {completedDealPremium.toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₴
+                </span>
               </div>
             </div>
 
