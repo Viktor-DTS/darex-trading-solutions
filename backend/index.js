@@ -355,14 +355,21 @@ function getProgrammaticCoefficientDefs(scope) {
   return scope === 'sales' ? PROGRAMMATIC_SALES_COEFFICIENTS : PROGRAMMATIC_SERVICE_COEFFICIENTS;
 }
 
+function roundCoefficientValue(n) {
+  const x = typeof n === 'number' ? n : parseFloat(String(n).replace(',', '.'));
+  if (Number.isNaN(x) || !Number.isFinite(x)) return 0;
+  return Math.round(x * 100) / 100;
+}
+
 function valueMapFromSavedRows(savedRows) {
   const m = {};
   if (!Array.isArray(savedRows)) return m;
   for (const r of savedRows) {
     if (r && r.id != null) {
       const v = r.value;
-      m[String(r.id)] =
-        typeof v === 'number' && !Number.isNaN(v) ? v : parseFloat(v) || 0;
+      const raw =
+        typeof v === 'number' && !Number.isNaN(v) ? v : parseFloat(String(v).replace(',', '.')) || 0;
+      m[String(r.id)] = roundCoefficientValue(raw);
     }
   }
   return m;
@@ -376,7 +383,9 @@ function buildCoefficientRowsForScope(scope, savedRows) {
     id: d.id,
     label: d.label,
     note: d.note || '',
-    value: map[d.id] !== undefined ? map[d.id] : d.defaultValue
+    value: roundCoefficientValue(
+      map[d.id] !== undefined ? map[d.id] : d.defaultValue
+    )
   }));
 }
 
@@ -391,13 +400,17 @@ function serializeCoefficientValuesForDb(scope, bodyRows) {
       if (!row || !allowed.has(row.id)) continue;
       const raw = row.value;
       const v =
-        typeof raw === 'number' && !Number.isNaN(raw) ? raw : parseFloat(raw) || 0;
-      byId[row.id] = v;
+        typeof raw === 'number' && !Number.isNaN(raw)
+          ? raw
+          : parseFloat(String(raw).replace(',', '.')) || 0;
+      byId[row.id] = roundCoefficientValue(v);
     }
   }
   return defs.map((d) => ({
     id: d.id,
-    value: byId[d.id] !== undefined ? byId[d.id] : d.defaultValue
+    value: roundCoefficientValue(
+      byId[d.id] !== undefined ? byId[d.id] : d.defaultValue
+    )
   }));
 }
 

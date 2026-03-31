@@ -4,6 +4,16 @@ import './GlobalCalculationCoefficientsEditor.css';
 
 const EDIT_ROLES = ['admin', 'administrator', 'finance', 'buhgalteria'];
 
+function roundToHundredths(n) {
+  const x = typeof n === 'number' ? n : parseFloat(String(n).replace(',', '.'));
+  if (Number.isNaN(x) || !Number.isFinite(x)) return 0;
+  return Math.round(x * 100) / 100;
+}
+
+function formatCoefficientValueDisplay(v) {
+  return roundToHundredths(v).toFixed(2);
+}
+
 function canEditCoefficients(role) {
   return EDIT_ROLES.includes(String(role || '').toLowerCase());
 }
@@ -29,7 +39,13 @@ function GlobalCalculationCoefficientsEditor({ user, scope, title, description }
       if (res.ok) {
         const data = await res.json();
         const block = scope === 'sales' ? data.sales : data.service;
-        setRows(Array.isArray(block?.rows) ? block.rows : []);
+        const list = Array.isArray(block?.rows) ? block.rows : [];
+        setRows(
+          list.map((r) => ({
+            ...r,
+            value: roundToHundredths(r.value)
+          }))
+        );
         setMeta({
           updatedAt: block?.updatedAt,
           updatedByLogin: block?.updatedByLogin
@@ -70,7 +86,13 @@ function GlobalCalculationCoefficientsEditor({ user, scope, title, description }
       if (res.ok) {
         const data = await res.json();
         const block = scope === 'sales' ? data.sales : data.service;
-        setRows(block?.rows || rows);
+        const list = block?.rows || rows;
+        setRows(
+          list.map((r) => ({
+            ...r,
+            value: roundToHundredths(r.value)
+          }))
+        );
         setMeta({
           updatedAt: block?.updatedAt,
           updatedByLogin: block?.updatedByLogin
@@ -138,18 +160,35 @@ function GlobalCalculationCoefficientsEditor({ user, scope, title, description }
                       {editable ? (
                         <input
                           type="number"
-                          step="any"
+                          step="0.01"
                           className="gcc-input gcc-input-number"
                           value={Number.isFinite(row.value) ? row.value : ''}
-                          onChange={(e) =>
-                            updateValue(
-                              i,
-                              e.target.value === '' ? 0 : parseFloat(e.target.value)
-                            )
-                          }
+                          placeholder="0.00"
+                          onChange={(e) => {
+                            const t = e.target.value;
+                            if (t === '') {
+                              updateValue(i, 0);
+                              return;
+                            }
+                            const p = parseFloat(t.replace(',', '.'));
+                            if (!Number.isNaN(p)) updateValue(i, p);
+                          }}
+                          onBlur={() => {
+                            setRows((prev) => {
+                              const next = [...prev];
+                              const cur = next[i];
+                              if (!cur) return prev;
+                              const r = roundToHundredths(cur.value);
+                              if (r === cur.value) return prev;
+                              next[i] = { ...cur, value: r };
+                              return next;
+                            });
+                          }}
                         />
                       ) : (
-                        <span className="gcc-cell-value">{row.value}</span>
+                        <span className="gcc-cell-value">
+                          {formatCoefficientValueDisplay(row.value)}
+                        </span>
                       )}
                     </td>
                     <td className="gcc-cell-note">{row.note || '—'}</td>
