@@ -1,0 +1,138 @@
+.gcc-editor {
+  padding: 16px 20px;
+  max-width: 960px;
+}
+
+.gcc-editor-loading {
+  padding: 24px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.gcc-editor-header {
+  margin-bottom: 16px;
+}
+
+.gcc-editor-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.gcc-editor-desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary, #94a3b8);
+  line-height: 1.45;
+}
+
+.gcc-editor-readonly-banner {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  font-size: 13px;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.gcc-editor-meta {
+  font-size: 12px;
+  color: var(--text-secondary, #94a3b8);
+  margin-bottom: 12px;
+}
+
+.gcc-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+}
+
+.gcc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.gcc-table th,
+.gcc-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border, #334155);
+}
+
+.gcc-table th {
+  background: var(--surface, #1e293b);
+  color: var(--text-secondary, #94a3b8);
+  font-weight: 600;
+}
+
+.gcc-table tr:last-child td {
+  border-bottom: none;
+}
+
+.gcc-col-actions {
+  width: 48px;
+  text-align: center;
+}
+
+.gcc-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--border, #334155);
+  border-radius: 6px;
+  background: var(--background, #0f172a);
+  color: var(--text-primary, #e2e8f0);
+  font-size: 13px;
+}
+
+.gcc-input-number {
+  max-width: 140px;
+}
+
+.gcc-btn-remove {
+  background: transparent;
+  border: none;
+  color: #f87171;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.gcc-btn-remove:hover {
+  background: rgba(248, 113, 113, 0.15);
+}
+
+.gcc-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.gcc-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+}
+
+.gcc-btn-primary {
+  background: var(--primary, #3b82f6);
+  color: #fff;
+}
+
+.gcc-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gcc-btn-secondary {
+  background: var(--surface, #1e293b);
+  color: var(--text-primary, #e2e8f0);
+  border: 1px solid var(--border, #334155);
+}

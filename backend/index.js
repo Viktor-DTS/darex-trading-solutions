@@ -324,6 +324,30 @@ const accessRulesSchema = new mongoose.Schema({
 }, { strict: false });
 const AccessRules = mongoose.model('AccessRules', accessRulesSchema);
 
+// Глобальні коефіцієнти для розрахунків (фінансовий відділ / відділ продажів → сервіс)
+const globalCalculationCoefficientsSchema = new mongoose.Schema({
+  rows: [{
+    id: String,
+    label: String,
+    value: Number,
+    note: String
+  }],
+  updatedAt: Date,
+  updatedByLogin: String
+}, { strict: false });
+const GlobalCalculationCoefficients = mongoose.model('GlobalCalculationCoefficients', globalCalculationCoefficientsSchema);
+
+const DEFAULT_GLOBAL_COEFFICIENT_ROWS = [
+  { id: 'service_margin_pct', label: 'Маржа сервісу, %', value: 0, note: '' },
+  { id: 'global_adjustment', label: 'Глобальний коригувальний коефіцієнт', value: 1, note: '' },
+  { id: 'logistics_coef', label: 'Коефіцієнт логістики', value: 1, note: '' }
+];
+
+function canEditGlobalCalculationCoefficients(role) {
+  const r = String(role || '').toLowerCase();
+  return ['admin', 'administrator', 'manager', 'mgradm', 'finance', 'buhgalteria'].includes(r);
+}
+
 // Схема для журналу подій
 const eventLogSchema = new mongoose.Schema({
   userId: String,
@@ -3218,6 +3242,75 @@ app.post('/api/accessRules', authenticateToken, async (req, res) => {
   } catch (error) {
     logPerformance('POST /api/accessRules', startTime);
     console.error('[ERROR] POST /api/accessRules:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// API ГЛОБАЛЬНИХ КОЕФІЦІЄНТІВ (фінанси / менеджери → сервіс)
+// ============================================
+app.get('/api/global-calculation-coefficients', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    let doc = await GlobalCalculationCoefficients.findOne();
+    if (!doc) {
+      doc = await GlobalCalculationCoefficients.create({
+        rows: DEFAULT_GLOBAL_COEFFICIENT_ROWS,
+        updatedAt: null,
+        updatedByLogin: null
+      });
+    }
+    if (!doc.rows || !doc.rows.length) {
+      doc.rows = DEFAULT_GLOBAL_COEFFICIENT_ROWS;
+      await doc.save();
+    }
+    logPerformance('GET /api/global-calculation-coefficients', startTime);
+    res.json({
+      rows: doc.rows,
+      updatedAt: doc.updatedAt,
+      updatedByLogin: doc.updatedByLogin
+    });
+  } catch (error) {
+    logPerformance('GET /api/global-calculation-coefficients', startTime);
+    console.error('[ERROR] GET /api/global-calculation-coefficients:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/global-calculation-coefficients', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!canEditGlobalCalculationCoefficients(req.user.role)) {
+      return res.status(403).json({ error: 'Немає прав на зміну коефіцієнтів' });
+    }
+    const body = req.body;
+    if (!body || !Array.isArray(body.rows)) {
+      return res.status(400).json({ error: 'Очікується об\'єкт з масивом rows' });
+    }
+    const rows = body.rows.map((row, i) => ({
+      id: String(row.id || `row_${i}_${Date.now()}`),
+      label: String(row.label || '').trim() || `Коефіцієнт ${i + 1}`,
+      value: typeof row.value === 'number' && !Number.isNaN(row.value) ? row.value : parseFloat(row.value) || 0,
+      note: row.note != null ? String(row.note) : ''
+    }));
+    let doc = await GlobalCalculationCoefficients.findOne();
+    if (!doc) {
+      doc = new GlobalCalculationCoefficients({});
+    }
+    doc.rows = rows;
+    doc.updatedAt = new Date();
+    doc.updatedByLogin = req.user.login || req.user.name || '';
+    await doc.save();
+    logPerformance('POST /api/global-calculation-coefficients', startTime);
+    res.json({
+      success: true,
+      rows: doc.rows,
+      updatedAt: doc.updatedAt,
+      updatedByLogin: doc.updatedByLogin
+    });
+  } catch (error) {
+    logPerformance('POST /api/global-calculation-coefficients', startTime);
+    console.error('[ERROR] POST /api/global-calculation-coefficients:', error);
     res.status(500).json({ error: error.message });
   }
 });
