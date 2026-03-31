@@ -349,7 +349,17 @@ const PROGRAMMATIC_SALES_COEFFICIENTS = [
   }
 ];
 
-const PROGRAMMATIC_SERVICE_COEFFICIENTS = [];
+const SERVICE_WORK_COMPLETION_PCT_ID = 'service_work_completion_pct';
+
+const PROGRAMMATIC_SERVICE_COEFFICIENTS = [
+  {
+    id: SERVICE_WORK_COMPLETION_PCT_ID,
+    label: 'Відсоток за виконану роботу',
+    defaultValue: 25,
+    note:
+      'Премія за виконані роботи згідно заявці в відсотковому значенні, в розрахунок іде тільки ціна робіт.'
+  }
+];
 
 function getProgrammaticCoefficientDefs(scope) {
   return scope === 'sales' ? PROGRAMMATIC_SALES_COEFFICIENTS : PROGRAMMATIC_SERVICE_COEFFICIENTS;
@@ -3365,6 +3375,15 @@ app.post('/api/global-calculation-coefficients', authenticateToken, async (req, 
       return res.status(400).json({ error: 'Очікується об\'єкт з масивом rows' });
     }
     const compactRows = serializeCoefficientValuesForDb(scope, body.rows);
+    if (scope === 'service') {
+      const svcPct = compactRows.find((r) => r.id === SERVICE_WORK_COMPLETION_PCT_ID);
+      if (svcPct && svcPct.value <= 0) {
+        return res.status(400).json({
+          error:
+            '«Відсоток за виконану роботу» має бути більшим за 0 (введіть відсоток, наприклад 25).'
+        });
+      }
+    }
     let doc = await GlobalCalculationCoefficients.findOne();
     if (!doc) {
       doc = new GlobalCalculationCoefficients({ salesRows: [], serviceRows: [] });

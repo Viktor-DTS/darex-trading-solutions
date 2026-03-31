@@ -4,6 +4,11 @@ import AddTaskModal from './AddTaskModal';
 import TaskTable from './TaskTable';
 import './RegionalDashboard.css';
 
+/** id коефіцієнта «Відсоток за виконану роботу» (як у backend) */
+const SERVICE_WORK_BONUS_COEFFICIENT_ID = 'service_work_completion_pct';
+/** Якщо з БД немає дійсного відсотка — як раніше 25% */
+const FALLBACK_SERVICE_BONUS_PERCENT = 25;
+
 function RegionalDashboard({ user }) {
   const [allTasks, setAllTasks] = useState([]);
   const [users, setUsers] = useState([]);
@@ -38,6 +43,8 @@ function RegionalDashboard({ user }) {
   const [payData, setPayData] = useState({});
   const [timesheetLoading, setTimesheetLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState(''); // '', 'saving', 'saved', 'error'
+  /** Відсоток премії з /api/global-calculation-coefficients (service); null = ще не завантажено */
+  const [serviceBonusPercentFromApi, setServiceBonusPercentFromApi] = useState(null);
   
   // Ref для дебаунсу збереження
   const saveTimeoutRef = useRef(null);
@@ -96,6 +103,43 @@ function RegionalDashboard({ user }) {
       setSelectedRegion(availableRegions[0]);
     }
   }, [user?.region, availableRegions, selectedRegion]);
+
+  const serviceWorkBonusFraction = useMemo(() => {
+    const p = serviceBonusPercentFromApi;
+    if (typeof p === 'number' && p > 0) return p / 100;
+    return FALLBACK_SERVICE_BONUS_PERCENT / 100;
+  }, [serviceBonusPercentFromApi]);
+
+  const displayServiceBonusPercent = useMemo(() => {
+    const p = serviceBonusPercentFromApi;
+    if (typeof p === 'number' && p > 0) return p;
+    return FALLBACK_SERVICE_BONUS_PERCENT;
+  }, [serviceBonusPercentFromApi]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const res = await fetch(`${API_BASE_URL}/global-calculation-coefficients`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const svcRows = data.service?.rows || [];
+        const row = svcRows.find((r) => r.id === SERVICE_WORK_BONUS_COEFFICIENT_ID);
+        if (row != null && typeof row.value === 'number' && !Number.isNaN(row.value)) {
+          setServiceBonusPercentFromApi(row.value);
+        }
+      } catch (_) {
+        /* залишаємо null → фолбек 25% */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Фільтровані користувачі (регіональні інженери)
   const filteredUsers = useMemo(() => {
@@ -485,7 +529,7 @@ function RegionalDashboard({ user }) {
         
         if (bonusMonth === month && bonusYear === year) {
           const workPrice = parseFloat(t.workPrice) || 0;
-          const taskBonus = workPrice * 0.25;
+          const taskBonus = workPrice * serviceWorkBonusFraction;
           
           const engineers = [
             (t.engineer1 || '').trim(),
@@ -504,7 +548,7 @@ function RegionalDashboard({ user }) {
     });
     
     return bonus;
-  }, [allTasks, month, year]);
+  }, [allTasks, month, year, serviceWorkBonusFraction]);
 
   // Розрахунок зарплати для користувача
   const calculateUserPay = useCallback((userId, userName) => {
@@ -719,7 +763,7 @@ function RegionalDashboard({ user }) {
       regionTasksForDetails.forEach(t => {
         const serviceTotal = parseFloat(t.serviceTotal) || 0;
         const workPrice = parseFloat(t.workPrice) || 0;
-        const bonus = workPrice * 0.25;
+        const bonus = workPrice * serviceWorkBonusFraction;
         
         totalServiceSum += serviceTotal;
         totalWorkPrice += workPrice;
@@ -743,12 +787,12 @@ function RegionalDashboard({ user }) {
               <th>Компанія виконавець</th>
               <th>Загальна сума з матеріалами</th>
               <th>Вартість робіт</th>
-              <th>Загальна премія (25%)</th>
+              <th>Загальна премія (${displayServiceBonusPercent}%)</th>
             </tr>
           </thead>
           <tbody>
             ${regionTasksForDetails.map((t, index) => {
-              const bonus = (parseFloat(t.workPrice) || 0) * 0.25;
+              const bonus = (parseFloat(t.workPrice) || 0) * serviceWorkBonusFraction;
               const workPrice = parseFloat(t.workPrice) || 0;
               return `
                 <tr>
@@ -854,7 +898,7 @@ function RegionalDashboard({ user }) {
     const newWindow = window.open('', '_blank');
     newWindow.document.write(html);
     newWindow.document.close();
-  }, [month, year, months, selectedRegion, availableRegions, filteredUsers, days, timesheetData, calculateUserPay, workDaysInfo, allTasks]);
+  }, [month, year, months, selectedRegion, availableRegions, filteredUsers, days, timesheetData, calculateUserPay, workDaysInfo, allTasks, serviceWorkBonusFraction, displayServiceBonusPercent]);
 
   if (loading) {
     return <div className="loading">Завантаження...</div>;
