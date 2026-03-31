@@ -7180,10 +7180,26 @@ app.post('/api/equipment/:id/cancel-reserve', authenticateToken, async (req, res
   }
 });
 
-/** Адміністратор у панелі сервісу: перегляд усіх сповіщень (query serviceGlobal=1). */
+/** Адміністратор у панелі сервісу: перегляд сповіщень лише для регіональних керівників (query serviceGlobal=1). */
 function isServiceGlobalNotificationsAdmin(req) {
   const role = req.user?.role;
   return req.query.serviceGlobal === '1' && ['admin', 'administrator'].includes(role);
+}
+
+/** Логіни користувачів з роллю регіонального керівника (активні облікові записи). */
+async function getRegionalManagerRecipientLogins() {
+  const rows = await User.find({
+    role: { $in: ['regional', 'regkerivn'] },
+    dismissed: { $ne: true }
+  })
+    .select('login')
+    .lean();
+  const set = new Set();
+  for (const u of rows) {
+    const l = u.login && String(u.login).trim();
+    if (l) set.add(l);
+  }
+  return [...set];
 }
 
 // Персональні сповіщення менеджерів (резерви)
@@ -7191,7 +7207,11 @@ app.get('/api/manager-notifications', authenticateToken, async (req, res) => {
   try {
     const unreadOnly = req.query.unreadOnly === '1' || req.query.unreadOnly === 'true';
     if (isServiceGlobalNotificationsAdmin(req)) {
-      const q = {};
+      const logins = await getRegionalManagerRecipientLogins();
+      if (logins.length === 0) {
+        return res.json([]);
+      }
+      const q = { recipientLogin: { $in: logins } };
       if (unreadOnly) q.read = false;
       const list = await ManagerUserNotification.find(q).sort({ createdAt: -1 }).limit(500).lean();
       return res.json(list);
@@ -7209,7 +7229,14 @@ app.get('/api/manager-notifications', authenticateToken, async (req, res) => {
 app.get('/api/manager-notifications/unread-count', authenticateToken, async (req, res) => {
   try {
     if (isServiceGlobalNotificationsAdmin(req)) {
-      const count = await ManagerUserNotification.countDocuments({ read: false });
+      const logins = await getRegionalManagerRecipientLogins();
+      const count =
+        logins.length === 0
+          ? 0
+          : await ManagerUserNotification.countDocuments({
+              recipientLogin: { $in: logins },
+              read: false
+            });
       return res.json({ count });
     }
     const count = await ManagerUserNotification.countDocuments({
@@ -7225,9 +7252,16 @@ app.get('/api/manager-notifications/unread-count', authenticateToken, async (req
 app.patch('/api/manager-notifications/:id/read', authenticateToken, async (req, res) => {
   try {
     const globalAdmin = isServiceGlobalNotificationsAdmin(req);
-    const filter = globalAdmin
-      ? { _id: req.params.id }
-      : { _id: req.params.id, recipientLogin: req.user.login };
+    let filter;
+    if (globalAdmin) {
+      const logins = await getRegionalManagerRecipientLogins();
+      if (logins.length === 0) {
+        return res.status(404).json({ error: 'Не знайдено' });
+      }
+      filter = { _id: req.params.id, recipientLogin: { $in: logins } };
+    } else {
+      filter = { _id: req.params.id, recipientLogin: req.user.login };
+    }
     const n = await ManagerUserNotification.findOneAndUpdate(
       filter,
       { $set: { read: true } },
@@ -7243,7 +7277,13 @@ app.patch('/api/manager-notifications/:id/read', authenticateToken, async (req, 
 app.post('/api/manager-notifications/mark-all-read', authenticateToken, async (req, res) => {
   try {
     if (isServiceGlobalNotificationsAdmin(req)) {
-      await ManagerUserNotification.updateMany({ read: false }, { $set: { read: true } });
+      const logins = await getRegionalManagerRecipientLogins();
+      if (logins.length > 0) {
+        await ManagerUserNotification.updateMany(
+          { recipientLogin: { $in: logins }, read: false },
+          { $set: { read: true } }
+        );
+      }
     } else {
       await ManagerUserNotification.updateMany(
         { recipientLogin: req.user.login, read: false },
