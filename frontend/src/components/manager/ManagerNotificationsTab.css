@@ -1,0 +1,118 @@
+.manager-notifications-tab {
+  padding: 0 8px 24px;
+  max-width: 720px;
+}
+
+.manager-notifications-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.manager-notifications-header h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  color: var(--text, #e8e8e8);
+}
+
+.manager-notifications-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.manager-notifications-actions button {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #444);
+  background: var(--surface-dark, #2a2a2a);
+  color: var(--text, #e8e8e8);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.manager-notifications-actions .btn-mark-all {
+  border-color: var(--primary, #0d6efd);
+  background: rgba(13, 110, 253, 0.15);
+}
+
+.manager-notifications-desc {
+  font-size: 13px;
+  color: var(--text-secondary, #aaa);
+  margin: 0 0 20px;
+  line-height: 1.45;
+}
+
+.manager-notifications-loading,
+.manager-notifications-empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-secondary, #888);
+}
+
+.manager-notifications-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.manager-notification-item {
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #3a3a3a);
+  background: var(--surface, #1e1e1e);
+}
+
+.manager-notification-item.unread {
+  border-left: 4px solid var(--primary, #0d6efd);
+  background: var(--surface-dark, #252525);
+}
+
+.manager-notification-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-secondary, #999);
+}
+
+.manager-notification-kind {
+  font-weight: 600;
+  color: var(--primary, #6ea8fe);
+}
+
+.manager-notification-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: var(--text, #eee);
+}
+
+.manager-notification-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-secondary, #ccc);
+}
+
+.btn-notification-read {
+  margin-top: 10px;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: none;
+  background: var(--primary, #0d6efd);
+  color: #fff;
+  cursor: pointer;
+}
+
+.manager-notification-item.read .btn-notification-read {
+  display: none;
+}

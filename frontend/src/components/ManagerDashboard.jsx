@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import API_BASE_URL from '../config';
 import EquipmentList from './equipment/EquipmentList';
 import CategoryTree from './equipment/CategoryTree';
@@ -6,6 +6,7 @@ import ClientsTab from './manager/ClientsTab';
 import SalesTab from './manager/SalesTab';
 import SalesReportTab from './manager/SalesReportTab';
 import IncomingCallTab from './manager/IncomingCallTab';
+import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import { getClients } from '../utils/clientsAPI';
 import './ManagerDashboard.css';
 
@@ -77,10 +78,33 @@ function ManagerDashboard({ user }) {
   const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false);
   const equipmentListRef = useRef(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [notificationsUnreadCount, setNotificationsUnreadCount] = useState(0);
+
+  const fetchManagerNotificationsUnread = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res = await fetch(`${API_BASE_URL}/manager-notifications/unread-count`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotificationsUnreadCount(typeof data.count === 'number' ? data.count : 0);
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     loadWarehouses();
   }, []);
+
+  useEffect(() => {
+    fetchManagerNotificationsUnread();
+    const id = setInterval(fetchManagerNotificationsUnread, 60000);
+    return () => clearInterval(id);
+  }, [fetchManagerNotificationsUnread]);
 
   useEffect(() => {
     if (activeTab !== 'stock') setSelectedCategoryId(null);
@@ -379,6 +403,22 @@ function ManagerDashboard({ user }) {
                 <span className="tab-icon">📋</span>
                 <span className="tab-label">Історія резервування</span>
               </button>
+              <button
+                type="button"
+                className={`manager-sidebar-tab manager-sidebar-tab--with-badge ${activeTab === 'notifications' ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveTab('notifications');
+                  fetchManagerNotificationsUnread();
+                }}
+              >
+                <span className="tab-icon">🔔</span>
+                <span className="tab-label">Системні сповіщення</span>
+                {notificationsUnreadCount > 0 ? (
+                  <span className="manager-sidebar-badge" aria-label={`Непрочитано: ${notificationsUnreadCount}`}>
+                    {notificationsUnreadCount > 99 ? '99+' : notificationsUnreadCount}
+                  </span>
+                ) : null}
+              </button>
               <button 
                 className={`manager-sidebar-tab ${activeTab === 'incoming' ? 'active' : ''}`}
                 onClick={() => setActiveTab('incoming')}
@@ -439,6 +479,10 @@ function ManagerDashboard({ user }) {
                   managerCategoryContext
                 />
               </div>
+            </div>
+          ) : activeTab === 'notifications' ? (
+            <div className="manager-scaled-inner">
+              <ManagerNotificationsTab onUnreadCountChange={fetchManagerNotificationsUnread} />
             </div>
           ) : (
             <div className="manager-scaled-inner">

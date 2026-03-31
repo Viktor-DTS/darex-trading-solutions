@@ -311,6 +311,26 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
+/** Персональні сповіщення для менеджерів (резерви тощо) */
+const managerUserNotificationSchema = new mongoose.Schema({
+  recipientLogin: { type: String, required: true, index: true },
+  kind: {
+    type: String,
+    enum: ['reservation_3d', 'reservation_1d', 'reservation_released_auto', 'reservation_released_admin'],
+    required: true
+  },
+  equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
+  title: { type: String, required: true },
+  body: { type: String, default: '' },
+  read: { type: Boolean, default: false },
+  /** Унікальний ключ, щоб не дублювати нагадування (3д/1д) та авто-зняття */
+  dedupeKey: { type: String, sparse: true, unique: true },
+  createdAt: { type: Date, default: Date.now }
+});
+managerUserNotificationSchema.index({ recipientLogin: 1, createdAt: -1 });
+managerUserNotificationSchema.index({ recipientLogin: 1, read: 1 });
+const ManagerUserNotification = mongoose.model('ManagerUserNotification', managerUserNotificationSchema);
+
 // Схема для ролей
 const roleSchema = new mongoose.Schema({
   name: String,
@@ -788,6 +808,165 @@ equipmentSchema.index({ isDeleted: 1, status: 1, currentWarehouse: 1 });
 equipmentSchema.index({ isDeleted: 1, addedAt: -1 }); // Для сортування списку без видалених
 
 const Equipment = mongoose.model('Equipment', equipmentSchema);
+
+// --- Резервування: календарні дати, авто-зняття, сповіщення менеджерам ---
+function reservationEndYmdFromEquipment(equipment) {
+  if (!equipment || !equipment.reservationEndDate) return null;
+  const d = equipment.reservationEndDate;
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  return String(d).slice(0, 10);
+}
+
+/** Термін резерву минув (календарно): сьогодні пізніше за дату закінчення. */
+function isReservationCalendarExpired(equipment) {
+  const endYmd = reservationEndYmdFromEquipment(equipment);
+  if (!endYmd || !/^\d{4}-\d{2}-\d{2}$/.test(endYmd)) return false;
+  const todayYmd = serverLocalTodayYmd();
+  return diffCalendarDaysYmd(endYmd, todayYmd) >= 1;
+}
+
+/** Скільки календарних днів до кінця резерву (0 = сьогодні останній день). */
+function daysUntilReservationEndCalendar(equipment) {
+  const endYmd = reservationEndYmdFromEquipment(equipment);
+  if (!endYmd || !/^\d{4}-\d{2}-\d{2}$/.test(endYmd)) return null;
+  return diffCalendarDaysYmd(serverLocalTodayYmd(), endYmd);
+}
+
+async function createManagerNotificationDeduped(doc) {
+  try {
+    await ManagerUserNotification.create(doc);
+  } catch (e) {
+    if (e && e.code === 11000) return;
+    throw e;
+  }
+}
+
+function equipmentReserveSummaryLine(eq) {
+  const sn = eq.serialNumber && String(eq.serialNumber).trim() ? eq.serialNumber : 'без номера';
+  return `${eq.type || 'Обладнання'} (№ ${sn})`;
+}
+
+/**
+ * Зняти резерв (історія + очищення полів). actingUser = null для фонового авто-зняття.
+ * cancelReason: 'expired' | 'admin' | 'manual'
+ */
+async function performEquipmentReservationRelease(equipment, actingUser, cancelReason) {
+  const uid = actingUser ? String(actingUser._id) : 'system';
+  const uname = actingUser ? actingUser.name || actingUser.login : 'Система';
+
+  if (!equipment.reservationHistory) equipment.reservationHistory = [];
+  let histNotes = '';
+  if (cancelReason === 'expired') histNotes = 'Автоматичне скасування: закінчився термін резервування';
+  else if (cancelReason === 'admin' && actingUser) {
+    histNotes = `Скасовано адміністратором: ${actingUser.name || actingUser.login}`;
+  }
+
+  const histCancelReason = cancelReason === 'expired' ? 'expired' : cancelReason === 'admin' ? 'admin' : 'manual';
+
+  equipment.reservationHistory.push({
+    action: 'cancelled',
+    date: new Date(),
+    userId: uid,
+    userName: uname,
+    clientName: equipment.reservationClientName,
+    cancelReason: histCancelReason,
+    cancelledBy: equipment.reservedBy,
+    cancelledByName: equipment.reservedByName,
+    notes: histNotes
+  });
+
+  equipment.status = 'in_stock';
+  equipment.reservedBy = undefined;
+  equipment.reservedByName = undefined;
+  equipment.reservedByLogin = undefined;
+  equipment.reservedAt = undefined;
+  equipment.reservationClientName = undefined;
+  equipment.reservationNotes = undefined;
+  equipment.reservationEndDate = undefined;
+  equipment.reservationBasis = undefined;
+  equipment.lastModified = new Date();
+
+  await equipment.save();
+
+  try {
+    await EventLog.create({
+      userId: uid,
+      userName: uname,
+      userRole: actingUser ? actingUser.role : 'system',
+      action: 'cancel_reserve',
+      entityType: 'equipment',
+      entityId: equipment._id.toString(),
+      description: `Скасовано резервування обладнання ${equipment.type} (№${equipment.serialNumber || 'без номера'})`,
+      details: { automatic: !actingUser, cancelReason }
+    });
+  } catch (logErr) {
+    console.error('Помилка логування cancel_reserve:', logErr);
+  }
+}
+
+let reservationMaintenanceRunning = false;
+async function runReservationMaintenanceJob() {
+  if (reservationMaintenanceRunning) return;
+  reservationMaintenanceRunning = true;
+  try {
+    const reservedList = await Equipment.find({ status: 'reserved' });
+    for (const eq of reservedList) {
+      try {
+        if (isReservationCalendarExpired(eq)) {
+          const endYmd = reservationEndYmdFromEquipment(eq);
+          const ownerLogin = eq.reservedByLogin;
+          await performEquipmentReservationRelease(eq, null, 'expired');
+          if (ownerLogin) {
+            await createManagerNotificationDeduped({
+              recipientLogin: ownerLogin,
+              kind: 'reservation_released_auto',
+              equipmentId: eq._id,
+              title: 'Резервування знято автоматично',
+              body: `Термін резервування закінчився: ${equipmentReserveSummaryLine(eq)}.`,
+              dedupeKey: endYmd ? `released_auto:${eq._id}:${endYmd}` : `released_auto:${eq._id}:${Date.now()}`,
+              read: false
+            });
+          }
+          continue;
+        }
+        const daysLeft = daysUntilReservationEndCalendar(eq);
+        if (daysLeft !== 3 && daysLeft !== 1) continue;
+        if (!eq.reservedByLogin) continue;
+        const endYmd = reservationEndYmdFromEquipment(eq);
+        if (!endYmd) continue;
+        const kind = daysLeft === 3 ? 'reservation_3d' : 'reservation_1d';
+        const title =
+          daysLeft === 3
+            ? 'Залишилось 3 дні до кінця резерву'
+            : 'Завтра закінчується резерв обладнання';
+        const body =
+          daysLeft === 3
+            ? `До завершення резерву ${equipmentReserveSummaryLine(eq)} залишилось 3 дні (до ${endYmd.split('-').reverse().join('.')}).`
+            : `Завтра останній день резерву: ${equipmentReserveSummaryLine(eq)} (до ${endYmd.split('-').reverse().join('.')}).`;
+        await createManagerNotificationDeduped({
+          recipientLogin: eq.reservedByLogin,
+          kind,
+          equipmentId: eq._id,
+          title,
+          body,
+          dedupeKey: `${kind}:${eq._id}:${endYmd}`,
+          read: false
+        });
+      } catch (inner) {
+        console.error('[reservation-maintenance] equipment', eq._id, inner);
+      }
+    }
+  } catch (e) {
+    console.error('[reservation-maintenance]', e);
+  } finally {
+    reservationMaintenanceRunning = false;
+  }
+}
+
+setInterval(runReservationMaintenanceJob, 15 * 60 * 1000);
+setTimeout(() => {
+  runReservationMaintenanceJob().catch((e) => console.error('[reservation-maintenance] startup', e));
+}, 15000);
 
 // Схема груп номенклатури (дерево як в 1С: Товари / Деталі та комплектуючі)
 const categorySchema = new mongoose.Schema({
@@ -6833,69 +7012,37 @@ app.post('/api/equipment/:id/cancel-reserve', authenticateToken, async (req, res
       return res.status(400).json({ error: 'Обладнання не зарезервовано' });
     }
 
-    // Перевірка прав на скасування: адмін, той хто зарезервував, або закінчився термін
+    const ownerLoginBefore = equipment.reservedByLogin;
+    const isCalendarExpired = isReservationCalendarExpired(equipment);
+
+    // Перевірка прав на скасування: адмін, той хто зарезервував, або закінчився термін (календарно)
     const isAdmin = ['admin', 'administrator'].includes(user.role);
     const isOwner = equipment.reservedBy === user._id.toString();
-    const isExpired = equipment.reservationEndDate && new Date(equipment.reservationEndDate) < new Date();
-    
-    if (!isAdmin && !isOwner && !isExpired) {
-      return res.status(403).json({ 
-        error: 'Скасувати резервування може тільки адміністратор або той, хто його створив' 
+
+    if (!isAdmin && !isOwner && !isCalendarExpired) {
+      return res.status(403).json({
+        error: 'Скасувати резервування може тільки адміністратор або той, хто його створив'
       });
     }
 
-    // Визначаємо причину скасування
     let cancelReason = 'manual';
-    if (isExpired) {
+    if (isCalendarExpired) {
       cancelReason = 'expired';
     } else if (isAdmin && !isOwner) {
       cancelReason = 'admin';
     }
 
-    // Додаємо до історії резервувань
-    if (!equipment.reservationHistory) {
-      equipment.reservationHistory = [];
-    }
-    equipment.reservationHistory.push({
-      action: 'cancelled',
-      date: new Date(),
-      userId: user._id.toString(),
-      userName: user.name || user.login,
-      clientName: equipment.reservationClientName,
-      cancelReason: cancelReason,
-      cancelledBy: equipment.reservedBy,
-      cancelledByName: equipment.reservedByName,
-      notes: cancelReason === 'expired' ? 'Автоматичне скасування: закінчився термін резервування' : 
-             cancelReason === 'admin' ? `Скасовано адміністратором: ${user.name || user.login}` : ''
-    });
+    await performEquipmentReservationRelease(equipment, user, cancelReason);
 
-    equipment.status = 'in_stock';
-    equipment.reservedBy = undefined;
-    equipment.reservedByName = undefined;
-    equipment.reservedByLogin = undefined;
-    equipment.reservedAt = undefined;
-    equipment.reservationClientName = undefined;
-    equipment.reservationNotes = undefined;
-    equipment.reservationEndDate = undefined;
-    equipment.reservationBasis = undefined;
-    equipment.lastModified = new Date();
-
-    await equipment.save();
-
-    // Логування
-    try {
-      await EventLog.create({
-        userId: user._id.toString(),
-        userName: user.name || user.login,
-        userRole: user.role,
-        action: 'cancel_reserve',
-        entityType: 'equipment',
-        entityId: equipment._id.toString(),
-        description: `Скасовано резервування обладнання ${equipment.type} (№${equipment.serialNumber || 'без номера'})`,
-        details: {}
+    if (cancelReason === 'admin' && ownerLoginBefore && ownerLoginBefore !== user.login) {
+      await createManagerNotificationDeduped({
+        recipientLogin: ownerLoginBefore,
+        kind: 'reservation_released_admin',
+        equipmentId: equipment._id,
+        title: 'Резервування знято адміністратором',
+        body: `${user.name || user.login} зняв резерв з ${equipmentReserveSummaryLine(equipment)}.`,
+        read: false
       });
-    } catch (logErr) {
-      console.error('Помилка логування:', logErr);
     }
 
     logPerformance('POST /api/equipment/:id/cancel-reserve', startTime);
@@ -6904,6 +7051,58 @@ app.post('/api/equipment/:id/cancel-reserve', authenticateToken, async (req, res
     console.error('[ERROR] POST /api/equipment/:id/cancel-reserve:', error);
     logPerformance('POST /api/equipment/:id/cancel-reserve', startTime);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Персональні сповіщення менеджерів (резерви)
+app.get('/api/manager-notifications', authenticateToken, async (req, res) => {
+  try {
+    const login = req.user.login;
+    const unreadOnly = req.query.unreadOnly === '1' || req.query.unreadOnly === 'true';
+    const q = { recipientLogin: login };
+    if (unreadOnly) q.read = false;
+    const list = await ManagerUserNotification.find(q).sort({ createdAt: -1 }).limit(200).lean();
+    res.json(list);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/manager-notifications/unread-count', authenticateToken, async (req, res) => {
+  try {
+    const count = await ManagerUserNotification.countDocuments({
+      recipientLogin: req.user.login,
+      read: false
+    });
+    res.json({ count });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch('/api/manager-notifications/:id/read', authenticateToken, async (req, res) => {
+  try {
+    const n = await ManagerUserNotification.findOneAndUpdate(
+      { _id: req.params.id, recipientLogin: req.user.login },
+      { $set: { read: true } },
+      { new: true }
+    );
+    if (!n) return res.status(404).json({ error: 'Не знайдено' });
+    res.json(n);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/manager-notifications/mark-all-read', authenticateToken, async (req, res) => {
+  try {
+    await ManagerUserNotification.updateMany(
+      { recipientLogin: req.user.login, read: false },
+      { $set: { read: true } }
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
