@@ -321,7 +321,8 @@ const MANAGER_NOTIFICATION_KINDS = [
   'task_wh_approved',
   'task_wh_rejected',
   'task_accountant_approved',
-  'task_accountant_rejected'
+  'task_accountant_rejected',
+  'task_new'
 ];
 
 const managerUserNotificationSchema = new mongoose.Schema({
@@ -3006,6 +3007,20 @@ app.post('/api/tasks', async (req, res) => {
       await sendFcmTaskNotification('task_created', savedTask, user);
     } catch (notificationError) {
       console.error('[TELEGRAM] Помилка при створенні заявки:', notificationError);
+    }
+
+    try {
+      const taskObj = savedTask.toObject ? savedTask.toObject() : savedTask;
+      const actor = req.user || { login: 'system', name: 'Система' };
+      const uname = actor.name || actor.login || 'Система';
+      const reqNum = taskObj.requestNumber || String(taskObj._id);
+      await notifyServiceRegionalForTask(taskObj, 'task_new', {
+        title: 'Нова заявка',
+        body: `Створено заявку ${reqNum}${taskObj.client ? `: ${taskObj.client}` : ''} (${uname}).`,
+        dedupeKeyPrefix: `task_new:${taskObj._id}`
+      });
+    } catch (regionalNotifyErr) {
+      console.error('[notify] task_new POST /api/tasks:', regionalNotifyErr);
     }
     
     logPerformance('POST /api/tasks', startTime);
@@ -7165,11 +7180,23 @@ app.post('/api/equipment/:id/cancel-reserve', authenticateToken, async (req, res
   }
 });
 
+/** Адміністратор у панелі сервісу: перегляд усіх сповіщень (query serviceGlobal=1). */
+function isServiceGlobalNotificationsAdmin(req) {
+  const role = req.user?.role;
+  return req.query.serviceGlobal === '1' && ['admin', 'administrator'].includes(role);
+}
+
 // Персональні сповіщення менеджерів (резерви)
 app.get('/api/manager-notifications', authenticateToken, async (req, res) => {
   try {
-    const login = req.user.login;
     const unreadOnly = req.query.unreadOnly === '1' || req.query.unreadOnly === 'true';
+    if (isServiceGlobalNotificationsAdmin(req)) {
+      const q = {};
+      if (unreadOnly) q.read = false;
+      const list = await ManagerUserNotification.find(q).sort({ createdAt: -1 }).limit(500).lean();
+      return res.json(list);
+    }
+    const login = req.user.login;
     const q = { recipientLogin: login };
     if (unreadOnly) q.read = false;
     const list = await ManagerUserNotification.find(q).sort({ createdAt: -1 }).limit(200).lean();
@@ -7181,6 +7208,10 @@ app.get('/api/manager-notifications', authenticateToken, async (req, res) => {
 
 app.get('/api/manager-notifications/unread-count', authenticateToken, async (req, res) => {
   try {
+    if (isServiceGlobalNotificationsAdmin(req)) {
+      const count = await ManagerUserNotification.countDocuments({ read: false });
+      return res.json({ count });
+    }
     const count = await ManagerUserNotification.countDocuments({
       recipientLogin: req.user.login,
       read: false
@@ -7193,8 +7224,12 @@ app.get('/api/manager-notifications/unread-count', authenticateToken, async (req
 
 app.patch('/api/manager-notifications/:id/read', authenticateToken, async (req, res) => {
   try {
+    const globalAdmin = isServiceGlobalNotificationsAdmin(req);
+    const filter = globalAdmin
+      ? { _id: req.params.id }
+      : { _id: req.params.id, recipientLogin: req.user.login };
     const n = await ManagerUserNotification.findOneAndUpdate(
-      { _id: req.params.id, recipientLogin: req.user.login },
+      filter,
       { $set: { read: true } },
       { new: true }
     );
@@ -7207,10 +7242,14 @@ app.patch('/api/manager-notifications/:id/read', authenticateToken, async (req, 
 
 app.post('/api/manager-notifications/mark-all-read', authenticateToken, async (req, res) => {
   try {
-    await ManagerUserNotification.updateMany(
-      { recipientLogin: req.user.login, read: false },
-      { $set: { read: true } }
-    );
+    if (isServiceGlobalNotificationsAdmin(req)) {
+      await ManagerUserNotification.updateMany({ read: false }, { $set: { read: true } });
+    } else {
+      await ManagerUserNotification.updateMany(
+        { recipientLogin: req.user.login, read: false },
+        { $set: { read: true } }
+      );
+    }
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

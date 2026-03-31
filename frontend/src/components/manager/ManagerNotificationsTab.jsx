@@ -11,7 +11,8 @@ const KIND_LABELS = {
   task_wh_approved: 'Затверджено завскладом',
   task_wh_rejected: 'Відхилено завскладом',
   task_accountant_approved: 'Затверджено бухгалтером',
-  task_accountant_rejected: 'Відхилено бухгалтером'
+  task_accountant_rejected: 'Відхилено бухгалтером',
+  task_new: 'Нова заявка'
 };
 
 function notificationTaskId(n) {
@@ -25,15 +26,22 @@ function notificationTaskId(n) {
 const DEFAULT_DESCRIPTION =
   'Персональні сповіщення для вашого облікового запису: нагадування про резерви, події по заявках регіону (рахунок, затвердження або відмова завскладом і бухгалтерією).';
 
-function ManagerNotificationsTab({ onUnreadCountChange, onOpenTask, description = DEFAULT_DESCRIPTION }) {
+function ManagerNotificationsTab({
+  onUnreadCountChange,
+  onOpenTask,
+  description = DEFAULT_DESCRIPTION,
+  globalFeed = false
+}) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const scopeQs = globalFeed ? '?serviceGlobal=1' : '';
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/manager-notifications`, {
+      const res = await fetch(`${API_BASE_URL}/manager-notifications${scopeQs}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -48,7 +56,7 @@ function ManagerNotificationsTab({ onUnreadCountChange, onOpenTask, description 
       setLoading(false);
     }
     onUnreadCountChange?.();
-  }, [onUnreadCountChange]);
+  }, [onUnreadCountChange, scopeQs]);
 
   useEffect(() => {
     load();
@@ -57,7 +65,7 @@ function ManagerNotificationsTab({ onUnreadCountChange, onOpenTask, description 
   const markRead = async (id) => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/manager-notifications/${id}/read`, {
+      const res = await fetch(`${API_BASE_URL}/manager-notifications/${id}/read${scopeQs}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -73,7 +81,7 @@ function ManagerNotificationsTab({ onUnreadCountChange, onOpenTask, description 
   const markAllRead = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/manager-notifications/mark-all-read`, {
+      const res = await fetch(`${API_BASE_URL}/manager-notifications/mark-all-read${scopeQs}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -117,7 +125,14 @@ function ManagerNotificationsTab({ onUnreadCountChange, onOpenTask, description 
               className={`manager-notification-item ${n.read ? 'read' : 'unread'}`}
             >
               <div className="manager-notification-meta">
-                <span className="manager-notification-kind">{KIND_LABELS[n.kind] || n.kind}</span>
+                <span className="manager-notification-kind-wrap">
+                  <span className="manager-notification-kind">{KIND_LABELS[n.kind] || n.kind}</span>
+                  {globalFeed && n.recipientLogin ? (
+                    <span className="manager-notification-recipient" title="Отримувач">
+                      → {n.recipientLogin}
+                    </span>
+                  ) : null}
+                </span>
                 <span className="manager-notification-meta-right">
                   {(() => {
                     const tid = notificationTaskId(n);

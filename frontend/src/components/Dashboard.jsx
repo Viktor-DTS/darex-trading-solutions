@@ -20,11 +20,14 @@ function Dashboard({ user, panelType = 'service' }) {
   const [isReadOnlyMode, setIsReadOnlyMode] = useState(false);
   const [notificationsUnreadCount, setNotificationsUnreadCount] = useState(0);
 
+  const isServiceAdmin = user?.role === 'admin' || user?.role === 'administrator';
+
   const fetchNotificationsUnread = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
-      const res = await fetch(`${API_BASE_URL}/manager-notifications/unread-count`, {
+      const qs = isServiceAdmin ? '?serviceGlobal=1' : '';
+      const res = await fetch(`${API_BASE_URL}/manager-notifications/unread-count${qs}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -34,7 +37,7 @@ function Dashboard({ user, panelType = 'service' }) {
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [isServiceAdmin]);
 
   useEffect(() => {
     fetchNotificationsUnread();
@@ -194,6 +197,12 @@ function Dashboard({ user, panelType = 'service' }) {
             <ManagerNotificationsTab
               onUnreadCountChange={fetchNotificationsUnread}
               onOpenTask={handleOpenTaskFromNotification}
+              globalFeed={isServiceAdmin}
+              description={
+                isServiceAdmin
+                  ? 'Як адміністратор сервісу ви бачите всі сповіщення всіх користувачів. Біля типу вказано отримувача. «Позначити всі прочитаними» позначає прочитаними всі непрочитані записи в системі.'
+                  : undefined
+              }
             />
           ) : (
             <TaskTable 
