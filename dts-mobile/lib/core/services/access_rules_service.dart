@@ -105,6 +105,7 @@ class AccessRulesService {
     'inventory',
     'manager',
     'testing',
+    'finance',
     'accountant',
     'accountantApproval',
   ];
