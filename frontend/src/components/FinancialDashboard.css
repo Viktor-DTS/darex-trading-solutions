@@ -75,3 +75,51 @@
   min-height: 0;
   overflow: auto;
 }
+
+.finance-coefficients-wrap {
+  padding: 0;
+}
+
+.finance-coefficients-main-title {
+  margin: 0;
+  padding: 20px 20px 12px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.finance-subtabs {
+  display: flex;
+  gap: 0;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border, #334155);
+  background: var(--surface, #1e293b);
+}
+
+.finance-subtab {
+  padding: 12px 18px;
+  margin-bottom: -1px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.finance-subtab:hover {
+  color: var(--text-primary, #e2e8f0);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.finance-subtab.active {
+  color: var(--primary, #3b82f6);
+  border-bottom-color: var(--primary, #3b82f6);
+  background: var(--background, #0f172a);
+}
+
+.finance-subtab-panel {
+  padding-top: 4px;
+}

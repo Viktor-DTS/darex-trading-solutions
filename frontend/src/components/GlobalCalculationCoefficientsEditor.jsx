@@ -2,16 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import API_BASE_URL from '../config';
 import './GlobalCalculationCoefficientsEditor.css';
 
-const EDIT_ROLES = ['admin', 'administrator', 'manager', 'mgradm', 'finance', 'buhgalteria'];
+const EDIT_ROLES = ['admin', 'administrator', 'finance', 'buhgalteria'];
 
 function canEditCoefficients(role) {
   return EDIT_ROLES.includes(String(role || '').toLowerCase());
 }
 
 /**
- * Редактор глобальних коефіцієнтів (спільний для панелі «Фінансовий відділ» та вкладки менеджерів).
+ * Редактор коефіцієнтів за напрямком: sales | service (фінансовий відділ).
  */
-function GlobalCalculationCoefficientsEditor({ user, title, description }) {
+function GlobalCalculationCoefficientsEditor({ user, scope, title, description }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -19,6 +19,7 @@ function GlobalCalculationCoefficientsEditor({ user, title, description }) {
   const editable = canEditCoefficients(user?.role);
 
   const load = useCallback(async () => {
+    if (!scope || (scope !== 'sales' && scope !== 'service')) return;
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -27,10 +28,11 @@ function GlobalCalculationCoefficientsEditor({ user, title, description }) {
       });
       if (res.ok) {
         const data = await res.json();
-        setRows(Array.isArray(data.rows) ? data.rows : []);
+        const block = scope === 'sales' ? data.sales : data.service;
+        setRows(Array.isArray(block?.rows) ? block.rows : []);
         setMeta({
-          updatedAt: data.updatedAt,
-          updatedByLogin: data.updatedByLogin
+          updatedAt: block?.updatedAt,
+          updatedByLogin: block?.updatedByLogin
         });
       }
     } catch (e) {
@@ -38,7 +40,7 @@ function GlobalCalculationCoefficientsEditor({ user, title, description }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     load();
@@ -69,7 +71,7 @@ function GlobalCalculationCoefficientsEditor({ user, title, description }) {
   };
 
   const handleSave = async () => {
-    if (!editable) return;
+    if (!editable || !scope) return;
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
@@ -79,14 +81,15 @@ function GlobalCalculationCoefficientsEditor({ user, title, description }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ rows })
+        body: JSON.stringify({ scope, rows })
       });
       if (res.ok) {
         const data = await res.json();
-        setRows(data.rows || rows);
+        const block = scope === 'sales' ? data.sales : data.service;
+        setRows(block?.rows || rows);
         setMeta({
-          updatedAt: data.updatedAt,
-          updatedByLogin: data.updatedByLogin
+          updatedAt: block?.updatedAt,
+          updatedByLogin: block?.updatedByLogin
         });
         alert('Коефіцієнти збережено');
       } else {
@@ -99,6 +102,10 @@ function GlobalCalculationCoefficientsEditor({ user, title, description }) {
       setSaving(false);
     }
   };
+
+  if (!scope || (scope !== 'sales' && scope !== 'service')) {
+    return null;
+  }
 
   if (loading) {
     return <div className="gcc-editor-loading">Завантаження…</div>;
@@ -114,7 +121,7 @@ function GlobalCalculationCoefficientsEditor({ user, title, description }) {
       )}
       {!editable && (
         <div className="gcc-editor-readonly-banner">
-          Лише перегляд. Змінювати можуть адміністратор, менеджер, бухгалтерія (<code>buhgalteria</code>) або фінансовий відділ (<code>finance</code>).
+          Лише перегляд. Змінювати можуть адміністратор, бухгалтерія (<code>buhgalteria</code>) або фінансовий відділ (<code>finance</code>).
         </div>
       )}
       {meta.updatedAt && (

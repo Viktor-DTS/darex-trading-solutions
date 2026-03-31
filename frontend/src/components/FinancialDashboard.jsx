@@ -2,8 +2,20 @@ import React, { useState } from 'react';
 import GlobalCalculationCoefficientsEditor from './GlobalCalculationCoefficientsEditor';
 import './FinancialDashboard.css';
 
+const COEFF_SCOPE_COPY = {
+  sales: {
+    description:
+      'Коефіцієнти для глобальних розрахунків, пов’язаних із відділом продажів.'
+  },
+  service: {
+    description:
+      'Коефіцієнти для глобальних розрахунків сервісного відділу.'
+  }
+};
+
 function FinancialDashboard({ user }) {
   const [activeTab, setActiveTab] = useState('coefficients');
+  const [coeffScope, setCoeffScope] = useState('sales');
 
   return (
     <div className="finance-dashboard">
@@ -25,11 +37,37 @@ function FinancialDashboard({ user }) {
         </aside>
         <main className="finance-main-content">
           {activeTab === 'coefficients' && (
-            <GlobalCalculationCoefficientsEditor
-              user={user}
-              title="Коефіцієнти розрахунку"
-              description="Глобальні коефіцієнти для подальших фінансових та сервісних розрахунків. Ті самі дані доступні у відділі продажів у вкладці для сервісного відділу."
-            />
+            <div className="finance-coefficients-wrap">
+              <h1 className="finance-coefficients-main-title">Коефіцієнти розрахунку</h1>
+              <div className="finance-subtabs" role="tablist" aria-label="Напрямок коефіцієнтів">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={coeffScope === 'sales'}
+                  className={`finance-subtab ${coeffScope === 'sales' ? 'active' : ''}`}
+                  onClick={() => setCoeffScope('sales')}
+                >
+                  Для відділу продажів
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={coeffScope === 'service'}
+                  className={`finance-subtab ${coeffScope === 'service' ? 'active' : ''}`}
+                  onClick={() => setCoeffScope('service')}
+                >
+                  Для сервісного відділу
+                </button>
+              </div>
+              <div className="finance-subtab-panel" role="tabpanel">
+                <GlobalCalculationCoefficientsEditor
+                  key={coeffScope}
+                  user={user}
+                  scope={coeffScope}
+                  description={COEFF_SCOPE_COPY[coeffScope].description}
+                />
+              </div>
+            </div>
           )}
         </main>
       </div>

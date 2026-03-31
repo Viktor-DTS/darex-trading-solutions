@@ -6,7 +6,6 @@ import ClientsTab from './manager/ClientsTab';
 import SalesTab from './manager/SalesTab';
 import SalesReportTab from './manager/SalesReportTab';
 import IncomingCallTab from './manager/IncomingCallTab';
-import GlobalCalculationCoefficientsEditor from './GlobalCalculationCoefficientsEditor';
 import { getClients } from '../utils/clientsAPI';
 import './ManagerDashboard.css';
 
@@ -252,13 +251,6 @@ function ManagerDashboard({ user }) {
                 <span className="tab-label">Продажі</span>
               </button>
               <button 
-                className={`manager-sidebar-tab ${activeTab === 'serviceCoeffs' ? 'active' : ''}`}
-                onClick={() => setActiveTab('serviceCoeffs')}
-              >
-                <span className="tab-icon">📐</span>
-                <span className="tab-label">Коефіцієнти для сервісу</span>
-              </button>
-              <button 
                 className={`manager-sidebar-tab ${activeTab === 'report' ? 'active' : ''}`}
                 onClick={() => setActiveTab('report')}
               >
@@ -312,14 +304,6 @@ function ManagerDashboard({ user }) {
           ) : activeTab === 'sales' ? (
             <div className="manager-scaled-inner">
               <SalesTab user={user} />
-            </div>
-          ) : activeTab === 'serviceCoeffs' ? (
-            <div className="manager-scaled-inner">
-              <GlobalCalculationCoefficientsEditor
-                user={user}
-                title="Глобальні коефіцієнти для сервісного відділу"
-                description="Тут відділ продажів вносить коефіцієнти для глобальних розрахунків, які використовує сервіс (спільні з панеллю «Фінансовий відділ»)."
-              />
             </div>
           ) : activeTab === 'incoming' ? (
             <div className="manager-scaled-inner">

@@ -324,14 +324,15 @@ const accessRulesSchema = new mongoose.Schema({
 }, { strict: false });
 const AccessRules = mongoose.model('AccessRules', accessRulesSchema);
 
-// Глобальні коефіцієнти для розрахунків (фінансовий відділ / відділ продажів → сервіс)
+// Глобальні коефіцієнти: окремо для відділу продажів та сервісного (legacy поле rows → service)
 const globalCalculationCoefficientsSchema = new mongoose.Schema({
-  rows: [{
-    id: String,
-    label: String,
-    value: Number,
-    note: String
-  }],
+  rows: [{ id: String, label: String, value: Number, note: String }],
+  salesRows: [{ id: String, label: String, value: Number, note: String }],
+  serviceRows: [{ id: String, label: String, value: Number, note: String }],
+  salesUpdatedAt: Date,
+  salesUpdatedByLogin: String,
+  serviceUpdatedAt: Date,
+  serviceUpdatedByLogin: String,
   updatedAt: Date,
   updatedByLogin: String
 }, { strict: false });
@@ -343,9 +344,45 @@ const DEFAULT_GLOBAL_COEFFICIENT_ROWS = [
   { id: 'logistics_coef', label: 'Коефіцієнт логістики', value: 1, note: '' }
 ];
 
+function cloneDefaultCoefficientRows() {
+  return JSON.parse(JSON.stringify(DEFAULT_GLOBAL_COEFFICIENT_ROWS));
+}
+
+async function ensureGlobalCoefficientsDoc(doc) {
+  let changed = false;
+  const hasNew =
+    (doc.salesRows && doc.salesRows.length) ||
+    (doc.serviceRows && doc.serviceRows.length);
+  if (!hasNew && doc.rows && doc.rows.length) {
+    doc.serviceRows = doc.rows.map((r) => ({ ...r }));
+    doc.salesRows = cloneDefaultCoefficientRows();
+    changed = true;
+  } else {
+    if (!doc.salesRows || !doc.salesRows.length) {
+      doc.salesRows = cloneDefaultCoefficientRows();
+      changed = true;
+    }
+    if (!doc.serviceRows || !doc.serviceRows.length) {
+      doc.serviceRows = cloneDefaultCoefficientRows();
+      changed = true;
+    }
+  }
+  if (changed) await doc.save();
+  return doc;
+}
+
+function mapCoefficientRows(bodyRows) {
+  return bodyRows.map((row, i) => ({
+    id: String(row.id || `row_${i}_${Date.now()}`),
+    label: String(row.label || '').trim() || `Коефіцієнт ${i + 1}`,
+    value: typeof row.value === 'number' && !Number.isNaN(row.value) ? row.value : parseFloat(row.value) || 0,
+    note: row.note != null ? String(row.note) : ''
+  }));
+}
+
 function canEditGlobalCalculationCoefficients(role) {
   const r = String(role || '').toLowerCase();
-  return ['admin', 'administrator', 'manager', 'mgradm', 'finance', 'buhgalteria'].includes(r);
+  return ['admin', 'administrator', 'finance', 'buhgalteria'].includes(r);
 }
 
 // Схема для журналу подій
@@ -3247,7 +3284,7 @@ app.post('/api/accessRules', authenticateToken, async (req, res) => {
 });
 
 // ============================================
-// API ГЛОБАЛЬНИХ КОЕФІЦІЄНТІВ (фінанси / менеджери → сервіс)
+// API ГЛОБАЛЬНИХ КОЕФІЦІЄНТІВ (фінансовий відділ: продажі / сервіс)
 // ============================================
 app.get('/api/global-calculation-coefficients', authenticateToken, async (req, res) => {
   const startTime = Date.now();
@@ -3255,20 +3292,24 @@ app.get('/api/global-calculation-coefficients', authenticateToken, async (req, r
     let doc = await GlobalCalculationCoefficients.findOne();
     if (!doc) {
       doc = await GlobalCalculationCoefficients.create({
-        rows: DEFAULT_GLOBAL_COEFFICIENT_ROWS,
-        updatedAt: null,
-        updatedByLogin: null
+        salesRows: cloneDefaultCoefficientRows(),
+        serviceRows: cloneDefaultCoefficientRows()
       });
     }
-    if (!doc.rows || !doc.rows.length) {
-      doc.rows = DEFAULT_GLOBAL_COEFFICIENT_ROWS;
-      await doc.save();
-    }
+    await ensureGlobalCoefficientsDoc(doc);
+    doc = await GlobalCalculationCoefficients.findOne();
     logPerformance('GET /api/global-calculation-coefficients', startTime);
     res.json({
-      rows: doc.rows,
-      updatedAt: doc.updatedAt,
-      updatedByLogin: doc.updatedByLogin
+      sales: {
+        rows: doc.salesRows,
+        updatedAt: doc.salesUpdatedAt,
+        updatedByLogin: doc.salesUpdatedByLogin
+      },
+      service: {
+        rows: doc.serviceRows,
+        updatedAt: doc.serviceUpdatedAt,
+        updatedByLogin: doc.serviceUpdatedByLogin
+      }
     });
   } catch (error) {
     logPerformance('GET /api/global-calculation-coefficients', startTime);
@@ -3284,29 +3325,44 @@ app.post('/api/global-calculation-coefficients', authenticateToken, async (req, 
       return res.status(403).json({ error: 'Немає прав на зміну коефіцієнтів' });
     }
     const body = req.body;
+    const scope = body.scope;
+    if (scope !== 'sales' && scope !== 'service') {
+      return res.status(400).json({ error: 'Очікується scope: "sales" або "service" та масив rows' });
+    }
     if (!body || !Array.isArray(body.rows)) {
       return res.status(400).json({ error: 'Очікується об\'єкт з масивом rows' });
     }
-    const rows = body.rows.map((row, i) => ({
-      id: String(row.id || `row_${i}_${Date.now()}`),
-      label: String(row.label || '').trim() || `Коефіцієнт ${i + 1}`,
-      value: typeof row.value === 'number' && !Number.isNaN(row.value) ? row.value : parseFloat(row.value) || 0,
-      note: row.note != null ? String(row.note) : ''
-    }));
+    const rows = mapCoefficientRows(body.rows);
     let doc = await GlobalCalculationCoefficients.findOne();
     if (!doc) {
       doc = new GlobalCalculationCoefficients({});
     }
-    doc.rows = rows;
-    doc.updatedAt = new Date();
-    doc.updatedByLogin = req.user.login || req.user.name || '';
+    await ensureGlobalCoefficientsDoc(doc);
+    const login = req.user.login || req.user.name || '';
+    const now = new Date();
+    if (scope === 'sales') {
+      doc.salesRows = rows;
+      doc.salesUpdatedAt = now;
+      doc.salesUpdatedByLogin = login;
+    } else {
+      doc.serviceRows = rows;
+      doc.serviceUpdatedAt = now;
+      doc.serviceUpdatedByLogin = login;
+    }
     await doc.save();
     logPerformance('POST /api/global-calculation-coefficients', startTime);
     res.json({
       success: true,
-      rows: doc.rows,
-      updatedAt: doc.updatedAt,
-      updatedByLogin: doc.updatedByLogin
+      sales: {
+        rows: doc.salesRows,
+        updatedAt: doc.salesUpdatedAt,
+        updatedByLogin: doc.salesUpdatedByLogin
+      },
+      service: {
+        rows: doc.serviceRows,
+        updatedAt: doc.serviceUpdatedAt,
+        updatedByLogin: doc.serviceUpdatedByLogin
+      }
     });
   } catch (error) {
     logPerformance('POST /api/global-calculation-coefficients', startTime);
