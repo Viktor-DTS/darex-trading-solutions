@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import API_BASE_URL from '../config';
 import EquipmentList from './equipment/EquipmentList';
 import CategoryTree from './equipment/CategoryTree';
@@ -24,10 +24,30 @@ const RESERVATION_DAYS_COEFFICIENT_IDS = {
   'Зарезервовано за договором': 'reservation_days_contract'
 };
 
-function endDateAfterDays(days) {
-  const d = new Date();
+/** Додає календарні дні до дати YYYY-MM-DD (чиста арифметика дат, без годинника клієнта). */
+function addDaysToYmd(startYmd, days) {
+  const [y, m, day] = startYmd.split('-').map(Number);
+  const d = new Date(y, m - 1, day);
   d.setDate(d.getDate() + Math.max(0, Math.round(Number(days) || 0)));
-  return d.toISOString().slice(0, 10);
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+function endDateAfterDaysFromServer(days, serverTodayYmd) {
+  if (!serverTodayYmd) return '';
+  return addDaysToYmd(serverTodayYmd, days);
+}
+
+function clampReservationEndDateYmd(endYmd, basis, daysByBasis, serverTodayYmd) {
+  if (!serverTodayYmd) return endYmd || '';
+  const maxDays = basis ? (daysByBasis[basis] ?? 0) : 0;
+  const maxY = addDaysToYmd(serverTodayYmd, maxDays);
+  let v = endYmd || '';
+  if (v && v < serverTodayYmd) v = serverTodayYmd;
+  if (v && v > maxY) v = maxY;
+  return v;
 }
 
 function ManagerDashboard({ user }) {
@@ -45,6 +65,8 @@ function ManagerDashboard({ user }) {
   });
   /** Кількість днів резерву за підставою — з коефіцієнтів фінвідділу (продажі) */
   const [reservationDaysByBasis, setReservationDaysByBasis] = useState({});
+  /** YYYY-MM-DD з бекенду (global-calculation-coefficients); null = ще завантажується */
+  const [reservationServerTodayYmd, setReservationServerTodayYmd] = useState(null);
   const [reservationLoading, setReservationLoading] = useState(false);
   const [reservationHistory, setReservationHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -115,6 +137,7 @@ function ManagerDashboard({ user }) {
     setSelectedEquipment(equipment);
     setReservationForm({ clientName: '', edrpou: '', basis: '', notes: '', endDate: '' });
     setReservationDaysByBasis({});
+    setReservationServerTodayYmd(null);
     setClientSearch('');
     setEdrpouSearch('');
     setShowReservationModal(true);
@@ -160,9 +183,15 @@ function ManagerDashboard({ user }) {
             : 0;
       }
       setReservationDaysByBasis(daysMap);
+
+      const srv = coeffRes?.serverTodayYmd;
+      setReservationServerTodayYmd(
+        typeof srv === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(srv) ? srv : ''
+      );
     } catch {
       setCrmClients([]);
       setReservationDaysByBasis({});
+      setReservationServerTodayYmd('');
     }
   };
 
@@ -185,6 +214,14 @@ function ManagerDashboard({ user }) {
   });
   const showDropdown = (showClientDropdown || showEdrpouDropdown) && filteredReservationClients.length > 0;
 
+  const reservationEndDateMaxYmd = useMemo(() => {
+    const b = reservationForm.basis;
+    const srv = reservationServerTodayYmd;
+    if (!b || !srv) return '';
+    const days = reservationDaysByBasis[b] ?? 0;
+    return addDaysToYmd(srv, days);
+  }, [reservationForm.basis, reservationDaysByBasis, reservationServerTodayYmd]);
+
   const handleReservationSubmit = async (e) => {
     e.preventDefault();
     
@@ -195,6 +232,31 @@ function ManagerDashboard({ user }) {
     if (!reservationForm.basis.trim()) {
       alert('Оберіть підставу резервування');
       return;
+    }
+
+    const srv = reservationServerTodayYmd;
+    if (!srv) {
+      alert(
+        reservationServerTodayYmd === null
+          ? 'Зачекайте завантаження даних з сервера'
+          : 'Не вдалося отримати дату сервера. Закрийте вікно та спробуйте резервування ще раз.'
+      );
+      return;
+    }
+
+    const maxDays = reservationDaysByBasis[reservationForm.basis] ?? 0;
+    const maxY = addDaysToYmd(srv, maxDays);
+    if (reservationForm.endDate) {
+      if (reservationForm.endDate < srv) {
+        alert('Дата закінчення резервування не може бути раніше за поточну дату сервера');
+        return;
+      }
+      if (reservationForm.endDate > maxY) {
+        alert(
+          `Дата закінчення не може перевищувати ${maxDays} дн. для обраної підстави (до ${maxY.split('-').reverse().join('.')})`
+        );
+        return;
+      }
     }
 
     setReservationLoading(true);
@@ -531,12 +593,24 @@ function ManagerDashboard({ user }) {
                     onChange={(e) => {
                       const v = e.target.value;
                       const days = reservationDaysByBasis[v] ?? 0;
-                      setReservationForm((prev) => ({
-                        ...prev,
-                        basis: v,
-                        endDate: v && days > 0 ? endDateAfterDays(days) : prev.endDate
-                      }));
+                      const srv = reservationServerTodayYmd;
+                      setReservationForm((prev) => {
+                        if (!srv) return { ...prev, basis: v, endDate: prev.endDate };
+                        const maxY = addDaysToYmd(srv, days);
+                        let end =
+                          v && days > 0
+                            ? endDateAfterDaysFromServer(days, srv)
+                            : v
+                              ? srv
+                              : prev.endDate;
+                        if (v) {
+                          if (end > maxY) end = maxY;
+                          if (end < srv) end = srv;
+                        }
+                        return { ...prev, basis: v, endDate: end };
+                      });
                     }}
+                    disabled={!reservationServerTodayYmd}
                   >
                     <option value="">— Оберіть підставу —</option>
                     {RESERVATION_BASIS_OPTIONS.map((opt) => (
@@ -555,9 +629,35 @@ function ManagerDashboard({ user }) {
                   <input
                     type="date"
                     value={reservationForm.endDate}
-                    onChange={(e) => setReservationForm(prev => ({ ...prev, endDate: e.target.value }))}
-                    min={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      const clamped = clampReservationEndDateYmd(
+                        raw,
+                        reservationForm.basis,
+                        reservationDaysByBasis,
+                        reservationServerTodayYmd || ''
+                      );
+                      setReservationForm((prev) => ({ ...prev, endDate: clamped }));
+                    }}
+                    min={reservationServerTodayYmd || undefined}
+                    max={reservationForm.basis ? reservationEndDateMaxYmd || undefined : undefined}
+                    disabled={!reservationServerTodayYmd}
                   />
+                  {reservationServerTodayYmd === null && (
+                    <p className="reservation-date-hint">Завантаження дати сервера…</p>
+                  )}
+                  {reservationServerTodayYmd === '' && (
+                    <p className="reservation-date-hint reservation-date-hint--warn">
+                      Не вдалося отримати дату з сервера. Закрийте вікно та відкрийте резервування знову.
+                    </p>
+                  )}
+                  {reservationServerTodayYmd && reservationForm.basis && reservationEndDateMaxYmd && (
+                    <p className="reservation-date-hint">
+                      Ліміти за <strong>датою сервера</strong> {reservationServerTodayYmd.split('-').reverse().join('.')}
+                      {' — '}не пізніше {reservationEndDateMaxYmd.split('-').reverse().join('.')} (макс.{' '}
+                      {reservationDaysByBasis[reservationForm.basis] ?? 0} дн. за підставою).
+                    </p>
+                  )}
                 </div>
                 
                 <div className="form-group">
@@ -586,7 +686,8 @@ function ManagerDashboard({ user }) {
                   disabled={
                     reservationLoading ||
                     !reservationForm.clientName.trim() ||
-                    !reservationForm.basis.trim()
+                    !reservationForm.basis.trim() ||
+                    !reservationServerTodayYmd
                   }
                 >
                   {reservationLoading ? 'Резервування...' : '🔒 Зарезервувати'}

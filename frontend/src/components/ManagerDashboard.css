@@ -350,7 +350,8 @@
 }
 
 .reservation-form-modal .form-group input,
-.reservation-form-modal .form-group textarea {
+.reservation-form-modal .form-group textarea,
+.reservation-form-modal .form-group select {
   width: 100%;
   padding: 12px;
   border: 1px solid var(--border);
@@ -358,6 +359,17 @@
   background: var(--surface-dark);
   color: var(--text);
   font-size: 14px;
+}
+
+.reservation-form-modal .reservation-date-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.reservation-form-modal .reservation-date-hint--warn {
+  color: #f0ad4e;
 }
 
 .reservation-form-modal .form-group input:focus,

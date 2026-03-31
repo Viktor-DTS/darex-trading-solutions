@@ -376,6 +376,41 @@ const RESERVATION_BASIS_ALLOWED = [
   'Зарезервовано за договором'
 ];
 
+const RESERVATION_BASIS_TO_COEFF_ID = {
+  'В процесі домовленості з клієнтом': 'reservation_days_negotiation',
+  'Під тендер': 'reservation_days_tender',
+  'Зарезервовано за договором': 'reservation_days_contract'
+};
+
+function serverLocalTodayYmd() {
+  const n = new Date();
+  const y = n.getFullYear();
+  const m = String(n.getMonth() + 1).padStart(2, '0');
+  const d = String(n.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** Різниця в календарних днях між YYYY-MM-DD (b − a). */
+function diffCalendarDaysYmd(ymdA, ymdB) {
+  if (!ymdA || !ymdB || ymdA.length < 10 || ymdB.length < 10) return NaN;
+  const pa = ymdA.slice(0, 10).split('-').map((x) => parseInt(x, 10));
+  const pb = ymdB.slice(0, 10).split('-').map((x) => parseInt(x, 10));
+  if (pa.some((x) => Number.isNaN(x)) || pb.some((x) => Number.isNaN(x))) return NaN;
+  const ta = Date.UTC(pa[0], pa[1] - 1, pa[2]);
+  const tb = Date.UTC(pb[0], pb[1] - 1, pb[2]);
+  return Math.round((tb - ta) / 86400000);
+}
+
+async function getReservationMaxDaysForBasis(basisTrim) {
+  const coeffId = RESERVATION_BASIS_TO_COEFF_ID[basisTrim];
+  if (!coeffId) return 0;
+  let doc = await GlobalCalculationCoefficients.findOne();
+  if (!doc) return 0;
+  const rows = buildCoefficientRowsForScope('sales', doc.salesRows || []);
+  const row = rows.find((r) => r.id === coeffId);
+  return row ? Math.max(0, Math.round(Number(row.value) || 0)) : 0;
+}
+
 const SERVICE_WORK_COMPLETION_PCT_ID = 'service_work_completion_pct';
 
 const PROGRAMMATIC_SERVICE_COEFFICIENTS = [
@@ -3378,6 +3413,8 @@ app.get('/api/global-calculation-coefficients', authenticateToken, async (req, r
     }
     logPerformance('GET /api/global-calculation-coefficients', startTime);
     res.json({
+      /** Календарна дата на сервері (для резервування тощо), щоб UI не покладався на годинник клієнта */
+      serverTodayYmd: serverLocalTodayYmd(),
       sales: {
         rows: buildCoefficientRowsForScope('sales', doc.salesRows),
         updatedAt: doc.salesUpdatedAt,
@@ -6702,6 +6739,25 @@ app.post('/api/equipment/:id/reserve', authenticateToken, async (req, res) => {
     const basisTrim = (reservationBasis || '').trim();
     if (!basisTrim || !RESERVATION_BASIS_ALLOWED.includes(basisTrim)) {
       return res.status(400).json({ error: 'Оберіть підставу резервування' });
+    }
+
+    const maxDays = await getReservationMaxDaysForBasis(basisTrim);
+    if (endDate) {
+      const endRaw = typeof endDate === 'string' ? endDate : new Date(endDate).toISOString();
+      const endYmd = String(endRaw).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(endYmd)) {
+        return res.status(400).json({ error: 'Невірний формат дати закінчення резервування' });
+      }
+      const todayYmd = serverLocalTodayYmd();
+      if (diffCalendarDaysYmd(todayYmd, endYmd) < 0) {
+        return res.status(400).json({ error: 'Дата закінчення резервування не може бути в минулому' });
+      }
+      const span = diffCalendarDaysYmd(todayYmd, endYmd);
+      if (span > maxDays) {
+        return res.status(400).json({
+          error: `Дата закінчення не може перевищувати ${maxDays} дн. для обраної підстави (з коефіцієнтів фінвідділу)`
+        });
+      }
     }
 
     equipment.status = 'reserved';
