@@ -2,7 +2,15 @@ import React, { useState, useMemo } from 'react';
 import EquipmentPickerModal from './EquipmentPickerModal';
 import './EquipmentEditor.css';
 
-function EquipmentEditor({ items, equipment, onChange, label = 'Відвантажене обладнання' }) {
+function EquipmentEditor({
+  items,
+  equipment,
+  onChange,
+  label = 'Відвантажене обладнання',
+  user = null,
+  reserveClientName = '',
+  onEquipmentReserved
+}) {
   const [pickerRowId, setPickerRowId] = useState(null);
 
   const addRow = () => {
@@ -158,6 +166,9 @@ function EquipmentEditor({ items, equipment, onChange, label = 'Відванта
         equipment={equipment}
         excludeIds={excludeIdsForPicker}
         onSelect={handlePickerSelect}
+        user={user}
+        reserveClientName={reserveClientName}
+        onAfterReserve={onEquipmentReserved}
       />
     </div>
   );

@@ -13,7 +13,7 @@
   background: var(--surface);
   border-radius: 12px;
   width: 100%;
-  max-width: 920px;
+  max-width: 1080px;
   max-height: min(88vh, 720px);
   display: flex;
   flex-direction: column;
@@ -156,6 +156,31 @@
   white-space: nowrap;
 }
 
+.equipment-picker-col-qty {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.equipment-picker-status {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.equipment-picker-status--free {
+  background: rgba(40, 167, 69, 0.2);
+  color: #6fdc8b;
+}
+
+.equipment-picker-status--mine {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
 .equipment-picker-col-action {
   width: 100px;
   text-align: right;
@@ -176,6 +201,11 @@
 .equipment-picker-btn-select:hover {
   background: var(--primary);
   color: #fff;
+}
+
+.equipment-picker-btn-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .equipment-picker-empty {

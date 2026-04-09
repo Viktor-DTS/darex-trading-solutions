@@ -737,6 +737,9 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
                 equipment={equipmentWithSale}
                 onChange={items => setForm(prev => ({ ...prev, equipmentItems: items }))}
                 label="Відвантажене обладнання"
+                user={user}
+                reserveClientName={form.clientName}
+                onEquipmentReserved={loadEquipment}
               />
             )}
 

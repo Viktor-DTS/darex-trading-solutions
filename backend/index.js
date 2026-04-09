@@ -436,6 +436,21 @@ function diffCalendarDaysYmd(ymdA, ymdB) {
   return Math.round((tb - ta) / 86400000);
 }
 
+/** Додати календарні дні до дати YYYY-MM-DD (локальний календар сервера). */
+function ymdAddCalendarDays(startYmd, days) {
+  const parts = String(startYmd).slice(0, 10).split('-').map((x) => parseInt(x, 10));
+  if (parts.length !== 3 || parts.some((x) => Number.isNaN(x))) return String(startYmd).slice(0, 10);
+  const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+  dt.setDate(dt.getDate() + Math.max(0, Math.round(Number(days) || 0)));
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+/** Підстава резерву при виборі обладнання в формі продажу CRM (коефіцієнти як у звичайному резерві). */
+const RESERVATION_BASIS_FOR_SALE = 'В процесі домовленості з клієнтом';
+
 async function getReservationMaxDaysForBasis(basisTrim) {
   const coeffId = RESERVATION_BASIS_TO_COEFF_ID[basisTrim];
   if (!coeffId) return 0;
@@ -7114,6 +7129,96 @@ app.post('/api/equipment/:id/reserve', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('[ERROR] POST /api/equipment/:id/reserve:', error);
     logPerformance('POST /api/equipment/:id/reserve', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Резервування з форми продажу: клієнт з угоди, підстава «домовленість», термін з коефіцієнтів; якщо вже зарезервовано цим логіном — без змін
+app.post('/api/equipment/:id/reserve-for-sale', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const equipment = await Equipment.findById(req.params.id);
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    const clientName = (req.body?.clientName || '').trim();
+    if (!clientName) {
+      return res.status(400).json({ error: 'Назва клієнта обов\'язкова для резервування' });
+    }
+
+    if (equipment.status === 'reserved') {
+      if (equipment.reservedByLogin === req.user.login) {
+        const fresh = await Equipment.findById(req.params.id).lean();
+        return res.json(fresh);
+      }
+      return res.status(400).json({ error: 'Обладнання вже зарезервовано іншим користувачем' });
+    }
+
+    if (equipment.status !== 'in_stock') {
+      return res.status(400).json({ error: 'Доступне лише обладнання в статусі «на складі»' });
+    }
+
+    const basisTrim = RESERVATION_BASIS_FOR_SALE;
+    const maxDays = await getReservationMaxDaysForBasis(basisTrim);
+    let endDateVal = null;
+    if (maxDays > 0) {
+      const endYmd = ymdAddCalendarDays(serverLocalTodayYmd(), maxDays);
+      endDateVal = new Date(`${endYmd}T23:59:59.999`);
+    }
+
+    equipment.status = 'reserved';
+    equipment.reservedBy = user._id.toString();
+    equipment.reservedByName = user.name || user.login;
+    equipment.reservedByLogin = user.login;
+    equipment.reservedAt = new Date();
+    equipment.reservationClientName = clientName;
+    equipment.reservationNotes = 'Резерв при формуванні продажу в CRM';
+    equipment.reservationEndDate = endDateVal;
+    equipment.reservationBasis = basisTrim;
+    equipment.lastModified = new Date();
+
+    if (!equipment.reservationHistory) {
+      equipment.reservationHistory = [];
+    }
+    equipment.reservationHistory.push({
+      action: 'reserved',
+      date: new Date(),
+      userId: user._id.toString(),
+      userName: user.name || user.login,
+      clientName,
+      basis: basisTrim,
+      endDate: endDateVal,
+      notes: equipment.reservationNotes
+    });
+
+    await equipment.save();
+
+    try {
+      await EventLog.create({
+        userId: user._id.toString(),
+        userName: user.name || user.login,
+        userRole: user.role,
+        action: 'reserve',
+        entityType: 'equipment',
+        entityId: equipment._id.toString(),
+        description: `Зарезервовано для продажу: ${equipment.type} (№${equipment.serialNumber || 'без номера'}) — ${clientName}`,
+        details: { reservedByName: equipment.reservedByName, clientName, reservationBasis: basisTrim, source: 'sale_form' }
+      });
+    } catch (logErr) {
+      console.error('Помилка логування reserve-for-sale:', logErr);
+    }
+
+    logPerformance('POST /api/equipment/:id/reserve-for-sale', startTime);
+    const out = await Equipment.findById(req.params.id).lean();
+    res.json(out);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/:id/reserve-for-sale:', error);
+    logPerformance('POST /api/equipment/:id/reserve-for-sale', startTime);
     res.status(500).json({ error: error.message });
   }
 });
