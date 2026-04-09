@@ -2,6 +2,16 @@
   z-index: 12000;
 }
 
+/* Google Places: випадаючий список поверх overlay (12000) і підтвердження */
+.pac-container {
+  z-index: 15000 !important;
+}
+
+.sale-shipment-left .sale-shipment-address-autocomplete input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .sale-shipment-modal {
   max-width: 960px;
   width: 96%;

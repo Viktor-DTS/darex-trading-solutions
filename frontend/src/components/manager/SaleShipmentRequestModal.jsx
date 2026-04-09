@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   getShipmentRequestPreviewNumber,
   submitSaleShipmentRequest
@@ -27,6 +27,8 @@ function SaleShipmentRequestModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [showLockConfirm, setShowLockConfirm] = useState(false);
+  const shipmentAddressInputRef = useRef(null);
+  const shipmentAddressAutocompleteRef = useRef(null);
 
   const selectableRows = useMemo(
     () =>
@@ -51,10 +53,54 @@ function SaleShipmentRequestModal({
     setVehicleType('');
     setTtnFile(null);
     setPlannedDate('');
+    setShipmentAddress((initialShipmentAddress || '').trim());
     getShipmentRequestPreviewNumber()
       .then(setPreviewNumber)
       .catch(() => setPreviewNumber('SV-…'));
   }, [open, saleId, initialShipmentAddress]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    let retryTimeout;
+    const initAutocomplete = () => {
+      if (cancelled) return;
+      if (!shipmentAddressInputRef.current) {
+        retryTimeout = setTimeout(initAutocomplete, 100);
+        return;
+      }
+      if (typeof google === 'undefined' || !google.maps?.places) {
+        retryTimeout = setTimeout(initAutocomplete, 100);
+        return;
+      }
+      if (shipmentAddressAutocompleteRef.current) {
+        google.maps.event.clearInstanceListeners(shipmentAddressAutocompleteRef.current);
+        shipmentAddressAutocompleteRef.current = null;
+      }
+      const ac = new google.maps.places.Autocomplete(shipmentAddressInputRef.current, {
+        componentRestrictions: { country: 'ua' },
+        fields: ['formatted_address'],
+        types: ['address']
+      });
+      ac.addListener('place_changed', () => {
+        const place = ac.getPlace();
+        if (place.formatted_address) {
+          setShipmentAddress(place.formatted_address);
+        }
+      });
+      shipmentAddressAutocompleteRef.current = ac;
+    };
+    const t = setTimeout(initAutocomplete, 50);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+      if (retryTimeout) clearTimeout(retryTimeout);
+      if (shipmentAddressAutocompleteRef.current && typeof google !== 'undefined' && google.maps?.event) {
+        google.maps.event.clearInstanceListeners(shipmentAddressAutocompleteRef.current);
+        shipmentAddressAutocompleteRef.current = null;
+      }
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -165,15 +211,18 @@ function SaleShipmentRequestModal({
                   required
                 />
               </div>
-              <div className="form-group">
+              <div className="form-group sale-shipment-address-autocomplete">
                 <label>Адреса відвантаження *</label>
-                <textarea
+                <input
+                  ref={shipmentAddressInputRef}
+                  type="text"
                   value={shipmentAddress}
                   onChange={(e) => setShipmentAddress(e.target.value)}
-                  rows={3}
-                  placeholder="Повна адреса відвантаження товару"
+                  placeholder="Почніть вводити адресу…"
+                  autoComplete="off"
                   required
                 />
+                <span className="sale-shipment-hint">Підказки Google Maps (Україна), як у сервісних заявках</span>
               </div>
               <div className="form-group">
                 <label>Вказати перевізника *</label>
