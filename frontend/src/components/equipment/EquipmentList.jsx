@@ -56,6 +56,38 @@ const ALL_COLUMNS = [
 
 const canSeeReservationClient = (role) => ['admin', 'administrator', 'mgradm'].includes(role);
 
+/** Підпис у фільтрі колонки «Тип номенклатури» — відповідає гілці дерева номенклатури */
+const ITEM_KIND_FILTER_FIXED_ASSETS_LABEL =
+  'Необоротні активи (офісно-складське приладдя)';
+
+function collectCategorySubtreeIds(node) {
+  const ids = [String(node._id)];
+  for (const ch of node.children || []) {
+    ids.push(...collectCategorySubtreeIds(ch));
+  }
+  return ids;
+}
+
+/** Усі categoryId у гілці, де назва категорії збігається з повною або містить «Необоротні активи» */
+function findFixedAssetsCategoryIdsFromTree(nodes) {
+  const ids = new Set();
+  const walk = (list) => {
+    if (!Array.isArray(list)) return;
+    for (const n of list) {
+      const name = (n.name || '').trim();
+      if (
+        name === ITEM_KIND_FILTER_FIXED_ASSETS_LABEL ||
+        name.includes('Необоротні активи')
+      ) {
+        collectCategorySubtreeIds(n).forEach((id) => ids.add(id));
+      }
+      walk(n.children);
+    }
+  };
+  walk(nodes);
+  return ids;
+}
+
 /** Одиниця виміру з картки (batchUnit); для згрупованої партії — з першого рядка, де вона задана */
 function getEquipmentBatchUnit(item) {
   if (item?.batchUnit && String(item.batchUnit).trim()) return String(item.batchUnit).trim();
@@ -116,7 +148,9 @@ const EquipmentList = forwardRef(({
   const [sortField, setSortField] = useState('type');
   const [sortDirection, setSortDirection] = useState('asc');
   const [showFilters, setShowFilters] = useState(true);
-  
+  /** null — дерево ще не завантажено; Set — id категорій гілки необоротних активів */
+  const [fixedAssetsCategoryIds, setFixedAssetsCategoryIds] = useState(null);
+
   // Фільтри колонок
   const [columnFilters, setColumnFilters] = useState(() => {
     try {
@@ -157,6 +191,31 @@ const EquipmentList = forwardRef(({
   useEffect(() => {
     loadEquipment();
   }, [categoryId, includeSubtree, managerCategoryContext]);
+
+  useEffect(() => {
+    if (managerCategoryContext) {
+      setFixedAssetsCategoryIds(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE_URL}/categories/tree`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const tree = Array.isArray(data) ? data : [];
+        setFixedAssetsCategoryIds(findFixedAssetsCategoryIdsFromTree(tree));
+      } catch {
+        if (!cancelled) setFixedAssetsCategoryIds(new Set());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [managerCategoryContext]);
 
   const loadEquipment = async () => {
     setLoading(true);
@@ -236,7 +295,9 @@ const EquipmentList = forwardRef(({
       return ['', 'Всі', 'Вільна', 'Зарезервовано'];
     }
     if (columnKey === 'itemKind') {
-      return ['', 'Товари', 'Деталі'];
+      const opts = ['', 'Товари', 'Деталі'];
+      if (!managerCategoryContext) opts.push(ITEM_KIND_FILTER_FIXED_ASSETS_LABEL);
+      return opts;
     }
     return [];
   };
@@ -303,7 +364,17 @@ const EquipmentList = forwardRef(({
                 return reservationStatus === filterValue;
               }
               if (key === 'itemKind') {
-                const kind = filterValue === 'Товари' ? 'equipment' : filterValue === 'Деталі' ? 'parts' : null;
+                if (filterValue === ITEM_KIND_FILTER_FIXED_ASSETS_LABEL) {
+                  if (fixedAssetsCategoryIds == null) return true;
+                  const cid = item.categoryId != null ? String(item.categoryId) : '';
+                  return cid !== '' && fixedAssetsCategoryIds.has(cid);
+                }
+                const kind =
+                  filterValue === 'Товари'
+                    ? 'equipment'
+                    : filterValue === 'Деталі'
+                      ? 'parts'
+                      : null;
                 return kind ? (item.itemKind || 'equipment') === kind : true;
               }
               const itemValue = item[key];
@@ -360,7 +431,7 @@ const EquipmentList = forwardRef(({
     
     // Об'єднуємо групи та одиничні елементи
     return [...Object.values(groups), ...singleItems];
-  }, [equipment, filter, columnFilters, sortField, sortDirection, showDeleted, managerCategoryContext]);
+  }, [equipment, filter, columnFilters, sortField, sortDirection, showDeleted, managerCategoryContext, fixedAssetsCategoryIds]);
 
   const handleSort = (field) => {
     if (sortField === field) {
