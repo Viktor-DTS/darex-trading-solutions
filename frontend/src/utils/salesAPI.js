@@ -35,6 +35,38 @@ export const getSales = async (params = {}) => {
   }
 };
 
+/** Черга премій відділу продаж — бухгалтерія: premiumQueue=pending | archived */
+export const getSalesPremiumQueue = async (premiumQueue) => {
+  try {
+    const qs = new URLSearchParams({ premiumQueue }).toString();
+    const response = await fetch(`${API_BASE_URL}/sales?${qs}`, { headers: getAuthHeaders() });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка завантаження черги премій:', error);
+    return [];
+  }
+};
+
+/** Затвердити премію та перевести угоду в «Підтверджено» */
+export const approveSalePremium = async (id, data = {}) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/sales/${id}/approve-premium`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || `HTTP ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Помилка затвердження премії:', error);
+    throw error;
+  }
+};
+
 // Один продаж по ID
 export const getSale = async (id) => {
   try {

@@ -450,7 +450,10 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
           })),
         saleDate: form.saleDate,
         warrantyMonths: parseInt(form.warrantyMonths) || 12,
-        status: form.status,
+        status:
+          editSale?.premiumAccruedAt || editSale?.status === 'confirmed'
+            ? 'confirmed'
+            : form.status,
         notes: form.notes?.trim() || '',
         addressMM: form.addressMM?.trim() || undefined,
         buyer: form.buyer?.trim() || undefined,
@@ -495,6 +498,27 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body sale-form-body">
+            {editSale?.premiumAccruedAt && (
+              <div
+                className="sale-premium-accrued-banner"
+                style={{
+                  marginBottom: 16,
+                  padding: '12px 14px',
+                  borderRadius: 8,
+                  background: 'var(--success-bg, rgba(46, 125, 50, 0.12))',
+                  border: '1px solid var(--success-border, rgba(46, 125, 50, 0.35))',
+                  fontSize: 14
+                }}
+              >
+                <strong>Премію затверджено</strong> бухгалтерією відділу продажів
+                {editSale.premiumAccrualPeriod ? ` (період ${editSale.premiumAccrualPeriod})` : ''}.
+                {editSale.premiumAccruedByLogin ? ` Користувач: ${editSale.premiumAccruedByLogin}.` : ''}{' '}
+                Сума:{' '}
+                <strong>
+                  {parseFloat(editSale.managerPremium) || 0} ₴
+                </strong>
+              </div>
+            )}
             <div className="form-group">
               <label>Клієнт <span className="required">*</span></label>
               <div className="client-autocomplete-with-btn">
@@ -900,6 +924,8 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
                 step="0.01"
                 value={form.managerPremium || ''}
                 onChange={e => setForm(prev => ({ ...prev, managerPremium: e.target.value }))}
+                disabled={!!editSale?.premiumAccruedAt}
+                title={editSale?.premiumAccruedAt ? 'Після затвердження бухгалтерією зміна премії недоступна' : undefined}
               />
             </div>
           </div>

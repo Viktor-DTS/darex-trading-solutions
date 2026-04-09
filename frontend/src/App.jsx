@@ -18,6 +18,7 @@ import InventoryDashboard from './components/InventoryDashboard';
 import ManagerDashboard from './components/ManagerDashboard';
 import TestingDashboard from './components/TestingDashboard';
 import FinancialDashboard from './components/FinancialDashboard';
+import SalesAccountingDashboard from './components/SalesAccountingDashboard';
 import API_BASE_URL from './config';
 
 // Доступні панелі
@@ -27,6 +28,7 @@ const PANELS = [
   { id: 'warehouse', label: 'Зав. склад', icon: '📦' },
   { id: 'inventory', label: 'Складський облік', icon: '📋' },
   { id: 'manager', label: 'Менеджери', icon: '👔' },
+  { id: 'salesAccounting', label: 'Відділ продаж — бухгалтерія', icon: '📒' },
   { id: 'testing', label: 'Відділ тестування', icon: '🧪' },
   { id: 'finance', label: 'Фінансовий відділ', icon: '💹' },
   { id: 'accountant', label: 'Бух рахунки', icon: '📄' },
@@ -39,11 +41,11 @@ const PANELS = [
 
 // Права доступу за замовчуванням (резервні, якщо база недоступна)
 const DEFAULT_ACCESS_RULES = {
-  admin: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
-  administrator: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
+  admin: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
+  administrator: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
   operator: ['operator'],
-  accountant: ['accountant', 'accountantApproval', 'inventory', 'reports', 'analytics'],
-  buhgalteria: ['accountant', 'accountantApproval', 'inventory', 'reports', 'analytics'],
+  accountant: ['accountant', 'accountantApproval', 'salesAccounting', 'inventory', 'reports', 'analytics'],
+  buhgalteria: ['accountant', 'accountantApproval', 'salesAccounting', 'inventory', 'reports', 'analytics'],
   warehouse: ['warehouse', 'inventory', 'service'],
   zavsklad: ['warehouse', 'inventory', 'service'],
   regkerivn: ['regional', 'service', 'reports', 'analytics', 'inventory', 'manager'],
@@ -380,6 +382,8 @@ function App() {
         return <InventoryDashboard user={user} />;
       case 'manager':
         return <ManagerDashboard user={user} />;
+      case 'salesAccounting':
+        return <SalesAccountingDashboard />;
       case 'finance':
         return <FinancialDashboard user={user} />;
       case 'testing':

@@ -1376,6 +1376,10 @@ const saleSchema = new mongoose.Schema({
   otherCosts: { type: Number, default: 0 },
   discountPercent: { type: Number, default: 0 },
   managerPremium: { type: Number, default: 0 },
+  // Затвердження премії бухгалтерією відділу продажів (після status success)
+  premiumAccruedAt: Date,
+  premiumAccruedByLogin: String,
+  premiumAccrualPeriod: String, // MM-YYYY для обліку
   partner: String,           // Партнер
   partnerContactName: String  // ФІО контактної особи партнера
 }, { timestamps: true });
@@ -1962,7 +1966,8 @@ app.post('/api/clients/:id/interactions', authenticateToken, async (req, res) =>
 
 app.get('/api/sales', authenticateToken, async (req, res) => {
   try {
-    const { clientId, managerLogin, forClientCheck, status, dateFrom, dateTo, region: regionQuery } = req.query;
+    let salesSort = { saleDate: -1 };
+    const { clientId, managerLogin, forClientCheck, status, dateFrom, dateTo, region: regionQuery, premiumQueue } = req.query;
     const canPickSaleRegion = ['admin', 'administrator', 'mgradm'].includes(req.user?.role);
     const dbUser = await User.findOne({ login: req.user.login }).select('region').lean();
     let regionFilter = '';
@@ -1991,7 +1996,21 @@ app.get('/api/sales', authenticateToken, async (req, res) => {
       conditions.push({ managerLogin });
     }
     if (clientId) conditions.push({ clientId });
-    if (status) conditions.push({ status });
+    const pq = String(premiumQueue || '').trim().toLowerCase();
+    if (pq === 'pending' || pq === 'archived') {
+      if (!canApproveSalePremium(req.user)) {
+        return res.status(403).json({ error: 'Немає доступу до черги премій' });
+      }
+      if (pq === 'pending') {
+        conditions.push({ status: 'success' });
+        conditions.push({ $or: [{ premiumAccruedAt: null }, { premiumAccruedAt: { $exists: false } }] });
+      } else {
+        conditions.push({ premiumAccruedAt: { $ne: null } });
+        salesSort = { premiumAccruedAt: -1 };
+      }
+    } else if (status) {
+      conditions.push({ status });
+    }
     if (dateFrom || dateTo) {
       const dateRange = {};
       if (dateFrom) dateRange.$gte = new Date(dateFrom);
@@ -2011,7 +2030,7 @@ app.get('/api/sales', authenticateToken, async (req, res) => {
     const sales = await Sale.find(query)
       .populate('clientId', 'name edrpou contactPhone')
       .populate('equipmentId', 'type serialNumber')
-      .sort({ saleDate: -1 })
+      .sort(salesSort)
       .lean();
     if (sales.length > 0) {
       const logins = [...new Set([
@@ -2068,9 +2087,44 @@ async function markEquipmentAsSold(sale) {
 
 const canAssignSaleManager = (user) => ['admin', 'administrator', 'mgradm'].includes(user?.role);
 
+function canApproveSalePremium(user) {
+  const r = String(user?.role || '').toLowerCase();
+  return ['admin', 'administrator', 'mgradm', 'accountant', 'buhgalteria'].includes(r);
+}
+
+function computeSuggestedManagerPremiumFromSale(sale, bonusPct) {
+  const pct = typeof bonusPct === 'number' && !Number.isNaN(bonusPct) ? bonusPct : 0;
+  let mainAmount = parseFloat(sale.mainProductAmount) || 0;
+  if (sale.equipmentItems && sale.equipmentItems.length > 0) {
+    mainAmount = sale.equipmentItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+  }
+  const addSum = (sale.additionalCosts || []).reduce(
+    (s, c) => s + (parseFloat(c.amount) || 0) * (parseInt(c.quantity, 10) || 1),
+    0
+  );
+  const transport = parseFloat(sale.transportCosts) || 0;
+  const pnr = parseFloat(sale.pnrCosts) || 0;
+  const representative = parseFloat(sale.representativeCosts) || 0;
+  const totalWithAllExpenses = mainAmount - transport - pnr - representative - addSum;
+  return roundCoefficientValue((pct / 100) * totalWithAllExpenses);
+}
+
+async function getSalesBonusPercentFromDb() {
+  const doc = await GlobalCalculationCoefficients.findOne();
+  if (!doc) return 0;
+  const rows = buildCoefficientRowsForScope('sales', doc.salesRows || []);
+  const row = rows.find((r) => r.id === 'sales_bonus');
+  return row ? roundCoefficientValue(row.value) : 0;
+}
+
 app.post('/api/sales', authenticateToken, async (req, res) => {
   try {
     const body = { ...req.body };
+    if (!canAssignSaleManager(req.user)) {
+      delete body.premiumAccruedAt;
+      delete body.premiumAccruedByLogin;
+      delete body.premiumAccrualPeriod;
+    }
     if (req.user?.role === 'manager') {
       body.managerLogin = req.user.login;
       delete body.managerLogin2;
@@ -2094,8 +2148,24 @@ app.put('/api/sales/:id', authenticateToken, async (req, res) => {
     if (req.user?.role === 'manager') {
       const isOwner = existing.managerLogin === req.user.login || existing.managerLogin2 === req.user.login;
       if (!isOwner) return res.status(403).json({ error: 'Немає доступу до редагування цього продажу' });
+    } else if (!canAssignSaleManager(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу до редагування цього продажу' });
     }
     const body = { ...req.body };
+    if (!canAssignSaleManager(req.user)) {
+      delete body.premiumAccruedAt;
+      delete body.premiumAccruedByLogin;
+      delete body.premiumAccrualPeriod;
+    }
+    if (req.user?.role === 'manager' && existing.premiumAccruedAt) {
+      delete body.managerPremium;
+      delete body.premiumAccruedAt;
+      delete body.premiumAccruedByLogin;
+      delete body.premiumAccrualPeriod;
+      if (body.status && body.status !== 'confirmed') {
+        delete body.status;
+      }
+    }
     if (!canAssignSaleManager(req.user)) {
       delete body.managerLogin;
       delete body.managerLogin2;
@@ -2127,6 +2197,57 @@ app.put('/api/sales/:id', authenticateToken, async (req, res) => {
     if (sale.status === 'confirmed' || sale.status === 'success') {
       await markEquipmentAsSold(sale);
     }
+    res.json(sale);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Затвердження премії по угоді (Відділ продаж — бухгалтерія): success → confirmed
+app.post('/api/sales/:id/approve-premium', authenticateToken, async (req, res) => {
+  try {
+    if (!canApproveSalePremium(req.user)) {
+      return res.status(403).json({ error: 'Немає прав на затвердження премії' });
+    }
+    const sale = await Sale.findById(req.params.id);
+    if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
+    if (sale.status !== 'success') {
+      return res.status(400).json({ error: 'Затверджувати можна лише угоди зі статусом «Успішно реалізовано»' });
+    }
+    if (sale.premiumAccruedAt) {
+      return res.status(400).json({ error: 'Премію вже затверджено' });
+    }
+    const bonusPct = await getSalesBonusPercentFromDb();
+    const suggested = computeSuggestedManagerPremiumFromSale(sale.toObject(), bonusPct);
+    let managerPremium;
+    if (req.body && req.body.managerPremium != null && req.body.managerPremium !== '') {
+      managerPremium = roundCoefficientValue(parseFloat(req.body.managerPremium));
+    } else {
+      const existingPrem = parseFloat(sale.managerPremium) || 0;
+      managerPremium = suggested > 0 ? suggested : existingPrem;
+    }
+    if (Number.isNaN(managerPremium) || managerPremium < 0) managerPremium = 0;
+
+    let premiumAccrualPeriod = (req.body && req.body.premiumAccrualPeriod && String(req.body.premiumAccrualPeriod).trim()) || '';
+    if (!premiumAccrualPeriod || !/^\d{2}-\d{4}$/.test(premiumAccrualPeriod)) {
+      const d = new Date();
+      premiumAccrualPeriod = `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+    }
+
+    sale.managerPremium = managerPremium;
+    sale.premiumAccruedAt = new Date();
+    sale.premiumAccruedByLogin = req.user?.login || '';
+    sale.premiumAccrualPeriod = premiumAccrualPeriod;
+    const prevStatus = sale.status;
+    sale.status = 'confirmed';
+    sale.statusHistory = [...(sale.statusHistory || []), {
+      from: prevStatus,
+      to: 'confirmed',
+      date: new Date(),
+      userLogin: req.user?.login || ''
+    }];
+    await sale.save();
+    await markEquipmentAsSold(sale);
     res.json(sale);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -4498,8 +4619,16 @@ const checkSaleAccess = async (req, res, next) => {
     if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
     const isAdmin = canAssignSaleManager(req.user);
     const isManager = sale.managerLogin === req.user?.login || sale.managerLogin2 === req.user?.login;
-    if (!isAdmin && !isManager) return res.status(403).json({ error: 'Немає доступу до цієї угоди' });
-    next();
+    const isSalesAccounting = canApproveSalePremium(req.user);
+    if (isAdmin || isManager) {
+      next();
+      return;
+    }
+    if (isSalesAccounting && req.method === 'GET') {
+      next();
+      return;
+    }
+    return res.status(403).json({ error: 'Немає доступу до цієї угоди' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

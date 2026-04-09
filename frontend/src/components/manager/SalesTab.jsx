@@ -137,6 +137,7 @@ function SalesTab({ user }) {
                 const isInNegotiation = ['in_negotiation', 'in_progress', 'draft', 'primary_contact', 'quote_sent', 'pnr'].includes(s.status);
                 const isInRealization = s.status === 'in_realization';
                 const isSuccess = ['success', 'confirmed'].includes(s.status);
+                const awaitingAccounting = s.status === 'success' && !s.premiumAccruedAt;
                 const rowClass = s.status === 'cancelled' ? 'sale-cancelled' : isInNegotiation ? 'sale-row-in-progress' : isInRealization ? 'sale-row-in-realization' : isSuccess ? 'sale-row-success' : '';
                 return (
                 <tr key={s._id} className={rowClass} onClick={() => handleEditSale(s)} style={{ cursor: 'pointer' }}>
@@ -163,6 +164,11 @@ function SalesTab({ user }) {
                         ['success', 'confirmed'].includes(s.status) ? 'Успішно реалізовано' :
                         s.status === 'cancelled' ? 'Скасовано' : s.status || '—'}
                     </span>
+                    {awaitingAccounting && (
+                      <span className="sale-status-badge" style={{ display: 'block', marginTop: 6, fontSize: 12, opacity: 0.95 }} title="Очікує затвердження премії в панелі «Відділ продаж — бухгалтерія»">
+                        На затвердженні бухгалтерією
+                      </span>
+                    )}
                   </td>
                   {isAdmin && (
                     <td>
