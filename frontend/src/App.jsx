@@ -67,11 +67,18 @@ const convertAccessRules = (dbRules) => {
         panels[panelId] === 'full' || panels[panelId] === 'read'
       );
       
-      // Автоматично додаємо 'inventory' якщо є доступ до 'warehouse' або 'accountant'
-      if ((converted[role].includes('warehouse') || converted[role].includes('accountant')) 
-          && !converted[role].includes('inventory') 
-          && panels.inventory !== 'none') {
-        converted[role].push('inventory');
+      // «Складський облік»: для завскладу — якщо не явне 'none' (зокрема ключ відсутній у старих даних).
+      // Для лише бухгалтерії — тільки якщо в БД явно full/read; інакше збігається з матрицею (нема ключа → «Немає»).
+      const inv = panels.inventory;
+      if (!converted[role].includes('inventory')) {
+        if (converted[role].includes('warehouse') && inv !== 'none') {
+          converted[role].push('inventory');
+        } else if (
+          converted[role].includes('accountant') &&
+          (inv === 'full' || inv === 'read')
+        ) {
+          converted[role].push('inventory');
+        }
       }
     }
   });

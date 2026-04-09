@@ -4,6 +4,43 @@ import WarehouseManagement from './equipment/WarehouseManagement';
 import CategoryManagement from './equipment/CategoryManagement';
 import './AdminDashboard.css';
 
+/** Ключі панелей у матриці (як у App.jsx) */
+const ACCESS_PANEL_KEYS_FOR_MATRIX = [
+  'service',
+  'operator',
+  'warehouse',
+  'inventory',
+  'manager',
+  'testing',
+  'finance',
+  'accountant',
+  'accountantApproval',
+  'regional',
+  'reports',
+  'analytics',
+  'admin'
+];
+
+const SUPERADMIN_ACCESS_ROLES = ['admin', 'administrator'];
+
+function buildFullAccessRulesRow() {
+  const row = {};
+  ACCESS_PANEL_KEYS_FOR_MATRIX.forEach((k) => {
+    row[k] = 'full';
+  });
+  return row;
+}
+
+/** У додатку ці ролі завжди мають усі панелі; вирівнюємо БД і відображення матриці. */
+function normalizeAccessRulesForSuperAdmins(rules) {
+  if (!rules || typeof rules !== 'object') return rules || {};
+  const out = { ...rules };
+  for (const role of SUPERADMIN_ACCESS_ROLES) {
+    out[role] = { ...(out[role] || {}), ...buildFullAccessRulesRow() };
+  }
+  return out;
+}
+
 // Вкладки адміністратора
 const ADMIN_TABS = [
   { id: 'users', label: '👥 Користувачі', icon: '👥' },
@@ -86,7 +123,7 @@ function AdminDashboard({ user }) {
       
       if (accessRes.ok) {
         const data = await accessRes.json();
-        setAccessRules(data);
+        setAccessRules(normalizeAccessRulesForSuperAdmins(data));
       }
     } catch (error) {
       console.error('Помилка завантаження даних:', error);
@@ -891,6 +928,7 @@ function AdminDashboard({ user }) {
   ];
 
   const handleAccessChange = (role, panel, value) => {
+    if (SUPERADMIN_ACCESS_ROLES.includes(role)) return;
     setAccessRules(prev => ({
       ...prev,
       [role]: {
@@ -903,13 +941,14 @@ function AdminDashboard({ user }) {
   const handleSaveAccess = async () => {
     try {
       const token = localStorage.getItem('token');
+      const payload = normalizeAccessRulesForSuperAdmins(accessRules);
       const res = await fetch(`${API_BASE_URL}/accessRules`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(accessRules)
+        body: JSON.stringify(payload)
       });
       
       if (res.ok) {
@@ -932,7 +971,7 @@ function AdminDashboard({ user }) {
               entityId: 'system',
               description: 'Зміна правил доступу до панелей',
               details: {
-                rules: accessRules
+                rules: payload
               }
             })
           });
@@ -973,13 +1012,22 @@ function AdminDashboard({ user }) {
               <tr key={role.value}>
                 <td className="role-cell">{role.label}</td>
                 {PANELS.map(panel => {
-                  const currentAccess = accessRules[role.value]?.[panel.key] || 'none';
+                  const isSuper = SUPERADMIN_ACCESS_ROLES.includes(role.value);
+                  const currentAccess = isSuper
+                    ? 'full'
+                    : accessRules[role.value]?.[panel.key] || 'none';
                   return (
                     <td key={panel.key} className="access-cell">
                       <select
                         value={currentAccess}
                         onChange={(e) => handleAccessChange(role.value, panel.key, e.target.value)}
                         className={`access-select ${currentAccess}`}
+                        disabled={isSuper}
+                        title={
+                          isSuper
+                            ? 'Ролі admin та administrator завжди мають повний доступ до всіх панелей'
+                            : undefined
+                        }
                       >
                         {ACCESS_LEVELS.map(level => (
                           <option key={level.value} value={level.value}>
@@ -1030,6 +1078,7 @@ function AdminDashboard({ user }) {
         fetch(`${API_BASE_URL}/accessRules`, { headers })
       ]);
       
+      const rawAccess = accessRes.ok ? await accessRes.json() : {};
       const exportData = {
         exportDate: new Date().toISOString(),
         exportedBy: user?.name || user?.login || 'Admin',
@@ -1039,7 +1088,7 @@ function AdminDashboard({ user }) {
           users: usersRes.ok ? await usersRes.json() : [],
           regions: regionsRes.ok ? await regionsRes.json() : [],
           roles: rolesRes.ok ? await rolesRes.json() : [],
-          accessRules: accessRes.ok ? await accessRes.json() : {}
+          accessRules: normalizeAccessRulesForSuperAdmins(rawAccess)
         }
       };
       
@@ -1201,10 +1250,11 @@ function AdminDashboard({ user }) {
       
       // Імпортуємо права доступу
       if (importData.data.accessRules) {
+        const importedRules = normalizeAccessRulesForSuperAdmins(importData.data.accessRules);
         await fetch(`${API_BASE_URL}/accessRules`, {
           method: 'POST',
           headers,
-          body: JSON.stringify(importData.data.accessRules)
+          body: JSON.stringify(importedRules)
         });
       }
       
