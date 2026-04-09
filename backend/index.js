@@ -1306,12 +1306,13 @@ async function getNextSaleNuNumber() {
   return `NU-${String(n).padStart(5, '0')}`;
 }
 
+/** Завжди повертає рядок, ніколи не кидає (прев’ю номера не має ламати UI). */
 async function peekSaleNuPreviewNumber() {
-  if (mongoose.connection.readyState !== 1) {
-    console.warn('[peekSaleNuPreviewNumber] MongoDB не підключена, повертаємо прев’ю за замовчуванням');
-    return 'NU-00001';
-  }
   try {
+    if (mongoose.connection?.readyState !== 1) {
+      console.warn('[peekSaleNuPreviewNumber] MongoDB не готова, прев’ю NU-00001');
+      return 'NU-00001';
+    }
     const c = await Counter.findOne({ _id: 'saleNu' }).lean();
     const n = (c?.seq || 0) + 1;
     return `NU-${String(n).padStart(5, '0')}`;
@@ -2026,6 +2027,16 @@ app.post('/api/clients/:id/interactions', authenticateToken, async (req, res) =>
   }
 });
 
+/** Прев’ю номера угоди — окремий шлях ПЕРЕД /api/sales/:id, щоб «preview-deal-number» не потрапляв у findById як ObjectId. */
+app.get('/api/sales/preview-deal-number', authenticateToken, async (req, res) => {
+  try {
+    res.json({ saleNumber: await peekSaleNuPreviewNumber() });
+  } catch (err) {
+    console.error('[GET /api/sales/preview-deal-number]', err);
+    res.json({ saleNumber: 'NU-00001' });
+  }
+});
+
 app.get('/api/sales', authenticateToken, async (req, res) => {
   try {
     let salesSort = { saleDate: -1 };
@@ -2114,18 +2125,16 @@ app.get('/api/sales', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/api/sales/preview-deal-number', authenticateToken, async (req, res) => {
-  try {
-    const saleNumber = await peekSaleNuPreviewNumber();
-    res.json({ saleNumber });
-  } catch (err) {
-    console.error('[GET /api/sales/preview-deal-number]', err);
-    res.status(500).json({ error: err.message || 'Помилка прев’ю номера угоди' });
-  }
-});
-
 app.get('/api/sales/:id', authenticateToken, async (req, res) => {
   try {
+    if (req.params.id === 'preview-deal-number') {
+      try {
+        return res.json({ saleNumber: await peekSaleNuPreviewNumber() });
+      } catch (err) {
+        console.error('[GET /api/sales/:id як preview-deal-number]', err);
+        return res.json({ saleNumber: 'NU-00001' });
+      }
+    }
     const sale = await Sale.findById(req.params.id)
       .populate('clientId')
       .populate('equipmentId')
