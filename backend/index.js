@@ -1295,6 +1295,32 @@ const counterSchema = new mongoose.Schema({
 }, { collection: 'counters' });
 const Counter = mongoose.model('Counter', counterSchema);
 
+/** Номер угоди NU-##### (лічильник saleNu у колекції counters) */
+async function getNextSaleNuNumber() {
+  const c = await Counter.findOneAndUpdate(
+    { _id: 'saleNu' },
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true }
+  );
+  const n = c.seq || 1;
+  return `NU-${String(n).padStart(5, '0')}`;
+}
+
+async function peekSaleNuPreviewNumber() {
+  if (mongoose.connection.readyState !== 1) {
+    console.warn('[peekSaleNuPreviewNumber] MongoDB не підключена, повертаємо прев’ю за замовчуванням');
+    return 'NU-00001';
+  }
+  try {
+    const c = await Counter.findOne({ _id: 'saleNu' }).lean();
+    const n = (c?.seq || 0) + 1;
+    return `NU-${String(n).padStart(5, '0')}`;
+  } catch (e) {
+    console.error('[peekSaleNuPreviewNumber]', e);
+    return 'NU-00001';
+  }
+}
+
 /** Запит менеджера на відвантаження (складський облік) */
 const shipmentRequestSchema = new mongoose.Schema({
   requestNumber: { type: String, required: true, unique: true },
@@ -2093,7 +2119,8 @@ app.get('/api/sales/preview-deal-number', authenticateToken, async (req, res) =>
     const saleNumber = await peekSaleNuPreviewNumber();
     res.json({ saleNumber });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[GET /api/sales/preview-deal-number]', err);
+    res.status(500).json({ error: err.message || 'Помилка прев’ю номера угоди' });
   }
 });
 
@@ -2176,22 +2203,6 @@ async function peekShipmentRequestPreviewNumber() {
   const c = await Counter.findById('shipmentRequestSv').lean();
   const n = (c?.seq || 0) + 1;
   return `SV-${String(n).padStart(5, '0')}`;
-}
-
-async function getNextSaleNuNumber() {
-  const c = await Counter.findOneAndUpdate(
-    { _id: 'saleNu' },
-    { $inc: { seq: 1 } },
-    { new: true, upsert: true }
-  );
-  const n = c.seq || 1;
-  return `NU-${String(n).padStart(5, '0')}`;
-}
-
-async function peekSaleNuPreviewNumber() {
-  const c = await Counter.findById('saleNu').lean();
-  const n = (c?.seq || 0) + 1;
-  return `NU-${String(n).padStart(5, '0')}`;
 }
 
 function canAccessInventoryShipmentRequests(user) {
