@@ -162,11 +162,6 @@ function App() {
         Object.keys(converted).forEach(role => {
           if (converted[role] && converted[role].length > 0) {
             merged[role] = converted[role];
-            // Автоматично додаємо 'inventory' якщо є доступ до 'warehouse' або 'accountant'
-            if ((converted[role].includes('warehouse') || converted[role].includes('accountant')) 
-                && !converted[role].includes('inventory')) {
-              merged[role].push('inventory');
-            }
           }
         });
         setAccessRules(merged);
