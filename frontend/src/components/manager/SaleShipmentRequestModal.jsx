@@ -26,6 +26,7 @@ function SaleShipmentRequestModal({
   const [selectedLineIds, setSelectedLineIds] = useState(() => new Set());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [showLockConfirm, setShowLockConfirm] = useState(false);
 
   const selectableRows = useMemo(
     () =>
@@ -43,6 +44,7 @@ function SaleShipmentRequestModal({
 
   useEffect(() => {
     if (!open) return;
+    setShowLockConfirm(false);
     setError('');
     setCarrier('');
     setDriverPhone('');
@@ -71,31 +73,42 @@ function SaleShipmentRequestModal({
     });
   };
 
-  const handleSubmit = async (e) => {
+  const validateBeforeConfirm = () => {
+    if (!plannedDate.trim()) return "Вкажіть заплановану дату відвантаження";
+    if (!shipmentAddress.trim()) return 'Вкажіть адресу відвантаження';
+    if (!carrier.trim()) return 'Вкажіть перевізника';
+    if (!driverPhone.trim()) return 'Вкажіть контактний номер водія';
+    const lineIds = [...selectedLineIds];
+    if (lineIds.length === 0) return 'Оберіть хоча б одну позицію обладнання';
+    return null;
+  };
+
+  const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
-    if (!plannedDate.trim()) {
-      setError("Вкажіть заплановану дату відвантаження");
+    const validationError = validateBeforeConfirm();
+    if (validationError) {
+      setError(validationError);
       return;
     }
-    if (!shipmentAddress.trim()) {
-      setError('Вкажіть адресу відвантаження');
-      return;
-    }
-    if (!carrier.trim()) {
-      setError('Вкажіть перевізника');
-      return;
-    }
-    if (!driverPhone.trim()) {
-      setError('Вкажіть контактний номер водія');
+    setShowLockConfirm(true);
+  };
+
+  const handleCancelLockConfirm = () => {
+    if (submitting) return;
+    setShowLockConfirm(false);
+  };
+
+  const handleConfirmSubmit = async () => {
+    const validationError = validateBeforeConfirm();
+    if (validationError) {
+      setError(validationError);
+      setShowLockConfirm(false);
       return;
     }
     const lineIds = [...selectedLineIds];
-    if (lineIds.length === 0) {
-      setError('Оберіть хоча б одну позицію обладнання');
-      return;
-    }
     setSubmitting(true);
+    setError('');
     try {
       await submitSaleShipmentRequest(saleId, {
         lineIds,
@@ -105,6 +118,7 @@ function SaleShipmentRequestModal({
         driverPhone: driverPhone.trim(),
         vehicleType: vehicleType.trim()
       }, ttnFile);
+      setShowLockConfirm(false);
       onSuccess?.();
       onClose?.();
     } catch (err) {
@@ -117,8 +131,17 @@ function SaleShipmentRequestModal({
   if (!open) return null;
 
   return (
-    <div className="modal-overlay sale-shipment-overlay" onClick={onClose}>
-      <div className="modal-content sale-shipment-modal" onClick={(ev) => ev.stopPropagation()}>
+    <div
+      className="modal-overlay sale-shipment-overlay"
+      onClick={() => {
+        if (showLockConfirm) handleCancelLockConfirm();
+        else onClose?.();
+      }}
+    >
+      <div
+        className="modal-content sale-shipment-modal sale-shipment-modal-root"
+        onClick={(ev) => ev.stopPropagation()}
+      >
         <div className="modal-header">
           <h3>Запит на відвантаження товару</h3>
           <button type="button" className="btn-close" onClick={onClose}>
@@ -225,10 +248,61 @@ function SaleShipmentRequestModal({
               Скасувати
             </button>
             <button type="submit" className="btn-primary" disabled={submitting || selectableRows.length === 0}>
-              {submitting ? 'Відправка…' : 'Подати заявку'}
+              Подати заявку
             </button>
           </div>
         </form>
+        {showLockConfirm ? (
+          <div
+            className="sale-shipment-lock-confirm-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sale-shipment-lock-confirm-title"
+            onClick={handleCancelLockConfirm}
+          >
+            <div
+              className="sale-shipment-lock-confirm-box"
+              onClick={(ev) => ev.stopPropagation()}
+            >
+              <h4 id="sale-shipment-lock-confirm-title" className="sale-shipment-lock-confirm-title">
+                Підтвердження подачі заявки
+              </h4>
+              <p className="sale-shipment-lock-confirm-lead">
+                Після відправки для <strong>обраних у цій заявці позицій обладнання</strong> у таблиці угоди буде
+                застосовано блокування: <strong>їх не можна буде редагувати чи видаляти</strong> (доки склад не
+                завершить відвантаження за внутрішньою процедурою).
+              </p>
+              <p className="sale-shipment-lock-confirm-sub">Недоступно для заблокованих рядків:</p>
+              <ul className="sale-shipment-lock-confirm-list">
+                <li>зміна обладнання зі складу — кнопки «Обрати…» та «Очистити»;</li>
+                <li>редагування суми — поле «Сума (₴)»;</li>
+                <li>видалення рядка — кнопка «✕» у колонці дій.</li>
+              </ul>
+              <p className="sale-shipment-lock-confirm-note">
+                Серійний номер і найменування відображаються як довідково й також не змінюються через заблоковані дії
+                вище.
+              </p>
+              <div className="modal-footer sale-shipment-lock-confirm-footer">
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={handleCancelLockConfirm}
+                  disabled={submitting}
+                >
+                  Назад
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleConfirmSubmit}
+                  disabled={submitting}
+                >
+                  {submitting ? 'Відправка…' : 'Підтверджую, подати заявку'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
