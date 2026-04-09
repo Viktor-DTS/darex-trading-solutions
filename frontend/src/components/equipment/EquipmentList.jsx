@@ -63,6 +63,40 @@ const ALL_COLUMNS = [
 
 const canSeeReservationClient = (role) => ['admin', 'administrator', 'mgradm'].includes(role);
 
+function serialNumberIsEmpty(item) {
+  const s = item?.serialNumber;
+  return s == null || String(s).trim() === '';
+}
+
+/**
+ * Ключ для об'єднання в таблиці кількох MongoDB-документів «на складі» без серійника
+ * (після зняття резерву / часткового резерву залишаються окремі рядки з однаковим типом).
+ */
+function noSerialStockMergeKey(item) {
+  if (item.status !== 'in_stock') return null;
+  if (item.isDeleted || item.status === 'deleted') return null;
+  if (item.isBatch && item.batchId) return null;
+  if (!serialNumberIsEmpty(item)) return null;
+  const typ = String(item.type || '').trim();
+  if (!typ) return null;
+  const wh = String(item.currentWarehouse || item.currentWarehouseName || '').trim();
+  const cat = item.categoryId != null ? String(item.categoryId._id || item.categoryId) : '';
+  const kind = item.itemKind || 'equipment';
+  const unit = String(item.batchUnit || '').trim() || 'шт.';
+  const mvt = item.materialValueType || '';
+  const mfr = String(item.manufacturer || '').trim();
+  return `ns|${typ}|${wh}|${cat}|${kind}|${unit}|${mvt}|${mfr}`;
+}
+
+function stableNoSerialMergeRowId(mkey) {
+  let h = 2166136261;
+  for (let i = 0; i < mkey.length; i++) {
+    h ^= mkey.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return `merged-ns-${(h >>> 0).toString(16)}`;
+}
+
 /** Одиниця виміру з картки (batchUnit); для згрупованої партії — з першого рядка, де вона задана */
 function getEquipmentBatchUnit(item) {
   if (item?.batchUnit && String(item.batchUnit).trim()) return String(item.batchUnit).trim();
@@ -382,31 +416,53 @@ const EquipmentList = forwardRef(({
       return sortDirection === 'asc' ? comparison : -comparison;
     });
 
-    // Групування партій за типом та складом
-    const groups = {};
+    // Групування партій за batchId + склад; потім — однакові «на складі» позиції без серійника
+    const batchGroups = {};
+    const noSerialGroups = {};
     const singleItems = [];
-    
-    result.forEach(item => {
+
+    result.forEach((item) => {
       if (item.isBatch && item.batchId && item.status === 'in_stock') {
         const key = `${item.batchId}-${item.currentWarehouse || item.currentWarehouseName}`;
-        if (!groups[key]) {
-          groups[key] = {
+        if (!batchGroups[key]) {
+          batchGroups[key] = {
             ...item,
-            _id: `batch-${key}`, // Унікальний ID для групи
+            _id: `batch-${key}`,
             batchItems: [],
             batchCount: 0,
             isGrouped: true
           };
         }
-        groups[key].batchItems.push(item);
-        groups[key].batchCount++;
-      } else {
-        singleItems.push(item);
+        batchGroups[key].batchItems.push(item);
+        batchGroups[key].batchCount++;
+        return;
       }
+
+      const nsk = noSerialStockMergeKey(item);
+      if (nsk) {
+        if (!noSerialGroups[nsk]) {
+          noSerialGroups[nsk] = {
+            ...item,
+            _id: stableNoSerialMergeRowId(nsk),
+            batchItems: [],
+            batchCount: 0,
+            isGrouped: true,
+            isNoSerialMerged: true
+          };
+        }
+        noSerialGroups[nsk].batchItems.push(item);
+        noSerialGroups[nsk].batchCount++;
+        return;
+      }
+
+      singleItems.push(item);
     });
-    
-    // Об'єднуємо групи та одиничні елементи
-    return [...Object.values(groups), ...singleItems];
+
+    const noSerialMergedRows = Object.values(noSerialGroups).flatMap((g) =>
+      g.batchCount > 1 ? [g] : g.batchItems
+    );
+
+    return [...Object.values(batchGroups), ...noSerialMergedRows, ...singleItems];
   }, [equipment, filter, columnFilters, sortField, sortDirection, showDeleted, managerCategoryContext, fixedAssetsCategoryIds]);
 
   const handleSort = (field) => {
@@ -738,15 +794,19 @@ const EquipmentList = forwardRef(({
                   <td
                     className="cell-truncate"
                     title={
-                      item.isGrouped && item.batchCount
+                      item.isGrouped && item.batchCount && !item.isNoSerialMerged
                         ? `${formatValue(item.type, 'type')} × ${item.batchCount} поз. у партії`
-                        : formatValue(item.type, 'type')
+                        : item.isNoSerialMerged && item.batchCount > 1
+                          ? `${formatValue(item.type, 'type')} — об'єднано ${item.batchCount} рядків без серійного №`
+                          : formatValue(item.type, 'type')
                     }
                   >
-                    {item.isGrouped && item.batchCount ? (
+                    {item.isGrouped && item.batchCount && !item.isNoSerialMerged ? (
                       <span style={{ fontWeight: 'bold' }}>
                         {formatValue(item.type, 'type')} × {item.batchCount} поз.
                       </span>
+                    ) : item.isNoSerialMerged && item.batchCount > 1 ? (
+                      <span style={{ fontWeight: 'bold' }}>{formatValue(item.type, 'type')}</span>
                     ) : (
                       formatValue(item.type, 'type')
                     )}
@@ -759,8 +819,12 @@ const EquipmentList = forwardRef(({
                     )}
                   </td>
                   <td>
-                    {item.isGrouped && item.batchCount ? (
+                    {item.isGrouped && item.batchCount && !item.isNoSerialMerged ? (
                       <span style={{ fontWeight: 'bold' }}>Партія: {item.batchCount} поз.</span>
+                    ) : item.isNoSerialMerged && item.batchCount > 1 ? (
+                      <span style={{ fontWeight: 'bold' }} title="Кілька записів залишку без серійного номера в одному рядку таблиці">
+                        Без серійного № · {item.batchCount} записів
+                      </span>
                     ) : (
                       formatValue(item.serialNumber, 'serialNumber')
                     )}
