@@ -76,6 +76,17 @@
   opacity: 0.9;
 }
 
+.sale-deal-number-field {
+  margin-bottom: 4px;
+}
+
+.sale-deal-number-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
 .sale-form-modal .form-group input:focus,
 .sale-form-modal .form-group select:focus,
 .sale-form-modal .form-group textarea:focus {

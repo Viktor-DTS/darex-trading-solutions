@@ -67,6 +67,21 @@ export const approveSalePremium = async (id, data = {}) => {
   }
 };
 
+/** Наступний номер угоди (прев’ю), формат NU-##### — без резервування лічильника */
+export const getSaleDealPreviewNumber = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/sales/preview-deal-number`, {
+      headers: getAuthHeaders()
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    return data.saleNumber || '';
+  } catch (error) {
+    console.error('Помилка прев’ю номера угоди:', error);
+    return '';
+  }
+};
+
 // Один продаж по ID
 export const getSale = async (id) => {
   try {

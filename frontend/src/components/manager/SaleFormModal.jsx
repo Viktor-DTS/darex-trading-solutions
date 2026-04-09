@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import API_BASE_URL from '../../config';
 import { getClients, getUsers } from '../../utils/clientsAPI';
-import { createSale, updateSale, getSale, getSaleFiles, uploadSaleFiles, getSaleInvoiceFiles, uploadSaleInvoiceFiles } from '../../utils/salesAPI';
+import { createSale, updateSale, getSale, getSaleFiles, uploadSaleFiles, getSaleInvoiceFiles, uploadSaleInvoiceFiles, getSaleDealPreviewNumber } from '../../utils/salesAPI';
 import { getFileOpenToken } from '../../utils/clientsAPI';
 import AdditionalCostsEditor from './AdditionalCostsEditor';
 import PaymentsEditor from './PaymentsEditor';
@@ -52,6 +52,7 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
   /** З /api/global-calculation-coefficients (sales): «Премія від продажів», % */
   const [salesBonusPercent, setSalesBonusPercent] = useState(null);
   const [showShipmentRequestModal, setShowShipmentRequestModal] = useState(false);
+  const [previewDealNumber, setPreviewDealNumber] = useState('');
   const addressMMRef = useRef(null);
   const addressMMAutocompleteRef = useRef(null);
 
@@ -79,7 +80,6 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
     pnrCosts: 0,
     representativeCosts: 0,
     discountPercent: 0,
-    managerPremium: 0,
     partner: '',
     partnerContactName: ''
   });
@@ -152,7 +152,6 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
           pnrCosts: parseFloat(editSale.pnrCosts) || 0,
           representativeCosts: parseFloat(editSale.representativeCosts) || 0,
           discountPercent: parseFloat(editSale.discountPercent) || 0,
-          managerPremium: parseFloat(editSale.managerPremium) || 0,
           partner: editSale.partner || '',
           partnerContactName: editSale.partnerContactName || ''
         });
@@ -182,7 +181,6 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
           pnrCosts: 0,
           representativeCosts: 0,
           discountPercent: 0,
-          managerPremium: 0,
           partner: '',
           partnerContactName: ''
         });
@@ -196,6 +194,20 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
       loadClients();
       loadEquipment();
     }
+  }, [open, editSale]);
+
+  useEffect(() => {
+    if (!open || editSale) {
+      setPreviewDealNumber('');
+      return undefined;
+    }
+    let cancelled = false;
+    getSaleDealPreviewNumber().then((n) => {
+      if (!cancelled) setPreviewDealNumber(n || '');
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [open, editSale]);
 
   useEffect(() => {
@@ -479,10 +491,13 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
         pnrCosts: parseFloat(form.pnrCosts) || 0,
         representativeCosts: parseFloat(form.representativeCosts) || 0,
         discountPercent: parseFloat(form.discountPercent) || 0,
-        managerPremium: parseFloat(form.managerPremium) || 0,
         partner: form.partner?.trim() || undefined,
         partnerContactName: form.partnerContactName?.trim() || undefined
       };
+
+      if (!editSale?.premiumAccruedAt) {
+        payload.managerPremium = completedDealPremium;
+      }
 
       if (editSale) {
         await updateSale(editSale._id, payload);
@@ -512,6 +527,25 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body sale-form-body">
+            <div className="form-group sale-deal-number-field">
+              <label>Номер угоди</label>
+              <input
+                type="text"
+                readOnly
+                className="field-readonly"
+                value={
+                  editSale
+                    ? editSale.saleNumber
+                      ? `№ ${editSale.saleNumber}`
+                      : 'Буде присвоєно після збереження (NU-#####)'
+                    : previewDealNumber
+                      ? `№ ${previewDealNumber}`
+                      : '№ NU-…'
+                }
+                title="Номер формується автоматично, редагування недоступне"
+              />
+              <span className="sale-deal-number-hint">Формат № NU-#####, присвоюється системою</span>
+            </div>
             {editSale?.premiumAccruedAt && (
               <div
                 className="sale-premium-accrued-banner"
@@ -932,19 +966,6 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
                   {completedDealPremium.toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₴
                 </span>
               </div>
-            </div>
-
-            <div className="form-group">
-              <label>Премія менеджера, ₴</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.managerPremium || ''}
-                onChange={e => setForm(prev => ({ ...prev, managerPremium: e.target.value }))}
-                disabled={!!editSale?.premiumAccruedAt}
-                title={editSale?.premiumAccruedAt ? 'Після затвердження бухгалтерією зміна премії недоступна' : undefined}
-              />
             </div>
           </div>
 

@@ -1415,7 +1415,9 @@ const saleSchema = new mongoose.Schema({
   premiumAccruedByLogin: String,
   premiumAccrualPeriod: String, // MM-YYYY для обліку
   partner: String,           // Партнер
-  partnerContactName: String  // ФІО контактної особи партнера
+  partnerContactName: String, // ФІО контактної особи партнера
+  /** Людськочитаний номер угоди для обліку, формат NU-##### (не редагується з клієнта) */
+  saleNumber: { type: String, sparse: true, unique: true }
 }, { timestamps: true });
 
 saleSchema.pre('save', function(next) {
@@ -2086,6 +2088,15 @@ app.get('/api/sales', authenticateToken, async (req, res) => {
   }
 });
 
+app.get('/api/sales/preview-deal-number', authenticateToken, async (req, res) => {
+  try {
+    const saleNumber = await peekSaleNuPreviewNumber();
+    res.json({ saleNumber });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/sales/:id', authenticateToken, async (req, res) => {
   try {
     const sale = await Sale.findById(req.params.id)
@@ -2167,6 +2178,22 @@ async function peekShipmentRequestPreviewNumber() {
   return `SV-${String(n).padStart(5, '0')}`;
 }
 
+async function getNextSaleNuNumber() {
+  const c = await Counter.findOneAndUpdate(
+    { _id: 'saleNu' },
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true }
+  );
+  const n = c.seq || 1;
+  return `NU-${String(n).padStart(5, '0')}`;
+}
+
+async function peekSaleNuPreviewNumber() {
+  const c = await Counter.findById('saleNu').lean();
+  const n = (c?.seq || 0) + 1;
+  return `NU-${String(n).padStart(5, '0')}`;
+}
+
 function canAccessInventoryShipmentRequests(user) {
   const r = String(user?.role || '').toLowerCase();
   return ['warehouse', 'zavsklad', 'admin', 'administrator', 'mgradm'].includes(r);
@@ -2212,6 +2239,7 @@ async function notifyWarehouseUsersForShipmentRequest(sr) {
 app.post('/api/sales', authenticateToken, async (req, res) => {
   try {
     const body = { ...req.body };
+    delete body.saleNumber;
     if (!canAssignSaleManager(req.user)) {
       delete body.premiumAccruedAt;
       delete body.premiumAccruedByLogin;
@@ -2223,6 +2251,7 @@ app.post('/api/sales', authenticateToken, async (req, res) => {
     } else if (!canAssignSaleManager(req.user)) {
       delete body.managerLogin2;
     }
+    body.saleNumber = await getNextSaleNuNumber();
     const sale = await Sale.create(body);
     if (sale.status === 'confirmed' || sale.status === 'success') {
       await markEquipmentAsSold(sale);
@@ -2244,6 +2273,10 @@ app.put('/api/sales/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Немає доступу до редагування цього продажу' });
     }
     const body = { ...req.body };
+    delete body.saleNumber;
+    if (!existing.saleNumber) {
+      body.saleNumber = await getNextSaleNuNumber();
+    }
     if (!canAssignSaleManager(req.user)) {
       delete body.premiumAccruedAt;
       delete body.premiumAccruedByLogin;
