@@ -95,9 +95,14 @@ const EquipmentList = forwardRef(({
   managerCategoryContext = false,
 }, ref) => {
   const showReservationClientColumn = canSeeReservationClient(user?.role || '');
-  const visibleColumns = useMemo(() =>
-    ALL_COLUMNS.filter(col => col.key !== 'reservationClientName' || showReservationClientColumn),
-    [showReservationClientColumn]
+  const visibleColumns = useMemo(
+    () =>
+      ALL_COLUMNS.filter((col) => {
+        if (col.key === 'reservationClientName' && !showReservationClientColumn) return false;
+        if (managerCategoryContext && col.key === 'itemKind') return false;
+        return true;
+      }),
+    [showReservationClientColumn, managerCategoryContext]
   );
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -258,6 +263,7 @@ const EquipmentList = forwardRef(({
 
     // Фільтри колонок
     Object.keys(columnFilters).forEach(key => {
+      if (managerCategoryContext && key === 'itemKind') return;
       const filterValue = columnFilters[key];
       if (filterValue && filterValue.trim() !== '') {
         if (key.endsWith('From')) {
@@ -354,7 +360,7 @@ const EquipmentList = forwardRef(({
     
     // Об'єднуємо групи та одиничні елементи
     return [...Object.values(groups), ...singleItems];
-  }, [equipment, filter, columnFilters, sortField, sortDirection, showDeleted]);
+  }, [equipment, filter, columnFilters, sortField, sortDirection, showDeleted, managerCategoryContext]);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -666,7 +672,9 @@ const EquipmentList = forwardRef(({
                       )}
                     </div>
                   </td>
-                  <td>{item.itemKind === 'parts' ? 'Деталі' : 'Товари'}</td>
+                  {!managerCategoryContext && (
+                    <td>{item.itemKind === 'parts' ? 'Деталі' : 'Товари'}</td>
+                  )}
                   <td>
                     <span className={`status-badge ${getStatusClass(item.status || 'in_stock')}`}>
                       {getStatusLabel(item.status || 'in_stock')}

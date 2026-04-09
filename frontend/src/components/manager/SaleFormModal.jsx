@@ -878,7 +878,7 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
                 <span>{totalEquipmentAmount.toLocaleString('uk-UA')} ₴</span>
               </div>
               <div className="sale-total-row">
-                <strong>Загальна сума з урахуванням всіх витрат на угоду:</strong>
+                <strong>Загальна сума мінус всі витрати на угоду:</strong>
                 <span>{totalWithAllExpenses.toLocaleString('uk-UA')} ₴</span>
               </div>
               <div className="sale-total-row">
