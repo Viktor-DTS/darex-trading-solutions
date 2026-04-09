@@ -127,6 +127,37 @@ const uploadStockXlsx = multer({
   limits: { fileSize: 15 * 1024 * 1024 }
 });
 
+// TTN для POST /api/sales/:saleId/shipment-request — має бути оголошено ДО реєстрації маршрутів (інакше TDZ)
+const shipmentTtnStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: (req, file) => {
+    const originalName = file?.originalname || '';
+    const mimetype = file?.mimetype || '';
+    const dotIdx = originalName.lastIndexOf('.');
+    const ext = dotIdx >= 0 ? originalName.slice(dotIdx + 1).toLowerCase() : '';
+    const isImage = mimetype.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+    const isPdf = mimetype === 'application/pdf' || ext === 'pdf';
+    const resourceType = isImage || isPdf ? 'image' : 'raw';
+    const uid = `shipment_ttn_${req.params.saleId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const params = {
+      folder: 'newservicegidra/shipment-request-ttn',
+      resource_type: resourceType,
+      overwrite: false,
+      invalidate: true,
+      public_id: uid
+    };
+    if (resourceType === 'image') {
+      params.allowed_formats = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'];
+    } else {
+      params.allowed_formats = ['doc', 'docx', 'xls', 'xlsx', 'txt', 'pdf'];
+      if (ext) params.format = ext;
+      if (originalName) params.filename_override = originalName;
+    }
+    return params;
+  }
+});
+const uploadShipmentTtn = multer({ storage: shipmentTtnStorage, limits: { fileSize: 20 * 1024 * 1024 } });
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -5006,36 +5037,6 @@ const saleFilesStorage = new CloudinaryStorage({
   }
 });
 const uploadSaleFiles = multer({ storage: saleFilesStorage, limits: { fileSize: 20 * 1024 * 1024 } });
-
-const shipmentTtnStorage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: (req, file) => {
-    const originalName = file?.originalname || '';
-    const mimetype = file?.mimetype || '';
-    const dotIdx = originalName.lastIndexOf('.');
-    const ext = dotIdx >= 0 ? originalName.slice(dotIdx + 1).toLowerCase() : '';
-    const isImage = mimetype.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
-    const isPdf = mimetype === 'application/pdf' || ext === 'pdf';
-    const resourceType = isImage || isPdf ? 'image' : 'raw';
-    const uid = `shipment_ttn_${req.params.saleId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const params = {
-      folder: 'newservicegidra/shipment-request-ttn',
-      resource_type: resourceType,
-      overwrite: false,
-      invalidate: true,
-      public_id: uid
-    };
-    if (resourceType === 'image') {
-      params.allowed_formats = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'];
-    } else {
-      params.allowed_formats = ['doc', 'docx', 'xls', 'xlsx', 'txt', 'pdf'];
-      if (ext) params.format = ext;
-      if (originalName) params.filename_override = originalName;
-    }
-    return params;
-  }
-});
-const uploadShipmentTtn = multer({ storage: shipmentTtnStorage, limits: { fileSize: 20 * 1024 * 1024 } });
 
 const checkSaleAccess = async (req, res, next) => {
   try {
