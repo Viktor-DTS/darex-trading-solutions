@@ -1093,7 +1093,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
               </button>
             </div>
             <p style={{ margin: '0 0 12px', fontSize: '14px', color: 'var(--text-secondary)' }}>
-              Оберіть менеджера, якому передати поточний резерв (клієнт і термін збережуться).
+              Оберіть менеджера. Поле «Клієнт» у резерві буде очищено; термін резерву збережеться. Позицію буде додано до останньої активної угоди отримувача (якщо така є).
             </p>
             {transferLoading ? (
               <p style={{ color: 'var(--text-secondary)' }}>Завантаження списку…</p>

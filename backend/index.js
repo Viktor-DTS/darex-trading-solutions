@@ -1405,6 +1405,92 @@ saleSchema.pre('save', function(next) {
 
 const Sale = mongoose.model('Sale', saleSchema);
 
+/** Статуси угоди, у яких позицію ще можна вести (як у SalesTab: переговори + реалізація). */
+const ACTIVE_SALE_STATUSES_FOR_RESERVE_TRANSFER = [
+  'draft',
+  'primary_contact',
+  'quote_sent',
+  'in_negotiation',
+  'in_progress',
+  'in_realization',
+  'pnr'
+];
+
+function saleManagedByLoginQuery(login) {
+  return { $or: [{ managerLogin: login }, { managerLogin2: login }] };
+}
+
+/** Зняти обладнання з активних угод менеджера (після передачі резерву). */
+async function removeEquipmentFromManagersActiveSales(managerLogin, equipmentObjectId) {
+  const eid = String(equipmentObjectId);
+  const sales = await Sale.find({
+    $and: [
+      saleManagedByLoginQuery(managerLogin),
+      { status: { $in: ACTIVE_SALE_STATUSES_FOR_RESERVE_TRANSFER } },
+      {
+        $or: [{ equipmentId: equipmentObjectId }, { 'equipmentItems.equipmentId': equipmentObjectId }]
+      }
+    ]
+  });
+  for (const sale of sales) {
+    const filtered = (sale.equipmentItems || []).filter(
+      (i) => !i.equipmentId || String(i.equipmentId) !== eid
+    );
+    sale.equipmentItems = filtered;
+    if (filtered.length > 0) {
+      const first = filtered[0];
+      sale.equipmentId = first.equipmentId;
+      sale.mainProductName = first.type;
+      sale.mainProductSerial = first.serialNumber;
+    } else {
+      sale.equipmentId = undefined;
+      sale.mainProductName = undefined;
+      sale.mainProductSerial = undefined;
+    }
+    const mainAmount = filtered.reduce((sum, i) => sum + (i.amount || 0), 0);
+    sale.mainProductAmount = mainAmount;
+    const addSum = (sale.additionalCosts || []).reduce((s, c) => s + (c.amount || 0) * (c.quantity || 1), 0);
+    sale.totalAmount = mainAmount + addSum;
+    await sale.save();
+  }
+}
+
+/** Додати рядок обладнання в останню за часом оновлення активну угоду отримувача. */
+async function addEquipmentToManagersLatestActiveSale(managerLogin, equipmentDoc) {
+  const sale = await Sale.findOne({
+    $and: [
+      saleManagedByLoginQuery(managerLogin),
+      { status: { $in: ACTIVE_SALE_STATUSES_FOR_RESERVE_TRANSFER } }
+    ]
+  }).sort({ updatedAt: -1 });
+
+  if (!sale) return null;
+
+  const eid = equipmentDoc._id.toString();
+  const items = [...(sale.equipmentItems || [])];
+  if (items.some((i) => i.equipmentId && String(i.equipmentId) === eid)) {
+    return sale;
+  }
+
+  items.push({
+    equipmentId: equipmentDoc._id,
+    type: equipmentDoc.type || '',
+    serialNumber: equipmentDoc.serialNumber || '',
+    amount: 0
+  });
+  sale.equipmentItems = items;
+  const first = items[0];
+  sale.equipmentId = first.equipmentId;
+  sale.mainProductName = first.type;
+  sale.mainProductSerial = first.serialNumber;
+  const mainAmount = items.reduce((sum, i) => sum + (i.amount || 0), 0);
+  sale.mainProductAmount = mainAmount;
+  const addSum = (sale.additionalCosts || []).reduce((s, c) => s + (c.amount || 0) * (c.quantity || 1), 0);
+  sale.totalAmount = mainAmount + addSum;
+  await sale.save();
+  return sale;
+}
+
 // ============================================
 // ОПТИМІЗОВАНІ API ENDPOINTS
 // ============================================
@@ -7453,7 +7539,13 @@ app.post('/api/equipment/:id/transfer-reserve', authenticateToken, async (req, r
 
     const fromName = user.name || user.login;
     const toName = targetUser.name || targetUser.login;
-    const transferNote = `Передано резерв від ${fromName} (${user.login}) → ${toName} (${targetUser.login})`;
+    const prevClient = equipment.reservationClientName;
+    let transferNote = `Передано резерв від ${fromName} (${user.login}) → ${toName} (${targetUser.login})`;
+    if (prevClient) {
+      transferNote += ` (попередній клієнт у резерві: ${prevClient})`;
+    }
+
+    await removeEquipmentFromManagersActiveSales(user.login, equipment._id);
 
     if (!equipment.reservationHistory) {
       equipment.reservationHistory = [];
@@ -7463,7 +7555,6 @@ app.post('/api/equipment/:id/transfer-reserve', authenticateToken, async (req, r
       date: new Date(),
       userId: user._id.toString(),
       userName: fromName,
-      clientName: equipment.reservationClientName,
       notes: transferNote
     });
 
@@ -7471,9 +7562,13 @@ app.post('/api/equipment/:id/transfer-reserve', authenticateToken, async (req, r
     equipment.reservedByName = toName;
     equipment.reservedByLogin = targetUser.login;
     equipment.reservedAt = new Date();
+    equipment.reservationClientName = undefined;
+    equipment.reservationNotes = undefined;
     equipment.lastModified = new Date();
 
     await equipment.save();
+
+    const linkedSale = await addEquipmentToManagersLatestActiveSale(targetUser.login, equipment);
 
     try {
       await EventLog.create({
@@ -7484,10 +7579,23 @@ app.post('/api/equipment/:id/transfer-reserve', authenticateToken, async (req, r
         entityType: 'equipment',
         entityId: equipment._id.toString(),
         description: `Передано резерв: ${equipment.type} (№${equipment.serialNumber || 'без номера'}) → ${toName}`,
-        details: { fromLogin: user.login, toLogin: targetUser.login, clientName: equipment.reservationClientName }
+        details: {
+          fromLogin: user.login,
+          toLogin: targetUser.login,
+          previousReservationClient: prevClient || null,
+          linkedSaleId: linkedSale ? linkedSale._id.toString() : null
+        }
       });
     } catch (logErr) {
       console.error('Помилка логування transfer-reserve:', logErr);
+    }
+
+    const eqLine = equipmentReserveSummaryLine(equipment);
+    let notifyBody = `Вам передали резерв: ${eqLine}. Передав: ${fromName}.`;
+    if (linkedSale) {
+      notifyBody += ' Позицію додано до вашої останньої активної угоди.';
+    } else {
+      notifyBody += ' Активної угоди не знайдено — додайте обладнання до угоди вручну.';
     }
 
     try {
@@ -7495,8 +7603,8 @@ app.post('/api/equipment/:id/transfer-reserve', authenticateToken, async (req, r
         recipientLogin: targetUser.login,
         kind: 'reservation_transferred',
         equipmentId: equipment._id,
-        title: 'Вам передано резерв обладнання',
-        body: `${fromName} передав вам резерв: ${equipmentReserveSummaryLine(equipment)}${equipment.reservationClientName ? ` (клієнт: ${equipment.reservationClientName})` : ''}.`,
+        title: 'Вам передали резерв обладнання',
+        body: notifyBody,
         read: false
       });
     } catch (nErr) {
