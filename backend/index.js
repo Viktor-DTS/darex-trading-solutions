@@ -7134,6 +7134,7 @@ app.post('/api/equipment/:id/reserve', authenticateToken, async (req, res) => {
 });
 
 // Резервування з форми продажу: клієнт з угоди, підстава «домовленість», термін з коефіцієнтів; якщо вже зарезервовано цим логіном — без змін
+// Для позицій без серійного номера з quantity > 1: body.quantity — скільки одиниць зарезервувати (решта лишається «на складі» в тому ж рядку).
 app.post('/api/equipment/:id/reserve-for-sale', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
@@ -7163,6 +7164,26 @@ app.post('/api/equipment/:id/reserve-for-sale', authenticateToken, async (req, r
       return res.status(400).json({ error: 'Доступне лише обладнання в статусі «на складі»' });
     }
 
+    const availableQty = Math.max(1, Math.floor(Number(equipment.quantity) || 1));
+    const hasSerial = !!(equipment.serialNumber && String(equipment.serialNumber).trim() !== '');
+    const rawBodyQty = req.body?.quantity;
+    const parsedBodyQty = parseInt(rawBodyQty, 10);
+
+    let reqQty;
+    if (hasSerial) {
+      reqQty = availableQty;
+    } else if (Number.isFinite(parsedBodyQty) && parsedBodyQty >= 1) {
+      reqQty = Math.min(parsedBodyQty, availableQty);
+    } else {
+      reqQty = availableQty;
+    }
+
+    if (hasSerial && reqQty !== availableQty) {
+      return res.status(400).json({
+        error: 'Для позицій із серійним номером можна зарезервувати лише весь рядок цілком'
+      });
+    }
+
     const basisTrim = RESERVATION_BASIS_FOR_SALE;
     const maxDays = await getReservationMaxDaysForBasis(basisTrim);
     let endDateVal = null;
@@ -7171,13 +7192,102 @@ app.post('/api/equipment/:id/reserve-for-sale', authenticateToken, async (req, r
       endDateVal = new Date(`${endYmd}T23:59:59.999`);
     }
 
+    const reservationNotes = 'Резерв при формуванні продажу в CRM';
+    const pushReservationHistory = (target) => {
+      if (!target.reservationHistory) {
+        target.reservationHistory = [];
+      }
+      target.reservationHistory.push({
+        action: 'reserved',
+        date: new Date(),
+        userId: user._id.toString(),
+        userName: user.name || user.login,
+        clientName,
+        basis: basisTrim,
+        endDate: endDateVal,
+        notes: reservationNotes
+      });
+    };
+
+    // Частковий резерв: як при quantity/move — зменшуємо залишок у поточному документі, новий документ з резервом
+    if (!hasSerial && availableQty > 1 && reqQty < availableQty) {
+      const plainBefore = equipment.toObject();
+      delete plainBefore._id;
+      delete plainBefore.__v;
+
+      const origQtyBefore = equipment.quantity;
+      try {
+        equipment.quantity = availableQty - reqQty;
+        equipment.lastModified = new Date();
+        await equipment.save();
+
+        const newEquipment = await Equipment.create({
+          ...plainBefore,
+          quantity: reqQty,
+          status: 'reserved',
+          reservedBy: user._id.toString(),
+          reservedByName: user.name || user.login,
+          reservedByLogin: user.login,
+          reservedAt: new Date(),
+          reservationClientName: clientName,
+          reservationNotes,
+          reservationEndDate: endDateVal,
+          reservationBasis: basisTrim,
+          lastModified: new Date(),
+          saleId: undefined,
+          soldToClientId: undefined,
+          soldDate: undefined,
+          saleAmount: undefined,
+          warrantyUntil: undefined,
+          warrantyMonths: undefined,
+          reservationHistory: [],
+          addedBy: user._id.toString(),
+          addedByName: user.name || user.login,
+          addedAt: new Date()
+        });
+        pushReservationHistory(newEquipment);
+        await newEquipment.save();
+
+        try {
+          await EventLog.create({
+            userId: user._id.toString(),
+            userName: user.name || user.login,
+            userRole: user.role,
+            action: 'reserve',
+            entityType: 'equipment',
+            entityId: newEquipment._id.toString(),
+            description: `Зарезервовано для продажу (частково ${reqQty} з ${availableQty}): ${equipment.type} — ${clientName}; залишок у рядку ${equipment._id}: ${equipment.quantity}`,
+            details: {
+              reservedByName: newEquipment.reservedByName,
+              clientName,
+              reservationBasis: basisTrim,
+              source: 'sale_form',
+              reservedQuantity: reqQty,
+              sourceEquipmentId: equipment._id.toString(),
+              remainingQuantity: equipment.quantity
+            }
+          });
+        } catch (logErr) {
+          console.error('Помилка логування reserve-for-sale (partial):', logErr);
+        }
+
+        logPerformance('POST /api/equipment/:id/reserve-for-sale', startTime);
+        const out = await Equipment.findById(newEquipment._id).lean();
+        return res.json(out);
+      } catch (splitErr) {
+        equipment.quantity = origQtyBefore;
+        await equipment.save().catch(() => {});
+        throw splitErr;
+      }
+    }
+
     equipment.status = 'reserved';
     equipment.reservedBy = user._id.toString();
     equipment.reservedByName = user.name || user.login;
     equipment.reservedByLogin = user.login;
     equipment.reservedAt = new Date();
     equipment.reservationClientName = clientName;
-    equipment.reservationNotes = 'Резерв при формуванні продажу в CRM';
+    equipment.reservationNotes = reservationNotes;
     equipment.reservationEndDate = endDateVal;
     equipment.reservationBasis = basisTrim;
     equipment.lastModified = new Date();
@@ -7185,16 +7295,7 @@ app.post('/api/equipment/:id/reserve-for-sale', authenticateToken, async (req, r
     if (!equipment.reservationHistory) {
       equipment.reservationHistory = [];
     }
-    equipment.reservationHistory.push({
-      action: 'reserved',
-      date: new Date(),
-      userId: user._id.toString(),
-      userName: user.name || user.login,
-      clientName,
-      basis: basisTrim,
-      endDate: endDateVal,
-      notes: equipment.reservationNotes
-    });
+    pushReservationHistory(equipment);
 
     await equipment.save();
 

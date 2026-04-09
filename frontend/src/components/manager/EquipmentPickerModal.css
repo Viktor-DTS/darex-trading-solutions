@@ -161,6 +161,32 @@
   font-variant-numeric: tabular-nums;
 }
 
+.equipment-picker-col-pick-qty {
+  width: 88px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.equipment-picker-qty-input {
+  width: 100%;
+  max-width: 72px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-dark);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.equipment-picker-qty-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.equipment-picker-qty-dash {
+  color: var(--text-secondary);
+}
+
 .equipment-picker-status {
   display: inline-block;
   padding: 3px 8px;

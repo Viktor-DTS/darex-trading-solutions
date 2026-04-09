@@ -45,6 +45,55 @@ function displayQuantity(eq) {
   return `${n} ${u}`;
 }
 
+function hasSerialNumber(eq) {
+  return !!(eq?.serialNumber && String(eq.serialNumber).trim() !== '');
+}
+
+/** Максимум одиниць у рядку (для резерву з форми продажу). */
+function maxRowQuantity(eq) {
+  const q = Number(eq?.quantity);
+  return Number.isFinite(q) && q > 0 ? Math.floor(q) : 1;
+}
+
+/** Частковий резерв лише для «на складі», без серійника, quantity > 1. */
+function allowsPartialReserveQty(eq) {
+  const st = eq?.status || 'in_stock';
+  if (st !== 'in_stock') return false;
+  if (hasSerialNumber(eq)) return false;
+  return maxRowQuantity(eq) > 1;
+}
+
+/** Текст для window.confirm перед додаванням позиції в угоду / резервом. */
+function equipmentPickConfirmMessage(eq, { clientName, reserveQty, isMineReserve }) {
+  const typeShort =
+    (eq.type || '—').length > 200 ? `${String(eq.type).slice(0, 197)}…` : eq.type || '—';
+  const wh = eq.currentWarehouseName || eq.currentWarehouse || '—';
+  const maxQ = maxRowQuantity(eq);
+  const sn =
+    eq.serialNumber && String(eq.serialNumber).trim() ? `\nСерійний №: ${eq.serialNumber}` : '';
+
+  if (isMineReserve) {
+    return (
+      `Додати до угоди позицію з вашого резерву?\n\n` +
+      `${typeShort}${sn}\n` +
+      `Склад: ${wh}\n\n` +
+      `Натисніть «Скасувати», якщо обрали не той рядок.`
+    );
+  }
+
+  const qtyLine =
+    maxQ > 1
+      ? `Кількість для резерву: ${reserveQty} з ${maxQ} од.`
+      : `Кількість: ${reserveQty} од.`;
+  return (
+    `Підтвердити резервування для клієнта «${clientName}»?\n\n` +
+    `${typeShort}${sn}\n` +
+    `${qtyLine}\n` +
+    `Склад: ${wh}\n\n` +
+    `Після «ОК» позиція буде зарезервована на вас у системі. Якщо рядок обрано помилково — натисніть «Скасувати».`
+  );
+}
+
 function reservationStatusLabel(eq, userLogin) {
   const login = (userLogin || '').trim();
   const st = eq.status || 'in_stock';
@@ -72,6 +121,8 @@ function EquipmentPickerModal({
   const [warehouseFilter, setWarehouseFilter] = useState('');
   const [itemKindFilter, setItemKindFilter] = useState(ITEM_KIND_FILTER_DEFAULT_GOODS);
   const [reservingId, setReservingId] = useState(null);
+  /** id -> кількість для резерву (лише для allowsPartialReserveQty); за замовчуванням 1, щоб не знімати весь залишок випадково */
+  const [pickQtyById, setPickQtyById] = useState({});
 
   const userLogin = user?.login || '';
 
@@ -87,6 +138,7 @@ function EquipmentPickerModal({
       setWarehouseFilter('');
       setItemKindFilter(ITEM_KIND_FILTER_DEFAULT_GOODS);
       setReservingId(null);
+      setPickQtyById({});
     }
   }, [open]);
 
@@ -135,6 +187,19 @@ function EquipmentPickerModal({
     });
   }, [baseList, excludeSet, warehouseFilter, debouncedSearch, itemKindFilter]);
 
+  const getReserveQuantity = (eq) => {
+    const max = maxRowQuantity(eq);
+    if (max <= 1) return 1;
+    const raw = pickQtyById[String(eq._id)];
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n) || n < 1) return 1;
+    return Math.min(n, max);
+  };
+
+  const setRowPickQty = (eqId, value) => {
+    setPickQtyById((prev) => ({ ...prev, [String(eqId)]: value }));
+  };
+
   const handleSelectClick = async (eq) => {
     if (!eq?._id || reservingId) return;
     const idStr = String(eq._id);
@@ -142,6 +207,8 @@ function EquipmentPickerModal({
     const st = eq.status || 'in_stock';
     const mine = st === 'reserved' && eq.reservedByLogin === userLogin;
     if (mine) {
+      const msg = equipmentPickConfirmMessage(eq, { isMineReserve: true });
+      if (!window.confirm(msg)) return;
       onSelect(eq);
       onAfterReserve?.();
       onClose();
@@ -163,6 +230,11 @@ function EquipmentPickerModal({
       return;
     }
 
+    const reserveQty = getReserveQuantity(eq);
+
+    const confirmMsg = equipmentPickConfirmMessage(eq, { clientName: cn, reserveQty, isMineReserve: false });
+    if (!window.confirm(confirmMsg)) return;
+
     setReservingId(idStr);
     try {
       const token = localStorage.getItem('token');
@@ -172,7 +244,7 @@ function EquipmentPickerModal({
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ clientName: cn })
+        body: JSON.stringify({ clientName: cn, quantity: reserveQty })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -255,7 +327,8 @@ function EquipmentPickerModal({
               <tr>
                 <th>Тип</th>
                 <th>Серійний №</th>
-                <th>Кількість</th>
+                <th>Доступно</th>
+                <th>У угоді</th>
                 <th>Склад</th>
                 <th>Статус</th>
                 <th className="equipment-picker-col-action" />
@@ -264,7 +337,7 @@ function EquipmentPickerModal({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="equipment-picker-empty">
+                  <td colSpan={7} className="equipment-picker-empty">
                     Нічого не знайдено. Змініть пошук, склад або тип номенклатури.
                   </td>
                 </tr>
@@ -272,6 +345,9 @@ function EquipmentPickerModal({
                 filtered.map((eq) => {
                   const st = reservationStatusLabel(eq, userLogin);
                   const busy = reservingId === String(eq._id);
+                  const partial = allowsPartialReserveQty(eq);
+                  const maxQ = maxRowQuantity(eq);
+                  const pickVal = partial ? getReserveQuantity(eq) : maxQ;
                   return (
                     <tr key={eq._id}>
                       <td className="equipment-picker-cell-truncate" title={eq.type || ''}>
@@ -279,6 +355,26 @@ function EquipmentPickerModal({
                       </td>
                       <td>{eq.serialNumber || '—'}</td>
                       <td className="equipment-picker-col-qty">{displayQuantity(eq)}</td>
+                      <td className="equipment-picker-col-pick-qty">
+                        {partial ? (
+                          <input
+                            type="number"
+                            className="equipment-picker-qty-input"
+                            min={1}
+                            max={maxQ}
+                            value={pickVal}
+                            disabled={!!reservingId}
+                            onChange={(e) => {
+                              const v = parseInt(e.target.value, 10);
+                              const next = !Number.isFinite(v) ? 1 : Math.min(Math.max(1, v), maxQ);
+                              setRowPickQty(eq._id, next);
+                            }}
+                            aria-label="Кількість для резерву в угоді"
+                          />
+                        ) : (
+                          <span className="equipment-picker-qty-dash">—</span>
+                        )}
+                      </td>
                       <td
                         className="equipment-picker-cell-truncate"
                         title={eq.currentWarehouseName || eq.currentWarehouse || ''}
