@@ -15,6 +15,17 @@ function flattenCategories(nodes, level = 0) {
   return list;
 }
 
+/** Чи поточний користувач — власник резерву (для кнопки передачі). */
+function isMyEquipmentReserve(equipment, user) {
+  if (!equipment || !user || equipment.status !== 'reserved') return false;
+  const myLogin = (user.login || '').trim();
+  if (myLogin && equipment.reservedByLogin && equipment.reservedByLogin === myLogin) return true;
+  const rid = equipment.reservedBy != null ? String(equipment.reservedBy) : '';
+  const uid = user._id != null ? String(user._id) : '';
+  if (rid && uid && rid === uid) return true;
+  return false;
+}
+
 function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, readOnly = false, onReserve, onCancelReserve }) {
   const [formData, setFormData] = useState({});
   const [categoriesFlat, setCategoriesFlat] = useState([]);
@@ -26,6 +37,12 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
   const [showHistory, setShowHistory] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferManagers, setTransferManagers] = useState([]);
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [transferError, setTransferError] = useState('');
+  const [transferSelectedLogin, setTransferSelectedLogin] = useState('');
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [showTestingInfo, setShowTestingInfo] = useState(false);
   const [testingGalleryOpen, setTestingGalleryOpen] = useState(false);
   const [testingGalleryIndex, setTestingGalleryIndex] = useState(0);
@@ -140,6 +157,52 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
           region: warehouse.region || prev.region || ''
         }));
       }
+    }
+  };
+
+  const openTransferModal = async () => {
+    setShowTransferModal(true);
+    setTransferError('');
+    setTransferSelectedLogin('');
+    setTransferManagers([]);
+    setTransferLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/users/managers-for-transfer`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Не вдалося завантажити список менеджерів');
+      setTransferManagers(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setTransferError(e.message || 'Помилка завантаження');
+    } finally {
+      setTransferLoading(false);
+    }
+  };
+
+  const submitTransferReserve = async () => {
+    if (!equipment?._id || !transferSelectedLogin) return;
+    setTransferSubmitting(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/equipment/${equipment._id}/transfer-reserve`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ targetLogin: transferSelectedLogin })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Помилка ${res.status}`);
+      setShowTransferModal(false);
+      if (onSuccess) onSuccess();
+      else onClose();
+    } catch (e) {
+      alert(e.message || 'Не вдалося передати резерв');
+    } finally {
+      setTransferSubmitting(false);
     }
   };
 
@@ -840,16 +903,23 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
               {readOnly && onReserve && onCancelReserve && (
                 <>
                   {equipment && equipment.status === 'reserved' ? (
-                    <button 
-                      type="button" 
-                      className="btn-cancel" 
-                      onClick={() => {
-                        setConfirmAction('cancel');
-                        setShowConfirmModal(true);
-                      }}
-                    >
-                      🔓 Скасувати резервування
-                    </button>
+                    <>
+                      {isMyEquipmentReserve(equipment, user) && (
+                        <button type="button" className="btn-transfer-reserve" onClick={openTransferModal}>
+                          Передати резерв іншому менеджеру
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn-cancel"
+                        onClick={() => {
+                          setConfirmAction('cancel');
+                          setShowConfirmModal(true);
+                        }}
+                      >
+                        🔓 Скасувати резервування
+                      </button>
+                    </>
                   ) : (
                     <button 
                       type="button" 
@@ -986,6 +1056,102 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                 }}
               >
                 {confirmAction === 'reserve' ? 'Зарезервувати' : 'Скасувати резервування'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTransferModal && equipment && (
+        <div
+          className="modal-overlay equipment-transfer-overlay"
+          onClick={() => !transferSubmitting && setShowTransferModal(false)}
+          style={{ zIndex: 2100 }}
+        >
+          <div
+            className="modal-content confirm-modal equipment-transfer-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '480px' }}
+          >
+            <div className="modal-header" style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px',
+              paddingBottom: '12px',
+              borderBottom: '1px solid var(--border)'
+            }}>
+              <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--text)' }}>Передати резерв</h2>
+              <button
+                type="button"
+                className="btn-close"
+                disabled={transferSubmitting}
+                onClick={() => setShowTransferModal(false)}
+                aria-label="Закрити"
+              >
+                ×
+              </button>
+            </div>
+            <p style={{ margin: '0 0 12px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+              Оберіть менеджера, якому передати поточний резерв (клієнт і термін збережуться).
+            </p>
+            {transferLoading ? (
+              <p style={{ color: 'var(--text-secondary)' }}>Завантаження списку…</p>
+            ) : transferError ? (
+              <p style={{ color: '#ef4444', fontSize: '14px' }}>{transferError}</p>
+            ) : (
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label htmlFor="transfer-manager-select" style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>
+                  Менеджер
+                </label>
+                <select
+                  id="transfer-manager-select"
+                  className="equipment-transfer-select"
+                  value={transferSelectedLogin}
+                  onChange={(e) => setTransferSelectedLogin(e.target.value)}
+                  disabled={transferSubmitting}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface-dark)',
+                    color: 'var(--text)',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="">— Оберіть менеджера —</option>
+                  {transferManagers.map((m) => (
+                    <option key={m.login} value={m.login}>
+                      {m.name && String(m.name).trim() && m.name !== m.login
+                        ? `${m.name} (${m.login})`
+                        : m.login}
+                    </option>
+                  ))}
+                </select>
+                {!transferLoading && transferManagers.length === 0 && !transferError ? (
+                  <p style={{ marginTop: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    Немає інших активних менеджерів у списку.
+                  </p>
+                ) : null}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <button
+                type="button"
+                className="btn-cancel"
+                disabled={transferSubmitting}
+                onClick={() => setShowTransferModal(false)}
+              >
+                Скасувати
+              </button>
+              <button
+                type="button"
+                className="btn-save"
+                disabled={transferSubmitting || transferLoading || !transferSelectedLogin || !!transferError}
+                onClick={submitTransferReserve}
+              >
+                {transferSubmitting ? 'Передача…' : 'Передати'}
               </button>
             </div>
           </div>

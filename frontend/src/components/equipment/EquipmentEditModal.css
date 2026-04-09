@@ -231,6 +231,26 @@
   cursor: not-allowed;
 }
 
+.btn-transfer-reserve {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+}
+
+.btn-transfer-reserve:hover {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.equipment-transfer-overlay {
+  z-index: 2100;
+}
+
 /* Скролбар */
 .equipment-edit-form::-webkit-scrollbar {
   width: 8px;

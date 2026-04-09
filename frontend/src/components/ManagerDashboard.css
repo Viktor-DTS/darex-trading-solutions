@@ -528,6 +528,10 @@
   border-left: 3px solid #dc3545;
 }
 
+.row-transferred {
+  border-left: 3px solid #0d6efd;
+}
+
 .action-badge {
   display: inline-block;
   padding: 4px 10px;
@@ -544,6 +548,11 @@
 
 .action-badge.cancelled {
   background: #dc3545;
+  color: white;
+}
+
+.action-badge.transferred {
+  background: #0d6efd;
   color: white;
 }
 

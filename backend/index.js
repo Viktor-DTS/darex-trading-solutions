@@ -315,6 +315,7 @@ const User = mongoose.model('User', userSchema);
 const MANAGER_NOTIFICATION_KINDS = [
   'reservation_3d',
   'reservation_1d',
+  'reservation_transferred',
   'reservation_released_auto',
   'reservation_released_admin',
   'task_invoice_uploaded',
@@ -684,7 +685,7 @@ const equipmentSchema = new mongoose.Schema({
   
   // Історія резервувань
   reservationHistory: [{
-    action: { type: String, enum: ['reserved', 'cancelled'] }, // Тип дії
+    action: { type: String, enum: ['reserved', 'cancelled', 'transferred'] }, // Тип дії
     date: Date,                       // Дата та час дії
     userId: String,                   // ID користувача
     userName: String,                 // ПІБ користувача
@@ -3439,6 +3440,27 @@ app.get('/api/users/online', async (req, res) => {
   } catch (error) {
     console.error('[ACTIVITY] Помилка /api/users/online:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+/** Активні менеджери (і mgradm) для передачі резерву — без поточного користувача. Має бути перед /api/users/:login. */
+app.get('/api/users/managers-for-transfer', authenticateToken, async (req, res) => {
+  try {
+    const selfLogin = (req.user?.login || '').trim();
+    const rows = await User.find({
+      role: { $in: ['manager', 'mgradm'] },
+      dismissed: { $ne: true }
+    })
+      .select('login name')
+      .sort({ name: 1, login: 1 })
+      .lean();
+    const managers = rows
+      .filter((u) => u.login && String(u.login).trim() && String(u.login).trim() !== selfLogin)
+      .map((u) => ({ login: u.login, name: (u.name && String(u.name).trim()) || u.login }));
+    res.json(managers);
+  } catch (err) {
+    console.error('[ERROR] GET /api/users/managers-for-transfer:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -7382,6 +7404,111 @@ app.post('/api/equipment/:id/cancel-reserve', authenticateToken, async (req, res
   } catch (error) {
     console.error('[ERROR] POST /api/equipment/:id/cancel-reserve:', error);
     logPerformance('POST /api/equipment/:id/cancel-reserve', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Передача резерву іншому менеджеру (лише власник резерву)
+app.post('/api/equipment/:id/transfer-reserve', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const targetLogin = (req.body?.targetLogin || '').trim();
+    if (!targetLogin) {
+      return res.status(400).json({ error: 'Оберіть менеджера (targetLogin)' });
+    }
+
+    const equipment = await Equipment.findById(req.params.id);
+    if (!equipment) {
+      return res.status(404).json({ error: 'Обладнання не знайдено' });
+    }
+
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    if (equipment.status !== 'reserved') {
+      return res.status(400).json({ error: 'Обладнання не в статусі «зарезервовано»' });
+    }
+
+    const isOwner =
+      equipment.reservedBy === user._id.toString() ||
+      (equipment.reservedByLogin && equipment.reservedByLogin === user.login);
+    if (!isOwner) {
+      return res.status(403).json({ error: 'Передати резерв може лише той, хто його створив' });
+    }
+
+    if (targetLogin === user.login) {
+      return res.status(400).json({ error: 'Оберіть іншого менеджера' });
+    }
+
+    const targetUser = await User.findOne({
+      login: targetLogin,
+      role: { $in: ['manager', 'mgradm'] },
+      dismissed: { $ne: true }
+    });
+    if (!targetUser) {
+      return res.status(400).json({ error: 'Менеджера не знайдено або обліковий запис неактивний' });
+    }
+
+    const fromName = user.name || user.login;
+    const toName = targetUser.name || targetUser.login;
+    const transferNote = `Передано резерв від ${fromName} (${user.login}) → ${toName} (${targetUser.login})`;
+
+    if (!equipment.reservationHistory) {
+      equipment.reservationHistory = [];
+    }
+    equipment.reservationHistory.push({
+      action: 'transferred',
+      date: new Date(),
+      userId: user._id.toString(),
+      userName: fromName,
+      clientName: equipment.reservationClientName,
+      notes: transferNote
+    });
+
+    equipment.reservedBy = targetUser._id.toString();
+    equipment.reservedByName = toName;
+    equipment.reservedByLogin = targetUser.login;
+    equipment.reservedAt = new Date();
+    equipment.lastModified = new Date();
+
+    await equipment.save();
+
+    try {
+      await EventLog.create({
+        userId: user._id.toString(),
+        userName: fromName,
+        userRole: user.role,
+        action: 'transfer_reserve',
+        entityType: 'equipment',
+        entityId: equipment._id.toString(),
+        description: `Передано резерв: ${equipment.type} (№${equipment.serialNumber || 'без номера'}) → ${toName}`,
+        details: { fromLogin: user.login, toLogin: targetUser.login, clientName: equipment.reservationClientName }
+      });
+    } catch (logErr) {
+      console.error('Помилка логування transfer-reserve:', logErr);
+    }
+
+    try {
+      await createManagerNotificationDeduped({
+        recipientLogin: targetUser.login,
+        kind: 'reservation_transferred',
+        equipmentId: equipment._id,
+        title: 'Вам передано резерв обладнання',
+        body: `${fromName} передав вам резерв: ${equipmentReserveSummaryLine(equipment)}${equipment.reservationClientName ? ` (клієнт: ${equipment.reservationClientName})` : ''}.`,
+        read: false
+      });
+    } catch (nErr) {
+      console.error('Помилка сповіщення transfer-reserve:', nErr);
+    }
+
+    logPerformance('POST /api/equipment/:id/transfer-reserve', startTime);
+    const out = await Equipment.findById(req.params.id).lean();
+    res.json(out);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/:id/transfer-reserve:', error);
+    logPerformance('POST /api/equipment/:id/transfer-reserve', startTime);
     res.status(500).json({ error: error.message });
   }
 });

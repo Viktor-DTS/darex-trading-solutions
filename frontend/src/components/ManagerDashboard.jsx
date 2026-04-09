@@ -513,7 +513,16 @@ function ManagerDashboard({ user }) {
                     </thead>
                     <tbody>
                       {reservationHistory.map((record, index) => (
-                        <tr key={index} className={record.action === 'reserved' ? 'row-reserved' : 'row-cancelled'}>
+                        <tr
+                          key={index}
+                          className={
+                            record.action === 'reserved'
+                              ? 'row-reserved'
+                              : record.action === 'transferred'
+                                ? 'row-transferred'
+                                : 'row-cancelled'
+                          }
+                        >
                           <td>
                             {new Date(record.date).toLocaleDateString('uk-UA', {
                               day: '2-digit',
@@ -525,7 +534,11 @@ function ManagerDashboard({ user }) {
                           </td>
                           <td>
                             <span className={`action-badge ${record.action}`}>
-                              {record.action === 'reserved' ? '🔒 Резервування' : '🔓 Зняття резерву'}
+                              {record.action === 'reserved'
+                                ? '🔒 Резервування'
+                                : record.action === 'transferred'
+                                  ? '🔄 Передача резерву'
+                                  : '🔓 Зняття резерву'}
                             </span>
                           </td>
                           <td>{record.equipmentType || '—'}</td>
@@ -543,6 +556,8 @@ function ManagerDashboard({ user }) {
                                 )}
                                 {record.notes && <div>Примітки: {record.notes}</div>}
                               </>
+                            ) : record.action === 'transferred' ? (
+                              <>{record.notes && <div>{record.notes}</div>}</>
                             ) : (
                               <>
                                 {record.cancelReason === 'expired' && <span className="cancel-reason expired">⏰ Автоматично (термін)</span>}
