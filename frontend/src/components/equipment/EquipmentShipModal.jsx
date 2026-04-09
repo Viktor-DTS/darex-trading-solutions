@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import API_BASE_URL from '../../config';
+import { patchShipmentRequestStatus } from '../../utils/shipmentRequestAPI';
 import { getEdrpouList } from '../../utils/edrpouAPI';
 import { flattenCategoriesForSelect } from '../../utils/equipmentPickerCategories';
 import ClientDataSelectionModal from '../ClientDataSelectionModal';
 import EquipmentFileUpload from './EquipmentFileUpload';
 import './EquipmentShipModal.css';
 
-function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess }) {
+function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess, linkedShipmentRequestId = null }) {
   const [selectedEquipmentList, setSelectedEquipmentList] = useState(equipment ? [equipment] : []);
   const [equipmentList, setEquipmentList] = useState([]);
   const [loadingEquipment, setLoadingEquipment] = useState(false);
@@ -44,6 +45,46 @@ function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess }) 
     const t = setTimeout(() => setDebouncedSearch(searchInput), 400);
     return () => clearTimeout(t);
   }, [searchInput]);
+
+  useEffect(() => {
+    if (!linkedShipmentRequestId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE_URL}/shipment-requests/${linkedShipmentRequestId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const eqList = Array.isArray(data.equipment) ? data.equipment : [];
+        setSelectedEquipmentList(eqList);
+        setShippedTo(data.clientName || data.sale?.clientId?.name || '');
+        setClientEdrpou(data.sale?.clientId?.edrpou || '');
+        setOrderNumber(data.requestNumber || '');
+        const planned = data.plannedShipmentDate
+          ? new Date(data.plannedShipmentDate).toLocaleDateString('uk-UA')
+          : '';
+        setNotes(
+          [
+            `Дані заявки ${data.requestNumber}. Запланована дата відвантаження: ${planned}`,
+            `Перевізник: ${data.carrier || '—'}`,
+            `Телефон водія: ${data.driverPhone || '—'}`,
+            `Тип/модель ТЗ: ${data.vehicleType || '—'}`,
+            data.ttnFile?.originalName ? `ТТН (файл): ${data.ttnFile.originalName}` : ''
+          ]
+            .filter(Boolean)
+            .join('\n')
+        );
+        setShowSelection(true);
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedShipmentRequestId]);
 
   useEffect(() => {
     if (equipment) return;
@@ -812,6 +853,13 @@ function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess }) 
       const failed = results.filter(r => !r.ok);
       
       if (failed.length === 0) {
+        if (linkedShipmentRequestId) {
+          try {
+            await patchShipmentRequestStatus(linkedShipmentRequestId, 'fulfilled');
+          } catch (patchErr) {
+            console.error(patchErr);
+          }
+        }
         onSuccess && onSuccess();
         onClose();
       } else {

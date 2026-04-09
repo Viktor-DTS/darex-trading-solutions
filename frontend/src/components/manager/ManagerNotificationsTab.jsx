@@ -12,7 +12,8 @@ const KIND_LABELS = {
   task_wh_rejected: 'Відхилено завскладом',
   task_accountant_approved: 'Затверджено бухгалтером',
   task_accountant_rejected: 'Відхилено бухгалтером',
-  task_new: 'Нова заявка'
+  task_new: 'Нова заявка',
+  shipment_request_new: 'Запит на відвантаження'
 };
 
 function notificationTaskId(n) {
@@ -29,6 +30,7 @@ const DEFAULT_DESCRIPTION =
 function ManagerNotificationsTab({
   onUnreadCountChange,
   onOpenTask,
+  onOpenShipmentRequest,
   description = DEFAULT_DESCRIPTION,
   globalFeed = false
 }) {
@@ -168,6 +170,19 @@ function ManagerNotificationsTab({
               </div>
               <h3 className="manager-notification-title">{n.title}</h3>
               <p className="manager-notification-body">{n.body}</p>
+              {n.kind === 'shipment_request_new' && onOpenShipmentRequest && n.shipmentRequestId ? (
+                <button
+                  type="button"
+                  className="btn-primary btn-notification-shipment"
+                  style={{ marginTop: 8, marginBottom: 8 }}
+                  onClick={() => {
+                    markRead(n._id);
+                    onOpenShipmentRequest(n);
+                  }}
+                >
+                  Відкрити відвантаження
+                </button>
+              ) : null}
               {!n.read && (
                 <button
                   type="button"

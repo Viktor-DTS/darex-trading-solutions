@@ -9,23 +9,32 @@ function EquipmentEditor({
   label = 'Відвантажене обладнання',
   user = null,
   reserveClientName = '',
-  onEquipmentReserved
+  onEquipmentReserved,
+  saleId = null,
+  showShipmentRequestButton = false,
+  onOpenShipmentRequest,
+  lockedBypass = false
 }) {
   const [pickerRowId, setPickerRowId] = useState(null);
 
   const addRow = () => {
+    const lid = crypto.randomUUID?.() || Date.now().toString();
     onChange([
       ...items,
-      { id: crypto.randomUUID?.() || Date.now().toString(), equipmentId: '', type: '', serialNumber: '', amount: 0 }
+      { id: lid, lineId: lid, equipmentId: '', type: '', serialNumber: '', amount: 0, shipmentLocked: false, shipmentRequestId: null }
     ]);
   };
 
   const removeRow = (id) => {
     if (items.length <= 1) return;
+    const row = items.find((i) => i.id === id);
+    if (row?.shipmentLocked && !lockedBypass) return;
     onChange(items.filter((i) => i.id !== id));
   };
 
   const updateItem = (id, field, value) => {
+    const row = items.find((i) => i.id === id);
+    if (row?.shipmentLocked && !lockedBypass) return;
     onChange(
       items.map((i) => {
         if (i.id !== id) return i;
@@ -94,10 +103,17 @@ function EquipmentEditor({
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
-              <tr key={item.id}>
+            {items.map((item) => {
+              const locked = !!item.shipmentLocked && !lockedBypass;
+              return (
+              <tr key={item.id} className={item.shipmentLocked ? 'equipment-row-shipment-locked' : ''}>
                 <td className="col-equipment">
                   <div className="equipment-editor-pick-cell">
+                    {item.shipmentLocked && (
+                      <span className="equipment-shipment-locked-badge" title="Подано на відвантаження">
+                        🔒 На відвантаженні
+                      </span>
+                    )}
                     {item.equipmentId ? (
                       <div className="equipment-editor-pick-summary" title={summaryForRow(item)}>
                         {summaryForRow(item)}
@@ -110,6 +126,7 @@ function EquipmentEditor({
                         type="button"
                         className="btn-equipment-pick"
                         onClick={() => setPickerRowId(item.id)}
+                        disabled={locked}
                       >
                         Обрати…
                       </button>
@@ -118,8 +135,18 @@ function EquipmentEditor({
                           type="button"
                           className="btn-equipment-clear"
                           onClick={() => updateItem(item.id, 'equipmentId', '')}
+                          disabled={locked}
                         >
                           Очистити
+                        </button>
+                      ) : null}
+                      {showShipmentRequestButton && saleId && item.equipmentId && !item.shipmentLocked ? (
+                        <button
+                          type="button"
+                          className="btn-equipment-shipment-request"
+                          onClick={() => onOpenShipmentRequest?.()}
+                        >
+                          Запит на відвантаження товару
                         </button>
                       ) : null}
                     </div>
@@ -135,6 +162,7 @@ function EquipmentEditor({
                     onChange={(e) => updateItem(item.id, 'amount', e.target.value)}
                     placeholder="0"
                     required={!!item.equipmentId}
+                    disabled={locked}
                   />
                 </td>
                 <td className="col-total">
@@ -145,14 +173,14 @@ function EquipmentEditor({
                     type="button"
                     className="btn-remove-equipment"
                     onClick={() => removeRow(item.id)}
-                    disabled={items.length <= 1}
+                    disabled={items.length <= 1 || locked}
                     title="Видалити рядок"
                   >
                     ✕
                   </button>
                 </td>
               </tr>
-            ))}
+            );})}
           </tbody>
         </table>
       </div>

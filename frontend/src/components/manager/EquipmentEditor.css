@@ -199,3 +199,32 @@
 .equipment-editor-summary strong {
   color: var(--primary);
 }
+
+.btn-equipment-shipment-request {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--primary, #0d6efd);
+  background: rgba(13, 110, 253, 0.12);
+  color: var(--primary, #0d6efd);
+  cursor: pointer;
+  white-space: normal;
+  text-align: left;
+  max-width: 100%;
+}
+
+.btn-equipment-shipment-request:hover {
+  background: var(--primary, #0d6efd);
+  color: #fff;
+}
+
+.equipment-shipment-locked-badge {
+  display: block;
+  font-size: 11px;
+  color: var(--warning, #b8860b);
+  margin-bottom: 4px;
+}
+
+.equipment-row-shipment-locked td {
+  opacity: 0.95;
+}

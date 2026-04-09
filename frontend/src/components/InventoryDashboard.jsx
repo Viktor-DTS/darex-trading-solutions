@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import API_BASE_URL from '../config';
+import { listShipmentRequests } from '../utils/shipmentRequestAPI';
 import EquipmentList from './equipment/EquipmentList';
 import CategoryTree from './equipment/CategoryTree';
 import EquipmentEditModal from './equipment/EquipmentEditModal';
@@ -14,6 +15,7 @@ import InventoryDocuments from './inventory/InventoryDocuments';
 import Reservations from './inventory/Reservations';
 import InventoryReports from './inventory/InventoryReports';
 import ReceiptApproval from './inventory/ReceiptApproval';
+import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import './InventoryDashboard.css';
 
 function InventoryDashboard({ user }) {
@@ -24,6 +26,9 @@ function InventoryDashboard({ user }) {
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [showShipModal, setShowShipModal] = useState(false);
   const [showWriteOffModal, setShowWriteOffModal] = useState(false);
+  const [shipModalFromRequestId, setShipModalFromRequestId] = useState(null);
+  const [pendingShipRequests, setPendingShipRequests] = useState([]);
+  const [shipRequestsLoading, setShipRequestsLoading] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [inTransitCount, setInTransitCount] = useState(0);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
@@ -68,6 +73,32 @@ function InventoryDashboard({ user }) {
     }
   };
 
+  const loadPendingShipRequests = useCallback(async () => {
+    setShipRequestsLoading(true);
+    try {
+      const data = await listShipmentRequests('pending');
+      setPendingShipRequests(Array.isArray(data) ? data : []);
+    } catch {
+      setPendingShipRequests([]);
+    } finally {
+      setShipRequestsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'shipment') loadPendingShipRequests();
+  }, [activeTab, loadPendingShipRequests]);
+
+  const openShipmentFromNotification = useCallback((n) => {
+    const raw = n.shipmentRequestId;
+    const id = raw && typeof raw === 'object' && raw._id ? raw._id : raw;
+    if (!id) return;
+    setSelectedEquipment(null);
+    setShipModalFromRequestId(String(id));
+    setShowShipModal(true);
+    setActiveTab('shipment');
+  }, []);
+
   const loadInTransitCount = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -90,6 +121,7 @@ function InventoryDashboard({ user }) {
     { id: 'receipt', label: 'Надходження', icon: '📥' },
     { id: 'movement', label: 'Переміщення', icon: '🔄' },
     { id: 'shipment', label: 'Відвантаження', icon: '🚚' },
+    { id: 'notifications', label: 'Сповіщення', icon: '🔔' },
     { id: 'write-off', label: 'Списання', icon: '📝' },
     { id: 'approval', label: 'Затвердження отримання товару', icon: '✅', badge: inTransitCount },
     { id: 'inventory', label: 'Інвентаризація', icon: '📋' },
@@ -106,9 +138,6 @@ function InventoryDashboard({ user }) {
     } else if (activeTab === 'movement' && !showMoveModal && !showAddModal && !showShipModal && !showWriteOffModal) {
       setSelectedEquipment(null);
       setShowMoveModal(true);
-    } else if (activeTab === 'shipment' && !showShipModal && !showAddModal && !showMoveModal && !showWriteOffModal) {
-      setSelectedEquipment(null);
-      setShowShipModal(true);
     } else if (activeTab === 'write-off' && !showWriteOffModal && !showAddModal && !showMoveModal && !showShipModal) {
       setSelectedEquipment(null);
       setShowWriteOffModal(true);
@@ -130,6 +159,7 @@ function InventoryDashboard({ user }) {
   };
 
   const handleShip = (equipment) => {
+    setShipModalFromRequestId(null);
     setSelectedEquipment(equipment);
     setShowShipModal(true);
   };
@@ -147,10 +177,11 @@ function InventoryDashboard({ user }) {
   const handleShipSuccess = () => {
     setShowShipModal(false);
     setSelectedEquipment(null);
+    setShipModalFromRequestId(null);
+    loadPendingShipRequests();
     if (equipmentListRef.current) {
       equipmentListRef.current.refresh();
     }
-    // Після успішного відвантаження повертаємося на вкладку залишків
     setActiveTab('stock');
   };
 
@@ -220,12 +251,80 @@ function InventoryDashboard({ user }) {
             <div className="inventory-header">
               <h2>Відвантаження замовникам</h2>
               <p className="inventory-description">
-                Відвантаження обладнання замовникам
+                Запити від менеджерів на відвантаження та ручне відвантаження зі складу
               </p>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ marginTop: 12 }}
+                onClick={() => {
+                  setShipModalFromRequestId(null);
+                  setSelectedEquipment(null);
+                  setShowShipModal(true);
+                }}
+              >
+                Ручне відвантаження
+              </button>
             </div>
-            <div className="documents-placeholder">
-              <p>Використовуйте модальне вікно для відвантаження обладнання</p>
+            <div className="inventory-shipment-requests-block" style={{ marginTop: 24 }}>
+              <h3 style={{ marginBottom: 12 }}>Запити на відвантаження від менеджерів</h3>
+              {shipRequestsLoading ? (
+                <div className="loading-indicator">Завантаження…</div>
+              ) : pendingShipRequests.length === 0 ? (
+                <p className="inventory-description">Немає активних запитів у статусі «Очікує».</p>
+              ) : (
+                <ul className="inventory-shipment-request-list" style={{ listStyle: 'none', padding: 0 }}>
+                  {pendingShipRequests.map((r) => (
+                    <li
+                      key={r._id}
+                      style={{
+                        border: '1px solid var(--border-color, #ddd)',
+                        borderRadius: 8,
+                        padding: 12,
+                        marginBottom: 10,
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                        gap: 12,
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <div>
+                        <strong>{r.requestNumber}</strong>
+                        <span style={{ marginLeft: 8, color: 'var(--text-secondary)' }}>{r.clientName || '—'}</span>
+                        <div style={{ fontSize: 13, marginTop: 6, color: 'var(--text-secondary)' }}>
+                          {r.plannedShipmentDate
+                            ? new Date(r.plannedShipmentDate).toLocaleDateString('uk-UA')
+                            : ''}{' '}
+                          · {r.managerName || r.managerLogin || ''}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => {
+                          setShipModalFromRequestId(String(r._id));
+                          setSelectedEquipment(null);
+                          setShowShipModal(true);
+                        }}
+                      >
+                        Оформити відвантаження
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
+          </div>
+        );
+
+      case 'notifications':
+        return (
+          <div className="inventory-tab-content">
+            <ManagerNotificationsTab
+              onOpenShipmentRequest={openShipmentFromNotification}
+              description="Системні сповіщення: запити на відвантаження від менеджерів тощо. Натисніть «Відкрити відвантаження», щоб перейти до оформлення відвантаження з даними заявки."
+            />
           </div>
         );
 
@@ -380,12 +479,13 @@ function InventoryDashboard({ user }) {
         <EquipmentShipModal
           equipment={selectedEquipment}
           warehouses={warehouses}
+          linkedShipmentRequestId={shipModalFromRequestId}
           onClose={() => {
             setShowShipModal(false);
             setSelectedEquipment(null);
-            // Якщо закриваємо модальне вікно з вкладки відвантаження, повертаємося на залишки
+            setShipModalFromRequestId(null);
             if (activeTab === 'shipment') {
-              setActiveTab('stock');
+              loadPendingShipRequests();
             }
           }}
           onSuccess={handleShipSuccess}

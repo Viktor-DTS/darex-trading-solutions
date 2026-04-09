@@ -299,6 +299,7 @@ function ClientCardModal({ open, onClose, clientId, onEdit, initialClientFromSea
           open={showSaleFormModal}
           onClose={() => { setShowSaleFormModal(false); setEditSale(null); }}
           onSuccess={() => { loadData(); }}
+          onRefreshSale={(s) => setEditSale(s)}
           editSale={editSale}
           initialClient={!editSale && client ? client : null}
           user={user}

@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import API_BASE_URL from '../../config';
 import { getClients, getUsers } from '../../utils/clientsAPI';
-import { createSale, updateSale, getSaleFiles, uploadSaleFiles, getSaleInvoiceFiles, uploadSaleInvoiceFiles } from '../../utils/salesAPI';
+import { createSale, updateSale, getSale, getSaleFiles, uploadSaleFiles, getSaleInvoiceFiles, uploadSaleInvoiceFiles } from '../../utils/salesAPI';
 import { getFileOpenToken } from '../../utils/clientsAPI';
 import AdditionalCostsEditor from './AdditionalCostsEditor';
 import PaymentsEditor from './PaymentsEditor';
 import EquipmentEditor from './EquipmentEditor';
 import ProposedEquipmentEditor from './ProposedEquipmentEditor';
 import ClientFormModal from './ClientFormModal';
+import SaleShipmentRequestModal from './SaleShipmentRequestModal';
 import './SaleFormModal.css';
 
 const canAssignSaleManager = (role) => ['admin', 'administrator', 'mgradm'].includes((role || '').toLowerCase());
@@ -35,7 +36,7 @@ const PAYMENT_METHOD_OPTIONS = [
 const STATUS_LABELS_LEGACY = { draft: 'Чернетка', primary_contact: 'Первичний контакт', quote_sent: 'Відправив КП', pnr: 'ПНР', in_negotiation: 'В процесі домовленості', in_realization: 'Реалізація угоди', confirmed: 'Підтверджено', cancelled: 'Скасовано' };
 const statusLabel = (v) => SALE_STATUS_OPTIONS.find(o => o.value === v)?.label || STATUS_LABELS_LEGACY[v] || v || '—';
 
-function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClient = null, user }) {
+function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = null, initialClient = null, user }) {
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState([]);
   const [equipment, setEquipment] = useState([]);
@@ -50,6 +51,7 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
   const [invoiceFilesUploading, setInvoiceFilesUploading] = useState(false);
   /** З /api/global-calculation-coefficients (sales): «Премія від продажів», % */
   const [salesBonusPercent, setSalesBonusPercent] = useState(null);
+  const [showShipmentRequestModal, setShowShipmentRequestModal] = useState(false);
   const addressMMRef = useRef(null);
   const addressMMAutocompleteRef = useRef(null);
 
@@ -87,20 +89,29 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
       if (editSale) {
         const eqId = editSale.equipmentId?._id || editSale.equipmentId;
         const eqItems = editSale.equipmentItems && editSale.equipmentItems.length > 0
-          ? editSale.equipmentItems.map(i => ({
-              id: crypto.randomUUID?.() || Date.now().toString(),
-              equipmentId: i.equipmentId?._id || i.equipmentId || '',
-              type: i.type || '',
-              serialNumber: i.serialNumber || '',
-              amount: i.amount || 0
-            }))
+          ? editSale.equipmentItems.map(i => {
+              const lid = i.lineId || crypto.randomUUID?.() || `eq_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+              return {
+                id: lid,
+                lineId: lid,
+                equipmentId: i.equipmentId?._id || i.equipmentId || '',
+                type: i.type || '',
+                serialNumber: i.serialNumber || '',
+                amount: i.amount || 0,
+                shipmentLocked: !!i.shipmentLocked,
+                shipmentRequestId: i.shipmentRequestId || null
+              };
+            })
           : eqId ? [{
               id: crypto.randomUUID?.() || '1',
+              lineId: crypto.randomUUID?.() || '1',
               equipmentId: eqId,
               type: editSale.mainProductName || editSale.equipmentId?.type || '',
               serialNumber: editSale.mainProductSerial || editSale.equipmentId?.serialNumber || '',
-              amount: editSale.mainProductAmount || 0
-            }] : [{ id: crypto.randomUUID?.() || '1', equipmentId: '', type: '', serialNumber: '', amount: 0 }];
+              amount: editSale.mainProductAmount || 0,
+              shipmentLocked: false,
+              shipmentRequestId: null
+            }] : [{ id: crypto.randomUUID?.() || '1', lineId: crypto.randomUUID?.() || '1', equipmentId: '', type: '', serialNumber: '', amount: 0, shipmentLocked: false, shipmentRequestId: null }];
         setForm({
           clientId: editSale.clientId?._id || editSale.clientId || '',
           clientName: editSale.clientId?.name || editSale.clientName || '',
@@ -154,7 +165,7 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
           managerLogin: user?.login || '',
           managerLogin2: '',
           tenderEmployeeLogin: '',
-          equipmentItems: [{ id: crypto.randomUUID?.() || '1', equipmentId: '', type: '', serialNumber: '', amount: 0 }],
+          equipmentItems: [{ id: crypto.randomUUID?.() || '1', lineId: crypto.randomUUID?.() || '1', equipmentId: '', type: '', serialNumber: '', amount: 0, shipmentLocked: false, shipmentRequestId: null }],
           additionalCosts: [{ id: crypto.randomUUID?.() || '1', description: '', amount: 0, quantity: 1, notes: '' }],
           payments: [{ id: crypto.randomUUID?.() || '1', date: new Date().toISOString().slice(0, 10), amount: 0, currency: 'UAH', rate: 1 }],
           saleDate: new Date().toISOString().slice(0, 10),
@@ -427,10 +438,13 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
         managerLogin2: canAssignSaleManager(user?.role) ? (form.managerLogin2 || undefined) : undefined,
         tenderEmployeeLogin: form.tenderEmployeeLogin || undefined,
         equipmentItems: validEquipment.length > 0 ? validEquipment.map(i => ({
+          lineId: i.lineId || i.id,
           ...(i.equipmentId ? { equipmentId: i.equipmentId } : {}),
           type: (i.type || '').trim(),
           serialNumber: (i.serialNumber || '').trim(),
-          amount: parseFloat(i.amount) || 0
+          amount: parseFloat(i.amount) || 0,
+          shipmentLocked: !!i.shipmentLocked,
+          ...(i.shipmentRequestId ? { shipmentRequestId: i.shipmentRequestId } : {})
         })) : [],
         mainProductAmount: validEquipment.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0),
         additionalCosts: form.additionalCosts
@@ -764,6 +778,10 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
                 user={user}
                 reserveClientName={form.clientName}
                 onEquipmentReserved={loadEquipment}
+                saleId={editSale?._id || null}
+                showShipmentRequestButton={!!editSale?._id && form.status === 'in_realization'}
+                onOpenShipmentRequest={() => setShowShipmentRequestModal(true)}
+                lockedBypass={canAssignSaleManager(user?.role)}
               />
             )}
 
@@ -948,6 +966,44 @@ function SaleFormModal({ open, onClose, onSuccess, editSale = null, initialClien
           setShowClientForm(false);
         }}
         user={user}
+      />
+
+      <SaleShipmentRequestModal
+        open={showShipmentRequestModal}
+        onClose={() => setShowShipmentRequestModal(false)}
+        saleId={editSale?._id}
+        equipmentItems={form.equipmentItems}
+        onSuccess={async () => {
+          try {
+            const s = await getSale(editSale._id);
+            if (s?.equipmentItems?.length) {
+              setForm((prev) => ({
+                ...prev,
+                equipmentItems: s.equipmentItems.map((i) => {
+                  const lid =
+                    i.lineId ||
+                    crypto.randomUUID?.() ||
+                    `eq_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+                  return {
+                    id: lid,
+                    lineId: lid,
+                    equipmentId: i.equipmentId?._id || i.equipmentId || '',
+                    type: i.type || '',
+                    serialNumber: i.serialNumber || '',
+                    amount: i.amount || 0,
+                    shipmentLocked: !!i.shipmentLocked,
+                    shipmentRequestId: i.shipmentRequestId || null
+                  };
+                })
+              }));
+            }
+            onRefreshSale?.(s);
+          } catch (_) {
+            /* ignore */
+          }
+          setShowShipmentRequestModal(false);
+          onSuccess?.();
+        }}
       />
     </div>
   );

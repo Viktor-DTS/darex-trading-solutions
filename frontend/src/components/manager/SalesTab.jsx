@@ -195,6 +195,7 @@ function SalesTab({ user }) {
         open={showFormModal}
         onClose={() => { setShowFormModal(false); setEditSale(null); }}
         onSuccess={loadSales}
+        onRefreshSale={(s) => setEditSale(s)}
         editSale={editSale}
         user={user}
       />

@@ -323,7 +323,8 @@ const MANAGER_NOTIFICATION_KINDS = [
   'task_wh_rejected',
   'task_accountant_approved',
   'task_accountant_rejected',
-  'task_new'
+  'task_new',
+  'shipment_request_new'
 ];
 
 const managerUserNotificationSchema = new mongoose.Schema({
@@ -341,6 +342,7 @@ const managerUserNotificationSchema = new mongoose.Schema({
   read: { type: Boolean, default: false },
   /** Унікальний ключ, щоб не дублювати нагадування (3д/1д) та авто-зняття */
   dedupeKey: { type: String, sparse: true, unique: true },
+  shipmentRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ShipmentRequest' },
   createdAt: { type: Date, default: Date.now }
 });
 managerUserNotificationSchema.index({ recipientLogin: 1, createdAt: -1 });
@@ -1286,6 +1288,34 @@ reservationSchema.index({ status: 1 });
 reservationSchema.index({ reservedUntil: 1 });
 const Reservation = mongoose.model('Reservation', reservationSchema);
 
+// Лічильник номерів заявок на відвантаження (SV-#####)
+const counterSchema = new mongoose.Schema({
+  _id: { type: String, required: true },
+  seq: { type: Number, default: 0 }
+}, { collection: 'counters' });
+const Counter = mongoose.model('Counter', counterSchema);
+
+/** Запит менеджера на відвантаження (складський облік) */
+const shipmentRequestSchema = new mongoose.Schema({
+  requestNumber: { type: String, required: true, unique: true },
+  saleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale', required: true },
+  clientName: String,
+  managerLogin: String,
+  managerName: String,
+  plannedShipmentDate: { type: Date, required: true },
+  carrier: { type: String, required: true },
+  driverPhone: { type: String, required: true },
+  vehicleType: String,
+  ttnFileId: { type: mongoose.Schema.Types.ObjectId, ref: 'File' },
+  lineIds: [{ type: String }],
+  equipmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' }],
+  warehouseRegions: [{ type: String }],
+  status: { type: String, enum: ['pending', 'fulfilled', 'cancelled'], default: 'pending' }
+}, { timestamps: true });
+shipmentRequestSchema.index({ saleId: 1, createdAt: -1 });
+shipmentRequestSchema.index({ status: 1, createdAt: -1 });
+const ShipmentRequest = mongoose.model('ShipmentRequest', shipmentRequestSchema);
+
 // ============================================
 // CRM - Клієнти та продажі для менеджерів
 // ============================================
@@ -1329,10 +1359,13 @@ const additionalCostSchema = new mongoose.Schema({
 }, { _id: false });
 
 const equipmentItemSchema = new mongoose.Schema({
+  lineId: String,
   equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
   type: String,
   serialNumber: String,
-  amount: { type: Number, default: 0 }
+  amount: { type: Number, default: 0 },
+  shipmentLocked: { type: Boolean, default: false },
+  shipmentRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ShipmentRequest' }
 }, { _id: false });
 
 const paymentItemSchema = new mongoose.Schema({
@@ -2117,6 +2150,63 @@ async function getSalesBonusPercentFromDb() {
   return row ? roundCoefficientValue(row.value) : 0;
 }
 
+async function getNextShipmentRequestNumber() {
+  const c = await Counter.findOneAndUpdate(
+    { _id: 'shipmentRequestSv' },
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true }
+  );
+  const n = c.seq || 1;
+  return `SV-${String(n).padStart(5, '0')}`;
+}
+
+async function peekShipmentRequestPreviewNumber() {
+  const c = await Counter.findById('shipmentRequestSv').lean();
+  const n = (c?.seq || 0) + 1;
+  return `SV-${String(n).padStart(5, '0')}`;
+}
+
+function canAccessInventoryShipmentRequests(user) {
+  const r = String(user?.role || '').toLowerCase();
+  return ['warehouse', 'zavsklad', 'admin', 'administrator', 'mgradm'].includes(r);
+}
+
+async function notifyWarehouseUsersForShipmentRequest(sr) {
+  const rows = await User.find({
+    dismissed: { $ne: true },
+    role: { $in: ['warehouse', 'zavsklad'] }
+  })
+    .select('login')
+    .lean();
+  const planned = sr.plannedShipmentDate
+    ? new Date(sr.plannedShipmentDate).toLocaleDateString('uk-UA')
+    : '—';
+  const created = sr.createdAt ? new Date(sr.createdAt).toLocaleString('uk-UA') : '—';
+  const body = [
+    `Запланована дата відвантаження: ${planned}`,
+    `Перевізник: ${sr.carrier || '—'}`,
+    `Телефон водія: ${sr.driverPhone || '—'}`,
+    `Тип/модель ТЗ: ${sr.vehicleType || '—'}`,
+    `Номер заявки: ${sr.requestNumber}`,
+    `Менеджер: ${sr.managerName || sr.managerLogin || '—'}`,
+    `Дата та час заявки: ${created}`
+  ].join('\n');
+  for (const u of rows) {
+    const login = u.login && String(u.login).trim();
+    if (!login) continue;
+    await createManagerNotificationDeduped({
+      recipientLogin: login,
+      kind: 'shipment_request_new',
+      title: 'У вас є запит на відвантаження',
+      body,
+      requestNumber: sr.requestNumber,
+      shipmentRequestId: sr._id,
+      read: false,
+      dedupeKey: `shipment_req:${String(sr._id)}:${login}`
+    });
+  }
+}
+
 app.post('/api/sales', authenticateToken, async (req, res) => {
   try {
     const body = { ...req.body };
@@ -2169,6 +2259,53 @@ app.put('/api/sales/:id', authenticateToken, async (req, res) => {
     if (!canAssignSaleManager(req.user)) {
       delete body.managerLogin;
       delete body.managerLogin2;
+    }
+    if (body.equipmentItems && Array.isArray(body.equipmentItems)) {
+      const oldItems = existing.equipmentItems || [];
+      const adminSale = canAssignSaleManager(req.user);
+      if (!adminSale) {
+        const lockedOld = oldItems.filter((o) => o.shipmentLocked);
+        for (const o of lockedOld) {
+          const found = body.equipmentItems.some((x) => {
+            if (o.lineId && x.lineId === o.lineId) return true;
+            if (!o.lineId && o.equipmentId && x.equipmentId && String(x.equipmentId) === String(o.equipmentId)) {
+              return true;
+            }
+            return false;
+          });
+          if (!found) {
+            return res.status(400).json({
+              error:
+                'Неможливо видалити позицію, подану на відвантаження. Зверніться до адміністратора.'
+            });
+          }
+        }
+        body.equipmentItems = body.equipmentItems.map((ni) => {
+          const o = lockedOld.find((lo) => {
+            if (lo.lineId && ni.lineId === lo.lineId) return true;
+            if (
+              !lo.lineId &&
+              lo.equipmentId &&
+              ni.equipmentId &&
+              String(ni.equipmentId) === String(lo.equipmentId)
+            ) {
+              return true;
+            }
+            return false;
+          });
+          if (!o) return ni;
+          return {
+            ...ni,
+            equipmentId: o.equipmentId,
+            type: o.type,
+            serialNumber: o.serialNumber,
+            amount: o.amount,
+            lineId: o.lineId || ni.lineId,
+            shipmentLocked: true,
+            shipmentRequestId: o.shipmentRequestId
+          };
+        });
+      }
     }
     let mainAmount = parseFloat(body.mainProductAmount) || 0;
     if (body.equipmentItems && body.equipmentItems.length > 0) {
@@ -2295,6 +2432,201 @@ app.post('/api/sales/:id/cancel', authenticateToken, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ——— Запити на відвантаження з угоди (менеджер → складський облік) ———
+app.get('/api/shipment-requests/preview-number', authenticateToken, async (req, res) => {
+  try {
+    const previewNumber = await peekShipmentRequestPreviewNumber();
+    res.json({ previewNumber });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/shipment-requests', authenticateToken, async (req, res) => {
+  try {
+    if (!canAccessInventoryShipmentRequests(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    const status = req.query.status || 'pending';
+    const list = await ShipmentRequest.find({ status }).sort({ createdAt: -1 }).limit(200).lean();
+    res.json(list);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/shipment-requests/:id', authenticateToken, async (req, res) => {
+  try {
+    const sr = await ShipmentRequest.findById(req.params.id).lean();
+    if (!sr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    const sale = await Sale.findById(sr.saleId).populate('clientId', 'name edrpou').lean();
+    const whCan = canAccessInventoryShipmentRequests(req.user);
+    const isMgr =
+      req.user?.role === 'manager' &&
+      sale &&
+      (sale.managerLogin === req.user.login || sale.managerLogin2 === req.user.login);
+    if (!whCan && !isMgr && !canAssignSaleManager(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    const equipment = await Equipment.find({ _id: { $in: sr.equipmentIds || [] } }).lean();
+    let ttnFile = null;
+    if (sr.ttnFileId) {
+      ttnFile = await File.findById(sr.ttnFileId).lean();
+    }
+    res.json({ ...sr, equipment, ttnFile, sale });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch('/api/shipment-requests/:id/status', authenticateToken, async (req, res) => {
+  try {
+    if (!canAccessInventoryShipmentRequests(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    const { status } = req.body || {};
+    if (!['fulfilled', 'cancelled', 'pending'].includes(status)) {
+      return res.status(400).json({ error: 'Некоректний статус' });
+    }
+    const sr = await ShipmentRequest.findByIdAndUpdate(
+      req.params.id,
+      { $set: { status } },
+      { new: true }
+    ).lean();
+    if (!sr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    res.json(sr);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post(
+  '/api/sales/:saleId/shipment-request',
+  authenticateToken,
+  uploadShipmentTtn.single('ttn'),
+  async (req, res) => {
+    try {
+      const sale = await Sale.findById(req.params.saleId).populate('clientId', 'name').lean();
+      if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
+      const isOwner =
+        req.user?.role === 'manager' &&
+        (sale.managerLogin === req.user.login || sale.managerLogin2 === req.user.login);
+      const isAdm = canAssignSaleManager(req.user);
+      if (!isOwner && !isAdm) {
+        return res.status(403).json({ error: 'Немає доступу' });
+      }
+
+      let payload;
+      try {
+        payload =
+          typeof req.body.payload === 'string' ? JSON.parse(req.body.payload) : req.body.payload || {};
+      } catch {
+        return res.status(400).json({ error: 'Некоректний payload' });
+      }
+      const { lineIds, plannedShipmentDate, carrier, driverPhone, vehicleType } = payload;
+      if (!plannedShipmentDate || !String(carrier || '').trim() || !String(driverPhone || '').trim()) {
+        return res.status(400).json({
+          error: "Обов'язково: запланована дата відвантаження, перевізник, контактний номер водія"
+        });
+      }
+      const lineIdArr = Array.isArray(lineIds) ? lineIds.map((x) => String(x).trim()).filter(Boolean) : [];
+      if (lineIdArr.length === 0) {
+        return res.status(400).json({ error: 'Оберіть хоча б одну позицію обладнання' });
+      }
+
+      const equipmentItems = sale.equipmentItems || [];
+      const selectedEqIds = [];
+      const matchedLines = new Set();
+
+      for (const lid of lineIdArr) {
+        let row = equipmentItems.find((i) => i.lineId && i.lineId === lid);
+        if (!row) {
+          row = equipmentItems.find((i) => i.equipmentId && String(i.equipmentId) === lid);
+        }
+        if (!row || !row.equipmentId) {
+          return res.status(400).json({ error: `Позицію «${lid}» не знайдено в угоді` });
+        }
+        if (row.shipmentLocked) {
+          return res.status(400).json({ error: 'Одна з обраних позицій вже подана на відвантаження' });
+        }
+        const key = row.lineId || String(row.equipmentId);
+        if (matchedLines.has(key)) continue;
+        matchedLines.add(key);
+        selectedEqIds.push(row.equipmentId);
+      }
+
+      const uniqEq = [...new Set(selectedEqIds.map((id) => String(id)))];
+      const eqDocs = await Equipment.find({ _id: { $in: uniqEq } }).select('currentWarehouse').lean();
+      const whIds = [...new Set(eqDocs.map((e) => e.currentWarehouse).filter(Boolean))];
+      const whs = whIds.length
+        ? await Warehouse.find({ _id: { $in: whIds } }).select('region').lean()
+        : [];
+      const warehouseRegions = [...new Set(whs.map((w) => w.region).filter(Boolean))];
+
+      const requestNumber = await getNextShipmentRequestNumber();
+      const u = await User.findOne({ login: req.user.login }).select('name').lean();
+
+      const doc = await ShipmentRequest.create({
+        requestNumber,
+        saleId: sale._id,
+        clientName: sale.clientId?.name || '',
+        managerLogin: sale.managerLogin,
+        managerName: u?.name || req.user.login,
+        plannedShipmentDate: new Date(plannedShipmentDate),
+        carrier: String(carrier).trim(),
+        driverPhone: String(driverPhone).trim(),
+        vehicleType: String(vehicleType || '').trim(),
+        lineIds: [...matchedLines],
+        equipmentIds: uniqEq.map((id) => new mongoose.Types.ObjectId(id)),
+        warehouseRegions,
+        status: 'pending'
+      });
+
+      if (req.file) {
+        const fileUrl = req.file.path || req.file.secure_url || '';
+        let correctedName = req.file.originalname || '';
+        try {
+          const decoded = Buffer.from(correctedName, 'latin1').toString('utf8');
+          if (decoded && decoded !== correctedName) correctedName = decoded;
+        } catch (_) {}
+        const fileRecord = await File.create({
+          entityType: 'shipment_request',
+          entityId: doc._id,
+          originalName: correctedName,
+          filename: req.file.public_id || '',
+          cloudinaryId: req.file.public_id || '',
+          cloudinaryUrl: fileUrl,
+          mimetype: req.file.mimetype,
+          size: req.file.size,
+          description: 'ТТН'
+        });
+        doc.ttnFileId = fileRecord._id;
+        await doc.save();
+      }
+
+      const saleDoc = await Sale.findById(sale._id);
+      if (saleDoc && saleDoc.equipmentItems) {
+        for (const item of saleDoc.equipmentItems) {
+          const hit =
+            (item.lineId && matchedLines.has(item.lineId)) ||
+            (item.equipmentId && matchedLines.has(String(item.equipmentId)));
+          if (hit) {
+            item.shipmentLocked = true;
+            item.shipmentRequestId = doc._id;
+          }
+        }
+        await saleDoc.save();
+      }
+
+      const fresh = await ShipmentRequest.findById(doc._id).lean();
+      await notifyWarehouseUsersForShipmentRequest(fresh);
+      res.json(fresh);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
 
 // ============================================
 // ОПТИМІЗОВАНИЙ ENDPOINT ДЛЯ ВСІХ ЗАДАЧ
@@ -4612,6 +4944,36 @@ const saleFilesStorage = new CloudinaryStorage({
   }
 });
 const uploadSaleFiles = multer({ storage: saleFilesStorage, limits: { fileSize: 20 * 1024 * 1024 } });
+
+const shipmentTtnStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: (req, file) => {
+    const originalName = file?.originalname || '';
+    const mimetype = file?.mimetype || '';
+    const dotIdx = originalName.lastIndexOf('.');
+    const ext = dotIdx >= 0 ? originalName.slice(dotIdx + 1).toLowerCase() : '';
+    const isImage = mimetype.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+    const isPdf = mimetype === 'application/pdf' || ext === 'pdf';
+    const resourceType = isImage || isPdf ? 'image' : 'raw';
+    const uid = `shipment_ttn_${req.params.saleId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const params = {
+      folder: 'newservicegidra/shipment-request-ttn',
+      resource_type: resourceType,
+      overwrite: false,
+      invalidate: true,
+      public_id: uid
+    };
+    if (resourceType === 'image') {
+      params.allowed_formats = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'];
+    } else {
+      params.allowed_formats = ['doc', 'docx', 'xls', 'xlsx', 'txt', 'pdf'];
+      if (ext) params.format = ext;
+      if (originalName) params.filename_override = originalName;
+    }
+    return params;
+  }
+});
+const uploadShipmentTtn = multer({ storage: shipmentTtnStorage, limits: { fileSize: 20 * 1024 * 1024 } });
 
 const checkSaleAccess = async (req, res, next) => {
   try {
