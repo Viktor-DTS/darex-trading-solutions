@@ -61,6 +61,7 @@ function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess, li
         setSelectedEquipmentList(eqList);
         setShippedTo(data.clientName || data.sale?.clientId?.name || '');
         setClientEdrpou(data.sale?.clientId?.edrpou || '');
+        setClientAddress(data.shipmentAddress || '');
         setOrderNumber(data.requestNumber || '');
         const planned = data.plannedShipmentDate
           ? new Date(data.plannedShipmentDate).toLocaleDateString('uk-UA')
@@ -68,6 +69,7 @@ function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess, li
         setNotes(
           [
             `Дані заявки ${data.requestNumber}. Запланована дата відвантаження: ${planned}`,
+            `Адреса відвантаження: ${data.shipmentAddress || '—'}`,
             `Перевізник: ${data.carrier || '—'}`,
             `Телефон водія: ${data.driverPhone || '—'}`,
             `Тип/модель ТЗ: ${data.vehicleType || '—'}`,

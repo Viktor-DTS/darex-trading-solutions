@@ -8,9 +8,17 @@ import './SaleShipmentRequestModal.css';
 /**
  * Запит на відвантаження з угоди: ліва колонка — реквізити, права — вибір позицій обладнання.
  */
-function SaleShipmentRequestModal({ open, onClose, saleId, equipmentItems = [], onSuccess }) {
+function SaleShipmentRequestModal({
+  open,
+  onClose,
+  saleId,
+  equipmentItems = [],
+  initialShipmentAddress = '',
+  onSuccess
+}) {
   const [previewNumber, setPreviewNumber] = useState('');
   const [plannedDate, setPlannedDate] = useState('');
+  const [shipmentAddress, setShipmentAddress] = useState('');
   const [carrier, setCarrier] = useState('');
   const [driverPhone, setDriverPhone] = useState('');
   const [vehicleType, setVehicleType] = useState('');
@@ -44,7 +52,7 @@ function SaleShipmentRequestModal({ open, onClose, saleId, equipmentItems = [], 
     getShipmentRequestPreviewNumber()
       .then(setPreviewNumber)
       .catch(() => setPreviewNumber('SV-…'));
-  }, [open, saleId]);
+  }, [open, saleId, initialShipmentAddress]);
 
   useEffect(() => {
     if (!open) return;
@@ -70,6 +78,10 @@ function SaleShipmentRequestModal({ open, onClose, saleId, equipmentItems = [], 
       setError("Вкажіть заплановану дату відвантаження");
       return;
     }
+    if (!shipmentAddress.trim()) {
+      setError('Вкажіть адресу відвантаження');
+      return;
+    }
     if (!carrier.trim()) {
       setError('Вкажіть перевізника');
       return;
@@ -88,6 +100,7 @@ function SaleShipmentRequestModal({ open, onClose, saleId, equipmentItems = [], 
       await submitSaleShipmentRequest(saleId, {
         lineIds,
         plannedShipmentDate: plannedDate,
+        shipmentAddress: shipmentAddress.trim(),
         carrier: carrier.trim(),
         driverPhone: driverPhone.trim(),
         vehicleType: vehicleType.trim()
@@ -126,6 +139,16 @@ function SaleShipmentRequestModal({ open, onClose, saleId, equipmentItems = [], 
                   type="date"
                   value={plannedDate}
                   onChange={(e) => setPlannedDate(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Адреса відвантаження *</label>
+                <textarea
+                  value={shipmentAddress}
+                  onChange={(e) => setShipmentAddress(e.target.value)}
+                  rows={3}
+                  placeholder="Повна адреса відвантаження товару"
                   required
                 />
               </div>

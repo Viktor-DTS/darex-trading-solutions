@@ -973,6 +973,7 @@ function SaleFormModal({ open, onClose, onSuccess, onRefreshSale, editSale = nul
         onClose={() => setShowShipmentRequestModal(false)}
         saleId={editSale?._id}
         equipmentItems={form.equipmentItems}
+        initialShipmentAddress={form.addressMM || ''}
         onSuccess={async () => {
           try {
             const s = await getSale(editSale._id);

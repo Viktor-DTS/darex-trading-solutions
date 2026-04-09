@@ -1303,6 +1303,7 @@ const shipmentRequestSchema = new mongoose.Schema({
   managerLogin: String,
   managerName: String,
   plannedShipmentDate: { type: Date, required: true },
+  shipmentAddress: { type: String, required: true },
   carrier: { type: String, required: true },
   driverPhone: { type: String, required: true },
   vehicleType: String,
@@ -2184,6 +2185,7 @@ async function notifyWarehouseUsersForShipmentRequest(sr) {
   const created = sr.createdAt ? new Date(sr.createdAt).toLocaleString('uk-UA') : '—';
   const body = [
     `Запланована дата відвантаження: ${planned}`,
+    `Адреса відвантаження: ${sr.shipmentAddress || '—'}`,
     `Перевізник: ${sr.carrier || '—'}`,
     `Телефон водія: ${sr.driverPhone || '—'}`,
     `Тип/модель ТЗ: ${sr.vehicleType || '—'}`,
@@ -2524,10 +2526,16 @@ app.post(
       } catch {
         return res.status(400).json({ error: 'Некоректний payload' });
       }
-      const { lineIds, plannedShipmentDate, carrier, driverPhone, vehicleType } = payload;
-      if (!plannedShipmentDate || !String(carrier || '').trim() || !String(driverPhone || '').trim()) {
+      const { lineIds, plannedShipmentDate, shipmentAddress, carrier, driverPhone, vehicleType } = payload;
+      if (
+        !plannedShipmentDate ||
+        !String(shipmentAddress || '').trim() ||
+        !String(carrier || '').trim() ||
+        !String(driverPhone || '').trim()
+      ) {
         return res.status(400).json({
-          error: "Обов'язково: запланована дата відвантаження, перевізник, контактний номер водія"
+          error:
+            "Обов'язково: запланована дата відвантаження, адреса відвантаження, перевізник, контактний номер водія"
         });
       }
       const lineIdArr = Array.isArray(lineIds) ? lineIds.map((x) => String(x).trim()).filter(Boolean) : [];
@@ -2574,6 +2582,7 @@ app.post(
         managerLogin: sale.managerLogin,
         managerName: u?.name || req.user.login,
         plannedShipmentDate: new Date(plannedShipmentDate),
+        shipmentAddress: String(shipmentAddress).trim(),
         carrier: String(carrier).trim(),
         driverPhone: String(driverPhone).trim(),
         vehicleType: String(vehicleType || '').trim(),
