@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useMemo, useImperativeHandle, forwardRef } from 'react';
 import API_BASE_URL from '../../config';
+import {
+  ITEM_KIND_FILTER_FIXED_ASSETS_LABEL,
+  findFixedAssetsCategoryIdsFromTree,
+  equipmentMatchesItemKindFilter,
+  getItemKindFilterSelectOptions
+} from '../../utils/equipmentNomenclatureFilter';
 import { exportEquipmentToExcel } from '../../utils/equipmentExport';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
 import EquipmentQRModal from './EquipmentQRModal';
@@ -55,38 +61,6 @@ const ALL_COLUMNS = [
 ];
 
 const canSeeReservationClient = (role) => ['admin', 'administrator', 'mgradm'].includes(role);
-
-/** Підпис у фільтрі колонки «Тип номенклатури» — відповідає гілці дерева номенклатури */
-const ITEM_KIND_FILTER_FIXED_ASSETS_LABEL =
-  'Необоротні активи (офісно-складське приладдя)';
-
-function collectCategorySubtreeIds(node) {
-  const ids = [String(node._id)];
-  for (const ch of node.children || []) {
-    ids.push(...collectCategorySubtreeIds(ch));
-  }
-  return ids;
-}
-
-/** Усі categoryId у гілці, де назва категорії збігається з повною або містить «Необоротні активи» */
-function findFixedAssetsCategoryIdsFromTree(nodes) {
-  const ids = new Set();
-  const walk = (list) => {
-    if (!Array.isArray(list)) return;
-    for (const n of list) {
-      const name = (n.name || '').trim();
-      if (
-        name === ITEM_KIND_FILTER_FIXED_ASSETS_LABEL ||
-        name.includes('Необоротні активи')
-      ) {
-        collectCategorySubtreeIds(n).forEach((id) => ids.add(id));
-      }
-      walk(n.children);
-    }
-  };
-  walk(nodes);
-  return ids;
-}
 
 /** Одиниця виміру з картки (batchUnit); для згрупованої партії — з першого рядка, де вона задана */
 function getEquipmentBatchUnit(item) {
@@ -295,8 +269,10 @@ const EquipmentList = forwardRef(({
       return ['', 'Всі', 'Вільна', 'Зарезервовано'];
     }
     if (columnKey === 'itemKind') {
-      const opts = ['', 'Товари', 'Деталі'];
-      if (!managerCategoryContext) opts.push(ITEM_KIND_FILTER_FIXED_ASSETS_LABEL);
+      let opts = getItemKindFilterSelectOptions();
+      if (managerCategoryContext) {
+        opts = opts.filter((o) => o !== ITEM_KIND_FILTER_FIXED_ASSETS_LABEL);
+      }
       return opts;
     }
     return [];
@@ -364,18 +340,7 @@ const EquipmentList = forwardRef(({
                 return reservationStatus === filterValue;
               }
               if (key === 'itemKind') {
-                if (filterValue === ITEM_KIND_FILTER_FIXED_ASSETS_LABEL) {
-                  if (fixedAssetsCategoryIds == null) return true;
-                  const cid = item.categoryId != null ? String(item.categoryId) : '';
-                  return cid !== '' && fixedAssetsCategoryIds.has(cid);
-                }
-                const kind =
-                  filterValue === 'Товари'
-                    ? 'equipment'
-                    : filterValue === 'Деталі'
-                      ? 'parts'
-                      : null;
-                return kind ? (item.itemKind || 'equipment') === kind : true;
+                return equipmentMatchesItemKindFilter(item, filterValue, fixedAssetsCategoryIds);
               }
               const itemValue = item[key];
               return String(itemValue || '') === filterValue;

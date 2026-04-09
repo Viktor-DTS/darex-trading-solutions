@@ -82,14 +82,20 @@
   border-color: var(--primary);
 }
 
-.equipment-picker-warehouse {
+.equipment-picker-warehouse,
+.equipment-picker-itemkind {
   min-width: 200px;
+  max-width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-dark);
   color: var(--text);
   font-size: 14px;
+}
+
+.equipment-picker-itemkind {
+  min-width: 220px;
 }
 
 .equipment-picker-meta {

@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import {
+  ITEM_KIND_FILTER_DEFAULT_GOODS,
+  equipmentMatchesItemKindFilter,
+  getItemKindFilterSelectOptions
+} from '../../utils/equipmentNomenclatureFilter';
 import './EquipmentPickerModal.css';
+
+function labelForItemKindOption(value) {
+  if (value === '') return 'Усі типи';
+  return value;
+}
 
 function matchesSearch(eq, q) {
   if (!q.trim()) return true;
@@ -24,6 +34,7 @@ function EquipmentPickerModal({ open, onClose, equipment, excludeIds = [], onSel
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('');
+  const [itemKindFilter, setItemKindFilter] = useState(ITEM_KIND_FILTER_DEFAULT_GOODS);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -35,6 +46,7 @@ function EquipmentPickerModal({ open, onClose, equipment, excludeIds = [], onSel
       setSearch('');
       setDebouncedSearch('');
       setWarehouseFilter('');
+      setItemKindFilter(ITEM_KIND_FILTER_DEFAULT_GOODS);
     }
   }, [open]);
 
@@ -61,18 +73,24 @@ function EquipmentPickerModal({ open, onClose, equipment, excludeIds = [], onSel
     return ['', ...Array.from(names).sort((a, b) => a.localeCompare(b, 'uk'))];
   }, [equipment]);
 
+  const itemKindOptions = useMemo(
+    () => getItemKindFilterSelectOptions({ includeFixedAssets: false }),
+    []
+  );
+
   const filtered = useMemo(() => {
     const list = Array.isArray(equipment) ? equipment : [];
     return list.filter((eq) => {
       if (!eq?._id) return false;
       if (excludeSet.has(String(eq._id))) return false;
+      if (!equipmentMatchesItemKindFilter(eq, itemKindFilter, null)) return false;
       if (warehouseFilter) {
         const w = eq.currentWarehouseName || eq.currentWarehouse || '';
         if (w !== warehouseFilter) return false;
       }
       return matchesSearch(eq, debouncedSearch);
     });
-  }, [equipment, excludeSet, warehouseFilter, debouncedSearch]);
+  }, [equipment, excludeSet, warehouseFilter, debouncedSearch, itemKindFilter]);
 
   if (!open) return null;
 
@@ -120,10 +138,24 @@ function EquipmentPickerModal({ open, onClose, equipment, excludeIds = [], onSel
               </option>
             ))}
           </select>
+          <select
+            value={itemKindFilter}
+            onChange={(e) => setItemKindFilter(e.target.value)}
+            className="equipment-picker-itemkind"
+            aria-label="Тип номенклатури"
+          >
+            {itemKindOptions.map((v) => (
+              <option key={v || '__all_kinds'} value={v}>
+                {labelForItemKindOption(v)}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="equipment-picker-meta">
           Знайдено: <strong>{filtered.length}</strong>
-          {debouncedSearch.trim() || warehouseFilter ? (
+          {debouncedSearch.trim() ||
+          warehouseFilter ||
+          itemKindFilter !== ITEM_KIND_FILTER_DEFAULT_GOODS ? (
             <span className="equipment-picker-meta-total"> (доступно без фільтра: {availableCount})</span>
           ) : null}
         </div>
@@ -141,7 +173,7 @@ function EquipmentPickerModal({ open, onClose, equipment, excludeIds = [], onSel
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="equipment-picker-empty">
-                    Нічого не знайдено. Змініть пошук або фільтр складу.
+                    Нічого не знайдено. Змініть пошук, склад або тип номенклатури.
                   </td>
                 </tr>
               ) : (
