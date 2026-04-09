@@ -47,6 +47,7 @@ const ALL_COLUMNS = [
   { key: 'currentWarehouse', label: 'Склад', width: 150 },
   { key: 'reservationClientName', label: 'Клієнт резервування', width: 200 },
   { key: 'reservedByName', label: 'Хто зарезервував', width: 180 },
+  { key: 'reservationEndDate', label: 'Кінцева дата резервування', width: 190 },
   { key: 'testingStatus', label: 'Статус тестування', width: 160 },
   { key: 'testingDate', label: 'Дата тестування', width: 140 },
   { key: 'standbyPower', label: 'Резервна потужність', width: 150 },
@@ -249,7 +250,7 @@ const EquipmentList = forwardRef(({
   const hasActiveFilters = Object.values(columnFilters).some(v => v && v.trim() !== '') || filter.trim() !== '';
 
   const getFilterType = (columnKey) => {
-    if (columnKey === 'manufactureDate') return 'date';
+    if (columnKey === 'manufactureDate' || columnKey === 'reservationEndDate') return 'date';
     if (columnKey === 'currentWarehouse') return 'select';
     if (columnKey === 'status') return 'select';
     if (columnKey === 'reservationStatus') return 'select';
@@ -362,11 +363,21 @@ const EquipmentList = forwardRef(({
     result.sort((a, b) => {
       const aVal = a[sortField];
       const bVal = b[sortField];
-      
+
+      if (sortField === 'reservationEndDate' || sortField === 'manufactureDate' || sortField === 'testingDate') {
+        const ta = aVal ? new Date(aVal).getTime() : NaN;
+        const tb = bVal ? new Date(bVal).getTime() : NaN;
+        if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+        if (Number.isNaN(ta)) return 1;
+        if (Number.isNaN(tb)) return -1;
+        const cmp = ta === tb ? 0 : ta > tb ? 1 : -1;
+        return sortDirection === 'asc' ? cmp : -cmp;
+      }
+
       if (aVal === bVal) return 0;
       if (aVal == null) return 1;
       if (bVal == null) return -1;
-      
+
       const comparison = aVal > bVal ? 1 : -1;
       return sortDirection === 'asc' ? comparison : -comparison;
     });
@@ -410,7 +421,7 @@ const EquipmentList = forwardRef(({
   const formatValue = (value, key) => {
     if (value == null || value === '') return 'не визначено';
     
-    if (key === 'manufactureDate') {
+    if (key === 'manufactureDate' || key === 'reservationEndDate') {
       try {
         const date = new Date(value);
         if (!isNaN(date.getTime())) {
@@ -764,6 +775,18 @@ const EquipmentList = forwardRef(({
                   )}
                   <td className="cell-truncate" title={formatValue(item.reservedByName, 'reservedByName')}>
                     {formatValue(item.reservedByName, 'reservedByName')}
+                  </td>
+                  <td
+                    className="cell-truncate"
+                    title={
+                      item.reservationEndDate
+                        ? formatValue(item.reservationEndDate, 'reservationEndDate')
+                        : formatValue(null, 'reservationEndDate')
+                    }
+                  >
+                    {item.reservationEndDate
+                      ? formatValue(item.reservationEndDate, 'reservationEndDate')
+                      : formatValue(null, 'reservationEndDate')}
                   </td>
                   <td>
                     <span className={`status-badge ${getTestingStatusClass(item.testingStatus)}`}>
