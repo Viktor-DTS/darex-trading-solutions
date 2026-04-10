@@ -42,6 +42,10 @@ const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const { Readable } = require('stream');
+const {
+  suggest: productCardAssistantSuggest,
+  importImageFromUrl: productCardAssistantImportImage,
+} = require('./productCardAssistant');
 
 // Cloudinary конфігурація
 console.log('[CLOUDINARY] CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET');
@@ -7444,6 +7448,38 @@ app.delete('/api/product-cards/:id', authenticateToken, async (req, res) => {
     console.error('[ERROR] DELETE /api/product-cards/:id:', error);
     logPerformance('DELETE /api/product-cards/:id', startTime);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Асистент карточки продукту (Вікіпедія / заглушка) + імпорт зображення з Wikimedia у Cloudinary
+app.post('/api/product-card-assistant/suggest', authenticateToken, async (req, res) => {
+  try {
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const query = String(req.body?.query || '').trim();
+    if (query.length < 2) {
+      return res.status(400).json({ error: 'Введіть мінімум 2 символи у «Тип / найменування»' });
+    }
+    const data = await productCardAssistantSuggest(query);
+    res.json(data);
+  } catch (error) {
+    console.error('[ERROR] POST /api/product-card-assistant/suggest:', error);
+    res.status(500).json({ error: error.message || 'Помилка асистента' });
+  }
+});
+
+app.post('/api/product-card-assistant/import-image', authenticateToken, async (req, res) => {
+  try {
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const imageUrl = req.body?.imageUrl;
+    const out = await productCardAssistantImportImage(imageUrl);
+    res.json(out);
+  } catch (error) {
+    console.error('[ERROR] POST /api/product-card-assistant/import-image:', error);
+    res.status(400).json({ error: error.message || 'Помилка імпорту зображення' });
   }
 });
 
