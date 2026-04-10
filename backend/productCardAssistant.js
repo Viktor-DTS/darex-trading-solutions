@@ -4,6 +4,7 @@
  */
 
 const cloudinary = require('cloudinary').v2;
+const { extractHeuristicSpecs } = require('./heuristicProductSpecs');
 
 const USER_AGENT =
   process.env.PRODUCT_ASSISTANT_USER_AGENT ||
@@ -262,14 +263,26 @@ function mockSuggest(query) {
   };
 }
 
+function mergeHeuristicSpecs(q, payload) {
+  const heur = extractHeuristicSpecs(q);
+  if (!heur.length || !payload) return payload;
+  const extra =
+    ' Окремі характеристики розшифровані з назви евристикою (типові позначення з каталогів); перевірте перед збереженням.';
+  return {
+    ...payload,
+    specs: [...heur, ...payload.specs],
+    disclaimer: String(payload.disclaimer || '').trim() + extra,
+  };
+}
+
 async function suggest(query) {
   const q = String(query || '').trim();
   if (q.length < 2) {
     return { source: 'empty', suggestedName: '', manufacturerHint: '', specs: [], images: [], disclaimer: '' };
   }
   const wiki = await wikipediaSuggest(q);
-  if (wiki && (wiki.specs.length > 0 || wiki.images.length > 0)) return wiki;
-  return mockSuggest(q);
+  if (wiki && (wiki.specs.length > 0 || wiki.images.length > 0)) return mergeHeuristicSpecs(q, wiki);
+  return mergeHeuristicSpecs(q, mockSuggest(q));
 }
 
 async function importImageFromUrl(imageUrl) {
@@ -289,4 +302,5 @@ module.exports = {
   suggest,
   importImageFromUrl,
   allowedImageHostname,
+  extractHeuristicSpecs,
 };
