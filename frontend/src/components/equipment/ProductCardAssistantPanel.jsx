@@ -55,15 +55,18 @@ export default function ProductCardAssistantPanel({
     <aside className="product-card-assistant" aria-label="Асистент карточки продукту">
       <h4 className="product-card-assistant__title">Асистент</h4>
       <p className="product-card-assistant__hint">
-        Після введення <strong>Тип / найменування</strong> переведіть фокус в інше місце (Tab або клік) — підвантажаться
-        довідкові дані (спочатку Вікіпедія). Оберіть чекбоксами, що перенести у форму зліва.
+        Після введення <strong>Тип / найменування</strong> (або лише <strong>короткої назви</strong>, якщо тип порожній) переведіть
+        фокус у інше поле (Tab або клік) — підвантажаться довідкові дані (спочатку Вікіпедія). Оберіть чекбоксами, що перенести у
+        форму зліва.
       </p>
 
       {loading && <div className="product-card-assistant__status">Завантаження…</div>}
       {error && !loading && <div className="product-card-assistant__error">{error}</div>}
 
       {!loading && !error && !data && (
-        <p className="product-card-assistant__empty">Введіть тип обладнання (від 2 символів) і переведіть фокус з цього поля.</p>
+        <p className="product-card-assistant__empty">
+          Введіть тип або коротку назву (від 2 символів) і переведіть фокус з одного з цих полів.
+        </p>
       )}
 
       {data && !loading && (

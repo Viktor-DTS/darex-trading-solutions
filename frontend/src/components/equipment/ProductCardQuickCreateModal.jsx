@@ -55,6 +55,7 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
   const [assistantApplyBusy, setAssistantApplyBusy] = useState(false);
   const lastSuccessfulAssistantQueryRef = useRef('');
   const typeInputRef = useRef(null);
+  const displayNameInputRef = useRef(null);
 
   const loadCategories = useCallback(async () => {
     try {
@@ -135,19 +136,37 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
     }
   }, []);
 
-  /** Пошук асистента — коли фокус залишає поле «Тип / найменування» (Tab, клік у форму/асистент тощо). */
+  /**
+   * Текст для пошуку асистента: спочатку «Тип / найменування» (якщо ≥2 символів), інакше «Коротка назва».
+   * Читаємо з DOM у момент focusout, щоб не відставати від стану.
+   */
+  const resolveAssistantQueryFromInputs = useCallback(() => {
+    const t = String(typeInputRef.current?.value || '').trim();
+    const d = String(displayNameInputRef.current?.value || '').trim();
+    if (t.length >= 2) return t;
+    if (d.length >= 2) return d;
+    return '';
+  }, []);
+
+  /** Пошук при зміні фокусу з поля типу або короткої назви. */
   useEffect(() => {
     if (showScanner) return;
-    const el = typeInputRef.current;
-    if (!el) return;
+    const typeEl = typeInputRef.current;
+    const nameEl = displayNameInputRef.current;
+    if (!typeEl && !nameEl) return;
+
     const onFocusOut = (e) => {
-      if (e.target !== el) return;
-      const q = String(el.value || '').trim();
-      fetchAssistantForQuery(q);
+      if (e.target !== typeEl && e.target !== nameEl) return;
+      fetchAssistantForQuery(resolveAssistantQueryFromInputs());
     };
-    el.addEventListener('focusout', onFocusOut);
-    return () => el.removeEventListener('focusout', onFocusOut);
-  }, [fetchAssistantForQuery, showScanner]);
+
+    typeEl?.addEventListener('focusout', onFocusOut);
+    nameEl?.addEventListener('focusout', onFocusOut);
+    return () => {
+      typeEl?.removeEventListener('focusout', onFocusOut);
+      nameEl?.removeEventListener('focusout', onFocusOut);
+    };
+  }, [fetchAssistantForQuery, resolveAssistantQueryFromInputs, showScanner]);
 
   const handleAssistantApply = async (sel) => {
     if (!assistantData) return;
@@ -273,8 +292,8 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
         </div>
         <p className="product-card-quick-intro">
           Зліва — форма карточки; <strong>скан шильдика</strong> додає відсутні поля. Справа — <strong>асистент</strong>: після
-          того як введете тип і <strong>фокус зміниться</strong> (Tab, клік в інше поле або в асистент), підвантажаться довідкові дані
-          (Вікіпедія або підказки-заглушки). Оберіть чекбоксами і натисніть «Додати обране до форми».
+          введення <strong>типу</strong> (або лише <strong>короткої назви</strong>, якщо тип ще порожній) переведіть фокус в інше
+          поле — підвантажаться довідкові дані (Вікіпедія або заглушки). Оберіть чекбоксами і натисніть «Додати обране до форми».
         </p>
         {error && <p className="category-management-message error">{error}</p>}
 
@@ -298,6 +317,7 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
                 <div className="form-row">
                   <label>Коротка назва для списку</label>
                   <input
+                    ref={displayNameInputRef}
                     type="text"
                     value={form.displayName}
                     onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}

@@ -42,30 +42,90 @@ async function fetchJson(url) {
   return r.json();
 }
 
-async function wikipediaSuggestForLang(lang, query) {
+/** Перше «слово з літер» без артикулів розмірів (напр. «Дюбель 120 - 8» → «Дюбель»). */
+function extractHeadTerm(raw) {
+  const s = String(raw || '').trim();
+  const m = s.match(/^([\p{L}]+(?:\s+[\p{L}]+){0,2})/u);
+  if (m && m[1].trim().length >= 2) return m[1].trim();
+  return s;
+}
+
+/**
+ * Якщо запит починається з літер — перше слово має бути в **назві** статті (інакше сніпет згадує слово випадково, як у ПГП про «дюбелі»).
+ */
+function primaryAnchorFromQueryStart(raw) {
+  const s = String(raw || '').trim();
+  const m = s.match(/^([\p{L}]{2,})/u);
+  return m ? m[1].toLowerCase() : '';
+}
+
+function tokenizeForRelevance(q) {
+  const s = String(q || '').toLowerCase();
+  const tokens = s.match(/[\p{L}\d]+/gu) || [];
+  return tokens.filter((t) => t.length >= 2 && !/^\d+$/.test(t));
+}
+
+/** Оцінка hit відносно запиту: статті без ключового слова з запиту відсікаються. */
+function scoreWikiHit(hit, queryTokens, headLower) {
+  const title = (hit.title || '').toLowerCase();
+  let snippet = '';
+  if (hit.snippet) snippet = String(hit.snippet).replace(/<[^>]+>/g, ' ').toLowerCase();
+  let score = 0;
+  if (headLower.length >= 2) {
+    if (title === headLower) score += 120;
+    else if (title.startsWith(headLower)) score += 85;
+    else if (title.includes(headLower)) score += 55;
+    if (snippet.includes(headLower)) score += 25;
+  }
+  for (const t of queryTokens) {
+    if (t.length < 3) continue;
+    if (title.includes(t)) score += 18;
+    if (snippet.includes(t)) score += 10;
+  }
+  return score;
+}
+
+function pickBestSearchHit(hits, contextQuery) {
+  if (!Array.isArray(hits) || hits.length === 0) return { hit: null, score: -1 };
+  const head = extractHeadTerm(contextQuery).toLowerCase();
+  const tokens = tokenizeForRelevance(contextQuery);
+  let best = null;
+  let bestScore = -1;
+  for (const hit of hits) {
+    const sc = scoreWikiHit(hit, tokens, head);
+    if (sc > bestScore) {
+      bestScore = sc;
+      best = hit;
+    }
+  }
+  return { hit: best, score: bestScore };
+}
+
+const WIKI_MIN_ACCEPT_SCORE = 22;
+const WIKI_SR_LIMIT = '12';
+
+async function wikipediaSearchHits(lang, searchQuery) {
   const api = `https://${lang}.wikipedia.org/w/api.php`;
   const sp = new URLSearchParams({
     action: 'query',
     list: 'search',
-    srsearch: query,
+    srsearch: searchQuery,
     format: 'json',
     utf8: '1',
-    srlimit: '3',
+    srlimit: WIKI_SR_LIMIT,
   });
   const searchData = await fetchJson(`${api}?${sp.toString()}`);
   const hits = searchData?.query?.search;
-  if (!Array.isArray(hits) || hits.length === 0) return null;
+  return Array.isArray(hits) ? hits : [];
+}
 
-  const title = hits[0].title;
-  const encoded = encodeURIComponent(title.replace(/ /g, '_'));
+async function wikipediaPageSummary(lang, title) {
+  const encoded = encodeURIComponent(String(title).replace(/ /g, '_'));
   const summaryUrl = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encoded}`;
-  let summary;
-  try {
-    summary = await fetchJson(summaryUrl);
-  } catch (_) {
-    return null;
-  }
+  return fetchJson(summaryUrl);
+}
 
+function summaryToAssistantPayload(lang, title, summary) {
   const specs = [];
   const sid = `wiki-${lang}`;
   if (summary.extract) {
@@ -79,7 +139,6 @@ async function wikipediaSuggestForLang(lang, query) {
       value: String(summary.description).trim(),
     });
   }
-
   const images = [];
   if (summary.thumbnail?.source) {
     images.push({
@@ -88,7 +147,6 @@ async function wikipediaSuggestForLang(lang, query) {
       title: summary.title || title,
     });
   }
-
   return {
     source: 'wikipedia',
     lang,
@@ -101,11 +159,53 @@ async function wikipediaSuggestForLang(lang, query) {
   };
 }
 
+/**
+ * Шукає статтю з релевантністю до запиту (не беремо сліпо перший hit — він часто промахується на «Дюбель 120 - 8» тощо).
+ */
+async function wikipediaSuggestForLang(lang, userQuery) {
+  const q = String(userQuery || '').trim();
+  if (q.length < 2) return null;
+  const head = extractHeadTerm(q);
+
+  async function tryQueries(searchStrings, contextForScoring) {
+    const titleMustInclude = primaryAnchorFromQueryStart(contextForScoring);
+    for (const sq of searchStrings) {
+      const s = String(sq || '').trim();
+      if (s.length < 2) continue;
+      const hits = await wikipediaSearchHits(lang, s);
+      const { hit, score } = pickBestSearchHit(hits, contextForScoring);
+      if (!hit || score < WIKI_MIN_ACCEPT_SCORE) continue;
+      if (titleMustInclude && !(hit.title || '').toLowerCase().includes(titleMustInclude)) continue;
+      let summary;
+      try {
+        summary = await wikipediaPageSummary(lang, hit.title);
+      } catch (_) {
+        continue;
+      }
+      if (!summary || summary.type === 'disambiguation') continue;
+      return summaryToAssistantPayload(lang, hit.title, summary);
+    }
+    return null;
+  }
+
+  const variants = [q];
+  if (head !== q) variants.push(head);
+
+  return tryQueries(variants, q);
+}
+
 async function wikipediaSuggest(query) {
   const q = String(query || '').trim();
   if (q.length < 2) return null;
   try {
-    return (await wikipediaSuggestForLang('uk', q)) || (await wikipediaSuggestForLang('en', q));
+    const uk = await wikipediaSuggestForLang('uk', q);
+    if (uk && (uk.specs.length > 0 || uk.images.length > 0)) return uk;
+    const mostlyLatin = /^[\s\w\-.,/+()№#"'«»0-9]+$/i.test(q) && /[a-z]/i.test(q);
+    if (mostlyLatin) {
+      const en = await wikipediaSuggestForLang('en', q);
+      if (en && (en.specs.length > 0 || en.images.length > 0)) return en;
+    }
+    return null;
   } catch (e) {
     console.warn('[product-card-assistant] Wikipedia:', e.message);
     return null;
@@ -133,6 +233,22 @@ function mockSuggest(query) {
         id: 'mock-gen-2',
         name: 'Рекомендовано уточнити',
         value: 'Виробник двигуна та альтернатора, витрата палива, рівень шуму, маса / габарити',
+      },
+    );
+  }
+  if (/дюбел|dowel|wall\s*plug|анкер|plug|шуруп/i.test(q)) {
+    specs.push(
+      {
+        id: 'mock-anchor-1',
+        name: 'Типові поля для кріплення (перевірте за каталогом)',
+        value:
+          'Діаметр × довжина (мм), матеріал (нейлон / метал), тип (распірний, ударний, рамний), з гвинтом чи без',
+      },
+      {
+        id: 'mock-anchor-2',
+        name: 'Примітка',
+        value:
+          'Вікіпедія дає загальні статті; для артикулу на кшталт «8×120» краще дивитися сайти виробників або маркетплейси.',
       },
     );
   }
