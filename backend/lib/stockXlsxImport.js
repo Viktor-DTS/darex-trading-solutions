@@ -246,6 +246,69 @@ function isObjectIdString(s) {
   return typeof s === 'string' && /^[a-fA-F0-9]{24}$/.test(s.trim());
 }
 
+/** Нормалізація назви для пошуку дублікатів / схожих рядків */
+function normalizeTypeForDup(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[.,;]+/g, ' ')
+    .trim();
+}
+
+/** Відстань Левенштейна (короткі рядки, для підказок схожості) */
+function levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  if (n === 0) return m;
+  if (m === 0) return n;
+  let prev = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    const cur = new Array(n + 1);
+    cur[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+/**
+ * Схожі назви type вже в пулі (інші склади / попередні рядки імпорту).
+ * @param {string} nome
+ * @param {string[]} typePool
+ * @param {number} max
+ */
+function findSimilarTypesInPool(nome, typePool, max = 6) {
+  const n = normalizeTypeForDup(nome);
+  if (n.length < 3) return [];
+  const scored = [];
+  const seen = new Set();
+  for (const t of typePool) {
+    if (!t || typeof t !== 'string') continue;
+    const tn = normalizeTypeForDup(t);
+    if (!tn || tn === n) continue;
+    const dist = levenshtein(n, tn);
+    const maxDist = Math.max(2, Math.min(5, Math.floor(n.length / 6) + 1));
+    const substringHit = n.length > 6 && (tn.includes(n) || n.includes(tn));
+    if (dist <= maxDist || substringHit) {
+      const key = tn;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      scored.push({ type: t, dist: substringHit ? dist * 0.5 : dist });
+    }
+  }
+  scored.sort((x, y) => x.dist - y.dist);
+  const out = [];
+  for (const x of scored) {
+    if (out.length >= max) break;
+    if (!out.includes(x.type)) out.push(x.type);
+  }
+  return out;
+}
+
 /**
  * Правило може містити categoryId (Mongo) або categoryName (+ опційно categoryAliases у rules).
  */
@@ -395,6 +458,14 @@ async function runStockImport({
   const categories = await Category.find({}).lean();
   const categoryIndex = buildCategoryIndex(categories);
 
+  const typePool = await Equipment.distinct('type', {
+    isDeleted: { $ne: true },
+    type: { $nin: [null, ''] },
+  }).catch(() => []);
+  const poolForMatching = [...typePool];
+  const similarityHinted = new Set();
+  const MAX_SIM_HINTS = 200;
+
   const summary = {
     sheetName,
     warehouse1c,
@@ -411,10 +482,33 @@ async function runStockImport({
     details: [],
     needsCategoryMapping: [],
     existingNomenclatureCategoryMap: { ...(rules.nomenclatureCategoryMap || {}) },
+    /** Пари для злиття в Mongo після імпорту (тільки нові ключі додає роут) */
+    learnedNomenclatureFromImport: {},
+    /** Можливі дублікати назв (нові позиції vs уже є в БД / у цьому файлі) */
+    similarityHints: [],
   };
 
   const region = warehouseDoc.region || '';
   const unmatchedNomes = new Map();
+
+  function recordLearnedCategory(nomeRow, catId) {
+    if (!nomeRow || !catId) return;
+    summary.learnedNomenclatureFromImport[nomeRow] = String(catId);
+  }
+
+  function maybeSimilarityHint(nomeRow, kind) {
+    if (!nomeRow || summary.similarityHints.length >= MAX_SIM_HINTS) return;
+    if (similarityHinted.has(nomeRow)) return;
+    const sim = findSimilarTypesInPool(nomeRow, poolForMatching);
+    if (!sim.length) return;
+    similarityHinted.add(nomeRow);
+    summary.similarityHints.push({
+      nome: nomeRow,
+      kind,
+      similarTypes: sim,
+      dryRun: !!dryRun,
+    });
+  }
 
   for (const item of items) {
     if (item.kind === 'serialized') {
@@ -461,7 +555,12 @@ async function runStockImport({
             itemKind,
           });
           if (existing) summary.updated++;
-          else summary.created++;
+          else {
+            summary.created++;
+            maybeSimilarityHint(nome, 'batch');
+            poolForMatching.push(nome);
+          }
+          if (categoryId) recordLearnedCategory(nome, categoryId);
           continue;
         }
 
@@ -479,7 +578,10 @@ async function runStockImport({
           await existing.save();
           summary.updated++;
           summary.details.push({ action: 'update', kind: 'batch', type: nome, id: String(existing._id), quantity: qty });
+          if (categoryId) recordLearnedCategory(nome, categoryId);
         } else {
+          maybeSimilarityHint(nome, 'batch');
+          poolForMatching.push(nome);
           const doc = await Equipment.create({
             type: nome,
             isBatch: false,
@@ -498,6 +600,7 @@ async function runStockImport({
           });
           summary.created++;
           summary.details.push({ action: 'create', kind: 'batch', type: nome, id: String(doc._id), quantity: qty });
+          if (categoryId) recordLearnedCategory(nome, categoryId);
         }
       } else {
         for (const s of item.serials) {
@@ -523,7 +626,12 @@ async function runStockImport({
               itemKind,
             });
             if (existing) summary.updated++;
-            else summary.created++;
+            else {
+              summary.created++;
+              maybeSimilarityHint(nome, 'serialized');
+              poolForMatching.push(nome);
+            }
+            if (categoryId) recordLearnedCategory(nome, categoryId);
             continue;
           }
 
@@ -546,7 +654,10 @@ async function runStockImport({
               serialNumber,
               id: String(existing._id),
             });
+            if (categoryId) recordLearnedCategory(nome, categoryId);
           } else {
+            maybeSimilarityHint(nome, 'serialized');
+            poolForMatching.push(nome);
             const doc = await Equipment.create({
               type: nome,
               serialNumber,
@@ -571,6 +682,7 @@ async function runStockImport({
               serialNumber,
               id: String(doc._id),
             });
+            if (categoryId) recordLearnedCategory(nome, categoryId);
           }
         }
       }

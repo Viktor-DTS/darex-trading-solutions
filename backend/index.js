@@ -7662,6 +7662,41 @@ app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), asy
       targetWarehouseId,
       nomenclatureCategoryMapFromDb,
     });
+
+    // Після успішного імпорту: автоматично додати в БД точні пари «назва з Excel → categoryId»
+    // лише для ключів, яких ще немає (ручні зіставлення не перезаписуються).
+    if (!dryRun && summary.learnedNomenclatureFromImport && typeof summary.learnedNomenclatureFromImport === 'object') {
+      const learned = summary.learnedNomenclatureFromImport;
+      const keys = Object.keys(learned).filter((k) => k && learned[k]);
+      if (keys.length > 0) {
+        try {
+          const current = await loadStockImportNomenclatureMap();
+          const merged = { ...current };
+          let added = 0;
+          for (const nome of keys) {
+            const id = String(learned[nome]).trim();
+            if (!id) continue;
+            if (Object.prototype.hasOwnProperty.call(merged, nome)) continue;
+            merged[nome] = id;
+            added++;
+          }
+          if (added > 0) {
+            await StockImportNomenclature.updateOne(
+              { _id: STOCK_IMPORT_NOMENCLATURE_DOC_ID },
+              { $set: { nomenclatureCategoryMap: merged } },
+              { upsert: true },
+            );
+            summary.nomenclatureAutoLearned = { added, totalKeysInDb: Object.keys(merged).length };
+          } else {
+            summary.nomenclatureAutoLearned = { added: 0, totalKeysInDb: Object.keys(current).length };
+          }
+        } catch (learnErr) {
+          console.warn('[import-stock-xlsx] auto-learn nomenclature:', learnErr.message);
+          summary.nomenclatureAutoLearned = { error: learnErr.message };
+        }
+      }
+    }
+
     logPerformance('POST /api/equipment/import-stock-xlsx', startTime);
     res.json(summary);
   } catch (error) {

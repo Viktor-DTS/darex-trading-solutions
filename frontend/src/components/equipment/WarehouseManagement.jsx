@@ -475,6 +475,9 @@ function WarehouseManagement({ user }) {
                   <strong>склад призначення</strong> — усі позиції з файлу потраплять саме туди (незалежно від
                   назви складу в Excel). Далі «Перевірити». Якщо не вистачає категорій — відкриється зіставлення;
                   правила категорій діють для <strong>усіх складів</strong> за однаковою назвою номенклатури.
+                  Після реального імпорту рядки з відомою категорією <strong>автоматично додаються</strong> у мапу
+                  номенклатури (нові ключі; ручні зіставлення не змінюються). Для нових позицій показуються{' '}
+                  <strong>підказки схожих назв</strong> з бази — щоб не плодити дублікати через описки.
                 </p>
                 <div className="import-warehouse-row">
                   <label htmlFor="import-target-warehouse">Склад для імпорту *</label>
@@ -552,6 +555,42 @@ function WarehouseManagement({ user }) {
                         <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
                           {importResult.errors.map((w, idx) => (
                             <li key={idx}>{w}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {importResult.nomenclatureAutoLearned &&
+                      typeof importResult.nomenclatureAutoLearned.added === 'number' && (
+                        <div className="import-warn" style={{ marginTop: 8 }}>
+                          <strong>Автозбереження номенклатури:</strong>{' '}
+                          додано нових відповідностей у БД: {importResult.nomenclatureAutoLearned.added}
+                          {importResult.nomenclatureAutoLearned.totalKeysInDb != null && (
+                            <span>
+                              {' '}
+                              (усього ключів у мапі: {importResult.nomenclatureAutoLearned.totalKeysInDb})
+                            </span>
+                          )}
+                          {importResult.nomenclatureAutoLearned.error && (
+                            <span className="import-err"> — {importResult.nomenclatureAutoLearned.error}</span>
+                          )}
+                        </div>
+                      )}
+                    {Array.isArray(importResult.similarityHints) && importResult.similarityHints.length > 0 && (
+                      <div className="import-warn" style={{ marginTop: 8 }}>
+                        <strong>Можливі дублікати назви (нова позиція vs уже в базі):</strong>
+                        <p style={{ margin: '6px 0 4px', fontSize: '0.92em' }}>
+                          Перевірте, чи не той самий товар під іншим написанням. Якщо збіг — краще узгодити
+                          назву в 1С або додати відповідність у мапі категорій.
+                        </p>
+                        <ul style={{ margin: 0, paddingLeft: 18, maxHeight: 220, overflowY: 'auto' }}>
+                          {importResult.similarityHints.map((h, idx) => (
+                            <li key={idx} style={{ marginBottom: 8 }}>
+                              <code style={{ fontSize: '0.85em' }}>{h.nome}</code>
+                              {h.kind && <span> ({h.kind})</span>}
+                              <div style={{ fontSize: '0.9em', marginTop: 2 }}>
+                                схоже на: {(h.similarTypes || []).join(' · ')}
+                              </div>
+                            </li>
                           ))}
                         </ul>
                       </div>
