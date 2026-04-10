@@ -7,7 +7,14 @@ import ClientDataSelectionModal from '../ClientDataSelectionModal';
 import EquipmentFileUpload from './EquipmentFileUpload';
 import './EquipmentShipModal.css';
 
-function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess, linkedShipmentRequestId = null }) {
+function EquipmentShipModal({
+  equipment,
+  warehouses = [],
+  user,
+  onClose,
+  onSuccess,
+  linkedShipmentRequestId = null,
+}) {
   const [selectedEquipmentList, setSelectedEquipmentList] = useState(equipment ? [equipment] : []);
   const [equipmentList, setEquipmentList] = useState([]);
   const [loadingEquipment, setLoadingEquipment] = useState(false);
@@ -40,6 +47,13 @@ function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess, li
   const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false);
   const [filteredEdrpouList, setFilteredEdrpouList] = useState([]);
   const [clientDataModal, setClientDataModal] = useState({ open: false, edrpou: '' });
+  const [preflightError, setPreflightError] = useState('');
+
+  const isRegionalStaff = ['warehouse', 'zavsklad'].includes(String(user?.role || '').toLowerCase());
+  const sourceWarehouseIdsParam = useMemo(() => {
+    const ids = (warehouses || []).map((w) => w._id).filter(Boolean).map(String);
+    return ids.join(',');
+  }, [warehouses]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchInput), 400);
@@ -97,6 +111,8 @@ function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess, li
         const token = localStorage.getItem('token');
         const params = new URLSearchParams();
         if (filterWarehouseId) params.set('warehouse', filterWarehouseId);
+        else if (isRegionalStaff && sourceWarehouseIdsParam)
+          params.set('currentWarehouses', sourceWarehouseIdsParam);
         if (filterItemKind === 'equipment' || filterItemKind === 'parts') params.set('itemKind', filterItemKind);
         if (filterCategoryId) {
           params.set('categoryId', filterCategoryId);
@@ -130,7 +146,31 @@ function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess, li
     return () => {
       cancelled = true;
     };
-  }, [equipment, filterWarehouseId, filterItemKind, filterCategoryId, debouncedSearch]);
+  }, [
+    equipment,
+    filterWarehouseId,
+    filterItemKind,
+    filterCategoryId,
+    debouncedSearch,
+    isRegionalStaff,
+    sourceWarehouseIdsParam,
+  ]);
+
+  useEffect(() => {
+    if (!equipment || !isRegionalStaff) {
+      setPreflightError('');
+      return;
+    }
+    const allowed = new Set((warehouses || []).map((w) => String(w._id)));
+    const cw = equipment.currentWarehouse != null ? String(equipment.currentWarehouse) : '';
+    if (cw && !allowed.has(cw)) {
+      setPreflightError(
+        'Це обладнання на складі іншого регіону. Відвантажувати можна лише товар зі складу вашого регіону.'
+      );
+    } else {
+      setPreflightError('');
+    }
+  }, [equipment, isRegionalStaff, warehouses]);
 
   useEffect(() => {
     if (equipment) return;
@@ -342,7 +382,7 @@ function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess, li
                     value={filterWarehouseId}
                     onChange={(e) => setFilterWarehouseId(e.target.value)}
                   >
-                    <option value="">Усі склади</option>
+                    <option value="">{isRegionalStaff ? 'Усі мої склади' : 'Усі склади'}</option>
                     {(warehouses || []).map((w) => (
                       <option key={w._id} value={String(w._id)}>
                         {w.name}
@@ -711,6 +751,25 @@ function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess, li
     if (!shippedTo) {
       setError('Вкажіть замовника');
       return;
+    }
+
+    if (preflightError) {
+      setError(preflightError);
+      return;
+    }
+
+    if (isRegionalStaff && (warehouses || []).length > 0) {
+      const allowed = new Set((warehouses || []).map((w) => String(w._id)));
+      const foreign = selectedEquipmentList.some((eq) => {
+        const cw = eq.currentWarehouse != null ? String(eq.currentWarehouse) : '';
+        return cw && !allowed.has(cw);
+      });
+      if (foreign) {
+        setError(
+          'У списку є обладнання не зі складу вашого регіону. Приберіть його з вибору або оберіть інше.'
+        );
+        return;
+      }
     }
 
     setSaving(true);
@@ -1101,6 +1160,7 @@ function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess, li
               />
             </div>
 
+            {preflightError && <div className="error-message">{preflightError}</div>}
             {error && (
               <div className="error-message">{error}</div>
             )}
@@ -1109,7 +1169,7 @@ function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess, li
               <button type="button" className="btn-secondary" onClick={onClose}>
                 Скасувати
               </button>
-              <button type="submit" className="btn-primary" disabled={saving}>
+              <button type="submit" className="btn-primary" disabled={saving || !!preflightError}>
                 {saving ? 'Відвантаження...' : 'Відвантажити'}
               </button>
             </div>

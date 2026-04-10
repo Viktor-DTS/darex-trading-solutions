@@ -519,6 +519,7 @@ function InventoryDashboard({ user }) {
         <EquipmentShipModal
           equipment={selectedEquipment}
           warehouses={warehouses}
+          user={user}
           linkedShipmentRequestId={shipModalFromRequestId}
           onClose={() => {
             setShowShipModal(false);
