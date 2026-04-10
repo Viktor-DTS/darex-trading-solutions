@@ -1,89 +1,27 @@
 /**
- * Підстановка полів форми обладнання з карточки продукту та розпізнавання technicalSpecs.
- * Логіку узгоджено з mergeProductCardSpecsIntoEquipmentPayload у backend/index.js.
+ * Підстановка полів форми обладнання з карточки продукту.
+ * Технічні характеристики зливаються в масив technicalSpecs (конструктор), без фіксованих полів форми.
  */
 
-function normalizeSpecLabel(s) {
-  return String(s || '')
-    .toLowerCase()
-    .replace(/[.,;:]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+function newSpecKey() {
+  return `spec-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
-function isFormFieldEmpty(v) {
-  return v === undefined || v === null || String(v).trim() === '';
-}
-
-export function mergeTechnicalSpecsIntoEquipmentForm(prevForm, technicalSpecs) {
-  const patch = {};
-  if (!Array.isArray(technicalSpecs) || !technicalSpecs.length) return patch;
-  const rules = [
-    {
-      test: (l) => /резервн/.test(l) && /потуж|квт|ква|kw|kva|power/.test(l),
-      field: 'standbyPower',
-    },
-    {
-      test: (l) => /основн|номінальн|prime/.test(l) && /потуж|квт|ква|kw|kva|power/.test(l),
-      field: 'primePower',
-    },
-    { test: (l) => l.includes('напруг') || l === 'voltage' || /^u\s/.test(l), field: 'voltage' },
-    { test: (l) => l === 'фаза' || l.includes('фаз') || l === 'phase', field: 'phase' },
-    {
-      test: (l) =>
-        l.includes('струм') ||
-        l.includes('ампер') ||
-        l === 'amperage' ||
-        (l.includes('current') && !l.includes('account')),
-      field: 'amperage',
-    },
-    {
-      test: (l) =>
-        /cos\s*[φϕ\u03c6]/.test(l) ||
-        l.includes('cosphi') ||
-        l.includes('коефіцієнт потужн') ||
-        l.includes('power factor'),
-      field: 'cosPhi',
-    },
-    {
-      test: (l) =>
-        l.includes('частот') || l.includes('frequency') || /\bhz\b/.test(l) || l.includes('гц'),
-      field: 'frequency',
-    },
-    { test: (l) => l.includes('оберт') || l === 'rpm' || l.includes('об/хв'), field: 'rpm' },
-    { test: (l) => l.includes('ваг') || l.includes('маса') || l === 'weight', field: 'weight' },
-    {
-      test: (l) => l.includes('габарит') || l.includes('розмір') || l === 'dimensions',
-      field: 'dimensions',
-    },
-    {
-      test: (l) =>
-        l.includes('дата вироб') ||
-        l.includes('рік випуск') ||
-        l.includes('manufacture') ||
-        l.includes('year of'),
-      field: 'manufactureDate',
-    },
-  ];
-  for (const spec of technicalSpecs) {
-    const label = normalizeSpecLabel(spec?.name);
-    const valRaw = spec?.value != null ? String(spec.value).trim() : '';
-    if (!label || !valRaw) continue;
-    for (const rule of rules) {
-      if (!rule.test(label)) continue;
-      if (!isFormFieldEmpty(prevForm[rule.field])) break;
-      if (rule.field === 'manufactureDate') {
-        patch.manufactureDate = valRaw;
-      } else if (['phase', 'amperage', 'rpm', 'weight', 'cosPhi', 'frequency'].includes(rule.field)) {
-        const n = parseFloat(valRaw.replace(',', '.'));
-        patch[rule.field] = Number.isNaN(n) ? valRaw : String(n);
-      } else {
-        patch[rule.field] = valRaw;
-      }
-      break;
-    }
+export function mergeCardSpecsIntoFormRows(prevRows, cardSpecs) {
+  const prev = Array.isArray(prevRows) ? [...prevRows] : [];
+  const seen = new Set(
+    prev.map((r) => `${String(r.name || '').toLowerCase()}|${String(r.value || '').toLowerCase()}`),
+  );
+  for (const s of cardSpecs || []) {
+    const name = s?.name != null ? String(s.name).trim() : '';
+    const value = s?.value != null ? String(s.value).trim() : '';
+    if (!name && !value) continue;
+    const k = `${name.toLowerCase()}|${value.toLowerCase()}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    prev.push({ _key: newSpecKey(), name, value });
   }
-  return patch;
+  return prev;
 }
 
 export function mergeAttachedFromProductCard(prevFiles, cardFiles) {
@@ -104,7 +42,6 @@ export function mergeAttachedFromProductCard(prevFiles, cardFiles) {
 /**
  * @param {object} card — документ карточки з API (lean)
  * @param {object} prevForm — поточний formData
- * @returns {{ formPatch: object, equipmentType?: string }}
  */
 export function buildPatchesFromProductCard(card, prevForm) {
   if (!card) {
@@ -112,11 +49,11 @@ export function buildPatchesFromProductCard(card, prevForm) {
   }
   const catId =
     card.categoryId != null ? String(card.categoryId._id || card.categoryId) : '';
-  const specPatch = mergeTechnicalSpecsIntoEquipmentForm(prevForm, card.technicalSpecs);
   const mvt =
     card.materialValueType && ['service', 'electroinstall', 'internal'].includes(card.materialValueType)
       ? card.materialValueType
       : '';
+  const specRows = mergeCardSpecsIntoFormRows(prevForm.technicalSpecs, card.technicalSpecs);
   const formPatch = {
     productId: String(card._id),
     type: prevForm.type?.trim() ? prevForm.type : (card.type || ''),
@@ -130,7 +67,7 @@ export function buildPatchesFromProductCard(card, prevForm) {
     materialValueType: prevForm.materialValueType?.trim()
       ? prevForm.materialValueType
       : (mvt || prevForm.materialValueType || ''),
-    ...specPatch,
+    technicalSpecs: specRows,
   };
   let equipmentType;
   if (card.defaultReceiptMode === 'batch') equipmentType = 'batch';

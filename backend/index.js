@@ -666,6 +666,13 @@ const equipmentSchema = new mongoose.Schema({
   weight: Number,                   // 940
   manufactureDate: String,          // 2024
   notes: String,                     // Примітки
+  /** Довільні характеристики одиниці (конструктор; замість фіксованих полів на формі надходження) */
+  technicalSpecs: [
+    {
+      name: { type: String, trim: true, default: '' },
+      value: { type: String, trim: true, default: '' },
+    },
+  ],
   
   // Категорії матеріальних цінностей (вибір тільки однієї опції)
   materialValueType: { 
@@ -7233,91 +7240,19 @@ function sanitizeProductCardDefaultReceiptMode(v) {
   return v === 'batch' ? 'batch' : 'single';
 }
 
-function normalizeProductCardSpecLabel(s) {
-  return String(s || '')
-    .toLowerCase()
-    .replace(/[.,;:]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/** Підставляє в equipmentData порожні поля з technicalSpecs карточки (типові назви з шильдика). */
-function mergeProductCardSpecsIntoEquipmentPayload(equipmentData, card) {
-  if (!card?.technicalSpecs?.length) return;
-  const isEmpty = (v) =>
-    v === undefined || v === null || (typeof v === 'string' && String(v).trim() === '');
-  const rules = [
-    {
-      test: (l) => /резервн/.test(l) && /потуж|квт|ква|kw|kva|power/.test(l),
-      field: 'standbyPower',
-      kind: 'string',
-    },
-    {
-      test: (l) => /основн|номінальн|prime/.test(l) && /потуж|квт|ква|kw|kva|power/.test(l),
-      field: 'primePower',
-      kind: 'string',
-    },
-    { test: (l) => l.includes('напруг') || l === 'voltage' || /^u\s/.test(l), field: 'voltage', kind: 'string' },
-    { test: (l) => l === 'фаза' || l.includes('фаз') || l === 'phase', field: 'phase', kind: 'number' },
-    {
-      test: (l) =>
-        l.includes('струм') ||
-        l.includes('ампер') ||
-        l === 'amperage' ||
-        (l.includes('current') && !l.includes('account')),
-      field: 'amperage',
-      kind: 'number',
-    },
-    {
-      test: (l) =>
-        /cos\s*[φϕ\u03c6]/.test(l) ||
-        l.includes('cosphi') ||
-        l.includes('коефіцієнт потужн') ||
-        l.includes('power factor'),
-      field: 'cosPhi',
-      kind: 'number',
-    },
-    {
-      test: (l) =>
-        l.includes('частот') || l.includes('frequency') || /\bhz\b/.test(l) || l.includes('гц'),
-      field: 'frequency',
-      kind: 'number',
-    },
-    { test: (l) => l.includes('оберт') || l === 'rpm' || l.includes('об/хв'), field: 'rpm', kind: 'number' },
-    { test: (l) => l.includes('ваг') || l.includes('маса') || l === 'weight', field: 'weight', kind: 'number' },
-    {
-      test: (l) => l.includes('габарит') || l.includes('розмір') || l === 'dimensions',
-      field: 'dimensions',
-      kind: 'string',
-    },
-    {
-      test: (l) =>
-        l.includes('дата вироб') ||
-        l.includes('рік випуск') ||
-        l.includes('manufacture') ||
-        l.includes('year of'),
-      field: 'manufactureDate',
-      kind: 'string',
-    },
-  ];
-  for (const spec of card.technicalSpecs) {
-    const label = normalizeProductCardSpecLabel(spec?.name);
-    const valRaw = spec?.value != null ? String(spec.value).trim() : '';
-    if (!label || !valRaw) continue;
-    for (const rule of rules) {
-      if (!rule.test(label)) continue;
-      if (!isEmpty(equipmentData[rule.field])) break;
-      if (rule.kind === 'number') {
-        const n = parseFloat(String(valRaw).replace(',', '.'));
-        if (!Number.isNaN(n)) equipmentData[rule.field] = n;
-      } else if (rule.field === 'manufactureDate') {
-        equipmentData.manufactureDate = valRaw;
-      } else {
-        equipmentData[rule.field] = valRaw;
-      }
-      break;
-    }
+/** Об'єднує technicalSpecs з тіла запиту та з карточки продукту (унікальні пари назва+значення). */
+function mergeEquipmentTechnicalSpecsPayload(equipmentData, card) {
+  const fromBody = sanitizeProductCardTechnicalSpecs(equipmentData.technicalSpecs);
+  const fromCard = card ? sanitizeProductCardTechnicalSpecs(card.technicalSpecs) : [];
+  const seen = new Set();
+  const out = [];
+  for (const r of [...fromBody, ...fromCard]) {
+    const k = `${String(r.name).toLowerCase()}|${String(r.value)}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(r);
   }
+  equipmentData.technicalSpecs = out;
 }
 
 function mergeProductCardAttachedFilesIntoEquipmentPayload(equipmentData, card) {
@@ -7374,7 +7309,7 @@ app.get('/api/product-cards', authenticateToken, async (req, res) => {
 app.post('/api/product-cards', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    if (!['admin', 'administrator'].includes(req.user.role)) {
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const {
@@ -7741,8 +7676,10 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
       ) {
         equipmentData.isBatch = card.defaultReceiptMode === 'batch';
       }
-      mergeProductCardSpecsIntoEquipmentPayload(equipmentData, card);
+      mergeEquipmentTechnicalSpecsPayload(equipmentData, card);
       mergeProductCardAttachedFilesIntoEquipmentPayload(equipmentData, card);
+    } else {
+      equipmentData.technicalSpecs = sanitizeProductCardTechnicalSpecs(equipmentData.technicalSpecs);
     }
 
     const isBatch = equipmentData.isBatch === true;
@@ -8743,6 +8680,9 @@ app.put('/api/equipment/:id', authenticateToken, async (req, res) => {
       } else {
         return res.status(400).json({ error: 'Некоректний productId' });
       }
+    }
+    if (req.body.technicalSpecs !== undefined) {
+      equipment.technicalSpecs = sanitizeProductCardTechnicalSpecs(req.body.technicalSpecs);
     }
 
     console.log('[PUT] Зміни:', changes);

@@ -1,0 +1,68 @@
+.technical-specs-constructor {
+  margin: 0;
+}
+
+.technical-specs-constructor__heading {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--text-primary, #e6edf3);
+}
+
+.technical-specs-constructor > h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.technical-specs-constructor__hint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary, #8b949e);
+  margin: 0 0 12px;
+}
+
+.technical-specs-constructor__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.technical-specs-constructor__row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.technical-specs-constructor__input {
+  flex: 1 1 160px;
+  min-width: 120px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #444);
+  background: var(--surface-dark, #1a1a1a);
+  color: inherit;
+  box-sizing: border-box;
+}
+
+.technical-specs-constructor--compact .technical-specs-constructor__row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.technical-specs-constructor--compact .technical-specs-constructor__input {
+  flex: none;
+  min-width: 0;
+  width: 100%;
+}
+
+.technical-specs-constructor--compact .technical-specs-constructor__remove {
+  align-self: flex-start;
+}
+
+.technical-specs-constructor__add {
+  margin-top: 12px;
+}
+
+.technical-specs-constructor--compact .technical-specs-constructor__add {
+  width: 100%;
+}

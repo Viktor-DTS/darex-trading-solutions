@@ -1,0 +1,105 @@
+.receipt-product-cards-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.receipt-product-cards-panel__title {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-primary, #e6edf3);
+}
+
+.receipt-product-cards-panel__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary, #8b949e);
+}
+
+.receipt-product-cards-panel__search {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #444);
+  background: var(--surface-dark, #1a1a1a);
+  color: inherit;
+  box-sizing: border-box;
+}
+
+.receipt-product-cards-panel__create {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.receipt-product-cards-panel__table-wrap {
+  flex: 1;
+  min-height: 120px;
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  border: 1px solid var(--border-color, #333);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.receipt-product-cards-panel__muted {
+  margin: 12px;
+  font-size: 13px;
+  color: var(--text-secondary, #8b949e);
+}
+
+.receipt-product-cards-panel__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.receipt-product-cards-panel__table th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color, #333);
+  color: var(--text-secondary, #8b949e);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  background: var(--surface, #222);
+}
+
+.receipt-product-cards-panel__table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  vertical-align: top;
+}
+
+.receipt-product-cards-panel__table tbody tr {
+  cursor: pointer;
+}
+
+.receipt-product-cards-panel__table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.receipt-product-cards-panel__row--active {
+  background: rgba(56, 139, 253, 0.12);
+}
+
+.receipt-product-cards-panel__type {
+  font-weight: 500;
+}
+
+.receipt-product-cards-panel__sub {
+  font-size: 11px;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
+.receipt-product-cards-panel--with-specs .receipt-product-cards-panel__table-wrap {
+  max-height: min(36vh, 300px);
+}
+
+.receipt-product-cards-panel__specs {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color, #333);
+}

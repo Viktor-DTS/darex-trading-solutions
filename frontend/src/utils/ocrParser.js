@@ -520,6 +520,42 @@ export const parseEquipmentData = (ocrText) => {
   return data;
 };
 
+/** Перетворює результат parseEquipmentData на рядки конструктора «назва — значення» для карточки / надходження. */
+export function parsedEquipmentToTechnicalSpecs(data) {
+  if (!data || typeof data !== 'object') return [];
+  const rows = [];
+  const add = (name, val) => {
+    if (val === null || val === undefined || val === '') return;
+    const s = String(val).trim();
+    if (!s || s === 'не визначено') return;
+    rows.push({ name, value: s });
+  };
+  add('Резервна потужність', data.standbyPower);
+  add('Основна потужність', data.primePower);
+  if (data.phase !== null && data.phase !== undefined && data.phase !== '') {
+    add('Фази', String(data.phase));
+  }
+  add('Напруга', data.voltage);
+  if (data.amperage !== null && data.amperage !== undefined && data.amperage !== '') {
+    add('Струм (A)', String(data.amperage));
+  }
+  if (data.cosPhi !== null && data.cosPhi !== undefined && data.cosPhi !== '') {
+    add('Cos φ', String(data.cosPhi));
+  }
+  if (data.frequency !== null && data.frequency !== undefined && data.frequency !== '') {
+    add('Частота (Гц)', String(data.frequency));
+  }
+  if (data.rpm !== null && data.rpm !== undefined && data.rpm !== '') {
+    add('RPM', String(data.rpm));
+  }
+  add('Розміри (мм)', data.dimensions);
+  if (data.weight !== null && data.weight !== undefined && data.weight !== '') {
+    add('Вага (кг)', String(data.weight));
+  }
+  add('Дата / рік виробництва', data.manufactureDate);
+  return rows;
+}
+
 export const validateEquipmentData = (data) => {
   const errors = [];
   

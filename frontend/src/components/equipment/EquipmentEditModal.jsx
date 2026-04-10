@@ -1,9 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import API_BASE_URL from '../../config';
 import EquipmentScanner from './EquipmentScanner';
 import EquipmentFileUpload from './EquipmentFileUpload';
 import EquipmentQRModal from './EquipmentQRModal';
-import { buildPatchesFromProductCard, mergeAttachedFromProductCard } from './productCardApply';
+import ReceiptProductCardsPanel from './ReceiptProductCardsPanel';
+import TechnicalSpecsConstructorBlock from './TechnicalSpecsConstructorBlock';
+import ProductCardQuickCreateModal from './ProductCardQuickCreateModal';
+import { buildPatchesFromProductCard, mergeAttachedFromProductCard, mergeCardSpecsIntoFormRows } from './productCardApply';
+import { parsedEquipmentToTechnicalSpecs } from '../../utils/ocrParser';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
 import './EquipmentEditModal.css';
 
@@ -14,6 +18,15 @@ function flattenCategories(nodes, level = 0) {
     if (n.children && n.children.length) list = list.concat(flattenCategories(n.children, level + 1));
   });
   return list;
+}
+
+function mapEquipmentSpecsToFormRows(specs) {
+  const ts = Date.now();
+  return (Array.isArray(specs) ? specs : []).map((s, i) => ({
+    _key: `eq-spec-${ts}-${i}-${Math.random().toString(36).slice(2, 11)}`,
+    name: s?.name != null ? String(s.name) : '',
+    value: s?.value != null ? String(s.value) : '',
+  }));
 }
 
 /** Чи поточний користувач — власник резерву (для кнопки передачі). */
@@ -59,6 +72,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
   const [productCardQuery, setProductCardQuery] = useState('');
   const [productCardHits, setProductCardHits] = useState([]);
   const [productCardsLoading, setProductCardsLoading] = useState(false);
+  const [showProductCardCreate, setShowProductCardCreate] = useState(false);
   const isNewEquipment = !equipment;
 
   const regionalForeignReadOnly = useMemo(() => {
@@ -71,6 +85,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
   }, [equipment, warehouses, user?.role]);
 
   const effectiveReadOnly = readOnly || regionalForeignReadOnly;
+  const receiptGrid = isNewEquipment && !effectiveReadOnly;
 
   useEffect(() => {
     if (equipment) {
@@ -104,7 +119,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
           ? (typeof equipment.productId === 'object'
               ? String(equipment.productId._id || '')
               : String(equipment.productId))
-          : ''
+          : '',
+        technicalSpecs: mapEquipmentSpecsToFormRows(equipment.technicalSpecs),
       });
       setEquipmentType(equipment.isBatch ? 'batch' : 'single');
       // Завантажуємо існуючі файли з бази даних
@@ -152,7 +168,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
         materialValueType: '',
         categoryId: '',
         itemKind: 'equipment',
-        productId: ''
+        productId: '',
+        technicalSpecs: [],
       });
       setEquipmentType('single');
     }
@@ -211,6 +228,36 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
       ...productCardHits.filter((c) => String(c._id) !== pid)
     ];
   }, [formData.productId, productCardHits, equipment]);
+
+  const applyProductCard = useCallback((card) => {
+    if (!card) return;
+    setFormData((prev) => {
+      const { formPatch } = buildPatchesFromProductCard(card, prev);
+      return { ...prev, ...formPatch };
+    });
+    if (card.defaultReceiptMode === 'batch') setEquipmentType('batch');
+    else if (card.defaultReceiptMode === 'single') setEquipmentType('single');
+    setAttachedFiles((prev) => mergeAttachedFromProductCard(prev, card.attachedFiles));
+  }, []);
+
+  const newReceiptSpecRow = () => ({
+    _key: `rcv-spec-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+    name: '',
+    value: '',
+  });
+
+  const addReceiptSpecRow = () => {
+    setFormData((f) => ({ ...f, technicalSpecs: [...(f.technicalSpecs || []), newReceiptSpecRow()] }));
+  };
+  const removeReceiptSpecRow = (key) => {
+    setFormData((f) => ({ ...f, technicalSpecs: (f.technicalSpecs || []).filter((r) => r._key !== key) }));
+  };
+  const updateReceiptSpecRow = (key, field, val) => {
+    setFormData((f) => ({
+      ...f,
+      technicalSpecs: (f.technicalSpecs || []).map((r) => (r._key === key ? { ...r, [field]: val } : r)),
+    }));
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -291,7 +338,13 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
       
       // Підготовка даних для відправки
       const updateData = { ...formData };
-      
+      updateData.technicalSpecs = (formData.technicalSpecs || [])
+        .map(({ name, value }) => ({
+          name: name != null ? String(name).trim() : '',
+          value: value != null ? String(value).trim() : '',
+        }))
+        .filter((r) => r.name || r.value);
+
       // Додаємо поля для партії (тільки для нового обладнання)
       if (isNewEquipment) {
         updateData.isBatch = equipmentType === 'batch';
@@ -397,20 +450,79 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
   };
 
   const handleScannerData = (scannedData) => {
-    setFormData(prev => ({
-      ...prev,
-      ...scannedData,
-      // Зберігаємо склад, якщо він вже вибраний
-      currentWarehouse: prev.currentWarehouse || scannedData.currentWarehouse || '',
-      currentWarehouseName: prev.currentWarehouseName || scannedData.currentWarehouseName || '',
-      region: prev.region || scannedData.region || ''
-    }));
+    const specPairs = parsedEquipmentToTechnicalSpecs(scannedData);
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        manufacturer: prev.manufacturer?.trim() ? prev.manufacturer : (scannedData.manufacturer || ''),
+        type: prev.type?.trim() ? prev.type : (scannedData.type || ''),
+        serialNumber: prev.serialNumber?.trim()
+          ? prev.serialNumber
+          : (scannedData.serialNumber != null ? String(scannedData.serialNumber) : ''),
+        currentWarehouse: prev.currentWarehouse || scannedData.currentWarehouse || '',
+        currentWarehouseName: prev.currentWarehouseName || scannedData.currentWarehouseName || '',
+        region: prev.region || scannedData.region || '',
+        technicalSpecs: mergeCardSpecsIntoFormRows(prev.technicalSpecs, specPairs),
+      };
+      if (!isNewEquipment) {
+        return {
+          ...next,
+          standbyPower: prev.standbyPower?.trim() ? prev.standbyPower : (scannedData.standbyPower || ''),
+          primePower: prev.primePower?.trim() ? prev.primePower : (scannedData.primePower || ''),
+          phase:
+            prev.phase?.trim()
+              ? prev.phase
+              : (scannedData.phase !== undefined && scannedData.phase !== null
+                  ? String(scannedData.phase)
+                  : prev.phase),
+          voltage: prev.voltage?.trim() ? prev.voltage : (scannedData.voltage || ''),
+          amperage:
+            prev.amperage?.trim()
+              ? prev.amperage
+              : (scannedData.amperage !== undefined && scannedData.amperage !== null
+                  ? String(scannedData.amperage)
+                  : prev.amperage),
+          cosPhi:
+            prev.cosPhi?.trim()
+              ? prev.cosPhi
+              : (scannedData.cosPhi !== undefined && scannedData.cosPhi !== null
+                  ? String(scannedData.cosPhi)
+                  : prev.cosPhi),
+          frequency:
+            prev.frequency?.trim()
+              ? prev.frequency
+              : (scannedData.frequency !== undefined && scannedData.frequency !== null
+                  ? String(scannedData.frequency)
+                  : prev.frequency),
+          rpm:
+            prev.rpm?.trim()
+              ? prev.rpm
+              : (scannedData.rpm !== undefined && scannedData.rpm !== null
+                  ? String(scannedData.rpm)
+                  : prev.rpm),
+          dimensions: prev.dimensions?.trim() ? prev.dimensions : (scannedData.dimensions || ''),
+          weight:
+            prev.weight?.trim()
+              ? prev.weight
+              : (scannedData.weight !== undefined && scannedData.weight !== null
+                  ? String(scannedData.weight)
+                  : prev.weight),
+          manufactureDate: prev.manufactureDate?.trim()
+            ? prev.manufactureDate
+            : (scannedData.manufactureDate || ''),
+        };
+      }
+      return next;
+    });
     setShowScanner(false);
   };
 
   return (
     <div className="equipment-edit-modal-overlay" onClick={onClose}>
-      <div className="equipment-edit-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`equipment-edit-modal${isNewEquipment ? ' equipment-edit-modal--receipt' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="equipment-edit-header">
           <h2>
             {isNewEquipment
@@ -427,26 +539,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
             user={user}
             warehouses={warehouses}
             embedded={true}
-            onDataScanned={(scannedData) => {
-              // Отримуємо дані зі сканера і заповнюємо форму без збереження
-              handleScannerData({
-                manufacturer: scannedData.manufacturer || '',
-                type: scannedData.type || '',
-                serialNumber: scannedData.serialNumber || '',
-                currentWarehouse: scannedData.currentWarehouse || formData.currentWarehouse || '',
-                currentWarehouseName: scannedData.currentWarehouseName || formData.currentWarehouseName || '',
-                region: scannedData.region || formData.region || '',
-                standbyPower: scannedData.standbyPower || '',
-                primePower: scannedData.primePower || '',
-                phase: scannedData.phase !== undefined && scannedData.phase !== null ? String(scannedData.phase) : '',
-                voltage: scannedData.voltage || '',
-                amperage: scannedData.amperage !== undefined && scannedData.amperage !== null ? String(scannedData.amperage) : '',
-                rpm: scannedData.rpm !== undefined && scannedData.rpm !== null ? String(scannedData.rpm) : '',
-                dimensions: scannedData.dimensions || '',
-                weight: scannedData.weight !== undefined && scannedData.weight !== null ? String(scannedData.weight) : '',
-                manufactureDate: scannedData.manufactureDate || ''
-              });
-            }}
+            onDataScanned={handleScannerData}
             onClose={() => setShowScanner(false)}
           />
         )}
@@ -528,7 +621,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
               </div>
             )}
 
-            {(equipment?.productId || !effectiveReadOnly) && (
+            {(equipment?.productId || !effectiveReadOnly) && !(isNewEquipment && !effectiveReadOnly) && (
               <div className="form-section">
                 <h3>Карточка з довідника</h3>
                 {effectiveReadOnly && equipment?.productId && typeof equipment.productId === 'object' ? (
@@ -586,13 +679,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                             setFormData((prev) => ({ ...prev, productId: v }));
                             return;
                           }
-                          setFormData((prev) => {
-                            const { formPatch } = buildPatchesFromProductCard(card, prev);
-                            return { ...prev, ...formPatch };
-                          });
-                          if (card.defaultReceiptMode === 'batch') setEquipmentType('batch');
-                          else if (card.defaultReceiptMode === 'single') setEquipmentType('single');
-                          setAttachedFiles((prev) => mergeAttachedFromProductCard(prev, card.attachedFiles));
+                          applyProductCard(card);
                         }}
                       >
                         <option value="">— Без карточки —</option>
@@ -645,6 +732,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
               </div>
             )}
 
+            <div className={receiptGrid ? 'equipment-receipt-layout' : 'equipment-receipt-single'}>
+              <div className="equipment-receipt-main">
             {!effectiveReadOnly && (
               <div className="form-section">
                 <h3>Тип матеріальних цінностей</h3>
@@ -702,7 +791,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   </select>
                 </div>
                 <div className="form-group" style={{ marginTop: '12px' }}>
-                  <label>Тип матеріальних цінностей</label>
+                  <label>Категорія матеріальних цінностей (ЗІП / монтаж / внутрішні)</label>
                   <select
                     name="materialValueType"
                     value={formData.materialValueType || ''}
@@ -828,6 +917,19 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   disabled={effectiveReadOnly}
                 />
               </div>
+              {isNewEquipment && (
+                <div className="form-group">
+                  <label>Дата виробництва</label>
+                  <input
+                    type="date"
+                    name="manufactureDate"
+                    value={formData.manufactureDate || ''}
+                    onChange={handleChange}
+                    readOnly={effectiveReadOnly}
+                    disabled={effectiveReadOnly}
+                  />
+                </div>
+              )}
               {/* Поля тестування - тільки для існуючого обладнання */}
               {!isNewEquipment && (
                 <>
@@ -948,8 +1050,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
             </div>
           </div>
 
-          {/* Технічні характеристики - тільки для одиничного обладнання */}
-          {!(equipmentType === 'batch' || (!isNewEquipment && equipment?.isBatch)) && (
+          {/* Технічні характеристики (legacy) — лише при редагуванні існуючої позиції */}
+          {!isNewEquipment && !(equipmentType === 'batch' || equipment?.isBatch) && (
             <div className="form-section">
               <h3>Технічні характеристики</h3>
               <div className="form-grid">
@@ -1045,44 +1147,63 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
             </div>
           )}
 
-          <div className="form-section">
-            <h3>Фізичні параметри</h3>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Розміри (мм)</label>
-                <input
-                  type="text"
-                  name="dimensions"
-                  value={formData.dimensions}
-                  onChange={handleChange}
-                  readOnly={effectiveReadOnly}
-                  disabled={effectiveReadOnly}
-                />
-              </div>
-              <div className="form-group">
-                <label>Вага (кг)</label>
-                <input
-                  type="text"
-                  name="weight"
-                  value={formData.weight}
-                  onChange={handleChange}
-                  readOnly={effectiveReadOnly}
-                  disabled={effectiveReadOnly}
-                />
-              </div>
-              <div className="form-group">
-                <label>Дата виробництва</label>
-                <input
-                  type="date"
-                  name="manufactureDate"
-                  value={formData.manufactureDate}
-                  onChange={handleChange}
-                  readOnly={effectiveReadOnly}
-                  disabled={effectiveReadOnly}
-                />
+          {!isNewEquipment && (
+            <div className="form-section">
+              <h3>Фізичні параметри</h3>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Розміри (мм)</label>
+                  <input
+                    type="text"
+                    name="dimensions"
+                    value={formData.dimensions}
+                    onChange={handleChange}
+                    readOnly={effectiveReadOnly}
+                    disabled={effectiveReadOnly}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Вага (кг)</label>
+                  <input
+                    type="text"
+                    name="weight"
+                    value={formData.weight}
+                    onChange={handleChange}
+                    readOnly={effectiveReadOnly}
+                    disabled={effectiveReadOnly}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Дата виробництва</label>
+                  <input
+                    type="date"
+                    name="manufactureDate"
+                    value={formData.manufactureDate}
+                    onChange={handleChange}
+                    readOnly={effectiveReadOnly}
+                    disabled={effectiveReadOnly}
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {!isNewEquipment &&
+            (!effectiveReadOnly ||
+              (formData.technicalSpecs || []).some(
+                (r) => String(r.name || '').trim() || String(r.value || '').trim(),
+              )) && (
+              <div className="form-section">
+                <TechnicalSpecsConstructorBlock
+                  rows={formData.technicalSpecs}
+                  readOnly={effectiveReadOnly}
+                  onAddRow={addReceiptSpecRow}
+                  onRemoveRow={removeReceiptSpecRow}
+                  onUpdateRow={updateReceiptSpecRow}
+                  hint="Довільні пари «назва — значення» поруч із класичними полями вище. «Сканувати шильдик» також додає рядки сюди. Порожні рядки при збереженні відкидаються."
+                />
+              </div>
+            )}
 
           {!effectiveReadOnly && (
             <div className="form-section">
@@ -1190,6 +1311,26 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
             </div>
           </div>
 
+              </div>
+              {receiptGrid && (
+                <ReceiptProductCardsPanel
+                  query={productCardQuery}
+                  onQueryChange={setProductCardQuery}
+                  cards={productCardHits}
+                  loading={productCardsLoading}
+                  selectedProductId={formData.productId}
+                  onSelectCard={(card) => applyProductCard(card)}
+                  onCreateCard={() => setShowProductCardCreate(true)}
+                  showSpecsConstructor
+                  specsRows={formData.technicalSpecs}
+                  specsReadOnly={effectiveReadOnly}
+                  onSpecsAddRow={addReceiptSpecRow}
+                  onSpecsRemoveRow={removeReceiptSpecRow}
+                  onSpecsUpdateRow={updateReceiptSpecRow}
+                />
+              )}
+            </div>
+
             <div className="equipment-edit-footer">
               {readOnly && onReserve && onCancelReserve && (
                 <>
@@ -1237,6 +1378,24 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
           </form>
         )}
       </div>
+
+      {showProductCardCreate && (
+        <ProductCardQuickCreateModal
+          user={user}
+          warehouses={warehouses}
+          onClose={() => setShowProductCardCreate(false)}
+          onCreated={(card) => {
+            if (card?._id) {
+              setProductCardHits((hits) => {
+                const id = String(card._id);
+                if (hits.some((h) => String(h._id) === id)) return hits;
+                return [card, ...hits];
+              });
+              applyProductCard(card);
+            }
+          }}
+        />
+      )}
 
       {/* Модалки QR та Історії */}
       {showQR && equipment && (
