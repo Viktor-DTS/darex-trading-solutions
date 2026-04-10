@@ -3,6 +3,7 @@ import API_BASE_URL from '../../config';
 import EquipmentScanner from './EquipmentScanner';
 import EquipmentFileUpload from './EquipmentFileUpload';
 import EquipmentQRModal from './EquipmentQRModal';
+import { buildPatchesFromProductCard, mergeAttachedFromProductCard } from './productCardApply';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
 import './EquipmentEditModal.css';
 
@@ -85,6 +86,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
         phase: equipment.phase !== undefined ? String(equipment.phase) : '',
         voltage: equipment.voltage || '',
         amperage: equipment.amperage !== undefined ? String(equipment.amperage) : '',
+        cosPhi: equipment.cosPhi !== undefined && equipment.cosPhi !== null ? String(equipment.cosPhi) : '',
+        frequency: equipment.frequency !== undefined && equipment.frequency !== null ? String(equipment.frequency) : '',
         rpm: equipment.rpm !== undefined ? String(equipment.rpm) : '',
         dimensions: equipment.dimensions || '',
         weight: equipment.weight !== undefined ? String(equipment.weight) : '',
@@ -135,6 +138,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
         phase: '',
         voltage: '',
         amperage: '',
+        cosPhi: '',
+        frequency: '',
         rpm: '',
         dimensions: '',
         weight: '',
@@ -330,6 +335,14 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
         const amperageNum = parseFloat(updateData.amperage);
         updateData.amperage = isNaN(amperageNum) ? null : amperageNum;
       }
+      if (updateData.cosPhi) {
+        const c = parseFloat(String(updateData.cosPhi).replace(',', '.'));
+        updateData.cosPhi = isNaN(c) ? null : c;
+      }
+      if (updateData.frequency) {
+        const f = parseFloat(String(updateData.frequency).replace(',', '.'));
+        updateData.frequency = isNaN(f) ? null : f;
+      }
       if (updateData.rpm) {
         const rpmNum = parseFloat(updateData.rpm);
         updateData.rpm = isNaN(rpmNum) ? null : rpmNum;
@@ -519,11 +532,26 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
               <div className="form-section">
                 <h3>Карточка з довідника</h3>
                 {effectiveReadOnly && equipment?.productId && typeof equipment.productId === 'object' ? (
-                  <p style={{ color: 'var(--text-secondary)', margin: 0 }}>
-                    Прив&apos;язано: <strong>{equipment.productId.type || '—'}</strong>
-                    {equipment.productId.manufacturer ? ` — ${equipment.productId.manufacturer}` : ''}
-                    {equipment.productId.isActive === false ? ' (карточка вимкнена в довіднику)' : ''}
-                  </p>
+                  <div style={{ color: 'var(--text-secondary)' }}>
+                    <p style={{ margin: 0 }}>
+                      Прив&apos;язано: <strong>{equipment.productId.type || '—'}</strong>
+                      {equipment.productId.manufacturer ? ` — ${equipment.productId.manufacturer}` : ''}
+                      {equipment.productId.isActive === false ? ' (карточка вимкнена в довіднику)' : ''}
+                    </p>
+                    {Array.isArray(equipment.productId.technicalSpecs) &&
+                    equipment.productId.technicalSpecs.length > 0 ? (
+                      <table style={{ width: '100%', marginTop: '10px', fontSize: '13px', borderCollapse: 'collapse' }}>
+                        <tbody>
+                          {equipment.productId.technicalSpecs.map((s, i) => (
+                            <tr key={i} style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                              <td style={{ padding: '6px 8px 6px 0', opacity: 0.85 }}>{s.name || '—'}</td>
+                              <td style={{ padding: '6px 0' }}>{s.value || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : null}
+                  </div>
                 ) : effectiveReadOnly && equipment?.productId && typeof equipment.productId !== 'object' ? (
                   <p style={{ color: 'var(--text-secondary)', margin: 0 }}>
                     Прив&apos;язано до карточки продукту (id: {String(equipment.productId)}).
@@ -558,20 +586,13 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                             setFormData((prev) => ({ ...prev, productId: v }));
                             return;
                           }
-                          const catId =
-                            card.categoryId != null
-                              ? String(card.categoryId._id || card.categoryId)
-                              : '';
-                          setFormData((prev) => ({
-                            ...prev,
-                            productId: v,
-                            type: prev.type?.trim() ? prev.type : (card.type || ''),
-                            manufacturer: prev.manufacturer?.trim() ? prev.manufacturer : (card.manufacturer || ''),
-                            categoryId: prev.categoryId?.trim() ? prev.categoryId : (catId || ''),
-                            itemKind: prev.categoryId?.trim() ? prev.itemKind : (card.itemKind || prev.itemKind || 'equipment'),
-                            batchUnit: prev.batchUnit?.trim() ? prev.batchUnit : (card.defaultBatchUnit || prev.batchUnit || ''),
-                            currency: prev.currency?.trim() ? prev.currency : (card.defaultCurrency || prev.currency || 'грн.')
-                          }));
+                          setFormData((prev) => {
+                            const { formPatch } = buildPatchesFromProductCard(card, prev);
+                            return { ...prev, ...formPatch };
+                          });
+                          if (card.defaultReceiptMode === 'batch') setEquipmentType('batch');
+                          else if (card.defaultReceiptMode === 'single') setEquipmentType('single');
+                          setAttachedFiles((prev) => mergeAttachedFromProductCard(prev, card.attachedFiles));
                         }}
                       >
                         <option value="">— Без карточки —</option>
@@ -585,8 +606,40 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                       </select>
                     </div>
                     <p style={{ fontSize: '12px', marginTop: '4px', color: 'var(--text-secondary)' }}>
-                      Порожні поля «тип», «виробник», «група» підставляються з карточки; уже заповнені не перезаписуються.
+                      Порожні поля форми (у т.ч. технічні за збігом назв у конструкторі карточки) підставляються з карточки; уже
+                      заповнені не перезаписуються. Фото з карточки додаються на початок списку файлів.
                     </p>
+                    {formData.productId &&
+                      (() => {
+                        const c = productCardSelectOptions.find((x) => String(x._id) === String(formData.productId));
+                        const specs = c?.technicalSpecs;
+                        if (!Array.isArray(specs) || !specs.length) return null;
+                        return (
+                          <div
+                            style={{
+                              marginTop: '12px',
+                              padding: '10px 12px',
+                              borderRadius: '8px',
+                              background: 'rgba(255,255,255,0.04)',
+                              fontSize: '13px',
+                            }}
+                          >
+                            <div style={{ fontWeight: 600, marginBottom: '8px' }}>Характеристики з карточки (довідник)</div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <tbody>
+                                {specs.map((s, i) => (
+                                  <tr key={i} style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                                    <td style={{ padding: '6px 8px 6px 0', verticalAlign: 'top', opacity: 0.85 }}>
+                                      {s.name || '—'}
+                                    </td>
+                                    <td style={{ padding: '6px 0', verticalAlign: 'top' }}>{s.value || '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
                   </>
                 ) : null}
               </div>
@@ -648,6 +701,20 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                     ))}
                   </select>
                 </div>
+                <div className="form-group" style={{ marginTop: '12px' }}>
+                  <label>Тип матеріальних цінностей</label>
+                  <select
+                    name="materialValueType"
+                    value={formData.materialValueType || ''}
+                    onChange={handleChange}
+                    disabled={effectiveReadOnly}
+                  >
+                    <option value="">— Не обрано —</option>
+                    <option value="service">Комплектуючі ЗІП (Сервіс)</option>
+                    <option value="electroinstall">Комплектуючі для електромонтажних робіт</option>
+                    <option value="internal">Обладнання для внутрішніх потреб</option>
+                  </select>
+                </div>
               </div>
             )}
 
@@ -690,7 +757,10 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                 />
               </div>
               <div className="form-group">
-                <label>Серійний номер {equipmentType === 'single' && '*'}</label>
+                <label>
+                  Серійний / заводський номер (з шильдика){' '}
+                  {equipmentType === 'single' && isNewEquipment && '*'}
+                </label>
                 <input
                   type="text"
                   name="serialNumber"
@@ -704,9 +774,14 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                       ? 'Не застосовується для партійного обладнання' 
                       : (equipmentType === 'batch' && isNewEquipment) 
                         ? 'Не застосовується для партій' 
-                        : 'Введіть серійний номер'
+                        : 'Номер з заводу / серійний — унікальний для кожної одиниці'
                   }
                 />
+                {isNewEquipment && equipmentType === 'single' && (
+                  <p style={{ fontSize: '12px', marginTop: '6px', color: 'var(--text-secondary)' }}>
+                    У довіднику «карточка продукту» номер не зберігається: він завжди вводиться тут при прийомі конкретної одиниці.
+                  </p>
+                )}
               </div>
               {equipmentType === 'batch' && isNewEquipment && (
                 <div className="form-group">
@@ -928,6 +1003,28 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                     type="text"
                     name="amperage"
                     value={formData.amperage}
+                    onChange={handleChange}
+                    readOnly={effectiveReadOnly}
+                    disabled={effectiveReadOnly}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Cos φ</label>
+                  <input
+                    type="text"
+                    name="cosPhi"
+                    value={formData.cosPhi}
+                    onChange={handleChange}
+                    readOnly={effectiveReadOnly}
+                    disabled={effectiveReadOnly}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Частота (Гц)</label>
+                  <input
+                    type="text"
+                    name="frequency"
+                    value={formData.frequency}
                     onChange={handleChange}
                     readOnly={effectiveReadOnly}
                     disabled={effectiveReadOnly}

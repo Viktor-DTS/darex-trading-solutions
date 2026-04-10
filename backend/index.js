@@ -1133,6 +1133,29 @@ const productCardSchema = new mongoose.Schema(
     defaultBatchUnit: { type: String, trim: true, default: 'шт.' },
     defaultCurrency: { type: String, default: 'грн.' },
     internalNotes: { type: String, default: '' },
+    /** Довільні технічні характеристики (конструктор: назва поля + значення) */
+    technicalSpecs: [
+      {
+        name: { type: String, trim: true, default: '' },
+        value: { type: String, trim: true, default: '' },
+      },
+    ],
+    /** За замовчуванням для надходження: одиничне / партія (підказка; фактичний режим обирають на формі прийому). */
+    defaultReceiptMode: { type: String, enum: ['single', 'batch'], default: 'single' },
+    /** Тип матеріальних цінностей за замовчуванням (як у Equipment.materialValueType) */
+    materialValueType: {
+      type: String,
+      enum: ['', 'service', 'electroinstall', 'internal'],
+      default: '',
+    },
+    attachedFiles: [{
+      cloudinaryUrl: String,
+      cloudinaryId: String,
+      originalName: String,
+      mimetype: String,
+      size: Number,
+      uploadedAt: { type: Date, default: Date.now },
+    }],
     isActive: { type: Boolean, default: true },
     createdByLogin: String,
     createdByName: String,
@@ -7176,6 +7199,145 @@ app.post('/api/categories/migrate-equipment', authenticateToken, async (req, res
 /** Статуси залишку на складі — поки є такі одиниці, карточку продукту не видаляють */
 const PRODUCT_CARD_STOCK_STATUSES = ['in_stock', 'reserved', 'pending_shipment', 'in_transit'];
 
+function sanitizeProductCardTechnicalSpecs(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((row) => ({
+      name: row?.name != null ? String(row.name).trim() : '',
+      value: row?.value != null ? String(row.value).trim() : '',
+    }))
+    .filter((row) => row.name !== '' || row.value !== '');
+}
+
+function sanitizeProductCardAttachedFiles(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((f) => ({
+      cloudinaryUrl: f?.cloudinaryUrl != null ? String(f.cloudinaryUrl).trim() : '',
+      cloudinaryId: f?.cloudinaryId != null ? String(f.cloudinaryId).trim() : '',
+      originalName: f?.originalName != null ? String(f.originalName) : '',
+      mimetype: f?.mimetype != null ? String(f.mimetype) : '',
+      size: typeof f?.size === 'number' && !Number.isNaN(f.size) ? f.size : parseInt(f?.size, 10) || 0,
+      uploadedAt: f?.uploadedAt ? new Date(f.uploadedAt) : new Date(),
+    }))
+    .filter((f) => f.cloudinaryUrl);
+}
+
+function sanitizeProductCardMaterialValueType(v) {
+  if (v == null || v === '') return '';
+  const s = String(v);
+  return ['service', 'electroinstall', 'internal'].includes(s) ? s : '';
+}
+
+function sanitizeProductCardDefaultReceiptMode(v) {
+  return v === 'batch' ? 'batch' : 'single';
+}
+
+function normalizeProductCardSpecLabel(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[.,;:]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Підставляє в equipmentData порожні поля з technicalSpecs карточки (типові назви з шильдика). */
+function mergeProductCardSpecsIntoEquipmentPayload(equipmentData, card) {
+  if (!card?.technicalSpecs?.length) return;
+  const isEmpty = (v) =>
+    v === undefined || v === null || (typeof v === 'string' && String(v).trim() === '');
+  const rules = [
+    {
+      test: (l) => /резервн/.test(l) && /потуж|квт|ква|kw|kva|power/.test(l),
+      field: 'standbyPower',
+      kind: 'string',
+    },
+    {
+      test: (l) => /основн|номінальн|prime/.test(l) && /потуж|квт|ква|kw|kva|power/.test(l),
+      field: 'primePower',
+      kind: 'string',
+    },
+    { test: (l) => l.includes('напруг') || l === 'voltage' || /^u\s/.test(l), field: 'voltage', kind: 'string' },
+    { test: (l) => l === 'фаза' || l.includes('фаз') || l === 'phase', field: 'phase', kind: 'number' },
+    {
+      test: (l) =>
+        l.includes('струм') ||
+        l.includes('ампер') ||
+        l === 'amperage' ||
+        (l.includes('current') && !l.includes('account')),
+      field: 'amperage',
+      kind: 'number',
+    },
+    {
+      test: (l) =>
+        /cos\s*[φϕ\u03c6]/.test(l) ||
+        l.includes('cosphi') ||
+        l.includes('коефіцієнт потужн') ||
+        l.includes('power factor'),
+      field: 'cosPhi',
+      kind: 'number',
+    },
+    {
+      test: (l) =>
+        l.includes('частот') || l.includes('frequency') || /\bhz\b/.test(l) || l.includes('гц'),
+      field: 'frequency',
+      kind: 'number',
+    },
+    { test: (l) => l.includes('оберт') || l === 'rpm' || l.includes('об/хв'), field: 'rpm', kind: 'number' },
+    { test: (l) => l.includes('ваг') || l.includes('маса') || l === 'weight', field: 'weight', kind: 'number' },
+    {
+      test: (l) => l.includes('габарит') || l.includes('розмір') || l === 'dimensions',
+      field: 'dimensions',
+      kind: 'string',
+    },
+    {
+      test: (l) =>
+        l.includes('дата вироб') ||
+        l.includes('рік випуск') ||
+        l.includes('manufacture') ||
+        l.includes('year of'),
+      field: 'manufactureDate',
+      kind: 'string',
+    },
+  ];
+  for (const spec of card.technicalSpecs) {
+    const label = normalizeProductCardSpecLabel(spec?.name);
+    const valRaw = spec?.value != null ? String(spec.value).trim() : '';
+    if (!label || !valRaw) continue;
+    for (const rule of rules) {
+      if (!rule.test(label)) continue;
+      if (!isEmpty(equipmentData[rule.field])) break;
+      if (rule.kind === 'number') {
+        const n = parseFloat(String(valRaw).replace(',', '.'));
+        if (!Number.isNaN(n)) equipmentData[rule.field] = n;
+      } else if (rule.field === 'manufactureDate') {
+        equipmentData.manufactureDate = valRaw;
+      } else {
+        equipmentData[rule.field] = valRaw;
+      }
+      break;
+    }
+  }
+}
+
+function mergeProductCardAttachedFilesIntoEquipmentPayload(equipmentData, card) {
+  if (!card?.attachedFiles?.length) return;
+  const fromCard = sanitizeProductCardAttachedFiles(card.attachedFiles);
+  if (!fromCard.length) return;
+  const existing = Array.isArray(equipmentData.attachedFiles) ? equipmentData.attachedFiles : [];
+  const seen = new Set(
+    existing.map((f) => (f.cloudinaryId && String(f.cloudinaryId)) || f.cloudinaryUrl).filter(Boolean),
+  );
+  const prefix = [];
+  for (const f of fromCard) {
+    const id = f.cloudinaryId || f.cloudinaryUrl;
+    if (id && seen.has(id)) continue;
+    if (id) seen.add(id);
+    prefix.push(f);
+  }
+  equipmentData.attachedFiles = [...prefix, ...existing];
+}
+
 // Список карточок продукту (довідник номенклатури)
 app.get('/api/product-cards', authenticateToken, async (req, res) => {
   const startTime = Date.now();
@@ -7190,6 +7352,8 @@ app.get('/api/product-cards', authenticateToken, async (req, res) => {
         { type: new RegExp(esc, 'i') },
         { manufacturer: new RegExp(esc, 'i') },
         { displayName: new RegExp(esc, 'i') },
+        { 'technicalSpecs.name': new RegExp(esc, 'i') },
+        { 'technicalSpecs.value': new RegExp(esc, 'i') },
       ];
     }
     const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
@@ -7213,7 +7377,21 @@ app.post('/api/product-cards', authenticateToken, async (req, res) => {
     if (!['admin', 'administrator'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
-    const { displayName, type, manufacturer, categoryId, itemKind, defaultBatchUnit, defaultCurrency, internalNotes, isActive } = req.body;
+    const {
+      displayName,
+      type,
+      manufacturer,
+      categoryId,
+      itemKind,
+      defaultBatchUnit,
+      defaultCurrency,
+      internalNotes,
+      isActive,
+      technicalSpecs,
+      attachedFiles,
+      materialValueType,
+      defaultReceiptMode,
+    } = req.body;
     if (!type || !String(type).trim()) {
       return res.status(400).json({ error: 'Поле «тип / найменування» обов\'язкове' });
     }
@@ -7227,6 +7405,10 @@ app.post('/api/product-cards', authenticateToken, async (req, res) => {
       defaultBatchUnit: (defaultBatchUnit && String(defaultBatchUnit).trim()) || 'шт.',
       defaultCurrency: (defaultCurrency && String(defaultCurrency).trim()) || 'грн.',
       internalNotes: internalNotes != null ? String(internalNotes) : '',
+      technicalSpecs: sanitizeProductCardTechnicalSpecs(technicalSpecs),
+      attachedFiles: sanitizeProductCardAttachedFiles(attachedFiles),
+      materialValueType: sanitizeProductCardMaterialValueType(materialValueType),
+      defaultReceiptMode: sanitizeProductCardDefaultReceiptMode(defaultReceiptMode),
       isActive: isActive !== false,
       createdByLogin: req.user.login,
       createdByName: req.user.name || req.user.login,
@@ -7264,6 +7446,18 @@ app.patch('/api/product-cards/:id', authenticateToken, async (req, res) => {
     if (b.defaultCurrency !== undefined) updates.defaultCurrency = String(b.defaultCurrency).trim() || 'грн.';
     if (b.internalNotes !== undefined) updates.internalNotes = String(b.internalNotes);
     if (b.isActive !== undefined) updates.isActive = !!b.isActive;
+    if (b.technicalSpecs !== undefined) {
+      updates.technicalSpecs = sanitizeProductCardTechnicalSpecs(b.technicalSpecs);
+    }
+    if (b.attachedFiles !== undefined) {
+      updates.attachedFiles = sanitizeProductCardAttachedFiles(b.attachedFiles);
+    }
+    if (b.materialValueType !== undefined) {
+      updates.materialValueType = sanitizeProductCardMaterialValueType(b.materialValueType);
+    }
+    if (b.defaultReceiptMode !== undefined) {
+      updates.defaultReceiptMode = sanitizeProductCardDefaultReceiptMode(b.defaultReceiptMode);
+    }
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'Немає полів для оновлення' });
     }
@@ -7490,10 +7684,6 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
     if (!user) {
       return res.status(401).json({ error: 'Користувач не знайдено' });
     }
-    
-    const isBatch = equipmentData.isBatch === true;
-    const quantity = isBatch ? (parseInt(equipmentData.quantity) || 1) : 1;
-    const hasSerialNumber = equipmentData.serialNumber && equipmentData.serialNumber.trim() !== '';
 
     if (
       isRegionalWarehouseStaffRole(req.user.role) &&
@@ -7535,13 +7725,29 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
       if (!equipmentData.itemKind || !['equipment', 'parts'].includes(equipmentData.itemKind)) {
         equipmentData.itemKind = card.itemKind;
       }
-      if (isBatch && (!equipmentData.batchUnit || !String(equipmentData.batchUnit).trim())) {
+      if (equipmentData.isBatch === true && (!equipmentData.batchUnit || !String(equipmentData.batchUnit).trim())) {
         equipmentData.batchUnit = card.defaultBatchUnit || 'шт.';
       }
       if (!equipmentData.currency || !String(equipmentData.currency).trim()) {
         equipmentData.currency = card.defaultCurrency || 'грн.';
       }
+      const mvt = sanitizeProductCardMaterialValueType(card.materialValueType);
+      if (mvt && (equipmentData.materialValueType == null || equipmentData.materialValueType === '')) {
+        equipmentData.materialValueType = mvt;
+      }
+      if (
+        (card.defaultReceiptMode === 'batch' || card.defaultReceiptMode === 'single') &&
+        !Object.prototype.hasOwnProperty.call(req.body, 'isBatch')
+      ) {
+        equipmentData.isBatch = card.defaultReceiptMode === 'batch';
+      }
+      mergeProductCardSpecsIntoEquipmentPayload(equipmentData, card);
+      mergeProductCardAttachedFilesIntoEquipmentPayload(equipmentData, card);
     }
+
+    const isBatch = equipmentData.isBatch === true;
+    const quantity = isBatch ? (parseInt(equipmentData.quantity) || 1) : 1;
+    const hasSerialNumber = equipmentData.serialNumber && equipmentData.serialNumber.trim() !== '';
 
     // Визначаємо склад та регіон
     const warehouse = equipmentData.currentWarehouse || user.region;
@@ -8320,7 +8526,10 @@ app.get('/api/equipment/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
     const equipment = await Equipment.findById(req.params.id)
-      .populate('productId', 'type manufacturer displayName itemKind isActive')
+      .populate(
+        'productId',
+        'type manufacturer displayName itemKind isActive technicalSpecs attachedFiles materialValueType defaultReceiptMode categoryId',
+      )
       .lean();
     if (!equipment) {
       return res.status(404).json({ error: 'Обладнання не знайдено' });
@@ -8438,6 +8647,37 @@ app.put('/api/equipment/:id', authenticateToken, async (req, res) => {
       if (oldValue !== equipment.weight) {
         changes.push(`weight: ${oldValue} -> ${equipment.weight}`);
       }
+    }
+
+    if (req.body.phase !== undefined) {
+      const newValue = req.body.phase === null || req.body.phase === '' ? undefined : req.body.phase;
+      if (newValue !== undefined && !isNaN(newValue)) {
+        equipment.phase = Number(newValue);
+      } else if (newValue !== undefined) {
+        equipment.phase = newValue;
+      } else {
+        equipment.phase = undefined;
+      }
+    }
+    if (req.body.amperage !== undefined) {
+      const newValue = req.body.amperage === null || req.body.amperage === '' ? undefined : req.body.amperage;
+      if (newValue !== undefined && !isNaN(newValue)) {
+        equipment.amperage = Number(newValue);
+      } else if (newValue !== undefined) {
+        equipment.amperage = newValue;
+      } else {
+        equipment.amperage = undefined;
+      }
+    }
+    if (req.body.cosPhi !== undefined) {
+      const newValue = req.body.cosPhi === null || req.body.cosPhi === '' ? undefined : req.body.cosPhi;
+      equipment.cosPhi =
+        newValue !== undefined && !Number.isNaN(parseFloat(newValue)) ? Number(parseFloat(newValue)) : undefined;
+    }
+    if (req.body.frequency !== undefined) {
+      const newValue = req.body.frequency === null || req.body.frequency === '' ? undefined : req.body.frequency;
+      equipment.frequency =
+        newValue !== undefined && !Number.isNaN(parseFloat(newValue)) ? Number(parseFloat(newValue)) : undefined;
     }
 
     // Обробка прикріплених файлів

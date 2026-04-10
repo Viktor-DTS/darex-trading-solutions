@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import API_BASE_URL from '../../config';
+import EquipmentFileUpload from './EquipmentFileUpload';
 import './CategoryManagement.css';
 
 function flattenCategories(nodes, level = 0) {
@@ -11,15 +12,27 @@ function flattenCategories(nodes, level = 0) {
   return list;
 }
 
+function newSpecRow() {
+  return {
+    _key: `spec-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+    name: '',
+    value: '',
+  };
+}
+
 const emptyForm = () => ({
   displayName: '',
   type: '',
   manufacturer: '',
   categoryId: '',
   itemKind: 'equipment',
+  materialValueType: '',
+  defaultReceiptMode: 'single',
   defaultBatchUnit: 'шт.',
   defaultCurrency: 'грн.',
   internalNotes: '',
+  technicalSpecs: [],
+  attachedFiles: [],
   isActive: true,
 });
 
@@ -96,19 +109,61 @@ export default function ProductCardManagement() {
 
   const openEdit = (row) => {
     setEditing(row);
+    const specs = Array.isArray(row.technicalSpecs)
+      ? row.technicalSpecs.map((s, i) => ({
+          _key: `${row._id}-spec-${i}`,
+          name: s.name != null ? String(s.name) : '',
+          value: s.value != null ? String(s.value) : '',
+        }))
+      : [];
+    const files = Array.isArray(row.attachedFiles)
+      ? row.attachedFiles.map((f, i) => ({
+          id: f._id || f.cloudinaryId || `af-${i}`,
+          cloudinaryUrl: f.cloudinaryUrl,
+          cloudinaryId: f.cloudinaryId,
+          originalName: f.originalName,
+          mimetype: f.mimetype,
+          size: f.size,
+          uploadedAt: f.uploadedAt,
+        }))
+      : [];
     setForm({
       displayName: row.displayName || '',
       type: row.type || '',
       manufacturer: row.manufacturer || '',
       categoryId: row.categoryId ? String(row.categoryId._id || row.categoryId) : '',
       itemKind: row.itemKind || 'equipment',
+      materialValueType:
+        row.materialValueType && ['service', 'electroinstall', 'internal'].includes(row.materialValueType)
+          ? row.materialValueType
+          : '',
+      defaultReceiptMode: row.defaultReceiptMode === 'batch' ? 'batch' : 'single',
       defaultBatchUnit: row.defaultBatchUnit || 'шт.',
       defaultCurrency: row.defaultCurrency || 'грн.',
       internalNotes: row.internalNotes || '',
+      technicalSpecs: specs,
+      attachedFiles: files,
       isActive: row.isActive !== false,
     });
     setShowForm(true);
     setError('');
+  };
+
+  const addSpecRow = () => {
+    setForm((f) => ({ ...f, technicalSpecs: [...(f.technicalSpecs || []), newSpecRow()] }));
+  };
+
+  const removeSpecRow = (key) => {
+    setForm((f) => ({ ...f, technicalSpecs: (f.technicalSpecs || []).filter((r) => r._key !== key) }));
+  };
+
+  const updateSpecRow = (key, field, val) => {
+    setForm((f) => ({
+      ...f,
+      technicalSpecs: (f.technicalSpecs || []).map((r) =>
+        r._key === key ? { ...r, [field]: val } : r,
+      ),
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -127,6 +182,22 @@ export default function ProductCardManagement() {
         defaultBatchUnit: form.defaultBatchUnit.trim() || 'шт.',
         defaultCurrency: form.defaultCurrency.trim() || 'грн.',
         internalNotes: form.internalNotes,
+        technicalSpecs: (form.technicalSpecs || []).map(({ name, value }) => ({
+          name: name != null ? String(name) : '',
+          value: value != null ? String(value) : '',
+        })),
+        materialValueType: form.materialValueType || '',
+        defaultReceiptMode: form.defaultReceiptMode === 'batch' ? 'batch' : 'single',
+        attachedFiles: (form.attachedFiles || [])
+          .map((f) => ({
+            cloudinaryUrl: f.cloudinaryUrl,
+            cloudinaryId: f.cloudinaryId,
+            originalName: f.originalName,
+            mimetype: f.mimetype,
+            size: f.size,
+            uploadedAt: f.uploadedAt,
+          }))
+          .filter((f) => f.cloudinaryUrl),
         isActive: !!form.isActive,
       };
       const url = editing
@@ -179,8 +250,10 @@ export default function ProductCardManagement() {
       <div className="category-management-header">
         <h2>Карточки продуктів (довідник номенклатури)</h2>
         <p className="category-management-desc">
-          Канонічний запис для типу товару: при надходженні на склад можна обрати карточку — підставляться тип, виробник, група 1С та вид номенклатури.
-          Створення та редагування — лише для адміністратора; перегляд списку доступний усім, хто має доступ до API (наприклад, при додаванні обладнання).
+          Канонічний запис для типу товару: при надходженні на склад обирають карточку — підставляються тип, виробник, група 1С, тип матеріальних цінностей, режим
+          одиничне/партія за замовчуванням, технічні характеристики (розпізнавання типових назв), фото з карточки.
+          <strong> Серійний / заводський номер конкретної одиниці</strong> завжди вводять лише у формі надходження на склад (у карточці його немає — він унікальний для кожної
+          одиниці). Створення та редагування карточок — адміністратор; список для вибору — при додаванні обладнання.
         </p>
         <div className="category-management-actions" style={{ flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
           <button type="button" className="btn-primary" onClick={openCreate}>
@@ -260,6 +333,42 @@ export default function ProductCardManagement() {
             </select>
           </div>
           <div className="form-row">
+            <label>Тип матеріальних цінностей за замовчуванням</label>
+            <select
+              value={form.materialValueType}
+              onChange={(e) => setForm((f) => ({ ...f, materialValueType: e.target.value }))}
+            >
+              <option value="">— Не задано (оберуть при надходженні або залишиться порожнім) —</option>
+              <option value="service">Комплектуючі ЗІП (Сервіс)</option>
+              <option value="electroinstall">Комплектуючі для електромонтажних робіт</option>
+              <option value="internal">Обладнання для внутрішніх потреб</option>
+            </select>
+          </div>
+          <div className="form-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+            <label>Режим надходження за замовчуванням</label>
+            <p style={{ fontSize: '12px', opacity: 0.85, margin: '0 0 8px' }}>
+              Підказка для форми прийому: одиничне (потрібен серійний/заводський номер з шильдика) або партія (кількість без серійника).
+            </p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: '6px' }}>
+              <input
+                type="radio"
+                name="pcReceiptMode"
+                checked={form.defaultReceiptMode === 'single'}
+                onChange={() => setForm((f) => ({ ...f, defaultReceiptMode: 'single' }))}
+              />
+              Одиничне обладнання (з серійним / заводським номером)
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="pcReceiptMode"
+                checked={form.defaultReceiptMode === 'batch'}
+                onChange={() => setForm((f) => ({ ...f, defaultReceiptMode: 'batch' }))}
+              />
+              Партія (щитове тощо — без серійного номера, за кількістю)
+            </label>
+          </div>
+          <div className="form-row">
             <label>Од. виміру за замовчуванням</label>
             <input
               type="text"
@@ -275,6 +384,77 @@ export default function ProductCardManagement() {
               onChange={(e) => setForm((f) => ({ ...f, defaultCurrency: e.target.value }))}
             />
           </div>
+
+          <div className="form-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+            <label>Фото та файли (зразок / паспорт / шильдик)</label>
+            <p style={{ fontSize: '12px', opacity: 0.85, margin: '0 0 8px' }}>
+              Завантажені файли при надходженні можуть додатися до позиції разом із цими зображеннями.
+            </p>
+            <EquipmentFileUpload
+              uploadedFiles={form.attachedFiles || []}
+              onFilesChange={(files) => setForm((f) => ({ ...f, attachedFiles: files }))}
+            />
+          </div>
+
+          <div className="form-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+            <label>Технічні характеристики (конструктор)</label>
+            <p
+              style={{
+                fontSize: '12px',
+                opacity: 0.85,
+                margin: '0 0 10px',
+                lineHeight: 1.45,
+              }}
+            >
+              Додавайте рядки з довільною назвою поля та значенням. Рядки, де порожні і назва, і значення, при збереженні
+              відкидаються.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {(form.technicalSpecs || []).map((row) => (
+                <div
+                  key={row._key}
+                  style={{
+                    display: 'flex',
+                    gap: '10px',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Назва поля (наприклад, Резервна потужність)"
+                    value={row.name}
+                    onChange={(e) => updateSpecRow(row._key, 'name', e.target.value)}
+                    style={{ flex: '1 1 160px', minWidth: '140px', padding: '8px 10px' }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Значення"
+                    value={row.value}
+                    onChange={(e) => updateSpecRow(row._key, 'value', e.target.value)}
+                    style={{ flex: '1 1 160px', minWidth: '140px', padding: '8px 10px' }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-delete-small"
+                    onClick={() => removeSpecRow(row._key)}
+                    title="Прибрати рядок"
+                  >
+                    Видалити
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ marginTop: '12px', alignSelf: 'flex-start' }}
+              onClick={addSpecRow}
+            >
+              + Додати характеристику
+            </button>
+          </div>
+
           <div className="form-row">
             <label>Внутрішні примітки</label>
             <textarea
@@ -336,6 +516,16 @@ export default function ProductCardManagement() {
                       <div>{row.type}</div>
                       {row.displayName ? (
                         <div style={{ fontSize: '12px', opacity: 0.75 }}>{row.displayName}</div>
+                      ) : null}
+                      {Array.isArray(row.technicalSpecs) && row.technicalSpecs.length > 0 ? (
+                        <div style={{ fontSize: '11px', opacity: 0.65, marginTop: '4px' }}>
+                          Характеристик: {row.technicalSpecs.length}
+                        </div>
+                      ) : null}
+                      {Array.isArray(row.attachedFiles) && row.attachedFiles.length > 0 ? (
+                        <div style={{ fontSize: '11px', opacity: 0.65, marginTop: '2px' }}>
+                          Файлів: {row.attachedFiles.length}
+                        </div>
                       ) : null}
                     </td>
                     <td style={{ padding: '8px' }}>{row.manufacturer || '—'}</td>
