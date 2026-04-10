@@ -536,6 +536,7 @@ function InventoryDashboard({ user }) {
         <EquipmentWriteOffModal
           equipment={selectedEquipment}
           warehouses={warehouses}
+          user={user}
           onClose={() => {
             setShowWriteOffModal(false);
             setSelectedEquipment(null);
