@@ -1130,6 +1130,164 @@ const warehouseSchema = new mongoose.Schema({
 warehouseSchema.index({ name: 1 }, { unique: true });
 const Warehouse = mongoose.model('Warehouse', warehouseSchema);
 
+/** Ролі завсклада: мутації складу лише в межах регіону користувача (див. ensureWarehouseStaff*). */
+function escapeRegExpForRegion(s) {
+  return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isRegionalWarehouseStaffRole(role) {
+  return ['warehouse', 'zavsklad'].includes(String(role || '').toLowerCase());
+}
+
+function bypassesRegionalWarehouseInventoryLock(role) {
+  return ['admin', 'administrator', 'mgradm'].includes(String(role || '').toLowerCase());
+}
+
+async function loadActiveWarehouseIdsForUserRegion(regionRaw) {
+  const r = String(regionRaw || '').trim();
+  if (!r) return new Set();
+  const pattern = new RegExp(escapeRegExpForRegion(r), 'i');
+  const whs = await Warehouse.find({ isActive: true, region: pattern }).select('_id').lean();
+  return new Set(whs.map((w) => String(w._id)));
+}
+
+function warehouseIdInRegionalSet(warehouseId, allowedIds) {
+  if (warehouseId === undefined || warehouseId === null || warehouseId === '') return false;
+  return allowedIds.has(String(warehouseId));
+}
+
+/**
+ * Завсклад / warehouse: дія лише якщо warehouseId — один із активних складів регіону користувача.
+ * Інші ролі — без обмеження тут.
+ */
+async function ensureWarehouseStaffWarehouseIdAllowed(res, reqUser, dbUser, warehouseId, errorMessage) {
+  if (bypassesRegionalWarehouseInventoryLock(reqUser.role)) return true;
+  if (!isRegionalWarehouseStaffRole(reqUser.role)) return true;
+  if (!dbUser) {
+    res.status(401).json({ error: 'Користувач не знайдено' });
+    return false;
+  }
+  const allowed = await loadActiveWarehouseIdsForUserRegion(dbUser.region);
+  if (!allowed.size) {
+    res.status(403).json({
+      error:
+        'Для вашого профілю не знайдено активних складів у вашому регіоні (поле «Регіон» у користувача або склади в БД). Зверніться до адміністратора.'
+    });
+    return false;
+  }
+  if (!warehouseIdInRegionalSet(warehouseId, allowed)) {
+    res.status(403).json({
+      error:
+        errorMessage ||
+        'Операція дозволена лише щодо складу вашого регіону.'
+    });
+    return false;
+  }
+  return true;
+}
+
+/** Товар має фізично перебувати на складі зі списку регіону користувача (завсклад / warehouse). */
+async function ensureWarehouseStaffEquipmentAccess(res, reqUser, dbUser, equipment, errorMessage) {
+  if (!equipment) {
+    res.status(404).json({ error: 'Обладнання не знайдено' });
+    return false;
+  }
+  return ensureWarehouseStaffWarehouseIdAllowed(
+    res,
+    reqUser,
+    dbUser,
+    equipment.currentWarehouse,
+    errorMessage || 'Дія дозволена лише для товару на складі вашого регіону.'
+  );
+}
+
+/**
+ * Документ переміщення: хто може змінювати статус.
+ * — У «в дорозі»: відправник (fromWarehouse у регіоні).
+ * — «Завершено»: одержувач (toWarehouse у регіоні).
+ * — «Скасовано»: будь-яка зі сторін у регіоні.
+ */
+async function ensureWarehouseStaffMovementDocTransition(res, reqUser, dbUser, prevStatus, doc) {
+  if (bypassesRegionalWarehouseInventoryLock(reqUser.role)) return true;
+  if (!isRegionalWarehouseStaffRole(reqUser.role)) return true;
+  if (!dbUser) {
+    res.status(401).json({ error: 'Користувач не знайдено' });
+    return false;
+  }
+  const allowed = await loadActiveWarehouseIdsForUserRegion(dbUser.region);
+  if (!allowed.size) {
+    res.status(403).json({
+      error:
+        'Для вашого профілю не знайдено активних складів у вашому регіоні. Зверніться до адміністратора.'
+    });
+    return false;
+  }
+  const fromW = doc.fromWarehouse;
+  const toW = doc.toWarehouse;
+  const nextSt = doc.status;
+  const wasCancelled = prevStatus === 'cancelled';
+  const wasCompleted = prevStatus === 'completed';
+  const wasInTransit = prevStatus === 'in_transit';
+
+  if (nextSt === 'cancelled' && !wasCancelled) {
+    if (!warehouseIdInRegionalSet(fromW, allowed) && !warehouseIdInRegionalSet(toW, allowed)) {
+      res.status(403).json({
+        error:
+          'Скасувати документ переміщення можна лише якщо відправник або одержувач належить до вашого регіону.'
+      });
+      return false;
+    }
+    return true;
+  }
+  if (nextSt === 'in_transit' && !wasInTransit) {
+    if (!warehouseIdInRegionalSet(fromW, allowed)) {
+      res.status(403).json({
+        error: 'Перевести в «в дорозі» можна лише зі складу відправника вашого регіону.'
+      });
+      return false;
+    }
+    return true;
+  }
+  if (nextSt === 'completed' && !wasCompleted) {
+    if (!warehouseIdInRegionalSet(toW, allowed)) {
+      res.status(403).json({
+        error: 'Завершити документ переміщення (прийом) можна лише для складу одержувача вашого регіону.'
+      });
+      return false;
+    }
+    return true;
+  }
+  return true;
+}
+
+async function loadEquipmentWarehouseMapForIds(idStrings) {
+  const map = new Map();
+  const unique = [...new Set((idStrings || []).map((id) => String(id)).filter(Boolean))];
+  const oids = unique.filter((id) => mongoose.isValidObjectId(id)).map((id) => new mongoose.Types.ObjectId(id));
+  if (!oids.length) return map;
+  const rows = await Equipment.find({ _id: { $in: oids } }).select('_id currentWarehouse').lean();
+  for (const e of rows) {
+    map.set(String(e._id), e.currentWarehouse != null ? String(e.currentWarehouse) : '');
+  }
+  return map;
+}
+
+/** Заявка на відвантаження: хоча б один рядок зі складу регіону (для списку / перегляду завсклад). */
+function shipmentRequestTouchesRegionalWarehouses(sr, allowedWarehouseIds, equipmentWarehouseMap) {
+  return (sr.equipmentIds || []).some((eid) =>
+    warehouseIdInRegionalSet(equipmentWarehouseMap.get(String(eid)), allowedWarehouseIds)
+  );
+}
+
+/** Усе обладнання заявки зараз на складах цього регіону (для «виконано»). */
+function shipmentRequestAllEquipmentInRegionalWarehouses(sr, allowedWarehouseIds, equipmentWarehouseMap) {
+  const ids = sr.equipmentIds || [];
+  if (!ids.length) return false;
+  return ids.every((eid) =>
+    warehouseIdInRegionalSet(equipmentWarehouseMap.get(String(eid)), allowedWarehouseIds)
+  );
+}
+
 /** Один документ: точні пари «назва з Excel → categoryId» для імпорту залишків (персистентно на Render тощо). */
 const STOCK_IMPORT_NOMENCLATURE_DOC_ID = 'singleton';
 const stockImportNomenclatureSchema = new mongoose.Schema({
@@ -2602,7 +2760,26 @@ app.get('/api/shipment-requests', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Немає доступу' });
     }
     const status = req.query.status || 'pending';
-    const list = await ShipmentRequest.find({ status }).sort({ createdAt: -1 }).limit(200).lean();
+    let list = await ShipmentRequest.find({ status }).sort({ createdAt: -1 }).limit(200).lean();
+
+    if (
+      isRegionalWarehouseStaffRole(req.user.role) &&
+      !bypassesRegionalWarehouseInventoryLock(req.user.role)
+    ) {
+      const u = await User.findOne({ login: req.user.login }).select('region').lean();
+      const allowed = await loadActiveWarehouseIdsForUserRegion(u?.region);
+      if (!allowed.size) {
+        list = [];
+      } else {
+        const allEq = [];
+        for (const sr of list) {
+          for (const eid of sr.equipmentIds || []) allEq.push(String(eid));
+        }
+        const whMap = await loadEquipmentWarehouseMapForIds(allEq);
+        list = list.filter((sr) => shipmentRequestTouchesRegionalWarehouses(sr, allowed, whMap));
+      }
+    }
+
     res.json(list);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -2622,6 +2799,22 @@ app.get('/api/shipment-requests/:id', authenticateToken, async (req, res) => {
     if (!whCan && !isMgr && !canAssignSaleManager(req.user)) {
       return res.status(403).json({ error: 'Немає доступу' });
     }
+
+    if (
+      whCan &&
+      isRegionalWarehouseStaffRole(req.user.role) &&
+      !bypassesRegionalWarehouseInventoryLock(req.user.role)
+    ) {
+      const whUserSr = await User.findOne({ login: req.user.login }).select('region').lean();
+      const allowedSr = await loadActiveWarehouseIdsForUserRegion(whUserSr?.region);
+      const whMapSr = await loadEquipmentWarehouseMapForIds(sr.equipmentIds || []);
+      if (!allowedSr.size || !shipmentRequestTouchesRegionalWarehouses(sr, allowedSr, whMapSr)) {
+        return res.status(403).json({
+          error: 'Ця заявка не стосується обладнання на складах вашого регіону.'
+        });
+      }
+    }
+
     const equipment = await Equipment.find({ _id: { $in: sr.equipmentIds || [] } }).lean();
     let ttnFile = null;
     if (sr.ttnFileId) {
@@ -2645,8 +2838,27 @@ app.patch('/api/shipment-requests/:id/status', authenticateToken, async (req, re
     const srPrev = await ShipmentRequest.findById(req.params.id).lean();
     if (!srPrev) return res.status(404).json({ error: 'Заявку не знайдено' });
 
-    const whUser = await User.findOne({ login: req.user.login }).select('name').lean();
+    const whUser = await User.findOne({ login: req.user.login }).select('name region').lean();
     const whName = whUser?.name || req.user.login;
+
+    if (status === 'fulfilled' && srPrev.status !== 'fulfilled') {
+      if (
+        isRegionalWarehouseStaffRole(req.user.role) &&
+        !bypassesRegionalWarehouseInventoryLock(req.user.role)
+      ) {
+        const allowedFul = await loadActiveWarehouseIdsForUserRegion(whUser?.region);
+        const whMapFul = await loadEquipmentWarehouseMapForIds(srPrev.equipmentIds || []);
+        if (
+          !allowedFul.size ||
+          !shipmentRequestAllEquipmentInRegionalWarehouses(srPrev, allowedFul, whMapFul)
+        ) {
+          return res.status(403).json({
+            error:
+              'Підтвердити «Виконано» можна лише якщо все обладнання заявки на складах вашого регіону. Заявки з кількох регіонів оформлює адміністратор.'
+          });
+        }
+      }
+    }
 
     if (status === 'cancelled' && srPrev.status !== 'cancelled') {
       for (const eid of srPrev.equipmentIds || []) {
@@ -2658,6 +2870,14 @@ app.patch('/api/shipment-requests/:id/status', authenticateToken, async (req, re
         ) {
           continue;
         }
+        const okSr = await ensureWarehouseStaffEquipmentAccess(
+          res,
+          req.user,
+          whUser,
+          eq,
+          'Скасувати заявку на відвантаження можна лише для товару на складі вашого регіону.'
+        );
+        if (!okSr) return;
         const restored = eq.statusBeforePendingShipment || 'in_stock';
         await logInventoryMovement({
           eventType: 'shipment_request_cancelled',
@@ -2719,7 +2939,10 @@ app.get('/api/inventory-movement-log', authenticateToken, async (req, res) => {
         .lean(),
       InventoryMovementLog.countDocuments({})
     ]);
-    res.json({ rows, total, skip, limit });
+    const journalReadOnly =
+      isRegionalWarehouseStaffRole(req.user.role) &&
+      !bypassesRegionalWarehouseInventoryLock(req.user.role);
+    res.json({ rows, total, skip, limit, journalReadOnly });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -6504,9 +6727,31 @@ app.put('/api/invoice-requests/:id/return-to-work', authenticateToken, async (re
 app.get('/api/warehouses', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const warehouses = await Warehouse.find({ isActive: true })
-      .sort({ name: 1 })
-      .lean();
+    let warehouses;
+    if (
+      isRegionalWarehouseStaffRole(req.user.role) &&
+      !bypassesRegionalWarehouseInventoryLock(req.user.role)
+    ) {
+      const u = await User.findOne({ login: req.user.login }).select('region').lean();
+      const allowedIds = await loadActiveWarehouseIdsForUserRegion(u?.region);
+      if (!allowedIds.size) {
+        warehouses = [];
+      } else {
+        const oidList = [...allowedIds].filter((id) => mongoose.isValidObjectId(id)).map((id) => new mongoose.Types.ObjectId(id));
+        warehouses = oidList.length
+          ? await Warehouse.find({
+              isActive: true,
+              _id: { $in: oidList }
+            })
+              .sort({ name: 1 })
+              .lean()
+          : [];
+      }
+    } else {
+      warehouses = await Warehouse.find({ isActive: true })
+        .sort({ name: 1 })
+        .lean();
+    }
     logPerformance('GET /api/warehouses', startTime, warehouses.length);
     res.json(warehouses);
   } catch (error) {
@@ -6524,8 +6769,20 @@ app.post('/api/warehouses', authenticateToken, async (req, res) => {
     if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
-    
+
     const { name, region, address } = req.body;
+    if (
+      isRegionalWarehouseStaffRole(req.user.role) &&
+      !bypassesRegionalWarehouseInventoryLock(req.user.role)
+    ) {
+      const u = await User.findOne({ login: req.user.login }).select('region').lean();
+      const bodyRegion = String(region || '').trim();
+      const ur = String(u?.region || '').trim();
+      if (!bodyRegion || !ur || !new RegExp(escapeRegExpForRegion(ur), 'i').test(bodyRegion)) {
+        return res.status(403).json({ error: 'Створювати склад можна лише з регіоном, що відповідає вашому профілю.' });
+      }
+    }
+
     const warehouse = await Warehouse.create({ name, region, address });
     logPerformance('POST /api/warehouses', startTime);
     res.status(201).json(warehouse);
@@ -6544,7 +6801,22 @@ app.put('/api/warehouses/:id', authenticateToken, async (req, res) => {
     if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
-    
+
+    const uPut = await User.findOne({ login: req.user.login }).select('region').lean();
+    if (
+      isRegionalWarehouseStaffRole(req.user.role) &&
+      !bypassesRegionalWarehouseInventoryLock(req.user.role)
+    ) {
+      const okWh = await ensureWarehouseStaffWarehouseIdAllowed(
+        res,
+        req.user,
+        uPut,
+        req.params.id,
+        'Редагувати можна лише склади вашого регіону.'
+      );
+      if (!okWh) return;
+    }
+
     const { name, region, address, isActive } = req.body;
     const warehouse = await Warehouse.findByIdAndUpdate(
       req.params.id,
@@ -6993,7 +7265,27 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
     const isBatch = equipmentData.isBatch === true;
     const quantity = isBatch ? (parseInt(equipmentData.quantity) || 1) : 1;
     const hasSerialNumber = equipmentData.serialNumber && equipmentData.serialNumber.trim() !== '';
-    
+
+    if (
+      isRegionalWarehouseStaffRole(req.user.role) &&
+      !bypassesRegionalWarehouseInventoryLock(req.user.role)
+    ) {
+      const targetWh = equipmentData.currentWarehouse;
+      if (!targetWh || String(targetWh).trim() === '') {
+        return res.status(400).json({
+          error: 'Оберіть склад надходження вашого регіону (поле currentWarehouse).'
+        });
+      }
+      const okWh = await ensureWarehouseStaffWarehouseIdAllowed(
+        res,
+        req.user,
+        user,
+        targetWh,
+        'Надходження дозволене лише на склад вашого регіону.'
+      );
+      if (!okWh) return;
+    }
+
     // Визначаємо склад та регіон
     const warehouse = equipmentData.currentWarehouse || user.region;
     const warehouseName = equipmentData.currentWarehouseName || user.region;
@@ -7740,6 +8032,9 @@ app.put('/api/equipment/:id', authenticateToken, async (req, res) => {
     if (!user) {
       return res.status(401).json({ error: 'Користувач не знайдено' });
     }
+
+    const okPut = await ensureWarehouseStaffEquipmentAccess(res, req.user, user, equipment);
+    if (!okPut) return;
 
     // Оновлюємо поля
     const changes = [];
@@ -9113,6 +9408,15 @@ app.post('/api/equipment/quantity/write-off', authenticateToken, async (req, res
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
 
+    const okWoQ = await ensureWarehouseStaffEquipmentAccess(
+      res,
+      req.user,
+      user,
+      equipment,
+      'Списання дозволене лише для товару на складі вашого регіону.'
+    );
+    if (!okWoQ) return;
+
     const statusBeforeWriteOff = equipment.status;
     
     // Перевірка, що це обладнання без серійного номера
@@ -9221,6 +9525,15 @@ app.post('/api/equipment/:id/write-off', authenticateToken, async (req, res) => 
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
 
+    const okWo1 = await ensureWarehouseStaffEquipmentAccess(
+      res,
+      req.user,
+      user,
+      equipment,
+      'Списання дозволене лише для товару на складі вашого регіону.'
+    );
+    if (!okWo1) return;
+
     const statusBeforeWriteOffSingle = equipment.status;
     
     // Створюємо запис списання
@@ -9311,6 +9624,15 @@ app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
     if (!fromWarehouse || !toWarehouse) {
       return res.status(400).json({ error: 'fromWarehouse та toWarehouse обов\'язкові' });
     }
+
+    const okBatchMove = await ensureWarehouseStaffWarehouseIdAllowed(
+      res,
+      req.user,
+      user,
+      fromWarehouse,
+      'Переміщення дозволене лише зі складу вашого регіону.'
+    );
+    if (!okBatchMove) return;
     
     // Знаходимо всі одиниці партії на поточному складі
     const batchItems = await Equipment.find({
@@ -9451,6 +9773,15 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
     if (!equipment) {
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
+
+    const okQm = await ensureWarehouseStaffWarehouseIdAllowed(
+      res,
+      req.user,
+      user,
+      fromWarehouse,
+      'Переміщення дозволене лише зі складу вашого регіону.'
+    );
+    if (!okQm) return;
     
     // Перевірка, що це обладнання без серійного номера
     if (equipment.serialNumber && equipment.serialNumber.trim() !== '') {
@@ -9831,6 +10162,19 @@ app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
     if (!batchId || !quantity || quantity < 1) {
       return res.status(400).json({ error: 'batchId та quantity обов\'язкові' });
     }
+
+    if (!fromWarehouse) {
+      return res.status(400).json({ error: 'fromWarehouse обов\'язковий' });
+    }
+
+    const okBSh = await ensureWarehouseStaffWarehouseIdAllowed(
+      res,
+      req.user,
+      user,
+      fromWarehouse,
+      'Відвантаження дозволене лише зі складу вашого регіону.'
+    );
+    if (!okBSh) return;
     
     // Знаходимо всі одиниці партії на складі (у т.ч. «на відвантаженні» після заявки менеджера)
     const batchItems = await Equipment.find({
@@ -9978,6 +10322,15 @@ app.post('/api/equipment/quantity/ship', authenticateToken, async (req, res) => 
         error: `Обладнання знаходиться на іншому складі: ${equipment.currentWarehouseName || equipment.currentWarehouse}` 
       });
     }
+
+    const okQSh = await ensureWarehouseStaffWarehouseIdAllowed(
+      res,
+      req.user,
+      user,
+      fromWarehouse,
+      'Відвантаження дозволене лише зі складу вашого регіону.'
+    );
+    if (!okQSh) return;
 
     if (!['in_stock', 'reserved', 'pending_shipment'].includes(equipment.status)) {
       return res.status(400).json({
@@ -10128,6 +10481,9 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
     if (!equipment) {
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
+
+    const okMove = await ensureWarehouseStaffEquipmentAccess(res, req.user, user, equipment);
+    if (!okMove) return;
     
     // Зберігаємо оригінальний склад ПЕРЕД зміною
     const fromWarehouse = equipment.currentWarehouse;
@@ -10147,6 +10503,7 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
     };
 
     const fromStMove = equipment.status;
+    if (!equipment.movementHistory) equipment.movementHistory = [];
     equipment.movementHistory.push(movement);
     equipment.currentWarehouse = toWarehouse;
     equipment.currentWarehouseName = toWarehouseName;
@@ -10251,6 +10608,15 @@ app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
     if (!equipment) {
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
+
+    const okShip1 = await ensureWarehouseStaffEquipmentAccess(
+      res,
+      req.user,
+      user,
+      equipment,
+      'Відвантаження дозволене лише зі складу вашого регіону.'
+    );
+    if (!okShip1) return;
 
     if (!['in_stock', 'reserved', 'pending_shipment'].includes(equipment.status)) {
       return res.status(400).json({
@@ -10378,6 +10744,27 @@ app.post('/api/equipment/approve-receipt', authenticateToken, async (req, res) =
       return res.status(404).json({ error: 'Не знайдено товарів в дорозі з вказаними ID' });
     }
 
+    if (
+      isRegionalWarehouseStaffRole(req.user.role) &&
+      !bypassesRegionalWarehouseInventoryLock(req.user.role)
+    ) {
+      const allowedRecv = await loadActiveWarehouseIdsForUserRegion(user.region);
+      if (!allowedRecv.size) {
+        return res.status(403).json({
+          error:
+            'Для вашого профілю не знайдено активних складів у вашому регіоні. Зверніться до адміністратора.'
+        });
+      }
+      for (const row of equipmentList) {
+        if (!warehouseIdInRegionalSet(row.currentWarehouse, allowedRecv)) {
+          return res.status(403).json({
+            error:
+              'Підтвердити прийом можна лише для товару, що адресований на склад вашого регіону (після переміщення).'
+          });
+        }
+      }
+    }
+
     // Оновлюємо статус на in_stock
     const updatedItems = [];
     for (const item of equipmentList) {
@@ -10484,6 +10871,18 @@ app.put('/api/equipment/:id/status', authenticateToken, async (req, res) => {
     }
 
     const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    const okSt = await ensureWarehouseStaffEquipmentAccess(
+      res,
+      req.user,
+      user,
+      equipment,
+      'Зміна статусу дозволена лише для товару на складі вашого регіону.'
+    );
+    if (!okSt) return;
+
     const prevStPut = equipment.status;
     
     equipment.status = status;
@@ -10575,6 +10974,18 @@ app.post('/api/documents/receipt', authenticateToken, async (req, res) => {
     if (!user) {
       return res.status(401).json({ error: 'Користувач не знайдено' });
     }
+
+    const bodyRec = req.body || {};
+    if (bodyRec.status === 'completed' && Array.isArray(bodyRec.items) && bodyRec.items.length) {
+      const okRecPost = await ensureWarehouseStaffWarehouseIdAllowed(
+        res,
+        req.user,
+        user,
+        bodyRec.warehouse,
+        'Завершити надходження можна лише на склад вашого регіону.'
+      );
+      if (!okRecPost) return;
+    }
     
     const documentNumber = await generateDocumentNumber('REC', ReceiptDocument);
     
@@ -10632,7 +11043,34 @@ app.put('/api/documents/receipt/:id', authenticateToken, async (req, res) => {
       return res.status(401).json({ error: 'Користувач не знайдено' });
     }
 
-    const prevDoc = await ReceiptDocument.findById(req.params.id);
+    const prevDoc = await ReceiptDocument.findById(req.params.id).lean();
+    if (!prevDoc) {
+      return res.status(404).json({ error: 'Документ не знайдено' });
+    }
+
+    const mergedRec = { ...prevDoc, ...req.body };
+    const nextRecStatus = mergedRec.status !== undefined ? mergedRec.status : prevDoc.status;
+    if (nextRecStatus === 'completed' && prevDoc.status !== 'completed' && mergedRec.items?.length) {
+      const okRecPut = await ensureWarehouseStaffWarehouseIdAllowed(
+        res,
+        req.user,
+        user,
+        mergedRec.warehouse,
+        'Завершити надходження можна лише на склад вашого регіону.'
+      );
+      if (!okRecPut) return;
+    }
+    if (nextRecStatus === 'cancelled' && prevDoc.status !== 'cancelled' && mergedRec.items?.length) {
+      const okRecCan = await ensureWarehouseStaffWarehouseIdAllowed(
+        res,
+        req.user,
+        user,
+        mergedRec.warehouse,
+        'Скасувати документ надходження можна лише для складу вашого регіону.'
+      );
+      if (!okRecCan) return;
+    }
+
     const document = await ReceiptDocument.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -10751,7 +11189,27 @@ app.put('/api/documents/movement/:id', authenticateToken, async (req, res) => {
       return res.status(401).json({ error: 'Користувач не знайдено' });
     }
 
-    const prevMovementDoc = await MovementDocument.findById(req.params.id);
+    const prevMovementDoc = await MovementDocument.findById(req.params.id).lean();
+    if (!prevMovementDoc) {
+      return res.status(404).json({ error: 'Документ не знайдено' });
+    }
+
+    const mergedMov = { ...prevMovementDoc, ...req.body };
+    const docForAccess = {
+      status: mergedMov.status !== undefined ? mergedMov.status : prevMovementDoc.status,
+      fromWarehouse: mergedMov.fromWarehouse !== undefined ? mergedMov.fromWarehouse : prevMovementDoc.fromWarehouse,
+      toWarehouse: mergedMov.toWarehouse !== undefined ? mergedMov.toWarehouse : prevMovementDoc.toWarehouse,
+      items: mergedMov.items !== undefined ? mergedMov.items : prevMovementDoc.items,
+      documentNumber: mergedMov.documentNumber || prevMovementDoc.documentNumber
+    };
+    const okMovPut = await ensureWarehouseStaffMovementDocTransition(
+      res,
+      req.user,
+      user,
+      prevMovementDoc.status,
+      docForAccess
+    );
+    if (!okMovPut) return;
     
     const document = await MovementDocument.findByIdAndUpdate(
       req.params.id,
@@ -10883,6 +11341,18 @@ app.post('/api/documents/movement', authenticateToken, async (req, res) => {
       createdBy: user._id.toString(),
       createdByName: user.name || user.login
     });
+
+    const okMovPost = await ensureWarehouseStaffMovementDocTransition(
+      res,
+      req.user,
+      user,
+      undefined,
+      document.toObject()
+    );
+    if (!okMovPost) {
+      await MovementDocument.findByIdAndDelete(document._id);
+      return;
+    }
     
     // Оновлюємо обладнання при завершенні переміщення
     if (document.status === 'completed' && document.items) {
@@ -10996,6 +11466,22 @@ app.post('/api/documents/shipment', authenticateToken, async (req, res) => {
     const user = await User.findOne({ login: req.user.login });
     if (!user) {
       return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    const bodyShip = req.body || {};
+    if (bodyShip.status === 'shipped' && Array.isArray(bodyShip.items)) {
+      for (const item of bodyShip.items) {
+        if (!item.equipmentId) continue;
+        const eq = await Equipment.findById(item.equipmentId);
+        const okShipDocPre = await ensureWarehouseStaffEquipmentAccess(
+          res,
+          req.user,
+          user,
+          eq,
+          'Оформити відвантаження за документом можна лише для товару на складі вашого регіону.'
+        );
+        if (!okShipDocPre) return;
+      }
     }
     
     const documentNumber = await generateDocumentNumber('SHIP', ShipmentDocument);

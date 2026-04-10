@@ -14,6 +14,18 @@
   line-height: 1.45;
 }
 
+.inventory-movement-journal-readonly {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  border-radius: 8px;
+  background: var(--info-bg, rgba(59, 130, 246, 0.12));
+  border: 1px solid var(--info-border, rgba(59, 130, 246, 0.35));
+  color: var(--text-primary, inherit);
+  max-width: 720px;
+}
+
 .inventory-movement-journal-toolbar {
   display: flex;
   align-items: center;
