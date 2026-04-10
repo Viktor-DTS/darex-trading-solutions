@@ -115,7 +115,10 @@ function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess, li
               !eq.deleted &&
               eq.status !== 'written_off' &&
               eq.status !== 'deleted' &&
-              (eq.status === 'in_stock' || eq.status === 'reserved' || !eq.status)
+              (eq.status === 'in_stock' ||
+                eq.status === 'reserved' ||
+                eq.status === 'pending_shipment' ||
+                !eq.status)
           )
         );
       } catch (err) {
@@ -191,7 +194,11 @@ function EquipmentShipModal({ equipment, warehouses = [], onClose, onSuccess, li
     const singleItems = [];
     
     equipmentList.forEach(eq => {
-      const isAvailable = eq.status === 'in_stock' || eq.status === 'reserved' || !eq.status;
+      const isAvailable =
+        eq.status === 'in_stock' ||
+        eq.status === 'reserved' ||
+        eq.status === 'pending_shipment' ||
+        !eq.status;
       // Обладнання з batchId (стара логіка партій)
       if (eq.isBatch && eq.batchId && isAvailable) {
         const key = `${eq.batchId}-${eq.currentWarehouse || eq.currentWarehouseName}`;

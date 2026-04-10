@@ -19,6 +19,7 @@ const getStatusLabel = (status) => {
   const labels = {
     'in_stock': 'На складі',
     'reserved': 'На складі', // Зарезервоване також показуємо як "На складі" в колонці статусу на складі
+    'pending_shipment': 'На відвантаженні',
     'shipped': 'Відвантажено',
     'in_transit': 'В дорозі',
     'written_off': 'Списано',
@@ -298,7 +299,7 @@ const EquipmentList = forwardRef(({
       return ['', ...uniqueWarehouses];
     }
     if (columnKey === 'status') {
-      return ['', 'На складі', 'В дорозі', 'Відвантажено'];
+      return ['', 'На складі', 'На відвантаженні', 'В дорозі', 'Відвантажено'];
     }
     if (columnKey === 'reservationStatus') {
       return ['', 'Всі', 'Вільна', 'Зарезервовано'];

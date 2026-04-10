@@ -14,6 +14,7 @@ import ShipmentDocuments from './inventory/ShipmentDocuments';
 import InventoryDocuments from './inventory/InventoryDocuments';
 import Reservations from './inventory/Reservations';
 import InventoryReports from './inventory/InventoryReports';
+import InventoryMovementJournal from './inventory/InventoryMovementJournal';
 import ReceiptApproval from './inventory/ReceiptApproval';
 import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import './InventoryDashboard.css';
@@ -121,6 +122,7 @@ function InventoryDashboard({ user }) {
     { id: 'receipt', label: 'Надходження', icon: '📥' },
     { id: 'movement', label: 'Переміщення', icon: '🔄' },
     { id: 'shipment', label: 'Відвантаження', icon: '🚚' },
+    { id: 'movement-journal', label: 'Журнал руху товару', icon: '📒' },
     { id: 'notifications', label: 'Сповіщення', icon: '🔔' },
     { id: 'write-off', label: 'Списання', icon: '📝' },
     { id: 'approval', label: 'Затвердження отримання товару', icon: '✅', badge: inTransitCount },
@@ -357,6 +359,13 @@ function InventoryDashboard({ user }) {
 
       case 'statistics':
         return <EquipmentStatistics warehouses={warehouses} />;
+
+      case 'movement-journal':
+        return (
+          <div className="inventory-tab-content">
+            <InventoryMovementJournal />
+          </div>
+        );
 
       default:
         return null;

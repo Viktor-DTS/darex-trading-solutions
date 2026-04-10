@@ -694,9 +694,12 @@ const equipmentSchema = new mongoose.Schema({
   region: String,                    // Регіон
   status: {                          // Статус
     type: String,
-    enum: ['in_stock', 'reserved', 'shipped', 'in_transit', 'deleted', 'written_off', 'sold'],
+    enum: ['in_stock', 'reserved', 'pending_shipment', 'shipped', 'in_transit', 'deleted', 'written_off', 'sold'],
     default: 'in_stock'
   },
+  /** Заявка на відвантаження (менеджер) — поки завсклад не відвантажить */
+  pendingShipmentRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ShipmentRequest' },
+  statusBeforePendingShipment: { type: String },
   
   // Продаж (CRM)
   saleId: mongoose.Schema.Types.ObjectId,
@@ -966,6 +969,13 @@ async function performEquipmentReservationRelease(equipment, actingUser, cancelR
   const uid = actingUser ? String(actingUser._id) : 'system';
   const uname = actingUser ? actingUser.name || actingUser.login : 'Система';
 
+  const journalEquipmentId = equipment._id;
+  const journalType = equipment.type;
+  const journalSerial = equipment.serialNumber;
+  const journalQty = equipment.quantity || 1;
+  const journalClientName = equipment.reservationClientName;
+  const journalReservedByLogin = equipment.reservedByLogin;
+
   if (!equipment.reservationHistory) equipment.reservationHistory = [];
   let histNotes = '';
   if (cancelReason === 'expired') histNotes = 'Автоматичне скасування: закінчився термін резервування';
@@ -1014,6 +1024,21 @@ async function performEquipmentReservationRelease(equipment, actingUser, cancelR
   } catch (logErr) {
     console.error('Помилка логування cancel_reserve:', logErr);
   }
+
+  await logInventoryMovement({
+    eventType: 'reservation_cancelled',
+    performedByLogin: actingUser?.login || 'system',
+    performedByName: uname,
+    equipmentId: journalEquipmentId,
+    equipmentType: journalType,
+    serialNumber: journalSerial,
+    quantity: journalQty,
+    fromStatus: 'reserved',
+    toStatus: 'in_stock',
+    managerLogin: journalReservedByLogin,
+    clientName: journalClientName,
+    notes: histNotes || (cancelReason === 'expired' ? 'Автоматичне скасування резерву' : `Скасування резерву (${cancelReason})`)
+  });
 }
 
 let reservationMaintenanceRunning = false;
@@ -1374,6 +1399,48 @@ const shipmentRequestSchema = new mongoose.Schema({
 shipmentRequestSchema.index({ saleId: 1, createdAt: -1 });
 shipmentRequestSchema.index({ status: 1, createdAt: -1 });
 const ShipmentRequest = mongoose.model('ShipmentRequest', shipmentRequestSchema);
+
+/** Журнал руху товару (складський облік): заявки, відвантаження, переміщення, зміна статусу */
+const inventoryMovementLogSchema = new mongoose.Schema(
+  {
+    occurredAt: { type: Date, default: Date.now, index: true },
+    eventType: { type: String, required: true },
+    performedByLogin: String,
+    performedByName: String,
+    equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
+    equipmentType: String,
+    serialNumber: String,
+    quantity: { type: Number, default: 1 },
+    fromStatus: String,
+    toStatus: String,
+    managerLogin: String,
+    managerName: String,
+    clientName: String,
+    clientEdrpou: String,
+    shipmentAddress: String,
+    destinationWarehouseName: String,
+    sourceWarehouseName: String,
+    shipmentRequestNumber: String,
+    shipmentRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ShipmentRequest' },
+    saleNumber: String,
+    saleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale' },
+    notes: String
+  },
+  { timestamps: true }
+);
+inventoryMovementLogSchema.index({ occurredAt: -1 });
+const InventoryMovementLog = mongoose.model('InventoryMovementLog', inventoryMovementLogSchema);
+
+async function logInventoryMovement(entry) {
+  try {
+    await InventoryMovementLog.create({
+      occurredAt: entry.occurredAt || new Date(),
+      ...entry
+    });
+  } catch (e) {
+    console.error('[logInventoryMovement]', e);
+  }
+}
 
 // ============================================
 // CRM - Клієнти та продажі для менеджерів
@@ -2575,6 +2642,56 @@ app.patch('/api/shipment-requests/:id/status', authenticateToken, async (req, re
     if (!['fulfilled', 'cancelled', 'pending'].includes(status)) {
       return res.status(400).json({ error: 'Некоректний статус' });
     }
+    const srPrev = await ShipmentRequest.findById(req.params.id).lean();
+    if (!srPrev) return res.status(404).json({ error: 'Заявку не знайдено' });
+
+    const whUser = await User.findOne({ login: req.user.login }).select('name').lean();
+    const whName = whUser?.name || req.user.login;
+
+    if (status === 'cancelled' && srPrev.status !== 'cancelled') {
+      for (const eid of srPrev.equipmentIds || []) {
+        const eq = await Equipment.findById(eid);
+        if (
+          !eq ||
+          eq.status !== 'pending_shipment' ||
+          String(eq.pendingShipmentRequestId || '') !== String(srPrev._id)
+        ) {
+          continue;
+        }
+        const restored = eq.statusBeforePendingShipment || 'in_stock';
+        await logInventoryMovement({
+          eventType: 'shipment_request_cancelled',
+          performedByLogin: req.user.login,
+          performedByName: whName,
+          equipmentId: eq._id,
+          equipmentType: eq.type,
+          serialNumber: eq.serialNumber,
+          quantity: eq.quantity || 1,
+          fromStatus: 'pending_shipment',
+          toStatus: restored,
+          shipmentRequestNumber: srPrev.requestNumber,
+          shipmentRequestId: srPrev._id,
+          saleId: srPrev.saleId,
+          notes: `Скасовано заявку ${srPrev.requestNumber}`
+        });
+        eq.status = restored;
+        eq.pendingShipmentRequestId = undefined;
+        eq.statusBeforePendingShipment = undefined;
+        eq.lastModified = new Date();
+        await eq.save();
+      }
+      const saleDoc = await Sale.findById(srPrev.saleId);
+      if (saleDoc?.equipmentItems?.length) {
+        for (const item of saleDoc.equipmentItems) {
+          if (item.shipmentRequestId && String(item.shipmentRequestId) === String(srPrev._id)) {
+            item.shipmentLocked = false;
+            item.shipmentRequestId = undefined;
+          }
+        }
+        await saleDoc.save();
+      }
+    }
+
     const sr = await ShipmentRequest.findByIdAndUpdate(
       req.params.id,
       { $set: { status } },
@@ -2587,13 +2704,34 @@ app.patch('/api/shipment-requests/:id/status', authenticateToken, async (req, re
   }
 });
 
+app.get('/api/inventory-movement-log', authenticateToken, async (req, res) => {
+  try {
+    if (!canAccessInventoryShipmentRequests(req.user)) {
+      return res.status(403).json({ error: 'Немає доступу' });
+    }
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 150, 1), 500);
+    const skip = Math.max(parseInt(req.query.skip, 10) || 0, 0);
+    const [rows, total] = await Promise.all([
+      InventoryMovementLog.find({})
+        .sort({ occurredAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      InventoryMovementLog.countDocuments({})
+    ]);
+    res.json({ rows, total, skip, limit });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post(
   '/api/sales/:saleId/shipment-request',
   authenticateToken,
   uploadShipmentTtn.single('ttn'),
   async (req, res) => {
     try {
-      const sale = await Sale.findById(req.params.saleId).populate('clientId', 'name').lean();
+      const sale = await Sale.findById(req.params.saleId).populate('clientId', 'name edrpou').lean();
       if (!sale) return res.status(404).json({ error: 'Продаж не знайдено' });
       const isOwner =
         req.user?.role === 'manager' &&
@@ -2649,8 +2787,18 @@ app.post(
       }
 
       const uniqEq = [...new Set(selectedEqIds.map((id) => String(id)))];
-      const eqDocs = await Equipment.find({ _id: { $in: uniqEq } }).select('currentWarehouse').lean();
-      const whIds = [...new Set(eqDocs.map((e) => e.currentWarehouse).filter(Boolean))];
+      const eqDocsFull = await Equipment.find({ _id: { $in: uniqEq } });
+      if (eqDocsFull.length !== uniqEq.length) {
+        return res.status(400).json({ error: 'Частину обладнання не знайдено в базі' });
+      }
+      for (const e of eqDocsFull) {
+        if (!['in_stock', 'reserved'].includes(e.status)) {
+          return res.status(400).json({
+            error: `Позиція «${e.type || '—'}» недоступна для заявки (потрібен статус на складі; зараз: ${e.status || '—'})`
+          });
+        }
+      }
+      const whIds = [...new Set(eqDocsFull.map((e) => e.currentWarehouse).filter(Boolean))];
       const whs = whIds.length
         ? await Warehouse.find({ _id: { $in: whIds } }).select('region').lean()
         : [];
@@ -2710,6 +2858,42 @@ app.post(
           }
         }
         await saleDoc.save();
+      }
+
+      const clientName = sale.clientId?.name || '';
+      const clientEdrpou = sale.clientId?.edrpou || '';
+      const mgrUser = await User.findOne({ login: sale.managerLogin }).select('name').lean();
+      const mgrName = mgrUser?.name || sale.managerLogin || '';
+      const submitterName = u?.name || req.user.login;
+      for (const eq of eqDocsFull) {
+        const prev = eq.status;
+        eq.statusBeforePendingShipment = prev;
+        eq.pendingShipmentRequestId = doc._id;
+        eq.status = 'pending_shipment';
+        eq.lastModified = new Date();
+        await eq.save();
+        await logInventoryMovement({
+          eventType: 'shipment_request_submitted',
+          performedByLogin: req.user.login,
+          performedByName: submitterName,
+          equipmentId: eq._id,
+          equipmentType: eq.type,
+          serialNumber: eq.serialNumber,
+          quantity: eq.quantity || 1,
+          fromStatus: prev,
+          toStatus: 'pending_shipment',
+          managerLogin: sale.managerLogin,
+          managerName: mgrName,
+          clientName,
+          clientEdrpou,
+          shipmentAddress: doc.shipmentAddress,
+          sourceWarehouseName: eq.currentWarehouseName,
+          shipmentRequestNumber: requestNumber,
+          shipmentRequestId: doc._id,
+          saleNumber: sale.saleNumber,
+          saleId: sale._id,
+          notes: `Заявка ${requestNumber}`
+        });
       }
 
       const fresh = await ShipmentRequest.findById(doc._id).lean();
@@ -7027,6 +7211,41 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
     } catch (logErr) {
       console.error('Помилка логування:', logErr);
     }
+
+    try {
+      if (updatedEquipment) {
+        await logInventoryMovement({
+          eventType: 'goods_receipt',
+          performedByLogin: user.login,
+          performedByName: user.name || user.login,
+          equipmentId: updatedEquipment._id,
+          equipmentType: updatedEquipment.type,
+          serialNumber: updatedEquipment.serialNumber,
+          quantity,
+          fromStatus: updatedEquipment.status || 'in_stock',
+          toStatus: updatedEquipment.status || 'in_stock',
+          destinationWarehouseName: warehouseName,
+          notes: `Надходження: +${quantity} од., загалом ${updatedEquipment.quantity}`
+        });
+      } else if (createdEquipment.length > 0) {
+        const eq = createdEquipment[0];
+        const q = isBatch ? quantity : 1;
+        await logInventoryMovement({
+          eventType: 'goods_receipt',
+          performedByLogin: user.login,
+          performedByName: user.name || user.login,
+          equipmentId: eq._id,
+          equipmentType: eq.type,
+          serialNumber: eq.serialNumber,
+          quantity: q,
+          toStatus: eq.status || 'in_stock',
+          destinationWarehouseName: warehouseName,
+          notes: isBatch ? `Надходження на склад (${q} од.)` : 'Надходження на склад (скан)'
+        });
+      }
+    } catch (journalErr) {
+      console.error('Помилка журналу goods_receipt (scan):', journalErr);
+    }
     
     logPerformance('POST /api/equipment/scan', startTime);
     
@@ -7786,6 +8005,21 @@ app.post('/api/equipment/:id/reserve', authenticateToken, async (req, res) => {
       console.error('Помилка логування:', logErr);
     }
 
+    await logInventoryMovement({
+      eventType: 'reservation_created',
+      performedByLogin: user.login,
+      performedByName: user.name || user.login,
+      equipmentId: equipment._id,
+      equipmentType: equipment.type,
+      serialNumber: equipment.serialNumber,
+      quantity: equipment.quantity || 1,
+      fromStatus: 'in_stock',
+      toStatus: 'reserved',
+      managerLogin: user.login,
+      clientName: clientName.trim(),
+      notes: 'Резервування зі складу'
+    });
+
     logPerformance('POST /api/equipment/:id/reserve', startTime);
     res.json(equipment);
   } catch (error) {
@@ -7933,6 +8167,21 @@ app.post('/api/equipment/:id/reserve-for-sale', authenticateToken, async (req, r
           console.error('Помилка логування reserve-for-sale (partial):', logErr);
         }
 
+        await logInventoryMovement({
+          eventType: 'reservation_created',
+          performedByLogin: user.login,
+          performedByName: user.name || user.login,
+          equipmentId: newEquipment._id,
+          equipmentType: newEquipment.type,
+          serialNumber: newEquipment.serialNumber,
+          quantity: reqQty,
+          fromStatus: 'in_stock',
+          toStatus: 'reserved',
+          managerLogin: user.login,
+          clientName,
+          notes: `Резерв із форми продажу (частково, з рядка ${equipment._id})`
+        });
+
         logPerformance('POST /api/equipment/:id/reserve-for-sale', startTime);
         const out = await Equipment.findById(newEquipment._id).lean();
         return res.json(out);
@@ -7975,6 +8224,21 @@ app.post('/api/equipment/:id/reserve-for-sale', authenticateToken, async (req, r
     } catch (logErr) {
       console.error('Помилка логування reserve-for-sale:', logErr);
     }
+
+    await logInventoryMovement({
+      eventType: 'reservation_created',
+      performedByLogin: user.login,
+      performedByName: user.name || user.login,
+      equipmentId: equipment._id,
+      equipmentType: equipment.type,
+      serialNumber: equipment.serialNumber,
+      quantity: equipment.quantity || 1,
+      fromStatus: 'in_stock',
+      toStatus: 'reserved',
+      managerLogin: user.login,
+      clientName,
+      notes: 'Резерв із форми продажу'
+    });
 
     logPerformance('POST /api/equipment/:id/reserve-for-sale', startTime);
     const out = await Equipment.findById(req.params.id).lean();
@@ -8143,6 +8407,21 @@ app.post('/api/equipment/:id/transfer-reserve', authenticateToken, async (req, r
     } catch (logErr) {
       console.error('Помилка логування transfer-reserve:', logErr);
     }
+
+    await logInventoryMovement({
+      eventType: 'reserve_transferred',
+      performedByLogin: user.login,
+      performedByName: fromName,
+      equipmentId: equipment._id,
+      equipmentType: equipment.type,
+      serialNumber: equipment.serialNumber,
+      quantity: equipment.quantity || 1,
+      fromStatus: 'reserved',
+      toStatus: 'reserved',
+      managerLogin: targetUser.login,
+      clientName: prevClient,
+      notes: `Передача резерву: ${user.login} → ${targetUser.login}`
+    });
 
     const eqLine = equipmentReserveSummaryLine(equipment);
     let notifyBody = `Вам передали резерв: ${eqLine}. Передав: ${fromName}.`;
@@ -8633,6 +8912,7 @@ app.post('/api/equipment/:id/cancel-testing', authenticateToken, async (req, res
       return res.status(401).json({ error: 'Користувач не знайдено' });
     }
 
+    const testingStatusBefore = equipment.testingStatus;
     equipment.testingStatus = 'none';
     equipment.testingRequestedBy = undefined;
     equipment.testingRequestedByName = undefined;
@@ -8643,6 +8923,19 @@ app.post('/api/equipment/:id/cancel-testing', authenticateToken, async (req, res
     equipment.lastModified = new Date();
 
     await equipment.save();
+
+    await logInventoryMovement({
+      eventType: 'testing_request_cancelled',
+      performedByLogin: user.login,
+      performedByName: user.name || user.login,
+      equipmentId: equipment._id,
+      equipmentType: equipment.type,
+      serialNumber: equipment.serialNumber,
+      quantity: equipment.quantity || 1,
+      fromStatus: equipment.status,
+      toStatus: equipment.status,
+      notes: `Скасування заявки/етапу тестування: ${testingStatusBefore || '—'} → none`
+    });
 
     logPerformance('POST /api/equipment/:id/cancel-testing', startTime);
     res.json(equipment);
@@ -8696,6 +8989,19 @@ app.post('/api/equipment/:id/return-testing', authenticateToken, async (req, res
       return res.status(404).json({ error: 'Обладнання не знайдено після оновлення' });
     }
 
+    await logInventoryMovement({
+      eventType: 'testing_returned_for_retest',
+      performedByLogin: user.login,
+      performedByName: user.name || user.login,
+      equipmentId: updated._id,
+      equipmentType: updated.type,
+      serialNumber: updated.serialNumber,
+      quantity: updated.quantity || 1,
+      fromStatus: updated.status,
+      toStatus: updated.status,
+      notes: 'Повторне тестування після завершеного/непройденого тесту'
+    });
+
     logPerformance('POST /api/equipment/:id/return-testing', startTime);
     
     // Конвертуємо _id в рядок для сумісності з фронтендом
@@ -8739,6 +9045,9 @@ app.delete('/api/equipment/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
 
+    const statusBeforeDelete = equipment.status;
+    const qtyBeforeDelete = equipment.quantity || 1;
+
     // Додаємо запис в історію видалення
     equipment.deletionHistory = equipment.deletionHistory || [];
     equipment.deletionHistory.push({
@@ -8755,6 +9064,19 @@ app.delete('/api/equipment/:id', authenticateToken, async (req, res) => {
     equipment.lastModified = new Date();
 
     await equipment.save();
+
+    await logInventoryMovement({
+      eventType: 'equipment_deleted',
+      performedByLogin: user.login,
+      performedByName: user.name || user.login,
+      equipmentId: equipment._id,
+      equipmentType: equipment.type,
+      serialNumber: equipment.serialNumber,
+      quantity: qtyBeforeDelete,
+      fromStatus: statusBeforeDelete,
+      toStatus: 'deleted',
+      notes: (reason || '').trim() ? `Видалення: ${String(reason).trim()}` : 'Видалення обладнання'
+    });
 
     logPerformance('DELETE /api/equipment/:id', startTime);
     res.json({ message: 'Обладнання видалено успішно', equipment });
@@ -8790,6 +9112,8 @@ app.post('/api/equipment/quantity/write-off', authenticateToken, async (req, res
     if (!equipment) {
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
+
+    const statusBeforeWriteOff = equipment.status;
     
     // Перевірка, що це обладнання без серійного номера
     if (equipment.serialNumber && equipment.serialNumber.trim() !== '') {
@@ -8853,6 +9177,19 @@ app.post('/api/equipment/quantity/write-off', authenticateToken, async (req, res
     } catch (logErr) {
       console.error('Помилка логування:', logErr);
     }
+
+    await logInventoryMovement({
+      eventType: 'write_off',
+      performedByLogin: user.login,
+      performedByName: user.name || user.login,
+      equipmentId: equipment._id,
+      equipmentType: equipment.type,
+      serialNumber: equipment.serialNumber,
+      quantity,
+      fromStatus: statusBeforeWriteOff,
+      toStatus: equipment.status,
+      notes: `Списання: ${reason.trim()}${quantity >= availableQuantity ? ' (повністю)' : ''}`
+    });
     
     logPerformance('POST /api/equipment/quantity/write-off', startTime);
     return res.json({ equipment, writtenOffQuantity: quantity, remainingQuantity: equipment.quantity });
@@ -8883,6 +9220,8 @@ app.post('/api/equipment/:id/write-off', authenticateToken, async (req, res) => 
     if (!equipment) {
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
+
+    const statusBeforeWriteOffSingle = equipment.status;
     
     // Створюємо запис списання
     const writeOff = {
@@ -8924,6 +9263,19 @@ app.post('/api/equipment/:id/write-off', authenticateToken, async (req, res) => 
     } catch (logErr) {
       console.error('Помилка логування:', logErr);
     }
+
+    await logInventoryMovement({
+      eventType: 'write_off',
+      performedByLogin: user.login,
+      performedByName: user.name || user.login,
+      equipmentId: equipment._id,
+      equipmentType: equipment.type,
+      serialNumber: equipment.serialNumber,
+      quantity: 1,
+      fromStatus: statusBeforeWriteOffSingle,
+      toStatus: 'written_off',
+      notes: `Списання: ${reason.trim()}`
+    });
     
     logPerformance('POST /api/equipment/:id/write-off', startTime);
     res.json({ equipment, writtenOffQuantity: 1 });
@@ -9480,11 +9832,11 @@ app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'batchId та quantity обов\'язкові' });
     }
     
-    // Знаходимо всі одиниці партії на складі
+    // Знаходимо всі одиниці партії на складі (у т.ч. «на відвантаженні» після заявки менеджера)
     const batchItems = await Equipment.find({
       batchId: batchId,
       currentWarehouse: fromWarehouse,
-      status: 'in_stock'
+      status: { $in: ['in_stock', 'reserved', 'pending_shipment'] }
     }).sort({ batchIndex: 1 }).limit(quantity);
     
     if (batchItems.length < quantity) {
@@ -9518,8 +9870,11 @@ app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
       if (!Array.isArray(item.shipmentHistory)) {
         item.shipmentHistory = [];
       }
-      
+
+      const fromSt = item.status;
       item.shipmentHistory.push(shipment);
+      item.pendingShipmentRequestId = undefined;
+      item.statusBeforePendingShipment = undefined;
       item.status = 'shipped';
       clearActiveEquipmentTesting(item);
       item.lastModified = new Date();
@@ -9527,6 +9882,21 @@ app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
       try {
         await item.save();
         shippedItems.push(item);
+        await logInventoryMovement({
+          eventType: 'shipment_out',
+          performedByLogin: user.login,
+          performedByName: user.name || user.login,
+          equipmentId: item._id,
+          equipmentType: item.type,
+          serialNumber: item.serialNumber,
+          quantity: item.quantity || 1,
+          fromStatus: fromSt,
+          toStatus: 'shipped',
+          clientName: shippedTo,
+          clientEdrpou: clientEdrpou || '',
+          shipmentAddress: clientAddress || '',
+          notes: orderNumber ? `Замовлення ${orderNumber}` : 'Відвантаження партії'
+        });
       } catch (saveError) {
         console.error(`[ERROR] Помилка збереження обладнання ${item._id}:`, saveError);
         // Продовжуємо з наступним елементом
@@ -9608,6 +9978,12 @@ app.post('/api/equipment/quantity/ship', authenticateToken, async (req, res) => 
         error: `Обладнання знаходиться на іншому складі: ${equipment.currentWarehouseName || equipment.currentWarehouse}` 
       });
     }
+
+    if (!['in_stock', 'reserved', 'pending_shipment'].includes(equipment.status)) {
+      return res.status(400).json({
+        error: `Некоректний статус для відвантаження: ${equipment.status || '—'}`
+      });
+    }
     
     const shipment = {
       shippedTo: shippedTo,
@@ -9632,13 +10008,32 @@ app.post('/api/equipment/quantity/ship', authenticateToken, async (req, res) => 
       if (!Array.isArray(equipment.shipmentHistory)) {
         equipment.shipmentHistory = [];
       }
-      
+
+      const fromStQ = equipment.status;
       equipment.shipmentHistory.push(shipment);
+      equipment.pendingShipmentRequestId = undefined;
+      equipment.statusBeforePendingShipment = undefined;
       equipment.status = 'shipped';
       clearActiveEquipmentTesting(equipment);
       equipment.lastModified = new Date();
       
       await equipment.save();
+
+      await logInventoryMovement({
+        eventType: 'shipment_out',
+        performedByLogin: user.login,
+        performedByName: user.name || user.login,
+        equipmentId: equipment._id,
+        equipmentType: equipment.type,
+        serialNumber: equipment.serialNumber,
+        quantity,
+        fromStatus: fromStQ,
+        toStatus: 'shipped',
+        clientName: shippedTo,
+        clientEdrpou: clientEdrpou || '',
+        shipmentAddress: clientAddress || '',
+        notes: notes || `Відвантажено ${quantity} од.`
+      });
       
       // Логування
       try {
@@ -9667,11 +10062,28 @@ app.post('/api/equipment/quantity/ship', authenticateToken, async (req, res) => 
         equipment.shipmentHistory = [];
       }
       
+      const fromStPart = equipment.status;
       equipment.shipmentHistory.push(shipment);
       equipment.quantity = availableQuantity - quantity;
       equipment.lastModified = new Date();
       
       await equipment.save();
+
+      await logInventoryMovement({
+        eventType: 'shipment_out',
+        performedByLogin: user.login,
+        performedByName: user.name || user.login,
+        equipmentId: equipment._id,
+        equipmentType: equipment.type,
+        serialNumber: equipment.serialNumber,
+        quantity,
+        fromStatus: fromStPart,
+        toStatus: fromStPart,
+        clientName: shippedTo,
+        clientEdrpou: clientEdrpou || '',
+        shipmentAddress: clientAddress || '',
+        notes: `Часткове відвантаження ${quantity} од., залишок ${equipment.quantity}`
+      });
       
       // Логування
       try {
@@ -9733,7 +10145,8 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
       notes: notes || '',
       attachedFiles: attachedFiles || []
     };
-    
+
+    const fromStMove = equipment.status;
     equipment.movementHistory.push(movement);
     equipment.currentWarehouse = toWarehouse;
     equipment.currentWarehouseName = toWarehouseName;
@@ -9741,6 +10154,21 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
     equipment.lastModified = new Date();
     
     await equipment.save();
+
+    await logInventoryMovement({
+      eventType: 'warehouse_move',
+      performedByLogin: user.login,
+      performedByName: user.name || user.login,
+      equipmentId: equipment._id,
+      equipmentType: equipment.type,
+      serialNumber: equipment.serialNumber,
+      quantity: equipment.quantity || 1,
+      fromStatus: fromStMove,
+      toStatus: 'in_transit',
+      sourceWarehouseName: fromWarehouseName || '',
+      destinationWarehouseName: toWarehouseName || '',
+      notes: [reason, notes].filter(Boolean).join(' · ') || 'Переміщення між складами'
+    });
     
     // Створюємо документ переміщення
     try {
@@ -9823,6 +10251,12 @@ app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
     if (!equipment) {
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
+
+    if (!['in_stock', 'reserved', 'pending_shipment'].includes(equipment.status)) {
+      return res.status(400).json({
+        error: `Некоректний статус для відвантаження: ${equipment.status || '—'}`
+      });
+    }
     
     const shipment = {
       shippedTo: shippedTo,
@@ -9846,13 +10280,32 @@ app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
     if (!Array.isArray(equipment.shipmentHistory)) {
       equipment.shipmentHistory = [];
     }
-    
+
+    const fromStShip = equipment.status;
     equipment.shipmentHistory.push(shipment);
+    equipment.pendingShipmentRequestId = undefined;
+    equipment.statusBeforePendingShipment = undefined;
     equipment.status = 'shipped';
     clearActiveEquipmentTesting(equipment);
     equipment.lastModified = new Date();
     
     await equipment.save();
+
+    await logInventoryMovement({
+      eventType: 'shipment_out',
+      performedByLogin: user.login,
+      performedByName: user.name || user.login,
+      equipmentId: equipment._id,
+      equipmentType: equipment.type,
+      serialNumber: equipment.serialNumber,
+      quantity: equipment.quantity || 1,
+      fromStatus: fromStShip,
+      toStatus: 'shipped',
+      clientName: shippedTo,
+      clientEdrpou: clientEdrpou || '',
+      shipmentAddress: clientAddress || '',
+      notes: orderNumber ? `Замовлення ${orderNumber}` : 'Відвантаження'
+    });
     
     // Логування
     try {
@@ -9932,6 +10385,19 @@ app.post('/api/equipment/approve-receipt', authenticateToken, async (req, res) =
       item.lastModified = new Date();
       await item.save();
       updatedItems.push(item);
+      await logInventoryMovement({
+        eventType: 'receipt_approved',
+        performedByLogin: user.login,
+        performedByName: user.name || user.login,
+        equipmentId: item._id,
+        equipmentType: item.type,
+        serialNumber: item.serialNumber,
+        quantity: item.quantity || 1,
+        fromStatus: 'in_transit',
+        toStatus: 'in_stock',
+        destinationWarehouseName: item.currentWarehouseName,
+        notes: 'Затверджено надходження на склад'
+      });
     }
 
     // Оновлюємо документи переміщення - додаємо інформацію про того, хто прийняв
@@ -10016,10 +10482,29 @@ app.put('/api/equipment/:id/status', authenticateToken, async (req, res) => {
     if (!equipment) {
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
+
+    const user = await User.findOne({ login: req.user.login });
+    const prevStPut = equipment.status;
     
     equipment.status = status;
     equipment.lastModified = new Date();
     await equipment.save();
+
+    if (user && String(prevStPut) !== String(status)) {
+      await logInventoryMovement({
+        eventType: 'status_change',
+        performedByLogin: user.login,
+        performedByName: user.name || user.login,
+        equipmentId: equipment._id,
+        equipmentType: equipment.type,
+        serialNumber: equipment.serialNumber,
+        quantity: equipment.quantity || 1,
+        fromStatus: prevStPut,
+        toStatus: status,
+        sourceWarehouseName: equipment.currentWarehouseName,
+        notes: 'Зміна статусу обладнання'
+      });
+    }
     
     logPerformance('PUT /api/equipment/:id/status', startTime);
     res.json(equipment);
@@ -10106,11 +10591,25 @@ app.post('/api/documents/receipt', authenticateToken, async (req, res) => {
         if (item.equipmentId) {
           const equipment = await Equipment.findById(item.equipmentId);
           if (equipment) {
+            const prevSt = equipment.status;
             equipment.currentWarehouse = document.warehouse;
             equipment.currentWarehouseName = document.warehouseName;
             equipment.status = 'in_stock';
             equipment.lastModified = new Date();
             await equipment.save();
+            await logInventoryMovement({
+              eventType: 'receipt_document_completed',
+              performedByLogin: user.login,
+              performedByName: user.name || user.login,
+              equipmentId: equipment._id,
+              equipmentType: equipment.type,
+              serialNumber: equipment.serialNumber,
+              quantity: equipment.quantity || 1,
+              fromStatus: prevSt,
+              toStatus: 'in_stock',
+              destinationWarehouseName: document.warehouseName,
+              notes: `Документ надходження ${document.documentNumber} (завершено)`
+            });
           }
         }
       }
@@ -10128,6 +10627,12 @@ app.post('/api/documents/receipt', authenticateToken, async (req, res) => {
 app.put('/api/documents/receipt/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+
+    const prevDoc = await ReceiptDocument.findById(req.params.id);
     const document = await ReceiptDocument.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -10136,6 +10641,55 @@ app.put('/api/documents/receipt/:id', authenticateToken, async (req, res) => {
     
     if (!document) {
       return res.status(404).json({ error: 'Документ не знайдено' });
+    }
+
+    const prevStatus = prevDoc?.status;
+    if (document.status === 'completed' && prevStatus !== 'completed' && document.items) {
+      for (const item of document.items) {
+        if (item.equipmentId) {
+          const equipment = await Equipment.findById(item.equipmentId);
+          if (equipment) {
+            const prevSt = equipment.status;
+            equipment.currentWarehouse = document.warehouse;
+            equipment.currentWarehouseName = document.warehouseName;
+            equipment.status = 'in_stock';
+            equipment.lastModified = new Date();
+            await equipment.save();
+            await logInventoryMovement({
+              eventType: 'receipt_document_completed',
+              performedByLogin: user.login,
+              performedByName: user.name || user.login,
+              equipmentId: equipment._id,
+              equipmentType: equipment.type,
+              serialNumber: equipment.serialNumber,
+              quantity: equipment.quantity || 1,
+              fromStatus: prevSt,
+              toStatus: 'in_stock',
+              destinationWarehouseName: document.warehouseName,
+              notes: `Документ надходження ${document.documentNumber} (завершено, оновлення)`
+            });
+          }
+        }
+      }
+    }
+
+    if (document.status === 'cancelled' && prevStatus !== 'cancelled' && document.items) {
+      for (const item of document.items) {
+        if (!item.equipmentId) continue;
+        const eq = await Equipment.findById(item.equipmentId).lean();
+        await logInventoryMovement({
+          eventType: 'receipt_document_cancelled',
+          performedByLogin: user.login,
+          performedByName: user.name || user.login,
+          equipmentId: item.equipmentId,
+          equipmentType: eq?.type,
+          serialNumber: eq?.serialNumber,
+          quantity: eq?.quantity || 1,
+          fromStatus: eq?.status,
+          toStatus: eq?.status,
+          notes: `Скасовано документ надходження ${document.documentNumber}`
+        });
+      }
     }
     
     logPerformance('PUT /api/documents/receipt/:id', startTime);
@@ -10196,6 +10750,8 @@ app.put('/api/documents/movement/:id', authenticateToken, async (req, res) => {
     if (!user) {
       return res.status(401).json({ error: 'Користувач не знайдено' });
     }
+
+    const prevMovementDoc = await MovementDocument.findById(req.params.id);
     
     const document = await MovementDocument.findByIdAndUpdate(
       req.params.id,
@@ -10206,13 +10762,37 @@ app.put('/api/documents/movement/:id', authenticateToken, async (req, res) => {
     if (!document) {
       return res.status(404).json({ error: 'Документ не знайдено' });
     }
+
+    if (document.status === 'cancelled' && prevMovementDoc?.status !== 'cancelled' && document.items) {
+      for (const item of document.items) {
+        if (!item.equipmentId) continue;
+        const eq = await Equipment.findById(item.equipmentId).lean();
+        await logInventoryMovement({
+          eventType: 'movement_document_cancelled',
+          performedByLogin: user.login,
+          performedByName: user.name || user.login,
+          equipmentId: item.equipmentId,
+          equipmentType: eq?.type,
+          serialNumber: eq?.serialNumber,
+          quantity: eq?.quantity || 1,
+          fromStatus: eq?.status,
+          toStatus: eq?.status,
+          sourceWarehouseName: document.fromWarehouseName,
+          destinationWarehouseName: document.toWarehouseName,
+          notes: `Скасовано документ переміщення ${document.documentNumber}`
+        });
+      }
+    }
     
     // Оновлюємо обладнання при завершенні переміщення
+    const movementJustCompleted =
+      document.status === 'completed' && prevMovementDoc?.status !== 'completed';
     if (document.status === 'completed' && document.items) {
       for (const item of document.items) {
         if (item.equipmentId) {
           const equipment = await Equipment.findById(item.equipmentId);
           if (equipment) {
+            const prevStMovement = equipment.status;
             // Перевіряємо, чи вже є запис про це переміщення в історії
             const existingMovement = equipment.movementHistory?.find(
               m => m.fromWarehouse === document.fromWarehouse && 
@@ -10244,6 +10824,23 @@ app.put('/api/documents/movement/:id', authenticateToken, async (req, res) => {
             equipment.status = 'in_stock'; // При завершенні переміщення статус = "на складі"
             equipment.lastModified = new Date();
             await equipment.save();
+
+            if (movementJustCompleted) {
+              await logInventoryMovement({
+                eventType: 'movement_document_completed',
+                performedByLogin: user.login,
+                performedByName: user.name || user.login,
+                equipmentId: equipment._id,
+                equipmentType: equipment.type,
+                serialNumber: equipment.serialNumber,
+                quantity: equipment.quantity || 1,
+                fromStatus: prevStMovement,
+                toStatus: 'in_stock',
+                sourceWarehouseName: document.fromWarehouseName,
+                destinationWarehouseName: document.toWarehouseName,
+                notes: `Документ переміщення ${document.documentNumber} (завершено)`
+              });
+            }
           }
         }
       }
@@ -10293,6 +10890,10 @@ app.post('/api/documents/movement', authenticateToken, async (req, res) => {
         if (item.equipmentId) {
           const equipment = await Equipment.findById(item.equipmentId);
           if (equipment) {
+            const prevStMovementPost = equipment.status;
+            if (!equipment.movementHistory) {
+              equipment.movementHistory = [];
+            }
             equipment.movementHistory.push({
               fromWarehouse: document.fromWarehouse,
               toWarehouse: document.toWarehouse,
@@ -10309,6 +10910,20 @@ app.post('/api/documents/movement', authenticateToken, async (req, res) => {
             equipment.status = document.status === 'completed' ? 'in_stock' : 'in_transit';
             equipment.lastModified = new Date();
             await equipment.save();
+            await logInventoryMovement({
+              eventType: 'movement_document_completed',
+              performedByLogin: user.login,
+              performedByName: user.name || user.login,
+              equipmentId: equipment._id,
+              equipmentType: equipment.type,
+              serialNumber: equipment.serialNumber,
+              quantity: equipment.quantity || 1,
+              fromStatus: prevStMovementPost,
+              toStatus: 'in_stock',
+              sourceWarehouseName: document.fromWarehouseName,
+              destinationWarehouseName: document.toWarehouseName,
+              notes: `Документ переміщення ${document.documentNumber} (створено завершеним)`
+            });
           }
         }
       }

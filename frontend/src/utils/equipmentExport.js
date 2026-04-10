@@ -41,6 +41,7 @@ export const exportEquipmentToExcel = async (equipmentList, filename = 'equipmen
     const labels = {
       'in_stock': 'На складі',
       'reserved': 'Зарезервовано',
+      'pending_shipment': 'На відвантаженні',
       'shipped': 'Відвантажено',
       'in_transit': 'В дорозі'
     };

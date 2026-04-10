@@ -1,0 +1,71 @@
+.inventory-movement-journal {
+  padding: 0 0 24px;
+}
+
+.inventory-movement-journal-header h2 {
+  margin: 0 0 8px;
+}
+
+.inventory-movement-journal-desc {
+  margin: 0 0 12px;
+  color: var(--text-secondary, #9aa0a6);
+  font-size: 14px;
+  max-width: 720px;
+  line-height: 1.45;
+}
+
+.inventory-movement-journal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.inventory-movement-journal-count {
+  font-size: 13px;
+  color: var(--text-secondary, #9aa0a6);
+}
+
+.inventory-movement-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+}
+
+.inventory-movement-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.inventory-movement-table th,
+.inventory-movement-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  vertical-align: top;
+}
+
+.inventory-movement-table th {
+  font-weight: 600;
+  background: var(--surface-elevated, rgba(255, 255, 255, 0.04));
+  white-space: nowrap;
+}
+
+.inventory-movement-cell-address,
+.inventory-movement-cell-notes {
+  max-width: 220px;
+  word-break: break-word;
+}
+
+.inventory-movement-empty {
+  text-align: center;
+  padding: 24px !important;
+  color: var(--text-secondary, #9aa0a6);
+}
+
+.inventory-movement-pager {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
