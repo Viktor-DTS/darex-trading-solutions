@@ -1201,10 +1201,36 @@ async function ensureWarehouseStaffEquipmentAccess(res, reqUser, dbUser, equipme
   );
 }
 
+/** Міжрегіональне переміщення: склад призначення не в регіоні користувача (завсклад / warehouse). */
+async function ensureWarehouseStaffMoveDestinationOutsideRegion(res, reqUser, dbUser, toWarehouseId) {
+  if (bypassesRegionalWarehouseInventoryLock(reqUser.role)) return true;
+  if (!isRegionalWarehouseStaffRole(reqUser.role)) return true;
+  if (!dbUser) {
+    res.status(401).json({ error: 'Користувач не знайдено' });
+    return false;
+  }
+  const allowed = await loadActiveWarehouseIdsForUserRegion(dbUser.region);
+  if (!allowed.size) {
+    res.status(403).json({
+      error:
+        'Для вашого профілю не знайдено активних складів у вашому регіоні. Зверніться до адміністратора.'
+    });
+    return false;
+  }
+  if (warehouseIdInRegionalSet(toWarehouseId, allowed)) {
+    res.status(403).json({
+      error:
+        'Склад призначення має бути в іншому регіоні (не на складах вашого регіону). Оберіть склад поза вашим регіоном.'
+    });
+    return false;
+  }
+  return true;
+}
+
 /**
  * Документ переміщення: хто може змінювати статус.
- * — У «в дорозі»: відправник (fromWarehouse у регіоні).
- * — «Завершено»: одержувач (toWarehouse у регіоні).
+ * — Відправник: зі свого складу → на склад іншого регіону.
+ * — Прийом після «в дорозі»: одержувач (toWarehouse у своєму регіоні).
  * — «Скасовано»: будь-яка зі сторін у регіоні.
  */
 async function ensureWarehouseStaffMovementDocTransition(res, reqUser, dbUser, prevStatus, doc) {
@@ -1246,14 +1272,35 @@ async function ensureWarehouseStaffMovementDocTransition(res, reqUser, dbUser, p
       });
       return false;
     }
+    if (warehouseIdInRegionalSet(toW, allowed)) {
+      res.status(403).json({
+        error: 'Склад призначення має бути в іншому регіоні (поза вашим регіоном).'
+      });
+      return false;
+    }
     return true;
   }
   if (nextSt === 'completed' && !wasCompleted) {
-    if (!warehouseIdInRegionalSet(toW, allowed)) {
-      res.status(403).json({
-        error: 'Завершити документ переміщення (прийом) можна лише для складу одержувача вашого регіону.'
-      });
-      return false;
+    if (wasInTransit) {
+      if (!warehouseIdInRegionalSet(toW, allowed)) {
+        res.status(403).json({
+          error: 'Завершити документ переміщення (прийом) можна лише для складу одержувача вашого регіону.'
+        });
+        return false;
+      }
+    } else {
+      if (!warehouseIdInRegionalSet(fromW, allowed)) {
+        res.status(403).json({
+          error: 'Оформити переміщення можна лише зі складу вашого регіону.'
+        });
+        return false;
+      }
+      if (warehouseIdInRegionalSet(toW, allowed)) {
+        res.status(403).json({
+          error: 'Склад призначення має бути поза вашим регіоном.'
+        });
+        return false;
+      }
     }
     return true;
   }
@@ -6727,8 +6774,20 @@ app.put('/api/invoice-requests/:id/return-to-work', authenticateToken, async (re
 app.get('/api/warehouses', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
+    const forMoveDest = ['1', 'true', 'yes'].includes(
+      String(req.query.forMoveDestination || '').trim().toLowerCase()
+    );
     let warehouses;
     if (
+      forMoveDest &&
+      isRegionalWarehouseStaffRole(req.user.role) &&
+      !bypassesRegionalWarehouseInventoryLock(req.user.role)
+    ) {
+      const u = await User.findOne({ login: req.user.login }).select('region').lean();
+      const allowedIds = await loadActiveWarehouseIdsForUserRegion(u?.region);
+      const all = await Warehouse.find({ isActive: true }).sort({ name: 1 }).lean();
+      warehouses = all.filter((w) => !allowedIds.has(String(w._id)));
+    } else if (
       isRegionalWarehouseStaffRole(req.user.role) &&
       !bypassesRegionalWarehouseInventoryLock(req.user.role)
     ) {
@@ -7712,7 +7771,21 @@ app.get('/api/equipment', authenticateToken, async (req, res) => {
     const { warehouse, status, region, search, categoryId, itemKind, includeSubtree, managerCategoryContext } = req.query;
     const query = { isDeleted: { $ne: true } }; // Виключаємо видалене обладнання (для ефективного індексу)
     
-    if (warehouse) query.currentWarehouse = warehouse;
+    if (warehouse) {
+      query.currentWarehouse = warehouse;
+    } else {
+      const cwMulti = req.query.currentWarehouses;
+      if (cwMulti != null && String(cwMulti).trim()) {
+        const parts = String(cwMulti)
+          .split(/[,;]/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const oids = parts
+          .filter((id) => mongoose.isValidObjectId(id))
+          .map((id) => new mongoose.Types.ObjectId(id));
+        if (oids.length) query.currentWarehouse = { $in: oids };
+      }
+    }
     if (status) query.status = status;
     if (region) query.region = region;
     if (itemKind && ['equipment', 'parts'].includes(itemKind)) query.itemKind = itemKind;
@@ -9633,6 +9706,9 @@ app.post('/api/equipment/batch/move', authenticateToken, async (req, res) => {
       'Переміщення дозволене лише зі складу вашого регіону.'
     );
     if (!okBatchMove) return;
+
+    const okBatchDest = await ensureWarehouseStaffMoveDestinationOutsideRegion(res, req.user, user, toWarehouse);
+    if (!okBatchDest) return;
     
     // Знаходимо всі одиниці партії на поточному складі
     const batchItems = await Equipment.find({
@@ -9782,6 +9858,9 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
       'Переміщення дозволене лише зі складу вашого регіону.'
     );
     if (!okQm) return;
+
+    const okQmDest = await ensureWarehouseStaffMoveDestinationOutsideRegion(res, req.user, user, toWarehouse);
+    if (!okQmDest) return;
     
     // Перевірка, що це обладнання без серійного номера
     if (equipment.serialNumber && equipment.serialNumber.trim() !== '') {
@@ -10484,6 +10563,9 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
 
     const okMove = await ensureWarehouseStaffEquipmentAccess(res, req.user, user, equipment);
     if (!okMove) return;
+
+    const okMoveDest = await ensureWarehouseStaffMoveDestinationOutsideRegion(res, req.user, user, toWarehouse);
+    if (!okMoveDest) return;
     
     // Зберігаємо оригінальний склад ПЕРЕД зміною
     const fromWarehouse = equipment.currentWarehouse;

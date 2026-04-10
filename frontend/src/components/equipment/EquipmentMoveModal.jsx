@@ -4,7 +4,14 @@ import { flattenCategoriesForSelect } from '../../utils/equipmentPickerCategorie
 import EquipmentFileUpload from './EquipmentFileUpload';
 import './EquipmentMoveModal.css';
 
-function EquipmentMoveModal({ equipment, warehouses = [], onClose, onSuccess }) {
+function EquipmentMoveModal({
+  equipment,
+  warehouses = [],
+  destinationWarehouses,
+  user,
+  onClose,
+  onSuccess,
+}) {
   const [selectedEquipmentList, setSelectedEquipmentList] = useState(equipment ? [equipment] : []);
   const [equipmentList, setEquipmentList] = useState([]);
   const [loadingEquipment, setLoadingEquipment] = useState(false);
@@ -26,6 +33,21 @@ function EquipmentMoveModal({ equipment, warehouses = [], onClose, onSuccess }) 
   const [batchQuantity, setBatchQuantity] = useState(1);
   const [batchQuantities, setBatchQuantities] = useState({}); // { batchId-warehouse: quantity }
   const [quantityBasedQuantities, setQuantityBasedQuantities] = useState({}); // { equipmentId: quantity } для обладнання без серійного номера
+  const [preflightError, setPreflightError] = useState('');
+
+  const isRegionalStaff = ['warehouse', 'zavsklad'].includes(String(user?.role || '').toLowerCase());
+  const destWarehouses = useMemo(() => {
+    if (destinationWarehouses === null) {
+      return isRegionalStaff ? [] : warehouses;
+    }
+    if (Array.isArray(destinationWarehouses)) return destinationWarehouses;
+    return warehouses;
+  }, [destinationWarehouses, isRegionalStaff, warehouses]);
+
+  const sourceWarehouseIdsParam = useMemo(() => {
+    const ids = (warehouses || []).map((w) => w._id).filter(Boolean).map(String);
+    return ids.join(',');
+  }, [warehouses]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchInput), 400);
@@ -41,6 +63,8 @@ function EquipmentMoveModal({ equipment, warehouses = [], onClose, onSuccess }) 
         const token = localStorage.getItem('token');
         const params = new URLSearchParams();
         if (filterWarehouseId) params.set('warehouse', filterWarehouseId);
+        else if (isRegionalStaff && sourceWarehouseIdsParam)
+          params.set('currentWarehouses', sourceWarehouseIdsParam);
         if (filterItemKind === 'equipment' || filterItemKind === 'parts') params.set('itemKind', filterItemKind);
         if (filterCategoryId) {
           params.set('categoryId', filterCategoryId);
@@ -71,7 +95,15 @@ function EquipmentMoveModal({ equipment, warehouses = [], onClose, onSuccess }) 
     return () => {
       cancelled = true;
     };
-  }, [equipment, filterWarehouseId, filterItemKind, filterCategoryId, debouncedSearch]);
+  }, [
+    equipment,
+    filterWarehouseId,
+    filterItemKind,
+    filterCategoryId,
+    debouncedSearch,
+    isRegionalStaff,
+    sourceWarehouseIdsParam,
+  ]);
 
   useEffect(() => {
     if (equipment) return;
@@ -108,6 +140,28 @@ function EquipmentMoveModal({ equipment, warehouses = [], onClose, onSuccess }) 
       }
     }
   }, [equipment]);
+
+  useEffect(() => {
+    if (!equipment || !isRegionalStaff) {
+      setPreflightError('');
+      return;
+    }
+    const allowed = new Set((warehouses || []).map((w) => String(w._id)));
+    const cw = equipment.currentWarehouse != null ? String(equipment.currentWarehouse) : '';
+    if (cw && !allowed.has(cw)) {
+      setPreflightError(
+        'Це обладнання на складі іншого регіону. Переміщувати можна лише товар зі складу вашого регіону.'
+      );
+    } else {
+      setPreflightError('');
+    }
+  }, [equipment, isRegionalStaff, warehouses]);
+
+  useEffect(() => {
+    if (!toWarehouse) return;
+    const ok = destWarehouses.some((w) => String(w._id) === String(toWarehouse));
+    if (!ok) setToWarehouse('');
+  }, [destWarehouses, toWarehouse]);
 
   const handleEquipmentToggle = (eq) => {
     setSelectedEquipmentList(prev => {
@@ -270,7 +324,9 @@ function EquipmentMoveModal({ equipment, warehouses = [], onClose, onSuccess }) 
                     value={filterWarehouseId}
                     onChange={(e) => setFilterWarehouseId(e.target.value)}
                   >
-                    <option value="">Усі склади</option>
+                    <option value="">
+                      {isRegionalStaff ? 'Усі мої склади' : 'Усі склади'}
+                    </option>
                     {(warehouses || []).map((w) => (
                       <option key={w._id} value={String(w._id)}>
                         {w.name}
@@ -641,12 +697,19 @@ function EquipmentMoveModal({ equipment, warehouses = [], onClose, onSuccess }) 
       return;
     }
 
+    if (preflightError) {
+      setError(preflightError);
+      return;
+    }
+
     setSaving(true);
     setError('');
 
     try {
       const token = localStorage.getItem('token');
-      const warehouse = warehouses.find(w => w._id === toWarehouse || w.name === toWarehouse);
+      const warehouse = destWarehouses.find(
+        (w) => w._id === toWarehouse || w.name === toWarehouse || String(w._id) === String(toWarehouse)
+      );
       const toWarehouseName = warehouse?.name || toWarehouse;
       
       // Розділити обладнання на одиничне, quantity-based та партії
@@ -887,15 +950,18 @@ function EquipmentMoveModal({ equipment, warehouses = [], onClose, onSuccess }) 
                 required
               >
                 <option value="">Виберіть склад</option>
-                {warehouses
-                  .filter(w => {
-                    // Фільтруємо склади, які не є поточними для жодного з вибраних обладнань
-                    return !selectedEquipmentList.some(eq => {
+                {destWarehouses
+                  .filter((w) => {
+                    return !selectedEquipmentList.some((eq) => {
                       const currentWarehouse = eq.currentWarehouse || eq.currentWarehouseName;
-                      return (w._id === currentWarehouse || w.name === currentWarehouse);
+                      return (
+                        w._id === currentWarehouse ||
+                        w.name === currentWarehouse ||
+                        String(w._id) === String(currentWarehouse)
+                      );
                     });
                   })
-                  .map(w => (
+                  .map((w) => (
                     <option key={w._id || w.name} value={w._id || w.name}>
                       {w.name} {w.region ? `(${w.region})` : ''}
                     </option>
@@ -932,6 +998,7 @@ function EquipmentMoveModal({ equipment, warehouses = [], onClose, onSuccess }) 
               />
             </div>
 
+            {preflightError && <div className="error-message">{preflightError}</div>}
             {error && (
               <div className="error-message">{error}</div>
             )}
@@ -940,7 +1007,7 @@ function EquipmentMoveModal({ equipment, warehouses = [], onClose, onSuccess }) 
               <button type="button" className="btn-secondary" onClick={onClose}>
                 Скасувати
               </button>
-              <button type="submit" className="btn-primary" disabled={saving}>
+              <button type="submit" className="btn-primary" disabled={saving || !!preflightError}>
                 {saving ? 'Переміщення...' : 'Перемістити'}
               </button>
             </div>

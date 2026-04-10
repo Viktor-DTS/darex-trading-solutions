@@ -25,6 +25,7 @@ function InventoryDashboard({ user }) {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
+  const [moveDestinationWarehouses, setMoveDestinationWarehouses] = useState(null);
   const [showShipModal, setShowShipModal] = useState(false);
   const [showWriteOffModal, setShowWriteOffModal] = useState(false);
   const [shipModalFromRequestId, setShipModalFromRequestId] = useState(null);
@@ -55,6 +56,33 @@ function InventoryDashboard({ user }) {
     const interval = setInterval(loadInTransitCount, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!showMoveModal) return;
+    const r = (user?.role || '').toLowerCase();
+    const regional = ['warehouse', 'zavsklad'].includes(r);
+    if (!regional) {
+      setMoveDestinationWarehouses(warehouses);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE_URL}/warehouses?forMoveDestination=1`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setMoveDestinationWarehouses(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setMoveDestinationWarehouses([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showMoveModal, user?.role, warehouses]);
 
   const loadWarehouses = async () => {
     try {
@@ -472,8 +500,11 @@ function InventoryDashboard({ user }) {
         <EquipmentMoveModal
           equipment={selectedEquipment}
           warehouses={warehouses}
+          destinationWarehouses={moveDestinationWarehouses}
+          user={user}
           onClose={() => {
             setShowMoveModal(false);
+            setMoveDestinationWarehouses(null);
             setSelectedEquipment(null);
             // Якщо закриваємо модальне вікно з вкладки переміщення, повертаємося на залишки
             if (activeTab === 'movement') {
