@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import API_BASE_URL from '../../config';
 import EquipmentScanner from './EquipmentScanner';
 import EquipmentFileUpload from './EquipmentFileUpload';
 import EquipmentQRModal from './EquipmentQRModal';
-import ReceiptProductCardsPanel from './ReceiptProductCardsPanel';
 import TechnicalSpecsConstructorBlock from './TechnicalSpecsConstructorBlock';
-import ProductCardQuickCreateModal from './ProductCardQuickCreateModal';
 import { buildPatchesFromProductCard, mergeAttachedFromProductCard, mergeCardSpecsIntoFormRows } from './productCardApply';
 import { parsedEquipmentToTechnicalSpecs } from '../../utils/ocrParser';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
@@ -48,7 +46,17 @@ function bypassesRegionalWarehouseInventoryLock(role) {
   return ['admin', 'administrator', 'mgradm'].includes(String(role || '').toLowerCase());
 }
 
-function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, readOnly = false, onReserve, onCancelReserve }) {
+function EquipmentEditModal({
+  equipment,
+  warehouses,
+  user,
+  onClose,
+  onSuccess,
+  readOnly = false,
+  onReserve,
+  onCancelReserve,
+  presetProductCard = null,
+}) {
   const [formData, setFormData] = useState({});
   const [categoriesFlat, setCategoriesFlat] = useState([]);
   const [attachedFiles, setAttachedFiles] = useState([]);
@@ -72,7 +80,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
   const [productCardQuery, setProductCardQuery] = useState('');
   const [productCardHits, setProductCardHits] = useState([]);
   const [productCardsLoading, setProductCardsLoading] = useState(false);
-  const [showProductCardCreate, setShowProductCardCreate] = useState(false);
+  const presetAppliedForIdRef = useRef(null);
   const isNewEquipment = !equipment;
 
   const regionalForeignReadOnly = useMemo(() => {
@@ -85,7 +93,6 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
   }, [equipment, warehouses, user?.role]);
 
   const effectiveReadOnly = readOnly || regionalForeignReadOnly;
-  const receiptGrid = isNewEquipment && !effectiveReadOnly;
 
   useEffect(() => {
     if (equipment) {
@@ -191,7 +198,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
   }, []);
 
   useEffect(() => {
-    if (effectiveReadOnly && !isNewEquipment) return;
+    if (isNewEquipment) return;
+    if (effectiveReadOnly) return;
     let cancelled = false;
     const t = setTimeout(async () => {
       setProductCardsLoading(true);
@@ -239,6 +247,21 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
     else if (card.defaultReceiptMode === 'single') setEquipmentType('single');
     setAttachedFiles((prev) => mergeAttachedFromProductCard(prev, card.attachedFiles));
   }, []);
+
+  useEffect(() => {
+    if (equipment) {
+      presetAppliedForIdRef.current = null;
+      return;
+    }
+    if (!presetProductCard) {
+      presetAppliedForIdRef.current = null;
+      return;
+    }
+    const id = String(presetProductCard._id || '');
+    if (presetAppliedForIdRef.current === id) return;
+    presetAppliedForIdRef.current = id;
+    applyProductCard(presetProductCard);
+  }, [equipment, presetProductCard, applyProductCard]);
 
   const newReceiptSpecRow = () => ({
     _key: `rcv-spec-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
@@ -519,10 +542,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
 
   return (
     <div className="equipment-edit-modal-overlay" onClick={onClose}>
-      <div
-        className={`equipment-edit-modal${isNewEquipment ? ' equipment-edit-modal--receipt' : ''}`}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="equipment-edit-modal" onClick={(e) => e.stopPropagation()}>
         <div className="equipment-edit-header">
           <h2>
             {isNewEquipment
@@ -618,6 +638,31 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                 >
                   📋 Історія
                 </button>
+              </div>
+            )}
+
+            {isNewEquipment && !effectiveReadOnly && (
+              <div
+                className="form-section"
+                style={{
+                  padding: '12px 14px',
+                  background: 'rgba(56, 139, 253, 0.08)',
+                  borderRadius: 8,
+                  border: '1px solid rgba(56, 139, 253, 0.22)',
+                }}
+              >
+                {formData.productId ? (
+                  <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.45 }}>
+                    <strong>Карточка продукту:</strong> {presetProductCard?.type || formData.type || '—'}
+                    {(presetProductCard?.manufacturer || formData.manufacturer)
+                      ? ` · ${presetProductCard?.manufacturer || formData.manufacturer}`
+                      : ''}
+                  </p>
+                ) : (
+                  <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.45 }}>
+                    <strong>Прийом без карточки</strong> — тип і характеристики можна задати вручну або через скан шильдика.
+                  </p>
+                )}
               </div>
             )}
 
@@ -732,8 +777,6 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
               </div>
             )}
 
-            <div className={receiptGrid ? 'equipment-receipt-layout' : 'equipment-receipt-single'}>
-              <div className="equipment-receipt-main">
             {!effectiveReadOnly && (
               <div className="form-section">
                 <h3>Тип матеріальних цінностей</h3>
@@ -1050,6 +1093,19 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
             </div>
           </div>
 
+          {isNewEquipment && !effectiveReadOnly && (
+            <div className="form-section">
+              <TechnicalSpecsConstructorBlock
+                rows={formData.technicalSpecs}
+                readOnly={effectiveReadOnly}
+                onAddRow={addReceiptSpecRow}
+                onRemoveRow={removeReceiptSpecRow}
+                onUpdateRow={updateReceiptSpecRow}
+                hint="Додавайте рядки вручну або через «Сканувати шильдик». Порожні рядки при збереженні відкидаються."
+              />
+            </div>
+          )}
+
           {/* Технічні характеристики (legacy) — лише при редагуванні існуючої позиції */}
           {!isNewEquipment && !(equipmentType === 'batch' || equipment?.isBatch) && (
             <div className="form-section">
@@ -1311,26 +1367,6 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
             </div>
           </div>
 
-              </div>
-              {receiptGrid && (
-                <ReceiptProductCardsPanel
-                  query={productCardQuery}
-                  onQueryChange={setProductCardQuery}
-                  cards={productCardHits}
-                  loading={productCardsLoading}
-                  selectedProductId={formData.productId}
-                  onSelectCard={(card) => applyProductCard(card)}
-                  onCreateCard={() => setShowProductCardCreate(true)}
-                  showSpecsConstructor
-                  specsRows={formData.technicalSpecs}
-                  specsReadOnly={effectiveReadOnly}
-                  onSpecsAddRow={addReceiptSpecRow}
-                  onSpecsRemoveRow={removeReceiptSpecRow}
-                  onSpecsUpdateRow={updateReceiptSpecRow}
-                />
-              )}
-            </div>
-
             <div className="equipment-edit-footer">
               {readOnly && onReserve && onCancelReserve && (
                 <>
@@ -1378,24 +1414,6 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
           </form>
         )}
       </div>
-
-      {showProductCardCreate && (
-        <ProductCardQuickCreateModal
-          user={user}
-          warehouses={warehouses}
-          onClose={() => setShowProductCardCreate(false)}
-          onCreated={(card) => {
-            if (card?._id) {
-              setProductCardHits((hits) => {
-                const id = String(card._id);
-                if (hits.some((h) => String(h._id) === id)) return hits;
-                return [card, ...hits];
-              });
-              applyProductCard(card);
-            }
-          }}
-        />
-      )}
 
       {/* Модалки QR та Історії */}
       {showQR && equipment && (

@@ -8,9 +8,7 @@ import EquipmentMoveModal from './equipment/EquipmentMoveModal';
 import EquipmentShipModal from './equipment/EquipmentShipModal';
 import EquipmentWriteOffModal from './equipment/EquipmentWriteOffModal';
 import EquipmentStatistics from './equipment/EquipmentStatistics';
-import ReceiptDocuments from './inventory/ReceiptDocuments';
-import MovementDocuments from './inventory/MovementDocuments';
-import ShipmentDocuments from './inventory/ShipmentDocuments';
+import ReceiptProductCardsTab from './inventory/ReceiptProductCardsTab';
 import InventoryDocuments from './inventory/InventoryDocuments';
 import Reservations from './inventory/Reservations';
 import InventoryReports from './inventory/InventoryReports';
@@ -163,9 +161,7 @@ function InventoryDashboard({ user }) {
   // Автоматичне відкриття модальних вікон при переключенні на відповідні вкладки
   useEffect(() => {
     // Не відкриваємо модальні вікна, якщо вони вже відкриті (щоб уникнути зациклення)
-    if (activeTab === 'receipt' && !showAddModal && !showMoveModal && !showShipModal && !showWriteOffModal) {
-      setShowAddModal(true);
-    } else if (activeTab === 'movement' && !showMoveModal && !showAddModal && !showShipModal && !showWriteOffModal) {
+    if (activeTab === 'movement' && !showMoveModal && !showAddModal && !showShipModal && !showWriteOffModal) {
       setSelectedEquipment(null);
       setShowMoveModal(true);
     } else if (activeTab === 'write-off' && !showWriteOffModal && !showAddModal && !showMoveModal && !showShipModal) {
@@ -482,15 +478,14 @@ function InventoryDashboard({ user }) {
       {/* Модальні вікна */}
       {showAddModal && (
         <EquipmentEditModal
+          key={`receipt-add-${receiptAddModalKey}`}
           equipment={null}
           warehouses={warehouses}
           user={user}
+          presetProductCard={receiptPresetProductCard}
           onClose={() => {
             setShowAddModal(false);
-            // Якщо закриваємо модальне вікно з вкладки надходження, повертаємося на залишки
-            if (activeTab === 'receipt') {
-              setActiveTab('stock');
-            }
+            setReceiptPresetProductCard(null);
           }}
           onSuccess={handleEquipmentAdded}
         />

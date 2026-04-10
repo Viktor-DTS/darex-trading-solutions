@@ -1,0 +1,98 @@
+.receipt-product-cards-tab__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.receipt-product-cards-tab__filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px 16px;
+  margin-top: 22px;
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color, #333);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.receipt-product-cards-tab__filter label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #8b949e);
+  margin-bottom: 6px;
+}
+
+.receipt-product-cards-tab__search,
+.receipt-product-cards-tab__select {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #444);
+  background: var(--surface-dark, #1a1a1a);
+  color: inherit;
+  box-sizing: border-box;
+}
+
+.receipt-product-cards-tab__grid {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.receipt-product-cards-tab__card {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color, #333);
+  background: var(--surface, #222);
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.receipt-product-cards-tab__card:hover {
+  border-color: rgba(56, 139, 253, 0.45);
+  background: rgba(56, 139, 253, 0.06);
+}
+
+.receipt-product-cards-tab__card-type {
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.receipt-product-cards-tab__card-display {
+  font-size: 12px;
+  color: var(--text-secondary, #8b949e);
+}
+
+.receipt-product-cards-tab__card-manuf {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.receipt-product-cards-tab__card-cat {
+  font-size: 11px;
+  color: var(--text-secondary, #8b949e);
+  margin-top: 2px;
+}
+
+.receipt-product-cards-tab__card-inactive {
+  font-size: 11px;
+  color: #f0ad4e;
+  margin-top: 4px;
+}
+
+.receipt-product-cards-tab__empty {
+  max-width: 520px;
+}
