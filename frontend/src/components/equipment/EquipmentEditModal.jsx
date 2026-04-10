@@ -55,6 +55,9 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
   const [testingGalleryOpen, setTestingGalleryOpen] = useState(false);
   const [testingGalleryIndex, setTestingGalleryIndex] = useState(0);
   const [equipmentType, setEquipmentType] = useState('single'); // 'single' або 'batch'
+  const [productCardQuery, setProductCardQuery] = useState('');
+  const [productCardHits, setProductCardHits] = useState([]);
+  const [productCardsLoading, setProductCardsLoading] = useState(false);
   const isNewEquipment = !equipment;
 
   const regionalForeignReadOnly = useMemo(() => {
@@ -93,7 +96,12 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
         notes: equipment.notes || '',
         materialValueType: equipment.materialValueType || (equipment.isServiceParts ? 'service' : equipment.isElectroInstallParts ? 'electroinstall' : equipment.isInternalEquipment ? 'internal' : ''),
         categoryId: equipment.categoryId ? (equipment.categoryId._id || equipment.categoryId).toString() : '',
-        itemKind: equipment.itemKind || 'equipment'
+        itemKind: equipment.itemKind || 'equipment',
+        productId: equipment.productId
+          ? (typeof equipment.productId === 'object'
+              ? String(equipment.productId._id || '')
+              : String(equipment.productId))
+          : ''
       });
       setEquipmentType(equipment.isBatch ? 'batch' : 'single');
       // Завантажуємо існуючі файли з бази даних
@@ -138,7 +146,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
         notes: '',
         materialValueType: '',
         categoryId: '',
-        itemKind: 'equipment'
+        itemKind: 'equipment',
+        productId: ''
       });
       setEquipmentType('single');
     }
@@ -158,6 +167,45 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
     load();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (effectiveReadOnly && !isNewEquipment) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setProductCardsLoading(true);
+      try {
+        const token = localStorage.getItem('token');
+        const q = new URLSearchParams({ limit: '120' });
+        if (productCardQuery.trim()) q.set('search', productCardQuery.trim());
+        const res = await fetch(`${API_BASE_URL}/product-cards?${q}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setProductCardHits(Array.isArray(data) ? data : []);
+      } catch (_) {
+        if (!cancelled) setProductCardHits([]);
+      } finally {
+        if (!cancelled) setProductCardsLoading(false);
+      }
+    }, 320);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [productCardQuery, effectiveReadOnly, isNewEquipment]);
+
+  const productCardSelectOptions = useMemo(() => {
+    const pid = formData.productId ? String(formData.productId) : '';
+    if (!pid || productCardHits.some((c) => String(c._id) === pid)) return productCardHits;
+    if (equipment?.productId && typeof equipment.productId === 'object' && String(equipment.productId._id) === pid) {
+      return [equipment.productId, ...productCardHits.filter((c) => String(c._id) !== pid)];
+    }
+    return [
+      { _id: pid, type: `Карточка …${pid.slice(-6)}`, manufacturer: '', isActive: true },
+      ...productCardHits.filter((c) => String(c._id) !== pid)
+    ];
+  }, [formData.productId, productCardHits, equipment]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -464,6 +512,83 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                 >
                   📋 Історія
                 </button>
+              </div>
+            )}
+
+            {(equipment?.productId || !effectiveReadOnly) && (
+              <div className="form-section">
+                <h3>Карточка з довідника</h3>
+                {effectiveReadOnly && equipment?.productId && typeof equipment.productId === 'object' ? (
+                  <p style={{ color: 'var(--text-secondary)', margin: 0 }}>
+                    Прив&apos;язано: <strong>{equipment.productId.type || '—'}</strong>
+                    {equipment.productId.manufacturer ? ` — ${equipment.productId.manufacturer}` : ''}
+                    {equipment.productId.isActive === false ? ' (карточка вимкнена в довіднику)' : ''}
+                  </p>
+                ) : effectiveReadOnly && equipment?.productId && typeof equipment.productId !== 'object' ? (
+                  <p style={{ color: 'var(--text-secondary)', margin: 0 }}>
+                    Прив&apos;язано до карточки продукту (id: {String(equipment.productId)}).
+                  </p>
+                ) : !effectiveReadOnly ? (
+                  <>
+                    <div className="form-group">
+                      <label>Пошук карточки</label>
+                      <input
+                        type="search"
+                        value={productCardQuery}
+                        onChange={(e) => setProductCardQuery(e.target.value)}
+                        placeholder="Тип або виробник…"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>
+                        Обрати карточку
+                        {productCardsLoading ? ' (завантаження…)' : ''}
+                      </label>
+                      <select
+                        name="productId"
+                        value={formData.productId || ''}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (!v) {
+                            setFormData((prev) => ({ ...prev, productId: '' }));
+                            return;
+                          }
+                          const card = productCardSelectOptions.find((c) => String(c._id) === String(v));
+                          if (!card || !card.type) {
+                            setFormData((prev) => ({ ...prev, productId: v }));
+                            return;
+                          }
+                          const catId =
+                            card.categoryId != null
+                              ? String(card.categoryId._id || card.categoryId)
+                              : '';
+                          setFormData((prev) => ({
+                            ...prev,
+                            productId: v,
+                            type: prev.type?.trim() ? prev.type : (card.type || ''),
+                            manufacturer: prev.manufacturer?.trim() ? prev.manufacturer : (card.manufacturer || ''),
+                            categoryId: prev.categoryId?.trim() ? prev.categoryId : (catId || ''),
+                            itemKind: prev.categoryId?.trim() ? prev.itemKind : (card.itemKind || prev.itemKind || 'equipment'),
+                            batchUnit: prev.batchUnit?.trim() ? prev.batchUnit : (card.defaultBatchUnit || prev.batchUnit || ''),
+                            currency: prev.currency?.trim() ? prev.currency : (card.defaultCurrency || prev.currency || 'грн.')
+                          }));
+                        }}
+                      >
+                        <option value="">— Без карточки —</option>
+                        {productCardSelectOptions.map((c) => (
+                          <option key={String(c._id)} value={String(c._id)}>
+                            {c.type}
+                            {c.manufacturer ? ` | ${c.manufacturer}` : ''}
+                            {c.isActive === false ? ' (вимкн.)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <p style={{ fontSize: '12px', marginTop: '4px', color: 'var(--text-secondary)' }}>
+                      Порожні поля «тип», «виробник», «група» підставляються з карточки; уже заповнені не перезаписуються.
+                    </p>
+                  </>
+                ) : null}
               </div>
             )}
 

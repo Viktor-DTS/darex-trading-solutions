@@ -677,6 +677,8 @@ const equipmentSchema = new mongoose.Schema({
   // Дерево номенклатури (1С-стиль): товари vs деталі/комплектуючі
   categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', default: null },
   itemKind: { type: String, enum: ['equipment', 'parts'], default: 'equipment' }, // equipment - для продажу, parts - деталі/комплектуючі
+  /** Довідник «карточка продукту» — канонічна номенклатура */
+  productId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductCard', default: null },
   
   // Поля для партійного обладнання
   isBatch: { type: Boolean, default: false },  // Чи це партія
@@ -870,6 +872,7 @@ equipmentSchema.index({ batchId: 1, currentWarehouse: 1 }); // Для швидк
 equipmentSchema.index({ testingStatus: 1 }); // Для швидкого пошуку заявок на тестування
 equipmentSchema.index({ categoryId: 1 });
 equipmentSchema.index({ itemKind: 1 });
+equipmentSchema.index({ productId: 1 });
 // Compound-індекс для вартісного звіту, статистики та списку обладнання (isDeleted + status + currentWarehouse)
 equipmentSchema.index({ isDeleted: 1, status: 1, currentWarehouse: 1 });
 equipmentSchema.index({ isDeleted: 1, addedAt: -1 }); // Для сортування списку без видалених
@@ -1118,6 +1121,28 @@ const categorySchema = new mongoose.Schema({
 categorySchema.index({ parentId: 1 });
 categorySchema.index({ itemKind: 1 });
 const Category = mongoose.model('Category', categorySchema);
+
+/** Канонічна карточка продукту (номенклатура) — один запис на «тип товару» для довідника та прив’язки залишків */
+const productCardSchema = new mongoose.Schema(
+  {
+    displayName: { type: String, trim: true, default: '' },
+    type: { type: String, required: true, trim: true },
+    manufacturer: { type: String, trim: true, default: '' },
+    categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', default: null },
+    itemKind: { type: String, enum: ['equipment', 'parts'], default: 'equipment' },
+    defaultBatchUnit: { type: String, trim: true, default: 'шт.' },
+    defaultCurrency: { type: String, default: 'грн.' },
+    internalNotes: { type: String, default: '' },
+    isActive: { type: Boolean, default: true },
+    createdByLogin: String,
+    createdByName: String,
+  },
+  { timestamps: true },
+);
+productCardSchema.index({ type: 1 });
+productCardSchema.index({ categoryId: 1 });
+productCardSchema.index({ isActive: 1 });
+const ProductCard = mongoose.model('ProductCard', productCardSchema);
 
 // Схема для складів
 const warehouseSchema = new mongoose.Schema({
@@ -7148,6 +7173,151 @@ app.post('/api/categories/migrate-equipment', authenticateToken, async (req, res
   }
 });
 
+/** Статуси залишку на складі — поки є такі одиниці, карточку продукту не видаляють */
+const PRODUCT_CARD_STOCK_STATUSES = ['in_stock', 'reserved', 'pending_shipment', 'in_transit'];
+
+// Список карточок продукту (довідник номенклатури)
+app.get('/api/product-cards', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const search = String(req.query.search || '').trim();
+    const activeOnly = !['1', 'true'].includes(String(req.query.includeInactive || '').toLowerCase());
+    const query = {};
+    if (activeOnly) query.isActive = true;
+    if (search) {
+      const esc = escapeRegExpForRegion(search);
+      query.$or = [
+        { type: new RegExp(esc, 'i') },
+        { manufacturer: new RegExp(esc, 'i') },
+        { displayName: new RegExp(esc, 'i') },
+      ];
+    }
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
+    const list = await ProductCard.find(query)
+      .sort({ type: 1 })
+      .limit(limit)
+      .populate('categoryId', 'name itemKind')
+      .lean();
+    logPerformance('GET /api/product-cards', startTime, list.length);
+    res.json(list);
+  } catch (error) {
+    console.error('[ERROR] GET /api/product-cards:', error);
+    logPerformance('GET /api/product-cards', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/product-cards', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const { displayName, type, manufacturer, categoryId, itemKind, defaultBatchUnit, defaultCurrency, internalNotes, isActive } = req.body;
+    if (!type || !String(type).trim()) {
+      return res.status(400).json({ error: 'Поле «тип / найменування» обов\'язкове' });
+    }
+    const ik = ['equipment', 'parts'].includes(itemKind) ? itemKind : 'equipment';
+    const doc = await ProductCard.create({
+      displayName: displayName != null ? String(displayName).trim() : '',
+      type: String(type).trim(),
+      manufacturer: manufacturer != null ? String(manufacturer).trim() : '',
+      categoryId: categoryId && mongoose.Types.ObjectId.isValid(String(categoryId)) ? categoryId : null,
+      itemKind: ik,
+      defaultBatchUnit: (defaultBatchUnit && String(defaultBatchUnit).trim()) || 'шт.',
+      defaultCurrency: (defaultCurrency && String(defaultCurrency).trim()) || 'грн.',
+      internalNotes: internalNotes != null ? String(internalNotes) : '',
+      isActive: isActive !== false,
+      createdByLogin: req.user.login,
+      createdByName: req.user.name || req.user.login,
+    });
+    const populated = await ProductCard.findById(doc._id).populate('categoryId', 'name itemKind').lean();
+    logPerformance('POST /api/product-cards', startTime);
+    res.status(201).json(populated);
+  } catch (error) {
+    console.error('[ERROR] POST /api/product-cards:', error);
+    logPerformance('POST /api/product-cards', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.patch('/api/product-cards/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const b = req.body;
+    const updates = {};
+    if (b.displayName !== undefined) updates.displayName = String(b.displayName).trim();
+    if (b.type !== undefined) {
+      const t = String(b.type).trim();
+      if (!t) return res.status(400).json({ error: 'Тип не може бути порожнім' });
+      updates.type = t;
+    }
+    if (b.manufacturer !== undefined) updates.manufacturer = String(b.manufacturer).trim();
+    if (b.categoryId !== undefined) {
+      updates.categoryId = b.categoryId && mongoose.Types.ObjectId.isValid(String(b.categoryId)) ? b.categoryId : null;
+    }
+    if (b.itemKind !== undefined && ['equipment', 'parts'].includes(b.itemKind)) updates.itemKind = b.itemKind;
+    if (b.defaultBatchUnit !== undefined) updates.defaultBatchUnit = String(b.defaultBatchUnit).trim() || 'шт.';
+    if (b.defaultCurrency !== undefined) updates.defaultCurrency = String(b.defaultCurrency).trim() || 'грн.';
+    if (b.internalNotes !== undefined) updates.internalNotes = String(b.internalNotes);
+    if (b.isActive !== undefined) updates.isActive = !!b.isActive;
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'Немає полів для оновлення' });
+    }
+    const doc = await ProductCard.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true })
+      .populate('categoryId', 'name itemKind')
+      .lean();
+    if (!doc) return res.status(404).json({ error: 'Карточку не знайдено' });
+    logPerformance('PATCH /api/product-cards/:id', startTime);
+    res.json(doc);
+  } catch (error) {
+    console.error('[ERROR] PATCH /api/product-cards/:id:', error);
+    logPerformance('PATCH /api/product-cards/:id', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/product-cards/:id', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const id = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Некоректний id' });
+    }
+    const oid = new mongoose.Types.ObjectId(id);
+    const agg = await Equipment.aggregate([
+      {
+        $match: {
+          productId: oid,
+          isDeleted: { $ne: true },
+          status: { $in: PRODUCT_CARD_STOCK_STATUSES },
+        },
+      },
+      { $group: { _id: null, total: { $sum: { $ifNull: ['$quantity', 1] } } } },
+    ]);
+    const total = agg[0]?.total || 0;
+    if (total > 0) {
+      return res.status(400).json({
+        error: `Неможливо видалити: на складі є залишки за цією карточкою (${total} од. у статусах залишку).`,
+      });
+    }
+    const del = await ProductCard.findByIdAndDelete(id);
+    if (!del) return res.status(404).json({ error: 'Карточку не знайдено' });
+    logPerformance('DELETE /api/product-cards/:id', startTime);
+    res.json({ message: 'Карточку видалено' });
+  } catch (error) {
+    console.error('[ERROR] DELETE /api/product-cards/:id:', error);
+    logPerformance('DELETE /api/product-cards/:id', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Завантаження фото обладнання на Cloudinary
 app.post('/api/equipment/upload-photo', authenticateToken, uploadEquipmentPhoto.single('photo'), async (req, res) => {
   const startTime = Date.now();
@@ -7314,7 +7484,7 @@ app.post('/api/equipment/ocr', authenticateToken, uploadEquipmentPhotoForOCR.sin
 app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const equipmentData = req.body;
+    let equipmentData = { ...req.body };
     const user = await User.findOne({ login: req.user.login });
     
     if (!user) {
@@ -7343,6 +7513,34 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
         'Надходження дозволене лише на склад вашого регіону.'
       );
       if (!okWh) return;
+    }
+
+    if (equipmentData.productId && mongoose.Types.ObjectId.isValid(String(equipmentData.productId))) {
+      const card = await ProductCard.findById(equipmentData.productId).lean();
+      if (!card) {
+        return res.status(400).json({ error: 'Карточку продукту не знайдено' });
+      }
+      if (!card.isActive) {
+        return res.status(400).json({ error: 'Карточка продукту неактивна' });
+      }
+      if (!equipmentData.type || !String(equipmentData.type).trim()) {
+        equipmentData.type = card.type;
+      }
+      if (equipmentData.manufacturer == null || String(equipmentData.manufacturer).trim() === '') {
+        equipmentData.manufacturer = card.manufacturer || '';
+      }
+      if (!equipmentData.categoryId && card.categoryId) {
+        equipmentData.categoryId = card.categoryId.toString();
+      }
+      if (!equipmentData.itemKind || !['equipment', 'parts'].includes(equipmentData.itemKind)) {
+        equipmentData.itemKind = card.itemKind;
+      }
+      if (isBatch && (!equipmentData.batchUnit || !String(equipmentData.batchUnit).trim())) {
+        equipmentData.batchUnit = card.defaultBatchUnit || 'шт.';
+      }
+      if (!equipmentData.currency || !String(equipmentData.currency).trim()) {
+        equipmentData.currency = card.defaultCurrency || 'грн.';
+      }
     }
 
     // Визначаємо склад та регіон
@@ -7399,6 +7597,14 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
         error: 'Одиниця виміру обов\'язкова'
       });
     }
+
+    if (
+      equipmentData.productId != null &&
+      equipmentData.productId !== '' &&
+      !mongoose.Types.ObjectId.isValid(String(equipmentData.productId))
+    ) {
+      return res.status(400).json({ error: 'Некоректний ідентифікатор карточки продукту' });
+    }
     
     // Створення обладнання
     const createdEquipment = [];
@@ -7413,7 +7619,6 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
       
       // Будуємо запит для пошуку ідентичного обладнання
       const searchQuery = {
-        type: equipmentData.type,
         currentWarehouse: warehouse,
         region: region,
         status: { $ne: 'deleted' },
@@ -7427,20 +7632,24 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
           }
         ]
       };
-      
-      // Додаємо manufacturer до пошуку
-      if (manufacturerValue) {
-        // Якщо manufacturer вказаний, шукаємо з таким же manufacturer
-        searchQuery.manufacturer = manufacturerValue;
+
+      const mergeByProductCard =
+        equipmentData.productId && mongoose.Types.ObjectId.isValid(String(equipmentData.productId));
+      if (mergeByProductCard) {
+        searchQuery.productId = new mongoose.Types.ObjectId(String(equipmentData.productId));
       } else {
-        // Якщо manufacturer не вказаний, шукаємо записи де manufacturer також null/undefined/порожній
-        searchQuery.$and.push({
-          $or: [
-            { manufacturer: null },
-            { manufacturer: { $exists: false } },
-            { manufacturer: '' }
-          ]
-        });
+        searchQuery.type = equipmentData.type;
+        if (manufacturerValue) {
+          searchQuery.manufacturer = manufacturerValue;
+        } else {
+          searchQuery.$and.push({
+            $or: [
+              { manufacturer: null },
+              { manufacturer: { $exists: false } },
+              { manufacturer: '' }
+            ]
+          });
+        }
       }
       
       const existingEquipment = await Equipment.findOne(searchQuery);
@@ -8110,7 +8319,9 @@ app.get('/api/equipment/testing-requests', authenticateToken, async (req, res) =
 app.get('/api/equipment/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const equipment = await Equipment.findById(req.params.id).lean();
+    const equipment = await Equipment.findById(req.params.id)
+      .populate('productId', 'type manufacturer displayName itemKind isActive')
+      .lean();
     if (!equipment) {
       return res.status(404).json({ error: 'Обладнання не знайдено' });
     }
@@ -8278,6 +8489,20 @@ app.put('/api/equipment/:id', authenticateToken, async (req, res) => {
     }
     if (req.body.itemKind !== undefined && ['equipment', 'parts'].includes(req.body.itemKind)) {
       equipment.itemKind = req.body.itemKind;
+    }
+    if (req.body.productId !== undefined) {
+      const rawPid = req.body.productId;
+      if (rawPid === null || rawPid === '') {
+        equipment.productId = null;
+      } else if (mongoose.Types.ObjectId.isValid(String(rawPid))) {
+        const card = await ProductCard.findById(rawPid).lean();
+        if (!card || !card.isActive) {
+          return res.status(400).json({ error: 'Некоректна або неактивна карточка продукту' });
+        }
+        equipment.productId = card._id;
+      } else {
+        return res.status(400).json({ error: 'Некоректний productId' });
+      }
     }
 
     console.log('[PUT] Зміни:', changes);
