@@ -92,15 +92,26 @@ export default function ReceiptProductCardsTab({ user, warehouses, onOpenReceipt
 
   return (
     <div className="inventory-tab-content receipt-product-cards-tab">
-      <div className="inventory-header">
-        <h2>Надходження товарів</h2>
-        <p className="inventory-description">
-          Оберіть карточку продукту з довідника — відкриється форма прийому на склад. Або прийміть позицію без карточки.
-        </p>
+      <div className="inventory-header receipt-product-cards-tab__header">
+        <div className="receipt-product-cards-tab__header-main">
+          <h2>Надходження товарів</h2>
+          <div className="receipt-product-cards-tab__intro">
+            <button
+              type="button"
+              className="btn-primary receipt-product-cards-tab__add-card-btn"
+              onClick={() => setShowCreateModal(true)}
+            >
+              + Додати карточку товару
+            </button>
+            <p className="inventory-description receipt-product-cards-tab__intro-desc">
+              Додавання нового обладнання на склад від постачальників
+            </p>
+          </div>
+          <p className="inventory-description receipt-product-cards-tab__subdesc">
+            Оберіть карточку зі списку нижче — відкриється форма прийому. Або створіть нову карточку кнопкою ліворуч, або прийміть позицію без карточки.
+          </p>
+        </div>
         <div className="receipt-product-cards-tab__actions">
-          <button type="button" className="btn-primary" onClick={() => setShowCreateModal(true)}>
-            + Створити нову карточку продукту
-          </button>
           <button type="button" className="btn-secondary" onClick={() => onOpenReceiptWithoutCard()}>
             Прийом без карточки
           </button>

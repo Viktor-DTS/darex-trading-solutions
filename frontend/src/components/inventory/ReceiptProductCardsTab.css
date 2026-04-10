@@ -1,8 +1,43 @@
+.receipt-product-cards-tab__header {
+  align-items: flex-start;
+}
+
+.receipt-product-cards-tab__header-main {
+  flex: 1;
+  min-width: 220px;
+}
+
+.receipt-product-cards-tab__intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 16px;
+  margin-top: 10px;
+}
+
+.receipt-product-cards-tab__add-card-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.receipt-product-cards-tab__intro-desc {
+  margin: 0;
+  flex: 1;
+  min-width: 200px;
+}
+
+.receipt-product-cards-tab__subdesc {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .receipt-product-cards-tab__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 14px;
+  margin-top: 0;
+  flex-shrink: 0;
 }
 
 .receipt-product-cards-tab__filters {

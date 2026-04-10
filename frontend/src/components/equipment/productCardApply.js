@@ -24,6 +24,44 @@ export function mergeCardSpecsIntoFormRows(prevRows, cardSpecs) {
   return prev;
 }
 
+/** Нормалізація назви поля для порівняння (скан + ручні рядки). */
+function specNameKey(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+/**
+ * Злиття рядків зі шильдика: не дублювати вже наявні назви; порожнє значення в існуючому рядку з тією ж назвою — заповнити з OCR.
+ * Нові пари «назва — значення» з шильдика додаються лише якщо такої назви ще немає в формі.
+ */
+export function mergeScannedSpecsIntoFormRows(prevRows, scannedPairs) {
+  const prev = Array.isArray(prevRows) ? prevRows.map((r) => ({ ...r })) : [];
+  const indexByName = new Map();
+  for (const r of prev) {
+    const k = specNameKey(r.name);
+    if (k && !indexByName.has(k)) indexByName.set(k, r);
+  }
+  for (const s of scannedPairs || []) {
+    const name = s?.name != null ? String(s.name).trim() : '';
+    const value = s?.value != null ? String(s.value).trim() : '';
+    if (!name) continue;
+    const nk = specNameKey(name);
+    const existing = indexByName.get(nk);
+    if (existing) {
+      const cur = String(existing.value || '').trim();
+      if (!cur && value) existing.value = value;
+      continue;
+    }
+    if (!value) continue;
+    const row = { _key: newSpecKey(), name, value };
+    prev.push(row);
+    indexByName.set(nk, row);
+  }
+  return prev;
+}
+
 export function mergeAttachedFromProductCard(prevFiles, cardFiles) {
   const list = Array.isArray(cardFiles) ? cardFiles : [];
   const mapped = list.map((f, i) => ({

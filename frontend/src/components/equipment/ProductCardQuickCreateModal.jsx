@@ -3,7 +3,7 @@ import API_BASE_URL from '../../config';
 import { parsedEquipmentToTechnicalSpecs } from '../../utils/ocrParser';
 import EquipmentScanner from './EquipmentScanner';
 import EquipmentFileUpload from './EquipmentFileUpload';
-import { mergeCardSpecsIntoFormRows } from './productCardApply';
+import { mergeScannedSpecsIntoFormRows } from './productCardApply';
 import './CategoryManagement.css';
 import './ProductCardQuickCreateModal.css';
 
@@ -78,12 +78,19 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
   };
 
   const handleScanData = (data) => {
-    const specPairs = parsedEquipmentToTechnicalSpecs(data);
+    let specPairs = parsedEquipmentToTechnicalSpecs(data);
+    const sn = data?.serialNumber != null ? String(data.serialNumber).trim() : '';
+    if (sn) {
+      specPairs = [
+        ...specPairs,
+        { name: 'Серійний номер', value: sn },
+      ];
+    }
     setForm((f) => ({
       ...f,
       type: f.type?.trim() ? f.type : (data.type || ''),
       manufacturer: f.manufacturer?.trim() ? f.manufacturer : (data.manufacturer || ''),
-      technicalSpecs: mergeCardSpecsIntoFormRows(f.technicalSpecs, specPairs),
+      technicalSpecs: mergeScannedSpecsIntoFormRows(f.technicalSpecs, specPairs),
     }));
     setShowScanner(false);
   };
@@ -157,8 +164,9 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
           </button>
         </div>
         <p className="product-card-quick-intro">
-          Конструктор як у адмінці. <strong>Скан шильдика</strong> додає рядки характеристик за розпізнаними полями (тип і
-          виробник теж підставляються, якщо порожні).
+          Як у адмінці: конструктор характеристик і файли. <strong>Скан шильдика</strong> додає пари «назва — значення» лише
+          для тих підписів, яких ще немає в таблиці; якщо назва вже є, а значення порожнє — підставить з шильдика. Тип і
+          виробник теж заповнюються, якщо були порожні. Решту можна додати вручну.
         </p>
         {error && <p className="category-management-message error">{error}</p>}
 
@@ -174,7 +182,7 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
           <form className="category-form product-card-quick-form" onSubmit={handleSubmit}>
             <div className="form-actions" style={{ marginBottom: '12px' }}>
               <button type="button" className="btn-primary" onClick={() => setShowScanner(true)}>
-                📷 Сканувати шильдик (авто-рядки характеристик)
+                📷 Сканувати шильдик (додати відсутні поля)
               </button>
             </div>
             <div className="form-row">
