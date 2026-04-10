@@ -32,6 +32,8 @@ function InventoryDashboard({ user }) {
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [inTransitCount, setInTransitCount] = useState(0);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [receiptPresetProductCard, setReceiptPresetProductCard] = useState(null);
+  const [receiptAddModalKey, setReceiptAddModalKey] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       return localStorage.getItem('inventory_sidebar_collapsed') === 'true';
@@ -243,17 +245,20 @@ function InventoryDashboard({ user }) {
 
       case 'receipt':
         return (
-          <div className="inventory-tab-content">
-            <div className="inventory-header">
-              <h2>Надходження товарів</h2>
-              <p className="inventory-description">
-                Додавання нового обладнання на склад від постачальників
-              </p>
-            </div>
-            <div className="documents-placeholder">
-              <p>Використовуйте модальне вікно для додавання обладнання</p>
-            </div>
-          </div>
+          <ReceiptProductCardsTab
+            user={user}
+            warehouses={warehouses}
+            onOpenReceiptWithCard={(card) => {
+              setReceiptPresetProductCard(card);
+              setReceiptAddModalKey((k) => k + 1);
+              setShowAddModal(true);
+            }}
+            onOpenReceiptWithoutCard={() => {
+              setReceiptPresetProductCard(null);
+              setReceiptAddModalKey((k) => k + 1);
+              setShowAddModal(true);
+            }}
+          />
         );
 
       case 'movement':
