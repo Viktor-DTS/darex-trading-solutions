@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import API_BASE_URL from '../../config';
 import EquipmentScanner from './EquipmentScanner';
 import EquipmentFileUpload from './EquipmentFileUpload';
@@ -26,6 +26,14 @@ function isMyEquipmentReserve(equipment, user) {
   return false;
 }
 
+function isRegionalWarehouseStaffRole(role) {
+  return ['warehouse', 'zavsklad'].includes(String(role || '').toLowerCase());
+}
+
+function bypassesRegionalWarehouseInventoryLock(role) {
+  return ['admin', 'administrator', 'mgradm'].includes(String(role || '').toLowerCase());
+}
+
 function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, readOnly = false, onReserve, onCancelReserve }) {
   const [formData, setFormData] = useState({});
   const [categoriesFlat, setCategoriesFlat] = useState([]);
@@ -48,6 +56,17 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
   const [testingGalleryIndex, setTestingGalleryIndex] = useState(0);
   const [equipmentType, setEquipmentType] = useState('single'); // 'single' або 'batch'
   const isNewEquipment = !equipment;
+
+  const regionalForeignReadOnly = useMemo(() => {
+    if (!equipment) return false;
+    if (bypassesRegionalWarehouseInventoryLock(user?.role)) return false;
+    if (!isRegionalWarehouseStaffRole(user?.role)) return false;
+    const allowed = new Set((warehouses || []).map((w) => String(w._id)));
+    const cw = equipment.currentWarehouse != null ? String(equipment.currentWarehouse) : '';
+    return !!cw && !allowed.has(cw);
+  }, [equipment, warehouses, user?.role]);
+
+  const effectiveReadOnly = readOnly || regionalForeignReadOnly;
 
   useEffect(() => {
     if (equipment) {
@@ -208,6 +227,9 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (effectiveReadOnly) {
+      return;
+    }
     setLoading(true);
     setError('');
 
@@ -329,7 +351,13 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
     <div className="equipment-edit-modal-overlay" onClick={onClose}>
       <div className="equipment-edit-modal" onClick={(e) => e.stopPropagation()}>
         <div className="equipment-edit-header">
-          <h2>{isNewEquipment ? 'Додати обладнання від постачальників' : (readOnly ? 'Перегляд обладнання' : 'Редагувати обладнання')}</h2>
+          <h2>
+            {isNewEquipment
+              ? 'Додати обладнання від постачальників'
+              : effectiveReadOnly
+                ? 'Перегляд обладнання'
+                : 'Редагувати обладнання'}
+          </h2>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         
@@ -370,7 +398,22 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
               </div>
             )}
 
-            {!readOnly && (
+            {regionalForeignReadOnly && (
+              <div
+                className="form-error"
+                style={{
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  border: '1px solid rgba(245, 158, 11, 0.45)',
+                  color: 'var(--text-primary, #e6edf3)',
+                }}
+              >
+                <strong>Перегляд:</strong> це обладнання на складі іншого регіону. Редагування номенклатури,
+                складу та картки недоступне. Зміни можуть вносити лише користувачі з відповідним доступом
+                (наприклад, адміністратор).
+              </div>
+            )}
+
+            {!effectiveReadOnly && (
               <div className="form-section" style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
@@ -403,9 +446,16 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
               </div>
             )}
             
-            {/* Кнопка Історія в режимі readOnly */}
-            {readOnly && !isNewEquipment && (
-              <div className="form-section" style={{ marginBottom: '20px' }}>
+            {effectiveReadOnly && !isNewEquipment && (
+              <div className="form-section" style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowQR(true)}
+                  style={{ padding: '12px 24px', fontSize: '16px' }}
+                >
+                  📱 QR
+                </button>
                 <button
                   type="button"
                   className="btn-secondary"
@@ -417,7 +467,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
               </div>
             )}
 
-            {!readOnly && (
+            {!effectiveReadOnly && (
               <div className="form-section">
                 <h3>Тип матеріальних цінностей</h3>
                 {isNewEquipment && (
@@ -462,8 +512,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                         itemKind: cat ? cat.itemKind : (prev.itemKind || 'equipment')
                       }));
                     }}
-                    readOnly={readOnly}
-                    disabled={readOnly}
+                    readOnly={effectiveReadOnly}
+                    disabled={effectiveReadOnly}
                   >
                     <option value="">— Не обрано —</option>
                     {categoriesFlat.map((c) => (
@@ -498,8 +548,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   name="manufacturer"
                   value={formData.manufacturer}
                   onChange={handleChange}
-                  readOnly={readOnly}
-                  disabled={readOnly}
+                  readOnly={effectiveReadOnly}
+                  disabled={effectiveReadOnly}
                 />
               </div>
               <div className="form-group">
@@ -510,8 +560,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   value={formData.type}
                   onChange={handleChange}
                   required
-                  readOnly={readOnly}
-                  disabled={readOnly}
+                  readOnly={effectiveReadOnly}
+                  disabled={effectiveReadOnly}
                 />
               </div>
               <div className="form-group">
@@ -521,9 +571,9 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   name="serialNumber"
                   value={formData.serialNumber}
                   onChange={handleChange}
-                  disabled={(equipmentType === 'batch' && isNewEquipment) || (!isNewEquipment && equipment?.isBatch) || readOnly}
+                  disabled={(equipmentType === 'batch' && isNewEquipment) || (!isNewEquipment && equipment?.isBatch) || effectiveReadOnly}
                   required={equipmentType === 'single' && isNewEquipment}
-                  readOnly={readOnly}
+                  readOnly={effectiveReadOnly}
                   placeholder={
                     (!isNewEquipment && equipment?.isBatch) 
                       ? 'Не застосовується для партійного обладнання' 
@@ -544,8 +594,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   min="1"
                   required
                   placeholder="Введіть кількість"
-                  readOnly={readOnly}
-                  disabled={readOnly}
+                  readOnly={effectiveReadOnly}
+                  disabled={effectiveReadOnly}
                 />
                 </div>
               )}
@@ -556,7 +606,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   value={formData.currentWarehouse}
                   onChange={handleChange}
                   required
-                  disabled={readOnly}
+                  disabled={effectiveReadOnly}
                 >
                   <option value="">Виберіть склад</option>
                   {warehouses.map(w => (
@@ -574,8 +624,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   value={formData.region}
                   onChange={handleChange}
                   placeholder="Введіть регіон"
-                  readOnly={readOnly}
-                  disabled={readOnly}
+                  readOnly={effectiveReadOnly}
+                  disabled={effectiveReadOnly}
                 />
               </div>
               {/* Поля тестування - тільки для існуючого обладнання */}
@@ -657,7 +707,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   value={formData.batchUnit}
                   onChange={handleChange}
                   required
-                  disabled={readOnly}
+                  disabled={effectiveReadOnly}
                 >
                   <option value="">Виберіть одиницю виміру</option>
                   <option value="шт.">шт.</option>
@@ -678,8 +728,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   placeholder="0.00"
                   step="0.01"
                   min="0"
-                  readOnly={readOnly}
-                  disabled={readOnly}
+                  readOnly={effectiveReadOnly}
+                  disabled={effectiveReadOnly}
                 />
               </div>
               <div className="form-group">
@@ -688,6 +738,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   name="currency"
                   value={formData.currency || 'грн.'}
                   onChange={handleChange}
+                  disabled={effectiveReadOnly}
                 >
                   <option value="грн.">грн.</option>
                   <option value="USD">USD</option>
@@ -709,6 +760,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                     name="standbyPower"
                     value={formData.standbyPower}
                     onChange={handleChange}
+                    readOnly={effectiveReadOnly}
+                    disabled={effectiveReadOnly}
                   />
                 </div>
                 <div className="form-group">
@@ -718,6 +771,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                     name="primePower"
                     value={formData.primePower}
                     onChange={handleChange}
+                    readOnly={effectiveReadOnly}
+                    disabled={effectiveReadOnly}
                   />
                 </div>
                 <div className="form-group">
@@ -727,6 +782,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                     name="phase"
                     value={formData.phase}
                     onChange={handleChange}
+                    readOnly={effectiveReadOnly}
+                    disabled={effectiveReadOnly}
                   />
                 </div>
                 <div className="form-group">
@@ -736,6 +793,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                     name="voltage"
                     value={formData.voltage}
                     onChange={handleChange}
+                    readOnly={effectiveReadOnly}
+                    disabled={effectiveReadOnly}
                   />
                 </div>
                 <div className="form-group">
@@ -745,6 +804,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                     name="amperage"
                     value={formData.amperage}
                     onChange={handleChange}
+                    readOnly={effectiveReadOnly}
+                    disabled={effectiveReadOnly}
                   />
                 </div>
                 <div className="form-group">
@@ -754,6 +815,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                     name="rpm"
                     value={formData.rpm}
                     onChange={handleChange}
+                    readOnly={effectiveReadOnly}
+                    disabled={effectiveReadOnly}
                   />
                 </div>
               </div>
@@ -770,6 +833,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   name="dimensions"
                   value={formData.dimensions}
                   onChange={handleChange}
+                  readOnly={effectiveReadOnly}
+                  disabled={effectiveReadOnly}
                 />
               </div>
               <div className="form-group">
@@ -779,6 +844,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   name="weight"
                   value={formData.weight}
                   onChange={handleChange}
+                  readOnly={effectiveReadOnly}
+                  disabled={effectiveReadOnly}
                 />
               </div>
               <div className="form-group">
@@ -788,12 +855,14 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                   name="manufactureDate"
                   value={formData.manufactureDate}
                   onChange={handleChange}
+                  readOnly={effectiveReadOnly}
+                  disabled={effectiveReadOnly}
                 />
               </div>
             </div>
           </div>
 
-          {!readOnly && (
+          {!effectiveReadOnly && (
             <div className="form-section">
               <h3>Документи та фото</h3>
               <EquipmentFileUpload
@@ -802,7 +871,7 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
               />
             </div>
           )}
-          {readOnly && equipment?.attachedFiles && equipment.attachedFiles.length > 0 && (
+          {effectiveReadOnly && equipment?.attachedFiles && equipment.attachedFiles.length > 0 && (
             <div className="form-section">
               <h3>Документи та фото ({equipment.attachedFiles.length})</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px', marginTop: '15px' }}>
@@ -893,8 +962,8 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                 placeholder="Введіть примітки (необов'язково)"
                 rows="5"
                 style={{ width: '100%', minHeight: '120px' }}
-                readOnly={readOnly}
-                disabled={readOnly}
+                readOnly={effectiveReadOnly}
+                disabled={effectiveReadOnly}
               />
             </div>
           </div>
@@ -935,9 +1004,9 @@ function EquipmentEditModal({ equipment, warehouses, user, onClose, onSuccess, r
                 </>
               )}
               <button type="button" className="btn-cancel" onClick={onClose}>
-                {readOnly ? 'Закрити' : 'Скасувати'}
+                {effectiveReadOnly ? 'Закрити' : 'Скасувати'}
               </button>
-              {!readOnly && (
+              {!effectiveReadOnly && (
                 <button type="submit" className="btn-save" disabled={loading}>
                   {loading ? 'Збереження...' : isNewEquipment ? 'Додати' : 'Зберегти'}
                 </button>
