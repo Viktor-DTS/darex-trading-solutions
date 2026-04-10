@@ -174,11 +174,10 @@ function InventoryDashboard({ user }) {
 
   const handleEquipmentAdded = () => {
     setShowAddModal(false);
+    setReceiptPresetProductCard(null);
     if (equipmentListRef.current) {
       equipmentListRef.current.refresh();
     }
-    // Після успішного додавання повертаємося на вкладку залишків
-    setActiveTab('stock');
   };
 
   const handleMove = (equipment) => {
@@ -198,8 +197,6 @@ function InventoryDashboard({ user }) {
     if (equipmentListRef.current) {
       equipmentListRef.current.refresh();
     }
-    // Після успішного переміщення повертаємося на вкладку залишків
-    setActiveTab('stock');
   };
 
   const handleShipSuccess = () => {
@@ -210,7 +207,6 @@ function InventoryDashboard({ user }) {
     if (equipmentListRef.current) {
       equipmentListRef.current.refresh();
     }
-    setActiveTab('stock');
   };
 
   const handleWriteOffSuccess = () => {
@@ -219,8 +215,6 @@ function InventoryDashboard({ user }) {
     if (equipmentListRef.current) {
       equipmentListRef.current.refresh();
     }
-    // Після успішного списання повертаємося на вкладку залишків
-    setActiveTab('stock');
   };
 
   const renderTabContent = () => {
@@ -506,10 +500,6 @@ function InventoryDashboard({ user }) {
             setShowMoveModal(false);
             setMoveDestinationWarehouses(null);
             setSelectedEquipment(null);
-            // Якщо закриваємо модальне вікно з вкладки переміщення, повертаємося на залишки
-            if (activeTab === 'movement') {
-              setActiveTab('stock');
-            }
           }}
           onSuccess={handleMoveSuccess}
         />
@@ -541,10 +531,6 @@ function InventoryDashboard({ user }) {
           onClose={() => {
             setShowWriteOffModal(false);
             setSelectedEquipment(null);
-            // Якщо закриваємо модальне вікно з вкладки списання, повертаємося на залишки
-            if (activeTab === 'write-off') {
-              setActiveTab('stock');
-            }
           }}
           onSuccess={handleWriteOffSuccess}
         />
