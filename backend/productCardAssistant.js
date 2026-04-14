@@ -1,24 +1,20 @@
 /**
  * Асистент для форми «нова карточка продукту»: Вікіпедія → опційно LLM (див. productCardAssistantLlm.js) → заглушка.
- * Імпорт зображень — лише з дозволених HTTPS-доменів (Wikimedia / Wikipedia; опційно Google CSE).
+ * Імпорт зображень — лише з дозволених HTTPS-доменів (Wikimedia / Wikipedia; опційно прев’ю через SerpApi).
  *
- * За замовчуванням **Google Custom Search вимкнено** (без CX/списку сайтів асистент покладається на Вікі + Commons + Groq).
- * Увімкнути прев’ю Google: PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH=1 та GOOGLE_CUSTOM_SEARCH_CX + ключ API.
+ * Google Custom Search JSON API **не викликається** (для нових проєктів Google API часто недоступний; змінна PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH ігнорується).
+ * Зовнішні прев’ю зображень: PRODUCT_ASSISTANT_SERPAPI_IMAGE_SEARCH=1 та SERPAPI_API_KEY.
  * Додаткові суфікси хостів (через кому): PRODUCT_ASSISTANT_IMAGE_IMPORT_HOST_SUFFIXES
  * Розширення пошукових рядків: productCardAssistantImageQueries.js (очищення «без АВР», коди моделі, підказки для Commons).
- * Якщо Google увімкнено: GOOGLE_CUSTOM_SEARCH_CX_UA, PRODUCT_ASSISTANT_GOOGLE_UA_FIRST=0 (без UA-підказок у CSE-запитах).
+ * Для SerpApi: PRODUCT_ASSISTANT_GOOGLE_UA_FIRST=0 вимикає додаткові UA-підказки в рядках пошуку.
  */
 
 const cloudinary = require('cloudinary').v2;
 const { extractHeuristicSpecs } = require('./heuristicProductSpecs');
 const { llmSuggest } = require('./productCardAssistantLlm');
 const { commonsSuggestImages } = require('./productCardAssistantCommons');
-const {
-  googleCustomSearchImages,
-  resolveCx,
-  resolveCxUa,
-  sortImagesUaHostFirst,
-} = require('./productCardAssistantGoogleImages');
+const { sortImagesUaHostFirst } = require('./productCardAssistantGoogleImages');
+const { serpApiGoogleImages, resolveSerpApiKey, serpApiImageSearchEnabled } = require('./productCardAssistantSerpApiImages');
 const {
   buildGoogleQueryListPrioritizingUa,
   buildCommonsImageSearchExtensions,
@@ -33,11 +29,6 @@ const EXTRA_IMAGE_HOST_SUFFIXES = String(process.env.PRODUCT_ASSISTANT_IMAGE_IMP
   .map((s) => s.trim().toLowerCase().replace(/^\.+/, ''))
   .filter(Boolean);
 
-function googleImageSearchEnabled() {
-  const v = String(process.env.PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH || '0').trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'on' || v === 'yes';
-}
-
 function allowedImageHostname(hostname) {
   const h = String(hostname || '').toLowerCase();
   if (
@@ -50,6 +41,7 @@ function allowedImageHostname(hostname) {
   if (h === 'gstatic.com' || h.endsWith('.gstatic.com')) return true;
   if (h.endsWith('.googleusercontent.com') || h === 'googleusercontent.com') return true;
   if (h === 'ggpht.com' || h.endsWith('.ggpht.com')) return true;
+  if (h === 'serpapi.com' || h.endsWith('.serpapi.com')) return true;
   for (const suf of EXTRA_IMAGE_HOST_SUFFIXES) {
     if (!suf) continue;
     if (h === suf || h.endsWith(`.${suf}`)) return true;
@@ -328,16 +320,16 @@ function llmPayloadHasUsefulContent(payload) {
 const MAX_ASSISTANT_IMAGES = 12;
 const COMMONS_NOTE =
   '\n\nЗображення з Wikimedia Commons: перевірте відповідність саме вашому товару та умови ліцензії файлу перед використанням.';
-const GOOGLE_IMAGE_NOTE =
-  '\n\nПрев’ю з Google (Custom Search): перевірте відповідність товару та авторські права перед імпортом.';
+const SERPAPI_IMAGE_NOTE =
+  '\n\nПрев’ю з Google Images через SerpApi: перевірте відповідність товару та авторські права перед імпортом.';
 
 /**
- * Додає до payload зображення з Commons (розширені запити) і опційно з Google CSE (дедуп по URL).
+ * Додає до payload зображення з Commons (розширені запити) і опційно SerpApi (дедуп по URL).
  */
 async function enrichWithCommonsImages(query, payload) {
   if (!payload || payload.source === 'empty') return payload;
   const existing = Array.isArray(payload.images) ? payload.images : [];
-  const emptyMeta = { ...payload, commonsImagesAdded: 0, googleImagesAdded: 0 };
+  const emptyMeta = { ...payload, commonsImagesAdded: 0, googleImagesAdded: 0, serpApiImagesAdded: 0 };
   if (existing.length >= MAX_ASSISTANT_IMAGES) return emptyMeta;
   try {
     const slots = MAX_ASSISTANT_IMAGES - existing.length;
@@ -355,8 +347,8 @@ async function enrichWithCommonsImages(query, payload) {
 
     const seen = new Set(existing.map((i) => i.url).filter(Boolean));
     const merged = [...existing];
-    let googleAdded = 0;
-    if (googleImageSearchEnabled() && slots > 0) {
+    let serpApiAdded = 0;
+    if (slots > 0) {
       const gQueries = buildGoogleQueryListPrioritizingUa(query, {
         ...payload,
         suggestedName,
@@ -364,38 +356,21 @@ async function enrichWithCommonsImages(query, payload) {
         imageSearchQueries,
       });
       const gSlots = Math.min(8, slots);
-      let googleImages = [];
-      try {
-        const uaCx = resolveCxUa();
-        const mainCx = resolveCx();
-        if (uaCx && uaCx !== mainCx && mainCx) {
-          const half = Math.max(1, Math.ceil(gSlots / 2));
-          const fromUa = await googleCustomSearchImages(gQueries, half, { cx: uaCx });
-          const urlSeen = new Set(fromUa.map((x) => x.url).filter(Boolean));
-          googleImages = [...fromUa];
-          const need = gSlots - googleImages.length;
-          if (need > 0) {
-            const fromGlobal = await googleCustomSearchImages(gQueries, need, {});
-            for (const im of fromGlobal) {
-              if (!im?.url || urlSeen.has(im.url)) continue;
-              urlSeen.add(im.url);
-              googleImages.push(im);
-            }
-          }
-        } else if (uaCx && !mainCx) {
-          googleImages = await googleCustomSearchImages(gQueries, gSlots, { cx: uaCx });
-        } else {
-          googleImages = await googleCustomSearchImages(gQueries, gSlots, {});
+      const useSerpApi = serpApiImageSearchEnabled() && resolveSerpApiKey();
+      let commercialImages = [];
+      if (useSerpApi) {
+        try {
+          commercialImages = await serpApiGoogleImages(gQueries, gSlots);
+          commercialImages = sortImagesUaHostFirst(commercialImages).slice(0, gSlots);
+        } catch (e) {
+          console.warn('[product-card-assistant] SerpApi images:', e.message);
         }
-        googleImages = sortImagesUaHostFirst(googleImages).slice(0, gSlots);
-      } catch (e) {
-        console.warn('[product-card-assistant] Google images:', e.message);
       }
-      for (const im of googleImages) {
+      for (const im of commercialImages) {
         if (!im?.url || seen.has(im.url)) continue;
         seen.add(im.url);
         merged.push({ id: im.id, url: im.url, title: im.title });
-        googleAdded += 1;
+        serpApiAdded += 1;
         if (merged.length >= MAX_ASSISTANT_IMAGES) break;
       }
     }
@@ -419,15 +394,16 @@ async function enrichWithCommonsImages(query, payload) {
       }
     }
 
-    if (googleAdded + commonsAdded === 0) return emptyMeta;
+    if (serpApiAdded + commonsAdded === 0) return emptyMeta;
     let disclaimer = String(payload.disclaimer || '').trim();
     if (commonsAdded > 0 && !disclaimer.includes('Wikimedia Commons')) disclaimer += COMMONS_NOTE;
-    if (googleAdded > 0 && !disclaimer.includes('Google (Custom Search)')) disclaimer += GOOGLE_IMAGE_NOTE;
+    if (serpApiAdded > 0 && !disclaimer.includes('SerpApi')) disclaimer += SERPAPI_IMAGE_NOTE;
     return {
       ...payload,
       images: merged,
       commonsImagesAdded: commonsAdded,
-      googleImagesAdded: googleAdded,
+      googleImagesAdded: 0,
+      serpApiImagesAdded: serpApiAdded,
       disclaimer,
     };
   } catch (e) {

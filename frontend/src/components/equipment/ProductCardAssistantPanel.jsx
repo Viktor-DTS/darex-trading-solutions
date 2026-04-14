@@ -84,8 +84,9 @@ export default function ProductCardAssistantPanel({
                     : data.source}
             </p>
           ) : null}
-          {data.googleImagesAdded > 0 || data.commonsImagesAdded > 0 ? (
+          {data.googleImagesAdded > 0 || data.serpApiImagesAdded > 0 || data.commonsImagesAdded > 0 ? (
             <p className="product-card-assistant__meta">
+              {data.serpApiImagesAdded > 0 ? <>SerpApi: +{data.serpApiImagesAdded} </> : null}
               {data.googleImagesAdded > 0 ? <>Google: +{data.googleImagesAdded} </> : null}
               {data.commonsImagesAdded > 0 ? <>Commons: +{data.commonsImagesAdded} </> : null}
               (імпорт у «Фото / файли» через обрані чекбокси)

@@ -1,5 +1,5 @@
 /**
- * Розширений список рядків для пошуку прев’ю (Wikimedia Commons; опційно Google CSE):
+ * Розширений список рядків для пошуку прев’ю (Wikimedia Commons; опційно SerpApi):
  * LLM-запити, очищена назва, коди з артикулу — без URL і без «торгового шуму» для фото.
  */
 
@@ -137,7 +137,7 @@ function orderQueriesUaFirst(queries) {
 }
 
 /**
- * Список рядків для Google CSE (лише якщо PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH=1): UA-пріоритет у запитах.
+ * Список рядків для зовнішнього пошуку зображень (SerpApi): UA-пріоритет у запитах.
  * Вимкнути додаткові UA-підказки: PRODUCT_ASSISTANT_GOOGLE_UA_FIRST=0
  */
 function buildGoogleQueryListPrioritizingUa(userQuery, payload, opts = {}) {
