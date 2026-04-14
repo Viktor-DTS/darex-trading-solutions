@@ -299,7 +299,15 @@ async function enrichWithCommonsImages(query, payload) {
   let added = 0;
   try {
     const want = MAX_ASSISTANT_IMAGES - existing.length;
-    const commons = await commonsSuggestImages(query, { maxImages: want });
+    const suggestedName = String(payload.suggestedName || '').trim();
+    const manufacturerHint = String(payload.manufacturerHint || '').trim();
+    const enrichedLine = [suggestedName, manufacturerHint].filter(Boolean).join(' ').trim();
+    const commons = await commonsSuggestImages(query, {
+      maxImages: want,
+      suggestedName,
+      manufacturerHint,
+      enrichedLine,
+    });
     const seen = new Set(existing.map((i) => i.url).filter(Boolean));
     const merged = [...existing];
     for (const im of commons) {
