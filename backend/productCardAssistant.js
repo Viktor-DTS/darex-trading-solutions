@@ -9,6 +9,8 @@
  * Додаткові суфікси хостів (через кому): PRODUCT_ASSISTANT_IMAGE_IMPORT_HOST_SUFFIXES
  * Розширення пошукових рядків: productCardAssistantImageQueries.js (очищення «без АВР», коди моделі, підказки для Commons).
  * Для SerpApi: PRODUCT_ASSISTANT_GOOGLE_UA_FIRST=0 вимикає додаткові UA-підказки в рядках пошуку.
+ * Імпорт прев’ю у Cloudinary: PRODUCT_ASSISTANT_RELAXED_IMAGE_IMPORT=1 (типово) — дозволені публічні HTTPS
+ * крім локальних/приватних адрес (SerpApi дає посилання на сторонні сайти). 0 — лише старий суворий allowlist.
  */
 
 const cloudinary = require('cloudinary').v2;
@@ -66,6 +68,61 @@ function assertAllowedImageUrl(raw) {
     );
   }
   return u.href;
+}
+
+/** Блокування очевидного SSRF при імпорті з довільних HTTPS (SerpApi / каталоги). */
+function hostnameLooksBlockedForImport(host) {
+  const h = String(host || '').toLowerCase();
+  if (!h) return true;
+  if (h === 'localhost' || h.endsWith('.localhost')) return true;
+  if (h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.lan')) return true;
+  if (h === 'metadata.google.internal' || h.endsWith('.metadata.google.internal')) return true;
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (ipv4) {
+    const p = [1, 2, 3, 4].map((i) => Number(ipv4[i]));
+    if (p.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true;
+    const [a, b] = p;
+    if (a === 10 || a === 127 || a === 0) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+    if (a >= 224) return true;
+  }
+  if (h.includes(':')) {
+    const c = h.replace(/^\[|\]$/g, '');
+    if (c === '::1' || c.startsWith('fe80:') || c.startsWith('fc00:') || c.startsWith('fd')) return true;
+    if (c.startsWith('::ffff:')) return hostnameLooksBlockedForImport(c.slice('::ffff:'.length));
+  }
+  return false;
+}
+
+/**
+ * URL для завантаження в Cloudinary з асистента (прев’ю SerpApi / відкриті каталоги).
+ * Дозволяє публічні HTTPS, якщо не в allowlist — з перевіркою на приватні хости.
+ */
+function assertImportableAssistantImageUrl(raw) {
+  let u;
+  try {
+    u = new URL(String(raw || '').trim());
+  } catch (_) {
+    throw new Error('Некоректний URL зображення');
+  }
+  if (u.protocol !== 'https:') throw new Error('Дозволені лише HTTPS-посилання на зображення');
+  if (hostnameLooksBlockedForImport(u.hostname)) {
+    throw new Error('Цю адресу імпортувати не можна (заблоковано з міркувань безпеки)');
+  }
+  if (allowedImageHostname(u.hostname)) return u.href;
+  const v = String(process.env.PRODUCT_ASSISTANT_RELAXED_IMAGE_IMPORT || '1').trim().toLowerCase();
+  const relaxed = v !== '0' && v !== 'false' && v !== 'off' && v !== 'no';
+  if (!relaxed) {
+    throw new Error(
+      'Дозволені лише зображення з Wikipedia / Wikimedia, прев’ю Google або хостів з PRODUCT_ASSISTANT_IMAGE_IMPORT_HOST_SUFFIXES. Для інших HTTPS увімкніть PRODUCT_ASSISTANT_RELAXED_IMAGE_IMPORT=1.',
+    );
+  }
+  const href = u.href;
+  if (href.length > 4000) throw new Error('Посилання занадто довге');
+  return href;
 }
 
 async function fetchJson(url) {
@@ -444,7 +501,7 @@ async function suggest(query) {
 }
 
 async function importImageFromUrl(imageUrl) {
-  const url = assertAllowedImageUrl(imageUrl);
+  const url = assertImportableAssistantImageUrl(imageUrl);
   const result = await cloudinary.uploader.upload(url, {
     folder: 'product-card-assistant',
     resource_type: 'image',
@@ -460,5 +517,6 @@ module.exports = {
   suggest,
   importImageFromUrl,
   allowedImageHostname,
+  assertImportableAssistantImageUrl,
   extractHeuristicSpecs,
 };

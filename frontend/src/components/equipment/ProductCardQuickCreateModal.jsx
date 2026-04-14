@@ -199,7 +199,9 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
 
       const token = localStorage.getItem('token');
       const imagesToImport = (assistantData.images || []).filter((im) => sel.imageIds.includes(im.id));
-      for (const im of imagesToImport) {
+      const importedFiles = [];
+      for (let idx = 0; idx < imagesToImport.length; idx++) {
+        const im = imagesToImport[idx];
         const res = await fetch(`${API_BASE_URL}/product-card-assistant/import-image`, {
           method: 'POST',
           headers: {
@@ -210,19 +212,19 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
         });
         const out = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(out.error || 'Не вдалося імпортувати зображення');
+        importedFiles.push({
+          id: `asst-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 9)}`,
+          originalName: (im.title && String(im.title).slice(0, 80)) || 'фото (асистент)',
+          cloudinaryUrl: out.photoUrl,
+          cloudinaryId: out.cloudinaryId,
+          mimetype: 'image/jpeg',
+          size: 0,
+        });
+      }
+      if (importedFiles.length > 0) {
         setForm((f) => ({
           ...f,
-          attachedFiles: [
-            ...(f.attachedFiles || []),
-            {
-              id: `asst-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-              originalName: (im.title && String(im.title).slice(0, 80)) || 'фото (асистент)',
-              cloudinaryUrl: out.photoUrl,
-              cloudinaryId: out.cloudinaryId,
-              mimetype: 'image/jpeg',
-              size: 0,
-            },
-          ],
+          attachedFiles: [...(f.attachedFiles || []), ...importedFiles],
         }));
       }
       lastSuccessfulAssistantQueryRef.current = '';

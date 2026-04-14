@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import './ProductCardAssistantPanel.css';
 
 /**
@@ -15,6 +16,8 @@ export default function ProductCardAssistantPanel({
   const [useManufacturer, setUseManufacturer] = useState(false);
   const [specIds, setSpecIds] = useState(() => new Set());
   const [imageIds, setImageIds] = useState(() => new Set());
+  /** Індекс зображення у модалці збільшеного перегляду */
+  const [previewIndex, setPreviewIndex] = useState(null);
 
   useEffect(() => {
     if (!data || loading) return;
@@ -24,7 +27,39 @@ export default function ProductCardAssistantPanel({
     setSpecIds(s);
     // Зображення за замовчуванням не обрані — користувач позначає, що імпортувати у «Фото / файли».
     setImageIds(new Set());
+    setPreviewIndex(null);
   }, [data, loading]);
+
+  const assistantImages = data?.images && Array.isArray(data.images) ? data.images : [];
+  const closePreview = useCallback(() => setPreviewIndex(null), []);
+  const openPreview = useCallback((idx) => {
+    if (idx >= 0 && idx < assistantImages.length) setPreviewIndex(idx);
+  }, [assistantImages.length]);
+
+  useEffect(() => {
+    if (previewIndex == null) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closePreview();
+      }
+      if (e.key === 'ArrowLeft' && previewIndex > 0) {
+        e.preventDefault();
+        setPreviewIndex(previewIndex - 1);
+      }
+      if (e.key === 'ArrowRight' && previewIndex < assistantImages.length - 1) {
+        e.preventDefault();
+        setPreviewIndex(previewIndex + 1);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [previewIndex, assistantImages.length, closePreview]);
 
   const toggleSpec = (id) => {
     setSpecIds((prev) => {
@@ -143,17 +178,33 @@ export default function ProductCardAssistantPanel({
               Зображення для підстановки у «Фото / файли»
             </div>
             {(data.images || []).length > 0 ? (
+              <p className="product-card-assistant__image-hint">
+                Клік по мініатюрі — великий перегляд. Стрілки ← → у вікні перегляду — інші фото.
+              </p>
+            ) : null}
+            {(data.images || []).length > 0 ? (
               <ul className="product-card-assistant__images">
-                {(data.images || []).map((im) => (
+                {(data.images || []).map((im, idx) => (
                   <li key={im.id} className="product-card-assistant__image-item">
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={imageIds.has(im.id)}
-                        onChange={() => toggleImage(im.id)}
-                      />
-                      <img src={im.url} alt={im.title || ''} className="product-card-assistant__thumb" loading="lazy" />
-                    </label>
+                    <div className="product-card-assistant__image-toolbar">
+                      <label className="product-card-assistant__image-check">
+                        <input
+                          type="checkbox"
+                          checked={imageIds.has(im.id)}
+                          onChange={() => toggleImage(im.id)}
+                        />
+                        <span className="product-card-assistant__image-check-label">Імпорт</span>
+                      </label>
+                      <button
+                        type="button"
+                        className="product-card-assistant__thumb-btn"
+                        onClick={() => openPreview(idx)}
+                        title="Збільшити"
+                        aria-label={`Збільшити зображення ${idx + 1}`}
+                      >
+                        <img src={im.url} alt="" className="product-card-assistant__thumb" loading="lazy" />
+                      </button>
+                    </div>
                     {im.title ? <span className="product-card-assistant__img-cap">{im.title}</span> : null}
                   </li>
                 ))}
@@ -181,6 +232,67 @@ export default function ProductCardAssistantPanel({
           >
             {applyBusy ? 'Застосування…' : 'Додати обране до форми'}
           </button>
+
+          {previewIndex != null &&
+            assistantImages[previewIndex] &&
+            createPortal(
+              <div
+                className="product-card-assistant-lightbox"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Перегляд зображення"
+                onClick={closePreview}
+              >
+                <div className="product-card-assistant-lightbox__inner" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="product-card-assistant-lightbox__close"
+                    onClick={closePreview}
+                    aria-label="Закрити"
+                  >
+                    ×
+                  </button>
+                  {assistantImages.length > 1 ? (
+                    <>
+                      <button
+                        type="button"
+                        className="product-card-assistant-lightbox__nav product-card-assistant-lightbox__nav--prev"
+                        disabled={previewIndex <= 0}
+                        onClick={() => previewIndex > 0 && setPreviewIndex(previewIndex - 1)}
+                        aria-label="Попереднє фото"
+                      >
+                        ‹
+                      </button>
+                      <button
+                        type="button"
+                        className="product-card-assistant-lightbox__nav product-card-assistant-lightbox__nav--next"
+                        disabled={previewIndex >= assistantImages.length - 1}
+                        onClick={() =>
+                          previewIndex < assistantImages.length - 1 && setPreviewIndex(previewIndex + 1)
+                        }
+                        aria-label="Наступне фото"
+                      >
+                        ›
+                      </button>
+                    </>
+                  ) : null}
+                  <img
+                    src={assistantImages[previewIndex].url}
+                    alt={assistantImages[previewIndex].title || 'Прев’ю'}
+                    className="product-card-assistant-lightbox__img"
+                  />
+                  {assistantImages[previewIndex].title ? (
+                    <p className="product-card-assistant-lightbox__caption">{assistantImages[previewIndex].title}</p>
+                  ) : null}
+                  {assistantImages.length > 1 ? (
+                    <p className="product-card-assistant-lightbox__counter">
+                      {previewIndex + 1} / {assistantImages.length}
+                    </p>
+                  ) : null}
+                </div>
+              </div>,
+              document.body,
+            )}
         </>
       )}
     </aside>
