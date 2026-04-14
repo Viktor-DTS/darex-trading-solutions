@@ -2,7 +2,8 @@
  * Опційний шар LLM для асистента карточки продукту (OpenAI-сумісний Chat Completions API).
  *
  * Змінні оточення:
- *   PRODUCT_ASSISTANT_LLM_API_KEY — якщо порожньо, LLM не викликається
+ *   PRODUCT_ASSISTANT_LLM_API_KEY — пріоритетний ключ
+ *   OPENAI_API_KEY — запасний (зручно для Render, якщо вже є ключ для інших функцій)
  *   PRODUCT_ASSISTANT_LLM_BASE_URL — за замовчуванням https://api.openai.com/v1
  *   PRODUCT_ASSISTANT_LLM_MODEL — за замовчуванням gpt-4o-mini
  *   PRODUCT_ASSISTANT_LLM_TIMEOUT_MS — таймаут запиту (мс), за замовчуванням 25000
@@ -25,8 +26,15 @@ const SYSTEM = `Ти допомагаєш завскладу розібрати 
 Правила:
 - Не вигадуй артикули, штрихкоди, URL зображень.
 - Якщо з назви випливають лише розміри / потужність / напруга — додай їх у specs з зрозумілими назвами полів.
+- Для модульних автоматів / MCB: 1P/2P/3P/4P — кількість полюсів; C16/B6 тощо — крива та номінальний струм (А); 6kA/10kA — короткочасний струм відключення (кА), якщо є в назві.
 - Якщо невпевнений — менше полів, порожній manufacturerHint.
 - Не більше ${MAX_SPECS} елементів у specs.`;
+
+function resolveLlmApiKey() {
+  const primary = String(process.env.PRODUCT_ASSISTANT_LLM_API_KEY || '').trim();
+  if (primary) return primary;
+  return String(process.env.OPENAI_API_KEY || '').trim();
+}
 
 function stripJsonFence(text) {
   const s = String(text || '').trim();
@@ -73,7 +81,7 @@ function normalizePayload(parsed, model) {
  * @returns {Promise<null | object>}
  */
 async function llmSuggest(query) {
-  const apiKey = String(process.env.PRODUCT_ASSISTANT_LLM_API_KEY || '').trim();
+  const apiKey = resolveLlmApiKey();
   if (!apiKey) return null;
 
   const base = String(process.env.PRODUCT_ASSISTANT_LLM_BASE_URL || DEFAULT_BASE).replace(/\/$/, '');
@@ -147,4 +155,13 @@ async function llmSuggest(query) {
   return normalizePayload(parsed, model);
 }
 
-module.exports = { llmSuggest };
+if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'test') {
+  if (resolveLlmApiKey()) {
+    console.log(
+      '[product-card-assistant] LLM увімкнено (PRODUCT_ASSISTANT_LLM_API_KEY або OPENAI_API_KEY). Модель:',
+      String(process.env.PRODUCT_ASSISTANT_LLM_MODEL || DEFAULT_MODEL).trim(),
+    );
+  }
+}
+
+module.exports = { llmSuggest, resolveLlmApiKey };

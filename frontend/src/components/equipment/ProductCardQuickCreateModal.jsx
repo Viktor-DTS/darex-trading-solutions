@@ -99,9 +99,14 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
       technicalSpecs: mergeScannedSpecsIntoFormRows(f.technicalSpecs, specPairs),
     }));
     setShowScanner(false);
+    lastSuccessfulAssistantQueryRef.current = '';
+    setTimeout(() => {
+      fetchAssistantForQuery(resolveAssistantQueryFromInputs(), { force: true });
+    }, 0);
   };
 
-  const fetchAssistantForQuery = useCallback(async (query) => {
+  const fetchAssistantForQuery = useCallback(async (query, opts) => {
+    const force = opts && opts.force === true;
     const q = String(query || '').trim();
     if (q.length < 2) {
       setAssistantData(null);
@@ -109,7 +114,7 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
       lastSuccessfulAssistantQueryRef.current = '';
       return;
     }
-    if (q === lastSuccessfulAssistantQueryRef.current) return;
+    if (!force && q === lastSuccessfulAssistantQueryRef.current) return;
 
     setAssistantLoading(true);
     setAssistantError('');
@@ -147,6 +152,11 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
     if (d.length >= 2) return d;
     return '';
   }, []);
+
+  const refreshAssistantHints = useCallback(() => {
+    lastSuccessfulAssistantQueryRef.current = '';
+    fetchAssistantForQuery(resolveAssistantQueryFromInputs(), { force: true });
+  }, [fetchAssistantForQuery, resolveAssistantQueryFromInputs]);
 
   /** Пошук при зміні фокусу з поля типу або короткої назви. */
   useEffect(() => {
@@ -215,6 +225,10 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
           ],
         }));
       }
+      lastSuccessfulAssistantQueryRef.current = '';
+      setTimeout(() => {
+        fetchAssistantForQuery(resolveAssistantQueryFromInputs(), { force: true });
+      }, 0);
     } catch (e) {
       setAssistantError(e.message || 'Помилка застосування');
     } finally {
@@ -293,7 +307,8 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
         <p className="product-card-quick-intro">
           Зліва — форма карточки; <strong>скан шильдика</strong> додає відсутні поля. Справа — <strong>асистент</strong>: після
           введення <strong>типу</strong> (або лише <strong>короткої назви</strong>, якщо тип ще порожній) переведіть фокус в інше
-          поле — підвантажаться довідкові дані (Вікіпедія або заглушки). Оберіть чекбоксами і натисніть «Додати обране до форми».
+          поле — підвантажаться Вікіпедія, зображення з Commons і за наявності ключа на сервері — LLM. Можна натиснути{' '}
+          <strong>«Оновити підказки»</strong>, якщо змінили текст після підвантаження. Оберіть чекбоксами і натисніть «Додати обране до форми».
         </p>
         {error && <p className="category-management-message error">{error}</p>}
 
@@ -461,13 +476,25 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
                 </div>
               </form>
             </div>
-            <ProductCardAssistantPanel
-              loading={assistantLoading}
-              error={assistantError}
-              data={assistantData}
-              onApply={handleAssistantApply}
-              applyBusy={assistantApplyBusy}
-            />
+            <div className="product-card-quick-assistant-wrap">
+              <div className="product-card-quick-assistant-toolbar">
+                <button
+                  type="button"
+                  className="btn-secondary product-card-quick-assistant-refresh"
+                  onClick={refreshAssistantHints}
+                  disabled={assistantLoading || assistantApplyBusy}
+                >
+                  {assistantLoading ? 'Завантаження…' : 'Оновити підказки'}
+                </button>
+              </div>
+              <ProductCardAssistantPanel
+                loading={assistantLoading}
+                error={assistantError}
+                data={assistantData}
+                onApply={handleAssistantApply}
+                applyBusy={assistantApplyBusy}
+              />
+            </div>
           </div>
         )}
       </div>

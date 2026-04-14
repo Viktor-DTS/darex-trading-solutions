@@ -56,7 +56,7 @@ export default function ProductCardAssistantPanel({
       <h4 className="product-card-assistant__title">Асистент</h4>
       <p className="product-card-assistant__hint">
         Після введення <strong>Тип / найменування</strong> (або лише <strong>короткої назви</strong>, якщо тип порожній) переведіть
-        фокус у інше поле (Tab або клік) — підвантажаться довідкові дані (Вікіпедія, зображення з Wikimedia Commons, за потреби LLM на сервері). Оберіть чекбоксами, що перенести у
+        фокус у інше поле (Tab або клік) — підвантажаться довідкові дані (Вікіпедія, Commons, за наявності ключа LLM на сервері: PRODUCT_ASSISTANT_LLM_API_KEY або OPENAI_API_KEY). Оберіть чекбоксами, що перенести у
         форму зліва.
       </p>
 

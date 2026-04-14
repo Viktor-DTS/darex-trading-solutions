@@ -48,8 +48,12 @@ function commonsSearchVariants(userQuery) {
     if (/генератор|дизел/i.test(trimmed)) {
       push('diesel generator');
     }
+    if (/автовимикач|вимикач\s*модульн|модульний\s*вимикач|difavtomat|дифавтомат|узо|узі|rcbo|mcb\b/i.test(trimmed)) {
+      push('modular circuit breaker MCB');
+      push('miniature circuit breaker');
+    }
   }
-  return out.slice(0, 5);
+  return out.slice(0, 6);
 }
 
 async function commonsSearchFileTitles(searchQuery, limit) {

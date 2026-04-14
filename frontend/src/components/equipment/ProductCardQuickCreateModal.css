@@ -63,3 +63,16 @@
 .product-card-quick-form {
   margin-top: 0;
 }
+
+.product-card-quick-assistant-wrap {
+  min-width: 0;
+}
+
+.product-card-quick-assistant-toolbar {
+  margin-bottom: 10px;
+}
+
+.product-card-quick-assistant-refresh {
+  font-size: 13px;
+  padding: 6px 12px;
+}
