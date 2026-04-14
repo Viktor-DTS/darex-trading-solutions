@@ -7,6 +7,7 @@
  *   GOOGLE_CUSTOM_SEARCH_API_KEY — ключ (або fallback GOOGLE_GEOCODING_API_KEY / GOOGLE_VISION_API_KEY)
  *
  * У Google Cloud Console увімкніть «Custom Search API» для того самого проєкту, що й ключ.
+ * На бекенді асистента картки товару CSE за замовчуванням **вимкнено**; увімкніть PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH=1.
  */
 
 const CSE_ENDPOINT = 'https://www.googleapis.com/customsearch/v1';

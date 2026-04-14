@@ -1,7 +1,13 @@
 /**
- * Розширений список рядків для пошуку прев’ю (Google CSE, узгоджено з Commons):
+ * Розширений список рядків для пошуку прев’ю (Wikimedia Commons; опційно Google CSE):
  * LLM-запити, очищена назва, коди з артикулу — без URL і без «торгового шуму» для фото.
  */
+
+const {
+  looksLikeStationaryGenerator,
+  looksLikeEngineCoolant,
+  looksLikeMotorLubricant,
+} = require('./productCardAssistantCommons');
 
 /** Прості підрядки без \\b на кирилиці (у Node \\b перед «без» часто не спрацьовує). */
 const NON_VISUAL_PATTERNS = [
@@ -131,7 +137,7 @@ function orderQueriesUaFirst(queries) {
 }
 
 /**
- * Список рядків для Google CSE: спочатку підказки під .ua / локальні портали, потім решта.
+ * Список рядків для Google CSE (лише якщо PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH=1): UA-пріоритет у запитах.
  * Вимкнути додаткові UA-підказки: PRODUCT_ASSISTANT_GOOGLE_UA_FIRST=0
  */
 function buildGoogleQueryListPrioritizingUa(userQuery, payload, opts = {}) {
@@ -159,9 +165,57 @@ function buildGoogleQueryListPrioritizingUa(userQuery, payload, opts = {}) {
   return out;
 }
 
+/**
+ * Розширення imageSearchQueries для Commons (без Google): укр./англ. варіанти за типом товару та кодами.
+ * @param {string} userQuery
+ * @param {{ suggestedName?: string, manufacturerHint?: string, imageSearchQueries?: string[] }} payload
+ * @returns {string[]}
+ */
+function buildCommonsImageSearchExtensions(userQuery, payload = {}) {
+  const llmImg = Array.isArray(payload.imageSearchQueries)
+    ? payload.imageSearchQueries.map((x) => String(x || '').trim()).filter((x) => x.length >= 2).slice(0, 8)
+    : [];
+  const suggestedName = String(payload.suggestedName || '').trim();
+  const manufacturerHint = String(payload.manufacturerHint || '').trim();
+  const raw = String(userQuery || '').trim();
+  const sanitized = sanitizeForImageSearch(raw);
+  const blob = [raw, suggestedName, manufacturerHint, ...llmImg].join(' ');
+
+  const extra = [];
+  if (sanitized.length >= 4 && hasCyrillic(sanitized)) {
+    extra.push(sanitized);
+  }
+  const codes = extractProminentProductCodes(blob);
+  if (looksLikeStationaryGenerator(blob)) {
+    for (const c of codes.slice(0, 3)) {
+      extra.push(`дизель-генератор ${c}`);
+      extra.push(`diesel generator ${c} industrial`);
+    }
+  }
+  if (looksLikeEngineCoolant(blob) && !looksLikeMotorLubricant(blob)) {
+    for (const c of codes.filter((x) => /^g/i.test(String(x)))) {
+      extra.push(`${c} охолоджуюча рідина`);
+      extra.push(`${String(c).replace(/\s+/g, '')} engine coolant`);
+    }
+    extra.push('automotive antifreeze coolant liquid');
+  }
+
+  const seen = new Set();
+  const out = [];
+  for (const t of [...llmImg, ...extra]) {
+    const k = String(t).trim().toLowerCase();
+    if (k.length < 2 || seen.has(k)) continue;
+    seen.add(k);
+    out.push(String(t).trim().slice(0, 200));
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
 module.exports = {
   buildExpandedImageSearchQueries,
   buildGoogleQueryListPrioritizingUa,
+  buildCommonsImageSearchExtensions,
   sanitizeForImageSearch,
   extractProminentProductCodes,
   orderQueriesUaFirst,

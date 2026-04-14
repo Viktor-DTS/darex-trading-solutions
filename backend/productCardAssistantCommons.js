@@ -338,7 +338,7 @@ function pickImageUrl(ii) {
 async function commonsSuggestImages(userQuery, opts = {}) {
   const maxImages = Math.min(16, Math.max(1, opts.maxImages || 10));
   const imgQ = Array.isArray(opts.imageSearchQueries)
-    ? opts.imageSearchQueries.map((x) => String(x || '').trim()).filter((x) => x.length >= 2).slice(0, 6)
+    ? opts.imageSearchQueries.map((x) => String(x || '').trim()).filter((x) => x.length >= 2).slice(0, 10)
     : [];
   const ctx = {
     suggestedName: opts.suggestedName,
@@ -421,4 +421,5 @@ module.exports = {
   commonsSearchVariants,
   looksLikeMotorLubricant,
   looksLikeStationaryGenerator,
+  looksLikeEngineCoolant,
 };

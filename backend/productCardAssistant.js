@@ -1,12 +1,12 @@
 /**
  * Асистент для форми «нова карточка продукту»: Вікіпедія → опційно LLM (див. productCardAssistantLlm.js) → заглушка.
- * Імпорт зображень — лише з дозволених HTTPS-доменів (Wikimedia / Wikipedia, прев’ю Google CSE, див. нижче).
+ * Імпорт зображень — лише з дозволених HTTPS-доменів (Wikimedia / Wikipedia; опційно Google CSE).
  *
+ * За замовчуванням **Google Custom Search вимкнено** (без CX/списку сайтів асистент покладається на Вікі + Commons + Groq).
+ * Увімкнути прев’ю Google: PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH=1 та GOOGLE_CUSTOM_SEARCH_CX + ключ API.
  * Додаткові суфікси хостів (через кому): PRODUCT_ASSISTANT_IMAGE_IMPORT_HOST_SUFFIXES
- * Вимкнути Google-прев’ю: PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH=0
- * Розширення рядків для CSE: productCardAssistantImageQueries.js (очищення «без АВР» тощо, коди моделі).
- * Google: спочатку запити з кирилицею + «Україна»/«купити», сортування прев’ю за .ua; опційно GOOGLE_CUSTOM_SEARCH_CX_UA.
- * Вимкнути UA-пріоритезацію запитів: PRODUCT_ASSISTANT_GOOGLE_UA_FIRST=0
+ * Розширення пошукових рядків: productCardAssistantImageQueries.js (очищення «без АВР», коди моделі, підказки для Commons).
+ * Якщо Google увімкнено: GOOGLE_CUSTOM_SEARCH_CX_UA, PRODUCT_ASSISTANT_GOOGLE_UA_FIRST=0 (без UA-підказок у CSE-запитах).
  */
 
 const cloudinary = require('cloudinary').v2;
@@ -19,7 +19,10 @@ const {
   resolveCxUa,
   sortImagesUaHostFirst,
 } = require('./productCardAssistantGoogleImages');
-const { buildGoogleQueryListPrioritizingUa } = require('./productCardAssistantImageQueries');
+const {
+  buildGoogleQueryListPrioritizingUa,
+  buildCommonsImageSearchExtensions,
+} = require('./productCardAssistantImageQueries');
 
 const USER_AGENT =
   process.env.PRODUCT_ASSISTANT_USER_AGENT ||
@@ -31,8 +34,8 @@ const EXTRA_IMAGE_HOST_SUFFIXES = String(process.env.PRODUCT_ASSISTANT_IMAGE_IMP
   .filter(Boolean);
 
 function googleImageSearchEnabled() {
-  const v = String(process.env.PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH || '1').trim().toLowerCase();
-  return v !== '0' && v !== 'false' && v !== 'off' && v !== 'no';
+  const v = String(process.env.PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH || '0').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'on' || v === 'yes';
 }
 
 function allowedImageHostname(hostname) {
@@ -329,7 +332,7 @@ const GOOGLE_IMAGE_NOTE =
   '\n\nПрев’ю з Google (Custom Search): перевірте відповідність товару та авторські права перед імпортом.';
 
 /**
- * Додає до payload зображення з Google CSE (якщо налаштовано) і Commons (дедуп по URL).
+ * Додає до payload зображення з Commons (розширені запити) і опційно з Google CSE (дедуп по URL).
  */
 async function enrichWithCommonsImages(query, payload) {
   if (!payload || payload.source === 'empty') return payload;
@@ -344,8 +347,7 @@ async function enrichWithCommonsImages(query, payload) {
     const imageSearchQueries = Array.isArray(payload.imageSearchQueries)
       ? payload.imageSearchQueries.map((x) => String(x || '').trim()).filter((x) => x.length >= 2).slice(0, 6)
       : [];
-    const gQueries = buildGoogleQueryListPrioritizingUa(query, {
-      ...payload,
+    const commonsImageQueries = buildCommonsImageSearchExtensions(query, {
       suggestedName,
       manufacturerHint,
       imageSearchQueries,
@@ -355,6 +357,12 @@ async function enrichWithCommonsImages(query, payload) {
     const merged = [...existing];
     let googleAdded = 0;
     if (googleImageSearchEnabled() && slots > 0) {
+      const gQueries = buildGoogleQueryListPrioritizingUa(query, {
+        ...payload,
+        suggestedName,
+        manufacturerHint,
+        imageSearchQueries,
+      });
       const gSlots = Math.min(8, slots);
       let googleImages = [];
       try {
@@ -400,7 +408,7 @@ async function enrichWithCommonsImages(query, payload) {
         suggestedName,
         manufacturerHint,
         enrichedLine,
-        imageSearchQueries,
+        imageSearchQueries: commonsImageQueries,
       });
       for (const im of commons) {
         if (!im?.url || seen.has(im.url)) continue;
