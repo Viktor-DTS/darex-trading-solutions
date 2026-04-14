@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import API_BASE_URL from '../../config';
 import { flattenCategoriesForSelect } from '../../utils/equipmentPickerCategories';
 import EquipmentFileUpload from './EquipmentFileUpload';
@@ -34,6 +35,27 @@ function EquipmentMoveModal({
   const [batchQuantities, setBatchQuantities] = useState({}); // { batchId-warehouse: quantity }
   const [quantityBasedQuantities, setQuantityBasedQuantities] = useState({}); // { equipmentId: quantity } для обладнання без серійного номера
   const [preflightError, setPreflightError] = useState('');
+
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  /** Escape: спочатку дочірня модалка кількості, потім закриття всього вікна (повноекран перехоплює кліки поза контентом). */
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key !== 'Escape') return;
+      if (showBatchQuantityModal) {
+        setShowBatchQuantityModal(false);
+        setSelectedBatch(null);
+        setError('');
+        return;
+      }
+      onCloseRef.current();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showBatchQuantityModal]);
 
   const isRegionalStaff = ['warehouse', 'zavsklad'].includes(String(user?.role || '').toLowerCase());
   const destWarehouses = useMemo(() => {
@@ -610,76 +632,92 @@ function EquipmentMoveModal({
           </div>
           {error && <div className="error-message">{error}</div>}
         </div>
-        
-        {/* Модалка вибору кількості для партії */}
-        {showBatchQuantityModal && selectedBatch && (
-          <div className="modal-overlay" style={{ zIndex: 1001 }} onClick={() => {
-            setShowBatchQuantityModal(false);
-            setSelectedBatch(null);
-            setError('');
-          }}>
-            <div className="modal-content" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h3>Виберіть кількість</h3>
-                <button className="btn-close" onClick={() => {
-                  setShowBatchQuantityModal(false);
-                  setSelectedBatch(null);
-                  setError('');
-                }}>✕</button>
-              </div>
-              <div className="modal-body">
-                <p><strong>Партія:</strong> {selectedBatch.type}</p>
-                <p><strong>Доступно на складі:</strong> {selectedBatch.batchCount} шт.</p>
-                <div className="form-group">
-                  <label>Кількість для переміщення *</label>
-                  {(() => {
-                    const isQuantityBased = !selectedBatch.batchId && (!selectedBatch.serialNumber || selectedBatch.serialNumber.trim() === '') && selectedBatch.quantity > 1;
-                    const maxQuantity = isQuantityBased ? selectedBatch.quantity : selectedBatch.batchCount;
-                    return (
-                      <>
-                        <input
-                          type="number"
-                          min="1"
-                          max={maxQuantity}
-                          value={batchQuantity}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value) || 1;
-                            setBatchQuantity(Math.max(1, Math.min(val, maxQuantity)));
-                          }}
-                          style={{ width: '100%', padding: '8px' }}
-                        />
-                        <div style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
-                          Доступно на складі: {maxQuantity} шт.
-                        </div>
-                      </>
-                    );
-                  })()}
+
+        {showBatchQuantityModal &&
+          selectedBatch &&
+          createPortal(
+            <div
+              className="modal-overlay equipment-move-qty-overlay"
+              role="presentation"
+              onClick={() => {
+                setShowBatchQuantityModal(false);
+                setSelectedBatch(null);
+                setError('');
+              }}
+            >
+              <div className="modal-content" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h3>Виберіть кількість</h3>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => {
+                      setShowBatchQuantityModal(false);
+                      setSelectedBatch(null);
+                      setError('');
+                    }}
+                  >
+                    ✕
+                  </button>
                 </div>
-                {error && <div className="error-message">{error}</div>}
+                <div className="modal-body">
+                  <p>
+                    <strong>Партія:</strong> {selectedBatch.type}
+                  </p>
+                  <p>
+                    <strong>Доступно на складі:</strong>{' '}
+                    {selectedBatch.batchCount != null ? selectedBatch.batchCount : selectedBatch.quantity} шт.
+                  </p>
+                  <div className="form-group">
+                    <label>Кількість для переміщення *</label>
+                    {(() => {
+                      const isQuantityBased =
+                        !selectedBatch.batchId &&
+                        (!selectedBatch.serialNumber || selectedBatch.serialNumber.trim() === '') &&
+                        selectedBatch.quantity > 1;
+                      const maxQuantity = isQuantityBased ? selectedBatch.quantity : selectedBatch.batchCount;
+                      return (
+                        <>
+                          <input
+                            type="number"
+                            min="1"
+                            max={maxQuantity}
+                            value={batchQuantity}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10) || 1;
+                              setBatchQuantity(Math.max(1, Math.min(val, maxQuantity)));
+                            }}
+                            style={{ width: '100%', padding: '8px' }}
+                          />
+                          <div style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+                            Доступно на складі: {maxQuantity} шт.
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                  {error && <div className="error-message">{error}</div>}
+                </div>
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => {
+                      setShowBatchQuantityModal(false);
+                      setSelectedBatch(null);
+                      setError('');
+                    }}
+                  >
+                    Скасувати
+                  </button>
+                  <button type="button" className="btn-primary" onClick={handleBatchQuantityConfirm}>
+                    Підтвердити
+                  </button>
+                </div>
               </div>
-              <div className="modal-actions">
-                <button 
-                  type="button" 
-                  className="btn-secondary" 
-                  onClick={() => {
-                    setShowBatchQuantityModal(false);
-                    setSelectedBatch(null);
-                    setError('');
-                  }}
-                >
-                  Скасувати
-                </button>
-                <button 
-                  type="button" 
-                  className="btn-primary" 
-                  onClick={handleBatchQuantityConfirm}
-                >
-                  Підтвердити
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+            </div>,
+            document.body
+          )}
       </div>
     );
   }

@@ -12,6 +12,11 @@
   padding: 16px;
 }
 
+/* Поверх повноекранного переміщення (portal); інакше вкладена модалка могла бути під шаром / обрізана overflow */
+.equipment-move-qty-overlay {
+  z-index: 10050;
+}
+
 .modal-content {
   background: var(--background, #0a0e1a);
   border: 1px solid var(--border-color, #1a2332);
@@ -193,6 +198,12 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.equipment-picker-modal-fullscreen .modal-header {
+  position: relative;
+  z-index: 30;
+  flex-shrink: 0;
 }
 
 .equipment-picker-modal-fullscreen .modal-body.equipment-picker-three-col-body {
