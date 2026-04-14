@@ -1,3 +1,17 @@
+/* Вкладка має клас inventory-tab-content; глобальне правило «останній div = flex:1» не повинно розтягувати ряд фільтрів — інакше сітка карточок опиняється внизу екрана */
+.inventory-tab-content.receipt-product-cards-tab {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.receipt-product-cards-tab > .receipt-product-cards-tab__filters {
+  flex: 0 0 auto;
+}
+
+.receipt-product-cards-tab > .loading-indicator {
+  flex: 0 0 auto;
+}
+
 .receipt-product-cards-tab__header {
   align-items: flex-start;
 }

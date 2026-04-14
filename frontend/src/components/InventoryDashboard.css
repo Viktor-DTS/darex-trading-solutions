@@ -294,7 +294,7 @@
 }
 
 .inventory-tab-content > .documents-placeholder,
-.inventory-tab-content > div:not(.inventory-header):not(.inventory-stock-list-only) {
+.inventory-tab-content > div:not(.inventory-header):not(.inventory-stock-list-only):not(.receipt-product-cards-tab__filters) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
