@@ -1,10 +1,11 @@
 /**
- * Асистент для форми «нова карточка продукту»: довідкові дані з Вікіпедії + заглушка, якщо нічого не знайдено.
+ * Асистент для форми «нова карточка продукту»: Вікіпедія → опційно LLM (див. productCardAssistantLlm.js) → заглушка.
  * Імпорт зображень — лише з дозволених HTTPS-доменів (Wikimedia / Wikipedia).
  */
 
 const cloudinary = require('cloudinary').v2;
 const { extractHeuristicSpecs } = require('./heuristicProductSpecs');
+const { llmSuggest } = require('./productCardAssistantLlm');
 
 const USER_AGENT =
   process.env.PRODUCT_ASSISTANT_USER_AGENT ||
@@ -220,7 +221,7 @@ function mockSuggest(query) {
       id: 'mock-note',
       name: 'Підказка асистента',
       value:
-        'Живий пошук через Вікіпедію тимчасово недоступний або нічого не знайдено. Можна підключити платні API (Google Custom Search, LLM) для точніших даних.',
+        'Живий пошук через Вікіпедію тимчасово недоступний або нічого не знайдено, а LLM на сервері не налаштовано або не відповів. Можна додати PRODUCT_ASSISTANT_LLM_API_KEY або інші довідники для точніших даних.',
     },
   ];
   if (/генератор|genset|diesel|ква|kva|квт|kwt|de-|дизел/i.test(q)) {
@@ -275,6 +276,14 @@ function mergeHeuristicSpecs(q, payload) {
   };
 }
 
+function llmPayloadHasUsefulContent(payload) {
+  if (!payload) return false;
+  if ((payload.specs || []).length > 0) return true;
+  if (String(payload.manufacturerHint || '').trim()) return true;
+  const sn = String(payload.suggestedName || '').trim();
+  return sn.length > 0;
+}
+
 async function suggest(query) {
   const q = String(query || '').trim();
   if (q.length < 2) {
@@ -282,6 +291,12 @@ async function suggest(query) {
   }
   const wiki = await wikipediaSuggest(q);
   if (wiki && (wiki.specs.length > 0 || wiki.images.length > 0)) return mergeHeuristicSpecs(q, wiki);
+  try {
+    const llm = await llmSuggest(q);
+    if (llmPayloadHasUsefulContent(llm)) return mergeHeuristicSpecs(q, llm);
+  } catch (e) {
+    console.warn('[product-card-assistant] LLM:', e.message);
+  }
   return mergeHeuristicSpecs(q, mockSuggest(q));
 }
 

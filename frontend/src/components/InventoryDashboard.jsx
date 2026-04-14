@@ -17,8 +17,34 @@ import ReceiptApproval from './inventory/ReceiptApproval';
 import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import './InventoryDashboard.css';
 
+const INVENTORY_ACTIVE_TAB_STORAGE_KEY = 'inventory_active_tab';
+
+/** Дозволені id вкладок бічної панелі (мають збігатися з полем id у масиві tabs). */
+const INVENTORY_TAB_IDS = new Set([
+  'stock',
+  'receipt',
+  'movement',
+  'shipment',
+  'movement-journal',
+  'notifications',
+  'write-off',
+  'approval',
+  'inventory',
+  'reservations',
+  'reports',
+  'statistics',
+]);
+
+function readStoredInventoryTab() {
+  try {
+    const raw = localStorage.getItem(INVENTORY_ACTIVE_TAB_STORAGE_KEY);
+    if (raw && INVENTORY_TAB_IDS.has(raw)) return raw;
+  } catch (_) {}
+  return 'stock';
+}
+
 function InventoryDashboard({ user }) {
-  const [activeTab, setActiveTab] = useState('stock');
+  const [activeTab, setActiveTab] = useState(readStoredInventoryTab);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -40,6 +66,12 @@ function InventoryDashboard({ user }) {
     } catch { return false; }
   });
   const equipmentListRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(INVENTORY_ACTIVE_TAB_STORAGE_KEY, activeTab);
+    } catch (_) {}
+  }, [activeTab]);
 
   const toggleSidebar = () => {
     setSidebarCollapsed(prev => {
@@ -175,6 +207,7 @@ function InventoryDashboard({ user }) {
   const handleEquipmentAdded = () => {
     setShowAddModal(false);
     setReceiptPresetProductCard(null);
+    setActiveTab('receipt');
     if (equipmentListRef.current) {
       equipmentListRef.current.refresh();
     }

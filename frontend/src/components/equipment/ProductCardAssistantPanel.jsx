@@ -56,7 +56,7 @@ export default function ProductCardAssistantPanel({
       <h4 className="product-card-assistant__title">Асистент</h4>
       <p className="product-card-assistant__hint">
         Після введення <strong>Тип / найменування</strong> (або лише <strong>короткої назви</strong>, якщо тип порожній) переведіть
-        фокус у інше поле (Tab або клік) — підвантажаться довідкові дані (спочатку Вікіпедія). Оберіть чекбоксами, що перенести у
+        фокус у інше поле (Tab або клік) — підвантажаться довідкові дані (Вікіпедія, за відсутності статті — LLM на сервері, якщо налаштовано). Оберіть чекбоксами, що перенести у
         форму зліва.
       </p>
 
@@ -74,7 +74,14 @@ export default function ProductCardAssistantPanel({
           {data.disclaimer ? <p className="product-card-assistant__disclaimer">{data.disclaimer}</p> : null}
           {data.source ? (
             <p className="product-card-assistant__meta">
-              Джерело: {data.source === 'wikipedia' ? `Вікіпедія (${data.lang || '—'})` : data.source === 'mock' ? 'заглушка' : data.source}
+              Джерело:{' '}
+              {data.source === 'wikipedia'
+                ? `Вікіпедія (${data.lang || '—'})`
+                : data.source === 'mock'
+                  ? 'заглушка'
+                  : data.source === 'llm'
+                    ? `LLM${data.llmModel ? ` (${data.llmModel})` : ''}`
+                    : data.source}
             </p>
           ) : null}
 
