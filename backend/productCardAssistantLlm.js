@@ -7,6 +7,9 @@
  *   PRODUCT_ASSISTANT_LLM_BASE_URL — за замовчуванням https://api.openai.com/v1
  *   PRODUCT_ASSISTANT_LLM_MODEL — за замовчуванням gpt-4o-mini
  *   PRODUCT_ASSISTANT_LLM_TIMEOUT_MS — таймаут запиту (мс), за замовчуванням 25000
+ *
+ * Опційно (див. productCardAssistant.js): другий аргумент { serpWebContext } — уривки organic Google (SerpApi)
+ * для обґрунтування specs; дисклеймер доповнюється автоматично.
  */
 
 const DEFAULT_BASE = 'https://api.openai.com/v1';
@@ -26,11 +29,24 @@ const SYSTEM = `Ти допомагаєш завскладу розібрати 
 }
 Правила:
 - Не вигадуй артикули, штрихкоди, URL зображень.
-- imageSearchQueries: від 0 до 6 рядків. Використовуються для **пошуку зображень у Wikimedia Commons** (сервер додає ще технічні варіанти; опційний Google CSE на проєкті може бути вимкнений). Пиши **2–4 англомовні** короткі рядки: тип продукту + **код моделі з назви** (DE-44BDS, NB1-63) + бренд/параметри (напр. "Darex diesel generator DE-44BDS 44kW 380V", "modular MCB 1P C16 6kA", "SAE 10W40 motor oil CASTLE"). Додай **1–2 українською**, якщо вхідна назва українською — для Commons (назви файлів часто змішані; напр. "дизель генератор DE-44BDS 44 кВт", "модульний автомат 1P C16"). Для дизель-генератора додай generator або genset або industrial enclosure, не лише diesel. Для **охолоджувальної рідини / антифризу / G11–G13**: "G12 engine coolant antifreeze", "automotive coolant bottle G12". Різноманітність важливіша за дублікати. Не внось «без АВР», «без НДС», «опт» у фото-запити. Якщо невпевнений — [].
+- imageSearchQueries: від 0 до 6 рядків. Використовуються для **пошуку зображень у Wikimedia Commons** (сервер додає ще технічні варіанти; опційно SerpApi для прев’ю). Пиши **2–4 англомовні** короткі рядки: тип продукту + **код моделі з назви** (DE-44BDS, NB1-63) + бренд/параметри (напр. "Darex diesel generator DE-44BDS 44kW 380V", "modular MCB 1P C16 6kA", "SAE 10W40 motor oil CASTLE"). Додай **1–2 українською**, якщо вхідна назва українською — для Commons (назви файлів часто змішані; напр. "дизель генератор DE-44BDS 44 кВт", "модульний автомат 1P C16"). Для дизель-генератора додай generator або genset або industrial enclosure, не лише diesel. Для **охолоджувальної рідини / антифризу / G11–G13**: "G12 engine coolant antifreeze", "automotive coolant bottle G12". Різноманітність важливіша за дублікати. Не внось «без АВР», «без НДС», «опт» у фото-запити. Якщо невпевнений — [].
 - Якщо з назви випливають лише розміри / потужність / напруга — додай їх у specs з зрозумілими назвами полів.
 - Для модульних автоматів / MCB: 1P/2P/3P/4P — кількість полюсів; C16/B6 тощо — крива та номінальний струм (А); 6kA/10kA — короткочасний струм відключення (кА), якщо є в назві.
 - Якщо невпевнений — менше полів, порожній manufacturerHint.
 - Не більше ${MAX_SPECS} елементів у specs.`;
+
+const SERP_CONTEXT_RULES = `
+
+Додатково, якщо в повідомленні користувача є блок «Уривки з веб-пошуку»:
+- Це короткі сніпети з видачі Google, не повний каталог.
+- У **specs** додавай **конкретні числа та одиниці** лише якщо вони **явно** є в уривках або в оригінальній назві товару.
+- При суперечності між уривками не об’єднуй у одне поле; краще менше полів.
+- Якщо з уривків однозначно випливає виробник — можна коротко в manufacturerHint.
+- Не вставляй у value посилання чи маркери [1], [2]; формулюй для людини на складі.`;
+
+function buildSystemPrompt(withSerpSnippets) {
+  return withSerpSnippets ? SYSTEM + SERP_CONTEXT_RULES : SYSTEM;
+}
 
 function resolveLlmApiKey() {
   const primary = String(process.env.PRODUCT_ASSISTANT_LLM_API_KEY || '').trim();
@@ -89,13 +105,19 @@ function normalizePayload(parsed, model) {
   };
 }
 
+const MAX_SERP_CONTEXT_IN_LLM = 8500;
+
 /**
  * @param {string} query
+ * @param {{ serpWebContext?: string }} [options]
  * @returns {Promise<null | object>}
  */
-async function llmSuggest(query) {
+async function llmSuggest(query, options = {}) {
   const apiKey = resolveLlmApiKey();
   if (!apiKey) return null;
+
+  const serpWebContext = String(options.serpWebContext || '').trim();
+  const hasSerp = serpWebContext.length >= 20;
 
   const base = String(process.env.PRODUCT_ASSISTANT_LLM_BASE_URL || DEFAULT_BASE).replace(/\/$/, '');
   const model = String(process.env.PRODUCT_ASSISTANT_LLM_MODEL || DEFAULT_MODEL).trim();
@@ -104,16 +126,21 @@ async function llmSuggest(query) {
     Math.max(3000, parseInt(String(process.env.PRODUCT_ASSISTANT_LLM_TIMEOUT_MS || DEFAULT_TIMEOUT_MS), 10) || DEFAULT_TIMEOUT_MS),
   );
 
+  let userContent = `Назва / тип товару для картки:\n${String(query).trim().slice(0, 2000)}`;
+  if (hasSerp) {
+    userContent += `\n\n--- Уривки з веб-пошуку (SerpApi / Google). Використовуй як джерело підказок; якщо даних немає в уривках — не вигадуй. ---\n${serpWebContext.slice(0, MAX_SERP_CONTEXT_IN_LLM)}`;
+  }
+
   const url = `${base}/chat/completions`;
   const body = {
     model,
     temperature: 0.25,
-    max_tokens: 1200,
+    max_tokens: hasSerp ? 1600 : 1200,
     messages: [
-      { role: 'system', content: SYSTEM },
+      { role: 'system', content: buildSystemPrompt(hasSerp) },
       {
         role: 'user',
-        content: `Назва / тип товару для картки:\n${String(query).trim().slice(0, 2000)}`,
+        content: userContent,
       },
     ],
   };
@@ -165,7 +192,16 @@ async function llmSuggest(query) {
     return null;
   }
 
-  return normalizePayload(parsed, model);
+  const payload = normalizePayload(parsed, model);
+  if (!payload) return null;
+  if (hasSerp) {
+    const extra =
+      '\n\nЧастина полів може ґрунтуватися на уривках веб-пошуку (SerpApi); перевірте цифри та найменування за офіційним каталогом або паспортом.';
+    if (!String(payload.disclaimer || '').includes('SerpApi')) {
+      return { ...payload, disclaimer: String(payload.disclaimer || '').trim() + extra };
+    }
+  }
+  return payload;
 }
 
 if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'test') {

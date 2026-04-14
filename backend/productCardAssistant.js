@@ -4,6 +4,8 @@
  *
  * Google Custom Search JSON API **не викликається** (для нових проєктів Google API часто недоступний; змінна PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH ігнорується).
  * Зовнішні прев’ю зображень: PRODUCT_ASSISTANT_SERPAPI_IMAGE_SEARCH=1 та SERPAPI_API_KEY.
+ * Підказки характеристик через веб (organic Google → LLM): PRODUCT_ASSISTANT_SERPAPI_SPEC_SEARCH=1 та той самий SERPAPI_API_KEY;
+ * спрацьовує лише коли Вікі не дала результату і на сервері є ключ LLM (інакше SerpApi не викликається).
  * Додаткові суфікси хостів (через кому): PRODUCT_ASSISTANT_IMAGE_IMPORT_HOST_SUFFIXES
  * Розширення пошукових рядків: productCardAssistantImageQueries.js (очищення «без АВР», коди моделі, підказки для Commons).
  * Для SerpApi: PRODUCT_ASSISTANT_GOOGLE_UA_FIRST=0 вимикає додаткові UA-підказки в рядках пошуку.
@@ -11,10 +13,11 @@
 
 const cloudinary = require('cloudinary').v2;
 const { extractHeuristicSpecs } = require('./heuristicProductSpecs');
-const { llmSuggest } = require('./productCardAssistantLlm');
+const { llmSuggest, resolveLlmApiKey } = require('./productCardAssistantLlm');
 const { commonsSuggestImages } = require('./productCardAssistantCommons');
 const { sortImagesUaHostFirst } = require('./productCardAssistantGoogleImages');
 const { serpApiGoogleImages, resolveSerpApiKey, serpApiImageSearchEnabled } = require('./productCardAssistantSerpApiImages');
+const { fetchSerpSpecWebContext } = require('./productCardAssistantSerpApiWeb');
 const {
   buildGoogleQueryListPrioritizingUa,
   buildCommonsImageSearchExtensions,
@@ -422,7 +425,15 @@ async function suggest(query) {
     return enrichWithCommonsImages(q, mergeHeuristicSpecs(q, wiki));
   }
   try {
-    const llm = await llmSuggest(q);
+    let serpWebContext = '';
+    if (resolveLlmApiKey()) {
+      try {
+        serpWebContext = await fetchSerpSpecWebContext(q);
+      } catch (e) {
+        console.warn('[product-card-assistant] SerpApi web context:', e.message);
+      }
+    }
+    const llm = await llmSuggest(q, { serpWebContext });
     if (llmPayloadHasUsefulContent(llm)) {
       return enrichWithCommonsImages(q, mergeHeuristicSpecs(q, llm));
     }
