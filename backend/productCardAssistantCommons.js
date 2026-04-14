@@ -72,18 +72,62 @@ function fileTitleLooksLikeEdibleButter(title) {
   return false;
 }
 
+/** Стаціонарний дизель-генератор / генсет (не залізничний транспорт). */
+function looksLikeStationaryGenerator(text) {
+  const s = String(text || '');
+  if (/генератор|genset|генсет|електроагрегат|generating\s*set|power\s*generator/i.test(s)) return true;
+  if (/\b(kva|ква)\b/i.test(s) && /(дизель|diesel|генератор|generator)/i.test(s)) return true;
+  if (/\b(kw|квт)\b/i.test(s) && /(генератор|generator|дизель|diesel)/i.test(s)) return true;
+  if (/(AVR|АВР)/i.test(s) && /(генератор|generator|дизель|diesel)/i.test(s)) return true;
+  return false;
+}
+
+function dieselGensetCommonsQueries() {
+  return ['stationary diesel generator', 'diesel electric generator set', 'industrial diesel genset'];
+}
+
+/** Залізничний кадр без генераторної установки — відсікаємо при контексті генсету. */
+function fileTitleLooksLikeRailwayNotGenerator(title) {
+  const t = String(title || '').toLowerCase();
+  if (/generator|genset|generating|alternator|power\s*plant|diesel\s*engine\s*generator|gen\s*set/i.test(t)) return false;
+  if (
+    /\b(locomotive|multiple\s+unit|\bdmu\b|railway\s+station|railroad|subway\s+train|metro\s+train|трамвай|залізнич|електропоїзд|поїзд\s|вагон|track\s+ballast)/i.test(
+      t,
+    )
+  )
+    return true;
+  if (/\brailway\b.*\b(station|depot|museum)\b/i.test(t) && !/generator/i.test(t)) return true;
+  return false;
+}
+
+/** Коксові / географічні кадри без генераторної тематики — при контексті генсету. */
+function fileTitleLooksLikeIrrelevantIndustrial(title) {
+  const t = String(title || '').toLowerCase();
+  if (/generator|genset|alternator|caterpillar|diesel\s+engine|power\s*unit|kva|\bkW\b|enclosure/i.test(t)) return false;
+  if (/\bcoke\s+works\b|booster\s+drive\b/i.test(t)) return true;
+  if (/geograph\.org\.uk/i.test(t) && !/generator|genset/i.test(t)) return true;
+  return false;
+}
+
 /**
- * Варіанти пошуку: спочатку уточнений рядок з LLM, потім SAE+motor oil, далі — як раніше.
+ * Варіанти пошуку: точна назва користувача → enriched → запити з LLM → евристики.
  * @param {string} userQuery
- * @param {{ suggestedName?: string, manufacturerHint?: string, enrichedLine?: string }} [ctx]
+ * @param {{
+ *   suggestedName?: string,
+ *   manufacturerHint?: string,
+ *   enrichedLine?: string,
+ *   imageSearchQueries?: string[],
+ * }} [ctx]
  */
 function commonsSearchVariants(userQuery, ctx = {}) {
   const trimmed = String(userQuery || '').trim();
   const sn = String(ctx.suggestedName || '').trim();
   const mh = String(ctx.manufacturerHint || '').trim();
   const enriched = String(ctx.enrichedLine || '').trim() || [sn, mh].filter(Boolean).join(' ').trim();
-  const combined = [trimmed, sn, mh, enriched].filter(Boolean).join(' ').trim();
+  const llmImg = Array.isArray(ctx.imageSearchQueries) ? ctx.imageSearchQueries : [];
+  const combined = [trimmed, sn, mh, enriched, ...llmImg].filter(Boolean).join(' ').trim();
   const motor = looksLikeMotorLubricant(combined);
+  const genset = looksLikeStationaryGenerator(combined);
 
   const out = [];
   const push = (s) => {
@@ -91,7 +135,11 @@ function commonsSearchVariants(userQuery, ctx = {}) {
     if (t.length >= 2 && !out.includes(t)) out.push(t);
   };
 
-  if (enriched.length >= 2) push(enriched);
+  // Запити з LLM — першими (англ. торгові терміни), інакше кириличний «дизель» тягне зайве з Commons.
+  for (const q of llmImg) push(String(q || '').trim());
+  push(trimmed);
+  if (enriched.length >= 2 && enriched !== trimmed) push(enriched);
+
   if (sn.length >= 2 && sn !== enriched && sn !== trimmed) push(sn);
   if (mh.length >= 2 && !enriched.toLowerCase().includes(mh.toLowerCase())) push(`${mh} ${trimmed}`.trim());
 
@@ -99,7 +147,10 @@ function commonsSearchVariants(userQuery, ctx = {}) {
     for (const mq of motorOilCommonsQueries(combined)) push(mq);
   }
 
-  push(trimmed);
+  if (genset) {
+    for (const dq of dieselGensetCommonsQueries()) push(dq);
+  }
+
   const head = extractHeadTerm(trimmed);
   if (head && head !== trimmed) push(head);
   const noTrail = trimmed.replace(/\s+\d{1,4}\s*[-–]\s*\d{1,4}\s*$/i, '').trim();
@@ -112,15 +163,15 @@ function commonsSearchVariants(userQuery, ctx = {}) {
     if (/дюбел|анкер/i.test(trimmed)) {
       push('wall plug dowel');
     }
-    if (/генератор|дизел/i.test(trimmed)) {
-      push('diesel generator');
+    if (/генератор|електроагрегат|genset/i.test(trimmed) && !genset) {
+      push('electric power generator');
     }
     if (/автовимикач|вимикач\s*модульн|модульний\s*вимикач|difavtomat|дифавтомат|узо|узі|rcbo|mcb\b/i.test(trimmed)) {
       push('modular circuit breaker MCB');
       push('miniature circuit breaker');
     }
   }
-  return out.slice(0, 10);
+  return out.slice(0, 14);
 }
 
 async function commonsSearchFileTitles(searchQuery, limit) {
@@ -184,18 +235,24 @@ function pickImageUrl(ii) {
  *   suggestedName?: string,
  *   manufacturerHint?: string,
  *   enrichedLine?: string,
+ *   imageSearchQueries?: string[],
  * }} [opts]
  * @returns {Promise<Array<{ id: string, url: string, title: string }>>}
  */
 async function commonsSuggestImages(userQuery, opts = {}) {
   const maxImages = Math.min(16, Math.max(1, opts.maxImages || 10));
+  const imgQ = Array.isArray(opts.imageSearchQueries)
+    ? opts.imageSearchQueries.map((x) => String(x || '').trim()).filter((x) => x.length >= 2).slice(0, 4)
+    : [];
   const ctx = {
     suggestedName: opts.suggestedName,
     manufacturerHint: opts.manufacturerHint,
     enrichedLine: opts.enrichedLine,
+    imageSearchQueries: imgQ,
   };
-  const combined = [userQuery, ctx.suggestedName, ctx.manufacturerHint].filter(Boolean).join(' ').trim();
+  const combined = [userQuery, ctx.suggestedName, ctx.manufacturerHint, ...imgQ].filter(Boolean).join(' ').trim();
   const motorMode = looksLikeMotorLubricant(combined);
+  const gensetMode = looksLikeStationaryGenerator(combined);
 
   const variants = commonsSearchVariants(userQuery, ctx);
   const seenTitles = new Set();
@@ -233,6 +290,8 @@ async function commonsSuggestImages(userQuery, opts = {}) {
   for (const page of pageList) {
     const title = page.title || '';
     if (motorMode && fileTitleLooksLikeEdibleButter(title)) continue;
+    if (gensetMode && fileTitleLooksLikeRailwayNotGenerator(title)) continue;
+    if (gensetMode && fileTitleLooksLikeIrrelevantIndustrial(title)) continue;
     const ii = Array.isArray(page.imageinfo) ? page.imageinfo[0] : null;
     const url = pickImageUrl(ii);
     if (!url || seenUrl.has(url)) continue;
@@ -251,4 +310,5 @@ module.exports = {
   commonsSuggestImages,
   commonsSearchVariants,
   looksLikeMotorLubricant,
+  looksLikeStationaryGenerator,
 };

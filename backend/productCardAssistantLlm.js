@@ -21,10 +21,12 @@ const SYSTEM = `Ти допомагаєш завскладу розібрати 
 {
   "suggestedName": "коротка канонічна назва українською або як у джерелі, якщо це бренд",
   "manufacturerHint": "виробник або порожній рядок, якщо невідомо",
-  "specs": [ { "name": "назва характеристики українською", "value": "значення" } ]
+  "specs": [ { "name": "назва характеристики українською", "value": "значення" } ],
+  "imageSearchQueries": [ "короткий рядок для пошуку фото (без URL)", "..." ]
 }
 Правила:
 - Не вигадуй артикули, штрихкоди, URL зображень.
+- imageSearchQueries: від 0 до 4 рядків. Це запити для відкритої медіатеки (Wikimedia Commons), не для Google. Пиши **англійською** торгові терміни + модель/потужність з назви (наприклад "stationary diesel generator 44kW", "modular MCB 1P C16", "SAE 10W40 motor oil CASTLE"). Для дизель-генератора уникай одного слова "diesel" — додавай generator/genset/industrial. Якщо невпевнений — [].
 - Якщо з назви випливають лише розміри / потужність / напруга — додай їх у specs з зрозумілими назвами полів.
 - Для модульних автоматів / MCB: 1P/2P/3P/4P — кількість полюсів; C16/B6 тощо — крива та номінальний струм (А); 6kA/10kA — короткочасний струм відключення (кА), якщо є в назві.
 - Якщо невпевнений — менше полів, порожній manufacturerHint.
@@ -61,8 +63,18 @@ function normalizePayload(parsed, model) {
     });
     if (specs.length >= MAX_SPECS) break;
   }
+  const rawImgQ = Array.isArray(parsed.imageSearchQueries) ? parsed.imageSearchQueries : [];
+  const imageSearchQueries = [];
+  for (const x of rawImgQ) {
+    const t = String(x || '').trim().slice(0, 160);
+    if (t.length >= 2) imageSearchQueries.push(t);
+    if (imageSearchQueries.length >= 4) break;
+  }
   const hasContent =
-    specs.length > 0 || suggestedName.length > 0 || manufacturerHint.length > 0;
+    specs.length > 0 ||
+    suggestedName.length > 0 ||
+    manufacturerHint.length > 0 ||
+    imageSearchQueries.length > 0;
   if (!hasContent) return null;
   return {
     source: 'llm',
@@ -71,6 +83,7 @@ function normalizePayload(parsed, model) {
     manufacturerHint,
     specs,
     images: [],
+    imageSearchQueries,
     disclaimer:
       'Дані згенеровані мовною моделлю; можливі помилки та домисли. Обов’язково перевірте цифри та найменування перед збереженням карточки.',
   };

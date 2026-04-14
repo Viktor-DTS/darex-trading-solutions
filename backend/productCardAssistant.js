@@ -282,7 +282,10 @@ function llmPayloadHasUsefulContent(payload) {
   if ((payload.specs || []).length > 0) return true;
   if (String(payload.manufacturerHint || '').trim()) return true;
   const sn = String(payload.suggestedName || '').trim();
-  return sn.length > 0;
+  if (sn.length > 0) return true;
+  if (Array.isArray(payload.imageSearchQueries) && payload.imageSearchQueries.some((x) => String(x || '').trim().length >= 2))
+    return true;
+  return false;
 }
 
 const MAX_ASSISTANT_IMAGES = 12;
@@ -302,11 +305,15 @@ async function enrichWithCommonsImages(query, payload) {
     const suggestedName = String(payload.suggestedName || '').trim();
     const manufacturerHint = String(payload.manufacturerHint || '').trim();
     const enrichedLine = [suggestedName, manufacturerHint].filter(Boolean).join(' ').trim();
+    const imageSearchQueries = Array.isArray(payload.imageSearchQueries)
+      ? payload.imageSearchQueries.map((x) => String(x || '').trim()).filter((x) => x.length >= 2).slice(0, 4)
+      : [];
     const commons = await commonsSuggestImages(query, {
       maxImages: want,
       suggestedName,
       manufacturerHint,
       enrichedLine,
+      imageSearchQueries,
     });
     const seen = new Set(existing.map((i) => i.url).filter(Boolean));
     const merged = [...existing];
