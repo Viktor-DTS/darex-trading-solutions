@@ -2070,6 +2070,51 @@ app.post('/api/files/upload-contract', authenticateToken, uploadContract.single(
   }
 });
 
+/** Task.contractFile у схемі strict:false — може бути рядок URL або об'єкт / масив (імпорт, Cloudinary тощо). */
+function normalizeTaskContractFile(contractFile) {
+  if (contractFile == null) return { url: '', fileName: 'contract.pdf' };
+  if (typeof contractFile === 'string') {
+    const url = contractFile.trim();
+    if (!url) return { url: '', fileName: 'contract.pdf' };
+    const tail = url.split('/').pop() || 'contract.pdf';
+    const fileName = tail.includes('?') ? tail.split('?')[0] : tail;
+    return { url, fileName: fileName || 'contract.pdf' };
+  }
+  if (Array.isArray(contractFile)) {
+    for (const item of contractFile) {
+      const n = normalizeTaskContractFile(item);
+      if (n.url) return n;
+    }
+    return { url: '', fileName: 'contract.pdf' };
+  }
+  if (typeof contractFile === 'object') {
+    const url = String(
+      contractFile.url ||
+        contractFile.href ||
+        contractFile.path ||
+        contractFile.secure_url ||
+        contractFile.publicUrl ||
+        ''
+    ).trim();
+    let fileName = String(
+      contractFile.fileName ||
+        contractFile.filename ||
+        contractFile.name ||
+        contractFile.originalname ||
+        contractFile.originalName ||
+        ''
+    ).trim();
+    if (!fileName && url) {
+      const tail = url.split('/').pop() || '';
+      fileName = tail.includes('?') ? tail.split('?')[0] : tail;
+    }
+    if (!fileName) fileName = 'contract.pdf';
+    return { url, fileName };
+  }
+  const s = String(contractFile).trim();
+  return { url: s, fileName: s ? (s.split('/').pop() || 'contract.pdf').split('?')[0] : 'contract.pdf' };
+}
+
 // Endpoint для отримання списку договорів з бази (як в оригінальному проекті)
 app.get('/api/contract-files', authenticateToken, async (req, res) => {
   const startTime = Date.now();
@@ -2085,12 +2130,14 @@ app.get('/api/contract-files', authenticateToken, async (req, res) => {
     
     const contractFiles = tasks.map(task => {
       try {
+        const { url, fileName } = normalizeTaskContractFile(task.contractFile);
+        if (!url) return null;
         return {
-          url: task.contractFile,
+          url,
           client: task.client || 'Невідомий клієнт',
           edrpou: task.edrpou || '',
           createdAt: task.createdAt,
-          fileName: task.contractFile ? task.contractFile.split('/').pop() : 'contract.pdf'
+          fileName: fileName || 'contract.pdf'
         };
       } catch (mapError) {
         console.error('[ERROR] GET /api/contract-files - помилка при обробці заявки:', mapError);
