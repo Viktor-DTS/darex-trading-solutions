@@ -5,14 +5,21 @@
  * Додаткові суфікси хостів (через кому): PRODUCT_ASSISTANT_IMAGE_IMPORT_HOST_SUFFIXES
  * Вимкнути Google-прев’ю: PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH=0
  * Розширення рядків для CSE: productCardAssistantImageQueries.js (очищення «без АВР» тощо, коди моделі).
+ * Google: спочатку запити з кирилицею + «Україна»/«купити», сортування прев’ю за .ua; опційно GOOGLE_CUSTOM_SEARCH_CX_UA.
+ * Вимкнути UA-пріоритезацію запитів: PRODUCT_ASSISTANT_GOOGLE_UA_FIRST=0
  */
 
 const cloudinary = require('cloudinary').v2;
 const { extractHeuristicSpecs } = require('./heuristicProductSpecs');
 const { llmSuggest } = require('./productCardAssistantLlm');
 const { commonsSuggestImages } = require('./productCardAssistantCommons');
-const { googleCustomSearchImages } = require('./productCardAssistantGoogleImages');
-const { buildExpandedImageSearchQueries } = require('./productCardAssistantImageQueries');
+const {
+  googleCustomSearchImages,
+  resolveCx,
+  resolveCxUa,
+  sortImagesUaHostFirst,
+} = require('./productCardAssistantGoogleImages');
+const { buildGoogleQueryListPrioritizingUa } = require('./productCardAssistantImageQueries');
 
 const USER_AGENT =
   process.env.PRODUCT_ASSISTANT_USER_AGENT ||
@@ -337,7 +344,7 @@ async function enrichWithCommonsImages(query, payload) {
     const imageSearchQueries = Array.isArray(payload.imageSearchQueries)
       ? payload.imageSearchQueries.map((x) => String(x || '').trim()).filter((x) => x.length >= 2).slice(0, 6)
       : [];
-    const uniqQ = buildExpandedImageSearchQueries(query, {
+    const gQueries = buildGoogleQueryListPrioritizingUa(query, {
       ...payload,
       suggestedName,
       manufacturerHint,
@@ -351,7 +358,28 @@ async function enrichWithCommonsImages(query, payload) {
       const gSlots = Math.min(8, slots);
       let googleImages = [];
       try {
-        googleImages = await googleCustomSearchImages(uniqQ, gSlots);
+        const uaCx = resolveCxUa();
+        const mainCx = resolveCx();
+        if (uaCx && uaCx !== mainCx && mainCx) {
+          const half = Math.max(1, Math.ceil(gSlots / 2));
+          const fromUa = await googleCustomSearchImages(gQueries, half, { cx: uaCx });
+          const urlSeen = new Set(fromUa.map((x) => x.url).filter(Boolean));
+          googleImages = [...fromUa];
+          const need = gSlots - googleImages.length;
+          if (need > 0) {
+            const fromGlobal = await googleCustomSearchImages(gQueries, need, {});
+            for (const im of fromGlobal) {
+              if (!im?.url || urlSeen.has(im.url)) continue;
+              urlSeen.add(im.url);
+              googleImages.push(im);
+            }
+          }
+        } else if (uaCx && !mainCx) {
+          googleImages = await googleCustomSearchImages(gQueries, gSlots, { cx: uaCx });
+        } else {
+          googleImages = await googleCustomSearchImages(gQueries, gSlots, {});
+        }
+        googleImages = sortImagesUaHostFirst(googleImages).slice(0, gSlots);
       } catch (e) {
         console.warn('[product-card-assistant] Google images:', e.message);
       }

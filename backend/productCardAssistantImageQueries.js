@@ -114,8 +114,55 @@ function buildExpandedImageSearchQueries(userQuery, payload, opts = {}) {
   return out;
 }
 
+function hasCyrillic(s) {
+  return /[\u0400-\u04FF]/.test(String(s || ''));
+}
+
+/** Запити з кирилицею — раніше (краще для українських сторінок у видачі). */
+function orderQueriesUaFirst(queries) {
+  const ua = [];
+  const rest = [];
+  for (const q of queries || []) {
+    const t = String(q || '').trim();
+    if (t.length < 2) continue;
+    (hasCyrillic(t) ? ua : rest).push(t);
+  }
+  return [...ua, ...rest];
+}
+
+/**
+ * Список рядків для Google CSE: спочатку підказки під .ua / локальні портали, потім решта.
+ * Вимкнути додаткові UA-підказки: PRODUCT_ASSISTANT_GOOGLE_UA_FIRST=0
+ */
+function buildGoogleQueryListPrioritizingUa(userQuery, payload, opts = {}) {
+  const base = buildExpandedImageSearchQueries(userQuery, payload, opts);
+  const v = String(process.env.PRODUCT_ASSISTANT_GOOGLE_UA_FIRST || '1').trim().toLowerCase();
+  if (v === '0' || v === 'false' || v === 'off' || v === 'no') return base;
+
+  const raw = sanitizeForImageSearch(String(userQuery || '').trim());
+  const extra = [];
+  if (raw.length >= 4 && hasCyrillic(raw)) {
+    extra.push(`${raw} Україна`);
+    if (raw.length < 160) extra.push(`${raw} купити`);
+  }
+
+  const mergedFirst = [...extra, ...orderQueriesUaFirst(base)];
+  const seen = new Set();
+  const out = [];
+  for (const t of mergedFirst) {
+    const k = String(t).trim().toLowerCase();
+    if (k.length < 2 || seen.has(k)) continue;
+    seen.add(k);
+    out.push(String(t).trim().slice(0, 200));
+    if (out.length >= 14) break;
+  }
+  return out;
+}
+
 module.exports = {
   buildExpandedImageSearchQueries,
+  buildGoogleQueryListPrioritizingUa,
   sanitizeForImageSearch,
   extractProminentProductCodes,
+  orderQueriesUaFirst,
 };
