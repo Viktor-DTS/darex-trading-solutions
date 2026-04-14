@@ -4,6 +4,7 @@
  *
  * Додаткові суфікси хостів (через кому): PRODUCT_ASSISTANT_IMAGE_IMPORT_HOST_SUFFIXES
  * Вимкнути Google-прев’ю: PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH=0
+ * Розширення рядків для CSE: productCardAssistantImageQueries.js (очищення «без АВР» тощо, коди моделі).
  */
 
 const cloudinary = require('cloudinary').v2;
@@ -11,6 +12,7 @@ const { extractHeuristicSpecs } = require('./heuristicProductSpecs');
 const { llmSuggest } = require('./productCardAssistantLlm');
 const { commonsSuggestImages } = require('./productCardAssistantCommons');
 const { googleCustomSearchImages } = require('./productCardAssistantGoogleImages');
+const { buildExpandedImageSearchQueries } = require('./productCardAssistantImageQueries');
 
 const USER_AGENT =
   process.env.PRODUCT_ASSISTANT_USER_AGENT ||
@@ -333,19 +335,20 @@ async function enrichWithCommonsImages(query, payload) {
     const manufacturerHint = String(payload.manufacturerHint || '').trim();
     const enrichedLine = [suggestedName, manufacturerHint].filter(Boolean).join(' ').trim();
     const imageSearchQueries = Array.isArray(payload.imageSearchQueries)
-      ? payload.imageSearchQueries.map((x) => String(x || '').trim()).filter((x) => x.length >= 2).slice(0, 4)
+      ? payload.imageSearchQueries.map((x) => String(x || '').trim()).filter((x) => x.length >= 2).slice(0, 6)
       : [];
-    const queryCandidates = [...imageSearchQueries];
-    if (enrichedLine.length >= 2) queryCandidates.push(enrichedLine);
-    if (suggestedName.length >= 2 && suggestedName !== String(query || '').trim()) queryCandidates.push(suggestedName);
-    queryCandidates.push(String(query || '').trim());
-    const uniqQ = [...new Set(queryCandidates.map((x) => String(x).trim()).filter((x) => x.length >= 2))].slice(0, 4);
+    const uniqQ = buildExpandedImageSearchQueries(query, {
+      ...payload,
+      suggestedName,
+      manufacturerHint,
+      imageSearchQueries,
+    });
 
     const seen = new Set(existing.map((i) => i.url).filter(Boolean));
     const merged = [...existing];
     let googleAdded = 0;
     if (googleImageSearchEnabled() && slots > 0) {
-      const gSlots = Math.min(6, slots);
+      const gSlots = Math.min(8, slots);
       let googleImages = [];
       try {
         googleImages = await googleCustomSearchImages(uniqQ, gSlots);

@@ -86,6 +86,27 @@ function dieselGensetCommonsQueries() {
   return ['stationary diesel generator', 'diesel electric generator set', 'industrial diesel genset'];
 }
 
+/** Охолоджувальна рідина / антифриз (G11–G13), не плутати з побутовою хімією — англ. запити для Commons. */
+function looksLikeEngineCoolant(text) {
+  const s = String(text || '');
+  if (/\bG[- ]?1[0123]\+?\b/i.test(s)) return true;
+  if (/охолоджуюч|антифриз|coolant|antifreeze|тосол|тосолу|ethylene\s+glycol\s+coolant/i.test(s)) return true;
+  return false;
+}
+
+function engineCoolantCommonsQueries(combined) {
+  const q = [];
+  const g = String(combined).match(/\bG[- ]?1[0123]\+?\b/i);
+  if (g) {
+    const tag = g[0].replace(/\s+/g, '');
+    q.push(`${tag} engine coolant automotive`);
+    q.push(`${tag} antifreeze coolant bottle`);
+  }
+  q.push('automotive engine coolant plastic container');
+  q.push('ethylene glycol antifreeze automotive');
+  return q;
+}
+
 /** Залізничний кадр без генераторної установки — відсікаємо при контексті генсету. */
 function fileTitleLooksLikeRailwayNotGenerator(title) {
   const t = String(title || '').toLowerCase();
@@ -198,6 +219,7 @@ function commonsSearchVariants(userQuery, ctx = {}) {
   const combined = [trimmed, sn, mh, enriched, ...llmImg].filter(Boolean).join(' ').trim();
   const motor = looksLikeMotorLubricant(combined);
   const genset = looksLikeStationaryGenerator(combined);
+  const coolant = looksLikeEngineCoolant(combined);
 
   const out = [];
   const push = (s) => {
@@ -221,6 +243,10 @@ function commonsSearchVariants(userQuery, ctx = {}) {
     for (const dq of dieselGensetCommonsQueries()) push(dq);
   }
 
+  if (coolant && !motor) {
+    for (const cq of engineCoolantCommonsQueries(combined)) push(cq);
+  }
+
   const head = extractHeadTerm(trimmed);
   if (head && head !== trimmed) push(head);
   const noTrail = trimmed.replace(/\s+\d{1,4}\s*[-–]\s*\d{1,4}\s*$/i, '').trim();
@@ -241,7 +267,7 @@ function commonsSearchVariants(userQuery, ctx = {}) {
       push('miniature circuit breaker');
     }
   }
-  return out.slice(0, 14);
+  return out.slice(0, 18);
 }
 
 async function commonsSearchFileTitles(searchQuery, limit) {
@@ -312,7 +338,7 @@ function pickImageUrl(ii) {
 async function commonsSuggestImages(userQuery, opts = {}) {
   const maxImages = Math.min(16, Math.max(1, opts.maxImages || 10));
   const imgQ = Array.isArray(opts.imageSearchQueries)
-    ? opts.imageSearchQueries.map((x) => String(x || '').trim()).filter((x) => x.length >= 2).slice(0, 4)
+    ? opts.imageSearchQueries.map((x) => String(x || '').trim()).filter((x) => x.length >= 2).slice(0, 6)
     : [];
   const ctx = {
     suggestedName: opts.suggestedName,
@@ -323,6 +349,7 @@ async function commonsSuggestImages(userQuery, opts = {}) {
   const combined = [userQuery, ctx.suggestedName, ctx.manufacturerHint, ...imgQ].filter(Boolean).join(' ').trim();
   const motorMode = looksLikeMotorLubricant(combined);
   const gensetMode = looksLikeStationaryGenerator(combined);
+  const coolantMode = looksLikeEngineCoolant(combined) && !motorMode;
 
   const variants = commonsSearchVariants(userQuery, ctx);
   const seenTitles = new Set();
@@ -364,6 +391,7 @@ async function commonsSuggestImages(userQuery, opts = {}) {
   for (const page of pageList) {
     const title = page.title || '';
     if (motorMode && fileTitleLooksLikeEdibleButter(title)) continue;
+    if (coolantMode && fileTitleLooksLikeEdibleButter(title)) continue;
     if (gensetMode && fileTitleLooksLikeRailwayNotGenerator(title)) continue;
     if (gensetMode && fileTitleLooksLikeIrrelevantIndustrial(title)) continue;
     if (gensetMode && fileTitleLooksLikeLaborCampTrailer(title)) continue;

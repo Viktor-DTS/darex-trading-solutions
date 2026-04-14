@@ -26,7 +26,7 @@ const SYSTEM = `Ти допомагаєш завскладу розібрати 
 }
 Правила:
 - Не вигадуй артикули, штрихкоди, URL зображень.
-- imageSearchQueries: від 0 до 4 рядків. Це запити для Wikimedia Commons (не Google). Пиши **англійською**: тип продукту + **код моделі з назви** (напр. DE-44BDS, NB1-63) + бренд + потужність/напруга (напр. "Darex diesel generator DE-44BDS 44kW 380V", "modular MCB 1P C16 6kA", "SAE 10W40 motor oil CASTLE"). Для дизель-генератора не обмежуйся словом "diesel" — обов’язково generator або genset або industrial enclosure. Якщо невпевнений — [].
+- imageSearchQueries: від 0 до 6 рядків. Використовуються для **Wikimedia Commons і Google Custom Search** (прев’ю). Пиши переважно **англійською**: тип продукту + **код моделі з назви** (напр. DE-44BDS, NB1-63) + бренд + ключові параметри (напр. "Darex diesel generator DE-44BDS 44kW 380V", "modular MCB 1P C16 6kA", "SAE 10W40 motor oil CASTLE"). Для дизель-генератора не обмежуйся словом "diesel" — додай generator або genset або industrial enclosure. Для **охолоджувальної рідини / антифризу / G11–G13** (напр. VAMP G-12): "G12 engine coolant antifreeze blue", "automotive coolant bottle G12", "ethylene glycol coolant concentrate". Не дублюй у фото-запитах фрази на кшталт «без АВР», «без НДС», «опт» — вони не допомагають знайти картинку. Якщо невпевнений — [].
 - Якщо з назви випливають лише розміри / потужність / напруга — додай їх у specs з зрозумілими назвами полів.
 - Для модульних автоматів / MCB: 1P/2P/3P/4P — кількість полюсів; C16/B6 тощо — крива та номінальний струм (А); 6kA/10kA — короткочасний струм відключення (кА), якщо є в назві.
 - Якщо невпевнений — менше полів, порожній manufacturerHint.
@@ -68,7 +68,7 @@ function normalizePayload(parsed, model) {
   for (const x of rawImgQ) {
     const t = String(x || '').trim().slice(0, 160);
     if (t.length >= 2) imageSearchQueries.push(t);
-    if (imageSearchQueries.length >= 4) break;
+    if (imageSearchQueries.length >= 6) break;
   }
   const hasContent =
     specs.length > 0 ||
@@ -107,7 +107,7 @@ async function llmSuggest(query) {
   const url = `${base}/chat/completions`;
   const body = {
     model,
-    temperature: 0.2,
+    temperature: 0.25,
     max_tokens: 1200,
     messages: [
       { role: 'system', content: SYSTEM },
