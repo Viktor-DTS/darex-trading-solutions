@@ -22,8 +22,8 @@ export default function ProductCardAssistantPanel({
     setUseManufacturer(!!(data.manufacturerHint && String(data.manufacturerHint).trim()));
     const s = new Set((data.specs || []).map((x) => x.id).filter(Boolean));
     setSpecIds(s);
-    const im = new Set((data.images || []).map((x) => x.id).filter(Boolean));
-    setImageIds(im);
+    // Зображення за замовчуванням не обрані — користувач позначає, що імпортувати у «Фото / файли».
+    setImageIds(new Set());
   }, [data, loading]);
 
   const toggleSpec = (id) => {
