@@ -66,6 +66,8 @@ function InventoryDashboard({ user }) {
     } catch { return false; }
   });
   const equipmentListRef = useRef(null);
+  /** null на першому рендері — щоб при збереженій вкладці «Переміщення» модалка все одно відкрилась один раз. */
+  const prevActiveTabRef = useRef(null);
 
   useEffect(() => {
     try {
@@ -192,13 +194,29 @@ function InventoryDashboard({ user }) {
     { id: 'statistics', label: 'Статистика', icon: '📈' },
   ];
 
-  // Автоматичне відкриття модальних вікон при переключенні на відповідні вкладки
+  // Автоматичне відкриття модальних вікон лише при *переході* на вкладку (не після закриття модалки, поки залишились на тій самій вкладці)
   useEffect(() => {
-    // Не відкриваємо модальні вікна, якщо вони вже відкриті (щоб уникнути зациклення)
-    if (activeTab === 'movement' && !showMoveModal && !showAddModal && !showShipModal && !showWriteOffModal) {
+    const prevTab = prevActiveTabRef.current;
+    prevActiveTabRef.current = activeTab;
+
+    if (
+      activeTab === 'movement' &&
+      prevTab !== 'movement' &&
+      !showMoveModal &&
+      !showAddModal &&
+      !showShipModal &&
+      !showWriteOffModal
+    ) {
       setSelectedEquipment(null);
       setShowMoveModal(true);
-    } else if (activeTab === 'write-off' && !showWriteOffModal && !showAddModal && !showMoveModal && !showShipModal) {
+    } else if (
+      activeTab === 'write-off' &&
+      prevTab !== 'write-off' &&
+      !showWriteOffModal &&
+      !showAddModal &&
+      !showMoveModal &&
+      !showShipModal
+    ) {
       setSelectedEquipment(null);
       setShowWriteOffModal(true);
     }
