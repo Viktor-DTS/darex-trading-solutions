@@ -42,6 +42,18 @@ function isRegionalWarehouseStaffRole(role) {
   return ['warehouse', 'zavsklad'].includes(String(role || '').toLowerCase());
 }
 
+/** Файли з карточки продукту, що виглядають як зображення (для прев’ю в формі). */
+function productCardImageAttachments(card) {
+  if (!card || !Array.isArray(card.attachedFiles)) return [];
+  return card.attachedFiles.filter((f) => {
+    const url = (f?.cloudinaryUrl && String(f.cloudinaryUrl).trim()) || '';
+    if (!url) return false;
+    const mt = String(f?.mimetype || '').toLowerCase();
+    if (mt.startsWith('image/')) return true;
+    return /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|#|$)/i.test(url);
+  });
+}
+
 function bypassesRegionalWarehouseInventoryLock(role) {
   return ['admin', 'administrator', 'mgradm'].includes(String(role || '').toLowerCase());
 }
@@ -676,6 +688,35 @@ function EquipmentEditModal({
                       {equipment.productId.manufacturer ? ` — ${equipment.productId.manufacturer}` : ''}
                       {equipment.productId.isActive === false ? ' (карточка вимкнена в довіднику)' : ''}
                     </p>
+                    {(() => {
+                      const imgs = productCardImageAttachments(equipment.productId);
+                      if (!imgs.length) return null;
+                      return (
+                        <div style={{ marginTop: '12px' }}>
+                          <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' }}>
+                            Фото з карточки (довідник)
+                          </div>
+                          <div className="equipment-edit-modal__product-card-images">
+                            {imgs.map((f, i) => (
+                              <a
+                                key={f.cloudinaryId || `${f.cloudinaryUrl}-${i}`}
+                                href={f.cloudinaryUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="equipment-edit-modal__product-card-image-link"
+                                title={f.originalName || 'Відкрити зображення'}
+                              >
+                                <img
+                                  src={f.cloudinaryUrl}
+                                  alt={f.originalName || ''}
+                                  className="equipment-edit-modal__product-card-image-thumb"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     {Array.isArray(equipment.productId.technicalSpecs) &&
                     equipment.productId.technicalSpecs.length > 0 ? (
                       <table style={{ width: '100%', marginTop: '10px', fontSize: '13px', borderCollapse: 'collapse' }}>
@@ -744,8 +785,11 @@ function EquipmentEditModal({
                     {formData.productId &&
                       (() => {
                         const c = productCardSelectOptions.find((x) => String(x._id) === String(formData.productId));
+                        if (!c) return null;
+                        const imgs = productCardImageAttachments(c);
                         const specs = c?.technicalSpecs;
-                        if (!Array.isArray(specs) || !specs.length) return null;
+                        const hasSpecs = Array.isArray(specs) && specs.length > 0;
+                        if (!imgs.length && !hasSpecs) return null;
                         return (
                           <div
                             style={{
@@ -756,19 +800,46 @@ function EquipmentEditModal({
                               fontSize: '13px',
                             }}
                           >
-                            <div style={{ fontWeight: 600, marginBottom: '8px' }}>Характеристики з карточки (довідник)</div>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                              <tbody>
-                                {specs.map((s, i) => (
-                                  <tr key={i} style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                                    <td style={{ padding: '6px 8px 6px 0', verticalAlign: 'top', opacity: 0.85 }}>
-                                      {s.name || '—'}
-                                    </td>
-                                    <td style={{ padding: '6px 0', verticalAlign: 'top' }}>{s.value || '—'}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                            {imgs.length > 0 ? (
+                              <div style={{ marginBottom: hasSpecs ? '14px' : 0 }}>
+                                <div style={{ fontWeight: 600, marginBottom: '8px' }}>Фото з карточки (довідник)</div>
+                                <div className="equipment-edit-modal__product-card-images">
+                                  {imgs.map((f, i) => (
+                                    <a
+                                      key={f.cloudinaryId || `${f.cloudinaryUrl}-${i}`}
+                                      href={f.cloudinaryUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="equipment-edit-modal__product-card-image-link"
+                                      title={f.originalName || 'Відкрити зображення'}
+                                    >
+                                      <img
+                                        src={f.cloudinaryUrl}
+                                        alt={f.originalName || ''}
+                                        className="equipment-edit-modal__product-card-image-thumb"
+                                      />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                            {hasSpecs ? (
+                              <>
+                                <div style={{ fontWeight: 600, marginBottom: '8px' }}>Характеристики з карточки (довідник)</div>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                  <tbody>
+                                    {specs.map((s, i) => (
+                                      <tr key={i} style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                                        <td style={{ padding: '6px 8px 6px 0', verticalAlign: 'top', opacity: 0.85 }}>
+                                          {s.name || '—'}
+                                        </td>
+                                        <td style={{ padding: '6px 0', verticalAlign: 'top' }}>{s.value || '—'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </>
+                            ) : null}
                           </div>
                         );
                       })()}
