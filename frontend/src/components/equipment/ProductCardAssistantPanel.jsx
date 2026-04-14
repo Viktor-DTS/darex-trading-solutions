@@ -84,9 +84,11 @@ export default function ProductCardAssistantPanel({
                     : data.source}
             </p>
           ) : null}
-          {data.commonsImagesAdded > 0 ? (
+          {data.googleImagesAdded > 0 || data.commonsImagesAdded > 0 ? (
             <p className="product-card-assistant__meta">
-              Зображення з Commons: +{data.commonsImagesAdded} (імпорт у «Фото / файли» через обрані чекбокси)
+              {data.googleImagesAdded > 0 ? <>Google: +{data.googleImagesAdded} </> : null}
+              {data.commonsImagesAdded > 0 ? <>Commons: +{data.commonsImagesAdded} </> : null}
+              (імпорт у «Фото / файли» через обрані чекбокси)
             </p>
           ) : null}
 

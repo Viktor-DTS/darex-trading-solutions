@@ -1,25 +1,48 @@
 /**
  * Асистент для форми «нова карточка продукту»: Вікіпедія → опційно LLM (див. productCardAssistantLlm.js) → заглушка.
- * Імпорт зображень — лише з дозволених HTTPS-доменів (Wikimedia / Wikipedia).
+ * Імпорт зображень — лише з дозволених HTTPS-доменів (Wikimedia / Wikipedia, прев’ю Google CSE, див. нижче).
+ *
+ * Додаткові суфікси хостів (через кому): PRODUCT_ASSISTANT_IMAGE_IMPORT_HOST_SUFFIXES
+ * Вимкнути Google-прев’ю: PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH=0
  */
 
 const cloudinary = require('cloudinary').v2;
 const { extractHeuristicSpecs } = require('./heuristicProductSpecs');
 const { llmSuggest } = require('./productCardAssistantLlm');
 const { commonsSuggestImages } = require('./productCardAssistantCommons');
+const { googleCustomSearchImages } = require('./productCardAssistantGoogleImages');
 
 const USER_AGENT =
   process.env.PRODUCT_ASSISTANT_USER_AGENT ||
   'DarexTradingSolutions/1.0 (product-card-assistant; warehouse)';
 
+const EXTRA_IMAGE_HOST_SUFFIXES = String(process.env.PRODUCT_ASSISTANT_IMAGE_IMPORT_HOST_SUFFIXES || '')
+  .split(',')
+  .map((s) => s.trim().toLowerCase().replace(/^\.+/, ''))
+  .filter(Boolean);
+
+function googleImageSearchEnabled() {
+  const v = String(process.env.PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH || '1').trim().toLowerCase();
+  return v !== '0' && v !== 'false' && v !== 'off' && v !== 'no';
+}
+
 function allowedImageHostname(hostname) {
   const h = String(hostname || '').toLowerCase();
-  return (
+  if (
     h.endsWith('wikimedia.org') ||
     h.endsWith('wikipedia.org') ||
     h === 'upload.wikimedia.org' ||
     h.endsWith('.upload.wikimedia.org')
-  );
+  )
+    return true;
+  if (h === 'gstatic.com' || h.endsWith('.gstatic.com')) return true;
+  if (h.endsWith('.googleusercontent.com') || h === 'googleusercontent.com') return true;
+  if (h === 'ggpht.com' || h.endsWith('.ggpht.com')) return true;
+  for (const suf of EXTRA_IMAGE_HOST_SUFFIXES) {
+    if (!suf) continue;
+    if (h === suf || h.endsWith(`.${suf}`)) return true;
+  }
+  return false;
 }
 
 function assertAllowedImageUrl(raw) {
@@ -31,7 +54,9 @@ function assertAllowedImageUrl(raw) {
   }
   if (u.protocol !== 'https:') throw new Error('Дозволені лише HTTPS-посилання на зображення');
   if (!allowedImageHostname(u.hostname)) {
-    throw new Error('Дозволені лише зображення з Wikipedia / Wikimedia');
+    throw new Error(
+      'Дозволені лише зображення з Wikipedia / Wikimedia, прев’ю Google (gstatic / googleusercontent) або хостів з PRODUCT_ASSISTANT_IMAGE_IMPORT_HOST_SUFFIXES',
+    );
   }
   return u.href;
 }
@@ -291,51 +316,84 @@ function llmPayloadHasUsefulContent(payload) {
 const MAX_ASSISTANT_IMAGES = 12;
 const COMMONS_NOTE =
   '\n\nЗображення з Wikimedia Commons: перевірте відповідність саме вашому товару та умови ліцензії файлу перед використанням.';
+const GOOGLE_IMAGE_NOTE =
+  '\n\nПрев’ю з Google (Custom Search): перевірте відповідність товару та авторські права перед імпортом.';
 
 /**
- * Додає до payload зображення з Commons (дедуп по URL), щоб у панелі був перелік для «Фото / файли».
+ * Додає до payload зображення з Google CSE (якщо налаштовано) і Commons (дедуп по URL).
  */
 async function enrichWithCommonsImages(query, payload) {
   if (!payload || payload.source === 'empty') return payload;
   const existing = Array.isArray(payload.images) ? payload.images : [];
-  if (existing.length >= MAX_ASSISTANT_IMAGES) return { ...payload, commonsImagesAdded: 0 };
-  let added = 0;
+  const emptyMeta = { ...payload, commonsImagesAdded: 0, googleImagesAdded: 0 };
+  if (existing.length >= MAX_ASSISTANT_IMAGES) return emptyMeta;
   try {
-    const want = MAX_ASSISTANT_IMAGES - existing.length;
+    const slots = MAX_ASSISTANT_IMAGES - existing.length;
     const suggestedName = String(payload.suggestedName || '').trim();
     const manufacturerHint = String(payload.manufacturerHint || '').trim();
     const enrichedLine = [suggestedName, manufacturerHint].filter(Boolean).join(' ').trim();
     const imageSearchQueries = Array.isArray(payload.imageSearchQueries)
       ? payload.imageSearchQueries.map((x) => String(x || '').trim()).filter((x) => x.length >= 2).slice(0, 4)
       : [];
-    const commons = await commonsSuggestImages(query, {
-      maxImages: want,
-      suggestedName,
-      manufacturerHint,
-      enrichedLine,
-      imageSearchQueries,
-    });
+    const queryCandidates = [...imageSearchQueries];
+    if (enrichedLine.length >= 2) queryCandidates.push(enrichedLine);
+    if (suggestedName.length >= 2 && suggestedName !== String(query || '').trim()) queryCandidates.push(suggestedName);
+    queryCandidates.push(String(query || '').trim());
+    const uniqQ = [...new Set(queryCandidates.map((x) => String(x).trim()).filter((x) => x.length >= 2))].slice(0, 4);
+
     const seen = new Set(existing.map((i) => i.url).filter(Boolean));
     const merged = [...existing];
-    for (const im of commons) {
-      if (!im?.url || seen.has(im.url)) continue;
-      seen.add(im.url);
-      merged.push(im);
-      added += 1;
-      if (merged.length >= MAX_ASSISTANT_IMAGES) break;
+    let googleAdded = 0;
+    if (googleImageSearchEnabled() && slots > 0) {
+      const gSlots = Math.min(6, slots);
+      let googleImages = [];
+      try {
+        googleImages = await googleCustomSearchImages(uniqQ, gSlots);
+      } catch (e) {
+        console.warn('[product-card-assistant] Google images:', e.message);
+      }
+      for (const im of googleImages) {
+        if (!im?.url || seen.has(im.url)) continue;
+        seen.add(im.url);
+        merged.push({ id: im.id, url: im.url, title: im.title });
+        googleAdded += 1;
+        if (merged.length >= MAX_ASSISTANT_IMAGES) break;
+      }
     }
-    if (added === 0) return { ...payload, commonsImagesAdded: 0 };
-    const disclaimer = String(payload.disclaimer || '').trim();
-    const hasCommonsNote = disclaimer.includes('Wikimedia Commons');
+
+    let commonsAdded = 0;
+    const commonsWant = MAX_ASSISTANT_IMAGES - merged.length;
+    if (commonsWant > 0) {
+      const commons = await commonsSuggestImages(query, {
+        maxImages: commonsWant,
+        suggestedName,
+        manufacturerHint,
+        enrichedLine,
+        imageSearchQueries,
+      });
+      for (const im of commons) {
+        if (!im?.url || seen.has(im.url)) continue;
+        seen.add(im.url);
+        merged.push(im);
+        commonsAdded += 1;
+        if (merged.length >= MAX_ASSISTANT_IMAGES) break;
+      }
+    }
+
+    if (googleAdded + commonsAdded === 0) return emptyMeta;
+    let disclaimer = String(payload.disclaimer || '').trim();
+    if (commonsAdded > 0 && !disclaimer.includes('Wikimedia Commons')) disclaimer += COMMONS_NOTE;
+    if (googleAdded > 0 && !disclaimer.includes('Google (Custom Search)')) disclaimer += GOOGLE_IMAGE_NOTE;
     return {
       ...payload,
       images: merged,
-      commonsImagesAdded: added,
-      disclaimer: hasCommonsNote ? disclaimer : disclaimer + COMMONS_NOTE,
+      commonsImagesAdded: commonsAdded,
+      googleImagesAdded: googleAdded,
+      disclaimer,
     };
   } catch (e) {
     console.warn('[product-card-assistant] Commons enrich:', e.message);
-    return { ...payload, commonsImagesAdded: 0 };
+    return emptyMeta;
   }
 }
 

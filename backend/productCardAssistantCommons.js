@@ -109,6 +109,76 @@ function fileTitleLooksLikeIrrelevantIndustrial(title) {
   return false;
 }
 
+/** Трейлери таборів / міграційні — не стаціонарний генсет для складу. */
+function fileTitleLooksLikeLaborCampTrailer(title) {
+  const t = String(title || '').toLowerCase();
+  return /\blabor\s+camp\b|migratory\s+labor|migratory-labor|trailer\s*site|tsa[-_]migratory/i.test(t);
+}
+
+function titleAlnumFold(title) {
+  return String(title || '').toLowerCase().replace(/[^a-z0-9а-яіїєґ]/gi, '');
+}
+
+/** Коди на кшталт DE-44BDS, NB1-63 зі змішаного тексту. */
+function extractModelHints(text) {
+  const s = String(text || '');
+  const hints = new Set();
+  const re1 = /\b([A-Z]{2,6}[-]?\d{2,4}[A-Z0-9]{0,8})\b/gi;
+  let m;
+  while ((m = re1.exec(s)) !== null) {
+    const a = m[1].replace(/\s+/g, '');
+    const compact = a.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+    if (compact.length >= 4) {
+      hints.add(a.toLowerCase());
+      hints.add(compact);
+    }
+  }
+  const re2 = /\b([A-Z]{2})\s+(\d{2,3})\s+([A-Z]{2,8})\b/g;
+  const m2 = re2.exec(s.replace(/\s+/g, ' '));
+  if (m2) {
+    hints.add(`${m2[1]}${m2[2]}${m2[3]}`.toLowerCase());
+    hints.add(`${m2[1]}-${m2[2]}${m2[3]}`.toLowerCase());
+  }
+  return [...hints];
+}
+
+function extractBrandHints(manufacturerHint, suggestedName, userQuery) {
+  const m = String(manufacturerHint || '').trim().toLowerCase();
+  const out = m.length >= 2 ? [m] : [];
+  const STOP = new Set(['bds', 'avr', 'mcb', 'sae', 'kva', 'dna', 'pdf', 'jpg', 'png', 'tiff']);
+  const blob = `${suggestedName || ''} ${userQuery || ''}`;
+  const caps = blob.match(/\b([A-Z]{3,})\b/g) || [];
+  for (const c of caps) {
+    const x = c.toLowerCase();
+    if (!STOP.has(x) && x.length <= 24) out.push(x);
+  }
+  return [...new Set(out)].filter((b) => b.length >= 2);
+}
+
+/**
+ * Релевантність назви файлу Commons до товару (більше = краще).
+ */
+function scoreCommonsImageTitle(title, modelHints, brands, gensetMode) {
+  const tl = String(title || '').toLowerCase();
+  const tf = titleAlnumFold(title);
+  let sc = 0;
+  for (const h of modelHints) {
+    const hn = String(h).toLowerCase().replace(/[^a-z0-9]/gi, '');
+    if (hn.length < 4) continue;
+    if (tl.includes(String(h).toLowerCase()) || tf.includes(hn)) sc += 52;
+  }
+  for (const b of brands) {
+    const bn = String(b).toLowerCase();
+    if (bn.length >= 3 && tl.includes(bn)) sc += 34;
+  }
+  if (gensetMode) {
+    if (/\bdiesel\s+generator|diesel\s+genset|\bgenset\b|generator\s+set/i.test(tl)) sc += 16;
+    if (/caterpillar|perkins|cummins|atlas\s*copco|fg\s*wilson/i.test(tl)) sc += 8;
+    if (/\b(moscow|exhibition|fair|belagro|mvz)\b/i.test(tl) && sc < 35) sc -= 12;
+  }
+  return sc;
+}
+
 /**
  * Варіанти пошуку: точна назва користувача → enriched → запити з LLM → евристики.
  * @param {string} userQuery
@@ -194,7 +264,7 @@ async function commonsImageInfoForTitles(titles) {
   if (!titles.length) return [];
   const sp = new URLSearchParams({
     action: 'query',
-    titles: titles.slice(0, 12).join('|'),
+    titles: titles.slice(0, 40).join('|'),
     prop: 'imageinfo',
     iiprop: 'url|thumburl|mime',
     iiurlwidth: '320',
@@ -270,9 +340,9 @@ async function commonsSuggestImages(userQuery, opts = {}) {
       if (seenTitles.has(t)) continue;
       seenTitles.add(t);
       titles.push(t);
-      if (titles.length >= 14) break;
+      if (titles.length >= 22) break;
     }
-    if (titles.length >= 8) break;
+    if (titles.length >= 12) break;
   }
 
   if (!titles.length) return [];
@@ -285,23 +355,35 @@ async function commonsSuggestImages(userQuery, opts = {}) {
     return [];
   }
 
-  const images = [];
+  const hintBlob = [combined, userQuery, ...imgQ].join(' ');
+  const modelHints = extractModelHints(hintBlob);
+  const brands = extractBrandHints(ctx.manufacturerHint, ctx.suggestedName, userQuery);
+
+  const candidates = [];
   const seenUrl = new Set();
   for (const page of pageList) {
     const title = page.title || '';
     if (motorMode && fileTitleLooksLikeEdibleButter(title)) continue;
     if (gensetMode && fileTitleLooksLikeRailwayNotGenerator(title)) continue;
     if (gensetMode && fileTitleLooksLikeIrrelevantIndustrial(title)) continue;
+    if (gensetMode && fileTitleLooksLikeLaborCampTrailer(title)) continue;
     const ii = Array.isArray(page.imageinfo) ? page.imageinfo[0] : null;
     const url = pickImageUrl(ii);
     if (!url || seenUrl.has(url)) continue;
     seenUrl.add(url);
+    const capTitle = title.replace(/^File:/i, '') || title;
+    const score = scoreCommonsImageTitle(capTitle, modelHints, brands, gensetMode);
+    candidates.push({ url, title: capTitle, score });
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  const images = [];
+  for (let i = 0; i < candidates.length && images.length < maxImages; i += 1) {
     images.push({
       id: `commons-${images.length + 1}`,
-      url,
-      title: title.replace(/^File:/i, '') || title,
+      url: candidates[i].url,
+      title: candidates[i].title,
     });
-    if (images.length >= maxImages) break;
   }
   return images;
 }
