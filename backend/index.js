@@ -3467,6 +3467,15 @@ app.get('/api/tasks/filter', async (req, res) => {
       }
       return conditions.length === 1 ? conditions[0] : { $and: conditions };
     };
+    // Фільтри «Сервісний інженер №1…№6»: значення може бути в будь-якому з полів — кожен непорожній фільтр дає OR по всіх слотах, між фільтрами — AND
+    const ENGINEER_COLUMN_KEYS = ['engineer1', 'engineer2', 'engineer3', 'engineer4', 'engineer5', 'engineer6'];
+    const pushEngineerColumnFilterConditions = (engineerPatterns, matchConditions) => {
+      for (const val of engineerPatterns) {
+        if (!val) continue;
+        const rx = { $regex: String(val).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+        matchConditions.push({ $or: ENGINEER_COLUMN_KEYS.map((f) => ({ [f]: rx })) });
+      }
+    };
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 30));
     const showAllInvoices = req.query.showAllInvoices === 'true';
@@ -3532,6 +3541,7 @@ app.get('/api/tasks/filter', async (req, res) => {
             const filters = JSON.parse(columnFilters);
             const colMatch = {};
             const dateFiltersByField = {};
+            const engineerPatterns = [];
             for (const [key, value] of Object.entries(filters)) {
               if (!value || String(value).trim() === '') continue;
               const val = String(value).trim();
@@ -3550,6 +3560,10 @@ app.get('/api/tasks/filter', async (req, res) => {
                   dateFiltersByField[field].to = parsed;
                 }
               } else {
+                if (ENGINEER_COLUMN_KEYS.includes(key)) {
+                  engineerPatterns.push(val);
+                  continue;
+                }
                 const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
                 if (filterType === 'select') colMatch[key] = val;
                 else colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
@@ -3560,6 +3574,7 @@ app.get('/api/tasks/filter', async (req, res) => {
               matchConditions.push(buildDateMatch(field, from, to));
             }
             for (const [k, v] of Object.entries(colMatch)) matchConditions.push({ [k]: v });
+            pushEngineerColumnFilterConditions(engineerPatterns, matchConditions);
             if (matchConditions.length > 0) {
               irPipeline.push({ $match: matchConditions.length === 1 ? matchConditions[0] : { $and: matchConditions } });
             }
@@ -3598,6 +3613,7 @@ app.get('/api/tasks/filter', async (req, res) => {
           const filters = JSON.parse(columnFilters);
           const colMatch = {};
           const dateFiltersByField = {};
+          const engineerPatterns = [];
           for (const [key, value] of Object.entries(filters)) {
             if (!value || String(value).trim() === '') continue;
             const val = String(value).trim();
@@ -3610,6 +3626,10 @@ app.get('/api/tasks/filter', async (req, res) => {
               const parsed = parseFilterDate(val, true);
               if (parsed) { dateFiltersByField[field] = dateFiltersByField[field] || {}; dateFiltersByField[field].to = parsed; }
             } else {
+              if (ENGINEER_COLUMN_KEYS.includes(key)) {
+                engineerPatterns.push(val);
+                continue;
+              }
               const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
               if (filterType === 'select') colMatch[key] = val;
               else colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
@@ -3620,6 +3640,7 @@ app.get('/api/tasks/filter', async (req, res) => {
             matchConditions.push(buildDateMatch(field, from, to));
           }
           for (const [k, v] of Object.entries(colMatch)) matchConditions.push({ [k]: v });
+          pushEngineerColumnFilterConditions(engineerPatterns, matchConditions);
           if (matchConditions.length > 0) irPipeline.push({ $match: matchConditions.length === 1 ? matchConditions[0] : { $and: matchConditions } });
         } catch (e) {
           console.warn('[tasks/filter] accountantInvoiceRequests: Invalid columnFilters JSON:', e.message);
@@ -3903,6 +3924,7 @@ app.get('/api/tasks/filter', async (req, res) => {
           const filters = JSON.parse(columnFilters);
           const colMatch = {};
           const dateFiltersByField = {};
+          const engineerPatterns = [];
           for (const [key, value] of Object.entries(filters)) {
             if (!value || String(value).trim() === '') continue;
             const val = String(value).trim();
@@ -3915,6 +3937,10 @@ app.get('/api/tasks/filter', async (req, res) => {
               const parsed = parseFilterDate(val, true);
               if (parsed) { dateFiltersByField[field] = dateFiltersByField[field] || {}; dateFiltersByField[field].to = parsed; }
             } else {
+              if (ENGINEER_COLUMN_KEYS.includes(key)) {
+                engineerPatterns.push(val);
+                continue;
+              }
               const filterType = ['status', 'company', 'paymentType', 'serviceRegion', 'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'].includes(key) ? 'select' : 'text';
               if (filterType === 'select') colMatch[key] = val;
               else colMatch[key] = { $regex: val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
@@ -3925,6 +3951,7 @@ app.get('/api/tasks/filter', async (req, res) => {
             matchConditions.push(buildDateMatch(field, from, to));
           }
           for (const [k, v] of Object.entries(colMatch)) matchConditions.push({ [k]: v });
+          pushEngineerColumnFilterConditions(engineerPatterns, matchConditions);
           if (matchConditions.length > 0) {
             pipeline.push({ $match: matchConditions.length === 1 ? matchConditions[0] : { $and: matchConditions } });
           }

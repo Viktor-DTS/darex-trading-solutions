@@ -197,6 +197,26 @@ function parseFilterDate(val, endOfDay = false) {
   return endOfDay ? new Date(year, month - 1, day, 23, 59, 59, 999) : date;
 }
 
+const ENGINEER_FILTER_KEYS = ['engineer1', 'engineer2', 'engineer3', 'engineer4', 'engineer5', 'engineer6'];
+
+/** Кожен заповнений фільтр по колонках інженера №1…№6: збіг шукається в будь-якому з полів engineer1…engineer6; кілька фільтрів поєднуються через AND. */
+function taskMatchesEngineerColumnFilters(task, engineerEntries, getFilterTypeForKey) {
+  for (const [key, rawValue] of engineerEntries) {
+    const filterValue = String(rawValue).toLowerCase().trim();
+    const filterType = getFilterTypeForKey(key);
+    const ok = ENGINEER_FILTER_KEYS.some((slotKey) => {
+      let taskValue = task[slotKey];
+      if (taskValue === null || taskValue === undefined) taskValue = '';
+      if (filterType === 'select') {
+        return String(taskValue).toLowerCase() === filterValue;
+      }
+      return String(taskValue).toLowerCase().includes(filterValue);
+    });
+    if (!ok) return false;
+  }
+  return true;
+}
+
 function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals = false, showRejectedInvoices = false, showAllInvoices = false, onRowClick, onApprove, showApproveButtons = false, approveRole = '', onUploadClick = null, onRejectInvoice = null, columnsArea = 'service', onViewClick = null, onCreateFromTask = null, onTasksLoaded = null, refreshTrigger = undefined }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -660,9 +680,14 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     }
 
     // Фільтрація по колонках
+    const engineerFilterEntries = Object.entries(columnFilters).filter(
+      ([k, v]) => ENGINEER_FILTER_KEYS.includes(k) && v && String(v).trim() !== ''
+    );
+
     Object.entries(columnFilters).forEach(([key, value]) => {
       if (!value || value.trim() === '') return;
-      
+      if (ENGINEER_FILTER_KEYS.includes(key)) return;
+
       const filterValue = value.toLowerCase().trim();
       
       // Обробка дат з діапазоном
@@ -764,6 +789,10 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       });
     });
 
+    if (engineerFilterEntries.length > 0) {
+      result = result.filter((task) => taskMatchesEngineerColumnFilters(task, engineerFilterEntries, getFilterType));
+    }
+
     // Фільтрація відхилених заявок та рахунків (як в оригінальному проекті)
     if (showRejectedApprovals || showRejectedInvoices) {
       result = result.filter(task => {
@@ -828,7 +857,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     });
 
     return result;
-  }, [tasks, filter, columnFilters, sortField, sortDirection, showRejectedApprovals, showRejectedInvoices, approveRole, enablePagination]);
+  }, [tasks, filter, columnFilters, sortField, sortDirection, showRejectedApprovals, showRejectedInvoices, approveRole, enablePagination, getFilterType]);
 
   // Відображені колонки в правильному порядку
   const displayedColumns = useMemo(() => {
