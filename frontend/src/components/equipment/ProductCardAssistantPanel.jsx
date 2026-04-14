@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './ProductCardAssistantPanel.css';
 
 /**
- * Права колонка модалки: підказки з бекенду (Вікіпедія / mock), чекбокси, застосування до форми.
+ * Права колонка модалки: підказки з бекенду (Вікіпедія / Commons / LLM / заглушка), чекбокси, застосування до форми.
  */
 export default function ProductCardAssistantPanel({
   loading,
@@ -56,7 +56,7 @@ export default function ProductCardAssistantPanel({
       <h4 className="product-card-assistant__title">Асистент</h4>
       <p className="product-card-assistant__hint">
         Після введення <strong>Тип / найменування</strong> (або лише <strong>короткої назви</strong>, якщо тип порожній) переведіть
-        фокус у інше поле (Tab або клік) — підвантажаться довідкові дані (Вікіпедія, за відсутності статті — LLM на сервері, якщо налаштовано). Оберіть чекбоксами, що перенести у
+        фокус у інше поле (Tab або клік) — підвантажаться довідкові дані (Вікіпедія, зображення з Wikimedia Commons, за потреби LLM на сервері). Оберіть чекбоксами, що перенести у
         форму зліва.
       </p>
 
@@ -82,6 +82,11 @@ export default function ProductCardAssistantPanel({
                   : data.source === 'llm'
                     ? `LLM${data.llmModel ? ` (${data.llmModel})` : ''}`
                     : data.source}
+            </p>
+          ) : null}
+          {data.commonsImagesAdded > 0 ? (
+            <p className="product-card-assistant__meta">
+              Зображення з Commons: +{data.commonsImagesAdded} (імпорт у «Фото / файли» через обрані чекбокси)
             </p>
           ) : null}
 
@@ -130,9 +135,11 @@ export default function ProductCardAssistantPanel({
             </div>
           )}
 
-          {(data.images || []).length > 0 && (
-            <div className="product-card-assistant__section">
-              <div className="product-card-assistant__section-title">Зображення</div>
+          <div className="product-card-assistant__section">
+            <div className="product-card-assistant__section-title">
+              Зображення для підстановки у «Фото / файли»
+            </div>
+            {(data.images || []).length > 0 ? (
               <ul className="product-card-assistant__images">
                 {(data.images || []).map((im) => (
                   <li key={im.id} className="product-card-assistant__image-item">
@@ -148,8 +155,13 @@ export default function ProductCardAssistantPanel({
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
+            ) : (
+              <p className="product-card-assistant__empty product-card-assistant__empty--inline">
+                За цим запитом зображень у відкритих джерелах не знайдено. Додайте фото вручну («Вибрати файли» / «Зробити фото») або
+                уточніть назву.
+              </p>
+            )}
+          </div>
 
           <button
             type="button"

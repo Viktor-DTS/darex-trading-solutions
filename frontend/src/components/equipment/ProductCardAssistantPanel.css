@@ -21,6 +21,10 @@
   color: var(--text-secondary, #8b949e);
 }
 
+.product-card-assistant__empty--inline {
+  margin-top: 0;
+}
+
 .product-card-assistant__status {
   font-size: 13px;
   color: var(--text-secondary, #8b949e);
@@ -112,6 +116,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  max-height: 280px;
+  overflow-y: auto;
 }
 
 .product-card-assistant__image-item {

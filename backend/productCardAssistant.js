@@ -6,6 +6,7 @@
 const cloudinary = require('cloudinary').v2;
 const { extractHeuristicSpecs } = require('./heuristicProductSpecs');
 const { llmSuggest } = require('./productCardAssistantLlm');
+const { commonsSuggestImages } = require('./productCardAssistantCommons');
 
 const USER_AGENT =
   process.env.PRODUCT_ASSISTANT_USER_AGENT ||
@@ -284,20 +285,63 @@ function llmPayloadHasUsefulContent(payload) {
   return sn.length > 0;
 }
 
+const MAX_ASSISTANT_IMAGES = 12;
+const COMMONS_NOTE =
+  '\n\nЗображення з Wikimedia Commons: перевірте відповідність саме вашому товару та умови ліцензії файлу перед використанням.';
+
+/**
+ * Додає до payload зображення з Commons (дедуп по URL), щоб у панелі був перелік для «Фото / файли».
+ */
+async function enrichWithCommonsImages(query, payload) {
+  if (!payload || payload.source === 'empty') return payload;
+  const existing = Array.isArray(payload.images) ? payload.images : [];
+  if (existing.length >= MAX_ASSISTANT_IMAGES) return { ...payload, commonsImagesAdded: 0 };
+  let added = 0;
+  try {
+    const want = MAX_ASSISTANT_IMAGES - existing.length;
+    const commons = await commonsSuggestImages(query, { maxImages: want });
+    const seen = new Set(existing.map((i) => i.url).filter(Boolean));
+    const merged = [...existing];
+    for (const im of commons) {
+      if (!im?.url || seen.has(im.url)) continue;
+      seen.add(im.url);
+      merged.push(im);
+      added += 1;
+      if (merged.length >= MAX_ASSISTANT_IMAGES) break;
+    }
+    if (added === 0) return { ...payload, commonsImagesAdded: 0 };
+    const disclaimer = String(payload.disclaimer || '').trim();
+    const hasCommonsNote = disclaimer.includes('Wikimedia Commons');
+    return {
+      ...payload,
+      images: merged,
+      commonsImagesAdded: added,
+      disclaimer: hasCommonsNote ? disclaimer : disclaimer + COMMONS_NOTE,
+    };
+  } catch (e) {
+    console.warn('[product-card-assistant] Commons enrich:', e.message);
+    return { ...payload, commonsImagesAdded: 0 };
+  }
+}
+
 async function suggest(query) {
   const q = String(query || '').trim();
   if (q.length < 2) {
     return { source: 'empty', suggestedName: '', manufacturerHint: '', specs: [], images: [], disclaimer: '' };
   }
   const wiki = await wikipediaSuggest(q);
-  if (wiki && (wiki.specs.length > 0 || wiki.images.length > 0)) return mergeHeuristicSpecs(q, wiki);
+  if (wiki && (wiki.specs.length > 0 || wiki.images.length > 0)) {
+    return enrichWithCommonsImages(q, mergeHeuristicSpecs(q, wiki));
+  }
   try {
     const llm = await llmSuggest(q);
-    if (llmPayloadHasUsefulContent(llm)) return mergeHeuristicSpecs(q, llm);
+    if (llmPayloadHasUsefulContent(llm)) {
+      return enrichWithCommonsImages(q, mergeHeuristicSpecs(q, llm));
+    }
   } catch (e) {
     console.warn('[product-card-assistant] LLM:', e.message);
   }
-  return mergeHeuristicSpecs(q, mockSuggest(q));
+  return enrichWithCommonsImages(q, mergeHeuristicSpecs(q, mockSuggest(q)));
 }
 
 async function importImageFromUrl(imageUrl) {
