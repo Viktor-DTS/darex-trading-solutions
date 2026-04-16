@@ -383,6 +383,163 @@
   background: #1565c0;
 }
 
+.btn-export-applications {
+  padding: 10px 24px;
+  background: #2e7d32;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-export-applications:hover {
+  background: #1b5e20;
+}
+
+.export-applications-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.export-applications-modal {
+  background: #1e2d3d;
+  border-radius: 12px;
+  padding: 22px 24px;
+  max-width: 560px;
+  width: 100%;
+  max-height: min(86vh, 720px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  border: 1px solid #2a3f54;
+}
+
+.export-applications-modal h3 {
+  margin: 0 0 10px 0;
+  color: #00bfff;
+  font-size: 18px;
+}
+
+.export-applications-hint {
+  margin: 0 0 14px 0;
+  color: #b0bec5;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.export-applications-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.export-applications-count {
+  margin-left: auto;
+  color: #cfd8dc;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.btn-export-secondary {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid #455a64;
+  background: #263238;
+  color: #eceff1;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-export-secondary:hover:not(:disabled) {
+  background: #37474f;
+}
+
+.btn-export-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.export-applications-list {
+  flex: 1;
+  min-height: 160px;
+  max-height: 42vh;
+  overflow-y: auto;
+  border: 1px solid #2a3f54;
+  border-radius: 8px;
+  background: #152030;
+  padding: 8px 0;
+}
+
+.export-applications-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: #90a4ae;
+  margin: 0;
+  font-size: 14px;
+}
+
+.export-applications-row {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: start;
+  padding: 10px 14px;
+  cursor: pointer;
+  color: #e0e0e0;
+  font-size: 13px;
+  border-bottom: 1px solid #243447;
+}
+
+.export-applications-row:last-child {
+  border-bottom: none;
+}
+
+.export-applications-row:hover {
+  background: rgba(25, 118, 210, 0.12);
+}
+
+.export-applications-row input[type='checkbox'] {
+  grid-row: 1 / span 2;
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.export-applications-row-main {
+  font-weight: 700;
+  color: #fff;
+}
+
+.export-applications-row-meta {
+  grid-column: 2;
+  color: #90a4ae;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.export-applications-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
 .save-status {
   padding: 6px 12px;
   border-radius: 4px;

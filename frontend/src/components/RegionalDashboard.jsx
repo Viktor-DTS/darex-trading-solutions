@@ -5,6 +5,43 @@ import TaskTable from './TaskTable';
 import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import './RegionalDashboard.css';
 
+function getTaskRecordId(task) {
+  return String(task?._id || task?.id || '');
+}
+
+function sanitizeWindowsDirName(name) {
+  if (!name || typeof name !== 'string') return '';
+  const cleaned = name
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+    .replace(/\.+$/, '')
+    .trim();
+  return cleaned.slice(0, 200) || 'folder';
+}
+
+/** Назва папки: інвент. № від замовника; якщо порожньо — резерв за номером заявки / id */
+function getExportFolderBaseName(task) {
+  const inv = (task.customerEquipmentNumber || '').trim();
+  if (inv) return sanitizeWindowsDirName(inv);
+  const rn = String(task.requestNumber ?? '').trim();
+  if (rn) return sanitizeWindowsDirName(`Заявка_${rn}`);
+  return sanitizeWindowsDirName(`Заявка_${getTaskRecordId(task)}`);
+}
+
+function allocateUniqueFolderName(base, usedSet) {
+  const raw = (base || 'folder').trim() || 'folder';
+  let name = raw;
+  if (!usedSet.has(name)) {
+    usedSet.add(name);
+    return name;
+  }
+  let i = 2;
+  while (usedSet.has(`${raw}_${i}`)) i += 1;
+  name = `${raw}_${i}`;
+  usedSet.add(name);
+  return name;
+}
+
 /** id коефіцієнта «Відсоток за виконану роботу» (як у backend) */
 const SERVICE_WORK_BONUS_COEFFICIENT_ID = 'service_work_completion_pct';
 /** Якщо з БД немає дійсного відсотка — як раніше 25% */
@@ -47,6 +84,12 @@ function RegionalDashboard({ user }) {
   const [saveStatus, setSaveStatus] = useState(''); // '', 'saving', 'saved', 'error'
   /** Відсоток премії з /api/global-calculation-coefficients (service); null = ще не завантажено */
   const [serviceBonusPercentFromApi, setServiceBonusPercentFromApi] = useState(null);
+
+  /** Вивантаження заявок (папка + файли через File System Access API) */
+  const [exportRootDirHandle, setExportRootDirHandle] = useState(null);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportSelectedIds, setExportSelectedIds] = useState(() => new Set());
+  const [exportBusy, setExportBusy] = useState(false);
   
   // Ref для дебаунсу збереження
   const saveTimeoutRef = useRef(null);
@@ -236,6 +279,149 @@ function RegionalDashboard({ user }) {
       return true;
     });
   }, [debtTasks, debtFilters]);
+
+  const exportableTasks = useMemo(() => {
+    if (!allTasks.length) return [];
+    let list;
+    if (user?.region && user.region !== 'Україна') {
+      list = allTasks.filter((t) => t.serviceRegion === user.region);
+    } else if (selectedRegion === 'ALL') {
+      const set = new Set(availableRegions);
+      list = allTasks.filter((t) => set.has(t.serviceRegion || 'Без регіону'));
+    } else {
+      const er = effectiveRegion;
+      if (!er) list = [...allTasks];
+      else list = allTasks.filter((t) => (t.serviceRegion || 'Без регіону') === er);
+    }
+    return [...list].sort((a, b) =>
+      String(b.requestNumber || '').localeCompare(String(a.requestNumber || ''), undefined, { numeric: true })
+    );
+  }, [allTasks, user?.region, selectedRegion, effectiveRegion, availableRegions]);
+
+  const handleStartApplicationExport = useCallback(async () => {
+    if (!('showDirectoryPicker' in window)) {
+      alert(
+        'Вибір папки для збереження недоступний у цьому браузері. Використайте Google Chrome або Microsoft Edge.'
+      );
+      return;
+    }
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'documents' });
+      setExportRootDirHandle(handle);
+      setExportSelectedIds(new Set());
+      setExportModalOpen(true);
+    } catch (e) {
+      if (e && e.name !== 'AbortError') {
+        console.error(e);
+        alert('Не вдалося отримати доступ до папки. Перевірте дозволи браузера.');
+      }
+    }
+  }, []);
+
+  const handleCloseExportModal = useCallback(() => {
+    if (exportBusy) return;
+    setExportModalOpen(false);
+    setExportRootDirHandle(null);
+  }, [exportBusy]);
+
+  const toggleExportTask = useCallback((id) => {
+    setExportSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectAllExportable = useCallback(() => {
+    setExportSelectedIds(new Set(exportableTasks.map((t) => getTaskRecordId(t))));
+  }, [exportableTasks]);
+
+  const clearExportSelection = useCallback(() => {
+    setExportSelectedIds(new Set());
+  }, []);
+
+  const runApplicationExport = useCallback(async () => {
+    if (!exportRootDirHandle || exportSelectedIds.size === 0) {
+      alert('Оберіть принаймні одну заявку');
+      return;
+    }
+    const token = localStorage.getItem('token');
+    setExportBusy(true);
+    const usedFolders = new Set();
+    const errors = [];
+    let savedFiles = 0;
+    try {
+      for (const taskId of exportSelectedIds) {
+        const task = exportableTasks.find((t) => getTaskRecordId(t) === taskId);
+        if (!task) continue;
+        const folderName = allocateUniqueFolderName(getExportFolderBaseName(task), usedFolders);
+        let dirHandle;
+        try {
+          dirHandle = await exportRootDirHandle.getDirectoryHandle(folderName, { create: true });
+        } catch (e) {
+          errors.push(`Папка «${folderName}»: ${e.message || e}`);
+          continue;
+        }
+        let files = [];
+        try {
+          const res = await fetch(`${API_BASE_URL}/files/task/${taskId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            files = await res.json();
+          } else {
+            errors.push(`Заявка ${task.requestNumber || taskId}: не вдалося отримати список файлів`);
+          }
+        } catch (e) {
+          errors.push(`Заявка ${task.requestNumber || taskId}: ${e.message || e}`);
+          continue;
+        }
+        const list = Array.isArray(files) ? files : [];
+        const usedFileNames = new Map();
+        for (const f of list) {
+          const url = f.cloudinaryUrl;
+          if (!url) continue;
+          try {
+            const originalName = f.originalName || 'file';
+            let fileName = originalName;
+            const count = (usedFileNames.get(fileName) || 0) + 1;
+            usedFileNames.set(fileName, count);
+            if (count > 1) {
+              const ext = fileName.includes('.') ? fileName.split('.').pop() : '';
+              const baseName = ext ? fileName.slice(0, -(ext.length + 1)) : fileName;
+              fileName = ext ? `${baseName}_${count}.${ext}` : `${baseName}_${count}`;
+            }
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const blob = await resp.blob();
+            const fh = await dirHandle.getFileHandle(fileName, { create: true });
+            const writable = await fh.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            savedFiles += 1;
+          } catch (e) {
+            errors.push(`Файл «${f.originalName || 'file'}» (заявка ${task.requestNumber || taskId}): ${e.message || e}`);
+          }
+        }
+      }
+      if (errors.length) {
+        console.error('[EXPORT APPLICATIONS]', errors);
+        alert(
+          `Вивантажено файлів: ${savedFiles}.\nДеякі кроки з помилками:\n${errors.slice(0, 8).join('\n')}${
+            errors.length > 8 ? '\n…' : ''
+          }`
+        );
+      } else {
+        alert(`Готово. Збережено файлів: ${savedFiles}.`);
+      }
+      setExportModalOpen(false);
+      setExportRootDirHandle(null);
+      setExportSelectedIds(new Set());
+    } finally {
+      setExportBusy(false);
+    }
+  }, [exportRootDirHandle, exportSelectedIds, exportableTasks]);
 
   // Обробник зміни фільтра
   const handleDebtFilterChange = useCallback((field, value) => {
@@ -1228,6 +1414,10 @@ function RegionalDashboard({ user }) {
             <button className="btn-form-report" onClick={handleFormReport}>
               📊 Сформувати звіт
             </button>
+
+            <button type="button" className="btn-export-applications" onClick={handleStartApplicationExport}>
+              📥 Вивантажити заявки
+            </button>
             
             {saveStatus && (
               <span className={`save-status ${saveStatus}`}>
@@ -1358,6 +1548,66 @@ function RegionalDashboard({ user }) {
               );
             })
           )}
+        </div>
+      )}
+
+      {exportModalOpen && (
+        <div className="export-applications-overlay" role="presentation" onClick={handleCloseExportModal}>
+          <div
+            className="export-applications-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="export-applications-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="export-applications-title">Вивантаження заявок</h3>
+            <p className="export-applications-hint">
+              Оберіть номери заявок. У вибраній папці будуть створені підпапки за полем «Інвент. № обладнання від
+              замовника» (якщо воно порожнє — за номером заявки), у кожну підпапку збережуться всі файли заявки.
+            </p>
+            <div className="export-applications-toolbar">
+              <button type="button" className="btn-export-secondary" onClick={selectAllExportable} disabled={exportBusy}>
+                Обрати всі
+              </button>
+              <button type="button" className="btn-export-secondary" onClick={clearExportSelection} disabled={exportBusy}>
+                Скинути
+              </button>
+              <span className="export-applications-count">
+                Обрано: {exportSelectedIds.size} з {exportableTasks.length}
+              </span>
+            </div>
+            <div className="export-applications-list">
+              {exportableTasks.length === 0 ? (
+                <p className="export-applications-empty">Немає заявок для поточного фільтра регіону.</p>
+              ) : (
+                exportableTasks.map((task) => {
+                  const id = getTaskRecordId(task);
+                  return (
+                    <label key={id} className="export-applications-row">
+                      <input
+                        type="checkbox"
+                        checked={exportSelectedIds.has(id)}
+                        onChange={() => toggleExportTask(id)}
+                        disabled={exportBusy}
+                      />
+                      <span className="export-applications-row-main">№ {task.requestNumber || id}</span>
+                      <span className="export-applications-row-meta">
+                        {(task.customerEquipmentNumber || '').trim() || '— інвент. № не вказано'}
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+            <div className="export-applications-actions">
+              <button type="button" className="btn-export-secondary" onClick={handleCloseExportModal} disabled={exportBusy}>
+                Скасувати
+              </button>
+              <button type="button" className="btn-form-report" onClick={runApplicationExport} disabled={exportBusy}>
+                {exportBusy ? 'Збереження…' : 'Сформувати вивантаження'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
