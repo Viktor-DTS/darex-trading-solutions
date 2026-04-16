@@ -213,7 +213,7 @@ function authenticateToken(req, res, next) {
   }
   
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Невірний токен' });
+    if (err) return res.status(401).json({ error: 'Невірний або прострочений токен' });
     req.user = user;
     next();
   });

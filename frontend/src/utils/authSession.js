@@ -1,6 +1,5 @@
 /**
- * Єдина обробка закінчення / недійсності сесії (HTTP 401).
- * Показує сповіщення один раз до наступного успішного входу.
+ * Єдина обробка закінчення / недійсності сесії (HTTP 401 та сумісність зі старим 403 для JWT).
  */
 
 export const AUTH_SESSION_EXPIRED_MESSAGE =
@@ -13,13 +12,8 @@ export function resetAuthSessionExpiredState() {
   expiredHandled = false;
 }
 
-/**
- * Якщо відповідь 401 — очищає сесію, надсилає подію для React, показує alert (один раз).
- * @returns {boolean} true, якщо це 401 (у т.ч. повторні 401 після першого сповіщення)
- */
-export function tryHandleUnauthorizedResponse(response) {
-  if (!response || response.status !== 401) return false;
-  if (expiredHandled) return true;
+function notifySessionExpiredOnce() {
+  if (expiredHandled) return;
   expiredHandled = true;
 
   try {
@@ -32,6 +26,27 @@ export function tryHandleUnauthorizedResponse(response) {
     window.dispatchEvent(new CustomEvent('dts-auth-expired'));
     window.alert(AUTH_SESSION_EXPIRED_MESSAGE);
   }
+}
 
+/**
+ * Якщо відповідь 401 — очищає сесію, показує alert (один раз).
+ * @returns {boolean} true для будь-якої відповіді зі статусом 401
+ */
+export function tryHandleUnauthorizedResponse(response) {
+  if (!response || response.status !== 401) return false;
+  notifySessionExpiredOnce();
+  return true;
+}
+
+/**
+ * Сумісність зі старим бекендом: невірний/прострочений JWT повертався як 403 і { error: 'Невірний токен' }.
+ * @returns {Promise<boolean>} true якщо це саме така відповідь і сесію скинуто
+ */
+export async function tryHandleForbiddenInvalidTokenResponse(response) {
+  if (!response || response.status !== 403) return false;
+  if (expiredHandled) return false;
+  const data = await response.clone().json().catch(() => null);
+  if (!data || data.error !== 'Невірний токен') return false;
+  notifySessionExpiredOnce();
   return true;
 }
