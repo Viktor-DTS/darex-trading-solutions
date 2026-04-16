@@ -16,7 +16,7 @@ function formatCoefficientValueDisplay(v, integerOnly) {
 function canEditCoefficients(role, scope) {
   const r = String(role || '').toLowerCase();
   if (['admin', 'administrator', 'finance', 'buhgalteria'].includes(r)) return true;
-  if (r === 'gistov' && scope === 'service') return true;
+  if (r === 'golovnkervserv' && scope === 'service') return true;
   return false;
 }
 
@@ -141,7 +141,7 @@ function GlobalCalculationCoefficientsEditor({ user, scope, title, description }
       {!editable && (
         <div className="gcc-editor-readonly-banner">
           Лише перегляд. Змінювати значення можуть адміністратор, бухгалтерія (<code>buhgalteria</code>), фінансовий відділ (<code>finance</code>) або роль{' '}
-          <code>gistov</code> (лише вкладка «Для сервісного відділу»).
+          <code>GolovnKervServ</code> (<code>golovnkervserv</code>) — лише вкладка «Для сервісного відділу».
         </div>
       )}
       {meta.updatedAt && (

@@ -660,15 +660,16 @@ function serializeCoefficientValuesForDb(scope, bodyRows) {
   }));
 }
 
-function isGistovRole(role) {
-  return String(role || '').toLowerCase() === 'gistov';
+/** Головний керівник сервісу — доступ лише до коефіцієнтів сервісного відділу (роль у БД: GolovnKervServ). */
+function isGolovnKervServRole(role) {
+  return String(role || '').toLowerCase() === 'golovnkervserv';
 }
 
-/** scope: 'sales' | 'service' — для gistov дозволено лише service */
+/** scope: 'sales' | 'service' — для GolovnKervServ дозволено лише service */
 function canEditGlobalCalculationCoefficients(role, scope) {
   const r = String(role || '').toLowerCase();
   if (['admin', 'administrator', 'finance', 'buhgalteria'].includes(r)) return true;
-  if (isGistovRole(r)) return scope === 'service';
+  if (isGolovnKervServRole(r)) return scope === 'service';
   return false;
 }
 
@@ -5079,7 +5080,7 @@ app.get('/api/global-calculation-coefficients', authenticateToken, async (req, r
         updatedByLogin: doc.serviceUpdatedByLogin
       }
     };
-    if (roleLower === 'gistov') {
+    if (roleLower === 'golovnkervserv') {
       delete payload.sales;
     }
     res.json(payload);
@@ -5149,7 +5150,7 @@ app.post('/api/global-calculation-coefficients', authenticateToken, async (req, 
         updatedByLogin: doc.serviceUpdatedByLogin
       }
     };
-    if (roleLower === 'gistov') {
+    if (roleLower === 'golovnkervserv') {
       delete out.sales;
     }
     res.json(out);

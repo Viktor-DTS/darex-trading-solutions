@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import GlobalCalculationCoefficientsEditor from './GlobalCalculationCoefficientsEditor';
 import './FinancialDashboard.css';
 
-/** Бічне меню фінвідділу: для ролі gistov показуємо лише whitelisted пункти (нові пункти за замовчуванням приховані). */
+/** Бічне меню фінвідділу: для ролі GolovnKervServ показуємо лише whitelisted пункти (нові пункти за замовчуванням приховані). */
 const FINANCE_SIDEBAR_ITEMS = [
   {
     id: 'coefficients',
@@ -12,7 +12,7 @@ const FINANCE_SIDEBAR_ITEMS = [
   }
 ];
 
-const GISTOV_ALLOWED_FINANCE_SIDEBAR_IDS = new Set(['coefficients']);
+const GOLOVNKERVSERV_ALLOWED_FINANCE_SIDEBAR_IDS = new Set(['coefficients']);
 
 const COEFF_SCOPE_COPY = {
   sales: {
@@ -27,17 +27,17 @@ const COEFF_SCOPE_COPY = {
 
 function FinancialDashboard({ user }) {
   const [activeTab, setActiveTab] = useState('coefficients');
-  const isGistov = String(user?.role || '').toLowerCase() === 'gistov';
-  const [coeffScope, setCoeffScope] = useState(() => (isGistov ? 'service' : 'sales'));
+  const isGolovnKervServ = String(user?.role || '').toLowerCase() === 'golovnkervserv';
+  const [coeffScope, setCoeffScope] = useState(() => (isGolovnKervServ ? 'service' : 'sales'));
 
   const sidebarItems = useMemo(() => {
-    if (isGistov) {
-      return FINANCE_SIDEBAR_ITEMS.filter((it) => GISTOV_ALLOWED_FINANCE_SIDEBAR_IDS.has(it.id));
+    if (isGolovnKervServ) {
+      return FINANCE_SIDEBAR_ITEMS.filter((it) => GOLOVNKERVSERV_ALLOWED_FINANCE_SIDEBAR_IDS.has(it.id));
     }
     return FINANCE_SIDEBAR_ITEMS;
-  }, [isGistov]);
+  }, [isGolovnKervServ]);
 
-  const effectiveCoeffScope = isGistov ? 'service' : coeffScope;
+  const effectiveCoeffScope = isGolovnKervServ ? 'service' : coeffScope;
 
   return (
     <div className="finance-dashboard">
@@ -64,7 +64,7 @@ function FinancialDashboard({ user }) {
           {activeTab === 'coefficients' && (
             <div className="finance-coefficients-wrap">
               <h1 className="finance-coefficients-main-title">Коефіцієнти розрахунку</h1>
-              {!isGistov && (
+              {!isGolovnKervServ && (
                 <div className="finance-subtabs" role="tablist" aria-label="Напрямок коефіцієнтів">
                   <button
                     type="button"
