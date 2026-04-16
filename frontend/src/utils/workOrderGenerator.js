@@ -1,10 +1,103 @@
+import API_BASE_URL from '../config';
+
 /**
  * Генератор нарядів на виконання робіт
  * Повні шаблони з оригінального проекту
  */
 
+const WO_TEMPLATE_IDS = {
+  travelCity: 'wo_template_travel_city_uah',
+  travelPerKm: 'wo_template_travel_per_km_uah',
+  perDiem: 'wo_template_per_diem_uah',
+  condComfort: 'wo_template_cond_comfort',
+  condOutdoor: 'wo_template_cond_outdoor',
+  condPrecip: 'wo_template_cond_precipitation',
+  condBasement: 'wo_template_cond_basement',
+  condAggressive: 'wo_template_cond_aggressive',
+  condNight: 'wo_template_cond_night',
+  condWeekend: 'wo_template_cond_weekend',
+  condUrgent: 'wo_template_cond_urgent'
+};
+
+function roundH(n) {
+  const x = typeof n === 'number' ? n : parseFloat(String(n).replace(',', '.'));
+  if (Number.isNaN(x) || !Number.isFinite(x)) return 0;
+  return Math.round(x * 100) / 100;
+}
+
+function moneyDot2(n) {
+  return roundH(n).toFixed(2);
+}
+
+function moneyComma2(n) {
+  return moneyDot2(n).replace('.', ',');
+}
+
+function multStr(n) {
+  return roundH(n).toFixed(1);
+}
+
+function defaultWorkOrderCoeffs() {
+  return {
+    travelCity: '650.00',
+    travelPerKm: '15,00',
+    perDiem: '600.00',
+    mComfort: '1.0',
+    mOutdoor: '1.1',
+    mPrecip: '1.2',
+    mBasement: '1.3',
+    mAggressive: '1.4',
+    mNight: '1.5',
+    mWeekend: '1.6',
+    mUrgent: '2.0'
+  };
+}
+
+function workOrderCoeffsFromRows(rows) {
+  const m = {};
+  for (const r of rows || []) {
+    if (r && r.id != null) m[r.id] = r.value;
+  }
+  const num = (id, fallback) => {
+    const raw = m[id];
+    const v = typeof raw === 'number' ? raw : parseFloat(String(raw ?? '').replace(',', '.'));
+    if (Number.isFinite(v)) return v;
+    return fallback;
+  };
+  return {
+    travelCity: moneyDot2(num(WO_TEMPLATE_IDS.travelCity, 650)),
+    travelPerKm: moneyComma2(num(WO_TEMPLATE_IDS.travelPerKm, 15)),
+    perDiem: moneyDot2(num(WO_TEMPLATE_IDS.perDiem, 600)),
+    mComfort: multStr(num(WO_TEMPLATE_IDS.condComfort, 1.0)),
+    mOutdoor: multStr(num(WO_TEMPLATE_IDS.condOutdoor, 1.1)),
+    mPrecip: multStr(num(WO_TEMPLATE_IDS.condPrecip, 1.2)),
+    mBasement: multStr(num(WO_TEMPLATE_IDS.condBasement, 1.3)),
+    mAggressive: multStr(num(WO_TEMPLATE_IDS.condAggressive, 1.4)),
+    mNight: multStr(num(WO_TEMPLATE_IDS.condNight, 1.5)),
+    mWeekend: multStr(num(WO_TEMPLATE_IDS.condWeekend, 1.6)),
+    mUrgent: multStr(num(WO_TEMPLATE_IDS.condUrgent, 2.0))
+  };
+}
+
+async function fetchWorkOrderCoeffsForTemplate() {
+  try {
+    const token =
+      typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+    const res = await fetch(`${API_BASE_URL}/global-calculation-coefficients`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    if (!res.ok) return defaultWorkOrderCoeffs();
+    const data = await res.json();
+    const list = data?.service?.rows;
+    return workOrderCoeffsFromRows(Array.isArray(list) ? list : []);
+  } catch (e) {
+    console.warn('[workOrder] коефіцієнти шаблону: fallback', e);
+    return defaultWorkOrderCoeffs();
+  }
+}
+
 // Функція для генерації наряду
-export const generateWorkOrder = (task) => {
+export const generateWorkOrder = async (task) => {
   // Формуємо дані для наряду
   const workOrderData = {
     client: task.client || '',
@@ -90,12 +183,25 @@ export const generateWorkOrder = (task) => {
 
   // Визначаємо компанію та вибираємо відповідний шаблон
   const company = task.company || '';
+  const woCoeffs = await fetchWorkOrderCoeffsForTemplate();
 
   if (company === 'ДТС' || company === 'Дарекс Трейдінг Солюшнс') {
-    const htmlContent = generateDTSTemplate(workOrderData, workOrderNumber, formattedDate, engineers);
+    const htmlContent = generateDTSTemplate(
+      workOrderData,
+      workOrderNumber,
+      formattedDate,
+      engineers,
+      woCoeffs
+    );
     openWorkOrderInNewWindow(htmlContent);
   } else {
-    const htmlContent = generateDarexEnergyTemplate(workOrderData, workOrderNumber, formattedDate, engineers);
+    const htmlContent = generateDarexEnergyTemplate(
+      workOrderData,
+      workOrderNumber,
+      formattedDate,
+      engineers,
+      woCoeffs
+    );
     openWorkOrderInNewWindow(htmlContent);
   }
 };
@@ -138,7 +244,7 @@ const buildMaterialsTableRows = (data) => {
 };
 
 // Повний шаблон ДТС (як в оригінальному проекті)
-const generateDTSTemplate = (data, workOrderNumber, formattedDate, engineers) => {
+const generateDTSTemplate = (data, workOrderNumber, formattedDate, engineers, wo) => {
   return `
     <!DOCTYPE html>
     <html xmlns:o="urn:schemas-microsoft-com:office:office"
@@ -533,12 +639,12 @@ const generateDTSTemplate = (data, workOrderNumber, formattedDate, engineers) =>
         <div class="cost-item"><span>Вартість пусконалагоджувальних робіт</span><span>_____ грн.</span></div>
         <div class="cost-item"><span>Загальна вартість з урахуванням коефіцієнта складності</span><span>_____ грн.</span></div>
         
-        <div class="section-title">6.3. Виїзд на об'єкт Замовника: тариф: по місту 650.00 грн.</div>
+        <div class="section-title">6.3. Виїзд на об'єкт Замовника: тариф: по місту ${wo.travelCity} грн.</div>
         <div class="field" style="font-size: 10pt;">
-          <span>Виїзд за місто ____ км * 15,00 грн/км; разом ____ грн.</span>
+          <span>Виїзд за місто ____ км * ${wo.travelPerKm} грн/км; разом ____ грн.</span>
         </div>
         
-        <div class="section-title">6.4. Добові у відрядженні: 600.00 грн. ____ діб ____ люд. разом ____ грн.</div>
+        <div class="section-title">6.4. Добові у відрядженні: ${wo.perDiem} грн. ____ діб ____ люд. разом ____ грн.</div>
         
         <div class="section-title">6.5. Проживання: ____ грн. разом ____ грн.</div>
         
@@ -604,35 +710,35 @@ const generateDTSTemplate = (data, workOrderNumber, formattedDate, engineers) =>
         <div class="checkbox-section">
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Робота за комфортних умов, доброзичливість замовника - 1.0</span>
+            <span class="checkbox-label">Робота за комфортних умов, доброзичливість замовника - ${wo.mComfort}</span>
           </div>
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Робота на відкритому повітрі, при температурі нижче 0 град, (вище 27) сухо - 1.1</span>
+            <span class="checkbox-label">Робота на відкритому повітрі, при температурі нижче 0 град, (вище 27) сухо - ${wo.mOutdoor}</span>
           </div>
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Робота в дощ, сніг, сильний вітер - 1.2</span>
+            <span class="checkbox-label">Робота в дощ, сніг, сильний вітер - ${wo.mPrecip}</span>
           </div>
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Робота в підвальних приміщеннях, на дахах - 1.3</span>
+            <span class="checkbox-label">Робота в підвальних приміщеннях, на дахах - ${wo.mBasement}</span>
           </div>
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Робота в агресивному середовищі - 1.4</span>
+            <span class="checkbox-label">Робота в агресивному середовищі - ${wo.mAggressive}</span>
           </div>
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Робота в нічний час (з 22:00 до 06:00) - 1.5</span>
+            <span class="checkbox-label">Робота в нічний час (з 22:00 до 06:00) - ${wo.mNight}</span>
           </div>
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Робота у вихідні та святкові дні - 1.6</span>
+            <span class="checkbox-label">Робота у вихідні та святкові дні - ${wo.mWeekend}</span>
           </div>
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Терміновий виклик - 2.0</span>
+            <span class="checkbox-label">Терміновий виклик - ${wo.mUrgent}</span>
           </div>
         </div>
         
@@ -680,7 +786,7 @@ const generateDTSTemplate = (data, workOrderNumber, formattedDate, engineers) =>
 };
 
 // Повний шаблон Дарекс Енерго
-const generateDarexEnergyTemplate = (data, workOrderNumber, formattedDate, engineers) => {
+const generateDarexEnergyTemplate = (data, workOrderNumber, formattedDate, engineers, wo) => {
   return `
     <!DOCTYPE html>
     <html xmlns:o="urn:schemas-microsoft-com:office:office"
@@ -1071,12 +1177,12 @@ const generateDarexEnergyTemplate = (data, workOrderNumber, formattedDate, engin
         <div class="cost-item"><span>Вартість пусконалагоджувальних робіт</span><span>_____ грн.</span></div>
         <div class="cost-item"><span>Загальна вартість з урахуванням коефіцієнта складності</span><span>_____ грн.</span></div>
         
-        <div class="section-title">6.3. Виїзд на об'єкт Замовника: тариф: по місту 650.00 грн.</div>
+        <div class="section-title">6.3. Виїзд на об'єкт Замовника: тариф: по місту ${wo.travelCity} грн.</div>
         <div class="field" style="font-size: 10pt;">
-          <span>Виїзд за місто ____ км * 15,00 грн/км; разом ____ грн.</span>
+          <span>Виїзд за місто ____ км * ${wo.travelPerKm} грн/км; разом ____ грн.</span>
         </div>
         
-        <div class="section-title">6.4. Добові у відрядженні: 600.00 грн. ____ діб ____ люд. разом ____ грн.</div>
+        <div class="section-title">6.4. Добові у відрядженні: ${wo.perDiem} грн. ____ діб ____ люд. разом ____ грн.</div>
         
         <div class="section-title">6.5. Проживання: ____ грн. разом ____ грн.</div>
         
@@ -1142,35 +1248,35 @@ const generateDarexEnergyTemplate = (data, workOrderNumber, formattedDate, engin
         <div class="checkbox-section">
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Робота за комфортних умов, доброзичливість замовника - 1.0</span>
+            <span class="checkbox-label">Робота за комфортних умов, доброзичливість замовника - ${wo.mComfort}</span>
           </div>
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Робота на відкритому повітрі, при температурі нижче 0 град, (вище 27) сухо - 1.1</span>
+            <span class="checkbox-label">Робота на відкритому повітрі, при температурі нижче 0 град, (вище 27) сухо - ${wo.mOutdoor}</span>
           </div>
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Робота в дощ, сніг, сильний вітер - 1.2</span>
+            <span class="checkbox-label">Робота в дощ, сніг, сильний вітер - ${wo.mPrecip}</span>
           </div>
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Робота в підвальних приміщеннях, на дахах - 1.3</span>
+            <span class="checkbox-label">Робота в підвальних приміщеннях, на дахах - ${wo.mBasement}</span>
           </div>
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Робота в агресивному середовищі - 1.4</span>
+            <span class="checkbox-label">Робота в агресивному середовищі - ${wo.mAggressive}</span>
           </div>
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Робота в нічний час (з 22:00 до 06:00) - 1.5</span>
+            <span class="checkbox-label">Робота в нічний час (з 22:00 до 06:00) - ${wo.mNight}</span>
           </div>
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Робота у вихідні та святкові дні - 1.6</span>
+            <span class="checkbox-label">Робота у вихідні та святкові дні - ${wo.mWeekend}</span>
           </div>
           <div class="checkbox-row">
             <span class="checkbox-unicode">☐</span>
-            <span class="checkbox-label">Терміновий виклик - 2.0</span>
+            <span class="checkbox-label">Терміновий виклик - ${wo.mUrgent}</span>
           </div>
         </div>
         

@@ -501,6 +501,7 @@ async function getReservationMaxDaysForBasis(basisTrim) {
 
 const SERVICE_WORK_COMPLETION_PCT_ID = 'service_work_completion_pct';
 
+/** Коефіцієнти та тарифи для тексту нарядів (підстановка в шаблон). group: 'template' — окремий підрозділ у UI. */
 const PROGRAMMATIC_SERVICE_COEFFICIENTS = [
   {
     id: SERVICE_WORK_COMPLETION_PCT_ID,
@@ -508,6 +509,83 @@ const PROGRAMMATIC_SERVICE_COEFFICIENTS = [
     defaultValue: 25,
     note:
       'Премія за виконані роботи згідно заявці в відсотковому значенні, в розрахунок іде тільки ціна робіт.'
+  },
+  {
+    id: 'wo_template_travel_city_uah',
+    group: 'template',
+    label: 'Виїзд по місту (тариф, грн з ПДВ)',
+    defaultValue: 650,
+    note: 'Підставляється в наряд: «тариф: по місту … грн.»'
+  },
+  {
+    id: 'wo_template_travel_per_km_uah',
+    group: 'template',
+    label: 'Виїзд за місто (грн/км)',
+    defaultValue: 15,
+    note: 'Підставляється в наряд: «… км * … грн/км»'
+  },
+  {
+    id: 'wo_template_per_diem_uah',
+    group: 'template',
+    label: 'Добові у відрядженні (грн за добу)',
+    defaultValue: 600,
+    note: 'Підставляється в наряд у блоці добових'
+  },
+  {
+    id: 'wo_template_cond_comfort',
+    group: 'template',
+    label: 'Множник: комфортні умови',
+    defaultValue: 1.0,
+    note: 'У тексті наряду підставляється лише число після «-»'
+  },
+  {
+    id: 'wo_template_cond_outdoor',
+    group: 'template',
+    label: 'Множник: відкрите повітря / екстремальна температура (сухо)',
+    defaultValue: 1.1,
+    note: 'У тексті наряду підставляється лише число після «-»'
+  },
+  {
+    id: 'wo_template_cond_precipitation',
+    group: 'template',
+    label: 'Множник: дощ, сніг, сильний вітер',
+    defaultValue: 1.2,
+    note: 'У тексті наряду підставляється лише число після «-»'
+  },
+  {
+    id: 'wo_template_cond_basement',
+    group: 'template',
+    label: 'Множник: підвали, дахи',
+    defaultValue: 1.3,
+    note: 'У тексті наряду підставляється лише число після «-»'
+  },
+  {
+    id: 'wo_template_cond_aggressive',
+    group: 'template',
+    label: 'Множник: агресивне середовище',
+    defaultValue: 1.4,
+    note: 'У тексті наряду підставляється лише число після «-»'
+  },
+  {
+    id: 'wo_template_cond_night',
+    group: 'template',
+    label: 'Множник: нічний час (22:00–06:00)',
+    defaultValue: 1.5,
+    note: 'У тексті наряду підставляється лише число після «-»'
+  },
+  {
+    id: 'wo_template_cond_weekend',
+    group: 'template',
+    label: 'Множник: вихідні та святкові дні',
+    defaultValue: 1.6,
+    note: 'У тексті наряду підставляється лише число після «-»'
+  },
+  {
+    id: 'wo_template_cond_urgent',
+    group: 'template',
+    label: 'Множник: терміновий виклик',
+    defaultValue: 2.0,
+    note: 'У тексті наряду підставляється лише число після «-»'
   }
 ];
 
@@ -554,6 +632,7 @@ function buildCoefficientRowsForScope(scope, savedRows) {
     label: d.label,
     note: d.note || '',
     integerOnly: !!d.integerOnly,
+    group: d.group || 'main',
     value: resolveCoefficientValue(d, map[d.id])
   }));
 }
@@ -581,9 +660,31 @@ function serializeCoefficientValuesForDb(scope, bodyRows) {
   }));
 }
 
-function canEditGlobalCalculationCoefficients(role) {
+function isGistovRole(role) {
+  return String(role || '').toLowerCase() === 'gistov';
+}
+
+/** scope: 'sales' | 'service' — для gistov дозволено лише service */
+function canEditGlobalCalculationCoefficients(role, scope) {
   const r = String(role || '').toLowerCase();
-  return ['admin', 'administrator', 'finance', 'buhgalteria'].includes(r);
+  if (['admin', 'administrator', 'finance', 'buhgalteria'].includes(r)) return true;
+  if (isGistovRole(r)) return scope === 'service';
+  return false;
+}
+
+function validateServiceTemplateCoefficientsFromCompact(compactRows) {
+  const defs = PROGRAMMATIC_SERVICE_COEFFICIENTS.filter((d) => d.group === 'template');
+  const byId = Object.fromEntries((compactRows || []).map((r) => [r.id, r.value]));
+  for (const d of defs) {
+    const v = resolveCoefficientValue(d, byId[d.id]);
+    if (v < 0) {
+      return { ok: false, error: `Значення «${d.label}» не може бути від\'ємним.` };
+    }
+    if (String(d.id).startsWith('wo_template_cond_') && v <= 0) {
+      return { ok: false, error: `Множник «${d.label}» має бути більшим за 0.` };
+    }
+  }
+  return { ok: true };
 }
 
 // Схема для журналу подій
@@ -4963,7 +5064,8 @@ app.get('/api/global-calculation-coefficients', authenticateToken, async (req, r
       });
     }
     logPerformance('GET /api/global-calculation-coefficients', startTime);
-    res.json({
+    const roleLower = String(req.user?.role || '').toLowerCase();
+    const payload = {
       /** Календарна дата на сервері (для резервування тощо), щоб UI не покладався на годинник клієнта */
       serverTodayYmd: serverLocalTodayYmd(),
       sales: {
@@ -4976,7 +5078,11 @@ app.get('/api/global-calculation-coefficients', authenticateToken, async (req, r
         updatedAt: doc.serviceUpdatedAt,
         updatedByLogin: doc.serviceUpdatedByLogin
       }
-    });
+    };
+    if (roleLower === 'gistov') {
+      delete payload.sales;
+    }
+    res.json(payload);
   } catch (error) {
     logPerformance('GET /api/global-calculation-coefficients', startTime);
     console.error('[ERROR] GET /api/global-calculation-coefficients:', error);
@@ -4987,13 +5093,13 @@ app.get('/api/global-calculation-coefficients', authenticateToken, async (req, r
 app.post('/api/global-calculation-coefficients', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    if (!canEditGlobalCalculationCoefficients(req.user.role)) {
-      return res.status(403).json({ error: 'Немає прав на зміну коефіцієнтів' });
-    }
     const body = req.body;
     const scope = body.scope;
     if (scope !== 'sales' && scope !== 'service') {
       return res.status(400).json({ error: 'Очікується scope: "sales" або "service" та масив rows' });
+    }
+    if (!canEditGlobalCalculationCoefficients(req.user.role, scope)) {
+      return res.status(403).json({ error: 'Немає прав на зміну коефіцієнтів' });
     }
     if (!body || !Array.isArray(body.rows)) {
       return res.status(400).json({ error: 'Очікується об\'єкт з масивом rows' });
@@ -5006,6 +5112,10 @@ app.post('/api/global-calculation-coefficients', authenticateToken, async (req, 
           error:
             '«Відсоток за виконану роботу» має бути більшим за 0 (введіть відсоток, наприклад 25).'
         });
+      }
+      const tmplCheck = validateServiceTemplateCoefficientsFromCompact(compactRows);
+      if (!tmplCheck.ok) {
+        return res.status(400).json({ error: tmplCheck.error });
       }
     }
     let doc = await GlobalCalculationCoefficients.findOne();
@@ -5025,7 +5135,8 @@ app.post('/api/global-calculation-coefficients', authenticateToken, async (req, 
     }
     await doc.save();
     logPerformance('POST /api/global-calculation-coefficients', startTime);
-    res.json({
+    const roleLower = String(req.user?.role || '').toLowerCase();
+    const out = {
       success: true,
       sales: {
         rows: buildCoefficientRowsForScope('sales', doc.salesRows),
@@ -5037,7 +5148,11 @@ app.post('/api/global-calculation-coefficients', authenticateToken, async (req, 
         updatedAt: doc.serviceUpdatedAt,
         updatedByLogin: doc.serviceUpdatedByLogin
       }
-    });
+    };
+    if (roleLower === 'gistov') {
+      delete out.sales;
+    }
+    res.json(out);
   } catch (error) {
     logPerformance('POST /api/global-calculation-coefficients', startTime);
     console.error('[ERROR] POST /api/global-calculation-coefficients:', error);

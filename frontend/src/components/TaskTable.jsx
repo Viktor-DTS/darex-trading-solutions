@@ -1459,7 +1459,12 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                           className="btn-work-order"
                           onClick={(e) => {
                             e.stopPropagation();
-                            generateWorkOrder(task);
+                            generateWorkOrder(task).catch((err) => {
+                              console.error(err);
+                              alert(
+                                'Не вдалося підготувати наряд (завантаження коефіцієнтів або документ). Спробуйте ще раз.'
+                              );
+                            });
                           }}
                           title="Створити наряд на виконання робіт"
                         >

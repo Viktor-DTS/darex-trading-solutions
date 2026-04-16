@@ -1,6 +1,18 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import GlobalCalculationCoefficientsEditor from './GlobalCalculationCoefficientsEditor';
 import './FinancialDashboard.css';
+
+/** Бічне меню фінвідділу: для ролі gistov показуємо лише whitelisted пункти (нові пункти за замовчуванням приховані). */
+const FINANCE_SIDEBAR_ITEMS = [
+  {
+    id: 'coefficients',
+    label: 'Коефіцієнти розрахунку',
+    icon: '📐',
+    tab: 'coefficients'
+  }
+];
+
+const GISTOV_ALLOWED_FINANCE_SIDEBAR_IDS = new Set(['coefficients']);
 
 const COEFF_SCOPE_COPY = {
   sales: {
@@ -15,7 +27,17 @@ const COEFF_SCOPE_COPY = {
 
 function FinancialDashboard({ user }) {
   const [activeTab, setActiveTab] = useState('coefficients');
-  const [coeffScope, setCoeffScope] = useState('sales');
+  const isGistov = String(user?.role || '').toLowerCase() === 'gistov';
+  const [coeffScope, setCoeffScope] = useState(() => (isGistov ? 'service' : 'sales'));
+
+  const sidebarItems = useMemo(() => {
+    if (isGistov) {
+      return FINANCE_SIDEBAR_ITEMS.filter((it) => GISTOV_ALLOWED_FINANCE_SIDEBAR_IDS.has(it.id));
+    }
+    return FINANCE_SIDEBAR_ITEMS;
+  }, [isGistov]);
+
+  const effectiveCoeffScope = isGistov ? 'service' : coeffScope;
 
   return (
     <div className="finance-dashboard">
@@ -24,14 +46,17 @@ function FinancialDashboard({ user }) {
           <div className="finance-sidebar-inner">
             <nav className="finance-sidebar-nav">
               <div className="finance-sidebar-section-title">Фінансовий відділ</div>
-              <button
-                type="button"
-                className={`finance-sidebar-tab ${activeTab === 'coefficients' ? 'active' : ''}`}
-                onClick={() => setActiveTab('coefficients')}
-              >
-                <span className="tab-icon">📐</span>
-                <span className="tab-label">Коефіцієнти розрахунку</span>
-              </button>
+              {sidebarItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`finance-sidebar-tab ${activeTab === item.tab ? 'active' : ''}`}
+                  onClick={() => setActiveTab(item.tab)}
+                >
+                  <span className="tab-icon">{item.icon}</span>
+                  <span className="tab-label">{item.label}</span>
+                </button>
+              ))}
             </nav>
           </div>
         </aside>
@@ -39,32 +64,34 @@ function FinancialDashboard({ user }) {
           {activeTab === 'coefficients' && (
             <div className="finance-coefficients-wrap">
               <h1 className="finance-coefficients-main-title">Коефіцієнти розрахунку</h1>
-              <div className="finance-subtabs" role="tablist" aria-label="Напрямок коефіцієнтів">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={coeffScope === 'sales'}
-                  className={`finance-subtab ${coeffScope === 'sales' ? 'active' : ''}`}
-                  onClick={() => setCoeffScope('sales')}
-                >
-                  Для відділу продажів
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={coeffScope === 'service'}
-                  className={`finance-subtab ${coeffScope === 'service' ? 'active' : ''}`}
-                  onClick={() => setCoeffScope('service')}
-                >
-                  Для сервісного відділу
-                </button>
-              </div>
+              {!isGistov && (
+                <div className="finance-subtabs" role="tablist" aria-label="Напрямок коефіцієнтів">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={coeffScope === 'sales'}
+                    className={`finance-subtab ${coeffScope === 'sales' ? 'active' : ''}`}
+                    onClick={() => setCoeffScope('sales')}
+                  >
+                    Для відділу продажів
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={coeffScope === 'service'}
+                    className={`finance-subtab ${coeffScope === 'service' ? 'active' : ''}`}
+                    onClick={() => setCoeffScope('service')}
+                  >
+                    Для сервісного відділу
+                  </button>
+                </div>
+              )}
               <div className="finance-subtab-panel" role="tabpanel">
                 <GlobalCalculationCoefficientsEditor
-                  key={coeffScope}
+                  key={effectiveCoeffScope}
                   user={user}
-                  scope={coeffScope}
-                  description={COEFF_SCOPE_COPY[coeffScope].description}
+                  scope={effectiveCoeffScope}
+                  description={COEFF_SCOPE_COPY[effectiveCoeffScope].description}
                 />
               </div>
             </div>

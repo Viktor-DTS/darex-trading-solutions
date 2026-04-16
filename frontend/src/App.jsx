@@ -56,6 +56,8 @@ const DEFAULT_ACCESS_RULES = {
   tester: ['testing'],
   manager: ['manager', 'inventory'],
   finance: ['finance'],
+  /** Лише фінпанель; список панелей примусово фіксується після завантаження правил (deny-by-default). */
+  gistov: ['finance'],
 };
 
 // Функція для конвертації правил з бази { role: { panel: 'full'|'read'|'none' } } в масив панелей
@@ -178,13 +180,16 @@ function App() {
             merged[role] = converted[role];
           }
         });
+        merged.gistov = ['finance'];
         setAccessRules(merged);
         return merged;
       }
     } catch (error) {
       console.error('Помилка завантаження прав доступу:', error);
     }
-    return DEFAULT_ACCESS_RULES;
+    const fallback = { ...DEFAULT_ACCESS_RULES };
+    fallback.gistov = ['finance'];
+    return fallback;
   };
 
   useEffect(() => {
@@ -467,7 +472,10 @@ function App() {
                   </div>
                   
                   {/* Панель статистики заявок — приховано в Менеджери та Складський облік */}
-                  {!['manager', 'inventory'].includes(currentPanel) && <TasksStatisticsBar user={user} />}
+                  {!['manager', 'inventory'].includes(currentPanel) &&
+                    String(user?.role || '').toLowerCase() !== 'gistov' && (
+                      <TasksStatisticsBar user={user} />
+                    )}
                 </div>
               )}
             </div>

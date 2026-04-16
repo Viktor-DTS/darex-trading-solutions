@@ -2,8 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import API_BASE_URL from '../config';
 import './GlobalCalculationCoefficientsEditor.css';
 
-const EDIT_ROLES = ['admin', 'administrator', 'finance', 'buhgalteria'];
-
 function roundToHundredths(n) {
   const x = typeof n === 'number' ? n : parseFloat(String(n).replace(',', '.'));
   if (Number.isNaN(x) || !Number.isFinite(x)) return 0;
@@ -15,14 +13,18 @@ function formatCoefficientValueDisplay(v, integerOnly) {
   return roundToHundredths(v).toFixed(2);
 }
 
-function canEditCoefficients(role) {
-  return EDIT_ROLES.includes(String(role || '').toLowerCase());
+function canEditCoefficients(role, scope) {
+  const r = String(role || '').toLowerCase();
+  if (['admin', 'administrator', 'finance', 'buhgalteria'].includes(r)) return true;
+  if (r === 'gistov' && scope === 'service') return true;
+  return false;
 }
 
 function normalizeCoefficientRow(r) {
   const integerOnly = !!r.integerOnly;
   return {
     ...r,
+    group: r.group || 'main',
     integerOnly,
     value: integerOnly
       ? Math.max(0, Math.round(Number(r.value) || 0))
@@ -38,7 +40,7 @@ function GlobalCalculationCoefficientsEditor({ user, scope, title, description }
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [meta, setMeta] = useState({ updatedAt: null, updatedByLogin: null });
-  const editable = canEditCoefficients(user?.role);
+  const editable = canEditCoefficients(user?.role, scope);
 
   const load = useCallback(async () => {
     if (!scope || (scope !== 'sales' && scope !== 'service')) return;
@@ -138,7 +140,8 @@ function GlobalCalculationCoefficientsEditor({ user, scope, title, description }
       )}
       {!editable && (
         <div className="gcc-editor-readonly-banner">
-          Лише перегляд. Змінювати значення можуть адміністратор, бухгалтерія (<code>buhgalteria</code>) або фінансовий відділ (<code>finance</code>).
+          Лише перегляд. Змінювати значення можуть адміністратор, бухгалтерія (<code>buhgalteria</code>), фінансовий відділ (<code>finance</code>) або роль{' '}
+          <code>gistov</code> (лише вкладка «Для сервісного відділу»).
         </div>
       )}
       {meta.updatedAt && (
@@ -154,68 +157,92 @@ function GlobalCalculationCoefficientsEditor({ user, scope, title, description }
         </div>
       ) : (
         <>
-          <div className="gcc-table-wrap">
-            <table className="gcc-table">
-              <thead>
-                <tr>
-                  <th>Назва</th>
-                  <th>Значення</th>
-                  <th>Примітка</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, i) => (
-                  <tr key={row.id || i}>
-                    <td className="gcc-cell-label">{row.label}</td>
-                    <td>
-                      {editable ? (
-                        <input
-                          type="number"
-                          step={row.integerOnly ? 1 : '0.01'}
-                          min={row.integerOnly ? 0 : undefined}
-                          className="gcc-input gcc-input-number"
-                          value={Number.isFinite(row.value) ? row.value : ''}
-                          placeholder={row.integerOnly ? '0' : '0.00'}
-                          onChange={(e) => {
-                            const t = e.target.value;
-                            if (t === '') {
-                              updateValue(i, 0);
-                              return;
-                            }
-                            if (row.integerOnly) {
-                              const p = parseInt(t, 10);
-                              if (!Number.isNaN(p)) updateValue(i, Math.max(0, p));
-                            } else {
-                              const p = parseFloat(t.replace(',', '.'));
-                              if (!Number.isNaN(p)) updateValue(i, p);
-                            }
-                          }}
-                          onBlur={() => {
-                            setRows((prev) => {
-                              const next = [...prev];
-                              const cur = next[i];
-                              if (!cur) return prev;
-                              const r = cur.integerOnly
-                                ? Math.max(0, Math.round(Number(cur.value) || 0))
-                                : roundToHundredths(cur.value);
-                              if (r === cur.value) return prev;
-                              next[i] = { ...cur, value: r };
-                              return next;
-                            });
-                          }}
-                        />
-                      ) : (
-                        <span className="gcc-cell-value">
-                          {formatCoefficientValueDisplay(row.value, row.integerOnly)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="gcc-cell-note">{row.note || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {(() => {
+            const mainRows = rows.filter((r) => r.group !== 'template');
+            const templateRows = rows.filter((r) => r.group === 'template');
+            const renderTable = (list, offset) => (
+              <div className="gcc-table-wrap">
+                <table className="gcc-table">
+                  <thead>
+                    <tr>
+                      <th>Назва</th>
+                      <th>Значення</th>
+                      <th>Примітка</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {list.map((row, j) => {
+                      const i = offset + j;
+                      return (
+                        <tr key={row.id || i}>
+                          <td className="gcc-cell-label">{row.label}</td>
+                          <td>
+                            {editable ? (
+                              <input
+                                type="number"
+                                step={row.integerOnly ? 1 : '0.01'}
+                                min={row.integerOnly ? 0 : undefined}
+                                className="gcc-input gcc-input-number"
+                                value={Number.isFinite(row.value) ? row.value : ''}
+                                placeholder={row.integerOnly ? '0' : '0.00'}
+                                onChange={(e) => {
+                                  const t = e.target.value;
+                                  if (t === '') {
+                                    updateValue(i, 0);
+                                    return;
+                                  }
+                                  if (row.integerOnly) {
+                                    const p = parseInt(t, 10);
+                                    if (!Number.isNaN(p)) updateValue(i, Math.max(0, p));
+                                  } else {
+                                    const p = parseFloat(t.replace(',', '.'));
+                                    if (!Number.isNaN(p)) updateValue(i, p);
+                                  }
+                                }}
+                                onBlur={() => {
+                                  setRows((prev) => {
+                                    const next = [...prev];
+                                    const cur = next[i];
+                                    if (!cur) return prev;
+                                    const r = cur.integerOnly
+                                      ? Math.max(0, Math.round(Number(cur.value) || 0))
+                                      : roundToHundredths(cur.value);
+                                    if (r === cur.value) return prev;
+                                    next[i] = { ...cur, value: r };
+                                    return next;
+                                  });
+                                }}
+                              />
+                            ) : (
+                              <span className="gcc-cell-value">
+                                {formatCoefficientValueDisplay(row.value, row.integerOnly)}
+                              </span>
+                            )}
+                          </td>
+                          <td className="gcc-cell-note">{row.note || '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+            return (
+              <>
+                {mainRows.length > 0 && renderTable(mainRows, 0)}
+                {scope === 'service' && templateRows.length > 0 && (
+                  <>
+                    <h3 className="gcc-subsection-title">Коєфіцієнти для шаблону наряду</h3>
+                    <p className="gcc-subsection-desc">
+                      Тарифи та множники підставляються в наряд ДТС / Дарекс Енерго з цих значень (у тексті наряду для
+                      умов робіт змінюється лише число після «-»).
+                    </p>
+                    {renderTable(templateRows, mainRows.length)}
+                  </>
+                )}
+              </>
+            );
+          })()}
           {editable && (
             <div className="gcc-actions">
               <button
