@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import API_BASE_URL from '../../config';
+import { tryHandleUnauthorizedResponse } from '../../utils/authSession';
 import EquipmentDetailsModal from './EquipmentDetailsModal';
 import './EquipmentPage.css';
 
@@ -33,7 +34,7 @@ function EquipmentPage() {
         } else if (response.status === 404) {
           setError('Обладнання не знайдено');
         } else if (response.status === 401) {
-          // Неавторизований - перенаправляємо на логін
+          tryHandleUnauthorizedResponse(response);
           navigate('/');
         } else {
           setError('Помилка завантаження обладнання');

@@ -20,6 +20,7 @@ import TestingDashboard from './components/TestingDashboard';
 import FinancialDashboard from './components/FinancialDashboard';
 import SalesAccountingDashboard from './components/SalesAccountingDashboard';
 import API_BASE_URL from './config';
+import { resetAuthSessionExpiredState, tryHandleUnauthorizedResponse } from './utils/authSession';
 
 // Доступні панелі
 const PANELS = [
@@ -162,7 +163,11 @@ function App() {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
+      if (tryHandleUnauthorizedResponse(res)) {
+        return DEFAULT_ACCESS_RULES;
+      }
+
       if (res.ok) {
         const dbRules = await res.json();
         const converted = convertAccessRules(dbRules);
@@ -217,11 +222,7 @@ function App() {
                 setCurrentPanel(defaultPanel);
               }
             } else if (response.status === 401) {
-              // Токен невалідний (401) - очищаємо localStorage та кеш заявок
-              localStorage.removeItem('token');
-              localStorage.removeItem('user');
-              localStorage.removeItem('currentPanel');
-              clearTasksCache();
+              tryHandleUnauthorizedResponse(response);
             } else {
               // Інша помилка (не 401) - використовуємо збережені дані
               // Можливо, тимчасові проблеми з сервером
@@ -266,6 +267,16 @@ function App() {
     initApp();
   }, []);
 
+  useEffect(() => {
+    const onAuthExpired = () => {
+      setUser(null);
+      setCurrentPanel(null);
+      clearTasksCache();
+    };
+    window.addEventListener('dts-auth-expired', onAuthExpired);
+    return () => window.removeEventListener('dts-auth-expired', onAuthExpired);
+  }, []);
+
   // Відстеження закриття вкладки/браузера
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -303,6 +314,7 @@ function App() {
   }, [user?.login]);
 
   const handleLogin = async (userData, token) => {
+    resetAuthSessionExpiredState();
     setUser(userData);
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config';
+import { authFetch } from '../../utils/authFetch';
 import './CategoryTree.css';
 
 function CategoryTreeNode({ node, selectedId, onSelect, level = 0 }) {
@@ -60,9 +61,10 @@ export default function CategoryTree({
       try {
         const token = localStorage.getItem('token');
         const q = managerCategoryContext ? '?managerCategoryContext=1' : '';
-        const res = await fetch(`${API_BASE_URL}/categories/tree${q}`, {
+        const res = await authFetch(`${API_BASE_URL}/categories/tree${q}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
+        if (res.status === 401) return;
         if (!res.ok) throw new Error('Не вдалося завантажити дерево категорій');
         const data = await res.json();
         if (!cancelled) setTree(Array.isArray(data) ? data : []);

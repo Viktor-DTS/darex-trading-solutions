@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ExcelJS from 'exceljs';
 import API_BASE_URL from '../config';
+import { authFetch } from '../utils/authFetch';
 import { generateWorkOrder } from '../utils/workOrderGenerator';
 import './TaskTable.css';
 
@@ -603,11 +604,12 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         setLoading(false);
         if (onTasksLoaded) onTasksLoaded(cached);
         try {
-          const response = await fetch(url, {
+          const response = await authFetch(url, {
             headers: { 'Authorization': `Bearer ${token}` },
             signal
           });
           if (currentFetchId !== fetchIdRef.current) return;
+          if (response.status === 401) return;
           if (response.ok) {
             const data = await response.json();
             setTasks(data);
@@ -622,12 +624,16 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
 
       setLoading(true);
       try {
-        const response = await fetch(url, {
+        const response = await authFetch(url, {
           headers: { 'Authorization': `Bearer ${token}` },
           signal
         });
 
         if (currentFetchId !== fetchIdRef.current) return;
+
+        if (response.status === 401) {
+          return;
+        }
 
         if (!response.ok) {
           throw new Error('Помилка завантаження завдань');

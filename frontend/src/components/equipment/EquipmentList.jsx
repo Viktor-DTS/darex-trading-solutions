@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useImperativeHandle, forwardRef } from 'react';
 import API_BASE_URL from '../../config';
+import { authFetch } from '../../utils/authFetch';
 import {
   ITEM_KIND_FILTER_FIXED_ASSETS_LABEL,
   findFixedAssetsCategoryIdsFromTree,
@@ -211,10 +212,10 @@ const EquipmentList = forwardRef(({
     (async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_BASE_URL}/categories/tree`, {
+        const res = await authFetch(`${API_BASE_URL}/categories/tree`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        if (!res.ok || cancelled) return;
+        if (res.status === 401 || !res.ok || cancelled) return;
         const data = await res.json();
         const tree = Array.isArray(data) ? data : [];
         setFixedAssetsCategoryIds(findFixedAssetsCategoryIdsFromTree(tree));
@@ -240,9 +241,13 @@ const EquipmentList = forwardRef(({
         params.set('managerCategoryContext', '1');
       }
       const url = params.toString() ? `${API_BASE_URL}/equipment?${params}` : `${API_BASE_URL}/equipment`;
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+
+      if (response.status === 401) {
+        return;
+      }
 
       if (response.ok) {
         const data = await response.json();

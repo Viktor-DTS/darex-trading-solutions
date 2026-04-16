@@ -156,7 +156,7 @@ function SaleShipmentRequestModal({
     setSubmitting(true);
     setError('');
     try {
-      await submitSaleShipmentRequest(saleId, {
+      const result = await submitSaleShipmentRequest(saleId, {
         lineIds,
         plannedShipmentDate: plannedDate,
         shipmentAddress: shipmentAddress.trim(),
@@ -164,6 +164,11 @@ function SaleShipmentRequestModal({
         driverPhone: driverPhone.trim(),
         vehicleType: vehicleType.trim()
       }, ttnFile);
+      if (result === null) {
+        setShowLockConfirm(false);
+        onClose?.();
+        return;
+      }
       setShowLockConfirm(false);
       onSuccess?.();
       onClose?.();

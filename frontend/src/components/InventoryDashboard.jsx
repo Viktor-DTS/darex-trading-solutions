@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import API_BASE_URL from '../config';
+import { authFetch } from '../utils/authFetch';
 import { listShipmentRequests } from '../utils/shipmentRequestAPI';
 import EquipmentList from './equipment/EquipmentList';
 import CategoryTree from './equipment/CategoryTree';
@@ -103,10 +104,10 @@ function InventoryDashboard({ user }) {
     (async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_BASE_URL}/warehouses?forMoveDestination=1`, {
+        const res = await authFetch(`${API_BASE_URL}/warehouses?forMoveDestination=1`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!res.ok || cancelled) return;
+        if (res.status === 401 || !res.ok || cancelled) return;
         const data = await res.json();
         if (!cancelled) setMoveDestinationWarehouses(Array.isArray(data) ? data : []);
       } catch {
@@ -121,10 +122,14 @@ function InventoryDashboard({ user }) {
   const loadWarehouses = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/warehouses`, {
+      const response = await authFetch(`${API_BASE_URL}/warehouses`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
+      if (response.status === 401) {
+        return;
+      }
+
       if (response.ok) {
         const data = await response.json();
         setWarehouses(data);
@@ -165,10 +170,14 @@ function InventoryDashboard({ user }) {
   const loadInTransitCount = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/equipment/in-transit/count`, {
+      const response = await authFetch(`${API_BASE_URL}/equipment/in-transit/count`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
+      if (response.status === 401) {
+        return;
+      }
+
       if (response.ok) {
         const data = await response.json();
         setInTransitCount(data.count || 0);
