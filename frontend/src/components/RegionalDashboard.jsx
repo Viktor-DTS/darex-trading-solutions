@@ -42,6 +42,16 @@ function allocateUniqueFolderName(base, usedSet) {
   return name;
 }
 
+/** Як у /api/tasks/filter?status=accountantPending — виконано, завсклад підтвердив, бухгалтер ще ні */
+function isTaskOnAccountantApproval(task) {
+  if (!task || task.status !== 'Виконано') return false;
+  const wh = task.approvedByWarehouse;
+  if (wh !== 'Підтверджено' && wh !== true) return false;
+  const acc = task.approvedByAccountant;
+  if (acc === 'Підтверджено' || acc === true) return false;
+  return true;
+}
+
 /** id коефіцієнта «Відсоток за виконану роботу» (як у backend) */
 const SERVICE_WORK_BONUS_COEFFICIENT_ID = 'service_work_completion_pct';
 /** Якщо з БД немає дійсного відсотка — як раніше 25% */
@@ -90,6 +100,9 @@ function RegionalDashboard({ user }) {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportSelectedIds, setExportSelectedIds] = useState(() => new Set());
   const [exportBusy, setExportBusy] = useState(false);
+  const [exportSearch, setExportSearch] = useState('');
+  /** true: номер заявки від більшого до меншого; false: навпаки */
+  const [exportSortDesc, setExportSortDesc] = useState(true);
   
   // Ref для дебаунсу збереження
   const saveTimeoutRef = useRef(null);
@@ -280,7 +293,7 @@ function RegionalDashboard({ user }) {
     });
   }, [debtTasks, debtFilters]);
 
-  const exportableTasks = useMemo(() => {
+  const exportApprovalPool = useMemo(() => {
     if (!allTasks.length) return [];
     let list;
     if (user?.region && user.region !== 'Україна') {
@@ -293,10 +306,32 @@ function RegionalDashboard({ user }) {
       if (!er) list = [...allTasks];
       else list = allTasks.filter((t) => (t.serviceRegion || 'Без регіону') === er);
     }
-    return [...list].sort((a, b) =>
-      String(b.requestNumber || '').localeCompare(String(a.requestNumber || ''), undefined, { numeric: true })
-    );
+    return list.filter(isTaskOnAccountantApproval);
   }, [allTasks, user?.region, selectedRegion, effectiveRegion, availableRegions]);
+
+  const visibleExportTasks = useMemo(() => {
+    const q = exportSearch.trim().toLowerCase();
+    let rows = exportApprovalPool;
+    if (q) {
+      rows = rows.filter((t) => String(t.requestNumber || '').toLowerCase().includes(q));
+    }
+    return [...rows].sort((a, b) => {
+      const na = String(a.requestNumber || '');
+      const nb = String(b.requestNumber || '');
+      const cmp = na.localeCompare(nb, undefined, { numeric: true, sensitivity: 'base' });
+      return exportSortDesc ? -cmp : cmp;
+    });
+  }, [exportApprovalPool, exportSearch, exportSortDesc]);
+
+  const exportHiddenSelectedCount = useMemo(() => {
+    if (exportSelectedIds.size === 0) return 0;
+    const visibleIds = new Set(visibleExportTasks.map((t) => getTaskRecordId(t)));
+    let n = 0;
+    exportSelectedIds.forEach((id) => {
+      if (!visibleIds.has(id)) n += 1;
+    });
+    return n;
+  }, [exportSelectedIds, visibleExportTasks]);
 
   const handleStartApplicationExport = useCallback(async () => {
     if (!('showDirectoryPicker' in window)) {
@@ -309,6 +344,8 @@ function RegionalDashboard({ user }) {
       const handle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'documents' });
       setExportRootDirHandle(handle);
       setExportSelectedIds(new Set());
+      setExportSearch('');
+      setExportSortDesc(true);
       setExportModalOpen(true);
     } catch (e) {
       if (e && e.name !== 'AbortError') {
@@ -322,6 +359,7 @@ function RegionalDashboard({ user }) {
     if (exportBusy) return;
     setExportModalOpen(false);
     setExportRootDirHandle(null);
+    setExportSearch('');
   }, [exportBusy]);
 
   const toggleExportTask = useCallback((id) => {
@@ -333,9 +371,13 @@ function RegionalDashboard({ user }) {
     });
   }, []);
 
-  const selectAllExportable = useCallback(() => {
-    setExportSelectedIds(new Set(exportableTasks.map((t) => getTaskRecordId(t))));
-  }, [exportableTasks]);
+  const selectAllVisibleExport = useCallback(() => {
+    setExportSelectedIds((prev) => {
+      const next = new Set(prev);
+      visibleExportTasks.forEach((t) => next.add(getTaskRecordId(t)));
+      return next;
+    });
+  }, [visibleExportTasks]);
 
   const clearExportSelection = useCallback(() => {
     setExportSelectedIds(new Set());
@@ -353,7 +395,7 @@ function RegionalDashboard({ user }) {
     let savedFiles = 0;
     try {
       for (const taskId of exportSelectedIds) {
-        const task = exportableTasks.find((t) => getTaskRecordId(t) === taskId);
+        const task = exportApprovalPool.find((t) => getTaskRecordId(t) === taskId);
         if (!task) continue;
         const folderName = allocateUniqueFolderName(getExportFolderBaseName(task), usedFolders);
         let dirHandle;
@@ -421,7 +463,7 @@ function RegionalDashboard({ user }) {
     } finally {
       setExportBusy(false);
     }
-  }, [exportRootDirHandle, exportSelectedIds, exportableTasks]);
+  }, [exportRootDirHandle, exportSelectedIds, exportApprovalPool]);
 
   // Обробник зміни фільтра
   const handleDebtFilterChange = useCallback((field, value) => {
@@ -1562,25 +1604,70 @@ function RegionalDashboard({ user }) {
           >
             <h3 id="export-applications-title">Вивантаження заявок</h3>
             <p className="export-applications-hint">
-              Оберіть номери заявок. У вибраній папці будуть створені підпапки за полем «Інвент. № обладнання від
-              замовника» (якщо воно порожнє — за номером заявки), у кожну підпапку збережуться всі файли заявки.
+              Лише заявки в статусі «на затвердженні бухгалтером» (виконано, підтверджено завскладом, бухгалтер ще не
+              підтвердив). У вибраній папці створюються підпапки за полем «Інвент. № обладнання від замовника» (якщо
+              порожнє — за номером заявки), у кожну підпапку зберігаються всі файли заявки. Пошук не знімає галочки з
+              уже обраних заявок.
             </p>
+            <div className="export-applications-filters">
+              <label className="export-applications-search-label">
+                <span>Пошук за № заявки</span>
+                <input
+                  type="search"
+                  className="export-applications-search"
+                  value={exportSearch}
+                  onChange={(e) => setExportSearch(e.target.value)}
+                  placeholder="Наприклад KV-0000988"
+                  disabled={exportBusy}
+                  autoComplete="off"
+                />
+              </label>
+              <div className="export-applications-sort">
+                <span className="export-applications-sort-label">Сортування за номером:</span>
+                <button
+                  type="button"
+                  className={`btn-export-sort ${exportSortDesc ? 'active' : ''}`}
+                  onClick={() => setExportSortDesc(true)}
+                  disabled={exportBusy}
+                >
+                  Від більшого до меншого
+                </button>
+                <button
+                  type="button"
+                  className={`btn-export-sort ${!exportSortDesc ? 'active' : ''}`}
+                  onClick={() => setExportSortDesc(false)}
+                  disabled={exportBusy}
+                >
+                  Від меншого до більшого
+                </button>
+              </div>
+            </div>
             <div className="export-applications-toolbar">
-              <button type="button" className="btn-export-secondary" onClick={selectAllExportable} disabled={exportBusy}>
-                Обрати всі
+              <button type="button" className="btn-export-secondary" onClick={selectAllVisibleExport} disabled={exportBusy}>
+                Обрати всі (на екрані)
               </button>
               <button type="button" className="btn-export-secondary" onClick={clearExportSelection} disabled={exportBusy}>
                 Скинути
               </button>
               <span className="export-applications-count">
-                Обрано: {exportSelectedIds.size} з {exportableTasks.length}
+                Обрано: {exportSelectedIds.size} з {exportApprovalPool.length}
+                {visibleExportTasks.length !== exportApprovalPool.length ? (
+                  <span className="export-applications-shown"> · показано: {visibleExportTasks.length}</span>
+                ) : null}
               </span>
             </div>
+            {exportHiddenSelectedCount > 0 ? (
+              <p className="export-applications-hidden-note">
+                Обрано заявок поза поточним списком (пошук): {exportHiddenSelectedCount}
+              </p>
+            ) : null}
             <div className="export-applications-list">
-              {exportableTasks.length === 0 ? (
-                <p className="export-applications-empty">Немає заявок для поточного фільтра регіону.</p>
+              {exportApprovalPool.length === 0 ? (
+                <p className="export-applications-empty">Немає заявок на затвердженні для поточного фільтра регіону.</p>
+              ) : visibleExportTasks.length === 0 ? (
+                <p className="export-applications-empty">Нічого не знайдено за запитом пошуку.</p>
               ) : (
-                exportableTasks.map((task) => {
+                visibleExportTasks.map((task) => {
                   const id = getTaskRecordId(task);
                   return (
                     <label key={id} className="export-applications-row">
