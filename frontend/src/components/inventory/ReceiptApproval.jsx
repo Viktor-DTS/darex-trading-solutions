@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import API_BASE_URL from '../../config';
 import './ReceiptApproval.css';
 
@@ -43,6 +43,8 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
   const [procurementLoading, setProcurementLoading] = useState(true);
   const [receiptDrafts, setReceiptDrafts] = useState({});
   const [procurementSubmitting, setProcurementSubmitting] = useState(null);
+  /** Фінальне підтвердження прийому (як модалка після дії на вкладці «Надходження») */
+  const [procurementConfirmModalPr, setProcurementConfirmModalPr] = useState(null);
   const procurementCardRefs = useRef({});
 
   const initReceiptDrafts = useCallback((rows) => {
@@ -88,16 +90,24 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
 
   useEffect(() => {
     if (!focusProcurementId) return;
-    const id = focusProcurementId;
+    const id = String(focusProcurementId);
     const t = window.setTimeout(() => {
       const el = procurementCardRefs.current[id];
       if (el && typeof el.scrollIntoView === 'function') {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        onConsumedFocusProcurement?.();
       }
-      onConsumedFocusProcurement?.();
-    }, 100);
+    }, 120);
     return () => window.clearTimeout(t);
-  }, [focusProcurementId, onConsumedFocusProcurement]);
+  }, [focusProcurementId, procurementInbound, onConsumedFocusProcurement]);
+
+  useEffect(() => {
+    if (!procurementConfirmModalPr) return;
+    const stillThere = procurementInbound.some(
+      (p) => String(p._id) === String(procurementConfirmModalPr._id)
+    );
+    if (!stillThere) setProcurementConfirmModalPr(null);
+  }, [procurementInbound, procurementConfirmModalPr]);
 
   const loadMovementDocuments = async () => {
     setLoading(true);
@@ -332,6 +342,16 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
     });
   };
 
+  const openProcurementConfirmModal = (pr) => {
+    const id = pr._id;
+    const draft = receiptDrafts[id];
+    if (!draft || draft.length !== (pr.materials || []).length) {
+      alert('Некоректні дані рядків прийому');
+      return;
+    }
+    setProcurementConfirmModalPr(pr);
+  };
+
   const submitProcurementReceipt = async (pr) => {
     const id = pr._id;
     const draft = receiptDrafts[id];
@@ -339,7 +359,6 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
       alert('Некоректні дані рядків прийому');
       return;
     }
-    if (!window.confirm('Зберегти фактичний прийом товару по цій заявці?')) return;
     setProcurementSubmitting(id);
     try {
       const token = localStorage.getItem('token');
@@ -358,6 +377,7 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
         return;
       }
       await loadProcurementInbound();
+      setProcurementConfirmModalPr(null);
       alert('Прийом на складі збережено');
     } catch (e) {
       alert(e.message || 'Помилка');
@@ -409,16 +429,16 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
       <div className="receipt-approval-header">
         <h2>Затвердження отримання товару</h2>
         <p className="receipt-approval-description">
-          Підтвердження надходжень від закупівель (кількість по рядках) та прийом обладнання, що в дорозі між
-          складами.
+          Спочатку вкажіть фактичні кількості по заявці закупівель; натисніть «Підтвердити прийом на складі» — відкриється
+          вікно підтвердження (як при прийомі на вкладці «Надходження»). Нижче — прийом обладнання в дорозі між складами.
         </p>
       </div>
 
       <div className="procurement-receipt-section" id="procurement-inbound-block">
         <h3>Надходження від закупівель</h3>
         <p className="procurement-receipt-hint">
-          Заявки у статусі «Чекає відвантаження на склад» для ваших складів. Вкажіть фактично прийняту кількість; якщо
-          вона відрізняється від очікуваної, відділ закупівель отримає сповіщення.
+          Заявки у статусі «Чекає відвантаження на склад». У колонці «Прийнято факт» введіть фактичну кількість; якщо вона
+          відрізняється від очікуваної, відділ закупівель отримає сповіщення.
         </p>
         {procurementLoading ? (
           <div className="loading-indicator">Завантаження…</div>
@@ -481,7 +501,7 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                               value={val}
                               disabled={procurementSubmitting === pr._id}
                               onChange={(e) => updateReceiptDraft(pr._id, idx, e.target.value)}
-                              aria-label={`Прийнято, позиція ${idx + 1}`}
+                              aria-label={`Прийнято факт, позиція ${idx + 1}`}
                             />
                           </td>
                         </tr>
@@ -495,15 +515,115 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                   type="button"
                   className="btn-procurement-submit"
                   disabled={procurementSubmitting === pr._id}
-                  onClick={() => submitProcurementReceipt(pr)}
+                  onClick={() => openProcurementConfirmModal(pr)}
                 >
-                  {procurementSubmitting === pr._id ? 'Збереження…' : 'Підтвердити прийом на складі'}
+                  Підтвердити прийом на складі
                 </button>
               </div>
             </div>
           ))
         )}
       </div>
+
+      {procurementConfirmModalPr && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="procurement-confirm-modal-title"
+          onClick={() => !procurementSubmitting && setProcurementConfirmModalPr(null)}
+        >
+          <div className="modal-content receipt-document-modal procurement-confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 id="procurement-confirm-modal-title">
+                📥 Підтвердження надходження на склад
+                {procurementConfirmModalPr.requestNumber ? ` — ${procurementConfirmModalPr.requestNumber}` : ''}
+              </h3>
+              <button
+                type="button"
+                className="btn-close"
+                disabled={!!procurementSubmitting}
+                onClick={() => setProcurementConfirmModalPr(null)}
+                aria-label="Закрити"
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="document-info">
+                <div className="info-row">
+                  <span className="label">Склад:</span>
+                  <span className="value">{procurementConfirmModalPr.actualWarehouse || '—'}</span>
+                </div>
+                <div className="info-row">
+                  <span className="label">Виконавець (закупівлі):</span>
+                  <span className="value">
+                    {procurementConfirmModalPr.executorName || procurementConfirmModalPr.executorLogin || '—'}
+                  </span>
+                </div>
+              </div>
+              <p className="procurement-confirm-modal-lead">
+                Перевірте фактичні кількості та завершіть прийом — товар буде обліковано на зазначеному складі.
+              </p>
+              <div className="procurement-receipt-table-wrap">
+                <table className="procurement-receipt-table">
+                  <thead>
+                    <tr>
+                      <th>№</th>
+                      <th>Найменування / аналог</th>
+                      <th>Очікувано</th>
+                      <th>Прийнято факт</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(procurementConfirmModalPr.materials || []).map((m, idx) => {
+                      const exp = expectedQtyForProcurementLine(m);
+                      const expLabel = m.rejected
+                        ? '0 (відхилено)'
+                        : exp === null
+                          ? '—'
+                          : String(exp);
+                      const rowLabel = m.rejected
+                        ? `${m.name || '—'} (відхилено)`
+                        : [m.name, m.analogName && `Аналог: ${m.analogName}`].filter(Boolean).join(' · ');
+                      const draftRow = receiptDrafts[procurementConfirmModalPr._id] || [];
+                      const val = draftRow[idx] ?? '';
+                      return (
+                        <tr key={idx}>
+                          <td>{idx + 1}</td>
+                          <td>{rowLabel}</td>
+                          <td>{expLabel}</td>
+                          <td>{val === '' ? '—' : val}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn-cancel"
+                disabled={!!procurementSubmitting}
+                onClick={() => setProcurementConfirmModalPr(null)}
+              >
+                Назад до редагування
+              </button>
+              <button
+                type="button"
+                className="btn-procurement-submit"
+                disabled={procurementSubmitting === procurementConfirmModalPr._id}
+                onClick={() => submitProcurementReceipt(procurementConfirmModalPr)}
+              >
+                {procurementSubmitting === procurementConfirmModalPr._id
+                  ? 'Збереження…'
+                  : 'Завершити прийом на склад'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="receipt-approval-header" style={{ marginTop: 24 }}>
         <h2 style={{ fontSize: 20 }}>Переміщення між складами (товари в дорозі)</h2>

@@ -548,8 +548,10 @@ function ProcurementDashboard({ user }) {
           {activeSection === 'notifications' && (
             <div className="procurement-active-panel">
               <ManagerNotificationsTab
+                procurementOnly
+                title="Сповіщення відділу закупівель"
                 onOpenProcurementRequest={openProcurementRequestById}
-                description="Сповіщення відділу закупівель: надходження на склад, частковий прийом завскладом. Натисніть номер заявки, щоб відкрити картку."
+                description="Події по заявках закупівель: нова заявка (лише для виконавців VidZakupok), виконання заявки (персонально заявнику), частковий прийом, надходження на склад. Резерви обладнання та інші сповіщення менеджерів тут не показуються. Натисніть номер заявки (VZ-…), щоб відкрити картку."
               />
             </div>
           )}
@@ -570,6 +572,12 @@ function ProcurementDashboard({ user }) {
                 Статус заявки змінюється автоматично за подіями (розгляд → робота → очікування на складі →
                 виконано). Поле статусу не редагується вручну.
               </p>
+              {!isVidZakupok && (
+                <p className="procurement-hint">
+                  У цьому списку показано лише <strong>ваші</strong> заявки. Усі заявки бачать виконавці відділу
+                  закупівель (VidZakupok) та адміністратори.
+                </p>
+              )}
 
               {loading ? (
                 <div className="procurement-loading">Завантаження…</div>

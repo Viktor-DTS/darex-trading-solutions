@@ -372,7 +372,17 @@ const MANAGER_NOTIFICATION_KINDS = [
   'task_new',
   'shipment_request_new',
   'procurement_incoming_to_warehouse',
-  'procurement_receipt_partial'
+  'procurement_receipt_partial',
+  'procurement_request_new',
+  'procurement_request_completed'
+];
+
+/** Лише для GET/POST manager-notifications з ?procurement=1 (вкладка «Відділ закупівель») */
+const PROCUREMENT_ONLY_NOTIFICATION_KINDS = [
+  'procurement_incoming_to_warehouse',
+  'procurement_receipt_partial',
+  'procurement_request_new',
+  'procurement_request_completed'
 ];
 
 const managerUserNotificationSchema = new mongoose.Schema({
@@ -1509,6 +1519,68 @@ async function notifyProcurementExecutorReceiptPartial(pr) {
   }
 }
 
+/** Нова заявка — лише для виконавців (роль vidzakupok), без дубля заявнику-виконавцю */
+async function notifyVidZakupokNewProcurementRequest(pr) {
+  try {
+    const buyers = await User.find({ dismissed: { $ne: true }, role: 'vidzakupok' })
+      .select('login')
+      .lean();
+    const rn = pr.requestNumber || String(pr._id);
+    const requesterLabel = pr.requesterName || pr.requesterLogin || '—';
+    const reqLogin = String(pr.requesterLogin || '').trim();
+    for (const u of buyers) {
+      const login = String(u.login || '').trim();
+      if (!login || login === reqLogin) continue;
+      await createManagerNotificationDeduped({
+        recipientLogin: login,
+        kind: 'procurement_request_new',
+        procurementRequestId: pr._id,
+        requestNumber: rn,
+        title: `Нова заявка на закупівлю: ${rn}`,
+        body: `Подано нову заявку (${rn}). Заявник: ${requesterLabel}. Перегляньте у відділі закупівель.`,
+        read: false,
+        dedupeKey: `proc_new:${pr._id}:${login}`
+      });
+    }
+  } catch (e) {
+    console.error('[procurement] notifyVidZakupokNewProcurementRequest:', e.message);
+  }
+}
+
+/** Повне завершення (склад підтвердив) — персонально заявнику */
+async function notifyProcurementRequesterCompleted(pr) {
+  try {
+    const login = String(pr.requesterLogin || '').trim();
+    if (!login) return;
+    const rn = pr.requestNumber || String(pr._id);
+    const greet = String(pr.requesterName || login).trim();
+    await createManagerNotificationDeduped({
+      recipientLogin: login,
+      kind: 'procurement_request_completed',
+      procurementRequestId: pr._id,
+      requestNumber: rn,
+      title: `Заявку виконано: ${rn}`,
+      body: `${greet}, заявку ${rn} повністю виконано: прийом на складі підтверджено.`,
+      read: false,
+      dedupeKey: `proc_done:${pr._id}`
+    });
+  } catch (e) {
+    console.error('[procurement] notifyProcurementRequesterCompleted:', e.message);
+  }
+}
+
+async function userCanReadProcurementRequest(reqUser, dbUser, pr) {
+  if (!pr) return false;
+  if (isVidZakupokProcurementRole(reqUser.role)) return true;
+  if (String(pr.requesterLogin || '').trim() === String(reqUser.login || '').trim()) return true;
+  if (isWarehouseProcurementConfirmRole(reqUser.role)) {
+    const names = await getWarehouseNamesForProcurementReceiptUser(reqUser, dbUser);
+    const aw = String(pr.actualWarehouse || '').trim();
+    return names.some((n) => n === aw);
+  }
+  return false;
+}
+
 function isVidZakupokProcurementRole(role) {
   return ['vidzakupok', 'admin', 'administrator'].includes(String(role || '').toLowerCase());
 }
@@ -2460,7 +2532,12 @@ app.get('/api/procurement-requests/nomenclature-hints', async (req, res) => {
 app.get('/api/procurement-requests', async (req, res) => {
   const startTime = Date.now();
   try {
-    const rows = await ProcurementRequest.find()
+    const login = String(req.user.login || '').trim();
+    const q = {};
+    if (!isVidZakupokProcurementRole(req.user.role)) {
+      q.requesterLogin = login;
+    }
+    const rows = await ProcurementRequest.find(q)
       .select(PROCUREMENT_DOC_LIST_PROJECTION)
       .sort({ createdAt: -1 })
       .lean();
@@ -2480,6 +2557,10 @@ app.get('/api/procurement-requests/:id/attachments/:attachmentId', async (req, r
     if (!pr) {
       logPerformance('GET /api/procurement-requests/.../attachments', startTime);
       return res.status(404).json({ error: 'Заявку не знайдено' });
+    }
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    if (!(await userCanReadProcurementRequest(req.user, dbUser, pr))) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const att = pr.attachments.id(req.params.attachmentId);
     if (!att || !att.data) {
@@ -2505,6 +2586,10 @@ app.get('/api/procurement-requests/:id/executor-attachments/:attachmentId', asyn
     if (!pr) {
       logPerformance('GET executor-attachment', startTime);
       return res.status(404).json({ error: 'Заявку не знайдено' });
+    }
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    if (!(await userCanReadProcurementRequest(req.user, dbUser, pr))) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
     }
     const att = pr.executorAttachments.id(req.params.attachmentId);
     if (!att || !att.data) {
@@ -2617,6 +2702,7 @@ app.post(
         attachments
       });
       const out = await ProcurementRequest.findById(doc._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+      await notifyVidZakupokNewProcurementRequest(out);
       logPerformance('POST /api/procurement-requests', startTime);
       res.status(201).json(out);
     } catch (error) {
@@ -2808,6 +2894,11 @@ app.get('/api/procurement-requests/:id', async (req, res) => {
       logPerformance('GET /api/procurement-requests/:id', startTime);
       return res.status(404).json({ error: 'Заявку не знайдено' });
     }
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    if (!(await userCanReadProcurementRequest(req.user, dbUser, pr))) {
+      logPerformance('GET /api/procurement-requests/:id', startTime);
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
     logPerformance('GET /api/procurement-requests/:id', startTime);
     res.json(pr);
   } catch (error) {
@@ -2885,6 +2976,7 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
     if (partial) {
       await notifyProcurementExecutorReceiptPartial(pr);
     }
+    await notifyProcurementRequesterCompleted(pr);
 
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
     logPerformance('POST /api/procurement-requests/warehouse-receipt', startTime);
@@ -2935,6 +3027,7 @@ app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => 
     pr.warehouseConfirmerName = String(dbUser?.name || req.user.name || req.user.login).trim();
     pr.status = 'completed';
     await pr.save();
+    await notifyProcurementRequesterCompleted(pr);
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
     logPerformance('POST /api/procurement-requests/warehouse-confirm', startTime);
     res.json(out);
@@ -10330,6 +10423,7 @@ async function getRegionalManagerRecipientLogins() {
 app.get('/api/manager-notifications', authenticateToken, async (req, res) => {
   try {
     const unreadOnly = req.query.unreadOnly === '1' || req.query.unreadOnly === 'true';
+    const procurementOnly = req.query.procurement === '1' || req.query.procurement === 'true';
     if (isServiceGlobalNotificationsAdmin(req)) {
       const logins = await getRegionalManagerRecipientLogins();
       if (logins.length === 0) {
@@ -10337,12 +10431,14 @@ app.get('/api/manager-notifications', authenticateToken, async (req, res) => {
       }
       const q = { recipientLogin: { $in: logins } };
       if (unreadOnly) q.read = false;
+      if (procurementOnly) q.kind = { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS };
       const list = await ManagerUserNotification.find(q).sort({ createdAt: -1 }).limit(500).lean();
       return res.json(list);
     }
     const login = req.user.login;
     const q = { recipientLogin: login };
     if (unreadOnly) q.read = false;
+    if (procurementOnly) q.kind = { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS };
     const list = await ManagerUserNotification.find(q).sort({ createdAt: -1 }).limit(200).lean();
     res.json(list);
   } catch (e) {
@@ -10400,17 +10496,19 @@ app.patch('/api/manager-notifications/:id/read', authenticateToken, async (req, 
 
 app.post('/api/manager-notifications/mark-all-read', authenticateToken, async (req, res) => {
   try {
+    const procurementOnly = req.query.procurement === '1' || req.query.procurement === 'true';
+    const kindFilter = procurementOnly ? { kind: { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS } } : {};
     if (isServiceGlobalNotificationsAdmin(req)) {
       const logins = await getRegionalManagerRecipientLogins();
       if (logins.length > 0) {
         await ManagerUserNotification.updateMany(
-          { recipientLogin: { $in: logins }, read: false },
+          { recipientLogin: { $in: logins }, read: false, ...kindFilter },
           { $set: { read: true } }
         );
       }
     } else {
       await ManagerUserNotification.updateMany(
-        { recipientLogin: req.user.login, read: false },
+        { recipientLogin: req.user.login, read: false, ...kindFilter },
         { $set: { read: true } }
       );
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import API_BASE_URL from '../../config';
 import './ManagerNotificationsTab.css';
 
@@ -14,8 +14,10 @@ const KIND_LABELS = {
   task_accountant_rejected: 'Відхилено бухгалтером',
   task_new: 'Нова заявка',
   shipment_request_new: 'Запит на відвантаження',
-  procurement_incoming_to_warehouse: 'Надходження від закупівель',
-  procurement_receipt_partial: 'Закупівлі: частковий прийом'
+  procurement_incoming_to_warehouse: 'Надходження на склад (закупівлі)',
+  procurement_receipt_partial: 'Частковий прийом / заявка не повністю',
+  procurement_request_new: 'Нова заявка (для виконавців)',
+  procurement_request_completed: 'Заявку виконано (для заявника)'
 };
 
 function notificationTaskId(n) {
@@ -44,12 +46,21 @@ function ManagerNotificationsTab({
   onOpenShipmentRequest,
   onOpenProcurementRequest,
   description = DEFAULT_DESCRIPTION,
-  globalFeed = false
+  globalFeed = false,
+  /** Лише сповіщення модуля закупівель (частковий прийом, надходження) — без резервів і заявок менеджерів */
+  procurementOnly = false,
+  title = 'Системні сповіщення'
 }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const scopeQs = globalFeed ? '?serviceGlobal=1' : '';
+  const scopeQs = useMemo(() => {
+    const p = new URLSearchParams();
+    if (globalFeed) p.set('serviceGlobal', '1');
+    if (procurementOnly) p.set('procurement', '1');
+    const s = p.toString();
+    return s ? `?${s}` : '';
+  }, [globalFeed, procurementOnly]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,7 +124,7 @@ function ManagerNotificationsTab({
   return (
     <div className="manager-notifications-tab">
       <div className="manager-notifications-header">
-        <h2>Системні сповіщення</h2>
+        <h2>{title}</h2>
         <div className="manager-notifications-actions">
           <button type="button" className="btn-refresh" onClick={load} disabled={loading}>
             Оновити

@@ -92,6 +92,12 @@
   cursor: not-allowed;
 }
 
+.procurement-confirm-modal-lead {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  color: var(--text-secondary, #666);
+}
+
 .receipt-approval {
   padding: 20px;
   background: var(--surface, #fff);
