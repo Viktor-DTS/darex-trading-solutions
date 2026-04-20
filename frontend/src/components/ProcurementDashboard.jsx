@@ -94,6 +94,32 @@ function expectedQtyForLine(m) {
   return null;
 }
 
+/** Початкова кількість по заявці (узгоджено з backend procurementLineInitialOrdered). */
+function initialQtyForLine(m) {
+  if (!m) return null;
+  if (m.rejected) {
+    if (m.initialQuantity != null && Number.isFinite(Number(m.initialQuantity))) {
+      return Number(m.initialQuantity);
+    }
+    if (m.quantity != null && Number.isFinite(Number(m.quantity))) return Number(m.quantity);
+    return null;
+  }
+  if (m.initialQuantity != null && Number.isFinite(Number(m.initialQuantity))) {
+    return Number(m.initialQuantity);
+  }
+  const evSum = sumWarehouseAcceptedQty(m.warehouseReceiptEvents);
+  const cur = expectedQtyForLine(m);
+  if (cur === null) return null;
+  return evSum + cur;
+}
+
+function maxRemainderAfterWarehouse(m) {
+  const init = initialQtyForLine(m);
+  if (init == null) return null;
+  const evSum = sumWarehouseAcceptedQty(m?.warehouseReceiptEvents);
+  return Math.max(0, init - evSum);
+}
+
 const RECEIPT_OUTCOME_LABELS = {
   pending: 'Очікує прийому на складі',
   full: 'Повністю прийнято завскладом',
@@ -105,7 +131,7 @@ function emptyMaterialRow() {
 }
 
 function ProcurementDashboard({ user }) {
-  const [activeSection, setActiveSection] = useState('active'); // 'active' | 'notifications'
+  const [activeSection, setActiveSection] = useState('active'); // 'active' | 'archive' | 'notifications'
   const [requests, setRequests] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -140,6 +166,15 @@ function ProcurementDashboard({ user }) {
     const token = localStorage.getItem('token');
     return { Authorization: `Bearer ${token}` };
   }, []);
+
+  const activeRequests = useMemo(
+    () => requests.filter((r) => r.status !== 'completed'),
+    [requests]
+  );
+  const archivedRequests = useMemo(
+    () => requests.filter((r) => r.status === 'completed'),
+    [requests]
+  );
 
   const fetchProcurementNotifUnreadCount = useCallback(async () => {
     try {
@@ -211,7 +246,8 @@ function ProcurementDashboard({ user }) {
         analogQuantity: m.analogQuantity != null && m.analogQuantity !== '' ? String(m.analogQuantity) : '',
         analogShipped: !!m.analogShipped,
         rejected: !!m.rejected,
-        rejectionReason: m.rejectionReason || ''
+        rejectionReason: m.rejectionReason || '',
+        initialQuantity: m.initialQuantity
       }))
     );
   }, [detail?._id, detail?.materials]);
@@ -432,13 +468,21 @@ function ProcurementDashboard({ user }) {
 
   const persistExecutorMaterials = async (requestId) => {
     if (!materialsDraft || !materialsDraft.length) return true;
-    const payload = materialsDraft.map((m) => ({
-      analogName: m.analogName,
-      analogQuantity: m.analogQuantity === '' ? null : Number(m.analogQuantity),
-      analogShipped: !!m.analogShipped,
-      rejected: !!m.rejected,
-      rejectionReason: String(m.rejectionReason || '').trim()
-    }));
+    const payload = materialsDraft.map((m) => {
+      const useAnalog = !!m.analogShipped && String(m.analogName || '').trim();
+      const row = {
+        analogName: m.analogName,
+        analogQuantity: m.analogQuantity === '' ? null : Number(m.analogQuantity),
+        analogShipped: !!m.analogShipped,
+        rejected: !!m.rejected,
+        rejectionReason: String(m.rejectionReason || '').trim()
+      };
+      if (!useAnalog) {
+        row.quantity =
+          m.quantity === '' || m.quantity === undefined || m.quantity === null ? null : Number(m.quantity);
+      }
+      return row;
+    });
     for (let i = 0; i < payload.length; i++) {
       if (payload[i].rejected && !payload[i].rejectionReason) {
         alert(`Позиція ${i + 1}: для відхиленого матеріалу обовʼязково вкажіть причину`);
@@ -451,19 +495,43 @@ function ProcurementDashboard({ user }) {
         alert(`Позиція ${i + 1}: некоректна кількість аналогу`);
         return false;
       }
+      if (
+        Object.prototype.hasOwnProperty.call(payload[i], 'quantity') &&
+        payload[i].quantity !== null &&
+        !Number.isFinite(payload[i].quantity)
+      ) {
+        alert(`Позиція ${i + 1}: некоректна кількість (залишок)`);
+        return false;
+      }
       const row = detail?.materials?.[i];
-      const maxR = row ? expectedQtyForLine(row) : null;
+      const maxR = row ? maxRemainderAfterWarehouse(row) : null;
+      const draftAnalog =
+        !!materialsDraft[i]?.analogShipped && String(materialsDraft[i]?.analogName || '').trim();
       if (
         !payload[i].rejected &&
         maxR !== null &&
-        payload[i].analogShipped &&
-        String(materialsDraft[i]?.analogName || '').trim() &&
+        draftAnalog &&
         payload[i].analogQuantity != null &&
         Number.isFinite(payload[i].analogQuantity)
       ) {
         if (payload[i].analogQuantity < 0 || payload[i].analogQuantity > maxR) {
           alert(
             `Позиція ${i + 1}: кількість аналогу не більше ${maxR} шт. (залишок до відвантаження після попередніх прийомів на складі)`
+          );
+          return false;
+        }
+      }
+      if (
+        !payload[i].rejected &&
+        maxR !== null &&
+        !draftAnalog &&
+        Object.prototype.hasOwnProperty.call(payload[i], 'quantity') &&
+        payload[i].quantity != null &&
+        Number.isFinite(payload[i].quantity)
+      ) {
+        if (payload[i].quantity < 0 || payload[i].quantity > maxR) {
+          alert(
+            `Позиція ${i + 1}: залишок не більше ${maxR} шт. (з урахуванням прийомів на складі)`
           );
           return false;
         }
@@ -538,7 +606,7 @@ function ProcurementDashboard({ user }) {
       }
       const row = await res.json();
       openDetail(row);
-      setActiveSection('active');
+      setActiveSection(row.status === 'completed' ? 'archive' : 'active');
     } finally {
       setSaving(false);
     }
@@ -628,6 +696,14 @@ function ProcurementDashboard({ user }) {
                   </span>
                 ) : null}
               </button>
+              <button
+                type="button"
+                className={`procurement-sidebar-tab ${activeSection === 'archive' ? 'active' : ''}`}
+                onClick={() => setActiveSection('archive')}
+              >
+                <span className="tab-icon">📦</span>
+                <span className="tab-label">Архів заявок</span>
+              </button>
             </nav>
           </div>
         </aside>
@@ -642,6 +718,87 @@ function ProcurementDashboard({ user }) {
                 onUnreadCountChange={fetchProcurementNotifUnreadCount}
                 description="Події по заявках закупівель: нова заявка для виконавців VidZakupok та адміністраторів, виконання заявки (персонально заявнику), частковий прийом, надходження на склад. Резерви обладнання та інші сповіщення менеджерів тут не показуються. Натисніть номер заявки (VZ-…), щоб відкрити картку."
               />
+            </div>
+          )}
+          {activeSection === 'archive' && (
+            <div className="procurement-active-panel procurement-archive-panel">
+              <div className="procurement-toolbar">
+                <h1 className="procurement-title">Архів заявок</h1>
+              </div>
+              <p className="procurement-hint">
+                Повністю виконані заявки (статус «Повністю виконана»). Відкрийте рядок, щоб переглянути картку з
+                матеріалами та історією прийомів на складі.
+              </p>
+              {loading ? (
+                <div className="procurement-loading">Завантаження…</div>
+              ) : (
+                <div className="procurement-table-wrap">
+                  <table className="procurement-table">
+                    <thead>
+                      <tr>
+                        <th>№ заявки</th>
+                        <th>Статус</th>
+                        <th>Тип заявки</th>
+                        <th>Компанія платник</th>
+                        <th>Відповідальний (хто подав)</th>
+                        <th>Пріоритет</th>
+                        <th>Дата подачі</th>
+                        <th>Бажаний склад</th>
+                        {isAdmin ? <th className="procurement-th-actions">Дії</th> : null}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {archivedRequests.map((r) => (
+                        <tr
+                          key={r._id}
+                          className="procurement-table-row--openable"
+                          tabIndex={0}
+                          onClick={() => openDetail(r)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              openDetail(r);
+                            }
+                          }}
+                        >
+                          <td>{r.requestNumber || '—'}</td>
+                          <td>
+                            <span className={`procurement-status procurement-status--${r.status}`}>
+                              {STATUS_LABELS[r.status] || r.status}
+                            </span>
+                          </td>
+                          <td className="procurement-desc-cell">{applicationKindLabel(r)}</td>
+                          <td>{payerCompanyLabel(r.payerCompany)}</td>
+                          <td>{r.requesterName || r.requesterLogin || '—'}</td>
+                          <td>{priorityLabel(r.priority)}</td>
+                          <td>{formatDt(r.createdAt)}</td>
+                          <td>{r.desiredWarehouse || '—'}</td>
+                          {isAdmin ? (
+                            <td
+                              className="procurement-td-actions"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                className="procurement-btn-delete-row"
+                                disabled={saving}
+                                title="Видалити заявку (лише адміністратор)"
+                                onClick={(e) => deleteProcurementRequest(e, r)}
+                              >
+                                Видалити
+                              </button>
+                            </td>
+                          ) : null}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {!archivedRequests.length && (
+                    <div className="procurement-empty">Немає виконаних заявок в архіві.</div>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {activeSection === 'active' && (
@@ -688,7 +845,7 @@ function ProcurementDashboard({ user }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {requests.map((r) => (
+                      {activeRequests.map((r) => (
                         <tr
                           key={r._id}
                           className="procurement-table-row--openable"
@@ -734,7 +891,7 @@ function ProcurementDashboard({ user }) {
                       ))}
                     </tbody>
                   </table>
-                  {!requests.length && (
+                  {!activeRequests.length && (
                     <div className="procurement-empty">Немає заявок. Натисніть «Подати заявку».</div>
                   )}
                 </div>
@@ -828,7 +985,7 @@ function ProcurementDashboard({ user }) {
                 </p>
                 <div className="procurement-materials-head">
                   <span>Найменування</span>
-                  <span>Кількість</span>
+                  <span>Початкова кількість по заявці</span>
                   <span>Ціна</span>
                   <span></span>
                 </div>
@@ -1039,7 +1196,7 @@ function ProcurementDashboard({ user }) {
                             <thead>
                               <tr>
                                 <th>Заявник: найменування</th>
-                                <th>К-сть</th>
+                                <th>Початкова кількість по заявці</th>
                                 <th>Прийоми завскладом</th>
                                 <th>Залишок (макс.)</th>
                                 <th>Ціна</th>
@@ -1053,12 +1210,19 @@ function ProcurementDashboard({ user }) {
                             <tbody>
                               {materialsDraft.map((m, i) => {
                                 const savedLine = detail.materials?.[i];
-                                const maxRemain = savedLine ? expectedQtyForLine(savedLine) : null;
+                                const maxRemainCap = savedLine ? maxRemainderAfterWarehouse(savedLine) : null;
+                                const initialQtyDisp = savedLine ? initialQtyForLine(savedLine) : null;
+                                const useAnalog =
+                                  !!m.analogShipped && String(m.analogName || '').trim().length > 0;
                                 const events = savedLine?.warehouseReceiptEvents;
                                 return (
                                 <tr key={i} className={m.rejected ? 'procurement-row-rejected' : ''}>
                                   <td>{m.name}</td>
-                                  <td>{m.quantity != null && m.quantity !== '' ? m.quantity : '—'}</td>
+                                  <td>
+                                    {initialQtyDisp != null && Number.isFinite(initialQtyDisp)
+                                      ? initialQtyDisp
+                                      : '—'}
+                                  </td>
                                   <td className="procurement-wh-cell">
                                     {events && events.length ? (
                                       <ul className="procurement-wh-event-list">
@@ -1080,7 +1244,42 @@ function ProcurementDashboard({ user }) {
                                     ) : null}
                                   </td>
                                   <td className="procurement-remainder-cell">
-                                    {m.rejected || maxRemain === null ? '—' : maxRemain}
+                                    {m.rejected || maxRemainCap === null ? (
+                                      '—'
+                                    ) : (
+                                      <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        className="procurement-exec-input procurement-exec-input--narrow"
+                                        value={
+                                          useAnalog
+                                            ? m.analogQuantity
+                                            : m.quantity === null || m.quantity === undefined
+                                              ? ''
+                                              : String(m.quantity)
+                                        }
+                                        onChange={(e) => {
+                                          let v = e.target.value;
+                                          if (
+                                            maxRemainCap != null &&
+                                            !m.rejected &&
+                                            v !== '' &&
+                                            !Number.isNaN(Number(v))
+                                          ) {
+                                            const n = Number(v);
+                                            if (n > maxRemainCap) v = String(maxRemainCap);
+                                            if (n < 0) v = '0';
+                                          }
+                                          if (useAnalog) {
+                                            updateMaterialDraftRow(i, { analogQuantity: v });
+                                          } else {
+                                            updateMaterialDraftRow(i, { quantity: v === '' ? '' : v });
+                                          }
+                                        }}
+                                        disabled={m.rejected}
+                                        title="Залишок до відвантаження (не більше ніж початкова кількість мінус прийнято на складі)"
+                                      />
+                                    )}
                                   </td>
                                   <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
                                   <td>
@@ -1104,14 +1303,14 @@ function ProcurementDashboard({ user }) {
                                       onChange={(e) => {
                                         let v = e.target.value;
                                         if (
-                                          maxRemain != null &&
+                                          maxRemainCap != null &&
                                           !m.rejected &&
                                           m.analogShipped &&
                                           v !== '' &&
                                           !Number.isNaN(Number(v))
                                         ) {
                                           const n = Number(v);
-                                          if (n > maxRemain) v = String(maxRemain);
+                                          if (n > maxRemainCap) v = String(maxRemainCap);
                                           if (n < 0) v = '0';
                                         }
                                         updateMaterialDraftRow(i, { analogQuantity: v });
@@ -1195,9 +1394,9 @@ function ProcurementDashboard({ user }) {
                         <thead>
                           <tr>
                             <th>Найменування</th>
-                            <th>К-сть</th>
+                            <th>Початкова кількість по заявці</th>
                             <th>Прийоми завскладом</th>
-                            <th>Залишок до відвант.</th>
+                            <th>Залишок (макс.)</th>
                             <th>Ціна</th>
                             <th>Аналог</th>
                             <th>К-сть аналогу</th>
@@ -1217,6 +1416,7 @@ function ProcurementDashboard({ user }) {
                             const exp = expectedQtyForLine(m);
                             const expDisp =
                               exp === null ? '—' : m.rejected ? '0' : String(exp);
+                            const initialDisp = initialQtyForLine(m);
                             const rec =
                               m.receivedQuantity === null || m.receivedQuantity === undefined
                                 ? '—'
@@ -1225,7 +1425,11 @@ function ProcurementDashboard({ user }) {
                             return (
                               <tr key={i}>
                                 <td>{m.name}</td>
-                                <td>{m.quantity != null && m.quantity !== '' ? m.quantity : '—'}</td>
+                                <td>
+                                  {initialDisp != null && Number.isFinite(initialDisp)
+                                    ? initialDisp
+                                    : '—'}
+                                </td>
                                 <td className="procurement-wh-cell">
                                   {evs && evs.length ? (
                                     <>

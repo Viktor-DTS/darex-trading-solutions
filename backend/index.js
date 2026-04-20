@@ -1346,6 +1346,8 @@ const procurementWarehouseReceiptEventSchema = new mongoose.Schema(
 const procurementMaterialLineSchema = new mongoose.Schema({
   name: { type: String, trim: true, default: '' },
   quantity: { type: Number, default: null },
+  /** Замовлена кількість з оригінальної заявки (не зменшується при частковому прийомі на складі) */
+  initialQuantity: { type: Number, default: null },
   price: { type: Number, default: null },
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductCard', default: null },
   /** Поля виконавця: аналог замість позиції заявника */
@@ -1445,30 +1447,69 @@ function expectedQtyForProcurementMaterialLine(line) {
   return null;
 }
 
-/** Перевірка PATCH виконавця: кількість не перевищує залишок до відвантаження (стан рядків у БД до зміни). */
+function sumProcurementWarehouseReceiptEvents(line) {
+  if (!line || !Array.isArray(line.warehouseReceiptEvents)) return 0;
+  return line.warehouseReceiptEvents.reduce((acc, ev) => acc + (Number(ev?.acceptedQuantity) || 0), 0);
+}
+
+/** Орієнтовир замовленого обсягу по рядку (для ліміту залишку після прийомів на складі). */
+function procurementLineInitialOrdered(line) {
+  if (!line) return null;
+  if (line.initialQuantity != null && Number.isFinite(Number(line.initialQuantity))) {
+    return Number(line.initialQuantity);
+  }
+  const evSum = sumProcurementWarehouseReceiptEvents(line);
+  const rem = expectedQtyForProcurementMaterialLine(line);
+  if (rem === null) return null;
+  return evSum + rem;
+}
+
+/**
+ * Перевірка PATCH виконавця: аналог / кількість / залишок не перевищують допустиме після прийомів на складі.
+ * Ураховує optional quantity (редагування колонки «Залишок (макс.)»).
+ */
 function validateIncomingExecutorMaterialsAgainstRemainder(materials, incoming) {
   const n = materials.length;
   for (let i = 0; i < n; i++) {
     const inc = incoming[i] || {};
     const line = materials[i];
-    const maxRemain = expectedQtyForProcurementMaterialLine(line);
     const newRejected = Boolean(inc.rejected);
-    const newAnalogShipped = Boolean(inc.analogShipped);
-    const newAnalogName = String(inc.analogName || '').trim();
+    if (newRejected) continue;
+
+    const evSum = sumProcurementWarehouseReceiptEvents(line);
+    const initialOrdered = procurementLineInitialOrdered(line);
+    if (initialOrdered === null) continue;
+    const maxRemain = Math.max(0, initialOrdered - evSum);
+
+    const newAnalogShipped =
+      inc.analogShipped !== undefined ? Boolean(inc.analogShipped) : !!line.analogShipped;
+    const newAnalogName =
+      inc.analogName !== undefined ? String(inc.analogName || '').trim() : String(line.analogName || '').trim();
     const aq = inc.analogQuantity;
     const newAnalogQty = aq === '' || aq === undefined || aq === null ? null : Number(aq);
-    if (newRejected) continue;
-    if (maxRemain === null) continue;
+    const iq = inc.quantity;
+    const newMainQty = iq === '' || iq === undefined || iq === null ? null : Number(iq);
+
     if (newAnalogShipped && newAnalogName) {
       if (newAnalogQty != null && Number.isFinite(newAnalogQty)) {
         if (newAnalogQty < 0 || newAnalogQty > maxRemain) {
-          return `Позиція ${i + 1}: кількість аналогу не більше ${maxRemain} шт. (залишок до відвантаження)`;
+          return `Позиція ${i + 1}: залишок (аналог) не більше ${maxRemain} шт. (з урахуванням прийомів на складі)`;
         }
       }
     } else {
+      if (newMainQty != null && Number.isFinite(newMainQty)) {
+        if (newMainQty < 0 || newMainQty > maxRemain) {
+          return `Позиція ${i + 1}: залишок не більше ${maxRemain} шт. (з урахуванням прийомів на складі)`;
+        }
+      }
       const q = line.quantity;
-      if (q != null && Number.isFinite(Number(q)) && Number(q) > maxRemain) {
-        return `Позиція ${i + 1}: кількість не більше ${maxRemain} шт.`;
+      if (
+        (newMainQty == null || !Number.isFinite(newMainQty)) &&
+        q != null &&
+        Number.isFinite(Number(q)) &&
+        Number(q) > maxRemain
+      ) {
+        return `Позиція ${i + 1}: залишок не більше ${maxRemain} шт.`;
       }
     }
   }
@@ -2973,9 +3014,11 @@ app.post(
           if (m.productId && mongoose.isValidObjectId(String(m.productId))) {
             productId = new mongoose.Types.ObjectId(String(m.productId));
           }
+          const qFin = Number.isFinite(qty) ? qty : null;
           return {
             name: String(m.name).trim(),
-            quantity: Number.isFinite(qty) ? qty : null,
+            quantity: qFin,
+            initialQuantity: qFin,
             price: Number.isFinite(price) ? price : null,
             productId
           };
@@ -3071,6 +3114,18 @@ app.patch('/api/procurement-requests/:id/executor-materials', async (req, res) =
     for (let i = 0; i < n; i++) {
       const inc = incoming[i] || {};
       const line = pr.materials[i];
+      if (Object.prototype.hasOwnProperty.call(inc, 'quantity')) {
+        const iq = inc.quantity;
+        if (iq === '' || iq === undefined || iq === null) {
+          line.quantity = null;
+        } else {
+          const nq = Number(iq);
+          if (!Number.isFinite(nq)) {
+            return res.status(400).json({ error: `Позиція ${i + 1}: некоректна кількість (залишок)` });
+          }
+          line.quantity = nq;
+        }
+      }
       line.analogName = String(inc.analogName || '').trim();
       const aq = inc.analogQuantity;
       line.analogQuantity =
