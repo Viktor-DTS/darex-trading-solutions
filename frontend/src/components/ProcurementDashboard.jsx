@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import API_BASE_URL from '../config';
 import { tryHandleUnauthorizedResponse } from '../utils/authSession';
 import './ProcurementDashboard.css';
@@ -8,6 +8,11 @@ const PRIORITY_OPTIONS = [
   { value: '5_workdays', label: 'На протязі 5 робочих днів' },
   { value: '7_workdays', label: 'На протязі 7 робочих днів' },
   { value: 'more_than_7_workdays', label: 'Більше 7 робочих днів' }
+];
+
+const APPLICATION_KIND_OPTIONS = [
+  { value: 'purchase', label: 'Закупівля' },
+  { value: 'price_determination', label: 'Визначення ціни' }
 ];
 
 const STATUS_LABELS = {
@@ -24,6 +29,15 @@ const PAYER_COMPANY_OPTIONS = [
 
 function payerCompanyLabel(v) {
   return PAYER_COMPANY_OPTIONS.find((p) => p.value === v)?.label || v || '—';
+}
+
+function applicationKindLabel(row) {
+  if (row.applicationKind) {
+    return APPLICATION_KIND_OPTIONS.find((p) => p.value === row.applicationKind)?.label || row.applicationKind;
+  }
+  const legacy = String(row.description || '').trim();
+  if (legacy) return legacy.length > 120 ? `${legacy.slice(0, 120)}…` : legacy;
+  return '—';
 }
 
 function formatDt(iso) {
@@ -45,6 +59,10 @@ function priorityLabel(v) {
   return PRIORITY_OPTIONS.find((p) => p.value === v)?.label || v || '—';
 }
 
+function emptyMaterialRow() {
+  return { name: '', quantity: '', price: '', productId: '' };
+}
+
 function ProcurementDashboard({ user }) {
   const [activeSection, setActiveSection] = useState('active');
   const [requests, setRequests] = useState([]);
@@ -55,23 +73,28 @@ function ProcurementDashboard({ user }) {
   const [detail, setDetail] = useState(null);
 
   const [createForm, setCreateForm] = useState({
-    description: '',
+    applicationKind: 'purchase',
     payerCompany: '',
     priority: '5_workdays',
     desiredWarehouse: '',
+    materials: [emptyMaterialRow()],
+    notes: '',
     files: []
   });
 
   const [executorWarehouse, setExecutorWarehouse] = useState('');
+  const [nomenclatureHints, setNomenclatureHints] = useState([]);
+  const [hintsForRow, setHintsForRow] = useState(null);
+  const hintDebounceRef = useRef(null);
 
   const role = String(user?.role || '').toLowerCase();
   const isVidZakupok = ['vidzakupok', 'admin', 'administrator'].includes(role);
   const isWarehouseConfirmer = ['warehouse', 'zavsklad', 'admin', 'administrator'].includes(role);
+  const isAdmin = ['admin', 'administrator'].includes(role);
 
   const authHeaders = useMemo(() => {
     const token = localStorage.getItem('token');
-    const h = { Authorization: `Bearer ${token}` };
-    return h;
+    return { Authorization: `Bearer ${token}` };
   }, []);
 
   const loadRequests = useCallback(async () => {
@@ -116,19 +139,80 @@ function ProcurementDashboard({ user }) {
 
   const resetCreateForm = () => {
     setCreateForm({
-      description: '',
+      applicationKind: 'purchase',
       payerCompany: '',
       priority: '5_workdays',
       desiredWarehouse: '',
+      materials: [emptyMaterialRow()],
+      notes: '',
       files: []
     });
+    setNomenclatureHints([]);
+    setHintsForRow(null);
+  };
+
+  const requestNomenclatureHints = useCallback(
+    (rowIndex, query) => {
+      if (hintDebounceRef.current) clearTimeout(hintDebounceRef.current);
+      const q = String(query || '').trim();
+      if (q.length < 2) {
+        setNomenclatureHints([]);
+        setHintsForRow(null);
+        return;
+      }
+      hintDebounceRef.current = setTimeout(async () => {
+        try {
+          const res = await fetch(
+            `${API_BASE_URL}/procurement-requests/nomenclature-hints?q=${encodeURIComponent(q)}`,
+            { headers: authHeaders }
+          );
+          if (tryHandleUnauthorizedResponse(res)) return;
+          if (res.ok) {
+            const data = await res.json();
+            setNomenclatureHints(Array.isArray(data) ? data : []);
+            setHintsForRow(rowIndex);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }, 320);
+    },
+    [authHeaders]
+  );
+
+  const updateMaterialRow = (idx, patch) => {
+    setCreateForm((prev) => {
+      const materials = [...prev.materials];
+      materials[idx] = { ...materials[idx], ...patch };
+      return { ...prev, materials };
+    });
+  };
+
+  const addMaterialRow = () => {
+    setCreateForm((prev) => ({ ...prev, materials: [...prev.materials, emptyMaterialRow()] }));
+  };
+
+  const removeMaterialRow = (idx) => {
+    setCreateForm((prev) => {
+      if (prev.materials.length <= 1) return prev;
+      const materials = prev.materials.filter((_, i) => i !== idx);
+      return { ...prev, materials };
+    });
+  };
+
+  const pickNomenclatureHint = (rowIndex, hint) => {
+    updateMaterialRow(rowIndex, {
+      name: hint.label,
+      productId: hint.id ? String(hint.id) : ''
+    });
+    setNomenclatureHints([]);
+    setHintsForRow(null);
   };
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
-    const desc = String(createForm.description || '').trim();
-    if (!desc) {
-      alert('Вкажіть опис заявки');
+    if (!createForm.applicationKind) {
+      alert('Оберіть тип заявки');
       return;
     }
     if (!createForm.payerCompany) {
@@ -140,13 +224,24 @@ function ProcurementDashboard({ user }) {
       alert('Оберіть бажаний склад відвантаження');
       return;
     }
+    const materialsPayload = createForm.materials
+      .filter((m) => m && String(m.name || '').trim())
+      .map((m) => ({
+        name: String(m.name).trim(),
+        quantity: m.quantity === '' ? null : Number(m.quantity),
+        price: m.price === '' ? null : Number(m.price),
+        productId: m.productId || null
+      }));
+
     setSaving(true);
     try {
       const fd = new FormData();
-      fd.append('description', desc);
+      fd.append('applicationKind', createForm.applicationKind);
       fd.append('payerCompany', createForm.payerCompany);
       fd.append('priority', createForm.priority);
       fd.append('desiredWarehouse', dw);
+      fd.append('notes', String(createForm.notes || '').trim());
+      fd.append('materials', JSON.stringify(materialsPayload));
       (createForm.files || []).forEach((f) => fd.append('files', f));
 
       const token = localStorage.getItem('token');
@@ -171,13 +266,14 @@ function ProcurementDashboard({ user }) {
     }
   };
 
-  const downloadAttachment = async (requestId, att) => {
+  const downloadAttachment = async (requestId, att, kind = 'requester') => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(
-        `${API_BASE_URL}/procurement-requests/${requestId}/attachments/${att._id}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const path =
+        kind === 'executor'
+          ? `${API_BASE_URL}/procurement-requests/${requestId}/executor-attachments/${att._id}`
+          : `${API_BASE_URL}/procurement-requests/${requestId}/attachments/${att._id}`;
+      const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
       if (tryHandleUnauthorizedResponse(res)) return;
       if (!res.ok) {
         alert('Не вдалося завантажити файл');
@@ -192,6 +288,32 @@ function ProcurementDashboard({ user }) {
       URL.revokeObjectURL(url);
     } catch (e) {
       alert(e.message || 'Помилка завантаження');
+    }
+  };
+
+  const uploadExecutorFiles = async (requestId, fileList) => {
+    if (!fileList || !fileList.length) return;
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      Array.from(fileList).forEach((f) => fd.append('files', f));
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/procurement-requests/${requestId}/executor-attachments`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Не вдалося завантажити файли');
+        return;
+      }
+      const updated = await res.json();
+      setDetail(updated);
+      await loadRequests();
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -272,6 +394,13 @@ function ProcurementDashboard({ user }) {
     setExecutorWarehouse(row.actualWarehouse || '');
   };
 
+  const canUploadExecutorFiles = (d) => {
+    if (!d || d.applicationKind !== 'price_determination' || d.status !== 'in_progress') return false;
+    if (!isVidZakupok) return false;
+    if (isAdmin) return true;
+    return String(d.executorLogin || '') === String(user?.login || '');
+  };
+
   return (
     <div className="procurement-dashboard">
       <div className="procurement-dashboard-main">
@@ -318,7 +447,7 @@ function ProcurementDashboard({ user }) {
                     <thead>
                       <tr>
                         <th>Статус</th>
-                        <th>Опис</th>
+                        <th>Тип заявки</th>
                         <th>Компанія платник</th>
                         <th>Відповідальний (хто подав)</th>
                         <th>Пріоритет</th>
@@ -335,7 +464,7 @@ function ProcurementDashboard({ user }) {
                               {STATUS_LABELS[r.status] || r.status}
                             </span>
                           </td>
-                          <td className="procurement-desc-cell">{r.description}</td>
+                          <td className="procurement-desc-cell">{applicationKindLabel(r)}</td>
                           <td>{payerCompanyLabel(r.payerCompany)}</td>
                           <td>{r.requesterName || r.requesterLogin || '—'}</td>
                           <td>{priorityLabel(r.priority)}</td>
@@ -362,7 +491,7 @@ function ProcurementDashboard({ user }) {
 
       {createOpen && (
         <div className="procurement-modal-overlay" role="dialog" aria-modal="true">
-          <div className="procurement-modal">
+          <div className="procurement-modal procurement-modal--xlarge">
             <div className="procurement-modal-header">
               <h2>Нова заявка на закупівлю</h2>
               <button
@@ -376,14 +505,18 @@ function ProcurementDashboard({ user }) {
             </div>
             <form onSubmit={handleCreateSubmit} className="procurement-modal-body">
               <label className="procurement-field">
-                <span>Опис заявки *</span>
-                <textarea
+                <span>Тип заявки *</span>
+                <select
                   required
-                  rows={4}
-                  value={createForm.description}
-                  onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-                  placeholder="Опишіть товари та умови…"
-                />
+                  value={createForm.applicationKind}
+                  onChange={(e) => setCreateForm({ ...createForm, applicationKind: e.target.value })}
+                >
+                  {APPLICATION_KIND_OPTIONS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="procurement-field">
                 <span>Компанія платник *</span>
@@ -432,8 +565,94 @@ function ProcurementDashboard({ user }) {
                   ))}
                 </select>
               </label>
+
+              <div className="procurement-field procurement-materials-block">
+                <span>Найменування матеріалів</span>
+                <p className="procurement-field-hint">
+                  Підказки з номенклатури складу (карточки продуктів). Введіть від 2 символів для пошуку.
+                </p>
+                <div className="procurement-materials-head">
+                  <span>Найменування</span>
+                  <span>Кількість</span>
+                  <span>Ціна</span>
+                  <span></span>
+                </div>
+                {createForm.materials.map((row, idx) => (
+                  <div key={idx} className="procurement-material-row">
+                    <div className="procurement-material-cell procurement-material-cell--name">
+                      <input
+                        type="text"
+                        value={row.name}
+                        autoComplete="off"
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          updateMaterialRow(idx, { name: v, productId: '' });
+                          requestNomenclatureHints(idx, v);
+                        }}
+                        onFocus={() => {
+                          if (String(row.name || '').trim().length >= 2) {
+                            requestNomenclatureHints(idx, row.name);
+                          }
+                        }}
+                        placeholder="Пошук з бази або вручну"
+                      />
+                      {hintsForRow === idx && nomenclatureHints.length > 0 && (
+                        <ul className="procurement-hints-list" role="listbox">
+                          {nomenclatureHints.map((h) => (
+                            <li key={String(h.id)}>
+                              <button
+                                type="button"
+                                className="procurement-hint-item"
+                                onClick={() => pickNomenclatureHint(idx, h)}
+                              >
+                                <span className="procurement-hint-label">{h.label}</span>
+                                {h.subtitle ? (
+                                  <span className="procurement-hint-sub">{h.subtitle}</span>
+                                ) : null}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="procurement-material-cell">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={row.quantity}
+                        onChange={(e) => updateMaterialRow(idx, { quantity: e.target.value })}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="procurement-material-cell">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={row.price}
+                        onChange={(e) => updateMaterialRow(idx, { price: e.target.value })}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="procurement-material-cell procurement-material-cell--actions">
+                      <button
+                        type="button"
+                        className="procurement-btn-icon"
+                        title="Видалити рядок"
+                        onClick={() => removeMaterialRow(idx)}
+                        disabled={createForm.materials.length <= 1}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <button type="button" className="procurement-btn-secondary procurement-add-line" onClick={addMaterialRow}>
+                  + Додати матеріал
+                </button>
+              </div>
+
               <label className="procurement-field">
-                <span>Файли (Excel, Word, PDF)</span>
+                <span>Файли заявника (Excel, Word, PDF)</span>
                 <input
                   type="file"
                   multiple
@@ -447,6 +666,17 @@ function ProcurementDashboard({ user }) {
                 />
                 <span className="procurement-field-hint">До 12 файлів, кожен до 15 МБ; зберігаються в базі.</span>
               </label>
+
+              <label className="procurement-field">
+                <span>Примітки</span>
+                <textarea
+                  rows={5}
+                  value={createForm.notes}
+                  onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+                  placeholder="Додаткові коментарі до заявки…"
+                />
+              </label>
+
               <div className="procurement-modal-actions">
                 <button type="button" className="procurement-btn-secondary" onClick={() => setCreateOpen(false)} disabled={saving}>
                   Скасувати
@@ -480,8 +710,8 @@ function ProcurementDashboard({ user }) {
                 <span className="procurement-detail-v">{STATUS_LABELS[detail.status] || detail.status}</span>
               </div>
               <div className="procurement-detail-row">
-                <span className="procurement-detail-k">Опис заявки</span>
-                <span className="procurement-detail-v">{detail.description}</span>
+                <span className="procurement-detail-k">Тип заявки</span>
+                <span className="procurement-detail-v">{applicationKindLabel(detail)}</span>
               </div>
               <div className="procurement-detail-row">
                 <span className="procurement-detail-k">Компанія платник</span>
@@ -526,8 +756,41 @@ function ProcurementDashboard({ user }) {
                 </span>
               </div>
 
+              {(detail.materials || []).length > 0 && (
+                <div className="procurement-detail-materials">
+                  <span className="procurement-detail-k">Матеріали</span>
+                  <div className="procurement-detail-v">
+                    <table className="procurement-mini-table">
+                      <thead>
+                        <tr>
+                          <th>Найменування</th>
+                          <th>Кількість</th>
+                          <th>Ціна</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detail.materials.map((m, i) => (
+                          <tr key={i}>
+                            <td>{m.name}</td>
+                            <td>{m.quantity != null && m.quantity !== '' ? m.quantity : '—'}</td>
+                            <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {String(detail.notes || '').trim() ? (
+                <div className="procurement-detail-row procurement-detail-row--block">
+                  <span className="procurement-detail-k">Примітки</span>
+                  <span className="procurement-detail-v procurement-detail-notes">{detail.notes}</span>
+                </div>
+              ) : null}
+
               <div className="procurement-detail-files">
-                <span className="procurement-detail-k">Вкладення</span>
+                <span className="procurement-detail-k">Файли заявника</span>
                 <div className="procurement-detail-v">
                   {(detail.attachments || []).length === 0 && <span>—</span>}
                   {(detail.attachments || []).map((a) => (
@@ -535,7 +798,7 @@ function ProcurementDashboard({ user }) {
                       key={a._id}
                       type="button"
                       className="procurement-file-link"
-                      onClick={() => downloadAttachment(detail._id, a)}
+                      onClick={() => downloadAttachment(detail._id, a, 'requester')}
                     >
                       {a.originalName}
                       {a.size ? ` (${Math.round(a.size / 1024)} КБ)` : ''}
@@ -543,6 +806,48 @@ function ProcurementDashboard({ user }) {
                   ))}
                 </div>
               </div>
+
+              {(detail.applicationKind === 'price_determination' || (detail.executorAttachments || []).length > 0) && (
+                <div className="procurement-detail-files">
+                  <span className="procurement-detail-k">Файли виконавця (перевірка / кошторис)</span>
+                  <div className="procurement-detail-v">
+                    {(detail.executorAttachments || []).length === 0 && <span>—</span>}
+                    {(detail.executorAttachments || []).map((a) => (
+                      <button
+                        key={a._id}
+                        type="button"
+                        className="procurement-file-link procurement-file-link--executor"
+                        onClick={() => downloadAttachment(detail._id, a, 'executor')}
+                      >
+                        {a.originalName}
+                        {a.size ? ` (${Math.round(a.size / 1024)} КБ)` : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {canUploadExecutorFiles(detail) && (
+                <div className="procurement-executor-upload">
+                  <span className="procurement-detail-k">Завантажити файли виконавця</span>
+                  <div className="procurement-detail-v">
+                    <input
+                      type="file"
+                      multiple
+                      disabled={saving}
+                      accept=".pdf,.doc,.docx,.xls,.xlsx"
+                      onChange={(e) => {
+                        const fl = e.target.files;
+                        if (fl && fl.length) uploadExecutorFiles(detail._id, fl);
+                        e.target.value = '';
+                      }}
+                    />
+                    <span className="procurement-field-hint">
+                      Після перевірки кошторису завантажте відредагований файл (до 12 файлів за раз).
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div className="procurement-detail-actions">
                 {detail.status === 'pending_review' && isVidZakupok && (
