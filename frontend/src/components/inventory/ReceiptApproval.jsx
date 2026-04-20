@@ -2,17 +2,25 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import API_BASE_URL from '../../config';
 import './ReceiptApproval.css';
 
+/** Узгоджено з backend: основна кількість + аналог (якщо відвантажується аналог). */
 function expectedQtyForProcurementLine(m) {
   if (!m || m.rejected) return 0;
-  if (m.analogShipped && String(m.analogName || '').trim() && m.analogQuantity != null) {
-    const q = Number(m.analogQuantity);
-    if (Number.isFinite(q)) return q;
+  let main = 0;
+  if (m.quantity != null && Number.isFinite(Number(m.quantity))) {
+    main = Math.max(0, Number(m.quantity));
   }
-  if (m.quantity != null) {
-    const q = Number(m.quantity);
-    if (Number.isFinite(q)) return q;
+  let analog = 0;
+  if (
+    m.analogShipped &&
+    String(m.analogName || '').trim() &&
+    m.analogQuantity != null &&
+    Number.isFinite(Number(m.analogQuantity))
+  ) {
+    analog = Math.max(0, Number(m.analogQuantity));
   }
-  return null;
+  const sum = main + analog;
+  if (sum <= 0) return null;
+  return sum;
 }
 
 function buildProcurementReceiptPayloadLine(m, raw) {
@@ -376,9 +384,16 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
         alert(err.error || 'Не вдалося зберегти прийом');
         return;
       }
+      const data = await res.json().catch(() => ({}));
       await loadProcurementInbound();
       setProcurementConfirmModalPr(null);
-      alert('Прийом на складі збережено');
+      if (data.warehouseStockError) {
+        alert(
+          `Прийом у заявці збережено, але залишки на складі (Equipment) не нараховано автоматично — зверніться до адміністратора.\n\n${data.warehouseStockError}`
+        );
+      } else {
+        alert('Прийом на складі збережено');
+      }
     } catch (e) {
       alert(e.message || 'Помилка');
     } finally {

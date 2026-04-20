@@ -1441,17 +1441,25 @@ async function getNextProcurementRequestNumber() {
   return `VZ-${String(n).padStart(5, '0')}`;
 }
 
+/** Залишок до відвантаження на склад: основна кількість + аналог (якщо відвантажується аналог). */
 function expectedQtyForProcurementMaterialLine(line) {
   if (!line || line.rejected) return 0;
-  if (line.analogShipped && String(line.analogName || '').trim() && line.analogQuantity != null) {
-    const q = Number(line.analogQuantity);
-    if (Number.isFinite(q)) return q;
+  let main = 0;
+  if (line.quantity != null && Number.isFinite(Number(line.quantity))) {
+    main = Math.max(0, Number(line.quantity));
   }
-  if (line.quantity != null) {
-    const q = Number(line.quantity);
-    if (Number.isFinite(q)) return q;
+  let analog = 0;
+  if (
+    line.analogShipped &&
+    String(line.analogName || '').trim() &&
+    line.analogQuantity != null &&
+    Number.isFinite(Number(line.analogQuantity))
+  ) {
+    analog = Math.max(0, Number(line.analogQuantity));
   }
-  return null;
+  const sum = main + analog;
+  if (sum <= 0) return null;
+  return sum;
 }
 
 function sumProcurementWarehouseReceiptEvents(line) {
@@ -1492,61 +1500,67 @@ function validateIncomingExecutorMaterialsAgainstRemainder(materials, incoming) 
       inc.analogShipped !== undefined ? Boolean(inc.analogShipped) : !!line.analogShipped;
     const newAnalogName =
       inc.analogName !== undefined ? String(inc.analogName || '').trim() : String(line.analogName || '').trim();
-    const aq = inc.analogQuantity;
-    const newAnalogQty = aq === '' || aq === undefined || aq === null ? null : Number(aq);
-    const iq = inc.quantity;
-    const newMainQty = iq === '' || iq === undefined || iq === null ? null : Number(iq);
 
+    let mainPart = 0;
+    if (Object.prototype.hasOwnProperty.call(inc, 'quantity')) {
+      if (inc.quantity !== '' && inc.quantity != null && inc.quantity !== undefined) {
+        const nq = Number(inc.quantity);
+        if (!Number.isFinite(nq) || nq < 0) {
+          return `Позиція ${i + 1}: некоректна кількість основного товару (залишок)`;
+        }
+        mainPart = Math.max(0, nq);
+      }
+    } else if (line.quantity != null && Number.isFinite(Number(line.quantity))) {
+      mainPart = Math.max(0, Number(line.quantity));
+    }
+
+    let analogPart = 0;
     if (newAnalogShipped && newAnalogName) {
-      if (newAnalogQty != null && Number.isFinite(newAnalogQty)) {
-        if (newAnalogQty < 0 || newAnalogQty > maxRemain) {
-          return `Позиція ${i + 1}: залишок (аналог) не більше ${maxRemain} шт. (з урахуванням прийомів на складі)`;
+      if (Object.prototype.hasOwnProperty.call(inc, 'analogQuantity')) {
+        if (inc.analogQuantity !== '' && inc.analogQuantity != null && inc.analogQuantity !== undefined) {
+          const na = Number(inc.analogQuantity);
+          if (!Number.isFinite(na) || na < 0) {
+            return `Позиція ${i + 1}: некоректна кількість аналогу`;
+          }
+          analogPart = Math.max(0, na);
         }
+      } else if (line.analogQuantity != null && Number.isFinite(Number(line.analogQuantity))) {
+        analogPart = Math.max(0, Number(line.analogQuantity));
       }
-    } else {
-      if (newMainQty != null && Number.isFinite(newMainQty)) {
-        if (newMainQty < 0 || newMainQty > maxRemain) {
-          return `Позиція ${i + 1}: залишок не більше ${maxRemain} шт. (з урахуванням прийомів на складі)`;
-        }
-      }
-      const q = line.quantity;
-      if (
-        (newMainQty == null || !Number.isFinite(newMainQty)) &&
-        q != null &&
-        Number.isFinite(Number(q)) &&
-        Number(q) > maxRemain
-      ) {
-        return `Позиція ${i + 1}: залишок не більше ${maxRemain} шт.`;
-      }
+    }
+
+    if (mainPart + analogPart > maxRemain) {
+      return `Позиція ${i + 1}: сума кількості основного товару та аналогу не більше ${maxRemain} шт. (залишок до відвантаження з урахуванням прийомів на складі)`;
     }
   }
   return null;
 }
 
-/** Перед відправкою на склад: узгодженість кількостей з очікуваним залишком. */
+/** Перед відправкою на склад: сума основного та аналогу не перевищує залишок до відвантаження. */
 function validateProcurementMaterialsForShipment(materials) {
   if (!materials || !materials.length) return null;
   for (let i = 0; i < materials.length; i++) {
     const line = materials[i];
     if (line.rejected) continue;
-    const maxQ = expectedQtyForProcurementMaterialLine(line);
-    if (maxQ === null) continue;
-    if (line.analogShipped && String(line.analogName || '').trim()) {
-      const aq = line.analogQuantity;
-      if (aq != null && Number.isFinite(Number(aq))) {
-        const v = Number(aq);
-        if (v < 0 || v > maxQ) {
-          return `Позиція ${i + 1}: кількість аналогу має бути від 0 до ${maxQ}`;
-        }
-      }
-    } else {
-      const q = line.quantity;
-      if (q != null && Number.isFinite(Number(q))) {
-        const v = Number(q);
-        if (v < 0 || v > maxQ) {
-          return `Позиція ${i + 1}: кількість має бути від 0 до ${maxQ}`;
-        }
-      }
+    const evSum = sumProcurementWarehouseReceiptEvents(line);
+    const io = procurementLineInitialOrdered(line);
+    if (io === null) continue;
+    const maxRemain = Math.max(0, io - evSum);
+    let main = 0;
+    if (line.quantity != null && Number.isFinite(Number(line.quantity))) {
+      main = Math.max(0, Number(line.quantity));
+    }
+    let analog = 0;
+    if (
+      line.analogShipped &&
+      String(line.analogName || '').trim() &&
+      line.analogQuantity != null &&
+      Number.isFinite(Number(line.analogQuantity))
+    ) {
+      analog = Math.max(0, Number(line.analogQuantity));
+    }
+    if (main + analog > maxRemain) {
+      return `Позиція ${i + 1}: сума кількості основного товару та аналогу не більше ${maxRemain} шт. (залишок до відвантаження на склад)`;
     }
   }
   return null;

@@ -80,18 +80,25 @@ function sumWarehouseAcceptedQty(events) {
   return events.reduce((acc, ev) => acc + (Number(ev?.acceptedQuantity) || 0), 0);
 }
 
-/** Очікувана кількість до прийому завскладом (узгоджено з backend expectedQtyForProcurementMaterialLine) */
+/** Залишок до відвантаження: основний + аналог (узгоджено з backend expectedQtyForProcurementMaterialLine) */
 function expectedQtyForLine(m) {
   if (!m || m.rejected) return 0;
-  if (m.analogShipped && String(m.analogName || '').trim() && m.analogQuantity != null) {
-    const q = Number(m.analogQuantity);
-    if (Number.isFinite(q)) return q;
+  let main = 0;
+  if (m.quantity != null && Number.isFinite(Number(m.quantity))) {
+    main = Math.max(0, Number(m.quantity));
   }
-  if (m.quantity != null) {
-    const q = Number(m.quantity);
-    if (Number.isFinite(q)) return q;
+  let analog = 0;
+  if (
+    m.analogShipped &&
+    String(m.analogName || '').trim() &&
+    m.analogQuantity != null &&
+    Number.isFinite(Number(m.analogQuantity))
+  ) {
+    analog = Math.max(0, Number(m.analogQuantity));
   }
-  return null;
+  const sum = main + analog;
+  if (sum <= 0) return null;
+  return sum;
 }
 
 /** Початкова кількість по заявці (узгоджено з backend procurementLineInitialOrdered). */
@@ -468,73 +475,45 @@ function ProcurementDashboard({ user }) {
 
   const persistExecutorMaterials = async (requestId) => {
     if (!materialsDraft || !materialsDraft.length) return true;
-    const payload = materialsDraft.map((m) => {
-      const useAnalog = !!m.analogShipped && String(m.analogName || '').trim();
-      const row = {
-        analogName: m.analogName,
-        analogQuantity: m.analogQuantity === '' ? null : Number(m.analogQuantity),
-        analogShipped: !!m.analogShipped,
-        rejected: !!m.rejected,
-        rejectionReason: String(m.rejectionReason || '').trim()
-      };
-      if (!useAnalog) {
-        row.quantity =
-          m.quantity === '' || m.quantity === undefined || m.quantity === null ? null : Number(m.quantity);
-      }
-      return row;
-    });
+    const payload = materialsDraft.map((m) => ({
+      quantity:
+        m.quantity === '' || m.quantity === undefined || m.quantity === null ? null : Number(m.quantity),
+      analogName: m.analogName,
+      analogQuantity: m.analogQuantity === '' ? null : Number(m.analogQuantity),
+      analogShipped: !!m.analogShipped,
+      rejected: !!m.rejected,
+      rejectionReason: String(m.rejectionReason || '').trim()
+    }));
     for (let i = 0; i < payload.length; i++) {
       if (payload[i].rejected && !payload[i].rejectionReason) {
         alert(`Позиція ${i + 1}: для відхиленого матеріалу обовʼязково вкажіть причину`);
         return false;
       }
-      if (
-        payload[i].analogQuantity !== null &&
-        !Number.isFinite(payload[i].analogQuantity)
-      ) {
+      if (payload[i].analogQuantity !== null && !Number.isFinite(payload[i].analogQuantity)) {
         alert(`Позиція ${i + 1}: некоректна кількість аналогу`);
         return false;
       }
-      if (
-        Object.prototype.hasOwnProperty.call(payload[i], 'quantity') &&
-        payload[i].quantity !== null &&
-        !Number.isFinite(payload[i].quantity)
-      ) {
-        alert(`Позиція ${i + 1}: некоректна кількість (залишок)`);
+      if (payload[i].quantity !== null && !Number.isFinite(payload[i].quantity)) {
+        alert(`Позиція ${i + 1}: некоректна кількість (залишок основного товару)`);
         return false;
       }
       const row = detail?.materials?.[i];
       const maxR = row ? maxRemainderAfterWarehouse(row) : null;
-      const draftAnalog =
-        !!materialsDraft[i]?.analogShipped && String(materialsDraft[i]?.analogName || '').trim();
-      if (
-        !payload[i].rejected &&
-        maxR !== null &&
-        draftAnalog &&
-        payload[i].analogQuantity != null &&
-        Number.isFinite(payload[i].analogQuantity)
-      ) {
-        if (payload[i].analogQuantity < 0 || payload[i].analogQuantity > maxR) {
-          alert(
-            `Позиція ${i + 1}: кількість аналогу не більше ${maxR} шт. (залишок до відвантаження після попередніх прийомів на складі)`
-          );
-          return false;
-        }
-      }
-      if (
-        !payload[i].rejected &&
-        maxR !== null &&
-        !draftAnalog &&
-        Object.prototype.hasOwnProperty.call(payload[i], 'quantity') &&
-        payload[i].quantity != null &&
-        Number.isFinite(payload[i].quantity)
-      ) {
-        if (payload[i].quantity < 0 || payload[i].quantity > maxR) {
-          alert(
-            `Позиція ${i + 1}: залишок не більше ${maxR} шт. (з урахуванням прийомів на складі)`
-          );
-          return false;
-        }
+      const m = materialsDraft[i];
+      const draftAnalog = !!m?.analogShipped && String(m?.analogName || '').trim();
+      const mainPart =
+        payload[i].quantity != null && Number.isFinite(payload[i].quantity)
+          ? Math.max(0, payload[i].quantity)
+          : 0;
+      const analogPart =
+        draftAnalog && payload[i].analogQuantity != null && Number.isFinite(payload[i].analogQuantity)
+          ? Math.max(0, payload[i].analogQuantity)
+          : 0;
+      if (!payload[i].rejected && maxR !== null && mainPart + analogPart > maxR) {
+        alert(
+          `Позиція ${i + 1}: сума кількості основного товару (${mainPart}) та аналогу (${analogPart}) не більше ${maxR} шт. (залишок з урахуванням прийомів на складі).`
+        );
+        return false;
       }
     }
     setSaving(true);
@@ -1190,8 +1169,9 @@ function ProcurementDashboard({ user }) {
                       <div className="procurement-executor-materials-editor">
                         <p className="procurement-field-hint">
                           Можна вказати аналог і кількість, позначити відвантаження аналогу, відхилити позицію з
-                          обовʼязковою причиною. Після часткового прийому на складі кількість аналогу не може перевищувати
-                          залишок у колонці «Залишок (макс.)».
+                          обовʼязковою причиною. Сума кількості в колонках «Залишок (макс.)» (основний товар) та «К-сть
+                          аналогу» (якщо увімкнено «Відвант. аналог») не може перевищувати залишок після прийомів на
+                          складі.
                         </p>
                         <div className="procurement-exec-table-wrap">
                           <table className="procurement-exec-materials-table">
@@ -1214,7 +1194,7 @@ function ProcurementDashboard({ user }) {
                                 const savedLine = detail.materials?.[i];
                                 const maxRemainCap = savedLine ? maxRemainderAfterWarehouse(savedLine) : null;
                                 const initialQtyDisp = savedLine ? initialQtyForLine(savedLine) : null;
-                                const useAnalog =
+                                const draftAnalog =
                                   !!m.analogShipped && String(m.analogName || '').trim().length > 0;
                                 const events = savedLine?.warehouseReceiptEvents;
                                 return (
@@ -1254,11 +1234,9 @@ function ProcurementDashboard({ user }) {
                                         inputMode="decimal"
                                         className="procurement-exec-input procurement-exec-input--narrow"
                                         value={
-                                          useAnalog
-                                            ? m.analogQuantity
-                                            : m.quantity === null || m.quantity === undefined
-                                              ? ''
-                                              : String(m.quantity)
+                                          m.quantity === null || m.quantity === undefined
+                                            ? ''
+                                            : String(m.quantity)
                                         }
                                         onChange={(e) => {
                                           let v = e.target.value;
@@ -1268,18 +1246,24 @@ function ProcurementDashboard({ user }) {
                                             v !== '' &&
                                             !Number.isNaN(Number(v))
                                           ) {
-                                            const n = Number(v);
-                                            if (n > maxRemainCap) v = String(maxRemainCap);
-                                            if (n < 0) v = '0';
+                                            let n = Number(v);
+                                            if (n < 0) n = 0;
+                                            const analogNum =
+                                              draftAnalog &&
+                                              m.analogQuantity !== '' &&
+                                              m.analogQuantity != null &&
+                                              !Number.isNaN(Number(m.analogQuantity))
+                                                ? Math.max(0, Number(m.analogQuantity))
+                                                : 0;
+                                            if (n + analogNum > maxRemainCap) {
+                                              n = Math.max(0, maxRemainCap - analogNum);
+                                            }
+                                            v = String(n);
                                           }
-                                          if (useAnalog) {
-                                            updateMaterialDraftRow(i, { analogQuantity: v });
-                                          } else {
-                                            updateMaterialDraftRow(i, { quantity: v === '' ? '' : v });
-                                          }
+                                          updateMaterialDraftRow(i, { quantity: v === '' ? '' : v });
                                         }}
                                         disabled={m.rejected}
-                                        title="Залишок до відвантаження (не більше ніж початкова кількість мінус прийнято на складі)"
+                                        title="Кількість основного товару до відвантаження; разом з аналогом — не більше залишку"
                                       />
                                     )}
                                   </td>
@@ -1307,13 +1291,33 @@ function ProcurementDashboard({ user }) {
                                         if (
                                           maxRemainCap != null &&
                                           !m.rejected &&
-                                          m.analogShipped &&
+                                          draftAnalog &&
                                           v !== '' &&
                                           !Number.isNaN(Number(v))
                                         ) {
-                                          const n = Number(v);
-                                          if (n > maxRemainCap) v = String(maxRemainCap);
-                                          if (n < 0) v = '0';
+                                          let n = Number(v);
+                                          if (n < 0) n = 0;
+                                          const mainNum =
+                                            m.quantity !== '' &&
+                                            m.quantity != null &&
+                                            !Number.isNaN(Number(m.quantity))
+                                              ? Math.max(0, Number(m.quantity))
+                                              : 0;
+                                          if (mainNum + n > maxRemainCap) {
+                                            n = Math.max(0, maxRemainCap - mainNum);
+                                          }
+                                          v = String(n);
+                                        } else if (
+                                          maxRemainCap != null &&
+                                          !m.rejected &&
+                                          !draftAnalog &&
+                                          v !== '' &&
+                                          !Number.isNaN(Number(v))
+                                        ) {
+                                          let n = Number(v);
+                                          if (n > maxRemainCap) n = maxRemainCap;
+                                          if (n < 0) n = 0;
+                                          v = String(n);
                                         }
                                         updateMaterialDraftRow(i, { analogQuantity: v });
                                       }}
