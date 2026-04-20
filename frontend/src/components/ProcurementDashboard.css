@@ -685,6 +685,34 @@
   white-space: nowrap;
 }
 
+.procurement-wh-cell {
+  min-width: 160px;
+  max-width: 260px;
+}
+
+.procurement-wh-event-list {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.procurement-wh-event-list li {
+  margin-bottom: 4px;
+}
+
+.procurement-wh-total {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.procurement-remainder-cell {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .procurement-exec-input {
   width: 100%;
   min-width: 120px;

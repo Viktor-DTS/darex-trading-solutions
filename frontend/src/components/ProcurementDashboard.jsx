@@ -75,6 +75,11 @@ function priorityLabel(v) {
   return PRIORITY_OPTIONS.find((p) => p.value === v)?.label || v || '—';
 }
 
+function sumWarehouseAcceptedQty(events) {
+  if (!Array.isArray(events)) return 0;
+  return events.reduce((acc, ev) => acc + (Number(ev?.acceptedQuantity) || 0), 0);
+}
+
 /** Очікувана кількість до прийому завскладом (узгоджено з backend expectedQtyForProcurementMaterialLine) */
 function expectedQtyForLine(m) {
   if (!m || m.rejected) return 0;
@@ -445,6 +450,23 @@ function ProcurementDashboard({ user }) {
       ) {
         alert(`Позиція ${i + 1}: некоректна кількість аналогу`);
         return false;
+      }
+      const row = detail?.materials?.[i];
+      const maxR = row ? expectedQtyForLine(row) : null;
+      if (
+        !payload[i].rejected &&
+        maxR !== null &&
+        payload[i].analogShipped &&
+        String(materialsDraft[i]?.analogName || '').trim() &&
+        payload[i].analogQuantity != null &&
+        Number.isFinite(payload[i].analogQuantity)
+      ) {
+        if (payload[i].analogQuantity < 0 || payload[i].analogQuantity > maxR) {
+          alert(
+            `Позиція ${i + 1}: кількість аналогу не більше ${maxR} шт. (залишок до відвантаження після попередніх прийомів на складі)`
+          );
+          return false;
+        }
       }
     }
     setSaving(true);
@@ -1009,7 +1031,8 @@ function ProcurementDashboard({ user }) {
                       <div className="procurement-executor-materials-editor">
                         <p className="procurement-field-hint">
                           Можна вказати аналог і кількість, позначити відвантаження аналогу, відхилити позицію з
-                          обовʼязковою причиною.
+                          обовʼязковою причиною. Після часткового прийому на складі кількість аналогу не може перевищувати
+                          залишок у колонці «Залишок (макс.)».
                         </p>
                         <div className="procurement-exec-table-wrap">
                           <table className="procurement-exec-materials-table">
@@ -1017,6 +1040,8 @@ function ProcurementDashboard({ user }) {
                               <tr>
                                 <th>Заявник: найменування</th>
                                 <th>К-сть</th>
+                                <th>Прийоми завскладом</th>
+                                <th>Залишок (макс.)</th>
                                 <th>Ціна</th>
                                 <th>Аналог</th>
                                 <th>К-сть аналогу</th>
@@ -1026,10 +1051,37 @@ function ProcurementDashboard({ user }) {
                               </tr>
                             </thead>
                             <tbody>
-                              {materialsDraft.map((m, i) => (
+                              {materialsDraft.map((m, i) => {
+                                const savedLine = detail.materials?.[i];
+                                const maxRemain = savedLine ? expectedQtyForLine(savedLine) : null;
+                                const events = savedLine?.warehouseReceiptEvents;
+                                return (
                                 <tr key={i} className={m.rejected ? 'procurement-row-rejected' : ''}>
                                   <td>{m.name}</td>
                                   <td>{m.quantity != null && m.quantity !== '' ? m.quantity : '—'}</td>
+                                  <td className="procurement-wh-cell">
+                                    {events && events.length ? (
+                                      <ul className="procurement-wh-event-list">
+                                        {events.map((ev, j) => (
+                                          <li key={j}>
+                                            <strong>{ev.acceptedQuantity}</strong> шт —{' '}
+                                            {ev.confirmerName || ev.confirmerLogin || '—'},{' '}
+                                            {ev.acceptedAt ? formatDt(ev.acceptedAt) : '—'}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      '—'
+                                    )}
+                                    {events && events.length ? (
+                                      <div className="procurement-wh-total">
+                                        Всього прийнято: {sumWarehouseAcceptedQty(events)} шт.
+                                      </div>
+                                    ) : null}
+                                  </td>
+                                  <td className="procurement-remainder-cell">
+                                    {m.rejected || maxRemain === null ? '—' : maxRemain}
+                                  </td>
                                   <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
                                   <td>
                                     <input
@@ -1049,9 +1101,21 @@ function ProcurementDashboard({ user }) {
                                       inputMode="decimal"
                                       className="procurement-exec-input procurement-exec-input--narrow"
                                       value={m.analogQuantity}
-                                      onChange={(e) =>
-                                        updateMaterialDraftRow(i, { analogQuantity: e.target.value })
-                                      }
+                                      onChange={(e) => {
+                                        let v = e.target.value;
+                                        if (
+                                          maxRemain != null &&
+                                          !m.rejected &&
+                                          m.analogShipped &&
+                                          v !== '' &&
+                                          !Number.isNaN(Number(v))
+                                        ) {
+                                          const n = Number(v);
+                                          if (n > maxRemain) v = String(maxRemain);
+                                          if (n < 0) v = '0';
+                                        }
+                                        updateMaterialDraftRow(i, { analogQuantity: v });
+                                      }}
                                       placeholder="0"
                                       disabled={m.rejected}
                                     />
@@ -1096,7 +1160,8 @@ function ProcurementDashboard({ user }) {
                                     />
                                   </td>
                                 </tr>
-                              ))}
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
@@ -1131,6 +1196,8 @@ function ProcurementDashboard({ user }) {
                           <tr>
                             <th>Найменування</th>
                             <th>К-сть</th>
+                            <th>Прийоми завскладом</th>
+                            <th>Залишок до відвант.</th>
                             <th>Ціна</th>
                             <th>Аналог</th>
                             <th>К-сть аналогу</th>
@@ -1154,10 +1221,32 @@ function ProcurementDashboard({ user }) {
                               m.receivedQuantity === null || m.receivedQuantity === undefined
                                 ? '—'
                                 : String(m.receivedQuantity);
+                            const evs = m.warehouseReceiptEvents;
                             return (
                               <tr key={i}>
                                 <td>{m.name}</td>
                                 <td>{m.quantity != null && m.quantity !== '' ? m.quantity : '—'}</td>
+                                <td className="procurement-wh-cell">
+                                  {evs && evs.length ? (
+                                    <>
+                                      <ul className="procurement-wh-event-list">
+                                        {evs.map((ev, j) => (
+                                          <li key={j}>
+                                            <strong>{ev.acceptedQuantity}</strong> шт —{' '}
+                                            {ev.confirmerName || ev.confirmerLogin || '—'},{' '}
+                                            {ev.acceptedAt ? formatDt(ev.acceptedAt) : '—'}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                      <div className="procurement-wh-total">
+                                        Всього прийнято: {sumWarehouseAcceptedQty(evs)} шт.
+                                      </div>
+                                    </>
+                                  ) : (
+                                    '—'
+                                  )}
+                                </td>
+                                <td>{m.rejected || exp === null ? '—' : exp}</td>
                                 <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
                                 <td>{m.analogName || '—'}</td>
                                 <td>{m.analogQuantity != null && m.analogQuantity !== '' ? m.analogQuantity : '—'}</td>
