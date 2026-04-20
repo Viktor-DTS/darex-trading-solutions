@@ -97,6 +97,35 @@
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.equipment-toolbar-no-card-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.equipment-toolbar-no-card-filter input {
+  cursor: pointer;
+}
+
+.equipment-no-product-card-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(255, 193, 7, 0.22);
+  color: var(--text-primary);
+  vertical-align: middle;
 }
 
 .search-box {

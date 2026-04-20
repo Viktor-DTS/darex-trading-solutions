@@ -37,6 +37,21 @@ const getReservationStatusLabel = (item) => {
   return 'Вільна';
 };
 
+/** Чи прив’язано до карточки продукту (ProductCard). */
+function equipmentHasProductCard(item) {
+  if (!item) return false;
+  const p = item.productId;
+  if (p == null || p === '') return false;
+  if (typeof p === 'object' && p._id) return true;
+  return String(p).trim() !== '';
+}
+
+function getEquipmentRowForProductCardCheck(item) {
+  if (item?.isGrouped && item.batchItems?.length) return item.batchItems[0];
+  if (item?.isNoSerialMerged && item.batchItems?.length) return item.batchItems[0];
+  return item;
+}
+
 // Визначення всіх колонок
 const ALL_COLUMNS = [
   { key: 'itemKind', label: 'Тип номенклатури', width: 140 },
@@ -87,7 +102,11 @@ function noSerialStockMergeKey(item) {
   const unit = String(item.batchUnit || '').trim() || 'шт.';
   const mvt = item.materialValueType || '';
   const mfr = String(item.manufacturer || '').trim();
-  return `ns|${typ}|${wh}|${cat}|${kind}|${unit}|${mvt}|${mfr}`;
+  const pid =
+    item.productId != null
+      ? String(item.productId._id || item.productId)
+      : '';
+  return `ns|${typ}|${wh}|${cat}|${kind}|${unit}|${mvt}|${mfr}|${pid}`;
 }
 
 function stableNoSerialMergeRowId(mkey) {
@@ -159,6 +178,8 @@ const EquipmentList = forwardRef(({
   const [sortField, setSortField] = useState('type');
   const [sortDirection, setSortDirection] = useState('asc');
   const [showFilters, setShowFilters] = useState(true);
+  /** Лише рядки без прив’язки до карточки продукту (productId). */
+  const [showWithoutProductCardOnly, setShowWithoutProductCardOnly] = useState(false);
   /** null — дерево ще не завантажено; Set — id категорій гілки необоротних активів */
   const [fixedAssetsCategoryIds, setFixedAssetsCategoryIds] = useState(null);
 
@@ -279,6 +300,7 @@ const EquipmentList = forwardRef(({
   const clearAllFilters = () => {
     setColumnFilters({});
     setFilter('');
+    setShowWithoutProductCardOnly(false);
     try {
       localStorage.removeItem('equipmentTable_filters');
       localStorage.removeItem('equipmentTable_filter');
@@ -287,7 +309,10 @@ const EquipmentList = forwardRef(({
     }
   };
 
-  const hasActiveFilters = Object.values(columnFilters).some(v => v && v.trim() !== '') || filter.trim() !== '';
+  const hasActiveFilters =
+    Object.values(columnFilters).some((v) => v && v.trim() !== '') ||
+    filter.trim() !== '' ||
+    showWithoutProductCardOnly;
 
   const getFilterType = (columnKey) => {
     if (columnKey === 'manufactureDate' || columnKey === 'reservationEndDate') return 'date';
@@ -326,6 +351,11 @@ const EquipmentList = forwardRef(({
     // Фільтр видаленого обладнання
     if (!showDeleted) {
       result = result.filter(item => !item.isDeleted && item.status !== 'deleted');
+    }
+
+    // Лише позиції без карточки продукту (надходження без номенклатури тощо)
+    if (showWithoutProductCardOnly) {
+      result = result.filter((item) => !equipmentHasProductCard(getEquipmentRowForProductCardCheck(item)));
     }
 
     // Глобальний пошук
@@ -469,7 +499,17 @@ const EquipmentList = forwardRef(({
     );
 
     return [...Object.values(batchGroups), ...noSerialMergedRows, ...singleItems];
-  }, [equipment, filter, columnFilters, sortField, sortDirection, showDeleted, managerCategoryContext, fixedAssetsCategoryIds]);
+  }, [
+    equipment,
+    filter,
+    columnFilters,
+    sortField,
+    sortDirection,
+    showDeleted,
+    showWithoutProductCardOnly,
+    managerCategoryContext,
+    fixedAssetsCategoryIds
+  ]);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -634,6 +674,14 @@ const EquipmentList = forwardRef(({
             className="search-input"
           />
         </div>
+        <label className="equipment-toolbar-no-card-filter">
+          <input
+            type="checkbox"
+            checked={showWithoutProductCardOnly}
+            onChange={(e) => setShowWithoutProductCardOnly(e.target.checked)}
+          />
+          <span>Показати обладнання без картки</span>
+        </label>
         <div className="toolbar-actions">
           <button
             className="btn-export-excel"
@@ -816,6 +864,14 @@ const EquipmentList = forwardRef(({
                     ) : (
                       formatValue(item.type, 'type')
                     )}
+                    {!equipmentHasProductCard(getEquipmentRowForProductCardCheck(item)) ? (
+                      <span
+                        className="equipment-no-product-card-badge"
+                        title="Немає прив'язки до карточки продукту в номенклатурі"
+                      >
+                        без картки
+                      </span>
+                    ) : null}
                   </td>
                   <td>
                     {getEquipmentQuantityNumber(item) > 1 ? (

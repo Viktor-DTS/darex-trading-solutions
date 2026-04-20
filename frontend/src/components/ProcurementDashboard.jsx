@@ -127,6 +127,25 @@ function maxRemainderAfterWarehouse(m) {
   return Math.max(0, init - evSum);
 }
 
+function parseNonNegMaterialQty(v) {
+  if (v === '' || v == null) return 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
+
+/** У режимі «основний + аналог»: сума не більше maxCap. Спочатку зменшуємо аналог, потім основний. */
+function clampMainAnalogSumToCap(main, analog, maxCap) {
+  if (maxCap == null || !Number.isFinite(maxCap)) return { main, analog };
+  let m = Math.max(0, main);
+  let a = Math.max(0, analog);
+  if (m + a <= maxCap) return { main: m, analog: a };
+  a = Math.max(0, maxCap - m);
+  if (m + a > maxCap) {
+    m = Math.max(0, maxCap - a);
+  }
+  return { main: m, analog: a };
+}
+
 const RECEIPT_OUTCOME_LABELS = {
   pending: 'Очікує прийому на складі',
   full: 'Повністю прийнято завскладом',
@@ -1239,28 +1258,47 @@ function ProcurementDashboard({ user }) {
                                             : String(m.quantity)
                                         }
                                         onChange={(e) => {
-                                          let v = e.target.value;
-                                          if (
-                                            maxRemainCap != null &&
-                                            !m.rejected &&
-                                            v !== '' &&
-                                            !Number.isNaN(Number(v))
-                                          ) {
-                                            let n = Number(v);
-                                            if (n < 0) n = 0;
-                                            const analogNum =
-                                              draftAnalog &&
-                                              m.analogQuantity !== '' &&
-                                              m.analogQuantity != null &&
-                                              !Number.isNaN(Number(m.analogQuantity))
-                                                ? Math.max(0, Number(m.analogQuantity))
-                                                : 0;
-                                            if (n + analogNum > maxRemainCap) {
-                                              n = Math.max(0, maxRemainCap - analogNum);
-                                            }
-                                            v = String(n);
+                                          const v = e.target.value;
+                                          if (maxRemainCap == null || m.rejected) {
+                                            updateMaterialDraftRow(i, { quantity: v });
+                                            return;
                                           }
-                                          updateMaterialDraftRow(i, { quantity: v === '' ? '' : v });
+                                          if (v === '') {
+                                            if (draftAnalog) {
+                                              const pair = clampMainAnalogSumToCap(
+                                                0,
+                                                parseNonNegMaterialQty(m.analogQuantity),
+                                                maxRemainCap
+                                              );
+                                              updateMaterialDraftRow(i, {
+                                                quantity: '',
+                                                analogQuantity: String(pair.analog)
+                                              });
+                                            } else {
+                                              updateMaterialDraftRow(i, { quantity: '' });
+                                            }
+                                            return;
+                                          }
+                                          if (Number.isNaN(Number(v))) {
+                                            updateMaterialDraftRow(i, { quantity: v });
+                                            return;
+                                          }
+                                          let n = Number(v);
+                                          if (n < 0) n = 0;
+                                          if (draftAnalog) {
+                                            const pair = clampMainAnalogSumToCap(
+                                              n,
+                                              parseNonNegMaterialQty(m.analogQuantity),
+                                              maxRemainCap
+                                            );
+                                            updateMaterialDraftRow(i, {
+                                              quantity: String(pair.main),
+                                              analogQuantity: String(pair.analog)
+                                            });
+                                          } else {
+                                            if (n > maxRemainCap) n = maxRemainCap;
+                                            updateMaterialDraftRow(i, { quantity: String(n) });
+                                          }
                                         }}
                                         disabled={m.rejected}
                                         title="Кількість основного товару до відвантаження; разом з аналогом — не більше залишку"
@@ -1273,9 +1311,30 @@ function ProcurementDashboard({ user }) {
                                       type="text"
                                       className="procurement-exec-input"
                                       value={m.analogName}
-                                      onChange={(e) =>
-                                        updateMaterialDraftRow(i, { analogName: e.target.value })
-                                      }
+                                      onChange={(e) => {
+                                        const name = e.target.value;
+                                        const willDraft =
+                                          !!m.analogShipped &&
+                                          String(name || '').trim().length > 0;
+                                        if (
+                                          willDraft &&
+                                          maxRemainCap != null &&
+                                          !m.rejected
+                                        ) {
+                                          const pair = clampMainAnalogSumToCap(
+                                            parseNonNegMaterialQty(m.quantity),
+                                            parseNonNegMaterialQty(m.analogQuantity),
+                                            maxRemainCap
+                                          );
+                                          updateMaterialDraftRow(i, {
+                                            analogName: name,
+                                            quantity: String(pair.main),
+                                            analogQuantity: String(pair.analog)
+                                          });
+                                        } else {
+                                          updateMaterialDraftRow(i, { analogName: name });
+                                        }
+                                      }}
                                       placeholder="Аналог"
                                       disabled={m.rejected}
                                     />
@@ -1287,39 +1346,48 @@ function ProcurementDashboard({ user }) {
                                       className="procurement-exec-input procurement-exec-input--narrow"
                                       value={m.analogQuantity}
                                       onChange={(e) => {
-                                        let v = e.target.value;
-                                        if (
-                                          maxRemainCap != null &&
-                                          !m.rejected &&
-                                          draftAnalog &&
-                                          v !== '' &&
-                                          !Number.isNaN(Number(v))
-                                        ) {
+                                        const v = e.target.value;
+                                        if (maxRemainCap == null || m.rejected) {
+                                          updateMaterialDraftRow(i, { analogQuantity: v });
+                                          return;
+                                        }
+                                        if (draftAnalog) {
+                                          if (v === '') {
+                                            const main = Math.min(
+                                              parseNonNegMaterialQty(m.quantity),
+                                              maxRemainCap
+                                            );
+                                            updateMaterialDraftRow(i, {
+                                              analogQuantity: '',
+                                              quantity: String(main)
+                                            });
+                                            return;
+                                          }
+                                          if (Number.isNaN(Number(v))) {
+                                            updateMaterialDraftRow(i, { analogQuantity: v });
+                                            return;
+                                          }
                                           let n = Number(v);
                                           if (n < 0) n = 0;
-                                          const mainNum =
-                                            m.quantity !== '' &&
-                                            m.quantity != null &&
-                                            !Number.isNaN(Number(m.quantity))
-                                              ? Math.max(0, Number(m.quantity))
-                                              : 0;
-                                          if (mainNum + n > maxRemainCap) {
-                                            n = Math.max(0, maxRemainCap - mainNum);
-                                          }
-                                          v = String(n);
-                                        } else if (
-                                          maxRemainCap != null &&
-                                          !m.rejected &&
-                                          !draftAnalog &&
-                                          v !== '' &&
-                                          !Number.isNaN(Number(v))
-                                        ) {
+                                          const pair = clampMainAnalogSumToCap(
+                                            parseNonNegMaterialQty(m.quantity),
+                                            n,
+                                            maxRemainCap
+                                          );
+                                          updateMaterialDraftRow(i, {
+                                            quantity: String(pair.main),
+                                            analogQuantity: String(pair.analog)
+                                          });
+                                          return;
+                                        }
+                                        if (v !== '' && !Number.isNaN(Number(v))) {
                                           let n = Number(v);
                                           if (n > maxRemainCap) n = maxRemainCap;
                                           if (n < 0) n = 0;
-                                          v = String(n);
+                                          updateMaterialDraftRow(i, { analogQuantity: String(n) });
+                                        } else {
+                                          updateMaterialDraftRow(i, { analogQuantity: v });
                                         }
-                                        updateMaterialDraftRow(i, { analogQuantity: v });
                                       }}
                                       placeholder="0"
                                       disabled={m.rejected}
@@ -1329,9 +1397,31 @@ function ProcurementDashboard({ user }) {
                                     <input
                                       type="checkbox"
                                       checked={!!m.analogShipped}
-                                      onChange={(e) =>
-                                        updateMaterialDraftRow(i, { analogShipped: e.target.checked })
-                                      }
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        if (!checked) {
+                                          updateMaterialDraftRow(i, { analogShipped: false });
+                                          return;
+                                        }
+                                        if (
+                                          maxRemainCap == null ||
+                                          m.rejected ||
+                                          !String(m.analogName || '').trim().length
+                                        ) {
+                                          updateMaterialDraftRow(i, { analogShipped: true });
+                                          return;
+                                        }
+                                        const pair = clampMainAnalogSumToCap(
+                                          parseNonNegMaterialQty(m.quantity),
+                                          parseNonNegMaterialQty(m.analogQuantity),
+                                          maxRemainCap
+                                        );
+                                        updateMaterialDraftRow(i, {
+                                          analogShipped: true,
+                                          quantity: String(pair.main),
+                                          analogQuantity: String(pair.analog)
+                                        });
+                                      }}
                                       disabled={m.rejected}
                                       title="Відвантажити аналог"
                                     />
