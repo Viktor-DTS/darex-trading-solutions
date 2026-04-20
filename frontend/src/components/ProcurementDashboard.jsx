@@ -956,7 +956,23 @@ function ProcurementDashboard({ user }) {
                         </button>
                       </div>
                     ) : (
-                      <table className="procurement-mini-table procurement-mini-table--wide">
+                      <>
+                        {detail.status === 'in_progress' && !canActAsExecutorOnRequest(detail) ? (
+                          <p className="procurement-field-hint procurement-materials-readonly-hint">
+                            Редагування аналогів і відхилень доступне лише <strong>виконавцю</strong>, який натиснув «Взяти в
+                            роботу» (або адміністратору).
+                          </p>
+                        ) : null}
+                        {detail.status !== 'in_progress' ? (
+                          <p className="procurement-field-hint procurement-materials-readonly-hint">
+                            <strong>Як змінити матеріал на аналог:</strong> це робить виконавець (VidZakupok), коли заявка
+                            у статусі <strong>«Взята в роботу»</strong> — у колонках «Аналог», «К-сть аналогу», за
+                            потреби «Відвант. аналог», потім «Зберегти зміни по матеріалах» і «Підтвердити
+                            відвантаження». Після переходу в «Чекає відвантаження на склад» або «Повністю виконана»
+                            таблиця стає лише для перегляду.
+                          </p>
+                        ) : null}
+                        <table className="procurement-mini-table procurement-mini-table--wide">
                         <thead>
                           <tr>
                             <th>Найменування</th>
@@ -984,6 +1000,7 @@ function ProcurementDashboard({ user }) {
                           ))}
                         </tbody>
                       </table>
+                      </>
                     )}
                   </div>
                 </div>

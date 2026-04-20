@@ -244,8 +244,22 @@
   max-width: 720px;
 }
 
+/* Деталі заявки: широке вікно + прокрутка вмісту (матеріали, примітки, кнопки) */
 .procurement-modal--wide.procurement-modal--detail-wide {
-  max-width: min(960px, 96vw);
+  max-width: min(1320px, 98vw);
+  width: 100%;
+  max-height: min(94vh, calc(100dvh - 24px));
+  display: flex;
+  flex-direction: column;
+}
+
+.procurement-modal--wide.procurement-modal--detail-wide .procurement-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 28px;
 }
 
 .procurement-modal--xlarge {
@@ -519,6 +533,12 @@
 .procurement-detail-notes {
   white-space: pre-wrap;
   line-height: 1.45;
+  max-height: min(320px, 40vh);
+  overflow-y: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
 }
 
 .procurement-file-link--executor {
@@ -571,6 +591,9 @@
   overflow-x: auto;
   margin-bottom: 12px;
   max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+  border: 1px solid var(--border);
 }
 
 .procurement-exec-materials-table {
@@ -633,6 +656,12 @@
 
 .procurement-executor-materials-editor {
   width: 100%;
+}
+
+.procurement-materials-readonly-hint {
+  margin: 0 0 12px;
+  line-height: 1.5;
+  max-width: 100%;
 }
 
 @media (max-width: 720px) {
