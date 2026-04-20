@@ -1653,6 +1653,168 @@ function applyRemainingQuantitiesAfterPartialWarehouseReceipt(pr) {
   pr.markModified('materials');
 }
 
+async function resolveWarehouseDocumentByName(whName) {
+  const name = String(whName || '').trim();
+  if (!name) return null;
+  const esc = escapeRegExpForRegion(name);
+  return (
+    (await Warehouse.findOne({ isActive: true, name: name }).lean()) ||
+    (await Warehouse.findOne({ isActive: true, name: new RegExp(`^${esc}$`, 'i') }).lean()) ||
+    null
+  );
+}
+
+/**
+ * Нарахування залишків на складі (Equipment, партії без серійника) після прийому заявки закупівель.
+ * Логіка злиття узгоджена з POST /api/equipment/scan (batch).
+ */
+async function applyProcurementLinesToWarehouseStock(warehouseDoc, lines, ctx) {
+  if (!warehouseDoc || !lines || !lines.length) return;
+  const {
+    actingUserId,
+    actingUserName,
+    actingUserLogin,
+    procurementRequestId,
+    requestNumber
+  } = ctx || {};
+  const warehouseId = String(warehouseDoc._id);
+  const warehouseName = String(warehouseDoc.name || '').trim();
+  const region = String(warehouseDoc.region || '').trim();
+  const rn = requestNumber ? String(requestNumber).trim() : '';
+
+  for (const line of lines) {
+    const qtyRaw = Number(line.qty);
+    if (!Number.isFinite(qtyRaw) || qtyRaw <= 0) continue;
+
+    let card = null;
+    let productOid = null;
+    const pid = line.productId;
+    if (pid != null && mongoose.isValidObjectId(String(pid))) {
+      card = await ProductCard.findById(pid).lean();
+      if (card && card.isActive) {
+        productOid = card._id;
+      } else {
+        card = null;
+        productOid = null;
+      }
+    }
+
+    const typeLabel = String(line.typeLabel || '').trim() || 'Без назви';
+    const equipmentType = card ? String(card.type || '').trim() || typeLabel : typeLabel;
+    const manufacturerValue =
+      card && String(card.manufacturer || '').trim() ? String(card.manufacturer).trim() : '';
+
+    const quantity = qtyRaw;
+
+    const searchQuery = {
+      currentWarehouse: warehouseId,
+      region: region,
+      status: { $ne: 'deleted' },
+      $and: [
+        {
+          $or: [
+            { serialNumber: null },
+            { serialNumber: { $exists: false } },
+            { serialNumber: '' }
+          ]
+        }
+      ]
+    };
+
+    const mergeByProductCard = productOid != null;
+    if (mergeByProductCard) {
+      searchQuery.productId = productOid;
+    } else {
+      searchQuery.type = equipmentType;
+      if (manufacturerValue) {
+        searchQuery.manufacturer = manufacturerValue;
+      } else {
+        searchQuery.$and.push({
+          $or: [
+            { manufacturer: null },
+            { manufacturer: { $exists: false } },
+            { manufacturer: '' }
+          ]
+        });
+      }
+    }
+
+    const existingEquipment = await Equipment.findOne(searchQuery);
+    let updatedEquipment = null;
+    let createdEquipment = null;
+
+    if (existingEquipment) {
+      existingEquipment.quantity = (existingEquipment.quantity || 1) + quantity;
+      existingEquipment.lastModified = new Date();
+      await existingEquipment.save();
+      updatedEquipment = existingEquipment;
+    } else {
+      const mvt = card ? sanitizeProductCardMaterialValueType(card.materialValueType) : '';
+      const itemKind =
+        card && ['equipment', 'parts'].includes(card.itemKind) ? card.itemKind : 'parts';
+      const batchUnit = card ? card.defaultBatchUnit || 'шт.' : 'шт.';
+      const currency = card ? card.defaultCurrency || 'грн.' : 'грн.';
+
+      createdEquipment = await Equipment.create({
+        type: equipmentType,
+        manufacturer: manufacturerValue || undefined,
+        productId: mergeByProductCard ? productOid : null,
+        categoryId: card && card.categoryId ? card.categoryId : null,
+        itemKind,
+        isBatch: false,
+        quantity,
+        batchUnit,
+        currency,
+        materialValueType: mvt || undefined,
+        technicalSpecs: card ? sanitizeProductCardTechnicalSpecs(card.technicalSpecs) : [],
+        status: 'in_stock',
+        addedBy: actingUserId || undefined,
+        addedByName: actingUserName || actingUserLogin || '',
+        currentWarehouse: warehouseId,
+        currentWarehouseName: warehouseName,
+        region: region
+      });
+    }
+
+    const notesBase = rn
+      ? `Надходження з заявки закупівель ${rn} (заявка ${procurementRequestId})`
+      : `Надходження з заявки закупівель (заявка ${procurementRequestId})`;
+
+    try {
+      if (updatedEquipment) {
+        await logInventoryMovement({
+          eventType: 'goods_receipt',
+          performedByLogin: actingUserLogin,
+          performedByName: actingUserName || actingUserLogin,
+          equipmentId: updatedEquipment._id,
+          equipmentType: updatedEquipment.type,
+          serialNumber: updatedEquipment.serialNumber,
+          quantity,
+          fromStatus: updatedEquipment.status || 'in_stock',
+          toStatus: updatedEquipment.status || 'in_stock',
+          destinationWarehouseName: warehouseName,
+          notes: `${notesBase}: +${quantity} од., загалом ${updatedEquipment.quantity}`
+        });
+      } else if (createdEquipment) {
+        await logInventoryMovement({
+          eventType: 'goods_receipt',
+          performedByLogin: actingUserLogin,
+          performedByName: actingUserName || actingUserLogin,
+          equipmentId: createdEquipment._id,
+          equipmentType: createdEquipment.type,
+          serialNumber: createdEquipment.serialNumber,
+          quantity,
+          toStatus: createdEquipment.status || 'in_stock',
+          destinationWarehouseName: warehouseName,
+          notes: `${notesBase}: +${quantity} од.`
+        });
+      }
+    } catch (journalErr) {
+      console.error('[procurement] logInventoryMovement warehouse stock:', journalErr.message);
+    }
+  }
+}
+
 /** Нова заявка — для виконавців VidZakupok та адміністраторів (як у isVidZakupokProcurementRole), без дубля заявнику */
 async function notifyVidZakupokNewProcurementRequest(pr) {
   try {
@@ -3141,6 +3303,38 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
       }
     }
 
+    const warehouseNameSnapshot = String(pr.actualWarehouse || '').trim();
+    const stockReceiptLines = [];
+    for (let i = 0; i < n; i++) {
+      const line = pr.materials[i];
+      const exp = expectedQtyForProcurementMaterialLine(line);
+      if (line.rejected || exp === null) continue;
+      const rq = line.receivedQuantity;
+      const r = rq === undefined || rq === null || rq === '' ? 0 : Number(rq);
+      const qty = Number.isFinite(r) ? Math.max(0, r) : 0;
+      if (qty <= 0) continue;
+      const typeLabel =
+        line.analogShipped && String(line.analogName || '').trim()
+          ? String(line.analogName).trim()
+          : String(line.name || '').trim();
+      stockReceiptLines.push({
+        qty,
+        productId: line.productId,
+        typeLabel: typeLabel || 'Без назви'
+      });
+    }
+
+    let whDocForStock = null;
+    if (stockReceiptLines.length) {
+      whDocForStock = await resolveWarehouseDocumentByName(warehouseNameSnapshot);
+      if (!whDocForStock) {
+        return res.status(400).json({
+          error:
+            'Склад не знайдено у довіднику. Перевірте фактичний склад у заявці або зверніться до адміністратора.'
+        });
+      }
+    }
+
     pr.warehouseReceivedAt = new Date();
     pr.warehouseConfirmerLogin = req.user.login;
     pr.warehouseConfirmerName = String(dbUser?.name || req.user.name || req.user.login).trim();
@@ -3152,6 +3346,22 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
     }
     await pr.save();
 
+    let warehouseStockError = null;
+    if (stockReceiptLines.length && whDocForStock) {
+      try {
+        await applyProcurementLinesToWarehouseStock(whDocForStock, stockReceiptLines, {
+          actingUserId: dbUser?._id?.toString(),
+          actingUserName: String(dbUser?.name || req.user.name || req.user.login).trim(),
+          actingUserLogin: req.user.login,
+          procurementRequestId: pr._id,
+          requestNumber: pr.requestNumber
+        });
+      } catch (stockErr) {
+        console.error('[procurement] warehouse-receipt stock:', stockErr);
+        warehouseStockError = stockErr.message || String(stockErr);
+      }
+    }
+
     if (partial) {
       await notifyProcurementExecutorReceiptPartial(pr);
     } else {
@@ -3160,7 +3370,11 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
 
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
     logPerformance('POST /api/procurement-requests/warehouse-receipt', startTime);
-    res.json(out);
+    if (warehouseStockError) {
+      res.json({ ...out, warehouseStockError });
+    } else {
+      res.json(out);
+    }
   } catch (error) {
     logPerformance('POST /api/procurement-requests/warehouse-receipt', startTime);
     console.error('[ERROR] warehouse-receipt:', error);
@@ -3201,16 +3415,68 @@ app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => 
       }
       line.receivedQuantity = exp;
     }
+
+    const warehouseNameSnapshot = String(pr.actualWarehouse || '').trim();
+    const stockReceiptLines = [];
+    for (let i = 0; i < pr.materials.length; i++) {
+      const line = pr.materials[i];
+      const exp = expectedQtyForProcurementMaterialLine(line);
+      if (line.rejected || exp === null) continue;
+      const qty = Number(line.receivedQuantity);
+      if (!Number.isFinite(qty) || qty <= 0) continue;
+      const typeLabel =
+        line.analogShipped && String(line.analogName || '').trim()
+          ? String(line.analogName).trim()
+          : String(line.name || '').trim();
+      stockReceiptLines.push({
+        qty,
+        productId: line.productId,
+        typeLabel: typeLabel || 'Без назви'
+      });
+    }
+
+    let whDocForStock = null;
+    if (stockReceiptLines.length) {
+      whDocForStock = await resolveWarehouseDocumentByName(warehouseNameSnapshot);
+      if (!whDocForStock) {
+        return res.status(400).json({
+          error:
+            'Склад не знайдено у довіднику. Перевірте фактичний склад у заявці або зверніться до адміністратора.'
+        });
+      }
+    }
+
     pr.receiptOutcome = 'full';
     pr.warehouseReceivedAt = new Date();
     pr.warehouseConfirmerLogin = req.user.login;
     pr.warehouseConfirmerName = String(dbUser?.name || req.user.name || req.user.login).trim();
     pr.status = 'completed';
     await pr.save();
+
+    let warehouseStockError = null;
+    if (stockReceiptLines.length && whDocForStock) {
+      try {
+        await applyProcurementLinesToWarehouseStock(whDocForStock, stockReceiptLines, {
+          actingUserId: dbUser?._id?.toString(),
+          actingUserName: String(dbUser?.name || req.user.name || req.user.login).trim(),
+          actingUserLogin: req.user.login,
+          procurementRequestId: pr._id,
+          requestNumber: pr.requestNumber
+        });
+      } catch (stockErr) {
+        console.error('[procurement] warehouse-confirm stock:', stockErr);
+        warehouseStockError = stockErr.message || String(stockErr);
+      }
+    }
+
     await notifyProcurementRequesterCompleted(pr);
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
     logPerformance('POST /api/procurement-requests/warehouse-confirm', startTime);
-    res.json(out);
+    if (warehouseStockError) {
+      res.json({ ...out, warehouseStockError });
+    } else {
+      res.json(out);
+    }
   } catch (error) {
     logPerformance('POST /api/procurement-requests/warehouse-confirm', startTime);
     console.error('[ERROR] warehouse-confirm:', error);
