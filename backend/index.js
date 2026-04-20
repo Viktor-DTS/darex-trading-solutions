@@ -1303,12 +1303,16 @@ warehouseSchema.index({ name: 1 }, { unique: true });
 const Warehouse = mongoose.model('Warehouse', warehouseSchema);
 
 // Заявки відділу закупівель (вкладення PDF/Word/Excel у MongoDB як Buffer)
+const PROCUREMENT_EXECUTOR_DOC_KINDS = ['invoice', 'delivery_note', 'other'];
+
 const procurementAttachmentSchema = new mongoose.Schema(
   {
     originalName: { type: String, required: true },
     mimeType: { type: String, default: '' },
     size: { type: Number, default: 0 },
-    data: { type: Buffer, required: true }
+    data: { type: Buffer, required: true },
+    /** Для файлів виконавця: рахунок / видаткова накладна */
+    docKind: { type: String, enum: PROCUREMENT_EXECUTOR_DOC_KINDS }
   },
   { _id: true }
 );
@@ -1316,15 +1320,19 @@ const procurementAttachmentSchema = new mongoose.Schema(
 const PROCUREMENT_PAYER_COMPANIES = ['dts', 'dareks_energo'];
 const PROCUREMENT_APPLICATION_KINDS = ['purchase', 'price_determination'];
 
-const procurementMaterialLineSchema = new mongoose.Schema(
-  {
-    name: { type: String, trim: true, default: '' },
-    quantity: { type: Number, default: null },
-    price: { type: Number, default: null },
-    productId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductCard', default: null }
-  },
-  { _id: false }
-);
+const procurementMaterialLineSchema = new mongoose.Schema({
+  name: { type: String, trim: true, default: '' },
+  quantity: { type: Number, default: null },
+  price: { type: Number, default: null },
+  productId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductCard', default: null },
+  /** Поля виконавця: аналог замість позиції заявника */
+  analogName: { type: String, trim: true, default: '' },
+  analogQuantity: { type: Number, default: null },
+  analogShipped: { type: Boolean, default: false },
+  rejected: { type: Boolean, default: false },
+  /** Обовʼязково, якщо rejected === true */
+  rejectionReason: { type: String, trim: true, default: '' }
+});
 
 const procurementRequestSchema = new mongoose.Schema(
   {
@@ -1360,7 +1368,7 @@ const procurementRequestSchema = new mongoose.Schema(
     warehouseConfirmerLogin: { type: String, default: '' },
     warehouseConfirmerName: { type: String, default: '' },
     attachments: [procurementAttachmentSchema],
-    /** Файли виконавця (наприклад відредагований кошторис) — для типу «Визначення ціни» */
+    /** Файли виконавця: рахунки, видаткові накладні, кошториси тощо */
     executorAttachments: [procurementAttachmentSchema],
     materials: { type: [procurementMaterialLineSchema], default: [] },
     notes: { type: String, default: '' }
@@ -2267,6 +2275,24 @@ app.post('/api/files/upload-contract', authenticateToken, uploadContract.single(
 
 const PROCUREMENT_DOC_LIST_PROJECTION = '-attachments.data -executorAttachments.data';
 
+function canUploadProcurementExecutorFiles(reqUser, pr) {
+  const r = String(reqUser.role || '').toLowerCase();
+  if (['admin', 'administrator'].includes(r)) return true;
+  if (!isVidZakupokProcurementRole(r)) return false;
+  return String(pr.executorLogin || '') === String(reqUser.login || '');
+}
+
+function validateProcurementMaterialsRejectionReasons(materials) {
+  if (!materials || !materials.length) return null;
+  for (let i = 0; i < materials.length; i++) {
+    const m = materials[i];
+    if (m.rejected && !String(m.rejectionReason || '').trim()) {
+      return `Позиція ${i + 1}: для відхиленого матеріалу обовʼязково вкажіть причину`;
+    }
+  }
+  return null;
+}
+
 function escapeRegExpForProcurementHint(s) {
   return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -2495,6 +2521,63 @@ app.post('/api/procurement-requests/:id/take-in-work', async (req, res) => {
   }
 });
 
+app.patch('/api/procurement-requests/:id/executor-materials', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!isVidZakupokProcurementRole(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (pr.status !== 'in_progress') {
+      return res.status(400).json({
+        error: 'Редагування матеріалів доступне лише після взяття заявки в роботу'
+      });
+    }
+    if (!canUploadProcurementExecutorFiles(req.user, pr)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const incoming = req.body.materials;
+    if (!Array.isArray(incoming)) {
+      return res.status(400).json({ error: 'Очікується масив materials' });
+    }
+    const n = pr.materials.length;
+    if (incoming.length !== n) {
+      return res.status(400).json({ error: 'Кількість рядків матеріалів не збігається з заявкою' });
+    }
+    for (let i = 0; i < n; i++) {
+      const inc = incoming[i] || {};
+      const line = pr.materials[i];
+      line.analogName = String(inc.analogName || '').trim();
+      const aq = inc.analogQuantity;
+      line.analogQuantity =
+        aq === '' || aq === undefined || aq === null ? null : Number(aq);
+      if (line.analogQuantity !== null && !Number.isFinite(line.analogQuantity)) {
+        return res.status(400).json({ error: `Позиція ${i + 1}: некоректна кількість аналогу` });
+      }
+      line.analogShipped = Boolean(inc.analogShipped);
+      line.rejected = Boolean(inc.rejected);
+      line.rejectionReason = String(inc.rejectionReason || '').trim();
+      if (line.rejected && !line.rejectionReason) {
+        return res.status(400).json({
+          error: `Позиція ${i + 1}: для відхиленого матеріалу обовʼязково вкажіть причину`
+        });
+      }
+      if (!line.rejected) {
+        line.rejectionReason = '';
+      }
+    }
+    await pr.save();
+    const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    logPerformance('PATCH /api/procurement-requests/executor-materials', startTime);
+    res.json(out);
+  } catch (error) {
+    logPerformance('PATCH /api/procurement-requests/executor-materials', startTime);
+    console.error('[ERROR] executor-materials:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) => {
   const startTime = Date.now();
   try {
@@ -2511,6 +2594,10 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
       return res.status(400).json({
         error: 'Фактичний склад можна вказати лише для заявки «Взята в роботу»'
       });
+    }
+    const matErr = validateProcurementMaterialsRejectionReasons(pr.materials);
+    if (matErr) {
+      return res.status(400).json({ error: matErr });
     }
     const dbUser = await User.findOne({ login: req.user.login }).lean();
     pr.actualWarehouse = actualWarehouse;
@@ -2558,13 +2645,6 @@ app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => 
   }
 });
 
-function canUploadProcurementExecutorFiles(reqUser, pr) {
-  const r = String(reqUser.role || '').toLowerCase();
-  if (['admin', 'administrator'].includes(r)) return true;
-  if (!isVidZakupokProcurementRole(r)) return false;
-  return String(pr.executorLogin || '') === String(reqUser.login || '');
-}
-
 app.post(
   '/api/procurement-requests/:id/executor-attachments',
   procurementUploadMiddleware,
@@ -2573,11 +2653,6 @@ app.post(
     try {
       const pr = await ProcurementRequest.findById(req.params.id);
       if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
-      if (pr.applicationKind !== 'price_determination') {
-        return res.status(400).json({
-          error: 'Файли виконавця дозволені лише для заявок типу «Визначення ціни»'
-        });
-      }
       if (pr.status !== 'in_progress') {
         return res.status(400).json({
           error: 'Завантаження файлів виконавця доступне після взяття заявки в роботу'
@@ -2590,12 +2665,15 @@ app.post(
       if (!files.length) {
         return res.status(400).json({ error: 'Оберіть файли' });
       }
+      const docKindRaw = String(req.body.docKind || 'other').trim();
+      const docKind = PROCUREMENT_EXECUTOR_DOC_KINDS.includes(docKindRaw) ? docKindRaw : 'other';
       for (const f of files) {
         pr.executorAttachments.push({
           originalName: f.originalname,
           mimeType: f.mimetype || '',
           size: f.size || 0,
-          data: f.buffer
+          data: f.buffer,
+          docKind
         });
       }
       await pr.save();

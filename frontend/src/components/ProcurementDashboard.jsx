@@ -3,6 +3,16 @@ import API_BASE_URL from '../config';
 import { tryHandleUnauthorizedResponse } from '../utils/authSession';
 import './ProcurementDashboard.css';
 
+const EXECUTOR_DOC_KIND_OPTIONS = [
+  { value: 'invoice', label: 'Рахунок' },
+  { value: 'delivery_note', label: 'Видаткова накладна' },
+  { value: 'other', label: 'Інше' }
+];
+
+function executorAttachmentDocLabel(k) {
+  return EXECUTOR_DOC_KIND_OPTIONS.find((o) => o.value === k)?.label || '';
+}
+
 const PRIORITY_OPTIONS = [
   { value: '1_workday', label: 'На протязі 1 робочого дня' },
   { value: '5_workdays', label: 'На протязі 5 робочих днів' },
@@ -83,6 +93,8 @@ function ProcurementDashboard({ user }) {
   });
 
   const [executorWarehouse, setExecutorWarehouse] = useState('');
+  const [materialsDraft, setMaterialsDraft] = useState(null);
+  const [executorUploadDocKind, setExecutorUploadDocKind] = useState('invoice');
   const [nomenclatureHints, setNomenclatureHints] = useState([]);
   const [hintsForRow, setHintsForRow] = useState(null);
   const hintDebounceRef = useRef(null);
@@ -130,6 +142,26 @@ function ProcurementDashboard({ user }) {
     loadRequests();
     loadWarehouses();
   }, [loadRequests, loadWarehouses]);
+
+  useEffect(() => {
+    if (!detail?.materials) {
+      setMaterialsDraft(null);
+      return;
+    }
+    setMaterialsDraft(
+      detail.materials.map((m) => ({
+        name: m.name || '',
+        quantity: m.quantity,
+        price: m.price,
+        productId: m.productId ? String(m.productId) : '',
+        analogName: m.analogName || '',
+        analogQuantity: m.analogQuantity != null && m.analogQuantity !== '' ? String(m.analogQuantity) : '',
+        analogShipped: !!m.analogShipped,
+        rejected: !!m.rejected,
+        rejectionReason: m.rejectionReason || ''
+      }))
+    );
+  }, [detail?._id, detail?.materials]);
 
   const warehouseOptions = useMemo(() => {
     return warehouses
@@ -291,11 +323,12 @@ function ProcurementDashboard({ user }) {
     }
   };
 
-  const uploadExecutorFiles = async (requestId, fileList) => {
+  const uploadExecutorFiles = async (requestId, fileList, docKind) => {
     if (!fileList || !fileList.length) return;
     setSaving(true);
     try {
       const fd = new FormData();
+      fd.append('docKind', docKind || 'other');
       Array.from(fileList).forEach((f) => fd.append('files', f));
       const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE_URL}/procurement-requests/${requestId}/executor-attachments`, {
@@ -339,11 +372,59 @@ function ProcurementDashboard({ user }) {
     }
   };
 
+  const persistExecutorMaterials = async (requestId) => {
+    if (!materialsDraft || !materialsDraft.length) return true;
+    const payload = materialsDraft.map((m) => ({
+      analogName: m.analogName,
+      analogQuantity: m.analogQuantity === '' ? null : Number(m.analogQuantity),
+      analogShipped: !!m.analogShipped,
+      rejected: !!m.rejected,
+      rejectionReason: String(m.rejectionReason || '').trim()
+    }));
+    for (let i = 0; i < payload.length; i++) {
+      if (payload[i].rejected && !payload[i].rejectionReason) {
+        alert(`Позиція ${i + 1}: для відхиленого матеріалу обовʼязково вкажіть причину`);
+        return false;
+      }
+      if (
+        payload[i].analogQuantity !== null &&
+        !Number.isFinite(payload[i].analogQuantity)
+      ) {
+        alert(`Позиція ${i + 1}: некоректна кількість аналогу`);
+        return false;
+      }
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/procurement-requests/${requestId}/executor-materials`, {
+        method: 'PATCH',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ materials: payload })
+      });
+      if (tryHandleUnauthorizedResponse(res)) return false;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Не вдалося зберегти матеріали');
+        return false;
+      }
+      const updated = await res.json();
+      setDetail(updated);
+      await loadRequests();
+      return true;
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const completeExecutor = async (id) => {
     const aw = String(executorWarehouse || '').trim();
     if (!aw) {
       alert('Оберіть або вкажіть фактичний склад відвантаження');
       return;
+    }
+    if (canActAsExecutorOnRequest(detail) && materialsDraft && (detail.materials || []).length > 0) {
+      const saved = await persistExecutorMaterials(id);
+      if (!saved) return;
     }
     setSaving(true);
     try {
@@ -394,11 +475,21 @@ function ProcurementDashboard({ user }) {
     setExecutorWarehouse(row.actualWarehouse || '');
   };
 
-  const canUploadExecutorFiles = (d) => {
-    if (!d || d.applicationKind !== 'price_determination' || d.status !== 'in_progress') return false;
+  /** Виконавець (або адмін) під час статусу «Взята в роботу» */
+  const canActAsExecutorOnRequest = (d) => {
+    if (!d || d.status !== 'in_progress') return false;
     if (!isVidZakupok) return false;
     if (isAdmin) return true;
     return String(d.executorLogin || '') === String(user?.login || '');
+  };
+
+  const updateMaterialDraftRow = (idx, patch) => {
+    setMaterialsDraft((prev) => {
+      if (!prev) return prev;
+      const next = [...prev];
+      next[idx] = { ...next[idx], ...patch };
+      return next;
+    });
   };
 
   return (
@@ -692,7 +783,7 @@ function ProcurementDashboard({ user }) {
 
       {detail && (
         <div className="procurement-modal-overlay" role="dialog" aria-modal="true">
-          <div className="procurement-modal procurement-modal--wide">
+          <div className="procurement-modal procurement-modal--wide procurement-modal--detail-wide">
             <div className="procurement-modal-header">
               <h2>Заявка на закупівлю</h2>
               <button
@@ -757,27 +848,143 @@ function ProcurementDashboard({ user }) {
               </div>
 
               {(detail.materials || []).length > 0 && (
-                <div className="procurement-detail-materials">
+                <div className="procurement-detail-materials procurement-detail-materials--full">
                   <span className="procurement-detail-k">Матеріали</span>
                   <div className="procurement-detail-v">
-                    <table className="procurement-mini-table">
-                      <thead>
-                        <tr>
-                          <th>Найменування</th>
-                          <th>Кількість</th>
-                          <th>Ціна</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {detail.materials.map((m, i) => (
-                          <tr key={i}>
-                            <td>{m.name}</td>
-                            <td>{m.quantity != null && m.quantity !== '' ? m.quantity : '—'}</td>
-                            <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
+                    {canActAsExecutorOnRequest(detail) && materialsDraft ? (
+                      <div className="procurement-executor-materials-editor">
+                        <p className="procurement-field-hint">
+                          Можна вказати аналог і кількість, позначити відвантаження аналогу, відхилити позицію з
+                          обовʼязковою причиною.
+                        </p>
+                        <div className="procurement-exec-table-wrap">
+                          <table className="procurement-exec-materials-table">
+                            <thead>
+                              <tr>
+                                <th>Заявник: найменування</th>
+                                <th>К-сть</th>
+                                <th>Ціна</th>
+                                <th>Аналог</th>
+                                <th>К-сть аналогу</th>
+                                <th>Відвант. аналог</th>
+                                <th>Відхилити</th>
+                                <th>Причина відхилення</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {materialsDraft.map((m, i) => (
+                                <tr key={i} className={m.rejected ? 'procurement-row-rejected' : ''}>
+                                  <td>{m.name}</td>
+                                  <td>{m.quantity != null && m.quantity !== '' ? m.quantity : '—'}</td>
+                                  <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
+                                  <td>
+                                    <input
+                                      type="text"
+                                      className="procurement-exec-input"
+                                      value={m.analogName}
+                                      onChange={(e) =>
+                                        updateMaterialDraftRow(i, { analogName: e.target.value })
+                                      }
+                                      placeholder="Аналог"
+                                      disabled={m.rejected}
+                                    />
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="text"
+                                      inputMode="decimal"
+                                      className="procurement-exec-input procurement-exec-input--narrow"
+                                      value={m.analogQuantity}
+                                      onChange={(e) =>
+                                        updateMaterialDraftRow(i, { analogQuantity: e.target.value })
+                                      }
+                                      placeholder="0"
+                                      disabled={m.rejected}
+                                    />
+                                  </td>
+                                  <td className="procurement-td-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={!!m.analogShipped}
+                                      onChange={(e) =>
+                                        updateMaterialDraftRow(i, { analogShipped: e.target.checked })
+                                      }
+                                      disabled={m.rejected}
+                                      title="Відвантажити аналог"
+                                    />
+                                  </td>
+                                  <td className="procurement-td-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={!!m.rejected}
+                                      onChange={(e) => {
+                                        const rej = e.target.checked;
+                                        updateMaterialDraftRow(i, {
+                                          rejected: rej,
+                                          ...(rej
+                                            ? {}
+                                            : { rejectionReason: '', analogName: m.analogName })
+                                        });
+                                      }}
+                                      title="Відхилити позицію"
+                                    />
+                                  </td>
+                                  <td>
+                                    <textarea
+                                      className="procurement-exec-textarea"
+                                      rows={2}
+                                      value={m.rejectionReason}
+                                      onChange={(e) =>
+                                        updateMaterialDraftRow(i, { rejectionReason: e.target.value })
+                                      }
+                                      placeholder={m.rejected ? 'Обовʼязково: чому відхилено' : ''}
+                                      disabled={!m.rejected}
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <button
+                          type="button"
+                          className="procurement-btn-secondary"
+                          disabled={saving}
+                          onClick={() => persistExecutorMaterials(detail._id)}
+                        >
+                          Зберегти зміни по матеріалах
+                        </button>
+                      </div>
+                    ) : (
+                      <table className="procurement-mini-table procurement-mini-table--wide">
+                        <thead>
+                          <tr>
+                            <th>Найменування</th>
+                            <th>К-сть</th>
+                            <th>Ціна</th>
+                            <th>Аналог</th>
+                            <th>К-сть аналогу</th>
+                            <th>Відвант. аналог</th>
+                            <th>Відхилено</th>
+                            <th>Причина</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {detail.materials.map((m, i) => (
+                            <tr key={i}>
+                              <td>{m.name}</td>
+                              <td>{m.quantity != null && m.quantity !== '' ? m.quantity : '—'}</td>
+                              <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
+                              <td>{m.analogName || '—'}</td>
+                              <td>{m.analogQuantity != null && m.analogQuantity !== '' ? m.analogQuantity : '—'}</td>
+                              <td>{m.analogShipped ? 'Так' : '—'}</td>
+                              <td>{m.rejected ? 'Так' : '—'}</td>
+                              <td>{m.rejectionReason || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 </div>
               )}
@@ -807,9 +1014,9 @@ function ProcurementDashboard({ user }) {
                 </div>
               </div>
 
-              {(detail.applicationKind === 'price_determination' || (detail.executorAttachments || []).length > 0) && (
+              {((detail.executorAttachments || []).length > 0 || canActAsExecutorOnRequest(detail)) && (
                 <div className="procurement-detail-files">
-                  <span className="procurement-detail-k">Файли виконавця (перевірка / кошторис)</span>
+                  <span className="procurement-detail-k">Файли виконавця (рахунки, видаткові накладні)</span>
                   <div className="procurement-detail-v">
                     {(detail.executorAttachments || []).length === 0 && <span>—</span>}
                     {(detail.executorAttachments || []).map((a) => (
@@ -819,6 +1026,7 @@ function ProcurementDashboard({ user }) {
                         className="procurement-file-link procurement-file-link--executor"
                         onClick={() => downloadAttachment(detail._id, a, 'executor')}
                       >
+                        {a.docKind ? `[${executorAttachmentDocLabel(a.docKind)}] ` : ''}
                         {a.originalName}
                         {a.size ? ` (${Math.round(a.size / 1024)} КБ)` : ''}
                       </button>
@@ -827,10 +1035,23 @@ function ProcurementDashboard({ user }) {
                 </div>
               )}
 
-              {canUploadExecutorFiles(detail) && (
+              {canActAsExecutorOnRequest(detail) && (
                 <div className="procurement-executor-upload">
-                  <span className="procurement-detail-k">Завантажити файли виконавця</span>
-                  <div className="procurement-detail-v">
+                  <span className="procurement-detail-k">Додати файли виконавця</span>
+                  <div className="procurement-detail-v procurement-executor-upload-row">
+                    <label className="procurement-exec-doc-kind">
+                      <span>Тип документа</span>
+                      <select
+                        value={executorUploadDocKind}
+                        onChange={(e) => setExecutorUploadDocKind(e.target.value)}
+                      >
+                        {EXECUTOR_DOC_KIND_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <input
                       type="file"
                       multiple
@@ -838,12 +1059,12 @@ function ProcurementDashboard({ user }) {
                       accept=".pdf,.doc,.docx,.xls,.xlsx"
                       onChange={(e) => {
                         const fl = e.target.files;
-                        if (fl && fl.length) uploadExecutorFiles(detail._id, fl);
+                        if (fl && fl.length) uploadExecutorFiles(detail._id, fl, executorUploadDocKind);
                         e.target.value = '';
                       }}
                     />
                     <span className="procurement-field-hint">
-                      Після перевірки кошторису завантажте відредагований файл (до 12 файлів за раз).
+                      Рахунки та видаткові накладні; до 12 файлів за один раз (до 15 МБ кожен).
                     </span>
                   </div>
                 </div>

@@ -244,6 +244,10 @@
   max-width: 720px;
 }
 
+.procurement-modal--wide.procurement-modal--detail-wide {
+  max-width: min(960px, 96vw);
+}
+
 .procurement-modal--xlarge {
   max-width: 720px;
   width: 100%;
@@ -533,6 +537,102 @@
 .procurement-executor-upload input[type='file'] {
   font: inherit;
   font-size: 13px;
+}
+
+.procurement-executor-upload-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.procurement-exec-doc-kind {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.procurement-exec-doc-kind select {
+  font: inherit;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--text);
+  min-width: 220px;
+}
+
+.procurement-detail-materials--full .procurement-detail-k {
+  align-self: start;
+}
+
+.procurement-exec-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 12px;
+  max-width: 100%;
+}
+
+.procurement-exec-materials-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.procurement-exec-materials-table th,
+.procurement-exec-materials-table td {
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  vertical-align: top;
+}
+
+.procurement-exec-materials-table th {
+  background: var(--background);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.procurement-exec-input {
+  width: 100%;
+  min-width: 120px;
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--background);
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+.procurement-exec-input--narrow {
+  min-width: 64px;
+}
+
+.procurement-exec-textarea {
+  width: 100%;
+  min-width: 160px;
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.procurement-td-center {
+  text-align: center;
+}
+
+.procurement-row-rejected {
+  background: rgba(244, 67, 54, 0.08);
+}
+
+.procurement-mini-table--wide {
+  font-size: 12px;
+}
+
+.procurement-executor-materials-editor {
+  width: 100%;
 }
 
 @media (max-width: 720px) {
