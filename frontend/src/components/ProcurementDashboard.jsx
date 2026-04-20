@@ -30,8 +30,13 @@ const STATUS_LABELS = {
   pending_review: 'Очікує розгляду',
   in_progress: 'Взята в роботу',
   awaiting_warehouse: 'Чекає відвантаження на склад',
+  partially_fulfilled: 'Частково виконана',
   completed: 'Повністю виконана'
 };
+
+function isProcurementExecutorWorkStatus(status) {
+  return status === 'in_progress' || status === 'partially_fulfilled';
+}
 
 const PAYER_COMPANY_OPTIONS = [
   { value: 'dts', label: 'ДТС' },
@@ -163,6 +168,15 @@ function ProcurementDashboard({ user }) {
     loadRequests();
     loadWarehouses();
   }, [loadRequests, loadWarehouses]);
+
+  /** Відкриття картки заявки — позначаємо пов’язані сповіщення закупівель прочитаними */
+  useEffect(() => {
+    if (!detail?._id) return;
+    fetch(`${API_BASE_URL}/manager-notifications/read-by-procurement-request/${detail._id}`, {
+      method: 'POST',
+      headers: authHeaders
+    }).catch(() => {});
+  }, [detail?._id, authHeaders]);
 
   useEffect(() => {
     if (!detail?.materials) {
@@ -502,7 +516,7 @@ function ProcurementDashboard({ user }) {
 
   /** Виконавець (або адмін) під час статусу «Взята в роботу» */
   const canActAsExecutorOnRequest = (d) => {
-    if (!d || d.status !== 'in_progress') return false;
+    if (!d || !isProcurementExecutorWorkStatus(d.status)) return false;
     if (!isVidZakupok) return false;
     if (isAdmin) return true;
     return String(d.executorLogin || '') === String(user?.login || '');
@@ -570,7 +584,8 @@ function ProcurementDashboard({ user }) {
               </div>
               <p className="procurement-hint">
                 Статус заявки змінюється автоматично за подіями (розгляд → робота → очікування на складі →
-                виконано). Поле статусу не редагується вручну.
+                виконано; за потреби після часткового прийому завскладом — «частково виконана» і знову робота
+                виконавця з оновленими залишками). Поле статусу не редагується вручну.
               </p>
               {!isVidZakupok && (
                 <p className="procurement-hint">
@@ -1020,19 +1035,19 @@ function ProcurementDashboard({ user }) {
                       </div>
                     ) : (
                       <>
-                        {detail.status === 'in_progress' && !canActAsExecutorOnRequest(detail) ? (
+                        {isProcurementExecutorWorkStatus(detail.status) && !canActAsExecutorOnRequest(detail) ? (
                           <p className="procurement-field-hint procurement-materials-readonly-hint">
                             Редагування аналогів і відхилень доступне лише <strong>виконавцю</strong>, який натиснув «Взяти в
                             роботу» (або адміністратору).
                           </p>
                         ) : null}
-                        {detail.status !== 'in_progress' ? (
+                        {!isProcurementExecutorWorkStatus(detail.status) ? (
                           <p className="procurement-field-hint procurement-materials-readonly-hint">
                             <strong>Як змінити матеріал на аналог:</strong> це робить виконавець (VidZakupok), коли заявка
-                            у статусі <strong>«Взята в роботу»</strong> — у колонках «Аналог», «К-сть аналогу», за
-                            потреби «Відвант. аналог», потім «Зберегти зміни по матеріалах» і «Підтвердити
-                            відвантаження». Після переходу в «Чекає відвантаження на склад» або «Повністю виконана»
-                            таблиця стає лише для перегляду.
+                            у статусі <strong>«Взята в роботу»</strong> або <strong>«Частково виконана»</strong> — у
+                            колонках «Аналог», «К-сть аналогу», за потреби «Відвант. аналог», потім «Зберегти зміни по
+                            матеріалах» і «Підтвердити відвантаження». Після переходу в «Чекає відвантаження на склад»
+                            або «Повністю виконана» таблиця стає лише для перегляду.
                           </p>
                         ) : null}
                         <table className="procurement-mini-table procurement-mini-table--wide">
@@ -1182,7 +1197,7 @@ function ProcurementDashboard({ user }) {
                     Взяти в роботу
                   </button>
                 )}
-                {detail.status === 'in_progress' && isVidZakupok && (
+                {isProcurementExecutorWorkStatus(detail.status) && isVidZakupok && (
                   <div className="procurement-executor-block">
                     <label className="procurement-field procurement-field--inline">
                       <span>Фактичний склад відвантаження *</span>

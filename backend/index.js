@@ -1377,7 +1377,7 @@ const procurementRequestSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending_review', 'in_progress', 'awaiting_warehouse', 'completed'],
+      enum: ['pending_review', 'in_progress', 'awaiting_warehouse', 'partially_fulfilled', 'completed'],
       default: 'pending_review'
     },
     requesterLogin: { type: String, required: true },
@@ -1493,7 +1493,7 @@ async function notifyProcurementExecutorReceiptPartial(pr) {
   try {
     const rn = pr.requestNumber || String(pr._id);
     const body =
-      'Завсклад підтвердив отримання не повністю або з розбіжностями по кількості. Відкрийте заявку у відділі закупівель для перегляду фактично прийнятих позицій.';
+      'Завсклад підтвердив частковий прийом або розбіжності по кількості. Заявка повернута виконавцю з оновленими залишками по позиціях (мінус прийняте на складі). Відкрийте заявку у відділі закупівель.';
     const buyers = await User.find({ dismissed: { $ne: true }, role: 'vidzakupok' })
       .select('login')
       .lean();
@@ -1511,12 +1511,49 @@ async function notifyProcurementExecutorReceiptPartial(pr) {
         title: `Часткове надходження: ${rn}`,
         body,
         read: false,
-        dedupeKey: `proc_partial:${pr._id}:${login}`
+        dedupeKey: `proc_partial:${pr._id}:${login}:${Date.now()}`
       });
     }
   } catch (e) {
     console.error('[procurement] notifyProcurementExecutorReceiptPartial:', e.message);
   }
+}
+
+/**
+ * Після часткового прийому: залишок по позиціях (очікуване мінус прийняте), повернення в роботу виконавцю.
+ * Очікувана кількість береться з полів до зміни quantity/analogQuantity.
+ */
+function applyRemainingQuantitiesAfterPartialWarehouseReceipt(pr) {
+  for (let i = 0; i < pr.materials.length; i++) {
+    const line = pr.materials[i];
+    const exp = expectedQtyForProcurementMaterialLine(line);
+    const recv = line.receivedQuantity;
+    if (line.rejected) {
+      line.receivedQuantity = null;
+      continue;
+    }
+    if (exp === null) {
+      line.receivedQuantity = null;
+      continue;
+    }
+    const received = Number(recv);
+    const r = Number.isFinite(received) ? received : 0;
+    const remaining = Math.max(0, exp - r);
+    if (line.analogShipped && String(line.analogName || '').trim()) {
+      line.analogQuantity = remaining;
+      if (remaining <= 0) {
+        line.analogShipped = false;
+      }
+    } else {
+      line.quantity = remaining > 0 ? remaining : 0;
+    }
+    line.receivedQuantity = null;
+  }
+  pr.status = 'partially_fulfilled';
+  pr.receiptOutcome = 'pending';
+  pr.actualWarehouse = '';
+  pr.executorCompletedAt = null;
+  pr.markModified('materials');
 }
 
 /** Нова заявка — лише для виконавців (роль vidzakupok), без дубля заявнику-виконавцю */
@@ -2476,6 +2513,13 @@ app.post('/api/files/upload-contract', authenticateToken, uploadContract.single(
 
 const PROCUREMENT_DOC_LIST_PROJECTION = '-attachments.data -executorAttachments.data';
 
+/** Редагування матеріалів / відвантаження виконавцем після взяття в роботу або після часткового прийому на складі */
+const PROCUREMENT_EXECUTOR_WORK_STATUSES = ['in_progress', 'partially_fulfilled'];
+
+function procurementExecutorCanEditWork(status) {
+  return PROCUREMENT_EXECUTOR_WORK_STATUSES.includes(status);
+}
+
 function canUploadProcurementExecutorFiles(reqUser, pr) {
   const r = String(reqUser.role || '').toLowerCase();
   if (['admin', 'administrator'].includes(r)) return true;
@@ -2747,9 +2791,9 @@ app.patch('/api/procurement-requests/:id/executor-materials', async (req, res) =
     }
     const pr = await ProcurementRequest.findById(req.params.id);
     if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
-    if (pr.status !== 'in_progress') {
+    if (!procurementExecutorCanEditWork(pr.status)) {
       return res.status(400).json({
-        error: 'Редагування матеріалів доступне лише після взяття заявки в роботу'
+        error: 'Редагування матеріалів доступне для статусів «Взята в роботу» або «Частково виконана»'
       });
     }
     if (!canUploadProcurementExecutorFiles(req.user, pr)) {
@@ -2808,9 +2852,9 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
     }
     const pr = await ProcurementRequest.findById(req.params.id);
     if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
-    if (pr.status !== 'in_progress') {
+    if (!procurementExecutorCanEditWork(pr.status)) {
       return res.status(400).json({
-        error: 'Фактичний склад можна вказати лише для заявки «Взята в роботу»'
+        error: 'Фактичний склад можна вказати для заявки «Взята в роботу» або «Частково виконана»'
       });
     }
     const matErr = validateProcurementMaterialsRejectionReasons(pr.materials);
@@ -2966,17 +3010,22 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
       }
     }
 
-    pr.receiptOutcome = partial ? 'partial' : 'full';
     pr.warehouseReceivedAt = new Date();
     pr.warehouseConfirmerLogin = req.user.login;
     pr.warehouseConfirmerName = String(dbUser?.name || req.user.name || req.user.login).trim();
-    pr.status = 'completed';
+    if (partial) {
+      applyRemainingQuantitiesAfterPartialWarehouseReceipt(pr);
+    } else {
+      pr.receiptOutcome = 'full';
+      pr.status = 'completed';
+    }
     await pr.save();
 
     if (partial) {
       await notifyProcurementExecutorReceiptPartial(pr);
+    } else {
+      await notifyProcurementRequesterCompleted(pr);
     }
-    await notifyProcurementRequesterCompleted(pr);
 
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
     logPerformance('POST /api/procurement-requests/warehouse-receipt', startTime);
@@ -3046,9 +3095,9 @@ app.post(
     try {
       const pr = await ProcurementRequest.findById(req.params.id);
       if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
-      if (pr.status !== 'in_progress') {
+      if (!procurementExecutorCanEditWork(pr.status)) {
         return res.status(400).json({
-          error: 'Завантаження файлів виконавця доступне після взяття заявки в роботу'
+          error: 'Завантаження файлів виконавця доступне для «Взята в роботу» або «Частково виконана»'
         });
       }
       if (!canUploadProcurementExecutorFiles(req.user, pr)) {
@@ -10517,6 +10566,39 @@ app.post('/api/manager-notifications/mark-all-read', authenticateToken, async (r
     res.status(500).json({ error: e.message });
   }
 });
+
+/** Позначити всі сповіщення поточного користувача по заявці закупівель прочитаними (наприклад після відкриття картки). */
+app.post(
+  '/api/manager-notifications/read-by-procurement-request/:procurementRequestId',
+  authenticateToken,
+  async (req, res) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.procurementRequestId)) {
+        return res.status(400).json({ error: 'Некоректний id' });
+      }
+      const pid = new mongoose.Types.ObjectId(req.params.procurementRequestId);
+      const kindFilter = { kind: { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS } };
+      if (isServiceGlobalNotificationsAdmin(req)) {
+        const logins = await getRegionalManagerRecipientLogins();
+        if (logins.length === 0) {
+          return res.json({ ok: true, modifiedCount: 0 });
+        }
+        const result = await ManagerUserNotification.updateMany(
+          { recipientLogin: { $in: logins }, procurementRequestId: pid, read: false, ...kindFilter },
+          { $set: { read: true } }
+        );
+        return res.json({ ok: true, modifiedCount: result.modifiedCount });
+      }
+      const result = await ManagerUserNotification.updateMany(
+        { recipientLogin: req.user.login, procurementRequestId: pid, read: false, ...kindFilter },
+        { $set: { read: true } }
+      );
+      res.json({ ok: true, modifiedCount: result.modifiedCount });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  }
+);
 
 // Подати заявку на тестування
 app.post('/api/equipment/:id/request-testing', authenticateToken, async (req, res) => {

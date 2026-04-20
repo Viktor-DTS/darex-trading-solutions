@@ -170,6 +170,11 @@
   color: #7b1fa2;
 }
 
+.procurement-status--partially_fulfilled {
+  background: rgba(255, 193, 7, 0.22);
+  color: #b45309;
+}
+
 .procurement-status--completed {
   background: rgba(76, 175, 80, 0.2);
   color: #2e7d32;
