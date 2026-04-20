@@ -53,12 +53,41 @@
   text-align: left;
   cursor: pointer;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   color: var(--text);
   font-size: 13px;
   line-height: 1.35;
   transition: background-color 0.2s;
+  position: relative;
+}
+
+.procurement-sidebar-tab--with-badge {
+  padding-right: 36px;
+}
+
+.procurement-sidebar-badge {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #dc3545;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.procurement-sidebar-tab.active .procurement-sidebar-badge {
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--primary);
 }
 
 .procurement-sidebar-tab:hover {

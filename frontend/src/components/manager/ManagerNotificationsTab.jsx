@@ -152,11 +152,6 @@ function ManagerNotificationsTab({
               <div className="manager-notification-meta">
                 <span className="manager-notification-kind-wrap">
                   <span className="manager-notification-kind">{KIND_LABELS[n.kind] || n.kind}</span>
-                  {globalFeed && n.recipientLogin ? (
-                    <span className="manager-notification-recipient" title="Отримувач">
-                      → {n.recipientLogin}
-                    </span>
-                  ) : null}
                 </span>
                 <span className="manager-notification-meta-right">
                   {(() => {

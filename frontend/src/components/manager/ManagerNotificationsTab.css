@@ -115,25 +115,15 @@
 
 .manager-notification-kind-wrap {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
 .manager-notification-kind {
   font-weight: 600;
   color: var(--primary, #6ea8fe);
-}
-
-.manager-notification-recipient {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-secondary, #888);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .manager-notification-title {

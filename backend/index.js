@@ -1489,14 +1489,28 @@ async function notifyWarehouseStaffProcurementIncoming(pr) {
   }
 }
 
+/** Ролі, що отримують сповіщення закупівель (як isVidZakupokProcurementRole); у MongoDB роль часто з іншим регістром. */
+function procurementNotifyRoleQuery() {
+  return {
+    dismissed: { $ne: true },
+    $or: [
+      { role: { $regex: /^vidzakupok$/i } },
+      { role: { $regex: /^administrator$/i } },
+      { role: { $regex: /^admin$/i } }
+    ]
+  };
+}
+
+function normalizeLoginCompare(login) {
+  return String(login || '').trim().toLowerCase();
+}
+
 async function notifyProcurementExecutorReceiptPartial(pr) {
   try {
     const rn = pr.requestNumber || String(pr._id);
     const body =
       'Завсклад підтвердив частковий прийом або розбіжності по кількості. Заявка повернута виконавцю з оновленими залишками по позиціях (мінус прийняте на складі). Відкрийте заявку у відділі закупівель.';
-    const buyers = await User.find({ dismissed: { $ne: true }, role: 'vidzakupok' })
-      .select('login')
-      .lean();
+    const buyers = await User.find(procurementNotifyRoleQuery()).select('login').lean();
     const logins = new Set(
       buyers.map((u) => String(u.login || '').trim()).filter(Boolean)
     );
@@ -1556,18 +1570,16 @@ function applyRemainingQuantitiesAfterPartialWarehouseReceipt(pr) {
   pr.markModified('materials');
 }
 
-/** Нова заявка — лише для виконавців (роль vidzakupok), без дубля заявнику-виконавцю */
+/** Нова заявка — для виконавців VidZakupok та адміністраторів (як у isVidZakupokProcurementRole), без дубля заявнику */
 async function notifyVidZakupokNewProcurementRequest(pr) {
   try {
-    const buyers = await User.find({ dismissed: { $ne: true }, role: 'vidzakupok' })
-      .select('login')
-      .lean();
+    const buyers = await User.find(procurementNotifyRoleQuery()).select('login').lean();
     const rn = pr.requestNumber || String(pr._id);
     const requesterLabel = pr.requesterName || pr.requesterLogin || '—';
-    const reqLogin = String(pr.requesterLogin || '').trim();
+    const reqLoginNorm = normalizeLoginCompare(pr.requesterLogin);
     for (const u of buyers) {
       const login = String(u.login || '').trim();
-      if (!login || login === reqLogin) continue;
+      if (!login || normalizeLoginCompare(login) === reqLoginNorm) continue;
       await createManagerNotificationDeduped({
         recipientLogin: login,
         kind: 'procurement_request_new',
@@ -10525,6 +10537,8 @@ app.get('/api/manager-notifications', authenticateToken, async (req, res) => {
 
 app.get('/api/manager-notifications/unread-count', authenticateToken, async (req, res) => {
   try {
+    const procurementOnly = req.query.procurement === '1' || req.query.procurement === 'true';
+    const kindFilter = procurementOnly ? { kind: { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS } } : {};
     if (isServiceGlobalNotificationsAdmin(req)) {
       const logins = await getRegionalManagerRecipientLogins();
       const count =
@@ -10532,13 +10546,15 @@ app.get('/api/manager-notifications/unread-count', authenticateToken, async (req
           ? 0
           : await ManagerUserNotification.countDocuments({
               recipientLogin: { $in: logins },
-              read: false
+              read: false,
+              ...kindFilter
             });
       return res.json({ count });
     }
     const count = await ManagerUserNotification.countDocuments({
       recipientLogin: req.user.login,
-      read: false
+      read: false,
+      ...kindFilter
     });
     res.json({ count });
   } catch (e) {

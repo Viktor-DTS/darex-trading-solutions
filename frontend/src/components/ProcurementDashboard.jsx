@@ -124,6 +124,7 @@ function ProcurementDashboard({ user }) {
   const [nomenclatureHints, setNomenclatureHints] = useState([]);
   const [hintsForRow, setHintsForRow] = useState(null);
   const hintDebounceRef = useRef(null);
+  const [procurementNotifUnreadCount, setProcurementNotifUnreadCount] = useState(0);
 
   const role = String(user?.role || '').toLowerCase();
   const isVidZakupok = ['vidzakupok', 'admin', 'administrator'].includes(role);
@@ -134,6 +135,21 @@ function ProcurementDashboard({ user }) {
     const token = localStorage.getItem('token');
     return { Authorization: `Bearer ${token}` };
   }, []);
+
+  const fetchProcurementNotifUnreadCount = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/manager-notifications/unread-count?procurement=1`, {
+        headers: authHeaders
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (res.ok) {
+        const data = await res.json();
+        setProcurementNotifUnreadCount(typeof data.count === 'number' ? data.count : 0);
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }, [authHeaders]);
 
   const loadRequests = useCallback(async () => {
     setLoading(true);
@@ -168,6 +184,12 @@ function ProcurementDashboard({ user }) {
     loadRequests();
     loadWarehouses();
   }, [loadRequests, loadWarehouses]);
+
+  useEffect(() => {
+    fetchProcurementNotifUnreadCount();
+    const id = setInterval(fetchProcurementNotifUnreadCount, 60000);
+    return () => clearInterval(id);
+  }, [fetchProcurementNotifUnreadCount]);
 
   useEffect(() => {
     if (!detail?.materials) {
@@ -565,11 +587,24 @@ function ProcurementDashboard({ user }) {
               </button>
               <button
                 type="button"
-                className={`procurement-sidebar-tab ${activeSection === 'notifications' ? 'active' : ''}`}
-                onClick={() => setActiveSection('notifications')}
+                className={`procurement-sidebar-tab ${activeSection === 'notifications' ? 'active' : ''} ${
+                  procurementNotifUnreadCount > 0 ? 'procurement-sidebar-tab--with-badge' : ''
+                }`}
+                onClick={() => {
+                  setActiveSection('notifications');
+                  fetchProcurementNotifUnreadCount();
+                }}
               >
                 <span className="tab-icon">🔔</span>
                 <span className="tab-label">Сповіщення</span>
+                {procurementNotifUnreadCount > 0 ? (
+                  <span
+                    className="procurement-sidebar-badge"
+                    aria-label={`Непрочитано сповіщень закупівель: ${procurementNotifUnreadCount}`}
+                  >
+                    {procurementNotifUnreadCount > 99 ? '99+' : procurementNotifUnreadCount}
+                  </span>
+                ) : null}
               </button>
             </nav>
           </div>
@@ -582,7 +617,8 @@ function ProcurementDashboard({ user }) {
                 procurementOnly
                 title="Сповіщення відділу закупівель"
                 onOpenProcurementRequest={openProcurementRequestById}
-                description="Події по заявках закупівель: нова заявка (лише для виконавців VidZakupok), виконання заявки (персонально заявнику), частковий прийом, надходження на склад. Резерви обладнання та інші сповіщення менеджерів тут не показуються. Натисніть номер заявки (VZ-…), щоб відкрити картку."
+                onUnreadCountChange={fetchProcurementNotifUnreadCount}
+                description="Події по заявках закупівель: нова заявка для виконавців VidZakupok та адміністраторів, виконання заявки (персонально заявнику), частковий прийом, надходження на склад. Резерви обладнання та інші сповіщення менеджерів тут не показуються. Натисніть номер заявки (VZ-…), щоб відкрити картку."
               />
             </div>
           )}
