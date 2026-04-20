@@ -370,7 +370,9 @@ const MANAGER_NOTIFICATION_KINDS = [
   'task_accountant_approved',
   'task_accountant_rejected',
   'task_new',
-  'shipment_request_new'
+  'shipment_request_new',
+  'procurement_incoming_to_warehouse',
+  'procurement_receipt_partial'
 ];
 
 const managerUserNotificationSchema = new mongoose.Schema({
@@ -382,6 +384,7 @@ const managerUserNotificationSchema = new mongoose.Schema({
   },
   equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
   taskId: { type: mongoose.Schema.Types.ObjectId, ref: 'Task' },
+  procurementRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProcurementRequest', default: null },
   requestNumber: { type: String, default: '' },
   title: { type: String, required: true },
   body: { type: String, default: '' },
@@ -1331,11 +1334,21 @@ const procurementMaterialLineSchema = new mongoose.Schema({
   analogShipped: { type: Boolean, default: false },
   rejected: { type: Boolean, default: false },
   /** Обовʼязково, якщо rejected === true */
-  rejectionReason: { type: String, trim: true, default: '' }
+  rejectionReason: { type: String, trim: true, default: '' },
+  /** Фактично прийнята кількість завскладом */
+  receivedQuantity: { type: Number, default: null }
 });
 
 const procurementRequestSchema = new mongoose.Schema(
   {
+    /** Унікальний номер для відображення, напр. VZ-00042 */
+    requestNumber: { type: String, trim: true, sparse: true, unique: true },
+    /** Повне / часткове надходження після завскладу */
+    receiptOutcome: {
+      type: String,
+      enum: ['pending', 'full', 'partial'],
+      default: 'pending'
+    },
     /** @deprecated Раніше — довільний текст; лишається для старих заявок */
     description: { type: String, default: '' },
     /** Закупівля | Визначення ціни */
@@ -1378,7 +1391,123 @@ const procurementRequestSchema = new mongoose.Schema(
 
 procurementRequestSchema.index({ status: 1, createdAt: -1 });
 procurementRequestSchema.index({ requesterLogin: 1 });
+procurementRequestSchema.index({ actualWarehouse: 1, status: 1 });
 const ProcurementRequest = mongoose.model('ProcurementRequest', procurementRequestSchema);
+
+const procurementCounterSchema = new mongoose.Schema({
+  _id: { type: String, required: true },
+  seq: { type: Number, default: 0 }
+});
+const ProcurementCounter = mongoose.model('ProcurementCounter', procurementCounterSchema);
+
+async function getNextProcurementRequestNumber() {
+  const doc = await ProcurementCounter.findOneAndUpdate(
+    { _id: 'vz' },
+    { $inc: { seq: 1 } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  ).lean();
+  const n = doc && typeof doc.seq === 'number' ? doc.seq : 1;
+  return `VZ-${String(n).padStart(5, '0')}`;
+}
+
+function expectedQtyForProcurementMaterialLine(line) {
+  if (!line || line.rejected) return 0;
+  if (line.analogShipped && String(line.analogName || '').trim() && line.analogQuantity != null) {
+    const q = Number(line.analogQuantity);
+    if (Number.isFinite(q)) return q;
+  }
+  if (line.quantity != null) {
+    const q = Number(line.quantity);
+    if (Number.isFinite(q)) return q;
+  }
+  return null;
+}
+
+async function getWarehouseNamesForProcurementReceiptUser(reqUser, dbUser) {
+  const r = String(reqUser.role || '').toLowerCase();
+  if (['admin', 'administrator', 'mgradm'].includes(r)) {
+    const all = await Warehouse.find({ isActive: true }).select('name').lean();
+    return all.map((w) => String(w.name || '').trim()).filter(Boolean);
+  }
+  if (!isRegionalWarehouseStaffRole(reqUser.role)) return [];
+  const allowedIds = await loadActiveWarehouseIdsForUserRegion(dbUser?.region);
+  if (!allowedIds.size) return [];
+  const oids = [...allowedIds]
+    .filter((id) => mongoose.isValidObjectId(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+  if (!oids.length) return [];
+  const whs = await Warehouse.find({ _id: { $in: oids }, isActive: true }).select('name').lean();
+  return whs.map((w) => String(w.name || '').trim()).filter(Boolean);
+}
+
+async function notifyWarehouseStaffProcurementIncoming(pr) {
+  try {
+    const whName = String(pr.actualWarehouse || '').trim();
+    if (!whName) return;
+    const esc = escapeRegExpForRegion(whName);
+    const wh =
+      (await Warehouse.findOne({ isActive: true, name: whName }).lean()) ||
+      (await Warehouse.findOne({ isActive: true, name: new RegExp(`^${esc}$`, 'i') }).lean());
+    if (!wh || !String(wh.region || '').trim()) return;
+    const pattern = new RegExp(escapeRegExpForRegion(String(wh.region).trim()), 'i');
+    const users = await User.find({
+      dismissed: { $ne: true },
+      role: { $in: ['warehouse', 'zavsklad'] },
+      region: pattern
+    })
+      .select('login')
+      .lean();
+    const rn = pr.requestNumber || String(pr._id);
+    const title = `Надходження від закупівель: ${rn}`;
+    const body = `До складу «${whName}» прямує товар за заявкою закупівель. Виконавець: ${pr.executorName || pr.executorLogin || '—'}. Підтвердіть отримання: Складський облік → Затвердження отримання товару.`;
+    for (const u of users) {
+      const login = u.login && String(u.login).trim();
+      if (!login) continue;
+      await createManagerNotificationDeduped({
+        recipientLogin: login,
+        kind: 'procurement_incoming_to_warehouse',
+        procurementRequestId: pr._id,
+        requestNumber: rn,
+        title,
+        body,
+        read: false,
+        dedupeKey: `proc_wh_in:${pr._id}:${login}`
+      });
+    }
+  } catch (e) {
+    console.error('[procurement] notifyWarehouseStaffProcurementIncoming:', e.message);
+  }
+}
+
+async function notifyProcurementExecutorReceiptPartial(pr) {
+  try {
+    const rn = pr.requestNumber || String(pr._id);
+    const body =
+      'Завсклад підтвердив отримання не повністю або з розбіжностями по кількості. Відкрийте заявку у відділі закупівель для перегляду фактично прийнятих позицій.';
+    const buyers = await User.find({ dismissed: { $ne: true }, role: 'vidzakupok' })
+      .select('login')
+      .lean();
+    const logins = new Set(
+      buyers.map((u) => String(u.login || '').trim()).filter(Boolean)
+    );
+    const execLogin = String(pr.executorLogin || '').trim();
+    if (execLogin) logins.add(execLogin);
+    for (const login of logins) {
+      await createManagerNotificationDeduped({
+        recipientLogin: login,
+        kind: 'procurement_receipt_partial',
+        procurementRequestId: pr._id,
+        requestNumber: rn,
+        title: `Часткове надходження: ${rn}`,
+        body,
+        read: false,
+        dedupeKey: `proc_partial:${pr._id}:${login}`
+      });
+    }
+  } catch (e) {
+    console.error('[procurement] notifyProcurementExecutorReceiptPartial:', e.message);
+  }
+}
 
 function isVidZakupokProcurementRole(role) {
   return ['vidzakupok', 'admin', 'administrator'].includes(String(role || '').toLowerCase());
@@ -2472,7 +2601,10 @@ app.post(
         size: f.size || 0,
         data: f.buffer
       }));
+      const requestNumber = await getNextProcurementRequestNumber();
       const doc = await ProcurementRequest.create({
+        requestNumber,
+        receiptOutcome: 'pending',
         applicationKind,
         description: '',
         payerCompany,
@@ -2605,7 +2737,9 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
     pr.executorLogin = req.user.login;
     pr.executorName = String(dbUser?.name || req.user.name || req.user.login).trim();
     pr.status = 'awaiting_warehouse';
+    pr.receiptOutcome = 'pending';
     await pr.save();
+    await notifyWarehouseStaffProcurementIncoming(pr);
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
     logPerformance('PATCH /api/procurement-requests/complete-executor', startTime);
     res.json(out);
@@ -2616,6 +2750,153 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
   }
 });
 
+app.get('/api/procurement-requests/pending-warehouse-receipt/count', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    const names = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser);
+    if (names.length === 0) {
+      logPerformance('GET pending-warehouse-receipt/count', startTime, 0);
+      return res.json({ count: 0 });
+    }
+    const count = await ProcurementRequest.countDocuments({
+      status: 'awaiting_warehouse',
+      actualWarehouse: { $in: names }
+    });
+    logPerformance('GET pending-warehouse-receipt/count', startTime, count);
+    res.json({ count });
+  } catch (error) {
+    logPerformance('GET pending-warehouse-receipt/count', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/procurement-requests/pending-warehouse-receipt', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    const names = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser);
+    if (names.length === 0) {
+      logPerformance('GET pending-warehouse-receipt', startTime, 0);
+      return res.json([]);
+    }
+    const rows = await ProcurementRequest.find({
+      status: 'awaiting_warehouse',
+      actualWarehouse: { $in: names }
+    })
+      .select(PROCUREMENT_DOC_LIST_PROJECTION)
+      .sort({ createdAt: -1 })
+      .lean();
+    logPerformance('GET pending-warehouse-receipt', startTime, rows.length);
+    res.json(rows);
+  } catch (error) {
+    logPerformance('GET pending-warehouse-receipt', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/procurement-requests/:id', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Некоректний ідентифікатор заявки' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id)
+      .select(PROCUREMENT_DOC_LIST_PROJECTION)
+      .lean();
+    if (!pr) {
+      logPerformance('GET /api/procurement-requests/:id', startTime);
+      return res.status(404).json({ error: 'Заявку не знайдено' });
+    }
+    logPerformance('GET /api/procurement-requests/:id', startTime);
+    res.json(pr);
+  } catch (error) {
+    logPerformance('GET /api/procurement-requests/:id', startTime);
+    console.error('[ERROR] GET procurement-request:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!isWarehouseProcurementConfirmRole(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (pr.status !== 'awaiting_warehouse') {
+      return res.status(400).json({
+        error: 'Прийом доступний лише для статусу «Чекає відвантаження на склад»'
+      });
+    }
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    const allowed = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser);
+    const aw = String(pr.actualWarehouse || '').trim();
+    if (!allowed.some((n) => n === aw)) {
+      return res.status(403).json({ error: 'Ця заявка стосується іншого складу' });
+    }
+
+    const linesIn = req.body.lines;
+    const n = pr.materials.length;
+    if (!Array.isArray(linesIn) || linesIn.length !== n) {
+      return res.status(400).json({
+        error: 'Передайте масив lines з кількістю рядків, як у заявки'
+      });
+    }
+
+    let partial = false;
+    for (let i = 0; i < n; i++) {
+      const line = pr.materials[i];
+      const inc = linesIn[i] || {};
+      const exp = expectedQtyForProcurementMaterialLine(line);
+      const rq = inc.receivedQuantity;
+      if (line.rejected) {
+        line.receivedQuantity = rq === undefined || rq === null || rq === '' ? 0 : Number(rq);
+        if (!Number.isFinite(line.receivedQuantity)) line.receivedQuantity = 0;
+        if (line.receivedQuantity !== 0) partial = true;
+        continue;
+      }
+      if (exp === null) {
+        line.receivedQuantity =
+          rq === undefined || rq === null || rq === '' ? null : Number(rq);
+        if (line.receivedQuantity != null && !Number.isFinite(line.receivedQuantity)) {
+          return res.status(400).json({ error: `Позиція ${i + 1}: некоректна прийнята кількість` });
+        }
+        continue;
+      }
+      const finalRq = rq === undefined || rq === null || rq === '' ? exp : Number(rq);
+      if (!Number.isFinite(finalRq)) {
+        return res.status(400).json({ error: `Позиція ${i + 1}: некоректна прийнята кількість` });
+      }
+      line.receivedQuantity = finalRq;
+      if (line.receivedQuantity !== exp) {
+        partial = true;
+      }
+    }
+
+    pr.receiptOutcome = partial ? 'partial' : 'full';
+    pr.warehouseReceivedAt = new Date();
+    pr.warehouseConfirmerLogin = req.user.login;
+    pr.warehouseConfirmerName = String(dbUser?.name || req.user.name || req.user.login).trim();
+    pr.status = 'completed';
+    await pr.save();
+
+    if (partial) {
+      await notifyProcurementExecutorReceiptPartial(pr);
+    }
+
+    const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    logPerformance('POST /api/procurement-requests/warehouse-receipt', startTime);
+    res.json(out);
+  } catch (error) {
+    logPerformance('POST /api/procurement-requests/warehouse-receipt', startTime);
+    console.error('[ERROR] warehouse-receipt:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/** @deprecated Використовуйте POST .../warehouse-receipt з масивом lines */
 app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => {
   const startTime = Date.now();
   try {
@@ -2630,6 +2911,25 @@ app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => 
       });
     }
     const dbUser = await User.findOne({ login: req.user.login }).lean();
+    const allowed = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser);
+    const aw = String(pr.actualWarehouse || '').trim();
+    if (!allowed.some((n) => n === aw)) {
+      return res.status(403).json({ error: 'Ця заявка стосується іншого складу' });
+    }
+    for (let i = 0; i < pr.materials.length; i++) {
+      const line = pr.materials[i];
+      const exp = expectedQtyForProcurementMaterialLine(line);
+      if (line.rejected) {
+        line.receivedQuantity = 0;
+        continue;
+      }
+      if (exp === null) {
+        line.receivedQuantity = null;
+        continue;
+      }
+      line.receivedQuantity = exp;
+    }
+    pr.receiptOutcome = 'full';
     pr.warehouseReceivedAt = new Date();
     pr.warehouseConfirmerLogin = req.user.login;
     pr.warehouseConfirmerName = String(dbUser?.name || req.user.name || req.user.login).trim();

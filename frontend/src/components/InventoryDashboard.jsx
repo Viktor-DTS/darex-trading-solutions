@@ -58,6 +58,8 @@ function InventoryDashboard({ user }) {
   const [shipRequestsLoading, setShipRequestsLoading] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [inTransitCount, setInTransitCount] = useState(0);
+  const [procurementPendingCount, setProcurementPendingCount] = useState(0);
+  const [procurementReceiptFocusId, setProcurementReceiptFocusId] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [receiptPresetProductCard, setReceiptPresetProductCard] = useState(null);
   const [receiptAddModalKey, setReceiptAddModalKey] = useState(0);
@@ -84,13 +86,34 @@ function InventoryDashboard({ user }) {
     });
   };
 
+  const loadProcurementPendingCount = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await authFetch(`${API_BASE_URL}/procurement-requests/pending-warehouse-receipt/count`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.status === 401) {
+        return;
+      }
+      if (response.ok) {
+        const data = await response.json();
+        setProcurementPendingCount(data.count || 0);
+      }
+    } catch (err) {
+      console.error('Помилка лічильника надходжень від закупівель:', err);
+    }
+  }, []);
+
   useEffect(() => {
     loadWarehouses();
     loadInTransitCount();
-    // Оновлюємо лічильник кожні 30 секунд
-    const interval = setInterval(loadInTransitCount, 30000);
+    loadProcurementPendingCount();
+    const interval = setInterval(() => {
+      loadInTransitCount();
+      loadProcurementPendingCount();
+    }, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadProcurementPendingCount]);
 
   useEffect(() => {
     if (!showMoveModal) return;
@@ -196,7 +219,12 @@ function InventoryDashboard({ user }) {
     { id: 'movement-journal', label: 'Журнал руху товару', icon: '📒' },
     { id: 'notifications', label: 'Сповіщення', icon: '🔔' },
     { id: 'write-off', label: 'Списання', icon: '📝' },
-    { id: 'approval', label: 'Затвердження отримання товару', icon: '✅', badge: inTransitCount },
+    {
+      id: 'approval',
+      label: 'Затвердження отримання товару',
+      icon: '✅',
+      badge: inTransitCount + procurementPendingCount
+    },
     { id: 'inventory', label: 'Інвентаризація', icon: '📋' },
     { id: 'reservations', label: 'Резервування', icon: '🔒' },
     { id: 'reports', label: 'Звіти', icon: '📊' },
@@ -408,7 +436,11 @@ function InventoryDashboard({ user }) {
           <div className="inventory-tab-content">
             <ManagerNotificationsTab
               onOpenShipmentRequest={openShipmentFromNotification}
-              description="Системні сповіщення: запити на відвантаження від менеджерів тощо. Натисніть «Відкрити відвантаження», щоб перейти до оформлення відвантаження з даними заявки."
+              onOpenProcurementRequest={(id) => {
+                setProcurementReceiptFocusId(id);
+                setActiveTab('approval');
+              }}
+              description="Системні сповіщення: надходження від закупівель, запити на відвантаження від менеджерів тощо. Номер заявки закупівель відкриває картку у вкладці «Затвердження отримання товару»."
             />
           </div>
         );
@@ -429,7 +461,14 @@ function InventoryDashboard({ user }) {
         );
 
       case 'approval':
-        return <ReceiptApproval warehouses={warehouses} user={user} />;
+        return (
+          <ReceiptApproval
+            warehouses={warehouses}
+            user={user}
+            focusProcurementId={procurementReceiptFocusId}
+            onConsumedFocusProcurement={() => setProcurementReceiptFocusId(null)}
+          />
+        );
 
       case 'inventory':
         return <InventoryDocuments warehouses={warehouses} />;
@@ -469,7 +508,10 @@ function InventoryDashboard({ user }) {
                       className={`inventory-sidebar-tab ${activeTab === tab.id ? 'active' : ''}`}
                       onClick={() => {
                         setActiveTab(tab.id);
-                        if (tab.id === 'approval') loadInTransitCount();
+                        if (tab.id === 'approval') {
+                          loadInTransitCount();
+                          loadProcurementPendingCount();
+                        }
                       }}
                       title={tab.label}
                     >
@@ -489,7 +531,10 @@ function InventoryDashboard({ user }) {
                         className={`inventory-sidebar-tab ${activeTab === tab.id ? 'active' : ''}`}
                         onClick={() => {
                           setActiveTab(tab.id);
-                          if (tab.id === 'approval') loadInTransitCount();
+                          if (tab.id === 'approval') {
+                            loadInTransitCount();
+                            loadProcurementPendingCount();
+                          }
                         }}
                       >
                         <span className="tab-icon">{tab.icon}</span>

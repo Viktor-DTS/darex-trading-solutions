@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import API_BASE_URL from '../config';
 import { tryHandleUnauthorizedResponse } from '../utils/authSession';
+import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import './ProcurementDashboard.css';
 
 const EXECUTOR_DOC_KIND_OPTIONS = [
@@ -69,12 +70,32 @@ function priorityLabel(v) {
   return PRIORITY_OPTIONS.find((p) => p.value === v)?.label || v || '—';
 }
 
+/** Очікувана кількість до прийому завскладом (узгоджено з backend expectedQtyForProcurementMaterialLine) */
+function expectedQtyForLine(m) {
+  if (!m || m.rejected) return 0;
+  if (m.analogShipped && String(m.analogName || '').trim() && m.analogQuantity != null) {
+    const q = Number(m.analogQuantity);
+    if (Number.isFinite(q)) return q;
+  }
+  if (m.quantity != null) {
+    const q = Number(m.quantity);
+    if (Number.isFinite(q)) return q;
+  }
+  return null;
+}
+
+const RECEIPT_OUTCOME_LABELS = {
+  pending: 'Очікує прийому на складі',
+  full: 'Повністю прийнято завскладом',
+  partial: 'Частково / з розбіжностями'
+};
+
 function emptyMaterialRow() {
   return { name: '', quantity: '', price: '', productId: '' };
 }
 
 function ProcurementDashboard({ user }) {
-  const [activeSection, setActiveSection] = useState('active');
+  const [activeSection, setActiveSection] = useState('active'); // 'active' | 'notifications'
   const [requests, setRequests] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -288,9 +309,14 @@ function ProcurementDashboard({ user }) {
         alert(err.error || 'Не вдалося створити заявку');
         return;
       }
+      const created = await res.json().catch(() => null);
+      const num = created && created.requestNumber ? String(created.requestNumber).trim() : '';
       setCreateOpen(false);
       resetCreateForm();
       await loadRequests();
+      if (num) {
+        alert(`Заявку створено. Номер: ${num}`);
+      }
     } catch (err) {
       alert(err.message || 'Помилка');
     } finally {
@@ -448,23 +474,22 @@ function ProcurementDashboard({ user }) {
     }
   };
 
-  const warehouseConfirm = async (id) => {
-    if (!window.confirm('Підтвердити надходження товару на склад?')) return;
+  const openProcurementRequestById = async (id) => {
+    if (!id) return;
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/procurement-requests/${id}/warehouse-confirm`, {
-        method: 'POST',
-        headers: { ...authHeaders, 'Content-Type': 'application/json' }
+      const res = await fetch(`${API_BASE_URL}/procurement-requests/${id}`, {
+        headers: authHeaders
       });
       if (tryHandleUnauthorizedResponse(res)) return;
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || 'Помилка');
+        alert(err.error || 'Не вдалося відкрити заявку');
         return;
       }
-      const updated = await res.json();
-      setDetail(updated);
-      await loadRequests();
+      const row = await res.json();
+      openDetail(row);
+      setActiveSection('active');
     } finally {
       setSaving(false);
     }
@@ -507,11 +532,27 @@ function ProcurementDashboard({ user }) {
                 <span className="tab-icon">📋</span>
                 <span className="tab-label">Активні заявки на закупівлю</span>
               </button>
+              <button
+                type="button"
+                className={`procurement-sidebar-tab ${activeSection === 'notifications' ? 'active' : ''}`}
+                onClick={() => setActiveSection('notifications')}
+              >
+                <span className="tab-icon">🔔</span>
+                <span className="tab-label">Сповіщення</span>
+              </button>
             </nav>
           </div>
         </aside>
 
         <main className="procurement-main-content">
+          {activeSection === 'notifications' && (
+            <div className="procurement-active-panel">
+              <ManagerNotificationsTab
+                onOpenProcurementRequest={openProcurementRequestById}
+                description="Сповіщення відділу закупівель: надходження на склад, частковий прийом завскладом. Натисніть номер заявки, щоб відкрити картку."
+              />
+            </div>
+          )}
           {activeSection === 'active' && (
             <div className="procurement-active-panel">
               <div className="procurement-toolbar">
@@ -537,6 +578,7 @@ function ProcurementDashboard({ user }) {
                   <table className="procurement-table">
                     <thead>
                       <tr>
+                        <th>№ заявки</th>
                         <th>Статус</th>
                         <th>Тип заявки</th>
                         <th>Компанія платник</th>
@@ -550,6 +592,7 @@ function ProcurementDashboard({ user }) {
                     <tbody>
                       {requests.map((r) => (
                         <tr key={r._id}>
+                          <td>{r.requestNumber || '—'}</td>
                           <td>
                             <span className={`procurement-status procurement-status--${r.status}`}>
                               {STATUS_LABELS[r.status] || r.status}
@@ -785,7 +828,7 @@ function ProcurementDashboard({ user }) {
         <div className="procurement-modal-overlay" role="dialog" aria-modal="true">
           <div className="procurement-modal procurement-modal--wide procurement-modal--detail-wide">
             <div className="procurement-modal-header">
-              <h2>Заявка на закупівлю</h2>
+              <h2>Заявка на закупівлю{detail.requestNumber ? ` (${detail.requestNumber})` : ''}</h2>
               <button
                 type="button"
                 className="procurement-modal-close"
@@ -797,9 +840,21 @@ function ProcurementDashboard({ user }) {
             </div>
             <div className="procurement-modal-body procurement-detail-grid">
               <div className="procurement-detail-row">
+                <span className="procurement-detail-k">Номер заявки</span>
+                <span className="procurement-detail-v">{detail.requestNumber || '—'}</span>
+              </div>
+              <div className="procurement-detail-row">
                 <span className="procurement-detail-k">Статус заявки</span>
                 <span className="procurement-detail-v">{STATUS_LABELS[detail.status] || detail.status}</span>
               </div>
+              {detail.status === 'completed' && detail.receiptOutcome ? (
+                <div className="procurement-detail-row">
+                  <span className="procurement-detail-k">Прийом на складі</span>
+                  <span className="procurement-detail-v">
+                    {RECEIPT_OUTCOME_LABELS[detail.receiptOutcome] || detail.receiptOutcome}
+                  </span>
+                </div>
+              ) : null}
               <div className="procurement-detail-row">
                 <span className="procurement-detail-k">Тип заявки</span>
                 <span className="procurement-detail-v">{applicationKindLabel(detail)}</span>
@@ -983,21 +1038,42 @@ function ProcurementDashboard({ user }) {
                             <th>Відвант. аналог</th>
                             <th>Відхилено</th>
                             <th>Причина</th>
+                            {detail.status === 'completed' ? (
+                              <>
+                                <th>Очікувано</th>
+                                <th>Прийнято завскладом</th>
+                              </>
+                            ) : null}
                           </tr>
                         </thead>
                         <tbody>
-                          {detail.materials.map((m, i) => (
-                            <tr key={i}>
-                              <td>{m.name}</td>
-                              <td>{m.quantity != null && m.quantity !== '' ? m.quantity : '—'}</td>
-                              <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
-                              <td>{m.analogName || '—'}</td>
-                              <td>{m.analogQuantity != null && m.analogQuantity !== '' ? m.analogQuantity : '—'}</td>
-                              <td>{m.analogShipped ? 'Так' : '—'}</td>
-                              <td>{m.rejected ? 'Так' : '—'}</td>
-                              <td>{m.rejectionReason || '—'}</td>
-                            </tr>
-                          ))}
+                          {detail.materials.map((m, i) => {
+                            const exp = expectedQtyForLine(m);
+                            const expDisp =
+                              exp === null ? '—' : m.rejected ? '0' : String(exp);
+                            const rec =
+                              m.receivedQuantity === null || m.receivedQuantity === undefined
+                                ? '—'
+                                : String(m.receivedQuantity);
+                            return (
+                              <tr key={i}>
+                                <td>{m.name}</td>
+                                <td>{m.quantity != null && m.quantity !== '' ? m.quantity : '—'}</td>
+                                <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
+                                <td>{m.analogName || '—'}</td>
+                                <td>{m.analogQuantity != null && m.analogQuantity !== '' ? m.analogQuantity : '—'}</td>
+                                <td>{m.analogShipped ? 'Так' : '—'}</td>
+                                <td>{m.rejected ? 'Так' : '—'}</td>
+                                <td>{m.rejectionReason || '—'}</td>
+                                {detail.status === 'completed' ? (
+                                  <>
+                                    <td>{expDisp}</td>
+                                    <td>{rec}</td>
+                                  </>
+                                ) : null}
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                       </>
@@ -1126,14 +1202,11 @@ function ProcurementDashboard({ user }) {
                   </div>
                 )}
                 {detail.status === 'awaiting_warehouse' && isWarehouseConfirmer && (
-                  <button
-                    type="button"
-                    className="procurement-btn-primary"
-                    disabled={saving}
-                    onClick={() => warehouseConfirm(detail._id)}
-                  >
-                    Підтвердити надходження на склад
-                  </button>
+                  <p className="procurement-field-hint" style={{ marginTop: 12 }}>
+                    Підтвердження фактичної кількості прийому робить <strong>завсклад</strong> у розділі{' '}
+                    <strong>Складський облік → Затвердження отримання товару</strong> (блок «Надходження від
+                    закупівель»).
+                  </p>
                 )}
               </div>
             </div>

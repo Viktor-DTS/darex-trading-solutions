@@ -13,7 +13,9 @@ const KIND_LABELS = {
   task_accountant_approved: 'Затверджено бухгалтером',
   task_accountant_rejected: 'Відхилено бухгалтером',
   task_new: 'Нова заявка',
-  shipment_request_new: 'Запит на відвантаження'
+  shipment_request_new: 'Запит на відвантаження',
+  procurement_incoming_to_warehouse: 'Надходження від закупівель',
+  procurement_receipt_partial: 'Закупівлі: частковий прийом'
 };
 
 function notificationTaskId(n) {
@@ -24,6 +26,15 @@ function notificationTaskId(n) {
   return String(id);
 }
 
+function notificationProcurementId(n) {
+  if (!n?.procurementRequestId) return null;
+  const id = n.procurementRequestId;
+  if (typeof id === 'string') return id;
+  if (id && typeof id === 'object' && id.$oid) return id.$oid;
+  if (id && typeof id === 'object' && id._id) return String(id._id);
+  return String(id);
+}
+
 const DEFAULT_DESCRIPTION =
   'Персональні сповіщення для вашого облікового запису: нагадування про резерви, події по заявках регіону (рахунок, затвердження або відмова завскладом і бухгалтерією).';
 
@@ -31,6 +42,7 @@ function ManagerNotificationsTab({
   onUnreadCountChange,
   onOpenTask,
   onOpenShipmentRequest,
+  onOpenProcurementRequest,
   description = DEFAULT_DESCRIPTION,
   globalFeed = false
 }) {
@@ -137,8 +149,23 @@ function ManagerNotificationsTab({
                 </span>
                 <span className="manager-notification-meta-right">
                   {(() => {
+                    const pid = notificationProcurementId(n);
                     const tid = notificationTaskId(n);
                     const rn = n.requestNumber && String(n.requestNumber).trim();
+                    if (pid && onOpenProcurementRequest) {
+                      return (
+                        <button
+                          type="button"
+                          className="manager-notification-request-link"
+                          onClick={() => {
+                            markRead(n._id);
+                            onOpenProcurementRequest(pid);
+                          }}
+                        >
+                          № {rn || 'Заявка'}
+                        </button>
+                      );
+                    }
                     if (tid && onOpenTask) {
                       return (
                         <button
