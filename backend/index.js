@@ -2952,6 +2952,34 @@ app.get('/api/procurement-requests/:id', async (req, res) => {
   }
 });
 
+/** Видалення заявки — лише адміністратор (admin / administrator). */
+app.delete('/api/procurement-requests/:id', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const r = String(req.user.role || '').toLowerCase();
+    if (!['admin', 'administrator'].includes(r)) {
+      return res.status(403).json({ error: 'Видалення заявки доступне лише адміністратору' });
+    }
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Некоректний ідентифікатор заявки' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) {
+      logPerformance('DELETE /api/procurement-requests/:id', startTime);
+      return res.status(404).json({ error: 'Заявку не знайдено' });
+    }
+    const pid = pr._id;
+    await ProcurementRequest.deleteOne({ _id: pid });
+    await ManagerUserNotification.deleteMany({ procurementRequestId: pid });
+    logPerformance('DELETE /api/procurement-requests/:id', startTime);
+    res.json({ ok: true });
+  } catch (error) {
+    logPerformance('DELETE /api/procurement-requests/:id', startTime);
+    console.error('[ERROR] DELETE procurement-request:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => {
   const startTime = Date.now();
   try {
@@ -10566,39 +10594,6 @@ app.post('/api/manager-notifications/mark-all-read', authenticateToken, async (r
     res.status(500).json({ error: e.message });
   }
 });
-
-/** Позначити всі сповіщення поточного користувача по заявці закупівель прочитаними (наприклад після відкриття картки). */
-app.post(
-  '/api/manager-notifications/read-by-procurement-request/:procurementRequestId',
-  authenticateToken,
-  async (req, res) => {
-    try {
-      if (!mongoose.isValidObjectId(req.params.procurementRequestId)) {
-        return res.status(400).json({ error: 'Некоректний id' });
-      }
-      const pid = new mongoose.Types.ObjectId(req.params.procurementRequestId);
-      const kindFilter = { kind: { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS } };
-      if (isServiceGlobalNotificationsAdmin(req)) {
-        const logins = await getRegionalManagerRecipientLogins();
-        if (logins.length === 0) {
-          return res.json({ ok: true, modifiedCount: 0 });
-        }
-        const result = await ManagerUserNotification.updateMany(
-          { recipientLogin: { $in: logins }, procurementRequestId: pid, read: false, ...kindFilter },
-          { $set: { read: true } }
-        );
-        return res.json({ ok: true, modifiedCount: result.modifiedCount });
-      }
-      const result = await ManagerUserNotification.updateMany(
-        { recipientLogin: req.user.login, procurementRequestId: pid, read: false, ...kindFilter },
-        { $set: { read: true } }
-      );
-      res.json({ ok: true, modifiedCount: result.modifiedCount });
-    } catch (e) {
-      res.status(500).json({ error: e.message });
-    }
-  }
-);
 
 // Подати заявку на тестування
 app.post('/api/equipment/:id/request-testing', authenticateToken, async (req, res) => {

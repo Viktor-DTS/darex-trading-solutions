@@ -141,6 +141,42 @@
   background: var(--surface-hover);
 }
 
+.procurement-table tbody tr.procurement-table-row--openable {
+  cursor: pointer;
+}
+
+.procurement-table tbody tr.procurement-table-row--openable:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.procurement-th-actions,
+.procurement-td-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+  vertical-align: middle;
+}
+
+.procurement-btn-delete-row {
+  padding: 4px 10px;
+  border: 1px solid rgba(211, 47, 47, 0.45);
+  border-radius: 6px;
+  background: rgba(211, 47, 47, 0.12);
+  color: #e57373;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.procurement-btn-delete-row:hover:not(:disabled) {
+  background: rgba(211, 47, 47, 0.22);
+}
+
+.procurement-btn-delete-row:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .procurement-desc-cell {
   max-width: 280px;
   word-break: break-word;

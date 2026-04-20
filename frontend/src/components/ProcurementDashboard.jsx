@@ -169,15 +169,6 @@ function ProcurementDashboard({ user }) {
     loadWarehouses();
   }, [loadRequests, loadWarehouses]);
 
-  /** Відкриття картки заявки — позначаємо пов’язані сповіщення закупівель прочитаними */
-  useEffect(() => {
-    if (!detail?._id) return;
-    fetch(`${API_BASE_URL}/manager-notifications/read-by-procurement-request/${detail._id}`, {
-      method: 'POST',
-      headers: authHeaders
-    }).catch(() => {});
-  }, [detail?._id, authHeaders]);
-
   useEffect(() => {
     if (!detail?.materials) {
       setMaterialsDraft(null);
@@ -514,6 +505,32 @@ function ProcurementDashboard({ user }) {
     setExecutorWarehouse(row.actualWarehouse || '');
   };
 
+  const deleteProcurementRequest = async (e, r) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const label = r.requestNumber || r._id;
+    if (!window.confirm(`Видалити заявку ${label} безповоротно?`)) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/procurement-requests/${r._id}`, {
+        method: 'DELETE',
+        headers: authHeaders
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Не вдалося видалити заявку');
+        return;
+      }
+      if (detail && String(detail._id) === String(r._id)) setDetail(null);
+      await loadRequests();
+    } catch (err) {
+      alert(err.message || 'Помилка');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   /** Виконавець (або адмін) під час статусу «Взята в роботу» */
   const canActAsExecutorOnRequest = (d) => {
     if (!d || !isProcurementExecutorWorkStatus(d.status)) return false;
@@ -609,12 +626,23 @@ function ProcurementDashboard({ user }) {
                         <th>Пріоритет</th>
                         <th>Дата подачі</th>
                         <th>Бажаний склад</th>
-                        <th></th>
+                        {isAdmin ? <th className="procurement-th-actions">Дії</th> : null}
                       </tr>
                     </thead>
                     <tbody>
                       {requests.map((r) => (
-                        <tr key={r._id}>
+                        <tr
+                          key={r._id}
+                          className="procurement-table-row--openable"
+                          tabIndex={0}
+                          onClick={() => openDetail(r)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              openDetail(r);
+                            }
+                          }}
+                        >
                           <td>{r.requestNumber || '—'}</td>
                           <td>
                             <span className={`procurement-status procurement-status--${r.status}`}>
@@ -627,11 +655,23 @@ function ProcurementDashboard({ user }) {
                           <td>{priorityLabel(r.priority)}</td>
                           <td>{formatDt(r.createdAt)}</td>
                           <td>{r.desiredWarehouse || '—'}</td>
-                          <td>
-                            <button type="button" className="procurement-btn-link" onClick={() => openDetail(r)}>
-                              Деталі
-                            </button>
-                          </td>
+                          {isAdmin ? (
+                            <td
+                              className="procurement-td-actions"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                className="procurement-btn-delete-row"
+                                disabled={saving}
+                                title="Видалити заявку (лише адміністратор)"
+                                onClick={(e) => deleteProcurementRequest(e, r)}
+                              >
+                                Видалити
+                              </button>
+                            </td>
+                          ) : null}
                         </tr>
                       ))}
                     </tbody>
