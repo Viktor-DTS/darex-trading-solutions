@@ -19,6 +19,7 @@ import ManagerDashboard from './components/ManagerDashboard';
 import TestingDashboard from './components/TestingDashboard';
 import FinancialDashboard from './components/FinancialDashboard';
 import SalesAccountingDashboard from './components/SalesAccountingDashboard';
+import ProcurementDashboard from './components/ProcurementDashboard';
 import API_BASE_URL from './config';
 import { resetAuthSessionExpiredState, tryHandleUnauthorizedResponse } from './utils/authSession';
 
@@ -37,13 +38,14 @@ const PANELS = [
   { id: 'regional', label: 'Регіональний керівник', icon: '👔' },
   { id: 'reports', label: 'Звіти', icon: '📊' },
   { id: 'analytics', label: 'Аналітика', icon: '📈' },
+  { id: 'procurement', label: 'Відділ закупівель', icon: '🛒' },
   { id: 'admin', label: 'Адміністратор', icon: '⚙️' },
 ];
 
 // Права доступу за замовчуванням (резервні, якщо база недоступна)
 const DEFAULT_ACCESS_RULES = {
-  admin: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
-  administrator: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'admin'],
+  admin: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
+  administrator: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
   operator: ['operator'],
   accountant: ['accountant', 'accountantApproval', 'salesAccounting', 'inventory', 'reports', 'analytics'],
   buhgalteria: ['accountant', 'accountantApproval', 'salesAccounting', 'inventory', 'reports', 'analytics'],
@@ -58,6 +60,8 @@ const DEFAULT_ACCESS_RULES = {
   finance: ['finance'],
   /** Лише фінпанель; список панелей примусово фіксується після завантаження правил (deny-by-default). Роль: GolovnKervServ. */
   golovnkervserv: ['finance'],
+  /** Відділ закупівель (виконавець заявок — роль VidZakupok у бекенді: vidzakupok). */
+  vidzakupok: ['procurement'],
 };
 
 // Функція для конвертації правил з бази { role: { panel: 'full'|'read'|'none' } } в масив панелей
@@ -415,6 +419,8 @@ function App() {
         return <ReportBuilder user={user} />;
       case 'analytics':
         return <AnalyticsDashboard user={user} />;
+      case 'procurement':
+        return <ProcurementDashboard user={user} />;
       case 'admin':
         return <AdminDashboard user={user} />;
       case 'service':

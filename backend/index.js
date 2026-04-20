@@ -131,6 +131,17 @@ const uploadStockXlsx = multer({
   limits: { fileSize: 15 * 1024 * 1024 }
 });
 
+const PROCUREMENT_FILE_RE = /\.(pdf|doc|docx|xls|xlsx)$/i;
+function procurementFilesFilter(req, file, cb) {
+  if (PROCUREMENT_FILE_RE.test(String(file.originalname || ''))) return cb(null, true);
+  cb(new Error('Дозволені лише файли PDF, Word (.doc, .docx), Excel (.xls, .xlsx)'));
+}
+const uploadProcurementFiles = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: procurementFilesFilter
+});
+
 // TTN для POST /api/sales/:saleId/shipment-request — має бути оголошено ДО реєстрації маршрутів (інакше TDZ)
 const shipmentTtnStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
@@ -1291,6 +1302,57 @@ const warehouseSchema = new mongoose.Schema({
 warehouseSchema.index({ name: 1 }, { unique: true });
 const Warehouse = mongoose.model('Warehouse', warehouseSchema);
 
+// Заявки відділу закупівель (вкладення PDF/Word/Excel у MongoDB як Buffer)
+const procurementAttachmentSchema = new mongoose.Schema(
+  {
+    originalName: { type: String, required: true },
+    mimeType: { type: String, default: '' },
+    size: { type: Number, default: 0 },
+    data: { type: Buffer, required: true }
+  },
+  { _id: true }
+);
+
+const procurementRequestSchema = new mongoose.Schema(
+  {
+    description: { type: String, required: true },
+    priority: {
+      type: String,
+      enum: ['1_workday', '5_workdays', '7_workdays', 'more_than_7_workdays'],
+      required: true
+    },
+    status: {
+      type: String,
+      enum: ['pending_review', 'in_progress', 'awaiting_warehouse', 'completed'],
+      default: 'pending_review'
+    },
+    requesterLogin: { type: String, required: true },
+    requesterName: { type: String, default: '' },
+    desiredWarehouse: { type: String, default: '' },
+    actualWarehouse: { type: String, default: '' },
+    executorLogin: { type: String, default: '' },
+    executorName: { type: String, default: '' },
+    executorCompletedAt: { type: Date, default: null },
+    warehouseReceivedAt: { type: Date, default: null },
+    warehouseConfirmerLogin: { type: String, default: '' },
+    warehouseConfirmerName: { type: String, default: '' },
+    attachments: [procurementAttachmentSchema]
+  },
+  { timestamps: true }
+);
+
+procurementRequestSchema.index({ status: 1, createdAt: -1 });
+procurementRequestSchema.index({ requesterLogin: 1 });
+const ProcurementRequest = mongoose.model('ProcurementRequest', procurementRequestSchema);
+
+function isVidZakupokProcurementRole(role) {
+  return ['vidzakupok', 'admin', 'administrator'].includes(String(role || '').toLowerCase());
+}
+
+function isWarehouseProcurementConfirmRole(role) {
+  return ['warehouse', 'zavsklad', 'admin', 'administrator'].includes(String(role || '').toLowerCase());
+}
+
 /** Ролі завсклада: мутації складу лише в межах регіону користувача (див. ensureWarehouseStaff*). */
 function escapeRegExpForRegion(s) {
   return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -2169,6 +2231,191 @@ app.post('/api/files/upload-contract', authenticateToken, uploadContract.single(
       error: 'Помилка завантаження файлу',
       details: error.message
     });
+  }
+});
+
+// ============================================
+// ВІДДІЛ ЗАКУПІВЕЛЬ — заявки на закупівлю
+// ============================================
+
+app.get('/api/procurement-requests', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const rows = await ProcurementRequest.find()
+      .select('-attachments.data')
+      .sort({ createdAt: -1 })
+      .lean();
+    logPerformance('GET /api/procurement-requests', startTime, rows.length);
+    res.json(rows);
+  } catch (error) {
+    logPerformance('GET /api/procurement-requests', startTime);
+    console.error('[ERROR] GET /api/procurement-requests:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/procurement-requests/:id/attachments/:attachmentId', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) {
+      logPerformance('GET /api/procurement-requests/.../attachments', startTime);
+      return res.status(404).json({ error: 'Заявку не знайдено' });
+    }
+    const att = pr.attachments.id(req.params.attachmentId);
+    if (!att || !att.data) {
+      logPerformance('GET /api/procurement-requests/.../attachments', startTime);
+      return res.status(404).json({ error: 'Файл не знайдено' });
+    }
+    const name = String(att.originalName || 'file').replace(/[\r\n"]/g, '_');
+    res.setHeader('Content-Type', att.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.send(att.data);
+    logPerformance('GET /api/procurement-requests/.../attachments', startTime);
+  } catch (error) {
+    logPerformance('GET /api/procurement-requests/.../attachments', startTime);
+    console.error('[ERROR] GET procurement attachment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+function procurementUploadMiddleware(req, res, next) {
+  uploadProcurementFiles.array('files', 12)(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || 'Помилка завантаження файлу' });
+    }
+    next();
+  });
+}
+
+app.post(
+  '/api/procurement-requests',
+  procurementUploadMiddleware,
+  async (req, res) => {
+    const startTime = Date.now();
+    try {
+      const description = String(req.body.description || '').trim();
+      const priority = String(req.body.priority || '').trim();
+      const desiredWarehouse = String(req.body.desiredWarehouse || '').trim();
+      if (!description) {
+        return res.status(400).json({ error: 'Вкажіть опис заявки' });
+      }
+      const allowedP = ['1_workday', '5_workdays', '7_workdays', 'more_than_7_workdays'];
+      if (!allowedP.includes(priority)) {
+        return res.status(400).json({ error: 'Некоректний пріоритет' });
+      }
+      const dbUser = await User.findOne({ login: req.user.login }).lean();
+      const attachments = (req.files || []).map((f) => ({
+        originalName: f.originalname,
+        mimeType: f.mimetype || '',
+        size: f.size || 0,
+        data: f.buffer
+      }));
+      const doc = await ProcurementRequest.create({
+        description,
+        priority,
+        desiredWarehouse,
+        requesterLogin: req.user.login,
+        requesterName: String(dbUser?.name || req.user.name || req.user.login).trim(),
+        attachments
+      });
+      const out = await ProcurementRequest.findById(doc._id).select('-attachments.data').lean();
+      logPerformance('POST /api/procurement-requests', startTime);
+      res.status(201).json(out);
+    } catch (error) {
+      logPerformance('POST /api/procurement-requests', startTime);
+      console.error('[ERROR] POST /api/procurement-requests:', error);
+      res.status(500).json({ error: error.message || 'Помилка збереження' });
+    }
+  }
+);
+
+app.post('/api/procurement-requests/:id/take-in-work', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!isVidZakupokProcurementRole(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (pr.status !== 'pending_review') {
+      return res.status(400).json({ error: 'Можна взяти в роботу лише заявку зі статусом «Очікує розгляду»' });
+    }
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    pr.status = 'in_progress';
+    pr.executorLogin = req.user.login;
+    pr.executorName = String(dbUser?.name || req.user.name || req.user.login).trim();
+    await pr.save();
+    const out = await ProcurementRequest.findById(pr._id).select('-attachments.data').lean();
+    logPerformance('POST /api/procurement-requests/take-in-work', startTime);
+    res.json(out);
+  } catch (error) {
+    logPerformance('POST /api/procurement-requests/take-in-work', startTime);
+    console.error('[ERROR] take-in-work:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!isVidZakupokProcurementRole(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const actualWarehouse = String(req.body.actualWarehouse || '').trim();
+    if (!actualWarehouse) {
+      return res.status(400).json({ error: 'Вкажіть фактичний склад відвантаження' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (pr.status !== 'in_progress') {
+      return res.status(400).json({
+        error: 'Фактичний склад можна вказати лише для заявки «Взята в роботу»'
+      });
+    }
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    pr.actualWarehouse = actualWarehouse;
+    pr.executorCompletedAt = new Date();
+    pr.executorLogin = req.user.login;
+    pr.executorName = String(dbUser?.name || req.user.name || req.user.login).trim();
+    pr.status = 'awaiting_warehouse';
+    await pr.save();
+    const out = await ProcurementRequest.findById(pr._id).select('-attachments.data').lean();
+    logPerformance('PATCH /api/procurement-requests/complete-executor', startTime);
+    res.json(out);
+  } catch (error) {
+    logPerformance('PATCH /api/procurement-requests/complete-executor', startTime);
+    console.error('[ERROR] complete-executor:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!isWarehouseProcurementConfirmRole(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
+    if (pr.status !== 'awaiting_warehouse') {
+      return res.status(400).json({
+        error: 'Підтвердження складу доступне лише для статусу «Чекає відвантаження на склад»'
+      });
+    }
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    pr.warehouseReceivedAt = new Date();
+    pr.warehouseConfirmerLogin = req.user.login;
+    pr.warehouseConfirmerName = String(dbUser?.name || req.user.name || req.user.login).trim();
+    pr.status = 'completed';
+    await pr.save();
+    const out = await ProcurementRequest.findById(pr._id).select('-attachments.data').lean();
+    logPerformance('POST /api/procurement-requests/warehouse-confirm', startTime);
+    res.json(out);
+  } catch (error) {
+    logPerformance('POST /api/procurement-requests/warehouse-confirm', startTime);
+    console.error('[ERROR] warehouse-confirm:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

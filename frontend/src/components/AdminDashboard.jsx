@@ -20,6 +20,7 @@ const ACCESS_PANEL_KEYS_FOR_MATRIX = [
   'regional',
   'reports',
   'analytics',
+  'procurement',
   'admin'
 ];
 
@@ -922,6 +923,7 @@ function AdminDashboard({ user }) {
     { key: 'regional', label: 'Регіональний керівник' },
     { key: 'reports', label: 'Звіти' },
     { key: 'analytics', label: 'Аналітика' },
+    { key: 'procurement', label: 'Відділ закупівель' },
     { key: 'admin', label: 'Адміністратор' },
   ];
 
