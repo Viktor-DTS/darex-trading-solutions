@@ -1313,9 +1313,15 @@ const procurementAttachmentSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const PROCUREMENT_PAYER_COMPANIES = ['dts', 'dareks_energo'];
+
 const procurementRequestSchema = new mongoose.Schema(
   {
     description: { type: String, required: true },
+    payerCompany: {
+      type: String,
+      enum: PROCUREMENT_PAYER_COMPANIES
+    },
     priority: {
       type: String,
       enum: ['1_workday', '5_workdays', '7_workdays', 'more_than_7_workdays'],
@@ -2297,8 +2303,15 @@ app.post(
       const description = String(req.body.description || '').trim();
       const priority = String(req.body.priority || '').trim();
       const desiredWarehouse = String(req.body.desiredWarehouse || '').trim();
+      const payerCompany = String(req.body.payerCompany || '').trim();
       if (!description) {
         return res.status(400).json({ error: 'Вкажіть опис заявки' });
+      }
+      if (!payerCompany || !PROCUREMENT_PAYER_COMPANIES.includes(payerCompany)) {
+        return res.status(400).json({ error: 'Оберіть компанію платника (ДТС або Дарекс Енерго)' });
+      }
+      if (!desiredWarehouse) {
+        return res.status(400).json({ error: 'Оберіть бажаний склад відвантаження' });
       }
       const allowedP = ['1_workday', '5_workdays', '7_workdays', 'more_than_7_workdays'];
       if (!allowedP.includes(priority)) {
@@ -2313,6 +2326,7 @@ app.post(
       }));
       const doc = await ProcurementRequest.create({
         description,
+        payerCompany,
         priority,
         desiredWarehouse,
         requesterLogin: req.user.login,

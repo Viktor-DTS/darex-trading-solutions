@@ -17,6 +17,15 @@ const STATUS_LABELS = {
   completed: 'Повністю виконана'
 };
 
+const PAYER_COMPANY_OPTIONS = [
+  { value: 'dts', label: 'ДТС' },
+  { value: 'dareks_energo', label: 'Дарекс Енерго' }
+];
+
+function payerCompanyLabel(v) {
+  return PAYER_COMPANY_OPTIONS.find((p) => p.value === v)?.label || v || '—';
+}
+
 function formatDt(iso) {
   if (!iso) return '—';
   try {
@@ -47,6 +56,7 @@ function ProcurementDashboard({ user }) {
 
   const [createForm, setCreateForm] = useState({
     description: '',
+    payerCompany: '',
     priority: '5_workdays',
     desiredWarehouse: '',
     files: []
@@ -107,6 +117,7 @@ function ProcurementDashboard({ user }) {
   const resetCreateForm = () => {
     setCreateForm({
       description: '',
+      payerCompany: '',
       priority: '5_workdays',
       desiredWarehouse: '',
       files: []
@@ -120,12 +131,22 @@ function ProcurementDashboard({ user }) {
       alert('Вкажіть опис заявки');
       return;
     }
+    if (!createForm.payerCompany) {
+      alert('Оберіть компанію платника');
+      return;
+    }
+    const dw = String(createForm.desiredWarehouse || '').trim();
+    if (!dw) {
+      alert('Оберіть бажаний склад відвантаження');
+      return;
+    }
     setSaving(true);
     try {
       const fd = new FormData();
       fd.append('description', desc);
+      fd.append('payerCompany', createForm.payerCompany);
       fd.append('priority', createForm.priority);
-      fd.append('desiredWarehouse', String(createForm.desiredWarehouse || '').trim());
+      fd.append('desiredWarehouse', dw);
       (createForm.files || []).forEach((f) => fd.append('files', f));
 
       const token = localStorage.getItem('token');
@@ -298,6 +319,7 @@ function ProcurementDashboard({ user }) {
                       <tr>
                         <th>Статус</th>
                         <th>Опис</th>
+                        <th>Компанія платник</th>
                         <th>Відповідальний (хто подав)</th>
                         <th>Пріоритет</th>
                         <th>Дата подачі</th>
@@ -314,6 +336,7 @@ function ProcurementDashboard({ user }) {
                             </span>
                           </td>
                           <td className="procurement-desc-cell">{r.description}</td>
+                          <td>{payerCompanyLabel(r.payerCompany)}</td>
                           <td>{r.requesterName || r.requesterLogin || '—'}</td>
                           <td>{priorityLabel(r.priority)}</td>
                           <td>{formatDt(r.createdAt)}</td>
@@ -363,6 +386,23 @@ function ProcurementDashboard({ user }) {
                 />
               </label>
               <label className="procurement-field">
+                <span>Компанія платник *</span>
+                <select
+                  required
+                  value={createForm.payerCompany}
+                  onChange={(e) => setCreateForm({ ...createForm, payerCompany: e.target.value })}
+                >
+                  <option value="" disabled>
+                    — Оберіть компанію —
+                  </option>
+                  {PAYER_COMPANY_OPTIONS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="procurement-field">
                 <span>Пріоритет *</span>
                 <select
                   value={createForm.priority}
@@ -376,12 +416,15 @@ function ProcurementDashboard({ user }) {
                 </select>
               </label>
               <label className="procurement-field">
-                <span>Бажаний склад відвантаження</span>
+                <span>Бажаний склад відвантаження *</span>
                 <select
+                  required
                   value={createForm.desiredWarehouse}
                   onChange={(e) => setCreateForm({ ...createForm, desiredWarehouse: e.target.value })}
                 >
-                  <option value="">— Оберіть склад —</option>
+                  <option value="" disabled>
+                    — Оберіть склад —
+                  </option>
                   {warehouseOptions.map((w) => (
                     <option key={w.value} value={w.label}>
                       {w.label}
@@ -439,6 +482,10 @@ function ProcurementDashboard({ user }) {
               <div className="procurement-detail-row">
                 <span className="procurement-detail-k">Опис заявки</span>
                 <span className="procurement-detail-v">{detail.description}</span>
+              </div>
+              <div className="procurement-detail-row">
+                <span className="procurement-detail-k">Компанія платник</span>
+                <span className="procurement-detail-v">{payerCompanyLabel(detail.payerCompany)}</span>
               </div>
               <div className="procurement-detail-row">
                 <span className="procurement-detail-k">Відповідальний за запит (хто подав)</span>
