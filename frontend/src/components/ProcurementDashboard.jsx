@@ -1064,11 +1064,11 @@ function ProcurementDashboard({ user }) {
               </div>
 
               <label className="procurement-field">
-                <span>Файли заявника (Excel, Word, PDF)</span>
+                <span>Файли заявника (Excel, Word, PDF, JPEG)</span>
                 <input
                   type="file"
                   multiple
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/jpeg"
                   onChange={(e) =>
                     setCreateForm({
                       ...createForm,
@@ -1076,7 +1076,9 @@ function ProcurementDashboard({ user }) {
                     })
                   }
                 />
-                <span className="procurement-field-hint">До 12 файлів, кожен до 15 МБ; зберігаються в базі.</span>
+                <span className="procurement-field-hint">
+                  До 12 файлів (документи або JPEG), кожен до 15 МБ; зберігаються в базі.
+                </span>
               </label>
 
               <label className="procurement-field">
@@ -1541,7 +1543,7 @@ function ProcurementDashboard({ user }) {
                       type="file"
                       multiple
                       disabled={saving}
-                      accept=".pdf,.doc,.docx,.xls,.xlsx"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,image/jpeg"
                       onChange={(e) => {
                         const fl = e.target.files;
                         if (fl && fl.length) uploadExecutorFiles(detail._id, fl, executorUploadDocKind);
@@ -1549,7 +1551,7 @@ function ProcurementDashboard({ user }) {
                       }}
                     />
                     <span className="procurement-field-hint">
-                      Рахунки та видаткові накладні; до 12 файлів за один раз (до 15 МБ кожен).
+                      Рахунки, видаткові накладні, зображення (JPEG); до 12 файлів за один раз (до 15 МБ кожен).
                     </span>
                   </div>
                 </div>

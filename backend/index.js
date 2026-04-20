@@ -131,10 +131,17 @@ const uploadStockXlsx = multer({
   limits: { fileSize: 15 * 1024 * 1024 }
 });
 
-const PROCUREMENT_FILE_RE = /\.(pdf|doc|docx|xls|xlsx)$/i;
+const PROCUREMENT_FILE_RE = /\.(pdf|doc|docx|xls|xlsx|jpe?g)$/i;
 function procurementFilesFilter(req, file, cb) {
-  if (PROCUREMENT_FILE_RE.test(String(file.originalname || ''))) return cb(null, true);
-  cb(new Error('Дозволені лише файли PDF, Word (.doc, .docx), Excel (.xls, .xlsx)'));
+  const name = String(file.originalname || '');
+  if (PROCUREMENT_FILE_RE.test(name)) return cb(null, true);
+  const mt = String(file.mimetype || '').toLowerCase();
+  if (mt === 'image/jpeg') return cb(null, true);
+  cb(
+    new Error(
+      'Дозволені лише файли PDF, Word (.doc, .docx), Excel (.xls, .xlsx), JPEG (.jpg, .jpeg)'
+    )
+  );
 }
 const uploadProcurementFiles = multer({
   storage: multer.memoryStorage(),
