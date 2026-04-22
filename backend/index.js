@@ -3088,22 +3088,64 @@ function normalizeProcurementEdrpouDigits(input) {
   return String(input || '').replace(/\D/g, '');
 }
 
-/** Публічне дзеркало відкритого реєстру (XML). Повертає повну назву підприємства. */
+/**
+ * Атрибут name= у тезі company може містити лапки всередині (наприклад, ТОВ "ЛАЙФСЕЛЛ").
+ * Не можна шукати перше " перед name_short= — треба йти по символах / &quot; до " що безпосередньо перед name_short=.
+ */
 function parseCompanyNameFromAdmToolsRegistryXml(xml) {
   if (!xml || typeof xml !== 'string') return null;
-  const i = xml.indexOf('name="');
-  if (i === -1) return null;
-  const from = i + 6;
-  const j = xml.indexOf('" name_short="', from);
-  if (j === -1) return null;
-  const raw = xml.slice(from, j);
-  return (
-    raw
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, '&')
-      .replace(/&#39;/g, "'")
-      .trim() || null
-  );
+  const c = xml.indexOf('<company');
+  if (c === -1) return null;
+  const seg = xml.slice(c, c + 25000);
+  const key = 'name="';
+  const s = seg.indexOf(key);
+  if (s === -1) return null;
+  let i = s + key.length;
+  let buf = '';
+  while (i < seg.length) {
+    if (seg.startsWith('&quot;', i)) {
+      buf += '"';
+      i += 6;
+      continue;
+    }
+    if (seg.startsWith('&amp;', i)) {
+      buf += '&';
+      i += 5;
+      continue;
+    }
+    if (seg.startsWith('&lt;', i)) {
+      buf += '<';
+      i += 4;
+      continue;
+    }
+    if (seg.startsWith('&gt;', i)) {
+      buf += '>';
+      i += 4;
+      continue;
+    }
+    if (seg.startsWith('&#39;', i)) {
+      buf += "'";
+      i += 5;
+      continue;
+    }
+    if (seg.startsWith('&apos;', i)) {
+      buf += "'";
+      i += 6;
+      continue;
+    }
+    if (seg[i] === '"') {
+      const rest = seg.slice(i + 1, i + 48);
+      if (/^\s*name_short\s*=/i.test(rest)) {
+        return buf.replace(/\s+$/g, '') || null;
+      }
+      buf += seg[i];
+      i += 1;
+      continue;
+    }
+    buf += seg[i];
+    i += 1;
+  }
+  return null;
 }
 
 async function fetchCompanyNameFromPublicRegistryByEdrpou(edrpouDigits) {

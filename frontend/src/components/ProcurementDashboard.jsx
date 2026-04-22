@@ -882,8 +882,12 @@ function ProcurementDashboard({ user }) {
           { headers: authHeaders }
         );
         if (tryHandleUnauthorizedResponse(res)) return;
-        if (!res.ok) return;
         const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const errText = data && (data.error || data.message) ? String(data.error || data.message) : `Помилка ${res.status}`;
+          if (force) alert(errText);
+          return;
+        }
         if (data && data.error && !data.name) {
           if (force) alert(data.error);
           return;
