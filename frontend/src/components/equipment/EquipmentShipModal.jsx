@@ -747,7 +747,9 @@ function EquipmentShipModal({
                   return (
                     <>
                       <p><strong>{isQuantityBased ? 'Обладнання' : 'Партія'}:</strong> {selectedBatch.type}</p>
-                      <p><strong>Доступно на складі:</strong> {maxQuantity} шт.</p>
+                      <p style={{ color: 'var(--primary)', fontSize: '0.95em' }}>
+                        <strong>Доступно на складі:</strong> {maxQuantity} шт.
+                      </p>
                       <div className="form-group">
                         <label>Кількість для відвантаження *</label>
                         <input
@@ -761,7 +763,7 @@ function EquipmentShipModal({
                           }}
                           style={{ width: '100%', padding: '8px' }}
                         />
-                        <div style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+                        <div style={{ marginTop: '8px', fontSize: '0.9em', color: 'var(--primary)' }}>
                           Доступно на складі: {maxQuantity} шт.
                         </div>
                       </div>
@@ -1097,7 +1099,7 @@ function EquipmentShipModal({
                     style={{ width: '100%', padding: '8px', marginTop: '8px' }}
                     required
                   />
-                  <div style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+                  <div style={{ marginTop: '8px', fontSize: '0.9em', color: 'var(--primary)' }}>
                     Доступно на складі: <strong>{maxQuantity} шт.</strong>
                   </div>
                   <label style={{ display: 'block', marginTop: '14px' }}>
@@ -1116,7 +1118,7 @@ function EquipmentShipModal({
                     required
                   />
                   {purchaseFloor != null && (
-                    <div style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+                    <div style={{ marginTop: '8px', fontSize: '0.9em', color: 'var(--primary)' }}>
                       Ціна закупки: <strong>{purchaseFloor}</strong> грн за од. — має бути менше за ціну відвантаження.
                     </div>
                   )}
@@ -1161,7 +1163,7 @@ function EquipmentShipModal({
                       required
                     />
                     {purchaseFloor != null && (
-                      <div style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+                      <div style={{ marginTop: '8px', fontSize: '0.9em', color: 'var(--primary)' }}>
                         Ціна закупки: <strong>{purchaseFloor}</strong> грн за од. — має бути менше за ціну відвантаження.
                       </div>
                     )}
@@ -1205,7 +1207,7 @@ function EquipmentShipModal({
                       required
                     />
                     {purchaseFloor != null && (
-                      <div style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+                      <div style={{ marginTop: '8px', fontSize: '0.9em', color: 'var(--primary)' }}>
                         Ціна закупки: <strong>{purchaseFloor}</strong> грн за од. — має бути менше за ціну відвантаження.
                       </div>
                     )}
