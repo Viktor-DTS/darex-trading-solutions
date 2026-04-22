@@ -3,6 +3,7 @@ import API_BASE_URL from '../config';
 import WarehouseManagement from './equipment/WarehouseManagement';
 import CategoryManagement from './equipment/CategoryManagement';
 import ProductCardManagement from './equipment/ProductCardManagement';
+import SystemCoefficientsSettings from './SystemCoefficientsSettings';
 import './AdminDashboard.css';
 
 /** Ключі панелей у матриці (як у App.jsx) */
@@ -58,6 +59,7 @@ const ADMIN_TABS = [
   { id: 'warehouses', label: '🏢 Управління складами', icon: '🏢' },
   { id: 'categories', label: '📂 Категорії номенклатури', icon: '📂' },
   { id: 'productCards', label: '📇 Карточки продуктів', icon: '📇' },
+  { id: 'systemCoefficients', label: '🔢 Системні коефіцієнти', icon: '🔢' },
 ];
 
 function AdminDashboard({ user }) {
@@ -1924,6 +1926,7 @@ function AdminDashboard({ user }) {
       case 'warehouses': return <WarehouseManagement user={user} />;
       case 'categories': return <CategoryManagement user={user} />;
       case 'productCards': return <ProductCardManagement />;
+      case 'systemCoefficients': return <SystemCoefficientsSettings />;
       default: return renderUsersTab();
     }
   };

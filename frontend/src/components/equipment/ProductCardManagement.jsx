@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import API_BASE_URL from '../../config';
+import { normalizeUomLabel, useUnitsOfMeasure } from '../../hooks/useUnitsOfMeasure';
 import EquipmentFileUpload from './EquipmentFileUpload';
 import './CategoryManagement.css';
 
@@ -37,6 +38,7 @@ const emptyForm = () => ({
 });
 
 export default function ProductCardManagement() {
+  const { units: uomList } = useUnitsOfMeasure();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -99,6 +101,19 @@ export default function ProductCardManagement() {
   useEffect(() => {
     loadList();
   }, [loadList]);
+
+  const batchUnitOptions = useMemo(() => {
+    const u = String(form.defaultBatchUnit || '').trim();
+    const list = [...(uomList || [])];
+    if (u && !list.includes(u)) list.unshift(u);
+    return list.length ? list : ['шт.'];
+  }, [uomList, form.defaultBatchUnit]);
+
+  const batchUnitSelectValue = useMemo(() => {
+    const u = String(form.defaultBatchUnit || '').trim();
+    if (batchUnitOptions.includes(u)) return u;
+    return batchUnitOptions[0] || 'шт.';
+  }, [form.defaultBatchUnit, batchUnitOptions]);
 
   const openCreate = () => {
     setEditing(null);
@@ -179,7 +194,7 @@ export default function ProductCardManagement() {
         manufacturer: form.manufacturer.trim(),
         categoryId: form.categoryId || null,
         itemKind: form.itemKind,
-        defaultBatchUnit: form.defaultBatchUnit.trim() || 'шт.',
+        defaultBatchUnit: normalizeUomLabel(form.defaultBatchUnit, uomList),
         defaultCurrency: form.defaultCurrency.trim() || 'грн.',
         internalNotes: form.internalNotes,
         technicalSpecs: (form.technicalSpecs || []).map(({ name, value }) => ({
@@ -370,11 +385,20 @@ export default function ProductCardManagement() {
           </div>
           <div className="form-row">
             <label>Од. виміру за замовчуванням</label>
-            <input
-              type="text"
-              value={form.defaultBatchUnit}
+            <select
+              value={batchUnitSelectValue}
               onChange={(e) => setForm((f) => ({ ...f, defaultBatchUnit: e.target.value }))}
-            />
+            >
+              {batchUnitOptions.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </select>
+            <p style={{ fontSize: '12px', opacity: 0.8, margin: '6px 0 0', lineHeight: 1.35 }}>
+              Список редагується в Адміністратор → «Системні коефіцієнти» → «Одиниці виміру». Нестандартне значення зі
+              старої картки тимчасово додається у випадний список.
+            </p>
           </div>
           <div className="form-row">
             <label>Валюта за замовчуванням</label>

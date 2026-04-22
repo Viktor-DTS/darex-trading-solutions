@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import API_BASE_URL from '../config';
 import { tryHandleUnauthorizedResponse } from '../utils/authSession';
+import { normalizeUomLabel, useUnitsOfMeasure } from '../hooks/useUnitsOfMeasure';
 import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import './ProcurementDashboard.css';
 
@@ -33,13 +34,6 @@ const STATUS_LABELS = {
   partially_fulfilled: 'Частково виконана',
   completed: 'Повністю виконана'
 };
-
-const PROCUREMENT_UNITS = ['шт.', 'уп.', 'комплект', 'метр', 'літр', 'км', 'кв.м'];
-
-function normalizeProcurementUnit(v) {
-  const s = String(v == null ? '' : v).trim();
-  return PROCUREMENT_UNITS.includes(s) ? s : 'шт.';
-}
 
 function isProcurementExecutorWorkStatus(status) {
   return status === 'in_progress' || status === 'partially_fulfilled';
@@ -111,8 +105,8 @@ function sumWarehouseAcceptedQty(events) {
  * вже зберіг прийом, але заявка ще чекає інші склади/рядки (події тоді не додаються в БД).
  * Для завершених старих заявок: якщо подій у рядку немає, показуємо кількість + з шапки (ПІБ, дата).
  */
-function procurementReceiptsCellContent(m, detail) {
-  const u = normalizeProcurementUnit(m?.unitOfMeasure);
+function procurementReceiptsCellContent(m, detail, uomList) {
+  const u = normalizeUomLabel(m?.unitOfMeasure, uomList);
   const evs = m?.warehouseReceiptEvents;
   if (evs && evs.length) {
     return (
@@ -285,8 +279,8 @@ const RECEIPT_OUTCOME_LABELS = {
   partial: 'Частково / з розбіжностями'
 };
 
-function emptyMaterialRow() {
-  return { name: '', unitOfMeasure: 'шт.', quantity: '', productId: '' };
+function defaultMaterialRow(firstUom) {
+  return { name: '', unitOfMeasure: firstUom || 'шт.', quantity: '', productId: '' };
 }
 
 function ProcurementDashboard({ user }) {
@@ -303,7 +297,7 @@ function ProcurementDashboard({ user }) {
     payerCompany: '',
     priority: '5_workdays',
     desiredWarehouse: '',
-    materials: [emptyMaterialRow()],
+    materials: [defaultMaterialRow('шт.')],
     notes: '',
     files: []
   });
@@ -318,6 +312,10 @@ function ProcurementDashboard({ user }) {
   const [hintsForRow, setHintsForRow] = useState(null);
   const hintDebounceRef = useRef(null);
   const [procurementNotifUnreadCount, setProcurementNotifUnreadCount] = useState(0);
+
+  const { units: uomList } = useUnitsOfMeasure();
+  const normUom = useCallback((v) => normalizeUomLabel(v, uomList), [uomList]);
+  const firstUom = uomList[0] || 'шт.';
 
   const role = String(user?.role || '').toLowerCase();
   const isVidZakupok = ['vidzakupok', 'admin', 'administrator'].includes(role);
@@ -412,7 +410,7 @@ function ProcurementDashboard({ user }) {
     setMaterialsDraft(
       detail.materials.map((m) => ({
         name: m.name || '',
-        unitOfMeasure: normalizeProcurementUnit(m.unitOfMeasure),
+        unitOfMeasure: normalizeUomLabel(m.unitOfMeasure, uomList),
         quantity: m.quantity,
         price: m.price != null && m.price !== '' ? String(m.price) : '',
         productId: m.productId ? String(m.productId) : '',
@@ -427,7 +425,7 @@ function ProcurementDashboard({ user }) {
         initialQuantity: m.initialQuantity
       }))
     );
-  }, [detail?._id, detail?.materials]);
+  }, [detail?._id, detail?.materials, uomList]);
 
   const warehouseOptions = useMemo(() => {
     return warehouses
@@ -441,7 +439,7 @@ function ProcurementDashboard({ user }) {
       payerCompany: '',
       priority: '5_workdays',
       desiredWarehouse: '',
-      materials: [emptyMaterialRow()],
+      materials: [defaultMaterialRow(firstUom)],
       notes: '',
       files: []
     });
@@ -487,7 +485,10 @@ function ProcurementDashboard({ user }) {
   };
 
   const addMaterialRow = () => {
-    setCreateForm((prev) => ({ ...prev, materials: [...prev.materials, emptyMaterialRow()] }));
+    setCreateForm((prev) => ({
+      ...prev,
+      materials: [...prev.materials, defaultMaterialRow(firstUom)]
+    }));
   };
 
   const removeMaterialRow = (idx) => {
@@ -526,7 +527,7 @@ function ProcurementDashboard({ user }) {
       .filter((m) => m && String(m.name || '').trim())
       .map((m) => ({
         name: String(m.name).trim(),
-        unitOfMeasure: normalizeProcurementUnit(m.unitOfMeasure),
+        unitOfMeasure: normalizeUomLabel(m.unitOfMeasure, uomList),
         quantity: m.quantity === '' ? null : Number(m.quantity),
         productId: m.productId || null
       }));
@@ -683,7 +684,7 @@ function ProcurementDashboard({ user }) {
   const persistExecutorMaterials = async (requestId) => {
     if (!materialsDraft || !materialsDraft.length) return true;
     const payload = materialsDraft.map((m) => ({
-      unitOfMeasure: normalizeProcurementUnit(m.unitOfMeasure),
+      unitOfMeasure: normUom(m.unitOfMeasure),
       quantity:
         m.quantity === '' || m.quantity === undefined || m.quantity === null ? null : Number(m.quantity),
       actualWarehouse: String(m.actualWarehouse || '').trim(),
@@ -730,7 +731,7 @@ function ProcurementDashboard({ user }) {
           ? Math.max(0, payload[i].analogQuantity)
           : 0;
       if (!payload[i].rejected && maxR !== null && mainPart + analogPart > maxR) {
-        const uom = normalizeProcurementUnit(materialsDraft[i]?.unitOfMeasure);
+        const uom = normUom(materialsDraft[i]?.unitOfMeasure);
         alert(
           `Позиція ${i + 1}: сума кількості основного товару (${mainPart}) та аналогу (${analogPart}) не більше ${maxR} ${uom} (залишок з урахуванням прийомів на складі).`
         );
@@ -1341,11 +1342,11 @@ function ProcurementDashboard({ user }) {
                     </div>
                     <div className="procurement-material-cell procurement-material-cell--unit">
                       <select
-                        value={normalizeProcurementUnit(row.unitOfMeasure)}
+                        value={normUom(row.unitOfMeasure)}
                         onChange={(e) => updateMaterialRow(idx, { unitOfMeasure: e.target.value })}
                         aria-label="Одиниця виміру"
                       >
-                        {PROCUREMENT_UNITS.map((u) => (
+                        {uomList.map((u) => (
                           <option key={u} value={u}>
                             {u}
                           </option>
@@ -1563,12 +1564,12 @@ function ProcurementDashboard({ user }) {
                                   <td className="procurement-col-uom">
                                     <select
                                       className="procurement-uom-select"
-                                      value={normalizeProcurementUnit(m.unitOfMeasure)}
+                                      value={normUom(m.unitOfMeasure)}
                                       onChange={(e) => updateMaterialDraftRow(i, { unitOfMeasure: e.target.value })}
                                       disabled={m.rejected}
                                       aria-label="Одиниця виміру"
                                     >
-                                      {PROCUREMENT_UNITS.map((u) => (
+                                      {uomList.map((u) => (
                                         <option key={u} value={u}>
                                           {u}
                                         </option>
@@ -1581,7 +1582,7 @@ function ProcurementDashboard({ user }) {
                                       : '—'}
                                   </td>
                                   <td className="procurement-wh-cell">
-                                    {procurementReceiptsCellContent(savedLine || {}, detail)}
+                                    {procurementReceiptsCellContent(savedLine || {}, detail, uomList)}
                                   </td>
                                   <td className="procurement-remainder-cell procurement-col-remainder">
                                     {m.rejected || maxRemainCap === null ? (
@@ -2000,14 +2001,14 @@ function ProcurementDashboard({ user }) {
                             return (
                               <tr key={i}>
                                 <td>{m.name}</td>
-                                <td className="procurement-col-uom">{normalizeProcurementUnit(m.unitOfMeasure)}</td>
+                                <td className="procurement-col-uom">{normUom(m.unitOfMeasure)}</td>
                                 <td className="procurement-col-initial-qty">
                                   {initialDisp != null && Number.isFinite(initialDisp)
                                     ? initialDisp
                                     : '—'}
                                 </td>
                                 <td className="procurement-wh-cell">
-                                  {procurementReceiptsCellContent(m, detail)}
+                                  {procurementReceiptsCellContent(m, detail, uomList)}
                                 </td>
                                 <td className="procurement-col-remainder">
                                   {m.rejected || exp === null ? '—' : exp}

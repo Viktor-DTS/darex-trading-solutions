@@ -442,6 +442,61 @@ const globalCalculationCoefficientsSchema = new mongoose.Schema({
 }, { strict: false });
 const GlobalCalculationCoefficients = mongoose.model('GlobalCalculationCoefficients', globalCalculationCoefficientsSchema);
 
+/** Довідник одиниць виміру (закупівлі, картки продукту, надходження на склад) — редагується в адмінці */
+const DEFAULT_UNITS_OF_MEASURE = ['шт.', 'уп.', 'комплект', 'метр', 'літр', 'км', 'кв.м'];
+const systemUnitsOfMeasureSchema = new mongoose.Schema(
+  {
+    _id: { type: String, default: 'singleton' },
+    items: { type: [String], default: [] },
+    updatedAt: { type: Date },
+    updatedByLogin: { type: String, default: '' }
+  },
+  { collection: 'systemunitsofmeasure' }
+);
+const SystemUnitsOfMeasure = mongoose.model('SystemUnitsOfMeasure', systemUnitsOfMeasureSchema);
+
+let unitsOfMeasureCache = { list: null, expires: 0 };
+const UNITS_OF_MEASURE_CACHE_TTL_MS = 30000;
+
+function invalidateUnitsOfMeasureCache() {
+  unitsOfMeasureCache = { list: null, expires: 0 };
+}
+
+async function getUnitsOfMeasureList() {
+  const now = Date.now();
+  if (unitsOfMeasureCache.list && now < unitsOfMeasureCache.expires) {
+    return unitsOfMeasureCache.list;
+  }
+  let doc = await SystemUnitsOfMeasure.findById('singleton').lean();
+  if (!doc) {
+    await SystemUnitsOfMeasure.create({ _id: 'singleton', items: [...DEFAULT_UNITS_OF_MEASURE] });
+    doc = { items: [...DEFAULT_UNITS_OF_MEASURE] };
+  }
+  let items = (doc.items || []).map((x) => String(x).trim()).filter(Boolean);
+  if (!items.length) {
+    await SystemUnitsOfMeasure.findByIdAndUpdate(
+      'singleton',
+      { $set: { items: [...DEFAULT_UNITS_OF_MEASURE] } },
+      { upsert: true }
+    );
+    items = [...DEFAULT_UNITS_OF_MEASURE];
+  }
+  unitsOfMeasureCache = { list: items, expires: now + UNITS_OF_MEASURE_CACHE_TTL_MS };
+  return items;
+}
+
+function pickUnitFromList(value, list) {
+  const arr = list && list.length ? list : DEFAULT_UNITS_OF_MEASURE;
+  const s = String(value == null ? '' : value).trim();
+  if (arr.includes(s)) return s;
+  return arr[0] || 'шт.';
+}
+
+async function normalizeBatchUnitToList(raw) {
+  const list = await getUnitsOfMeasureList();
+  return pickUnitFromList(raw, list);
+}
+
 // Склад рядків задається лише тут; у Mongo зберігаються лише id + value
 const PROGRAMMATIC_SALES_COEFFICIENTS = [
   {
@@ -1350,14 +1405,6 @@ const procurementLineExecutorFileSchema = new mongoose.Schema(
 
 const PROCUREMENT_PAYER_COMPANIES = ['dts', 'dareks_energo'];
 const PROCUREMENT_APPLICATION_KINDS = ['purchase', 'price_determination'];
-/** Дозволені одиниці виміру в рядку матеріалу (заявка / відображення) */
-const PROCUREMENT_UNIT_OF_MEASURE = ['шт.', 'уп.', 'комплект', 'метр', 'літр', 'км', 'кв.м'];
-
-function normalizeProcurementUnitOfMeasure(v) {
-  const s = String(v == null ? '' : v).trim();
-  if (PROCUREMENT_UNIT_OF_MEASURE.includes(s)) return s;
-  return 'шт.';
-}
 
 const procurementWarehouseReceiptEventSchema = new mongoose.Schema(
   {
@@ -3466,28 +3513,28 @@ app.post(
       if (!Array.isArray(materialsRaw)) {
         return res.status(400).json({ error: 'Матеріали мають бути масивом' });
       }
-      const materials = materialsRaw
-        .filter((m) => m && String(m.name || '').trim())
-        .map((m) => {
-          const qRaw = m.quantity;
-          const qty =
-            qRaw === '' || qRaw === undefined || qRaw === null
-              ? null
-              : Number(qRaw);
-          let productId = null;
-          if (m.productId && mongoose.isValidObjectId(String(m.productId))) {
-            productId = new mongoose.Types.ObjectId(String(m.productId));
-          }
-          const qFin = Number.isFinite(qty) ? qty : null;
-          return {
-            name: String(m.name).trim(),
-            unitOfMeasure: normalizeProcurementUnitOfMeasure(m.unitOfMeasure),
-            quantity: qFin,
-            initialQuantity: qFin,
-            price: null,
-            productId
-          };
+      const uomList = await getUnitsOfMeasureList();
+      const materials = [];
+      for (const m of materialsRaw.filter((x) => x && String(x.name || '').trim())) {
+        const qRaw = m.quantity;
+        const qty =
+          qRaw === '' || qRaw === undefined || qRaw === null
+            ? null
+            : Number(qRaw);
+        let productId = null;
+        if (m.productId && mongoose.isValidObjectId(String(m.productId))) {
+          productId = new mongoose.Types.ObjectId(String(m.productId));
+        }
+        const qFin = Number.isFinite(qty) ? qty : null;
+        materials.push({
+          name: String(m.name).trim(),
+          unitOfMeasure: pickUnitFromList(m.unitOfMeasure, uomList),
+          quantity: qFin,
+          initialQuantity: qFin,
+          price: null,
+          productId
         });
+      }
       const dbUser = await User.findOne({ login: req.user.login }).lean();
       const attachments = (req.files || []).map((f) => ({
         originalName: f.originalname,
@@ -3578,6 +3625,7 @@ app.patch('/api/procurement-requests/:id/executor-materials', async (req, res) =
     if (qtyErr) {
       return res.status(400).json({ error: qtyErr });
     }
+    const uomList = await getUnitsOfMeasureList();
     for (let i = 0; i < n; i++) {
       const inc = incoming[i] || {};
       const line = pr.materials[i];
@@ -3612,9 +3660,9 @@ app.patch('/api/procurement-requests/:id/executor-materials', async (req, res) =
         line.rejectionReason = '';
       }
       if (Object.prototype.hasOwnProperty.call(inc, 'unitOfMeasure')) {
-        line.unitOfMeasure = normalizeProcurementUnitOfMeasure(inc.unitOfMeasure);
+        line.unitOfMeasure = pickUnitFromList(inc.unitOfMeasure, uomList);
       } else if (line.unitOfMeasure == null || String(line.unitOfMeasure).trim() === '') {
-        line.unitOfMeasure = 'шт.';
+        line.unitOfMeasure = pickUnitFromList('', uomList);
       }
       line.actualWarehouse = String(
         inc.actualWarehouse !== undefined ? inc.actualWarehouse : line.actualWarehouse || ''
@@ -9630,6 +9678,67 @@ function mergeProductCardAttachedFilesIntoEquipmentPayload(equipmentData, card) 
   equipmentData.attachedFiles = [...prefix, ...existing];
 }
 
+// Довідник одиниць виміру (для випадних списків у закупівлях, картках, надходженні)
+app.get('/api/units-of-measure', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const items = await getUnitsOfMeasureList();
+    logPerformance('GET /api/units-of-measure', startTime, items.length);
+    res.json({ items });
+  } catch (error) {
+    logPerformance('GET /api/units-of-measure', startTime);
+    console.error('[ERROR] GET /api/units-of-measure:', error);
+    res.status(500).json({ error: error.message || 'Помилка' });
+  }
+});
+
+app.put('/api/admin/units-of-measure', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator'].includes(String(req.user.role || '').toLowerCase())) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const raw = req.body && req.body.items;
+    if (!Array.isArray(raw)) {
+      return res.status(400).json({ error: 'Очікується об\'єкт з полем items (масив рядків)' });
+    }
+    const items = [];
+    const seen = new Set();
+    for (const x of raw) {
+      const s = String(x == null ? '' : x).trim();
+      if (!s) continue;
+      if (s.length > 32) {
+        return res.status(400).json({ error: 'Кожен варіант — не довше 32 символів' });
+      }
+      if (seen.has(s)) continue;
+      seen.add(s);
+      items.push(s);
+    }
+    if (!items.length) {
+      return res.status(400).json({ error: 'Потрібен хоча б один варіант одиниці виміру' });
+    }
+    await SystemUnitsOfMeasure.findByIdAndUpdate(
+      'singleton',
+      {
+        $set: {
+          items,
+          updatedAt: new Date(),
+          updatedByLogin: String(req.user.login || '')
+        }
+      },
+      { upsert: true }
+    );
+    invalidateUnitsOfMeasureCache();
+    const out = await getUnitsOfMeasureList();
+    logPerformance('PUT /api/admin/units-of-measure', startTime, out.length);
+    res.json({ items: out });
+  } catch (error) {
+    logPerformance('PUT /api/admin/units-of-measure', startTime);
+    console.error('[ERROR] PUT /api/admin/units-of-measure:', error);
+    res.status(500).json({ error: error.message || 'Помилка' });
+  }
+});
+
 // Список карточок продукту (довідник номенклатури)
 app.get('/api/product-cards', authenticateToken, async (req, res) => {
   const startTime = Date.now();
@@ -9688,13 +9797,14 @@ app.post('/api/product-cards', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Поле «тип / найменування» обов\'язкове' });
     }
     const ik = ['equipment', 'parts'].includes(itemKind) ? itemKind : 'equipment';
+    const uBatch = await normalizeBatchUnitToList(defaultBatchUnit);
     const doc = await ProductCard.create({
       displayName: displayName != null ? String(displayName).trim() : '',
       type: String(type).trim(),
       manufacturer: manufacturer != null ? String(manufacturer).trim() : '',
       categoryId: categoryId && mongoose.Types.ObjectId.isValid(String(categoryId)) ? categoryId : null,
       itemKind: ik,
-      defaultBatchUnit: (defaultBatchUnit && String(defaultBatchUnit).trim()) || 'шт.',
+      defaultBatchUnit: uBatch,
       defaultCurrency: (defaultCurrency && String(defaultCurrency).trim()) || 'грн.',
       internalNotes: internalNotes != null ? String(internalNotes) : '',
       technicalSpecs: sanitizeProductCardTechnicalSpecs(technicalSpecs),
@@ -9734,7 +9844,9 @@ app.patch('/api/product-cards/:id', authenticateToken, async (req, res) => {
       updates.categoryId = b.categoryId && mongoose.Types.ObjectId.isValid(String(b.categoryId)) ? b.categoryId : null;
     }
     if (b.itemKind !== undefined && ['equipment', 'parts'].includes(b.itemKind)) updates.itemKind = b.itemKind;
-    if (b.defaultBatchUnit !== undefined) updates.defaultBatchUnit = String(b.defaultBatchUnit).trim() || 'шт.';
+    if (b.defaultBatchUnit !== undefined) {
+      updates.defaultBatchUnit = await normalizeBatchUnitToList(b.defaultBatchUnit);
+    }
     if (b.defaultCurrency !== undefined) updates.defaultCurrency = String(b.defaultCurrency).trim() || 'грн.';
     if (b.internalNotes !== undefined) updates.internalNotes = String(b.internalNotes);
     if (b.isActive !== undefined) updates.isActive = !!b.isActive;
@@ -10069,6 +10181,10 @@ app.post('/api/equipment/scan', authenticateToken, async (req, res) => {
       mergeProductCardAttachedFilesIntoEquipmentPayload(equipmentData, card);
     } else {
       equipmentData.technicalSpecs = sanitizeProductCardTechnicalSpecs(equipmentData.technicalSpecs);
+    }
+
+    if (equipmentData.batchUnit != null && String(equipmentData.batchUnit).trim() !== '') {
+      equipmentData.batchUnit = await normalizeBatchUnitToList(equipmentData.batchUnit);
     }
 
     const isBatch = equipmentData.isBatch === true;
