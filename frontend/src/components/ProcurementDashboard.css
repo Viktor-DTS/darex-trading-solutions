@@ -480,7 +480,7 @@
 
 .procurement-materials-head {
   display: grid;
-  grid-template-columns: 1fr 100px 100px 36px;
+  grid-template-columns: 1fr 120px 36px;
   gap: 8px;
   font-size: 12px;
   font-weight: 600;
@@ -491,7 +491,7 @@
 
 .procurement-material-row {
   display: grid;
-  grid-template-columns: 1fr 100px 100px 36px;
+  grid-template-columns: 1fr 120px 36px;
   gap: 8px;
   align-items: start;
   margin-bottom: 8px;
@@ -791,6 +791,85 @@
 
 .procurement-row-rejected {
   background: rgba(244, 67, 54, 0.08);
+}
+
+.procurement-td-num {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.procurement-line-file-cell {
+  min-width: 9rem;
+  max-width: 12rem;
+}
+
+.procurement-line-file-cell--readonly .procurement-file-link--inline {
+  display: block;
+  margin-bottom: 4px;
+  text-align: left;
+}
+
+.procurement-line-file-missing {
+  color: var(--text-secondary);
+  margin-right: 6px;
+  font-size: 12px;
+}
+
+.procurement-line-file-pick {
+  display: block;
+  margin-top: 4px;
+}
+
+.procurement-line-file-pick input[type='file'] {
+  font-size: 11px;
+  max-width: 100%;
+}
+
+.procurement-file-link--inline {
+  display: inline;
+  margin-right: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  text-decoration: underline;
+  font: inherit;
+}
+
+.procurement-edrpou-cell {
+  min-width: 10.5rem;
+  max-width: 14rem;
+}
+
+.procurement-edrpou-hint {
+  margin: 6px 0 4px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.procurement-btn-lookup-name {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  line-height: 1.2;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.procurement-btn-lookup-name:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.procurement-btn-lookup-name:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .procurement-mini-table--wide {

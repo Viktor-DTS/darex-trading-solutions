@@ -32,6 +32,16 @@ function formatDt(d) {
   }
 }
 
+/** Відображувані назви внутрішніх статусів обладнання в колонці «Статус». */
+const INVENTORY_STATUS_DISPLAY = {
+  in_stock: 'надходження на склад'
+};
+
+function formatMovementStatusValue(s) {
+  if (s == null || s === '') return '—';
+  return INVENTORY_STATUS_DISPLAY[s] || s;
+}
+
 export default function InventoryMovementJournal() {
   const [data, setData] = useState({ rows: [], total: 0 });
   const [journalReadOnly, setJournalReadOnly] = useState(false);
@@ -134,7 +144,7 @@ export default function InventoryMovementJournal() {
                 <td>{row.quantity != null ? row.quantity : '—'}</td>
                 <td>{row.serialNumber || '—'}</td>
                 <td>
-                  {row.fromStatus || '—'} → {row.toStatus || '—'}
+                  {formatMovementStatusValue(row.fromStatus)} → {formatMovementStatusValue(row.toStatus)}
                 </td>
                 <td>
                   {row.managerName || row.managerLogin

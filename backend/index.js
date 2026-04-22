@@ -1337,6 +1337,17 @@ const procurementAttachmentSchema = new mongoose.Schema(
   { _id: true }
 );
 
+/** Один файл (рахунок / ВН) на рядок матеріалу — окремо від глобальних executorAttachments. */
+const procurementLineExecutorFileSchema = new mongoose.Schema(
+  {
+    originalName: { type: String, required: true },
+    mimeType: { type: String, default: '' },
+    size: { type: Number, default: 0 },
+    data: { type: Buffer, required: true }
+  },
+  { _id: true }
+);
+
 const PROCUREMENT_PAYER_COMPANIES = ['dts', 'dareks_energo'];
 const PROCUREMENT_APPLICATION_KINDS = ['purchase', 'price_determination'];
 
@@ -1369,7 +1380,12 @@ const procurementMaterialLineSchema = new mongoose.Schema({
   /** Історія часткових прийомів завскладом по цій позиції (дата, хто, скільки) */
   warehouseReceiptEvents: { type: [procurementWarehouseReceiptEventSchema], default: [] },
   /** Фактичний склад відвантаження по цій позиції (може відрізнятися між рядками) */
-  actualWarehouse: { type: String, trim: true, default: '' }
+  actualWarehouse: { type: String, trim: true, default: '' },
+  /** Виконавець: постачальник, ціна за од. з ПДВ, файли по рядку */
+  supplierName: { type: String, trim: true, default: '' },
+  supplierEdrpou: { type: String, trim: true, default: '' },
+  invoiceFile: procurementLineExecutorFileSchema,
+  deliveryNoteFile: procurementLineExecutorFileSchema
 });
 
 const procurementRequestSchema = new mongoose.Schema(
@@ -3010,7 +3026,34 @@ app.post('/api/files/upload-contract', authenticateToken, uploadContract.single(
 // ВІДДІЛ ЗАКУПІВЕЛЬ — заявки на закупівлю
 // ============================================
 
-const PROCUREMENT_DOC_LIST_PROJECTION = '-attachments.data -executorAttachments.data';
+const PROCUREMENT_DOC_LIST_PROJECTION =
+  '-attachments.data -executorAttachments.data -materials.invoiceFile.data -materials.deliveryNoteFile.data';
+
+function stripProcurementLineBinaryFields(docOrList) {
+  const run = (d) => {
+    if (!d || !d.materials) return;
+    for (const m of d.materials) {
+      if (!m) continue;
+      for (const key of ['invoiceFile', 'deliveryNoteFile']) {
+        const f = m[key];
+        if (f && f.data) {
+          m[key] = {
+            _id: f._id,
+            originalName: f.originalName,
+            mimeType: f.mimeType,
+            size: f.size
+          };
+        }
+      }
+    }
+  };
+  if (Array.isArray(docOrList)) {
+    for (const d of docOrList) run(d);
+  } else {
+    run(docOrList);
+  }
+  return docOrList;
+}
 
 /** Редагування матеріалів / відвантаження виконавцем після взяття в роботу або після часткового прийому на складі */
 const PROCUREMENT_EXECUTOR_WORK_STATUSES = ['in_progress', 'partially_fulfilled'];
@@ -3040,6 +3083,108 @@ function validateProcurementMaterialsRejectionReasons(materials) {
 function escapeRegExpForProcurementHint(s) {
   return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+function normalizeProcurementEdrpouDigits(input) {
+  return String(input || '').replace(/\D/g, '');
+}
+
+/** Публічне дзеркало відкритого реєстру (XML). Повертає повну назву підприємства. */
+function parseCompanyNameFromAdmToolsRegistryXml(xml) {
+  if (!xml || typeof xml !== 'string') return null;
+  const i = xml.indexOf('name="');
+  if (i === -1) return null;
+  const from = i + 6;
+  const j = xml.indexOf('" name_short="', from);
+  if (j === -1) return null;
+  const raw = xml.slice(from, j);
+  return (
+    raw
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/&#39;/g, "'")
+      .trim() || null
+  );
+}
+
+async function fetchCompanyNameFromPublicRegistryByEdrpou(edrpouDigits) {
+  const url = `https://adm.tools/action/gov/api/?egrpou=${encodeURIComponent(edrpouDigits)}`;
+  const ac = new AbortController();
+  const to = setTimeout(() => ac.abort(), 12000);
+  try {
+    const r = await fetch(url, {
+      signal: ac.signal,
+      headers: { 'User-Agent': 'DTS-Procurement/1.0' }
+    });
+    if (!r.ok) return null;
+    const text = await r.text();
+    return parseCompanyNameFromAdmToolsRegistryXml(text);
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(to);
+  }
+}
+
+/**
+ * Підбір «Назва постачальника» за ЄДРПОУ: 1) клієнти, 2) історія закупівель, 3) публічний реєстр.
+ */
+app.get('/api/procurement-requests/lookup-supplier-name', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const raw = String(req.query.code || req.query.edrpou || '').trim();
+    const digits = normalizeProcurementEdrpouDigits(raw);
+    if (digits.length < 8 || digits.length > 10) {
+      logPerformance('GET /api/procurement-requests/lookup-supplier-name', startTime, 0);
+      return res.json({ name: null, source: null, error: 'Вкажіть коректний ЄДРПОУ (8–10 цифр)' });
+    }
+    const reExact = new RegExp(`^\\s*${escapeRegExpForProcurementHint(digits)}\\s*$`, 'i');
+    let client = await Client.findOne({
+      $or: [{ edrpou: digits }, { edrpou: reExact }]
+    })
+      .select('name edrpou')
+      .lean();
+    if (!client) {
+      const candidates = await Client.find({
+        edrpou: { $regex: new RegExp(escapeRegExpForProcurementHint(digits)) }
+      })
+        .select('name edrpou')
+        .limit(8)
+        .lean();
+      client = candidates.find((c) => normalizeProcurementEdrpouDigits(c.edrpou) === digits) || null;
+    }
+    if (client && String(client.name || '').trim()) {
+      logPerformance('GET /api/procurement-requests/lookup-supplier-name', startTime, 1);
+      return res.json({ name: String(client.name).trim(), source: 'client' });
+    }
+    const reContains = new RegExp(escapeRegExpForProcurementHint(digits));
+    const prs = await ProcurementRequest.find({ 'materials.supplierEdrpou': reContains }, { materials: 1, updatedAt: 1 })
+      .sort({ updatedAt: -1 })
+      .limit(60)
+      .lean();
+    for (const pr of prs) {
+      for (const m of pr.materials || []) {
+        if (!m) continue;
+        if (normalizeProcurementEdrpouDigits(m.supplierEdrpou) !== digits) continue;
+        const n = String(m.supplierName || '').trim();
+        if (n) {
+          logPerformance('GET /api/procurement-requests/lookup-supplier-name', startTime, 1);
+          return res.json({ name: n, source: 'procurement_history' });
+        }
+      }
+    }
+    const registry = await fetchCompanyNameFromPublicRegistryByEdrpou(digits);
+    if (registry) {
+      logPerformance('GET /api/procurement-requests/lookup-supplier-name', startTime, 1);
+      return res.json({ name: registry, source: 'registry' });
+    }
+    logPerformance('GET /api/procurement-requests/lookup-supplier-name', startTime, 0);
+    return res.json({ name: null, source: null });
+  } catch (error) {
+    logPerformance('GET /api/procurement-requests/lookup-supplier-name', startTime);
+    console.error('[ERROR] lookup-supplier-name:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.get('/api/procurement-requests/nomenclature-hints', async (req, res) => {
   const startTime = Date.now();
@@ -3084,6 +3229,7 @@ app.get('/api/procurement-requests', async (req, res) => {
       .select(PROCUREMENT_DOC_LIST_PROJECTION)
       .sort({ createdAt: -1 })
       .lean();
+    stripProcurementLineBinaryFields(rows);
     logPerformance('GET /api/procurement-requests', startTime, rows.length);
     res.json(rows);
   } catch (error) {
@@ -3160,6 +3306,18 @@ function procurementUploadMiddleware(req, res, next) {
   });
 }
 
+function procurementLineFileUploadMiddleware(req, res, next) {
+  uploadProcurementFiles.single('file')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || 'Помилка завантаження файлу' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Оберіть файл' });
+    }
+    next();
+  });
+}
+
 app.post(
   '/api/procurement-requests',
   procurementUploadMiddleware,
@@ -3202,15 +3360,10 @@ app.post(
         .filter((m) => m && String(m.name || '').trim())
         .map((m) => {
           const qRaw = m.quantity;
-          const pRaw = m.price;
           const qty =
             qRaw === '' || qRaw === undefined || qRaw === null
               ? null
               : Number(qRaw);
-          const price =
-            pRaw === '' || pRaw === undefined || pRaw === null
-              ? null
-              : Number(pRaw);
           let productId = null;
           if (m.productId && mongoose.isValidObjectId(String(m.productId))) {
             productId = new mongoose.Types.ObjectId(String(m.productId));
@@ -3220,7 +3373,7 @@ app.post(
             name: String(m.name).trim(),
             quantity: qFin,
             initialQuantity: qFin,
-            price: Number.isFinite(price) ? price : null,
+            price: null,
             productId
           };
         });
@@ -3247,6 +3400,7 @@ app.post(
         attachments
       });
       const out = await ProcurementRequest.findById(doc._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+      stripProcurementLineBinaryFields(out);
       await notifyVidZakupokNewProcurementRequest(out);
       logPerformance('POST /api/procurement-requests', startTime);
       res.status(201).json(out);
@@ -3275,6 +3429,7 @@ app.post('/api/procurement-requests/:id/take-in-work', async (req, res) => {
     pr.executorName = String(dbUser?.name || req.user.name || req.user.login).trim();
     await pr.save();
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    stripProcurementLineBinaryFields(out);
     logPerformance('POST /api/procurement-requests/take-in-work', startTime);
     res.json(out);
   } catch (error) {
@@ -3348,9 +3503,28 @@ app.patch('/api/procurement-requests/:id/executor-materials', async (req, res) =
       line.actualWarehouse = String(
         inc.actualWarehouse !== undefined ? inc.actualWarehouse : line.actualWarehouse || ''
       ).trim();
+      line.supplierName = String(
+        inc.supplierName !== undefined ? inc.supplierName : line.supplierName || ''
+      ).trim();
+      line.supplierEdrpou = String(
+        inc.supplierEdrpou !== undefined ? inc.supplierEdrpou : line.supplierEdrpou || ''
+      ).trim();
+      if (Object.prototype.hasOwnProperty.call(inc, 'price')) {
+        const pRaw = inc.price;
+        if (pRaw === '' || pRaw === undefined || pRaw === null) {
+          line.price = null;
+        } else {
+          const n = Number(pRaw);
+          if (!Number.isFinite(n) || n < 0) {
+            return res.status(400).json({ error: `Позиція ${i + 1}: некоректна ціна за од. з ПДВ` });
+          }
+          line.price = n;
+        }
+      }
     }
     await pr.save();
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    stripProcurementLineBinaryFields(out);
     logPerformance('PATCH /api/procurement-requests/executor-materials', startTime);
     res.json(out);
   } catch (error) {
@@ -3385,6 +3559,19 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
     for (let i = 0; i < pr.materials.length; i++) {
       const line = pr.materials[i];
       if (!procurementLineNeedsShipmentWarehouse(line)) continue;
+      if (!String(line.supplierName || '').trim()) {
+        return res.status(400).json({ error: `Позиція ${i + 1}: вкажіть назву постачальника` });
+      }
+      const pUnit = line.price;
+      if (pUnit === null || pUnit === undefined || pUnit === '' || !Number.isFinite(Number(pUnit)) || Number(pUnit) < 0) {
+        return res
+          .status(400)
+          .json({ error: `Позиція ${i + 1}: вкажіть ціну за од. з ПДВ (число, не менше 0)` });
+      }
+    }
+    for (let i = 0; i < pr.materials.length; i++) {
+      const line = pr.materials[i];
+      if (!procurementLineNeedsShipmentWarehouse(line)) continue;
       let w = String(line.actualWarehouse || '').trim();
       if (!w && defaultWarehouse) {
         line.actualWarehouse = defaultWarehouse;
@@ -3407,6 +3594,7 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
     await pr.save();
     await notifyWarehouseStaffProcurementIncoming(pr);
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    stripProcurementLineBinaryFields(out);
     logPerformance('PATCH /api/procurement-requests/complete-executor', startTime);
     res.json(out);
   } catch (error) {
@@ -3464,12 +3652,114 @@ app.get('/api/procurement-requests/pending-warehouse-receipt', async (req, res) 
       }
     }
     logPerformance('GET pending-warehouse-receipt', startTime, rows.length);
+    stripProcurementLineBinaryFields(rows);
     res.json(rows);
   } catch (error) {
     logPerformance('GET pending-warehouse-receipt', startTime);
     res.status(500).json({ error: error.message });
   }
 });
+
+app.get('/api/procurement-requests/:id/line-executor-files/:lineIndex/:docKind', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Некоректний ідентифікатор заявки' });
+    }
+    const pr = await ProcurementRequest.findById(req.params.id);
+    if (!pr) {
+      logPerformance('GET line-executor-file', startTime);
+      return res.status(404).json({ error: 'Заявку не знайдено' });
+    }
+    const dbUser = await User.findOne({ login: req.user.login }).lean();
+    if (!(await userCanReadProcurementRequest(req.user, dbUser, pr))) {
+      logPerformance('GET line-executor-file', startTime);
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const idx = parseInt(req.params.lineIndex, 10);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= (pr.materials || []).length) {
+      return res.status(400).json({ error: 'Некоректний індекс позиції' });
+    }
+    const kind = String(req.params.docKind || '').toLowerCase();
+    if (kind !== 'invoice' && kind !== 'delivery_note') {
+      return res.status(400).json({ error: 'Некоректний тип файлу' });
+    }
+    const line = pr.materials[idx];
+    const fileObj = kind === 'invoice' ? line?.invoiceFile : line?.deliveryNoteFile;
+    if (!fileObj || !fileObj.data) {
+      logPerformance('GET line-executor-file', startTime);
+      return res.status(404).json({ error: 'Файл не знайдено' });
+    }
+    const name = String(fileObj.originalName || 'file').replace(/[\r\n"]/g, '_');
+    res.setHeader('Content-Type', fileObj.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.send(fileObj.data);
+    logPerformance('GET line-executor-file', startTime);
+  } catch (error) {
+    logPerformance('GET line-executor-file', startTime);
+    console.error('[ERROR] GET line-executor-file:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post(
+  '/api/procurement-requests/:id/line-executor-files/:lineIndex',
+  procurementLineFileUploadMiddleware,
+  async (req, res) => {
+    const startTime = Date.now();
+    try {
+      if (!isVidZakupokProcurementRole(req.user.role)) {
+        return res.status(403).json({ error: 'Доступ заборонено' });
+      }
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({ error: 'Некоректний ідентифікатор заявки' });
+      }
+      const pr = await ProcurementRequest.findById(req.params.id);
+      if (!pr) {
+        return res.status(404).json({ error: 'Заявку не знайдено' });
+      }
+      if (!procurementExecutorCanEditWork(pr.status)) {
+        return res.status(400).json({
+          error: 'Завантаження файлів по позиції доступне для «Взята в роботу» або «Частково виконана»'
+        });
+      }
+      if (!canUploadProcurementExecutorFiles(req.user, pr)) {
+        return res.status(403).json({ error: 'Доступ заборонено' });
+      }
+      const idx = parseInt(req.params.lineIndex, 10);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= (pr.materials || []).length) {
+        return res.status(400).json({ error: 'Некоректний індекс позиції' });
+      }
+      const docKind = String((req.body && req.body.docKind) || '').trim();
+      if (docKind !== 'invoice' && docKind !== 'delivery_note') {
+        return res.status(400).json({ error: 'docKind: invoice або delivery_note' });
+      }
+      const f = req.file;
+      const fileDoc = {
+        originalName: f.originalname,
+        mimeType: f.mimetype || '',
+        size: f.size || 0,
+        data: f.buffer
+      };
+      const line = pr.materials[idx];
+      if (docKind === 'invoice') {
+        line.invoiceFile = fileDoc;
+      } else {
+        line.deliveryNoteFile = fileDoc;
+      }
+      pr.markModified('materials');
+      await pr.save();
+      const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+      stripProcurementLineBinaryFields(out);
+      logPerformance('POST /api/.../line-executor-files', startTime);
+      res.json(out);
+    } catch (error) {
+      logPerformance('POST /api/.../line-executor-files', startTime);
+      console.error('[ERROR] POST line-executor-files:', error);
+      res.status(500).json({ error: error.message || 'Помилка збереження' });
+    }
+  }
+);
 
 app.get('/api/procurement-requests/:id', async (req, res) => {
   const startTime = Date.now();
@@ -3490,6 +3780,7 @@ app.get('/api/procurement-requests/:id', async (req, res) => {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     logPerformance('GET /api/procurement-requests/:id', startTime);
+    stripProcurementLineBinaryFields(pr);
     res.json(pr);
   } catch (error) {
     logPerformance('GET /api/procurement-requests/:id', startTime);
@@ -3747,6 +4038,7 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
     }
 
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    stripProcurementLineBinaryFields(out);
     logPerformance('POST /api/procurement-requests/warehouse-receipt', startTime);
     if (warehouseStockError) {
       res.json({ ...out, warehouseStockError });
@@ -3869,6 +4161,7 @@ app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => 
 
     await notifyProcurementRequesterCompleted(pr);
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+    stripProcurementLineBinaryFields(out);
     logPerformance('POST /api/procurement-requests/warehouse-confirm', startTime);
     if (warehouseStockError) {
       res.json({ ...out, warehouseStockError });
@@ -3915,6 +4208,7 @@ app.post(
       }
       await pr.save();
       const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
+      stripProcurementLineBinaryFields(out);
       logPerformance('POST /api/procurement-requests/executor-attachments', startTime);
       res.json(out);
     } catch (error) {

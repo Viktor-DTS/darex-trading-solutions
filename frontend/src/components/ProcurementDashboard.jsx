@@ -182,6 +182,50 @@ function expectedQtyForLine(m) {
   return sum;
 }
 
+/** Кількість до відвантаження з чернетки виконавця (основне + аналог) — для суми з ПДВ. */
+function executorDraftShipQty(m) {
+  if (!m || m.rejected) return 0;
+  let main = 0;
+  if (m.quantity != null && m.quantity !== '' && Number.isFinite(Number(m.quantity))) {
+    main = Math.max(0, Number(m.quantity));
+  }
+  let analog = 0;
+  if (
+    m.analogShipped &&
+    String(m.analogName || '').trim() &&
+    m.analogQuantity != null &&
+    m.analogQuantity !== '' &&
+    Number.isFinite(Number(m.analogQuantity))
+  ) {
+    analog = Math.max(0, Number(m.analogQuantity));
+  }
+  return main + analog;
+}
+
+function lineTotalVatFromDraft(m) {
+  const qty = executorDraftShipQty(m);
+  const p = m?.price;
+  if (p === '' || p == null || !Number.isFinite(Number(p)) || Number(p) < 0) {
+    return null;
+  }
+  if (qty <= 0) return null;
+  return qty * Number(p);
+}
+
+function lineTotalVatFromSaved(m) {
+  if (!m || m.rejected) return null;
+  const q = expectedQtyForLine(m);
+  if (q == null || !Number.isFinite(q) || q <= 0) return null;
+  if (m.price == null || m.price === '' || !Number.isFinite(Number(m.price)) || Number(m.price) < 0) {
+    return null;
+  }
+  return q * Number(m.price);
+}
+
+function normalizeEdrpouDigitsForLookup(s) {
+  return String(s || '').replace(/\D/g, '');
+}
+
 /** Початкова кількість по заявці (узгоджено з backend procurementLineInitialOrdered). */
 function initialQtyForLine(m) {
   if (!m) return null;
@@ -234,7 +278,7 @@ const RECEIPT_OUTCOME_LABELS = {
 };
 
 function emptyMaterialRow() {
-  return { name: '', quantity: '', price: '', productId: '' };
+  return { name: '', quantity: '', productId: '' };
 }
 
 function ProcurementDashboard({ user }) {
@@ -257,7 +301,9 @@ function ProcurementDashboard({ user }) {
   });
 
   const [materialsDraft, setMaterialsDraft] = useState(null);
-  const [executorUploadDocKind, setExecutorUploadDocKind] = useState('invoice');
+  const materialsDraftRef = useRef(null);
+  materialsDraftRef.current = materialsDraft;
+  const supplierNameLookupTimersRef = useRef({});
   const [nomenclatureHints, setNomenclatureHints] = useState([]);
   const [hintsForRow, setHintsForRow] = useState(null);
   const hintDebounceRef = useRef(null);
@@ -338,6 +384,13 @@ function ProcurementDashboard({ user }) {
   }, [fetchProcurementNotifUnreadCount]);
 
   useEffect(() => {
+    return () => {
+      const t = supplierNameLookupTimersRef.current;
+      Object.keys(t).forEach((k) => clearTimeout(t[k]));
+    };
+  }, []);
+
+  useEffect(() => {
     if (!detail?.materials) {
       setMaterialsDraft(null);
       return;
@@ -346,8 +399,10 @@ function ProcurementDashboard({ user }) {
       detail.materials.map((m) => ({
         name: m.name || '',
         quantity: m.quantity,
-        price: m.price,
+        price: m.price != null && m.price !== '' ? String(m.price) : '',
         productId: m.productId ? String(m.productId) : '',
+        supplierName: m.supplierName != null && m.supplierName !== undefined ? String(m.supplierName) : '',
+        supplierEdrpou: m.supplierEdrpou != null && m.supplierEdrpou !== undefined ? String(m.supplierEdrpou) : '',
         actualWarehouse: m.actualWarehouse != null && m.actualWarehouse !== undefined ? String(m.actualWarehouse) : '',
         analogName: m.analogName || '',
         analogQuantity: m.analogQuantity != null && m.analogQuantity !== '' ? String(m.analogQuantity) : '',
@@ -457,7 +512,6 @@ function ProcurementDashboard({ user }) {
       .map((m) => ({
         name: String(m.name).trim(),
         quantity: m.quantity === '' ? null : Number(m.quantity),
-        price: m.price === '' ? null : Number(m.price),
         productId: m.productId || null
       }));
 
@@ -524,23 +578,60 @@ function ProcurementDashboard({ user }) {
     }
   };
 
-  const uploadExecutorFiles = async (requestId, fileList, docKind) => {
-    if (!fileList || !fileList.length) return;
+  const downloadLineExecutorFile = async (requestId, lineIndex, docKind) => {
+    try {
+      const token = localStorage.getItem('token');
+      const path = `${API_BASE_URL}/procurement-requests/${requestId}/line-executor-files/${lineIndex}/${docKind}`;
+      const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        alert('Не вдалося завантажити файл');
+        return;
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get('Content-Disposition');
+      let name = 'file';
+      if (cd) {
+        const m = /filename\*=UTF-8''([^;]+)/i.exec(cd) || /filename="([^"]+)"/i.exec(cd);
+        if (m && m[1]) {
+          try {
+            name = decodeURIComponent(m[1].replace(/"/g, ''));
+          } catch (_) {
+            name = m[1];
+          }
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e.message || 'Помилка завантаження');
+    }
+  };
+
+  const uploadLineExecutorFile = async (requestId, lineIndex, docKind, file) => {
+    if (!file) return;
     setSaving(true);
     try {
       const fd = new FormData();
-      fd.append('docKind', docKind || 'other');
-      Array.from(fileList).forEach((f) => fd.append('files', f));
+      fd.append('file', file);
+      fd.append('docKind', docKind);
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/procurement-requests/${requestId}/executor-attachments`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/procurement-requests/${requestId}/line-executor-files/${lineIndex}`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd
+        }
+      );
       if (tryHandleUnauthorizedResponse(res)) return;
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || 'Не вдалося завантажити файли');
+        alert(err.error || 'Не вдалося завантажити файл');
         return;
       }
       const updated = await res.json();
@@ -583,7 +674,10 @@ function ProcurementDashboard({ user }) {
       analogQuantity: m.analogQuantity === '' ? null : Number(m.analogQuantity),
       analogShipped: !!m.analogShipped,
       rejected: !!m.rejected,
-      rejectionReason: String(m.rejectionReason || '').trim()
+      rejectionReason: String(m.rejectionReason || '').trim(),
+      supplierName: String(m.supplierName != null ? m.supplierName : '').trim(),
+      supplierEdrpou: String(m.supplierEdrpou != null ? m.supplierEdrpou : '').trim(),
+      price: m.price === '' || m.price == null || m.price === undefined ? null : Number(m.price)
     }));
     for (let i = 0; i < payload.length; i++) {
       if (payload[i].rejected && !payload[i].rejectionReason) {
@@ -596,6 +690,14 @@ function ProcurementDashboard({ user }) {
       }
       if (payload[i].quantity !== null && !Number.isFinite(payload[i].quantity)) {
         alert(`Позиція ${i + 1}: некоректна кількість (залишок основного товару)`);
+        return false;
+      }
+      if (payload[i].price !== null && !Number.isFinite(payload[i].price)) {
+        alert(`Позиція ${i + 1}: некоректна ціна за од. з ПДВ`);
+        return false;
+      }
+      if (payload[i].price !== null && payload[i].price < 0) {
+        alert(`Позиція ${i + 1}: ціна за од. з ПДВ не може бути від’ємною`);
         return false;
       }
       const row = detail?.materials?.[i];
@@ -657,6 +759,14 @@ function ProcurementDashboard({ user }) {
         if (!draftLineNeedsExecutorWarehouse(m, saved)) continue;
         if (!String(m.actualWarehouse || '').trim()) {
           alert(`Позиція ${i + 1}: вкажіть фактичний склад відвантаження`);
+          return;
+        }
+        if (!String(m.supplierName || '').trim()) {
+          alert(`Позиція ${i + 1}: вкажіть назву постачальника`);
+          return;
+        }
+        if (m.price === '' || m.price == null || !Number.isFinite(Number(m.price)) || Number(m.price) < 0) {
+          alert(`Позиція ${i + 1}: вкажіть ціну за од. з ПДВ (число, не менше 0)`);
           return;
         }
       }
@@ -751,6 +861,62 @@ function ProcurementDashboard({ user }) {
       return next;
     });
   };
+
+  const runSupplierNameLookup = useCallback(
+    async (rowIndex, { force = false } = {}) => {
+      const current = materialsDraftRef.current;
+      if (!current || !current[rowIndex]) return;
+      const m = current[rowIndex];
+      if (m.rejected) return;
+      const digits = normalizeEdrpouDigitsForLookup(m.supplierEdrpou || '');
+      if (digits.length < 8 || digits.length > 10) {
+        if (force) {
+          alert('Вкажіть коректний ЄДРПОУ (8–10 цифр)');
+        }
+        return;
+      }
+      if (!force && String(m.supplierName || '').trim()) return;
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/procurement-requests/lookup-supplier-name?code=${encodeURIComponent(digits)}`,
+          { headers: authHeaders }
+        );
+        if (tryHandleUnauthorizedResponse(res)) return;
+        if (!res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        if (data && data.error && !data.name) {
+          if (force) alert(data.error);
+          return;
+        }
+        const name = data && typeof data.name === 'string' ? data.name.trim() : '';
+        if (name) {
+          setMaterialsDraft((prev) => {
+            if (!prev || !prev[rowIndex]) return prev;
+            const next = [...prev];
+            next[rowIndex] = { ...next[rowIndex], supplierName: name };
+            return next;
+          });
+        } else if (force) {
+          alert('Назву за цим ЄДРПОУ не знайдено (ні в базі клієнтів/заявок, ні в публічному реєстрі).');
+        }
+      } catch (e) {
+        if (force) alert(e.message || 'Помилка пошуку');
+      }
+    },
+    [authHeaders]
+  );
+
+  const scheduleSupplierNameLookup = useCallback(
+    (rowIndex) => {
+      const t = supplierNameLookupTimersRef.current;
+      if (t[rowIndex]) clearTimeout(t[rowIndex]);
+      t[rowIndex] = setTimeout(() => {
+        void runSupplierNameLookup(rowIndex, { force: false });
+        delete t[rowIndex];
+      }, 750);
+    },
+    [runSupplierNameLookup]
+  );
 
   return (
     <div className="procurement-dashboard">
@@ -1102,7 +1268,6 @@ function ProcurementDashboard({ user }) {
                 <div className="procurement-materials-head">
                   <span>Найменування</span>
                   <span>Початкова кількість по заявці</span>
-                  <span>Ціна</span>
                   <span></span>
                 </div>
                 {createForm.materials.map((row, idx) => (
@@ -1149,15 +1314,6 @@ function ProcurementDashboard({ user }) {
                         inputMode="decimal"
                         value={row.quantity}
                         onChange={(e) => updateMaterialRow(idx, { quantity: e.target.value })}
-                        placeholder="0"
-                      />
-                    </div>
-                    <div className="procurement-material-cell">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={row.price}
-                        onChange={(e) => updateMaterialRow(idx, { price: e.target.value })}
                         placeholder="0"
                       />
                     </div>
@@ -1310,11 +1466,16 @@ function ProcurementDashboard({ user }) {
                     {canActAsExecutorOnRequest(detail) && materialsDraft ? (
                       <div className="procurement-executor-materials-editor">
                         <p className="procurement-field-hint">
-                          Для кожної позиції з кількістю до відвантаження вкажіть <strong>фактичний склад</strong> (може
-                          відрізнятися між рядками). Можна вказати аналог і кількість, позначити відвантаження аналогу,
-                          відхилити позицію з обовʼязковою причиною. Сума кількості в колонках «Залишок (макс.)»
-                          (основний товар) та «К-сть аналогу» (якщо увімкнено «Відвант. аналог») не може перевищувати
-                          залишок після прийомів на складі.
+                          Для кожної позиції з кількістю до відвантаження вкажіть <strong>фактичний склад</strong>,
+                          <strong> назву постачальника</strong> та <strong>ціну за од. з ПДВ</strong> (обовʼязково).
+                          <strong> ЄДРПОУ</strong> постачальника — за бажанням: після введення (8–10 цифр) поле «Назва
+                          постачальника» можна <strong>заповнити автоматично</strong> (спочатку клієнтська база, потім
+                          історія заявок, далі — публічний реєстр) або натиснути «Підставити назву». Окремо
+                          завантажте <strong>рахунок</strong> і <strong>видаткову накладну</strong>. Можна вказати
+                          аналог і кількість, позначити відвантаження аналогу, відхилити позицію з обовʼязковою
+                          причиною. Сума кількості в колонках «Залишок (макс.)» (основний товар) та «К-сть аналогу»
+                          (якщо увімкнено «Відвант. аналог») не може перевищувати залишок після прийомів на складі.
+                          «Загальна сума з ПДВ» = (кількість до відвантаження) × (ціна за од. з ПДВ).
                         </p>
                         <datalist id="procurement-wh-executor">
                           {warehouseOptions.map((w) => (
@@ -1329,7 +1490,12 @@ function ProcurementDashboard({ user }) {
                                 <th>Початкова кількість по заявці</th>
                                 <th>Прийоми завскладом</th>
                                 <th>Залишок (макс.)</th>
-                                <th>Ціна</th>
+                                <th>Ціна за од. з ПДВ *</th>
+                                <th>Загальна сума з ПДВ</th>
+                                <th>ЄДРПОУ постачальника</th>
+                                <th>Назва постачальника *</th>
+                                <th>Рахунок</th>
+                                <th>Видаткова накладна</th>
                                 <th>Фактичний склад відвантаження *</th>
                                 <th>Аналог</th>
                                 <th>К-сть аналогу</th>
@@ -1345,6 +1511,7 @@ function ProcurementDashboard({ user }) {
                                 const initialQtyDisp = savedLine ? initialQtyForLine(savedLine) : null;
                                 const draftAnalog =
                                   !!m.analogShipped && String(m.analogName || '').trim().length > 0;
+                                const totalVat = lineTotalVatFromDraft(m);
                                 return (
                                 <tr key={i} className={m.rejected ? 'procurement-row-rejected' : ''}>
                                   <td>{m.name}</td>
@@ -1417,7 +1584,122 @@ function ProcurementDashboard({ user }) {
                                       />
                                     )}
                                   </td>
-                                  <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
+                                  <td>
+                                    <input
+                                      type="text"
+                                      inputMode="decimal"
+                                      className="procurement-exec-input procurement-exec-input--narrow"
+                                      value={m.price != null && m.price !== undefined ? m.price : ''}
+                                      onChange={(e) => updateMaterialDraftRow(i, { price: e.target.value })}
+                                      placeholder="0"
+                                      disabled={m.rejected}
+                                      title="Обовʼязково для позицій до відвантаження"
+                                    />
+                                  </td>
+                                  <td className="procurement-td-num">
+                                    {totalVat != null && Number.isFinite(totalVat)
+                                      ? totalVat.toLocaleString('uk-UA', {
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2
+                                        })
+                                      : '—'}
+                                  </td>
+                                  <td className="procurement-edrpou-cell">
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      autoComplete="off"
+                                      className="procurement-exec-input procurement-exec-input--narrow"
+                                      value={m.supplierEdrpou != null ? m.supplierEdrpou : ''}
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        updateMaterialDraftRow(i, { supplierEdrpou: v });
+                                        scheduleSupplierNameLookup(i);
+                                      }}
+                                      onBlur={() => {
+                                        const d = normalizeEdrpouDigitsForLookup(
+                                          materialsDraftRef.current?.[i]?.supplierEdrpou || ''
+                                        );
+                                        if (d.length >= 8 && d.length <= 10) {
+                                          void runSupplierNameLookup(i, { force: false });
+                                        }
+                                      }}
+                                      placeholder="8–10 цифр"
+                                      disabled={m.rejected}
+                                      title="ЄДРПОУ (необовʼязково). Після введення назву можна підставити автоматично."
+                                    />
+                                    <p className="procurement-edrpou-hint">
+                                      Назву можна заповнити автоматично після ЄДРПОУ.
+                                    </p>
+                                    <button
+                                      type="button"
+                                      className="procurement-btn-lookup-name"
+                                      disabled={saving || m.rejected}
+                                      onClick={() => void runSupplierNameLookup(i, { force: true })}
+                                    >
+                                      Підставити назву
+                                    </button>
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="text"
+                                      className="procurement-exec-input"
+                                      value={m.supplierName != null ? m.supplierName : ''}
+                                      onChange={(e) => updateMaterialDraftRow(i, { supplierName: e.target.value })}
+                                      placeholder="Постачальник"
+                                      disabled={m.rejected}
+                                    />
+                                  </td>
+                                  <td className="procurement-line-file-cell">
+                                    {savedLine?.invoiceFile ? (
+                                      <button
+                                        type="button"
+                                        className="procurement-file-link procurement-file-link--inline"
+                                        onClick={() => downloadLineExecutorFile(detail._id, i, 'invoice')}
+                                      >
+                                        {savedLine.invoiceFile.originalName || 'Рахунок'}
+                                      </button>
+                                    ) : (
+                                      <span className="procurement-line-file-missing">—</span>
+                                    )}
+                                    <label className="procurement-line-file-pick">
+                                      <input
+                                        type="file"
+                                        disabled={saving || m.rejected}
+                                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,image/jpeg"
+                                        onChange={(e) => {
+                                          const f = e.target.files && e.target.files[0];
+                                          if (f) uploadLineExecutorFile(detail._id, i, 'invoice', f);
+                                          e.target.value = '';
+                                        }}
+                                      />
+                                    </label>
+                                  </td>
+                                  <td className="procurement-line-file-cell">
+                                    {savedLine?.deliveryNoteFile ? (
+                                      <button
+                                        type="button"
+                                        className="procurement-file-link procurement-file-link--inline"
+                                        onClick={() => downloadLineExecutorFile(detail._id, i, 'delivery_note')}
+                                      >
+                                        {savedLine.deliveryNoteFile.originalName || 'ВН'}
+                                      </button>
+                                    ) : (
+                                      <span className="procurement-line-file-missing">—</span>
+                                    )}
+                                    <label className="procurement-line-file-pick">
+                                      <input
+                                        type="file"
+                                        disabled={saving || m.rejected}
+                                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,image/jpeg"
+                                        onChange={(e) => {
+                                          const f = e.target.files && e.target.files[0];
+                                          if (f) uploadLineExecutorFile(detail._id, i, 'delivery_note', f);
+                                          e.target.value = '';
+                                        }}
+                                      />
+                                    </label>
+                                  </td>
                                   <td>
                                     <input
                                       type="text"
@@ -1620,7 +1902,11 @@ function ProcurementDashboard({ user }) {
                             <th>Початкова кількість по заявці</th>
                             <th>Прийоми завскладом</th>
                             <th>Залишок (макс.)</th>
-                            <th>Ціна</th>
+                            <th>Ціна за од. з ПДВ</th>
+                            <th>Загальна сума з ПДВ</th>
+                            <th>ЄДРПОУ постачальника</th>
+                            <th>Назва постачальника</th>
+                            <th>Рахунок / ВН</th>
                             <th>Фактичний склад відвантаження</th>
                             <th>Аналог</th>
                             <th>К-сть аналогу</th>
@@ -1636,6 +1922,7 @@ function ProcurementDashboard({ user }) {
                             const expDisp =
                               exp === null ? '—' : m.rejected ? '0' : String(exp);
                             const initialDisp = initialQtyForLine(m);
+                            const vatTotal = lineTotalVatFromSaved(m);
                             return (
                               <tr key={i}>
                                 <td>{m.name}</td>
@@ -1649,6 +1936,37 @@ function ProcurementDashboard({ user }) {
                                 </td>
                                 <td>{m.rejected || exp === null ? '—' : exp}</td>
                                 <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
+                                <td>
+                                  {vatTotal != null && Number.isFinite(vatTotal)
+                                    ? vatTotal.toLocaleString('uk-UA', {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2
+                                      })
+                                    : '—'}
+                                </td>
+                                <td>{m.supplierEdrpou ? m.supplierEdrpou : '—'}</td>
+                                <td>{m.supplierName ? m.supplierName : '—'}</td>
+                                <td className="procurement-line-file-cell procurement-line-file-cell--readonly">
+                                  {m.invoiceFile ? (
+                                    <button
+                                      type="button"
+                                      className="procurement-file-link procurement-file-link--inline"
+                                      onClick={() => downloadLineExecutorFile(detail._id, i, 'invoice')}
+                                    >
+                                      {m.invoiceFile.originalName || 'Рахунок'}
+                                    </button>
+                                  ) : null}
+                                  {m.deliveryNoteFile ? (
+                                    <button
+                                      type="button"
+                                      className="procurement-file-link procurement-file-link--inline"
+                                      onClick={() => downloadLineExecutorFile(detail._id, i, 'delivery_note')}
+                                    >
+                                      {m.deliveryNoteFile.originalName || 'ВН'}
+                                    </button>
+                                  ) : null}
+                                  {!m.invoiceFile && !m.deliveryNoteFile ? '—' : null}
+                                </td>
                                 <td>{m.actualWarehouse ? m.actualWarehouse : '—'}</td>
                                 <td>{m.analogName || '—'}</td>
                                 <td>{m.analogQuantity != null && m.analogQuantity !== '' ? m.analogQuantity : '—'}</td>
@@ -1693,9 +2011,9 @@ function ProcurementDashboard({ user }) {
                 </div>
               </div>
 
-              {((detail.executorAttachments || []).length > 0 || canActAsExecutorOnRequest(detail)) && (
+              {(detail.executorAttachments || []).length > 0 && (
                 <div className="procurement-detail-files">
-                  <span className="procurement-detail-k">Файли виконавця (рахунки, видаткові накладні)</span>
+                  <span className="procurement-detail-k">Файли виконавця (загальні, архів)</span>
                   <div className="procurement-detail-v">
                     {(detail.executorAttachments || []).length === 0 && <span>—</span>}
                     {(detail.executorAttachments || []).map((a) => (
@@ -1710,41 +2028,6 @@ function ProcurementDashboard({ user }) {
                         {a.size ? ` (${Math.round(a.size / 1024)} КБ)` : ''}
                       </button>
                     ))}
-                  </div>
-                </div>
-              )}
-
-              {canActAsExecutorOnRequest(detail) && (
-                <div className="procurement-executor-upload">
-                  <span className="procurement-detail-k">Додати файли виконавця</span>
-                  <div className="procurement-detail-v procurement-executor-upload-row">
-                    <label className="procurement-exec-doc-kind">
-                      <span>Тип документа</span>
-                      <select
-                        value={executorUploadDocKind}
-                        onChange={(e) => setExecutorUploadDocKind(e.target.value)}
-                      >
-                        {EXECUTOR_DOC_KIND_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <input
-                      type="file"
-                      multiple
-                      disabled={saving}
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,image/jpeg"
-                      onChange={(e) => {
-                        const fl = e.target.files;
-                        if (fl && fl.length) uploadExecutorFiles(detail._id, fl, executorUploadDocKind);
-                        e.target.value = '';
-                      }}
-                    />
-                    <span className="procurement-field-hint">
-                      Рахунки, видаткові накладні, зображення (JPEG); до 12 файлів за один раз (до 15 МБ кожен).
-                    </span>
                   </div>
                 </div>
               )}
