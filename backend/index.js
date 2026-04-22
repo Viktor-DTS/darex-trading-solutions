@@ -3671,6 +3671,29 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
       } else {
         pr.receiptOutcome = 'full';
         pr.status = 'completed';
+        const atW = pr.warehouseReceivedAt;
+        const cnW = pr.warehouseConfirmerName;
+        const clW = pr.warehouseConfirmerLogin;
+        for (const line of pr.materials || []) {
+          if (line.rejected) continue;
+          const exp = expectedQtyForProcurementMaterialLine(line);
+          if (exp == null || exp <= 0) continue;
+          const rq = line.receivedQuantity;
+          const r = Number(
+            rq === undefined || rq === null || rq === '' ? 0 : rq
+          );
+          if (!Number.isFinite(r) || r < 0) continue;
+          if (!Array.isArray(line.warehouseReceiptEvents)) line.warehouseReceiptEvents = [];
+          const evSum = sumProcurementWarehouseReceiptEvents(line);
+          if (evSum < r) {
+            line.warehouseReceiptEvents.push({
+              acceptedQuantity: r - evSum,
+              acceptedAt: atW || new Date(),
+              confirmerLogin: String(clW || '').trim(),
+              confirmerName: String(cnW || '').trim()
+            });
+          }
+        }
       }
     }
     pr.markModified('materials');

@@ -745,6 +745,14 @@
   color: var(--text-secondary);
 }
 
+.procurement-receipt-archive-meta {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary, #5a5a5a);
+  max-width: 20rem;
+}
+
 .procurement-remainder-cell {
   font-weight: 600;
   white-space: nowrap;

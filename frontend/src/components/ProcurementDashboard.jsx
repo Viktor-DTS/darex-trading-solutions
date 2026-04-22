@@ -102,6 +102,7 @@ function sumWarehouseAcceptedQty(events) {
 /**
  * Колонка «Прийоми завскладом»: історія warehouseReceiptEvents; інакше — receivedQuantity, коли завсклад
  * вже зберіг прийом, але заявка ще чекає інші склади/рядки (події тоді не додаються в БД).
+ * Для завершених старих заявок: якщо подій у рядку немає, показуємо кількість + з шапки (ПІБ, дата).
  */
 function procurementReceiptsCellContent(m, detail) {
   const evs = m?.warehouseReceiptEvents;
@@ -126,14 +127,36 @@ function procurementReceiptsCellContent(m, detail) {
     m.receivedQuantity !== '' &&
     Number.isFinite(Number(m.receivedQuantity))
   ) {
+    const docName = detail?.warehouseConfirmerName || detail?.warehouseConfirmerLogin;
+    const docAt = detail?.warehouseReceivedAt;
     return (
       <>
         <strong>{String(m.receivedQuantity)}</strong> шт
         {detail && (detail.status === 'awaiting_warehouse' || detail.status === 'partially_fulfilled') && (
           <div className="procurement-receipt-pending-hint">Очікується прийом на інших складах за потреби.</div>
         )}
+        {detail?.status === 'completed' && (docName || docAt) && (
+          <div className="procurement-receipt-archive-meta">
+            {[docName, docAt ? formatDt(docAt) : null].filter(Boolean).join(' — ')}
+          </div>
+        )}
       </>
     );
+  }
+  if (
+    detail?.status === 'completed' &&
+    (detail.warehouseConfirmerName || detail.warehouseConfirmerLogin || detail.warehouseReceivedAt)
+  ) {
+    const parts = [];
+    if (detail.warehouseConfirmerName || detail.warehouseConfirmerLogin) {
+      parts.push(detail.warehouseConfirmerName || detail.warehouseConfirmerLogin);
+    }
+    if (detail.warehouseReceivedAt) {
+      parts.push(formatDt(detail.warehouseReceivedAt));
+    }
+    if (parts.length) {
+      return <div className="procurement-receipt-archive-meta">{parts.join(' — ')}</div>;
+    }
   }
   return '—';
 }
@@ -1604,12 +1627,7 @@ function ProcurementDashboard({ user }) {
                             <th>Відвант. аналог</th>
                             <th>Відхилено</th>
                             <th>Причина</th>
-                            {detail.status === 'completed' ? (
-                              <>
-                                <th>Очікувано</th>
-                                <th>Прийнято завскладом</th>
-                              </>
-                            ) : null}
+                            {detail.status === 'completed' ? <th>Очікувано (підсумок)</th> : null}
                           </tr>
                         </thead>
                         <tbody>
@@ -1618,10 +1636,6 @@ function ProcurementDashboard({ user }) {
                             const expDisp =
                               exp === null ? '—' : m.rejected ? '0' : String(exp);
                             const initialDisp = initialQtyForLine(m);
-                            const rec =
-                              m.receivedQuantity === null || m.receivedQuantity === undefined
-                                ? '—'
-                                : String(m.receivedQuantity);
                             return (
                               <tr key={i}>
                                 <td>{m.name}</td>
@@ -1641,12 +1655,7 @@ function ProcurementDashboard({ user }) {
                                 <td>{m.analogShipped ? 'Так' : '—'}</td>
                                 <td>{m.rejected ? 'Так' : '—'}</td>
                                 <td>{m.rejectionReason || '—'}</td>
-                                {detail.status === 'completed' ? (
-                                  <>
-                                    <td>{expDisp}</td>
-                                    <td>{rec}</td>
-                                  </>
-                                ) : null}
+                                {detail.status === 'completed' ? <td>{expDisp}</td> : null}
                               </tr>
                             );
                           })}
