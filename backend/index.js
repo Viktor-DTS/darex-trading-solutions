@@ -3148,6 +3148,63 @@ function parseCompanyNameFromAdmToolsRegistryXml(xml) {
   return null;
 }
 
+/**
+ * API adm.tools зазвичай віддає XML у Windows-1251; r.text() трактує тіло як UTF-8 — кирилиця стає «кракозябрами»/�.
+ */
+function countUaCyrillicLetters(s) {
+  if (!s) return 0;
+  return (s.match(/[а-яіїєґА-ЯІЇЄҐ]/g) || []).length;
+}
+
+function decodeGovRegistryXmlBytes(buffer, contentType) {
+  const b = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  const fromHeader = () => {
+    if (!contentType) return null;
+    const m = /charset\s*=\s*([^;]+)/i.exec(String(contentType));
+    if (!m) return null;
+    let c = m[1].trim().replace(/['"]/g, '').toLowerCase();
+    if (c === 'cp1251') c = 'windows-1251';
+    return c;
+  };
+  const byHeader = fromHeader();
+  if (byHeader) {
+    try {
+      return new TextDecoder(byHeader, { fatal: false }).decode(b);
+    } catch {
+      /* try heuristics */
+    }
+  }
+  const head = b.slice(0, 800).toString('latin1');
+  const encMatch = /encoding\s*=\s*['"]([^'"]+)['"]/i.exec(head);
+  if (encMatch) {
+    const raw = String(encMatch[1] || '').toLowerCase();
+    const label =
+      raw === 'windows-1251' || raw === 'cp1251' ? 'windows-1251' : raw;
+    try {
+      const t = new TextDecoder(label, { fatal: false }).decode(b);
+      if (t && (t.includes('<company') || t.includes('<?xml'))) {
+        return t;
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  const utf8 = new TextDecoder('utf-8', { fatal: false }).decode(b);
+  let win1251 = utf8;
+  try {
+    win1251 = new TextDecoder('windows-1251', { fatal: false }).decode(b);
+  } catch {
+    return utf8;
+  }
+  const cUtf = countUaCyrillicLetters(utf8);
+  const cWin = countUaCyrillicLetters(win1251);
+  const badUtf = (utf8.match(/\uFFFD/g) || []).length;
+  if (badUtf >= 2) return win1251;
+  if (cWin > cUtf + 1) return win1251;
+  if (cWin > 0 && cUtf === 0) return win1251;
+  return utf8;
+}
+
 async function fetchCompanyNameFromPublicRegistryByEdrpou(edrpouDigits) {
   const url = `https://adm.tools/action/gov/api/?egrpou=${encodeURIComponent(edrpouDigits)}`;
   const ac = new AbortController();
@@ -3158,7 +3215,8 @@ async function fetchCompanyNameFromPublicRegistryByEdrpou(edrpouDigits) {
       headers: { 'User-Agent': 'DTS-Procurement/1.0' }
     });
     if (!r.ok) return null;
-    const text = await r.text();
+    const ab = await r.arrayBuffer();
+    const text = decodeGovRegistryXmlBytes(Buffer.from(ab), r.headers.get('content-type'));
     return parseCompanyNameFromAdmToolsRegistryXml(text);
   } catch (e) {
     return null;
