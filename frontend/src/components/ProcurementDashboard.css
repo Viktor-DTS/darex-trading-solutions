@@ -480,24 +480,30 @@
 
 .procurement-materials-head {
   display: grid;
-  grid-template-columns: 1fr 120px 36px;
+  grid-template-columns: 1fr 5.5rem 4.5rem 36px;
   gap: 8px;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 6px;
   padding: 0 2px;
+  align-items: end;
+}
+
+.procurement-materials-head > span:nth-child(2) {
+  text-align: center;
 }
 
 .procurement-material-row {
   display: grid;
-  grid-template-columns: 1fr 120px 36px;
+  grid-template-columns: 1fr 5.5rem 4.5rem 36px;
   gap: 8px;
   align-items: start;
   margin-bottom: 8px;
 }
 
-.procurement-material-cell input {
+.procurement-material-cell input,
+.procurement-material-cell--unit select {
   font: inherit;
   padding: 8px 10px;
   border: 1px solid var(--border);
@@ -505,6 +511,23 @@
   background: var(--background);
   color: var(--text);
   width: 100%;
+  box-sizing: border-box;
+}
+
+.procurement-material-cell--unit select {
+  padding: 8px 6px;
+}
+
+.procurement-uom-select {
+  font: inherit;
+  font-size: 11px;
+  padding: 4px 2px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--background);
+  color: var(--text);
+  max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -772,6 +795,66 @@
 
 .procurement-exec-input--narrow {
   min-width: 64px;
+}
+
+/* Таблиця матеріалів: од. вим. та компактні числові / ЄДРПОУ колонки */
+.procurement-exec-materials-table th.procurement-col-uom,
+.procurement-exec-materials-table td.procurement-col-uom,
+.procurement-mini-table th.procurement-col-uom,
+.procurement-mini-table td.procurement-col-uom {
+  width: 4rem;
+  min-width: 3.25rem;
+  max-width: 5rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.procurement-exec-materials-table th.procurement-col-initial-qty,
+.procurement-exec-materials-table td.procurement-col-initial-qty,
+.procurement-mini-table th.procurement-col-initial-qty,
+.procurement-mini-table td.procurement-col-initial-qty,
+.procurement-exec-materials-table th.procurement-col-remainder,
+.procurement-exec-materials-table td.procurement-col-remainder,
+.procurement-mini-table th.procurement-col-remainder,
+.procurement-mini-table td.procurement-col-remainder {
+  width: 3.5rem;
+  min-width: 2.6rem;
+  max-width: 4.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.procurement-exec-materials-table th.procurement-col-price,
+.procurement-exec-materials-table td.procurement-col-price,
+.procurement-mini-table th.procurement-col-price,
+.procurement-mini-table td.procurement-col-price,
+.procurement-exec-materials-table th.procurement-col-total-vat,
+.procurement-exec-materials-table td.procurement-col-total-vat,
+.procurement-mini-table th.procurement-col-total-vat,
+.procurement-mini-table td.procurement-col-total-vat {
+  width: 4.25rem;
+  min-width: 3.25rem;
+  max-width: 5.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.procurement-exec-materials-table th.procurement-col-edrpou,
+.procurement-exec-materials-table td.procurement-col-edrpou.procurement-edrpou-cell,
+.procurement-mini-table th.procurement-col-edrpou,
+.procurement-mini-table td.procurement-col-edrpou {
+  min-width: 5.25rem !important;
+  max-width: 7.25rem !important;
+  width: 6.25rem;
+}
+
+.procurement-exec-materials-table .procurement-col-initial-qty .procurement-exec-input,
+.procurement-exec-materials-table .procurement-col-remainder .procurement-exec-input,
+.procurement-exec-materials-table .procurement-col-price .procurement-exec-input,
+.procurement-exec-materials-table .procurement-col-edrpou .procurement-exec-input {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .procurement-exec-textarea {

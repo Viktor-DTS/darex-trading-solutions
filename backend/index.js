@@ -1350,6 +1350,14 @@ const procurementLineExecutorFileSchema = new mongoose.Schema(
 
 const PROCUREMENT_PAYER_COMPANIES = ['dts', 'dareks_energo'];
 const PROCUREMENT_APPLICATION_KINDS = ['purchase', 'price_determination'];
+/** Дозволені одиниці виміру в рядку матеріалу (заявка / відображення) */
+const PROCUREMENT_UNIT_OF_MEASURE = ['шт.', 'уп.', 'комплект', 'метр', 'літр', 'км', 'кв.м'];
+
+function normalizeProcurementUnitOfMeasure(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (PROCUREMENT_UNIT_OF_MEASURE.includes(s)) return s;
+  return 'шт.';
+}
 
 const procurementWarehouseReceiptEventSchema = new mongoose.Schema(
   {
@@ -1363,6 +1371,8 @@ const procurementWarehouseReceiptEventSchema = new mongoose.Schema(
 
 const procurementMaterialLineSchema = new mongoose.Schema({
   name: { type: String, trim: true, default: '' },
+  /** Одиниця виміру (шт., уп., метр, …) */
+  unitOfMeasure: { type: String, trim: true, default: 'шт.' },
   quantity: { type: Number, default: null },
   /** Замовлена кількість з оригінальної заявки (не зменшується при частковому прийомі на складі) */
   initialQuantity: { type: Number, default: null },
@@ -3471,6 +3481,7 @@ app.post(
           const qFin = Number.isFinite(qty) ? qty : null;
           return {
             name: String(m.name).trim(),
+            unitOfMeasure: normalizeProcurementUnitOfMeasure(m.unitOfMeasure),
             quantity: qFin,
             initialQuantity: qFin,
             price: null,
@@ -3599,6 +3610,11 @@ app.patch('/api/procurement-requests/:id/executor-materials', async (req, res) =
       }
       if (!line.rejected) {
         line.rejectionReason = '';
+      }
+      if (Object.prototype.hasOwnProperty.call(inc, 'unitOfMeasure')) {
+        line.unitOfMeasure = normalizeProcurementUnitOfMeasure(inc.unitOfMeasure);
+      } else if (line.unitOfMeasure == null || String(line.unitOfMeasure).trim() === '') {
+        line.unitOfMeasure = 'шт.';
       }
       line.actualWarehouse = String(
         inc.actualWarehouse !== undefined ? inc.actualWarehouse : line.actualWarehouse || ''

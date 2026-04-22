@@ -34,6 +34,13 @@ const STATUS_LABELS = {
   completed: 'Повністю виконана'
 };
 
+const PROCUREMENT_UNITS = ['шт.', 'уп.', 'комплект', 'метр', 'літр', 'км', 'кв.м'];
+
+function normalizeProcurementUnit(v) {
+  const s = String(v == null ? '' : v).trim();
+  return PROCUREMENT_UNITS.includes(s) ? s : 'шт.';
+}
+
 function isProcurementExecutorWorkStatus(status) {
   return status === 'in_progress' || status === 'partially_fulfilled';
 }
@@ -105,6 +112,7 @@ function sumWarehouseAcceptedQty(events) {
  * Для завершених старих заявок: якщо подій у рядку немає, показуємо кількість + з шапки (ПІБ, дата).
  */
 function procurementReceiptsCellContent(m, detail) {
+  const u = normalizeProcurementUnit(m?.unitOfMeasure);
   const evs = m?.warehouseReceiptEvents;
   if (evs && evs.length) {
     return (
@@ -112,12 +120,12 @@ function procurementReceiptsCellContent(m, detail) {
         <ul className="procurement-wh-event-list">
           {evs.map((ev, j) => (
             <li key={j}>
-              <strong>{ev.acceptedQuantity}</strong> шт — {ev.confirmerName || ev.confirmerLogin || '—'},{' '}
+              <strong>{ev.acceptedQuantity}</strong> {u} — {ev.confirmerName || ev.confirmerLogin || '—'},{' '}
               {ev.acceptedAt ? formatDt(ev.acceptedAt) : '—'}
             </li>
           ))}
         </ul>
-        <div className="procurement-wh-total">Всього прийнято: {sumWarehouseAcceptedQty(evs)} шт.</div>
+        <div className="procurement-wh-total">Всього прийнято: {sumWarehouseAcceptedQty(evs)} {u}</div>
       </>
     );
   }
@@ -131,7 +139,7 @@ function procurementReceiptsCellContent(m, detail) {
     const docAt = detail?.warehouseReceivedAt;
     return (
       <>
-        <strong>{String(m.receivedQuantity)}</strong> шт
+        <strong>{String(m.receivedQuantity)}</strong> {u}
         {detail && (detail.status === 'awaiting_warehouse' || detail.status === 'partially_fulfilled') && (
           <div className="procurement-receipt-pending-hint">Очікується прийом на інших складах за потреби.</div>
         )}
@@ -278,7 +286,7 @@ const RECEIPT_OUTCOME_LABELS = {
 };
 
 function emptyMaterialRow() {
-  return { name: '', quantity: '', productId: '' };
+  return { name: '', unitOfMeasure: 'шт.', quantity: '', productId: '' };
 }
 
 function ProcurementDashboard({ user }) {
@@ -404,6 +412,7 @@ function ProcurementDashboard({ user }) {
     setMaterialsDraft(
       detail.materials.map((m) => ({
         name: m.name || '',
+        unitOfMeasure: normalizeProcurementUnit(m.unitOfMeasure),
         quantity: m.quantity,
         price: m.price != null && m.price !== '' ? String(m.price) : '',
         productId: m.productId ? String(m.productId) : '',
@@ -517,6 +526,7 @@ function ProcurementDashboard({ user }) {
       .filter((m) => m && String(m.name || '').trim())
       .map((m) => ({
         name: String(m.name).trim(),
+        unitOfMeasure: normalizeProcurementUnit(m.unitOfMeasure),
         quantity: m.quantity === '' ? null : Number(m.quantity),
         productId: m.productId || null
       }));
@@ -673,6 +683,7 @@ function ProcurementDashboard({ user }) {
   const persistExecutorMaterials = async (requestId) => {
     if (!materialsDraft || !materialsDraft.length) return true;
     const payload = materialsDraft.map((m) => ({
+      unitOfMeasure: normalizeProcurementUnit(m.unitOfMeasure),
       quantity:
         m.quantity === '' || m.quantity === undefined || m.quantity === null ? null : Number(m.quantity),
       actualWarehouse: String(m.actualWarehouse || '').trim(),
@@ -719,8 +730,9 @@ function ProcurementDashboard({ user }) {
           ? Math.max(0, payload[i].analogQuantity)
           : 0;
       if (!payload[i].rejected && maxR !== null && mainPart + analogPart > maxR) {
+        const uom = normalizeProcurementUnit(materialsDraft[i]?.unitOfMeasure);
         alert(
-          `Позиція ${i + 1}: сума кількості основного товару (${mainPart}) та аналогу (${analogPart}) не більше ${maxR} шт. (залишок з урахуванням прийомів на складі).`
+          `Позиція ${i + 1}: сума кількості основного товару (${mainPart}) та аналогу (${analogPart}) не більше ${maxR} ${uom} (залишок з урахуванням прийомів на складі).`
         );
         return false;
       }
@@ -1285,6 +1297,7 @@ function ProcurementDashboard({ user }) {
                 </p>
                 <div className="procurement-materials-head">
                   <span>Найменування</span>
+                  <span>Од. вим.</span>
                   <span>Початкова кількість по заявці</span>
                   <span></span>
                 </div>
@@ -1325,6 +1338,19 @@ function ProcurementDashboard({ user }) {
                           ))}
                         </ul>
                       )}
+                    </div>
+                    <div className="procurement-material-cell procurement-material-cell--unit">
+                      <select
+                        value={normalizeProcurementUnit(row.unitOfMeasure)}
+                        onChange={(e) => updateMaterialRow(idx, { unitOfMeasure: e.target.value })}
+                        aria-label="Одиниця виміру"
+                      >
+                        {PROCUREMENT_UNITS.map((u) => (
+                          <option key={u} value={u}>
+                            {u}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="procurement-material-cell">
                       <input
@@ -1505,12 +1531,13 @@ function ProcurementDashboard({ user }) {
                             <thead>
                               <tr>
                                 <th>Заявник: найменування</th>
-                                <th>Початкова кількість по заявці</th>
+                                <th className="procurement-col-uom">Од. вим.</th>
+                                <th className="procurement-col-initial-qty">Початкова кількість по заявці</th>
                                 <th>Прийоми завскладом</th>
-                                <th>Залишок (макс.)</th>
-                                <th>Ціна за од. з ПДВ *</th>
-                                <th>Загальна сума з ПДВ</th>
-                                <th>ЄДРПОУ постачальника</th>
+                                <th className="procurement-col-remainder">Залишок (макс.)</th>
+                                <th className="procurement-col-price">Ціна за од. з ПДВ *</th>
+                                <th className="procurement-col-total-vat">Загальна сума з ПДВ</th>
+                                <th className="procurement-col-edrpou">ЄДРПОУ постачальника</th>
                                 <th>Назва постачальника *</th>
                                 <th>Рахунок</th>
                                 <th>Видаткова накладна</th>
@@ -1533,7 +1560,22 @@ function ProcurementDashboard({ user }) {
                                 return (
                                 <tr key={i} className={m.rejected ? 'procurement-row-rejected' : ''}>
                                   <td>{m.name}</td>
-                                  <td>
+                                  <td className="procurement-col-uom">
+                                    <select
+                                      className="procurement-uom-select"
+                                      value={normalizeProcurementUnit(m.unitOfMeasure)}
+                                      onChange={(e) => updateMaterialDraftRow(i, { unitOfMeasure: e.target.value })}
+                                      disabled={m.rejected}
+                                      aria-label="Одиниця виміру"
+                                    >
+                                      {PROCUREMENT_UNITS.map((u) => (
+                                        <option key={u} value={u}>
+                                          {u}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td className="procurement-col-initial-qty">
                                     {initialQtyDisp != null && Number.isFinite(initialQtyDisp)
                                       ? initialQtyDisp
                                       : '—'}
@@ -1541,7 +1583,7 @@ function ProcurementDashboard({ user }) {
                                   <td className="procurement-wh-cell">
                                     {procurementReceiptsCellContent(savedLine || {}, detail)}
                                   </td>
-                                  <td className="procurement-remainder-cell">
+                                  <td className="procurement-remainder-cell procurement-col-remainder">
                                     {m.rejected || maxRemainCap === null ? (
                                       '—'
                                     ) : (
@@ -1602,7 +1644,7 @@ function ProcurementDashboard({ user }) {
                                       />
                                     )}
                                   </td>
-                                  <td>
+                                  <td className="procurement-col-price">
                                     <input
                                       type="text"
                                       inputMode="decimal"
@@ -1614,7 +1656,7 @@ function ProcurementDashboard({ user }) {
                                       title="Обовʼязково для позицій до відвантаження"
                                     />
                                   </td>
-                                  <td className="procurement-td-num">
+                                  <td className="procurement-td-num procurement-col-total-vat">
                                     {totalVat != null && Number.isFinite(totalVat)
                                       ? totalVat.toLocaleString('uk-UA', {
                                           minimumFractionDigits: 2,
@@ -1622,7 +1664,7 @@ function ProcurementDashboard({ user }) {
                                         })
                                       : '—'}
                                   </td>
-                                  <td className="procurement-edrpou-cell">
+                                  <td className="procurement-edrpou-cell procurement-col-edrpou">
                                     <input
                                       type="text"
                                       inputMode="numeric"
@@ -1930,12 +1972,13 @@ function ProcurementDashboard({ user }) {
                         <thead>
                           <tr>
                             <th>Найменування</th>
-                            <th>Початкова кількість по заявці</th>
+                            <th className="procurement-col-uom">Од. вим.</th>
+                            <th className="procurement-col-initial-qty">Початкова кількість по заявці</th>
                             <th>Прийоми завскладом</th>
-                            <th>Залишок (макс.)</th>
-                            <th>Ціна за од. з ПДВ</th>
-                            <th>Загальна сума з ПДВ</th>
-                            <th>ЄДРПОУ постачальника</th>
+                            <th className="procurement-col-remainder">Залишок (макс.)</th>
+                            <th className="procurement-col-price">Ціна за од. з ПДВ</th>
+                            <th className="procurement-col-total-vat">Загальна сума з ПДВ</th>
+                            <th className="procurement-col-edrpou">ЄДРПОУ постачальника</th>
                             <th>Назва постачальника</th>
                             <th>Рахунок / ВН</th>
                             <th>Фактичний склад відвантаження</th>
@@ -1957,7 +2000,8 @@ function ProcurementDashboard({ user }) {
                             return (
                               <tr key={i}>
                                 <td>{m.name}</td>
-                                <td>
+                                <td className="procurement-col-uom">{normalizeProcurementUnit(m.unitOfMeasure)}</td>
+                                <td className="procurement-col-initial-qty">
                                   {initialDisp != null && Number.isFinite(initialDisp)
                                     ? initialDisp
                                     : '—'}
@@ -1965,9 +2009,13 @@ function ProcurementDashboard({ user }) {
                                 <td className="procurement-wh-cell">
                                   {procurementReceiptsCellContent(m, detail)}
                                 </td>
-                                <td>{m.rejected || exp === null ? '—' : exp}</td>
-                                <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
-                                <td>
+                                <td className="procurement-col-remainder">
+                                  {m.rejected || exp === null ? '—' : exp}
+                                </td>
+                                <td className="procurement-col-price">
+                                  {m.price != null && m.price !== '' ? m.price : '—'}
+                                </td>
+                                <td className="procurement-td-num procurement-col-total-vat">
                                   {vatTotal != null && Number.isFinite(vatTotal)
                                     ? vatTotal.toLocaleString('uk-UA', {
                                         minimumFractionDigits: 2,
@@ -1975,7 +2023,7 @@ function ProcurementDashboard({ user }) {
                                       })
                                     : '—'}
                                 </td>
-                                <td>{m.supplierEdrpou ? m.supplierEdrpou : '—'}</td>
+                                <td className="procurement-col-edrpou">{m.supplierEdrpou ? m.supplierEdrpou : '—'}</td>
                                 <td className="procurement-supplier-name-readonly">
                                   {m.supplierName ? m.supplierName : '—'}
                                 </td>
