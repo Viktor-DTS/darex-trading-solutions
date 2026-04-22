@@ -149,6 +149,18 @@ const formatNumber = (num) => {
   return num.toFixed(2).replace(/\.?0+$/, '');
 };
 
+/** Рядки «додаткові матеріали» з API / локального стану */
+const normalizeOtherMaterialLines = (raw) => {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((row) => ({
+    name: row?.name != null ? String(row.name) : '',
+    count: row?.count != null ? String(row.count) : '',
+    price: row?.price != null ? String(row.price) : '',
+  }));
+};
+
+const newEmptyOtherMaterialLine = () => ({ name: '', count: '', price: '' });
+
 // Форматування дати для datetime-local input (YYYY-MM-DDTHH:mm)
 const formatDateForInput = (dateValue) => {
   if (!dateValue) return '';
@@ -236,6 +248,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     antifreezeSum: '',
     otherMaterials: '',
     otherSum: '',
+    /** Позиції «інші матеріали» (назва, кількість, ціна за одиницю); сума — авторозрахунок */
+    otherMaterialLines: [],
     workPrice: '',
     perDiem: '',
     living: '',
@@ -547,7 +561,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           autoWarehouseApprovedAt: formatDateForInput(initialData.autoWarehouseApprovedAt),
           autoAccountantApprovedAt: formatDateForInput(initialData.autoAccountantApprovedAt),
           invoiceRequestDate: formatDateForInput(initialData.invoiceRequestDate),
-          invoiceUploadDate: formatDateForInput(initialData.invoiceUploadDate)
+          invoiceUploadDate: formatDateForInput(initialData.invoiceUploadDate),
+          otherMaterialLines: normalizeOtherMaterialLines(initialData.otherMaterialLines),
         });
         prevServiceRegionRef.current = initialData.serviceRegion || '';
       } else {
@@ -585,7 +600,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             invoiceUploadDate: '',
             invoiceRequestId: null,
             needInvoice: false,  // не копіюємо — нова заявка, рахунок з нуля
-            needAct: false
+            needAct: false,
+            otherMaterialLines: normalizeOtherMaterialLines(initialData.otherMaterialLines),
           });
           // Не оновлюємо prevServiceRegionRef, щоб ефект автогенерації номера побачив зміну регіону і згенерував номер
           prevServiceRegionRef.current = '';
@@ -802,6 +818,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     const fuelFilterSum = parseNumber(formData.fuelFilterCount) * parseNumber(formData.fuelFilterPrice);
     const airFilterSum = parseNumber(formData.airFilterCount) * parseNumber(formData.airFilterPrice);
     const antifreezeSum = parseNumber(formData.antifreezeL) * parseNumber(formData.antifreezePrice);
+
+    const materialLines = Array.isArray(formData.otherMaterialLines) ? formData.otherMaterialLines : [];
+    const otherMaterialLinesTotal = materialLines.reduce(
+      (acc, row) => acc + parseNumber(row?.count) * parseNumber(row?.price),
+      0
+    );
     
     const serviceTotal = parseNumber(formData.serviceTotal);
     
@@ -817,6 +839,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         airFilterSum +
         antifreezeSum +
         parseNumber(formData.otherSum) +
+        otherMaterialLinesTotal +
         parseNumber(formData.perDiem) +
         parseNumber(formData.living) +
         parseNumber(formData.otherExp) +
@@ -1268,6 +1291,33 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     if (isReadOnly) return;
     loadExistingContracts();
     setShowContractSelector(true);
+  };
+
+  const addOtherMaterialLine = () => {
+    if (isReadOnly) return;
+    setFormData((prev) => ({
+      ...prev,
+      otherMaterialLines: [...(prev.otherMaterialLines || []), newEmptyOtherMaterialLine()],
+    }));
+  };
+
+  const removeOtherMaterialLine = (index) => {
+    if (isReadOnly) return;
+    setFormData((prev) => {
+      const lines = [...(prev.otherMaterialLines || [])];
+      lines.splice(index, 1);
+      return { ...prev, otherMaterialLines: lines };
+    });
+  };
+
+  const updateOtherMaterialLine = (index, field, value) => {
+    if (isReadOnly) return;
+    setFormData((prev) => {
+      const lines = [...(prev.otherMaterialLines || [])];
+      if (!lines[index]) return prev;
+      lines[index] = { ...lines[index], [field]: value };
+      return { ...prev, otherMaterialLines: lines };
+    });
   };
 
   const toggleSection = (section) => {
@@ -2553,7 +2603,68 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     <input type="text" value={formatNumber(calculations.antifreezeSum)} readOnly className="calculated-field" />
                   </div>
                 </div>
-                {/* Рядок: Інші матеріали - Опис інших матеріалів, Загальна ціна грн */}
+                {/* Додаткові матеріали — динамічні позиції (назва, кількість, ціна за одиницю, сума) */}
+                <div className="form-group" style={{ marginTop: '6px' }}>
+                  <label>Додаткові матеріали (позиції)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {(formData.otherMaterialLines || []).map((row, idx) => {
+                      const lineSum = parseNumber(row.count) * parseNumber(row.price);
+                      return (
+                        <div className="form-row five-cols" key={`other-mat-${idx}`}>
+                          <div className="form-group">
+                            <label>Назва</label>
+                            <input
+                              type="text"
+                              value={row.name}
+                              onChange={(e) => updateOtherMaterialLine(idx, 'name', e.target.value)}
+                              readOnly={isReadOnly}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Кількість</label>
+                            <input
+                              type="text"
+                              value={row.count}
+                              onChange={(e) => updateOtherMaterialLine(idx, 'count', e.target.value)}
+                              readOnly={isReadOnly}
+                              placeholder="0"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Ціна за одиницю, грн</label>
+                            <input
+                              type="text"
+                              value={row.price}
+                              onChange={(e) => updateOtherMaterialLine(idx, 'price', e.target.value)}
+                              readOnly={isReadOnly}
+                              placeholder="0"
+                            />
+                          </div>
+                          <div className="form-group calculated">
+                            <label>Сума, грн</label>
+                            <input type="text" value={formatNumber(lineSum)} readOnly className="calculated-field" />
+                          </div>
+                          <div className="form-group" style={{ justifyContent: 'flex-end' }}>
+                            <label style={{ visibility: 'hidden' }}>—</label>
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => removeOtherMaterialLine(idx)}
+                              disabled={isReadOnly}
+                              style={{ minHeight: '38px' }}
+                            >
+                              Видалити
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <button type="button" className="btn-secondary" onClick={addOtherMaterialLine} disabled={isReadOnly}>
+                      + Додати позицію
+                    </button>
+                  </div>
+                </div>
+                {/* Попередній формат опису + одна сума: без даних поля лише для перегляду (не вводити нові) */}
                 <div className="form-row two-cols">
                   <div className="form-group" style={{flex: 2}}>
                     <label>Інші матеріали: Опис інших матеріалів</label>
@@ -2561,13 +2672,21 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                       name="otherMaterials"
                       value={formData.otherMaterials}
                       onChange={handleChange}
+                      readOnly={isReadOnly || !String(formData.otherMaterials || '').trim()}
                       rows={4}
                       style={{ minHeight: '100px', resize: 'both', width: '100%', padding: '0.5rem' }}
                     />
                   </div>
                   <div className="form-group">
                     <label>Загальна ціна, грн</label>
-                    <input type="text" name="otherSum" value={formData.otherSum} onChange={handleChange} placeholder="0" />
+                    <input
+                      type="text"
+                      name="otherSum"
+                      value={formData.otherSum}
+                      onChange={handleChange}
+                      readOnly={isReadOnly || !String(formData.otherSum || '').trim()}
+                      placeholder="0"
+                    />
                   </div>
                 </div>
                 {/* Рядок: Вартість робіт грн (авторозрахунок) */}
