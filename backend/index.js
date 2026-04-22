@@ -392,9 +392,21 @@ const PROCUREMENT_ONLY_NOTIFICATION_KINDS = [
   'procurement_request_completed'
 ];
 
-function managerNotificationKindMongoFilter(procurementOnly, excludeProcurement) {
+/** Для панелі сервісу: без «закупівельних» для складу/виконавця; «Заявку виконано» лишається (заявнику та адмінам). */
+const PROCUREMENT_EXCLUDE_FOR_SERVICE_FEED_KINDS = [
+  'procurement_incoming_to_warehouse',
+  'procurement_receipt_partial',
+  'procurement_request_new'
+];
+
+function managerNotificationKindMongoFilter(
+  procurementOnly,
+  excludeProcurement,
+  excludeProcurementServiceFeed
+) {
   if (procurementOnly) return { kind: { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS } };
   if (excludeProcurement) return { kind: { $nin: PROCUREMENT_ONLY_NOTIFICATION_KINDS } };
+  if (excludeProcurementServiceFeed) return { kind: { $nin: PROCUREMENT_EXCLUDE_FOR_SERVICE_FEED_KINDS } };
   return {};
 }
 
@@ -2164,23 +2176,56 @@ async function notifyVidZakupokNewProcurementRequest(pr) {
   }
 }
 
-/** Повне завершення (склад підтвердив) — персонально заявнику */
+/** Повне завершення (склад підтвердив) — заявнику та адмінам (не всім менеджерам). */
 async function notifyProcurementRequesterCompleted(pr) {
   try {
-    const login = String(pr.requesterLogin || '').trim();
-    if (!login) return;
     const rn = pr.requestNumber || String(pr._id);
-    const greet = String(pr.requesterName || login).trim();
-    await createManagerNotificationDeduped({
-      recipientLogin: login,
-      kind: 'procurement_request_completed',
-      procurementRequestId: pr._id,
-      requestNumber: rn,
-      title: `Заявку виконано: ${rn}`,
-      body: `${greet}, заявку ${rn} повністю виконано: прийом на складі підтверджено.`,
-      read: false,
-      dedupeKey: `proc_done:${pr._id}`
-    });
+    const reqLogin = String(pr.requesterLogin || '').trim();
+    const greet = String(pr.requesterName || reqLogin || 'Заявник').trim();
+    const bodyRequester = `${greet}, заявку ${rn} повністю виконано: прийом на складі підтверджено.`;
+    const requesterLabel = String(pr.requesterName || pr.requesterLogin || '—').trim();
+    const bodyAdmin = `Заявку ${rn} повністю виконано: прийом на складі підтверджено. Заявник: ${requesterLabel}.`;
+
+    const seenNorm = new Set();
+
+    if (reqLogin) {
+      const n = normalizeLoginCompare(reqLogin);
+      seenNorm.add(n);
+      await createManagerNotificationDeduped({
+        recipientLogin: reqLogin,
+        kind: 'procurement_request_completed',
+        procurementRequestId: pr._id,
+        requestNumber: rn,
+        title: `Заявку виконано: ${rn}`,
+        body: bodyRequester,
+        read: false,
+        dedupeKey: `proc_done:${pr._id}:u:${n}`
+      });
+    }
+
+    const admins = await User.find({
+      role: { $in: ['admin', 'administrator'] },
+      dismissed: { $ne: true }
+    })
+      .select('login')
+      .lean();
+    for (const u of admins) {
+      const alog = String(u.login || '').trim();
+      if (!alog) continue;
+      const an = normalizeLoginCompare(alog);
+      if (seenNorm.has(an)) continue;
+      seenNorm.add(an);
+      await createManagerNotificationDeduped({
+        recipientLogin: alog,
+        kind: 'procurement_request_completed',
+        procurementRequestId: pr._id,
+        requestNumber: rn,
+        title: `Заявку виконано: ${rn}`,
+        body: bodyAdmin,
+        read: false,
+        dedupeKey: `proc_done:${pr._id}:u:${an}`
+      });
+    }
   } catch (e) {
     console.error('[procurement] notifyProcurementRequesterCompleted:', e.message);
   }
@@ -11823,7 +11868,14 @@ app.get('/api/manager-notifications', authenticateToken, async (req, res) => {
     const procurementOnly = req.query.procurement === '1' || req.query.procurement === 'true';
     const excludeProcurement =
       req.query.excludeProcurement === '1' || req.query.excludeProcurement === 'true';
-    const kindQ = managerNotificationKindMongoFilter(procurementOnly, excludeProcurement);
+    const excludeProcurementServiceFeed =
+      req.query.excludeProcurementServiceFeed === '1' ||
+      req.query.excludeProcurementServiceFeed === 'true';
+    const kindQ = managerNotificationKindMongoFilter(
+      procurementOnly,
+      excludeProcurement,
+      excludeProcurementServiceFeed
+    );
     if (isServiceGlobalNotificationsAdmin(req)) {
       const logins = await getRegionalManagerRecipientLogins();
       if (logins.length === 0) {
@@ -11849,7 +11901,14 @@ app.get('/api/manager-notifications/unread-count', authenticateToken, async (req
     const procurementOnly = req.query.procurement === '1' || req.query.procurement === 'true';
     const excludeProcurement =
       req.query.excludeProcurement === '1' || req.query.excludeProcurement === 'true';
-    const kindFilter = managerNotificationKindMongoFilter(procurementOnly, excludeProcurement);
+    const excludeProcurementServiceFeed =
+      req.query.excludeProcurementServiceFeed === '1' ||
+      req.query.excludeProcurementServiceFeed === 'true';
+    const kindFilter = managerNotificationKindMongoFilter(
+      procurementOnly,
+      excludeProcurement,
+      excludeProcurementServiceFeed
+    );
     if (isServiceGlobalNotificationsAdmin(req)) {
       const logins = await getRegionalManagerRecipientLogins();
       const count =
@@ -11903,7 +11962,14 @@ app.post('/api/manager-notifications/mark-all-read', authenticateToken, async (r
     const procurementOnly = req.query.procurement === '1' || req.query.procurement === 'true';
     const excludeProcurement =
       req.query.excludeProcurement === '1' || req.query.excludeProcurement === 'true';
-    const kindFilter = managerNotificationKindMongoFilter(procurementOnly, excludeProcurement);
+    const excludeProcurementServiceFeed =
+      req.query.excludeProcurementServiceFeed === '1' ||
+      req.query.excludeProcurementServiceFeed === 'true';
+    const kindFilter = managerNotificationKindMongoFilter(
+      procurementOnly,
+      excludeProcurement,
+      excludeProcurementServiceFeed
+    );
     if (isServiceGlobalNotificationsAdmin(req)) {
       const logins = await getRegionalManagerRecipientLogins();
       if (logins.length > 0) {

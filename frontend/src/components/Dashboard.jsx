@@ -28,7 +28,7 @@ function Dashboard({ user, panelType = 'service' }) {
       if (!token) return;
       const params = new URLSearchParams();
       if (isServiceAdmin) params.set('serviceGlobal', '1');
-      params.set('excludeProcurement', '1');
+      params.set('excludeProcurementServiceFeed', '1');
       const qs = `?${params.toString()}`;
       const res = await fetch(`${API_BASE_URL}/manager-notifications/unread-count${qs}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -201,11 +201,11 @@ function Dashboard({ user, panelType = 'service' }) {
               onUnreadCountChange={fetchNotificationsUnread}
               onOpenTask={handleOpenTaskFromNotification}
               globalFeed={isServiceAdmin}
-              excludeProcurement
+              excludeProcurementServiceFeed
               description={
                 isServiceAdmin
-                  ? 'Як адміністратор сервісу ви бачите лише сповіщення, надіслані регіональним керівникам (ролі regional / regkerivn). Біля типу вказано отримувача. «Позначити всі прочитаними» стосується лише цих записів. Сповіщення по заявках закупівель (VZ) тут не показуються.'
-                  : 'Персональні сповіщення для вашого облікового запису: нагадування про резерви, події по заявках регіону (рахунок, затвердження або відмова завскладом і бухгалтерією). Сповіщення по заявках закупівель (VZ) тут не показуються.'
+                  ? 'Як адміністратор сервісу ви бачите лише сповіщення, надіслані регіональним керівникам (ролі regional / regkerivn). Біля типу вказано отримувача. «Позначити всі прочитаними» стосується лише цих записів. Інші сповіщення по закупівлях (крім «Заявку виконано» для заявника) тут не показуються.'
+                  : 'Персональні сповіщення для вашого облікового запису: нагадування про резерви, події по заявках регіону (рахунок, затвердження або відмова завскладом і бухгалтерією). Сповіщення VidZakupok про нові заявки та склад тут не показуються; «Заявку виконано» після прийому на складі — для вас, якщо ви заявник, або для адміністратора.'
               }
             />
           ) : (

@@ -51,6 +51,8 @@ function ManagerNotificationsTab({
   procurementOnly = false,
   /** Приховати сповіщення по заявках закупівель (VZ) — для панелі менеджерів; не поєднуйте з procurementOnly */
   excludeProcurement = false,
+  /** Для сервісу: приховати лише «складські» VZ-сповіщення; «Заявку виконано» лишається заявнику/адмінам */
+  excludeProcurementServiceFeed = false,
   title = 'Системні сповіщення'
 }) {
   const [items, setItems] = useState([]);
@@ -61,9 +63,10 @@ function ManagerNotificationsTab({
     if (globalFeed) p.set('serviceGlobal', '1');
     if (procurementOnly) p.set('procurement', '1');
     else if (excludeProcurement) p.set('excludeProcurement', '1');
+    else if (excludeProcurementServiceFeed) p.set('excludeProcurementServiceFeed', '1');
     const s = p.toString();
     return s ? `?${s}` : '';
-  }, [globalFeed, procurementOnly, excludeProcurement]);
+  }, [globalFeed, procurementOnly, excludeProcurement, excludeProcurementServiceFeed]);
 
   const load = useCallback(async () => {
     setLoading(true);
