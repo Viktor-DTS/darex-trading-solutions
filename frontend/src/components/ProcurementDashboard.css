@@ -211,6 +211,16 @@
   word-break: break-word;
 }
 
+.procurement-table-col-warehouse,
+.procurement-table-col-executor {
+  max-width: 200px;
+  word-break: break-word;
+}
+
+.procurement-table-col-date {
+  white-space: nowrap;
+}
+
 .procurement-status {
   display: inline-block;
   padding: 2px 8px;

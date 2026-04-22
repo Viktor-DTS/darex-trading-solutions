@@ -75,6 +75,14 @@ function priorityLabel(v) {
   return PRIORITY_OPTIONS.find((p) => p.value === v)?.label || v || '—';
 }
 
+function procurementExecutorRowLabel(r) {
+  const name = String(r?.executorName || '').trim();
+  const login = String(r?.executorLogin || '').trim();
+  if (name) return name;
+  if (login) return login;
+  return '—';
+}
+
 function sumWarehouseAcceptedQty(events) {
   if (!Array.isArray(events)) return 0;
   return events.reduce((acc, ev) => acc + (Number(ev?.acceptedQuantity) || 0), 0);
@@ -742,6 +750,9 @@ function ProcurementDashboard({ user }) {
                         <th>Пріоритет</th>
                         <th>Дата подачі</th>
                         <th>Бажаний склад</th>
+                        <th>Фактичний склад відвантаження</th>
+                        <th>Відповідальний за виконання заявки</th>
+                        <th>Дата виконання (відділ закупівель)</th>
                         {isAdmin ? <th className="procurement-th-actions">Дії</th> : null}
                       </tr>
                     </thead>
@@ -771,6 +782,15 @@ function ProcurementDashboard({ user }) {
                           <td>{priorityLabel(r.priority)}</td>
                           <td>{formatDt(r.createdAt)}</td>
                           <td>{r.desiredWarehouse || '—'}</td>
+                          <td className="procurement-table-col-warehouse">
+                            {r.actualWarehouse ? r.actualWarehouse : '—'}
+                          </td>
+                          <td className="procurement-table-col-executor">
+                            {procurementExecutorRowLabel(r)}
+                          </td>
+                          <td className="procurement-table-col-date">
+                            {formatDt(r.executorCompletedAt)}
+                          </td>
                           {isAdmin ? (
                             <td
                               className="procurement-td-actions"
@@ -839,6 +859,9 @@ function ProcurementDashboard({ user }) {
                         <th>Пріоритет</th>
                         <th>Дата подачі</th>
                         <th>Бажаний склад</th>
+                        <th>Фактичний склад відвантаження</th>
+                        <th>Відповідальний за виконання заявки</th>
+                        <th>Дата виконання (відділ закупівель)</th>
                         {isAdmin ? <th className="procurement-th-actions">Дії</th> : null}
                       </tr>
                     </thead>
@@ -868,6 +891,15 @@ function ProcurementDashboard({ user }) {
                           <td>{priorityLabel(r.priority)}</td>
                           <td>{formatDt(r.createdAt)}</td>
                           <td>{r.desiredWarehouse || '—'}</td>
+                          <td className="procurement-table-col-warehouse">
+                            {r.actualWarehouse ? r.actualWarehouse : '—'}
+                          </td>
+                          <td className="procurement-table-col-executor">
+                            {procurementExecutorRowLabel(r)}
+                          </td>
+                          <td className="procurement-table-col-date">
+                            {formatDt(r.executorCompletedAt)}
+                          </td>
                           {isAdmin ? (
                             <td
                               className="procurement-td-actions"
