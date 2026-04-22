@@ -738,6 +738,13 @@
   font-weight: 600;
 }
 
+.procurement-receipt-pending-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
 .procurement-remainder-cell {
   font-weight: 600;
   white-space: nowrap;

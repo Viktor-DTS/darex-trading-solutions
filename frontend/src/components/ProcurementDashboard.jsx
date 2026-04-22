@@ -88,6 +88,45 @@ function sumWarehouseAcceptedQty(events) {
   return events.reduce((acc, ev) => acc + (Number(ev?.acceptedQuantity) || 0), 0);
 }
 
+/**
+ * Колонка «Прийоми завскладом»: історія warehouseReceiptEvents; інакше — receivedQuantity, коли завсклад
+ * вже зберіг прийом, але заявка ще чекає інші склади/рядки (події тоді не додаються в БД).
+ */
+function procurementReceiptsCellContent(m, detail) {
+  const evs = m?.warehouseReceiptEvents;
+  if (evs && evs.length) {
+    return (
+      <>
+        <ul className="procurement-wh-event-list">
+          {evs.map((ev, j) => (
+            <li key={j}>
+              <strong>{ev.acceptedQuantity}</strong> шт — {ev.confirmerName || ev.confirmerLogin || '—'},{' '}
+              {ev.acceptedAt ? formatDt(ev.acceptedAt) : '—'}
+            </li>
+          ))}
+        </ul>
+        <div className="procurement-wh-total">Всього прийнято: {sumWarehouseAcceptedQty(evs)} шт.</div>
+      </>
+    );
+  }
+  if (
+    m &&
+    m.receivedQuantity != null &&
+    m.receivedQuantity !== '' &&
+    Number.isFinite(Number(m.receivedQuantity))
+  ) {
+    return (
+      <>
+        <strong>{String(m.receivedQuantity)}</strong> шт
+        {detail && (detail.status === 'awaiting_warehouse' || detail.status === 'partially_fulfilled') && (
+          <div className="procurement-receipt-pending-hint">Очікується прийом на інших складах за потреби.</div>
+        )}
+      </>
+    );
+  }
+  return '—';
+}
+
 /** Залишок до відвантаження: основний + аналог (узгоджено з backend expectedQtyForProcurementMaterialLine) */
 function expectedQtyForLine(m) {
   if (!m || m.rejected) return 0;
@@ -1267,7 +1306,6 @@ function ProcurementDashboard({ user }) {
                                 const initialQtyDisp = savedLine ? initialQtyForLine(savedLine) : null;
                                 const draftAnalog =
                                   !!m.analogShipped && String(m.analogName || '').trim().length > 0;
-                                const events = savedLine?.warehouseReceiptEvents;
                                 return (
                                 <tr key={i} className={m.rejected ? 'procurement-row-rejected' : ''}>
                                   <td>{m.name}</td>
@@ -1277,24 +1315,7 @@ function ProcurementDashboard({ user }) {
                                       : '—'}
                                   </td>
                                   <td className="procurement-wh-cell">
-                                    {events && events.length ? (
-                                      <ul className="procurement-wh-event-list">
-                                        {events.map((ev, j) => (
-                                          <li key={j}>
-                                            <strong>{ev.acceptedQuantity}</strong> шт —{' '}
-                                            {ev.confirmerName || ev.confirmerLogin || '—'},{' '}
-                                            {ev.acceptedAt ? formatDt(ev.acceptedAt) : '—'}
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    ) : (
-                                      '—'
-                                    )}
-                                    {events && events.length ? (
-                                      <div className="procurement-wh-total">
-                                        Всього прийнято: {sumWarehouseAcceptedQty(events)} шт.
-                                      </div>
-                                    ) : null}
+                                    {procurementReceiptsCellContent(savedLine || {}, detail)}
                                   </td>
                                   <td className="procurement-remainder-cell">
                                     {m.rejected || maxRemainCap === null ? (
@@ -1585,7 +1606,6 @@ function ProcurementDashboard({ user }) {
                               m.receivedQuantity === null || m.receivedQuantity === undefined
                                 ? '—'
                                 : String(m.receivedQuantity);
-                            const evs = m.warehouseReceiptEvents;
                             return (
                               <tr key={i}>
                                 <td>{m.name}</td>
@@ -1595,24 +1615,7 @@ function ProcurementDashboard({ user }) {
                                     : '—'}
                                 </td>
                                 <td className="procurement-wh-cell">
-                                  {evs && evs.length ? (
-                                    <>
-                                      <ul className="procurement-wh-event-list">
-                                        {evs.map((ev, j) => (
-                                          <li key={j}>
-                                            <strong>{ev.acceptedQuantity}</strong> шт —{' '}
-                                            {ev.confirmerName || ev.confirmerLogin || '—'},{' '}
-                                            {ev.acceptedAt ? formatDt(ev.acceptedAt) : '—'}
-                                          </li>
-                                        ))}
-                                      </ul>
-                                      <div className="procurement-wh-total">
-                                        Всього прийнято: {sumWarehouseAcceptedQty(evs)} шт.
-                                      </div>
-                                    </>
-                                  ) : (
-                                    '—'
-                                  )}
+                                  {procurementReceiptsCellContent(m, detail)}
                                 </td>
                                 <td>{m.rejected || exp === null ? '—' : exp}</td>
                                 <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
