@@ -84,7 +84,7 @@ function ManagerDashboard({ user }) {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
-      const res = await fetch(`${API_BASE_URL}/manager-notifications/unread-count`, {
+      const res = await fetch(`${API_BASE_URL}/manager-notifications/unread-count?excludeProcurement=1`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -483,8 +483,9 @@ function ManagerDashboard({ user }) {
           ) : activeTab === 'notifications' ? (
             <div className="manager-scaled-inner">
               <ManagerNotificationsTab
+                excludeProcurement
                 onUnreadCountChange={fetchManagerNotificationsUnread}
-                description="Персональні нагадування про ваші резерви обладнання та зняття резерву (лише для вашого облікового запису)."
+                description="Персональні нагадування про ваші резерви обладнання та зняття резерву (лише для вашого облікового запису). Сповіщення по заявках закупівель (VZ) тут не показуються — вони у панелі «Відділ закупівель»."
               />
             </div>
           ) : (

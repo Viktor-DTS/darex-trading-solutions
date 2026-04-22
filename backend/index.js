@@ -392,6 +392,12 @@ const PROCUREMENT_ONLY_NOTIFICATION_KINDS = [
   'procurement_request_completed'
 ];
 
+function managerNotificationKindMongoFilter(procurementOnly, excludeProcurement) {
+  if (procurementOnly) return { kind: { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS } };
+  if (excludeProcurement) return { kind: { $nin: PROCUREMENT_ONLY_NOTIFICATION_KINDS } };
+  return {};
+}
+
 const managerUserNotificationSchema = new mongoose.Schema({
   recipientLogin: { type: String, required: true, index: true },
   kind: {
@@ -11815,21 +11821,22 @@ app.get('/api/manager-notifications', authenticateToken, async (req, res) => {
   try {
     const unreadOnly = req.query.unreadOnly === '1' || req.query.unreadOnly === 'true';
     const procurementOnly = req.query.procurement === '1' || req.query.procurement === 'true';
+    const excludeProcurement =
+      req.query.excludeProcurement === '1' || req.query.excludeProcurement === 'true';
+    const kindQ = managerNotificationKindMongoFilter(procurementOnly, excludeProcurement);
     if (isServiceGlobalNotificationsAdmin(req)) {
       const logins = await getRegionalManagerRecipientLogins();
       if (logins.length === 0) {
         return res.json([]);
       }
-      const q = { recipientLogin: { $in: logins } };
+      const q = { recipientLogin: { $in: logins }, ...kindQ };
       if (unreadOnly) q.read = false;
-      if (procurementOnly) q.kind = { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS };
       const list = await ManagerUserNotification.find(q).sort({ createdAt: -1 }).limit(500).lean();
       return res.json(list);
     }
     const login = req.user.login;
-    const q = { recipientLogin: login };
+    const q = { recipientLogin: login, ...kindQ };
     if (unreadOnly) q.read = false;
-    if (procurementOnly) q.kind = { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS };
     const list = await ManagerUserNotification.find(q).sort({ createdAt: -1 }).limit(200).lean();
     res.json(list);
   } catch (e) {
@@ -11840,7 +11847,9 @@ app.get('/api/manager-notifications', authenticateToken, async (req, res) => {
 app.get('/api/manager-notifications/unread-count', authenticateToken, async (req, res) => {
   try {
     const procurementOnly = req.query.procurement === '1' || req.query.procurement === 'true';
-    const kindFilter = procurementOnly ? { kind: { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS } } : {};
+    const excludeProcurement =
+      req.query.excludeProcurement === '1' || req.query.excludeProcurement === 'true';
+    const kindFilter = managerNotificationKindMongoFilter(procurementOnly, excludeProcurement);
     if (isServiceGlobalNotificationsAdmin(req)) {
       const logins = await getRegionalManagerRecipientLogins();
       const count =
@@ -11892,7 +11901,9 @@ app.patch('/api/manager-notifications/:id/read', authenticateToken, async (req, 
 app.post('/api/manager-notifications/mark-all-read', authenticateToken, async (req, res) => {
   try {
     const procurementOnly = req.query.procurement === '1' || req.query.procurement === 'true';
-    const kindFilter = procurementOnly ? { kind: { $in: PROCUREMENT_ONLY_NOTIFICATION_KINDS } } : {};
+    const excludeProcurement =
+      req.query.excludeProcurement === '1' || req.query.excludeProcurement === 'true';
+    const kindFilter = managerNotificationKindMongoFilter(procurementOnly, excludeProcurement);
     if (isServiceGlobalNotificationsAdmin(req)) {
       const logins = await getRegionalManagerRecipientLogins();
       if (logins.length > 0) {

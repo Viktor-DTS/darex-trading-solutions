@@ -26,7 +26,10 @@ function Dashboard({ user, panelType = 'service' }) {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
-      const qs = isServiceAdmin ? '?serviceGlobal=1' : '';
+      const params = new URLSearchParams();
+      if (isServiceAdmin) params.set('serviceGlobal', '1');
+      params.set('excludeProcurement', '1');
+      const qs = `?${params.toString()}`;
       const res = await fetch(`${API_BASE_URL}/manager-notifications/unread-count${qs}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -198,10 +201,11 @@ function Dashboard({ user, panelType = 'service' }) {
               onUnreadCountChange={fetchNotificationsUnread}
               onOpenTask={handleOpenTaskFromNotification}
               globalFeed={isServiceAdmin}
+              excludeProcurement
               description={
                 isServiceAdmin
-                  ? 'Як адміністратор сервісу ви бачите лише сповіщення, надіслані регіональним керівникам (ролі regional / regkerivn). Біля типу вказано отримувача. «Позначити всі прочитаними» стосується лише цих записів.'
-                  : undefined
+                  ? 'Як адміністратор сервісу ви бачите лише сповіщення, надіслані регіональним керівникам (ролі regional / regkerivn). Біля типу вказано отримувача. «Позначити всі прочитаними» стосується лише цих записів. Сповіщення по заявках закупівель (VZ) тут не показуються.'
+                  : 'Персональні сповіщення для вашого облікового запису: нагадування про резерви, події по заявках регіону (рахунок, затвердження або відмова завскладом і бухгалтерією). Сповіщення по заявках закупівель (VZ) тут не показуються.'
               }
             />
           ) : (
