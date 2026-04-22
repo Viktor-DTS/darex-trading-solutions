@@ -1518,6 +1518,7 @@ function ProcurementDashboard({ user }) {
                             або «Повністю виконана» таблиця стає лише для перегляду.
                           </p>
                         ) : null}
+                        <div className="procurement-exec-table-wrap">
                         <table className="procurement-mini-table procurement-mini-table--wide">
                         <thead>
                           <tr>
@@ -1596,6 +1597,7 @@ function ProcurementDashboard({ user }) {
                           })}
                         </tbody>
                       </table>
+                        </div>
                       </>
                     )}
                   </div>

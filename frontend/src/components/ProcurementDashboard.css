@@ -326,7 +326,7 @@
 
 /* Деталі заявки: широке вікно + прокрутка вмісту (матеріали, примітки, кнопки) */
 .procurement-modal--wide.procurement-modal--detail-wide {
-  max-width: min(1320px, 98vw);
+  max-width: min(1650px, 98vw);
   width: 100%;
   max-height: min(94vh, calc(100dvh - 24px));
   display: flex;
@@ -337,7 +337,8 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  overflow-x: hidden;
+  /* hidden обрізав широку таблицю матеріалів; auto дозволяє прокрутку всього вмісту за шириною */
+  overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 28px;
 }
@@ -440,6 +441,7 @@
 
 .procurement-detail-v {
   word-break: break-word;
+  min-width: 0;
 }
 
 .procurement-detail-files .procurement-detail-v {
@@ -671,15 +673,20 @@
   overflow-x: auto;
   margin-bottom: 12px;
   max-width: 100%;
+  width: 100%;
+  min-width: 0;
   -webkit-overflow-scrolling: touch;
   border-radius: 8px;
   border: 1px solid var(--border);
 }
 
 .procurement-exec-materials-table {
-  width: 100%;
+  /* max-content: таблиця не стискає останні колонки; прокрутка в .procurement-exec-table-wrap */
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  table-layout: auto;
 }
 
 .procurement-exec-materials-table th,
@@ -687,12 +694,20 @@
   border: 1px solid var(--border);
   padding: 6px 8px;
   vertical-align: top;
+  box-sizing: border-box;
 }
 
 .procurement-exec-materials-table th {
   background: var(--background);
   font-weight: 600;
-  white-space: nowrap;
+  white-space: normal;
+  hyphens: auto;
+}
+
+.procurement-exec-materials-table th:last-child,
+.procurement-exec-materials-table td:last-child {
+  min-width: 200px;
+  max-width: 28rem;
 }
 
 .procurement-wh-cell {
@@ -764,6 +779,14 @@
 
 .procurement-executor-materials-editor {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Таблиця «лише перегляд» у картці заявки — та сама прокрутка */
+.procurement-exec-table-wrap .procurement-mini-table--wide {
+  width: max-content;
+  min-width: 100%;
 }
 
 .procurement-materials-readonly-hint {
