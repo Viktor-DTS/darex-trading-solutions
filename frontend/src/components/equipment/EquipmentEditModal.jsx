@@ -7,6 +7,7 @@ import TechnicalSpecsConstructorBlock from './TechnicalSpecsConstructorBlock';
 import { buildPatchesFromProductCard, mergeAttachedFromProductCard, mergeCardSpecsIntoFormRows } from './productCardApply';
 import { parsedEquipmentToTechnicalSpecs } from '../../utils/ocrParser';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
+import { useUnitsOfMeasure } from '../../hooks/useUnitsOfMeasure';
 import './EquipmentEditModal.css';
 
 function flattenCategories(nodes, level = 0) {
@@ -105,6 +106,22 @@ function EquipmentEditModal({
   }, [equipment, warehouses, user?.role]);
 
   const effectiveReadOnly = readOnly || regionalForeignReadOnly;
+
+  const { units: uomList } = useUnitsOfMeasure();
+
+  const batchUnitOptions = useMemo(() => {
+    const u = String(formData.batchUnit || '').trim();
+    const list = [...(uomList || [])];
+    if (u && !list.includes(u)) list.unshift(u);
+    return list.length ? list : ['шт.'];
+  }, [uomList, formData.batchUnit]);
+
+  const batchUnitSelectValue = useMemo(() => {
+    const u = String(formData.batchUnit || '').trim();
+    if (!u) return '';
+    if (batchUnitOptions.includes(u)) return u;
+    return batchUnitOptions[0] || '';
+  }, [formData.batchUnit, batchUnitOptions]);
 
   useEffect(() => {
     if (equipment) {
@@ -1120,18 +1137,17 @@ function EquipmentEditModal({
                 <label>Одиниця виміру <span className="required">*</span></label>
                 <select
                   name="batchUnit"
-                  value={formData.batchUnit}
+                  value={batchUnitSelectValue}
                   onChange={handleChange}
                   required
                   disabled={effectiveReadOnly}
                 >
                   <option value="">Виберіть одиницю виміру</option>
-                  <option value="шт.">шт.</option>
-                  <option value="л.">л.</option>
-                  <option value="комплект">комплект</option>
-                  <option value="упаковка">упаковка</option>
-                  <option value="балон">балон</option>
-                  <option value="м.п.">м.п.</option>
+                  {batchUnitOptions.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="form-group">
