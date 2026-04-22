@@ -1641,8 +1641,9 @@ function procurementRequestWhNeededNameSet(pr) {
 }
 
 /**
- * Чи рядок прийому може обробити цей користувач: лише той, хто веде вказаний у рядку склад
- * (крім admin / mgradm — весь запит; відхилені — будь-який учасник з перетину whNeeded).
+ * Чи рядок прийому може обробити цей користувач.
+ * `allowed` з getWarehouseNamesForProcurementReceiptUser = назви складів у регіоні користувача
+ * (завсклад/склад логічно «за регіоном»; admin/mgradm — усі; відхилені — після перетину whNeeded).
  */
 function procurementLineInReceiptScopeForUser(reqUser, allowed, whNeeded, pr, line) {
   const r = String(reqUser.role || '').toLowerCase();
@@ -1667,29 +1668,6 @@ function allProcurementShippableLinesHaveReceivedValue(pr) {
     if (!Number.isFinite(Number(line.receivedQuantity))) return false;
   }
   return true;
-}
-
-/**
- * Користувачі (warehouse / zavsklad), у яких у дозволених складах регіону саме цей склад — а не весь регіон підряд.
- */
-async function getWarehouseStaffLoginsForProcurementNotification(whDoc) {
-  if (!whDoc || !whDoc._id) return [];
-  const wid = String(whDoc._id);
-  const users = await User.find({
-    dismissed: { $ne: true },
-    role: { $in: ['warehouse', 'zavsklad'] }
-  })
-    .select('login region')
-    .lean();
-  const out = [];
-  for (const u of users) {
-    const allowed = await loadActiveWarehouseIdsForUserRegion(u?.region);
-    if (allowed.has(wid)) {
-      const login = String(u.login || '').trim();
-      if (login) out.push(login);
-    }
-  }
-  return out;
 }
 
 async function notifyWarehouseStaffProcurementIncoming(pr) {
@@ -1717,12 +1695,22 @@ async function notifyWarehouseStaffProcurementIncoming(pr) {
       const wh =
         (await Warehouse.findOne({ isActive: true, name: whName }).lean()) ||
         (await Warehouse.findOne({ isActive: true, name: new RegExp(`^${esc}$`, 'i') }).lean());
-      if (!wh) continue;
-      const logins = await getWarehouseStaffLoginsForProcurementNotification(wh);
-      if (!logins.length) continue;
+      if (!wh || !String(wh.region || '').trim()) continue;
+      /** Модель: завсклад/склад прив’язані до регіону — сповіщаємо всіх warehouse/zavsklad регіону цього складу. */
+      const pattern = new RegExp(escapeRegExpForRegion(String(wh.region).trim()), 'i');
+      const users = await User.find({
+        dismissed: { $ne: true },
+        role: { $in: ['warehouse', 'zavsklad'] },
+        region: pattern
+      })
+        .select('login')
+        .lean();
+      if (!users.length) continue;
       const title = `Надходження від закупівель: ${rn}`;
       const body = `До складу «${whName}» прямує товар за заявкою закупівель. Виконавець: ${pr.executorName || pr.executorLogin || '—'}. Підтвердіть отримання: Складський облік → Затвердження отримання товару.`;
-      for (const login of logins) {
+      for (const u of users) {
+        const login = u.login && String(u.login).trim();
+        if (!login) continue;
         await createManagerNotificationDeduped({
           recipientLogin: login,
           kind: 'procurement_incoming_to_warehouse',
