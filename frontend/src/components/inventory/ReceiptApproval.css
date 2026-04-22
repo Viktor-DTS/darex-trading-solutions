@@ -64,6 +64,13 @@
   font-weight: 600;
 }
 
+.procurement-receipt-line-warehouse {
+  max-width: 12rem;
+  font-size: 12px;
+  word-break: break-word;
+  color: var(--text-secondary, #555);
+}
+
 .procurement-receipt-table input[type='text'],
 .procurement-receipt-table input[type='number'] {
   width: 100%;

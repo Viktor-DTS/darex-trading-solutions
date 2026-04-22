@@ -452,8 +452,9 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
       <div className="procurement-receipt-section" id="procurement-inbound-block">
         <h3>Надходження від закупівель</h3>
         <p className="procurement-receipt-hint">
-          Заявки у статусі «Чекає відвантаження на склад». У колонці «Прийнято факт» введіть фактичну кількість; якщо вона
-          відрізняється від очікуваної, відділ закупівель отримає сповіщення.
+          Заявки у статусі «Чекає відвантаження на склад». Якщо по заявці різні склади — підтверджуйте лише рядки свого
+          складу (інші збережуться після підтвердження іншим складом). У колонці «Прийнято факт» введіть фактичну
+          кількість; якщо вона відрізняється від очікуваної, відділ закупівель отримає сповіщення.
         </p>
         {procurementLoading ? (
           <div className="loading-indicator">Завантаження…</div>
@@ -486,6 +487,7 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                   <thead>
                     <tr>
                       <th>№</th>
+                      <th>Фактичний склад</th>
                       <th>Найменування / аналог</th>
                       <th>Очікувано</th>
                       <th>Прийнято факт</th>
@@ -499,6 +501,8 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                         : exp === null
                           ? '—'
                           : String(exp);
+                      const lineWh =
+                        String(m.actualWarehouse || '').trim() || String(pr.actualWarehouse || '').trim() || '—';
                       const rowLabel = m.rejected
                         ? `${m.name || '—'} (відхилено)`
                         : [m.name, m.analogName && `Аналог: ${m.analogName}`].filter(Boolean).join(' · ');
@@ -507,6 +511,7 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                       return (
                         <tr key={idx}>
                           <td>{idx + 1}</td>
+                          <td className="procurement-receipt-line-warehouse">{lineWh}</td>
                           <td>{rowLabel}</td>
                           <td>{expLabel}</td>
                           <td>
@@ -580,11 +585,12 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
               <p className="procurement-confirm-modal-lead">
                 Перевірте фактичні кількості та завершіть прийом — товар буде обліковано на зазначеному складі.
               </p>
-              <div className="procurement-receipt-table-wrap">
+                <div className="procurement-receipt-table-wrap">
                 <table className="procurement-receipt-table">
                   <thead>
                     <tr>
                       <th>№</th>
+                      <th>Фактичний склад</th>
                       <th>Найменування / аналог</th>
                       <th>Очікувано</th>
                       <th>Прийнято факт</th>
@@ -598,6 +604,10 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                         : exp === null
                           ? '—'
                           : String(exp);
+                      const lineWh =
+                        String(m.actualWarehouse || '').trim() ||
+                        String(procurementConfirmModalPr.actualWarehouse || '').trim() ||
+                        '—';
                       const rowLabel = m.rejected
                         ? `${m.name || '—'} (відхилено)`
                         : [m.name, m.analogName && `Аналог: ${m.analogName}`].filter(Boolean).join(' · ');
@@ -606,6 +616,7 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                       return (
                         <tr key={idx}>
                           <td>{idx + 1}</td>
+                          <td className="procurement-receipt-line-warehouse">{lineWh}</td>
                           <td>{rowLabel}</td>
                           <td>{expLabel}</td>
                           <td>{val === '' ? '—' : val}</td>

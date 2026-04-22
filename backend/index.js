@@ -1367,7 +1367,9 @@ const procurementMaterialLineSchema = new mongoose.Schema({
   /** Фактично прийнята кількість завскладом */
   receivedQuantity: { type: Number, default: null },
   /** Історія часткових прийомів завскладом по цій позиції (дата, хто, скільки) */
-  warehouseReceiptEvents: { type: [procurementWarehouseReceiptEventSchema], default: [] }
+  warehouseReceiptEvents: { type: [procurementWarehouseReceiptEventSchema], default: [] },
+  /** Фактичний склад відвантаження по цій позиції (може відрізнятися між рядками) */
+  actualWarehouse: { type: String, trim: true, default: '' }
 });
 
 const procurementRequestSchema = new mongoose.Schema(
@@ -1566,6 +1568,27 @@ function validateProcurementMaterialsForShipment(materials) {
   return null;
 }
 
+/** Чи потрібен фактичний склад для рядка перед відправкою на прийом завскладу. */
+function procurementLineNeedsShipmentWarehouse(line) {
+  if (!line || line.rejected) return false;
+  const exp = expectedQtyForProcurementMaterialLine(line);
+  return exp !== null && exp > 0;
+}
+
+/** Оновлює pr.actualWarehouse з унікальних непорожніх line.actualWarehouse (для списків / сумісності). */
+function syncProcurementRequestDenormalizedWarehouses(pr) {
+  const uniq = new Set();
+  for (const line of pr.materials || []) {
+    if (line.rejected) continue;
+    if (!procurementLineNeedsShipmentWarehouse(line)) continue;
+    const w = String(line.actualWarehouse || '').trim();
+    if (w) uniq.add(w);
+  }
+  pr.actualWarehouse = uniq.size
+    ? [...uniq].sort((a, b) => a.localeCompare(b, 'uk', { sensitivity: 'base' })).join(', ')
+    : '';
+}
+
 async function getWarehouseNamesForProcurementReceiptUser(reqUser, dbUser) {
   const r = String(reqUser.role || '').toLowerCase();
   if (['admin', 'administrator', 'mgradm'].includes(r)) {
@@ -1583,39 +1606,134 @@ async function getWarehouseNamesForProcurementReceiptUser(reqUser, dbUser) {
   return whs.map((w) => String(w.name || '').trim()).filter(Boolean);
 }
 
+/** Склад призначення рядка: спочатку line.actualWarehouse, інакше з pr.actualWarehouse (legacy, одна назва або перша зі списку). */
+function procurementLineShipmentWarehouseName(line, pr) {
+  const w = String(line?.actualWarehouse || '').trim();
+  if (w) return w;
+  const leg = String(pr?.actualWarehouse || '').trim();
+  if (!leg) return '';
+  if (leg.includes(',')) {
+    return leg
+      .split(/\s*,\s*/)
+      .map((s) => s.trim())
+      .find(Boolean) || '';
+  }
+  return leg;
+}
+
+function procurementRequestWhNeededNameSet(pr) {
+  const whNeeded = new Set();
+  for (const line of pr.materials || []) {
+    if (!procurementLineNeedsShipmentWarehouse(line)) continue;
+    const w = String(line.actualWarehouse || '').trim();
+    if (w) whNeeded.add(w);
+  }
+  if (whNeeded.size === 0) {
+    const leg = String(pr.actualWarehouse || '').trim();
+    if (leg) {
+      leg.split(/\s*,\s*/).forEach((p) => {
+        const x = String(p || '').trim();
+        if (x) whNeeded.add(x);
+      });
+    }
+  }
+  return whNeeded;
+}
+
+/**
+ * Чи рядок прийому може обробити цей користувач: лише той, хто веде вказаний у рядку склад
+ * (крім admin / mgradm — весь запит; відхилені — будь-який учасник з перетину whNeeded).
+ */
+function procurementLineInReceiptScopeForUser(reqUser, allowed, whNeeded, pr, line) {
+  const r = String(reqUser.role || '').toLowerCase();
+  if (['admin', 'administrator', 'mgradm'].includes(r)) return true;
+  if (![...whNeeded].some((n) => allowed.includes(n))) return false;
+  if (line.rejected) return true;
+  const wn = procurementLineShipmentWarehouseName(line, pr);
+  if (wn) return allowed.includes(wn);
+  return true;
+}
+
+function allProcurementShippableLinesHaveReceivedValue(pr) {
+  for (const line of pr.materials || []) {
+    if (line.rejected) {
+      if (line.receivedQuantity == null) return false;
+      if (!Number.isFinite(Number(line.receivedQuantity))) return false;
+      continue;
+    }
+    const exp = expectedQtyForProcurementMaterialLine(line);
+    if (exp == null || exp <= 0) continue;
+    if (line.receivedQuantity == null) return false;
+    if (!Number.isFinite(Number(line.receivedQuantity))) return false;
+  }
+  return true;
+}
+
+/**
+ * Користувачі (warehouse / zavsklad), у яких у дозволених складах регіону саме цей склад — а не весь регіон підряд.
+ */
+async function getWarehouseStaffLoginsForProcurementNotification(whDoc) {
+  if (!whDoc || !whDoc._id) return [];
+  const wid = String(whDoc._id);
+  const users = await User.find({
+    dismissed: { $ne: true },
+    role: { $in: ['warehouse', 'zavsklad'] }
+  })
+    .select('login region')
+    .lean();
+  const out = [];
+  for (const u of users) {
+    const allowed = await loadActiveWarehouseIdsForUserRegion(u?.region);
+    if (allowed.has(wid)) {
+      const login = String(u.login || '').trim();
+      if (login) out.push(login);
+    }
+  }
+  return out;
+}
+
 async function notifyWarehouseStaffProcurementIncoming(pr) {
   try {
-    const whName = String(pr.actualWarehouse || '').trim();
-    if (!whName) return;
-    const esc = escapeRegExpForRegion(whName);
-    const wh =
-      (await Warehouse.findOne({ isActive: true, name: whName }).lean()) ||
-      (await Warehouse.findOne({ isActive: true, name: new RegExp(`^${esc}$`, 'i') }).lean());
-    if (!wh || !String(wh.region || '').trim()) return;
-    const pattern = new RegExp(escapeRegExpForRegion(String(wh.region).trim()), 'i');
-    const users = await User.find({
-      dismissed: { $ne: true },
-      role: { $in: ['warehouse', 'zavsklad'] },
-      region: pattern
-    })
-      .select('login')
-      .lean();
+    const whSet = new Set();
+    for (const line of pr.materials || []) {
+      if (!procurementLineNeedsShipmentWarehouse(line)) continue;
+      const w = String(line.actualWarehouse || '').trim();
+      if (w) whSet.add(w);
+    }
+    if (whSet.size === 0) {
+      const legacy = String(pr.actualWarehouse || '').trim();
+      if (legacy) {
+        legacy.split(/\s*,\s*/).forEach((p) => {
+          const x = String(p || '').trim();
+          if (x) whSet.add(x);
+        });
+      }
+    }
+    if (whSet.size === 0) return;
+
     const rn = pr.requestNumber || String(pr._id);
-    const title = `Надходження від закупівель: ${rn}`;
-    const body = `До складу «${whName}» прямує товар за заявкою закупівель. Виконавець: ${pr.executorName || pr.executorLogin || '—'}. Підтвердіть отримання: Складський облік → Затвердження отримання товару.`;
-    for (const u of users) {
-      const login = u.login && String(u.login).trim();
-      if (!login) continue;
-      await createManagerNotificationDeduped({
-        recipientLogin: login,
-        kind: 'procurement_incoming_to_warehouse',
-        procurementRequestId: pr._id,
-        requestNumber: rn,
-        title,
-        body,
-        read: false,
-        dedupeKey: `proc_wh_in:${pr._id}:${login}`
-      });
+    for (const whName of whSet) {
+      const esc = escapeRegExpForRegion(whName);
+      const wh =
+        (await Warehouse.findOne({ isActive: true, name: whName }).lean()) ||
+        (await Warehouse.findOne({ isActive: true, name: new RegExp(`^${esc}$`, 'i') }).lean());
+      if (!wh) continue;
+      const logins = await getWarehouseStaffLoginsForProcurementNotification(wh);
+      if (!logins.length) continue;
+      const title = `Надходження від закупівель: ${rn}`;
+      const body = `До складу «${whName}» прямує товар за заявкою закупівель. Виконавець: ${pr.executorName || pr.executorLogin || '—'}. Підтвердіть отримання: Складський облік → Затвердження отримання товару.`;
+      for (const login of logins) {
+        await createManagerNotificationDeduped({
+          recipientLogin: login,
+          kind: 'procurement_incoming_to_warehouse',
+          procurementRequestId: pr._id,
+          requestNumber: rn,
+          title,
+          body,
+          read: false,
+          dedupeKey: `proc_wh_in:${pr._id}:${whName}:${login}`
+        });
+      }
     }
   } catch (e) {
     console.error('[procurement] notifyWarehouseStaffProcurementIncoming:', e.message);
@@ -1710,9 +1828,9 @@ function applyRemainingQuantitiesAfterPartialWarehouseReceipt(pr) {
   }
   pr.status = 'partially_fulfilled';
   pr.receiptOutcome = 'pending';
-  pr.actualWarehouse = '';
   pr.executorCompletedAt = null;
   pr.markModified('materials');
+  syncProcurementRequestDenormalizedWarehouses(pr);
 }
 
 async function resolveWarehouseDocumentByName(whName) {
@@ -1931,7 +2049,22 @@ async function userCanReadProcurementRequest(reqUser, dbUser, pr) {
   if (String(pr.requesterLogin || '').trim() === String(reqUser.login || '').trim()) return true;
   if (isWarehouseProcurementConfirmRole(reqUser.role)) {
     const names = await getWarehouseNamesForProcurementReceiptUser(reqUser, dbUser);
+    const lineNames = new Set();
+    for (const m of pr.materials || []) {
+      const w = String(m.actualWarehouse || '').trim();
+      if (w) lineNames.add(w);
+    }
+    if (lineNames.size) {
+      return [...lineNames].some((w) => names.includes(w));
+    }
     const aw = String(pr.actualWarehouse || '').trim();
+    if (aw.includes(',')) {
+      return aw
+        .split(/\s*,\s*/)
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .some((w) => names.includes(w));
+    }
     return names.some((n) => n === aw);
   }
   return false;
@@ -3165,6 +3298,9 @@ app.patch('/api/procurement-requests/:id/executor-materials', async (req, res) =
       if (!line.rejected) {
         line.rejectionReason = '';
       }
+      line.actualWarehouse = String(
+        inc.actualWarehouse !== undefined ? inc.actualWarehouse : line.actualWarehouse || ''
+      ).trim();
     }
     await pr.save();
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
@@ -3183,10 +3319,7 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
     if (!isVidZakupokProcurementRole(req.user.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
-    const actualWarehouse = String(req.body.actualWarehouse || '').trim();
-    if (!actualWarehouse) {
-      return res.status(400).json({ error: 'Вкажіть фактичний склад відвантаження' });
-    }
+    const defaultWarehouse = String(req.body.actualWarehouse || '').trim();
     const pr = await ProcurementRequest.findById(req.params.id);
     if (!pr) return res.status(404).json({ error: 'Заявку не знайдено' });
     if (!procurementExecutorCanEditWork(pr.status)) {
@@ -3202,13 +3335,28 @@ app.patch('/api/procurement-requests/:id/complete-executor', async (req, res) =>
     if (shipErr) {
       return res.status(400).json({ error: shipErr });
     }
+    for (let i = 0; i < pr.materials.length; i++) {
+      const line = pr.materials[i];
+      if (!procurementLineNeedsShipmentWarehouse(line)) continue;
+      let w = String(line.actualWarehouse || '').trim();
+      if (!w && defaultWarehouse) {
+        line.actualWarehouse = defaultWarehouse;
+        w = defaultWarehouse;
+      }
+      if (!w) {
+        return res.status(400).json({
+          error: `Позиція ${i + 1}: вкажіть фактичний склад відвантаження`
+        });
+      }
+    }
     const dbUser = await User.findOne({ login: req.user.login }).lean();
-    pr.actualWarehouse = actualWarehouse;
+    syncProcurementRequestDenormalizedWarehouses(pr);
     pr.executorCompletedAt = new Date();
     pr.executorLogin = req.user.login;
     pr.executorName = String(dbUser?.name || req.user.name || req.user.login).trim();
     pr.status = 'awaiting_warehouse';
     pr.receiptOutcome = 'pending';
+    pr.markModified('materials');
     await pr.save();
     await notifyWarehouseStaffProcurementIncoming(pr);
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
@@ -3232,7 +3380,7 @@ app.get('/api/procurement-requests/pending-warehouse-receipt/count', async (req,
     }
     const count = await ProcurementRequest.countDocuments({
       status: 'awaiting_warehouse',
-      actualWarehouse: { $in: names }
+      $or: [{ actualWarehouse: { $in: names } }, { 'materials.actualWarehouse': { $in: names } }]
     });
     logPerformance('GET pending-warehouse-receipt/count', startTime, count);
     res.json({ count });
@@ -3253,7 +3401,7 @@ app.get('/api/procurement-requests/pending-warehouse-receipt', async (req, res) 
     }
     const rows = await ProcurementRequest.find({
       status: 'awaiting_warehouse',
-      actualWarehouse: { $in: names }
+      $or: [{ actualWarehouse: { $in: names } }, { 'materials.actualWarehouse': { $in: names } }]
     })
       .select(PROCUREMENT_DOC_LIST_PROJECTION)
       .sort({ createdAt: -1 })
@@ -3336,9 +3484,17 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
     }
     const dbUser = await User.findOne({ login: req.user.login }).lean();
     const allowed = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser);
-    const aw = String(pr.actualWarehouse || '').trim();
-    if (!allowed.some((n) => n === aw)) {
-      return res.status(403).json({ error: 'Ця заявка стосується іншого складу' });
+    const whNeeded = procurementRequestWhNeededNameSet(pr);
+    if (whNeeded.size === 0) {
+      return res.status(400).json({
+        error: 'У заявці не вказано фактичні склади відвантаження по позиціях'
+      });
+    }
+    const roleLower = String(req.user.role || '').toLowerCase();
+    const isElevatedWh = ['admin', 'administrator', 'mgradm'].includes(roleLower);
+    const canAct = isElevatedWh || [...whNeeded].some((w) => allowed.includes(w));
+    if (!canAct) {
+      return res.status(403).json({ error: 'Ця заявка стосується інших складів' });
     }
 
     const linesIn = req.body.lines;
@@ -3352,6 +3508,10 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
     let partial = false;
     for (let i = 0; i < n; i++) {
       const line = pr.materials[i];
+      const inScope = procurementLineInReceiptScopeForUser(req.user, allowed, whNeeded, pr, line);
+      if (!inScope) {
+        continue;
+      }
       const inc = linesIn[i] || {};
       const exp = expectedQtyForProcurementMaterialLine(line);
       const rq = inc.receivedQuantity;
@@ -3379,10 +3539,13 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
       }
     }
 
-    const warehouseNameSnapshot = String(pr.actualWarehouse || '').trim();
-    const stockReceiptLines = [];
+    const allReceived = allProcurementShippableLinesHaveReceivedValue(pr);
+    const stockLinesByWarehouse = new Map();
     for (let i = 0; i < n; i++) {
       const line = pr.materials[i];
+      if (!procurementLineInReceiptScopeForUser(req.user, allowed, whNeeded, pr, line)) {
+        continue;
+      }
       const exp = expectedQtyForProcurementMaterialLine(line);
       if (line.rejected || exp === null) continue;
       const rq = line.receivedQuantity;
@@ -3393,55 +3556,62 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
         line.analogShipped && String(line.analogName || '').trim()
           ? String(line.analogName).trim()
           : String(line.name || '').trim();
-      stockReceiptLines.push({
+      let wname = procurementLineShipmentWarehouseName(line, pr);
+      if (!wname) wname = String(pr.actualWarehouse || '').trim();
+      if (!wname) continue;
+      if (!stockLinesByWarehouse.has(wname)) stockLinesByWarehouse.set(wname, []);
+      stockLinesByWarehouse.get(wname).push({
         qty,
         productId: line.productId,
         typeLabel: typeLabel || 'Без назви'
       });
     }
 
-    let whDocForStock = null;
-    if (stockReceiptLines.length) {
-      whDocForStock = await resolveWarehouseDocumentByName(warehouseNameSnapshot);
-      if (!whDocForStock) {
-        return res.status(400).json({
-          error:
-            'Склад не знайдено у довіднику. Перевірте фактичний склад у заявці або зверніться до адміністратора.'
-        });
+    if (allReceived) {
+      pr.warehouseReceivedAt = new Date();
+      pr.warehouseConfirmerLogin = req.user.login;
+      pr.warehouseConfirmerName = String(dbUser?.name || req.user.name || req.user.login).trim();
+      if (partial) {
+        applyRemainingQuantitiesAfterPartialWarehouseReceipt(pr);
+      } else {
+        pr.receiptOutcome = 'full';
+        pr.status = 'completed';
       }
     }
-
-    pr.warehouseReceivedAt = new Date();
-    pr.warehouseConfirmerLogin = req.user.login;
-    pr.warehouseConfirmerName = String(dbUser?.name || req.user.name || req.user.login).trim();
-    if (partial) {
-      applyRemainingQuantitiesAfterPartialWarehouseReceipt(pr);
-    } else {
-      pr.receiptOutcome = 'full';
-      pr.status = 'completed';
-    }
+    pr.markModified('materials');
     await pr.save();
 
     let warehouseStockError = null;
-    if (stockReceiptLines.length && whDocForStock) {
-      try {
-        await applyProcurementLinesToWarehouseStock(whDocForStock, stockReceiptLines, {
-          actingUserId: dbUser?._id?.toString(),
-          actingUserName: String(dbUser?.name || req.user.name || req.user.login).trim(),
-          actingUserLogin: req.user.login,
-          procurementRequestId: pr._id,
-          requestNumber: pr.requestNumber
-        });
-      } catch (stockErr) {
-        console.error('[procurement] warehouse-receipt stock:', stockErr);
-        warehouseStockError = stockErr.message || String(stockErr);
+    if (stockLinesByWarehouse.size) {
+      const stockCtx = {
+        actingUserId: dbUser?._id?.toString(),
+        actingUserName: String(dbUser?.name || req.user.name || req.user.login).trim(),
+        actingUserLogin: req.user.login,
+        procurementRequestId: pr._id,
+        requestNumber: pr.requestNumber
+      };
+      for (const [wname, stockLines] of stockLinesByWarehouse) {
+        const whDocForStock = await resolveWarehouseDocumentByName(wname);
+        if (!whDocForStock) {
+          warehouseStockError = `Склад «${wname}» не знайдено у довіднику.`;
+          break;
+        }
+        try {
+          await applyProcurementLinesToWarehouseStock(whDocForStock, stockLines, stockCtx);
+        } catch (stockErr) {
+          console.error('[procurement] warehouse-receipt stock:', stockErr);
+          warehouseStockError = stockErr.message || String(stockErr);
+          break;
+        }
       }
     }
 
-    if (partial) {
-      await notifyProcurementExecutorReceiptPartial(pr);
-    } else {
-      await notifyProcurementRequesterCompleted(pr);
+    if (allReceived) {
+      if (partial) {
+        await notifyProcurementExecutorReceiptPartial(pr);
+      } else {
+        await notifyProcurementRequesterCompleted(pr);
+      }
     }
 
     const out = await ProcurementRequest.findById(pr._id).select(PROCUREMENT_DOC_LIST_PROJECTION).lean();
@@ -3474,12 +3644,26 @@ app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => 
     }
     const dbUser = await User.findOne({ login: req.user.login }).lean();
     const allowed = await getWarehouseNamesForProcurementReceiptUser(req.user, dbUser);
-    const aw = String(pr.actualWarehouse || '').trim();
-    if (!allowed.some((n) => n === aw)) {
-      return res.status(403).json({ error: 'Ця заявка стосується іншого складу' });
+    const whNeeded = procurementRequestWhNeededNameSet(pr);
+    if (whNeeded.size === 0) {
+      return res.status(400).json({
+        error: 'У заявці не вказано фактичні склади відвантаження по позиціях'
+      });
+    }
+    const roleLower = String(req.user.role || '').toLowerCase();
+    const isElevatedWh = ['admin', 'administrator', 'mgradm'].includes(roleLower);
+    const hasAllNeededWarehouses = [...whNeeded].every((w) => allowed.includes(w));
+    if (!isElevatedWh && !hasAllNeededWarehouses) {
+      return res.status(400).json({
+        error:
+          'Повне однокрокове підтвердження для заявки з кількома складами не доступне. Скористайтесь уточненням фактичних кількостей (warehouse-receipt).'
+      });
     }
     for (let i = 0; i < pr.materials.length; i++) {
       const line = pr.materials[i];
+      if (!procurementLineInReceiptScopeForUser(req.user, allowed, whNeeded, pr, line)) {
+        continue;
+      }
       const exp = expectedQtyForProcurementMaterialLine(line);
       if (line.rejected) {
         line.receivedQuantity = 0;
@@ -3491,9 +3675,12 @@ app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => 
       }
       line.receivedQuantity = exp;
     }
-
-    const warehouseNameSnapshot = String(pr.actualWarehouse || '').trim();
-    const stockReceiptLines = [];
+    if (!allProcurementShippableLinesHaveReceivedValue(pr)) {
+      return res.status(400).json({
+        error: 'Немає повного прийому всіх рядків. Використовуйте POST warehouse-receipt'
+      });
+    }
+    const stockLinesByWarehouse = new Map();
     for (let i = 0; i < pr.materials.length; i++) {
       const line = pr.materials[i];
       const exp = expectedQtyForProcurementMaterialLine(line);
@@ -3504,22 +3691,15 @@ app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => 
         line.analogShipped && String(line.analogName || '').trim()
           ? String(line.analogName).trim()
           : String(line.name || '').trim();
-      stockReceiptLines.push({
+      let wname = procurementLineShipmentWarehouseName(line, pr);
+      if (!wname) wname = String(pr.actualWarehouse || '').trim();
+      if (!wname) continue;
+      if (!stockLinesByWarehouse.has(wname)) stockLinesByWarehouse.set(wname, []);
+      stockLinesByWarehouse.get(wname).push({
         qty,
         productId: line.productId,
         typeLabel: typeLabel || 'Без назви'
       });
-    }
-
-    let whDocForStock = null;
-    if (stockReceiptLines.length) {
-      whDocForStock = await resolveWarehouseDocumentByName(warehouseNameSnapshot);
-      if (!whDocForStock) {
-        return res.status(400).json({
-          error:
-            'Склад не знайдено у довіднику. Перевірте фактичний склад у заявці або зверніться до адміністратора.'
-        });
-      }
     }
 
     pr.receiptOutcome = 'full';
@@ -3527,21 +3707,31 @@ app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => 
     pr.warehouseConfirmerLogin = req.user.login;
     pr.warehouseConfirmerName = String(dbUser?.name || req.user.name || req.user.login).trim();
     pr.status = 'completed';
+    pr.markModified('materials');
     await pr.save();
 
     let warehouseStockError = null;
-    if (stockReceiptLines.length && whDocForStock) {
-      try {
-        await applyProcurementLinesToWarehouseStock(whDocForStock, stockReceiptLines, {
-          actingUserId: dbUser?._id?.toString(),
-          actingUserName: String(dbUser?.name || req.user.name || req.user.login).trim(),
-          actingUserLogin: req.user.login,
-          procurementRequestId: pr._id,
-          requestNumber: pr.requestNumber
-        });
-      } catch (stockErr) {
-        console.error('[procurement] warehouse-confirm stock:', stockErr);
-        warehouseStockError = stockErr.message || String(stockErr);
+    if (stockLinesByWarehouse.size) {
+      const stockCtx = {
+        actingUserId: dbUser?._id?.toString(),
+        actingUserName: String(dbUser?.name || req.user.name || req.user.login).trim(),
+        actingUserLogin: req.user.login,
+        procurementRequestId: pr._id,
+        requestNumber: pr.requestNumber
+      };
+      for (const [wname, stockLines] of stockLinesByWarehouse) {
+        const whDocForStock = await resolveWarehouseDocumentByName(wname);
+        if (!whDocForStock) {
+          warehouseStockError = `Склад «${wname}» не знайдено у довіднику.`;
+          break;
+        }
+        try {
+          await applyProcurementLinesToWarehouseStock(whDocForStock, stockLines, stockCtx);
+        } catch (stockErr) {
+          console.error('[procurement] warehouse-confirm stock:', stockErr);
+          warehouseStockError = stockErr.message || String(stockErr);
+          break;
+        }
       }
     }
 

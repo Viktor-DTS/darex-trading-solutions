@@ -183,7 +183,6 @@ function ProcurementDashboard({ user }) {
     files: []
   });
 
-  const [executorWarehouse, setExecutorWarehouse] = useState('');
   const [materialsDraft, setMaterialsDraft] = useState(null);
   const [executorUploadDocKind, setExecutorUploadDocKind] = useState('invoice');
   const [nomenclatureHints, setNomenclatureHints] = useState([]);
@@ -276,6 +275,7 @@ function ProcurementDashboard({ user }) {
         quantity: m.quantity,
         price: m.price,
         productId: m.productId ? String(m.productId) : '',
+        actualWarehouse: m.actualWarehouse != null && m.actualWarehouse !== undefined ? String(m.actualWarehouse) : '',
         analogName: m.analogName || '',
         analogQuantity: m.analogQuantity != null && m.analogQuantity !== '' ? String(m.analogQuantity) : '',
         analogShipped: !!m.analogShipped,
@@ -505,6 +505,7 @@ function ProcurementDashboard({ user }) {
     const payload = materialsDraft.map((m) => ({
       quantity:
         m.quantity === '' || m.quantity === undefined || m.quantity === null ? null : Number(m.quantity),
+      actualWarehouse: String(m.actualWarehouse || '').trim(),
       analogName: m.analogName,
       analogQuantity: m.analogQuantity === '' ? null : Number(m.analogQuantity),
       analogShipped: !!m.analogShipped,
@@ -565,13 +566,27 @@ function ProcurementDashboard({ user }) {
     }
   };
 
+  const draftLineNeedsExecutorWarehouse = (m, savedLine) => {
+    if (!m || m.rejected) return false;
+    const maxR = savedLine ? maxRemainderAfterWarehouse(savedLine) : null;
+    if (maxR === null) return false;
+    const draftAnalog = !!m.analogShipped && String(m.analogName || '').trim();
+    const main = parseNonNegMaterialQty(m.quantity);
+    const analog = draftAnalog ? parseNonNegMaterialQty(m.analogQuantity) : 0;
+    return main + analog > 0;
+  };
+
   const completeExecutor = async (id) => {
-    const aw = String(executorWarehouse || '').trim();
-    if (!aw) {
-      alert('Оберіть або вкажіть фактичний склад відвантаження');
-      return;
-    }
     if (canActAsExecutorOnRequest(detail) && materialsDraft && (detail.materials || []).length > 0) {
+      for (let i = 0; i < materialsDraft.length; i++) {
+        const m = materialsDraft[i];
+        const saved = detail?.materials?.[i];
+        if (!draftLineNeedsExecutorWarehouse(m, saved)) continue;
+        if (!String(m.actualWarehouse || '').trim()) {
+          alert(`Позиція ${i + 1}: вкажіть фактичний склад відвантаження`);
+          return;
+        }
+      }
       const saved = await persistExecutorMaterials(id);
       if (!saved) return;
     }
@@ -580,7 +595,7 @@ function ProcurementDashboard({ user }) {
       const res = await fetch(`${API_BASE_URL}/procurement-requests/${id}/complete-executor`, {
         method: 'PATCH',
         headers: { ...authHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actualWarehouse: aw })
+        body: JSON.stringify({ actualWarehouse: '' })
       });
       if (tryHandleUnauthorizedResponse(res)) return;
       if (!res.ok) {
@@ -590,7 +605,6 @@ function ProcurementDashboard({ user }) {
       }
       const updated = await res.json();
       setDetail(updated);
-      setExecutorWarehouse('');
       await loadRequests();
     } finally {
       setSaving(false);
@@ -620,7 +634,6 @@ function ProcurementDashboard({ user }) {
 
   const openDetail = (row) => {
     setDetail(row);
-    setExecutorWarehouse(row.actualWarehouse || '');
   };
 
   const deleteProcurementRequest = async (e, r) => {
@@ -1219,11 +1232,17 @@ function ProcurementDashboard({ user }) {
                     {canActAsExecutorOnRequest(detail) && materialsDraft ? (
                       <div className="procurement-executor-materials-editor">
                         <p className="procurement-field-hint">
-                          Можна вказати аналог і кількість, позначити відвантаження аналогу, відхилити позицію з
-                          обовʼязковою причиною. Сума кількості в колонках «Залишок (макс.)» (основний товар) та «К-сть
-                          аналогу» (якщо увімкнено «Відвант. аналог») не може перевищувати залишок після прийомів на
-                          складі.
+                          Для кожної позиції з кількістю до відвантаження вкажіть <strong>фактичний склад</strong> (може
+                          відрізнятися між рядками). Можна вказати аналог і кількість, позначити відвантаження аналогу,
+                          відхилити позицію з обовʼязковою причиною. Сума кількості в колонках «Залишок (макс.)»
+                          (основний товар) та «К-сть аналогу» (якщо увімкнено «Відвант. аналог») не може перевищувати
+                          залишок після прийомів на складі.
                         </p>
+                        <datalist id="procurement-wh-executor">
+                          {warehouseOptions.map((w) => (
+                            <option key={w.value} value={w.label} />
+                          ))}
+                        </datalist>
                         <div className="procurement-exec-table-wrap">
                           <table className="procurement-exec-materials-table">
                             <thead>
@@ -1233,6 +1252,7 @@ function ProcurementDashboard({ user }) {
                                 <th>Прийоми завскладом</th>
                                 <th>Залишок (макс.)</th>
                                 <th>Ціна</th>
+                                <th>Фактичний склад відвантаження *</th>
                                 <th>Аналог</th>
                                 <th>К-сть аналогу</th>
                                 <th>Відвант. аналог</th>
@@ -1338,6 +1358,20 @@ function ProcurementDashboard({ user }) {
                                     )}
                                   </td>
                                   <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
+                                  <td>
+                                    <input
+                                      type="text"
+                                      className="procurement-exec-input"
+                                      list="procurement-wh-executor"
+                                      value={m.actualWarehouse != null && m.actualWarehouse !== undefined ? m.actualWarehouse : ''}
+                                      onChange={(e) =>
+                                        updateMaterialDraftRow(i, { actualWarehouse: e.target.value })
+                                      }
+                                      placeholder="Оберіть або введіть"
+                                      disabled={m.rejected}
+                                      title="Фактичний склад для цієї позиції (обовʼязково, якщо є кількість до відвантаження)"
+                                    />
+                                  </td>
                                   <td>
                                     <input
                                       type="text"
@@ -1527,6 +1561,7 @@ function ProcurementDashboard({ user }) {
                             <th>Прийоми завскладом</th>
                             <th>Залишок (макс.)</th>
                             <th>Ціна</th>
+                            <th>Фактичний склад відвантаження</th>
                             <th>Аналог</th>
                             <th>К-сть аналогу</th>
                             <th>Відвант. аналог</th>
@@ -1581,6 +1616,7 @@ function ProcurementDashboard({ user }) {
                                 </td>
                                 <td>{m.rejected || exp === null ? '—' : exp}</td>
                                 <td>{m.price != null && m.price !== '' ? m.price : '—'}</td>
+                                <td>{m.actualWarehouse ? m.actualWarehouse : '—'}</td>
                                 <td>{m.analogName || '—'}</td>
                                 <td>{m.analogQuantity != null && m.analogQuantity !== '' ? m.analogQuantity : '—'}</td>
                                 <td>{m.analogShipped ? 'Так' : '—'}</td>
@@ -1698,21 +1734,6 @@ function ProcurementDashboard({ user }) {
                 )}
                 {isProcurementExecutorWorkStatus(detail.status) && isVidZakupok && (
                   <div className="procurement-executor-block">
-                    <label className="procurement-field procurement-field--inline">
-                      <span>Фактичний склад відвантаження *</span>
-                      <input
-                        type="text"
-                        list="procurement-wh-executor"
-                        value={executorWarehouse}
-                        onChange={(e) => setExecutorWarehouse(e.target.value)}
-                        placeholder="Оберіть зі списку або введіть назву"
-                      />
-                      <datalist id="procurement-wh-executor">
-                        {warehouseOptions.map((w) => (
-                          <option key={w.value} value={w.label} />
-                        ))}
-                      </datalist>
-                    </label>
                     <button
                       type="button"
                       className="procurement-btn-primary"
