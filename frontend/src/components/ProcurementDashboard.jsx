@@ -71,6 +71,17 @@ function formatDt(iso) {
   }
 }
 
+/** П.І.Б. у шапці, поки заявка чекає інші склади (з backend warehouseConfirmerActions). */
+function formatWarehouseConfirmerActions(actions) {
+  if (!Array.isArray(actions) || !actions.length) return '';
+  return actions
+    .map((a) => {
+      const n = a.confirmerName || a.confirmerLogin || '—';
+      return a.at ? `${n} (${formatDt(a.at)})` : n;
+    })
+    .join(' · ');
+}
+
 function priorityLabel(v) {
   return PRIORITY_OPTIONS.find((p) => p.value === v)?.label || v || '—';
 }
@@ -1260,7 +1271,12 @@ function ProcurementDashboard({ user }) {
               <div className="procurement-detail-row">
                 <span className="procurement-detail-k">П.І.Б. завскладу (підтвердження надходження)</span>
                 <span className="procurement-detail-v">
-                  {detail.warehouseConfirmerName || detail.warehouseConfirmerLogin || '—'}
+                  {detail.warehouseConfirmerName ||
+                    (detail.warehouseConfirmerActions && detail.warehouseConfirmerActions.length
+                      ? formatWarehouseConfirmerActions(detail.warehouseConfirmerActions)
+                      : '') ||
+                    detail.warehouseConfirmerLogin ||
+                    '—'}
                 </span>
               </div>
 

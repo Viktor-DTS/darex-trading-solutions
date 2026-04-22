@@ -1413,6 +1413,17 @@ const procurementRequestSchema = new mongoose.Schema(
     warehouseReceivedAt: { type: Date, default: null },
     warehouseConfirmerLogin: { type: String, default: '' },
     warehouseConfirmerName: { type: String, default: '' },
+    /** Підтвердження по частинах, доки заявка не закрита (кілька складів); у шапці картки, поки порожні warehouseConfirmer* */
+    warehouseConfirmerActions: {
+      type: [
+        {
+          confirmerLogin: { type: String, default: '' },
+          confirmerName: { type: String, default: '' },
+          at: { type: Date, default: Date.now }
+        }
+      ],
+      default: []
+    },
     attachments: [procurementAttachmentSchema],
     /** Файли виконавця: рахунки, видаткові накладні, кошториси тощо */
     executorAttachments: [procurementAttachmentSchema],
@@ -1841,12 +1852,15 @@ function applyRemainingQuantitiesAfterPartialWarehouseReceipt(pr) {
     const r = Number.isFinite(received) ? received : 0;
     if (r > 0) {
       if (!Array.isArray(line.warehouseReceiptEvents)) line.warehouseReceiptEvents = [];
-      line.warehouseReceiptEvents.push({
-        acceptedQuantity: r,
-        acceptedAt: at,
-        confirmerLogin: cl,
-        confirmerName: cn
-      });
+      const evSum = sumProcurementWarehouseReceiptEvents(line);
+      if (evSum < r) {
+        line.warehouseReceiptEvents.push({
+          acceptedQuantity: r - evSum,
+          acceptedAt: at,
+          confirmerLogin: cl,
+          confirmerName: cn
+        });
+      }
     }
     const remaining = Math.max(0, exp - r);
     if (line.analogShipped && String(line.analogName || '').trim()) {
@@ -3548,6 +3562,7 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
       });
     }
 
+    const preSaveReceived = pr.materials.map((m) => m.receivedQuantity);
     let partial = false;
     for (let i = 0; i < n; i++) {
       const line = pr.materials[i];
@@ -3583,6 +3598,43 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
     }
 
     const allReceived = allProcurementShippableLinesHaveReceivedValue(pr);
+    let inScopeDataChanged = false;
+    for (let i = 0; i < n; i++) {
+      if (!procurementLineInReceiptScopeForUser(req.user, allowed, whNeeded, pr, pr.materials[i])) continue;
+      const a = preSaveReceived[i];
+      const b = pr.materials[i].receivedQuantity;
+      if (String(a ?? '') !== String(b ?? '')) inScopeDataChanged = true;
+    }
+    if (!allReceived && inScopeDataChanged) {
+      const actAt = new Date();
+      const cName = String(dbUser?.name || req.user.name || req.user.login).trim();
+      for (let i = 0; i < n; i++) {
+        const line = pr.materials[i];
+        if (!procurementLineInReceiptScopeForUser(req.user, allowed, whNeeded, pr, line)) continue;
+        if (line.rejected) continue;
+        const exp = expectedQtyForProcurementMaterialLine(line);
+        if (exp == null || exp <= 0) continue;
+        const rq = line.receivedQuantity;
+        const r = rq === undefined || rq === null || rq === '' ? 0 : Number(rq);
+        if (!Number.isFinite(r) || r < 0) continue;
+        line.warehouseReceiptEvents = [
+          {
+            acceptedQuantity: r,
+            acceptedAt: actAt,
+            confirmerLogin: req.user.login,
+            confirmerName: cName
+          }
+        ];
+      }
+      if (!Array.isArray(pr.warehouseConfirmerActions)) pr.warehouseConfirmerActions = [];
+      pr.warehouseConfirmerActions.push({
+        confirmerLogin: req.user.login,
+        confirmerName: cName,
+        at: actAt
+      });
+      pr.markModified('warehouseConfirmerActions');
+    }
+
     const stockLinesByWarehouse = new Map();
     for (let i = 0; i < n; i++) {
       const line = pr.materials[i];
