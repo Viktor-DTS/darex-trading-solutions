@@ -872,6 +872,71 @@
   cursor: not-allowed;
 }
 
+.procurement-lookup-name-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.procurement-lookup-name-actions .procurement-btn-lookup-name {
+  margin-top: 0;
+}
+
+.procurement-edrpou-lookup-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--text-secondary);
+}
+
+.procurement-edrpou-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: procurement-edrpou-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes procurement-edrpou-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.procurement-supplier-name-td {
+  min-width: 14rem;
+  max-width: 22rem;
+  vertical-align: top;
+}
+
+.procurement-supplier-name-textarea {
+  min-height: 5.5rem;
+  max-width: 100%;
+  width: 100%;
+  resize: vertical;
+  line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  box-sizing: border-box;
+  font: inherit;
+}
+
+.procurement-supplier-name-readonly {
+  max-width: 18rem;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+  vertical-align: top;
+}
+
 .procurement-mini-table--wide {
   font-size: 12px;
 }

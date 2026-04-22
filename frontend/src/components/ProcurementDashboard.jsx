@@ -304,6 +304,8 @@ function ProcurementDashboard({ user }) {
   const materialsDraftRef = useRef(null);
   materialsDraftRef.current = materialsDraft;
   const supplierNameLookupTimersRef = useRef({});
+  /** @type {Record<number, boolean>} */
+  const [supplierEdrpouLookupLoading, setSupplierEdrpouLookupLoading] = useState({});
   const [nomenclatureHints, setNomenclatureHints] = useState([]);
   const [hintsForRow, setHintsForRow] = useState(null);
   const hintDebounceRef = useRef(null);
@@ -389,6 +391,10 @@ function ProcurementDashboard({ user }) {
       Object.keys(t).forEach((k) => clearTimeout(t[k]));
     };
   }, []);
+
+  useEffect(() => {
+    setSupplierEdrpouLookupLoading({});
+  }, [detail?._id]);
 
   useEffect(() => {
     if (!detail?.materials) {
@@ -876,6 +882,8 @@ function ProcurementDashboard({ user }) {
         return;
       }
       if (!force && String(m.supplierName || '').trim()) return;
+
+      setSupplierEdrpouLookupLoading((p) => ({ ...p, [rowIndex]: true }));
       try {
         const res = await fetch(
           `${API_BASE_URL}/procurement-requests/lookup-supplier-name?code=${encodeURIComponent(digits)}`,
@@ -905,6 +913,12 @@ function ProcurementDashboard({ user }) {
         }
       } catch (e) {
         if (force) alert(e.message || 'Помилка пошуку');
+      } finally {
+        setSupplierEdrpouLookupLoading((p) => {
+          const n = { ...p };
+          delete n[rowIndex];
+          return n;
+        });
       }
     },
     [authHeaders]
@@ -1629,29 +1643,42 @@ function ProcurementDashboard({ user }) {
                                         }
                                       }}
                                       placeholder="8–10 цифр"
-                                      disabled={m.rejected}
+                                      disabled={m.rejected || !!supplierEdrpouLookupLoading[i]}
                                       title="ЄДРПОУ (необовʼязково). Після введення назву можна підставити автоматично."
                                     />
                                     <p className="procurement-edrpou-hint">
                                       Назву можна заповнити автоматично після ЄДРПОУ.
                                     </p>
-                                    <button
-                                      type="button"
-                                      className="procurement-btn-lookup-name"
-                                      disabled={saving || m.rejected}
-                                      onClick={() => void runSupplierNameLookup(i, { force: true })}
-                                    >
-                                      Підставити назву
-                                    </button>
+                                    <div className="procurement-lookup-name-actions">
+                                      <button
+                                        type="button"
+                                        className="procurement-btn-lookup-name"
+                                        disabled={saving || m.rejected || !!supplierEdrpouLookupLoading[i]}
+                                        onClick={() => void runSupplierNameLookup(i, { force: true })}
+                                      >
+                                        Підставити назву
+                                      </button>
+                                      {supplierEdrpouLookupLoading[i] ? (
+                                        <span
+                                          className="procurement-edrpou-lookup-status"
+                                          role="status"
+                                          aria-live="polite"
+                                        >
+                                          <span className="procurement-edrpou-spinner" aria-hidden />
+                                          Пошук…
+                                        </span>
+                                      ) : null}
+                                    </div>
                                   </td>
-                                  <td>
-                                    <input
-                                      type="text"
-                                      className="procurement-exec-input"
+                                  <td className="procurement-supplier-name-td">
+                                    <textarea
+                                      className="procurement-exec-input procurement-supplier-name-textarea"
+                                      rows={4}
                                       value={m.supplierName != null ? m.supplierName : ''}
                                       onChange={(e) => updateMaterialDraftRow(i, { supplierName: e.target.value })}
-                                      placeholder="Постачальник"
+                                      placeholder="Постачальник (повна назва)"
                                       disabled={m.rejected}
+                                      spellCheck="false"
                                     />
                                   </td>
                                   <td className="procurement-line-file-cell">
@@ -1949,7 +1976,9 @@ function ProcurementDashboard({ user }) {
                                     : '—'}
                                 </td>
                                 <td>{m.supplierEdrpou ? m.supplierEdrpou : '—'}</td>
-                                <td>{m.supplierName ? m.supplierName : '—'}</td>
+                                <td className="procurement-supplier-name-readonly">
+                                  {m.supplierName ? m.supplierName : '—'}
+                                </td>
                                 <td className="procurement-line-file-cell procurement-line-file-cell--readonly">
                                   {m.invoiceFile ? (
                                     <button
