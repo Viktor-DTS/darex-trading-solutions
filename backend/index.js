@@ -2006,6 +2006,13 @@ async function applyProcurementLinesToWarehouseStock(warehouseDoc, lines, ctx) {
 
     const quantity = qtyRaw;
 
+    const procUomRaw = String(line.unitOfMeasure || '').trim();
+    const procPriceRaw = line.price;
+    const procPrice =
+      procPriceRaw !== undefined && procPriceRaw !== null && procPriceRaw !== '' && Number.isFinite(Number(procPriceRaw))
+        ? Number(procPriceRaw)
+        : null;
+
     const searchQuery = {
       currentWarehouse: warehouseId,
       region: region,
@@ -2046,13 +2053,20 @@ async function applyProcurementLinesToWarehouseStock(warehouseDoc, lines, ctx) {
     if (existingEquipment) {
       existingEquipment.quantity = (existingEquipment.quantity || 1) + quantity;
       existingEquipment.lastModified = new Date();
+      if (procUomRaw) {
+        existingEquipment.batchUnit = await normalizeBatchUnitToList(procUomRaw);
+      }
+      if (procPrice != null && procPrice >= 0) {
+        existingEquipment.batchPriceWithVAT = procPrice;
+      }
       await existingEquipment.save();
       updatedEquipment = existingEquipment;
     } else {
       const mvt = card ? sanitizeProductCardMaterialValueType(card.materialValueType) : '';
       const itemKind =
         card && ['equipment', 'parts'].includes(card.itemKind) ? card.itemKind : 'parts';
-      const batchUnit = card ? card.defaultBatchUnit || 'шт.' : 'шт.';
+      const batchUnitDefault = card ? card.defaultBatchUnit || 'шт.' : 'шт.';
+      const batchUnit = await normalizeBatchUnitToList(procUomRaw || batchUnitDefault);
       const currency = card ? card.defaultCurrency || 'грн.' : 'грн.';
 
       createdEquipment = await Equipment.create({
@@ -2064,6 +2078,7 @@ async function applyProcurementLinesToWarehouseStock(warehouseDoc, lines, ctx) {
         isBatch: false,
         quantity,
         batchUnit,
+        batchPriceWithVAT: procPrice != null && procPrice >= 0 ? procPrice : undefined,
         currency,
         materialValueType: mvt || undefined,
         technicalSpecs: card ? sanitizeProductCardTechnicalSpecs(card.technicalSpecs) : [],
@@ -4113,7 +4128,9 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
       stockLinesByWarehouse.get(wname).push({
         qty,
         productId: line.productId,
-        typeLabel: typeLabel || 'Без назви'
+        typeLabel: typeLabel || 'Без назви',
+        unitOfMeasure: String(line.unitOfMeasure || '').trim(),
+        price: line.price
       });
     }
 
@@ -4286,7 +4303,9 @@ app.post('/api/procurement-requests/:id/warehouse-confirm', async (req, res) => 
       stockLinesByWarehouse.get(wname).push({
         qty,
         productId: line.productId,
-        typeLabel: typeLabel || 'Без назви'
+        typeLabel: typeLabel || 'Без назви',
+        unitOfMeasure: String(line.unitOfMeasure || '').trim(),
+        price: line.price
       });
     }
 
