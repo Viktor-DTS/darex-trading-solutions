@@ -1151,7 +1151,7 @@ function EquipmentEditModal({
                 </select>
               </div>
               <div className="form-group">
-                <label>Ціна за одиницю з ПДВ</label>
+                <label>Ціна закупки в грн. з ПДВ</label>
                 <input
                   type="number"
                   name="batchPriceWithVAT"

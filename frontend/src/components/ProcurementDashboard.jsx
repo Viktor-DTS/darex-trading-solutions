@@ -711,11 +711,11 @@ function ProcurementDashboard({ user }) {
         return false;
       }
       if (payload[i].price !== null && !Number.isFinite(payload[i].price)) {
-        alert(`Позиція ${i + 1}: некоректна ціна за од. з ПДВ`);
+        alert(`Позиція ${i + 1}: некоректна ціна закупівлі за од. грн. з ПДВ`);
         return false;
       }
       if (payload[i].price !== null && payload[i].price < 0) {
-        alert(`Позиція ${i + 1}: ціна за од. з ПДВ не може бути від’ємною`);
+        alert(`Позиція ${i + 1}: ціна закупівлі за од. грн. з ПДВ не може бути від’ємною`);
         return false;
       }
       const row = detail?.materials?.[i];
@@ -785,7 +785,7 @@ function ProcurementDashboard({ user }) {
           return;
         }
         if (m.price === '' || m.price == null || !Number.isFinite(Number(m.price)) || Number(m.price) < 0) {
-          alert(`Позиція ${i + 1}: вкажіть ціну за од. з ПДВ (число, не менше 0)`);
+          alert(`Позиція ${i + 1}: вкажіть ціну закупівлі за од. грн. з ПДВ (число, не менше 0)`);
           return;
         }
       }
@@ -1512,7 +1512,7 @@ function ProcurementDashboard({ user }) {
                       <div className="procurement-executor-materials-editor">
                         <p className="procurement-field-hint">
                           Для кожної позиції з кількістю до відвантаження вкажіть <strong>фактичний склад</strong>,
-                          <strong> назву постачальника</strong> та <strong>ціну за од. з ПДВ</strong> (обовʼязково).
+                          <strong> назву постачальника</strong> та <strong>ціну закупівлі за од. грн. з ПДВ</strong> (обовʼязково).
                           <strong> ЄДРПОУ</strong> постачальника — за бажанням: після введення (8–10 цифр) поле «Назва
                           постачальника» можна <strong>заповнити автоматично</strong> (спочатку клієнтська база, потім
                           історія заявок, далі — публічний реєстр) або натиснути «Підставити назву». Окремо
@@ -1520,7 +1520,7 @@ function ProcurementDashboard({ user }) {
                           аналог і кількість, позначити відвантаження аналогу, відхилити позицію з обовʼязковою
                           причиною. Сума кількості в колонках «Залишок (макс.)» (основний товар) та «К-сть аналогу»
                           (якщо увімкнено «Відвант. аналог») не може перевищувати залишок після прийомів на складі.
-                          «Загальна сума з ПДВ» = (кількість до відвантаження) × (ціна за од. з ПДВ).
+                          «Загальна сума закупівлі грн. з ПДВ» = (кількість до відвантаження) × (ціна закупівлі за од. грн. з ПДВ).
                         </p>
                         <datalist id="procurement-wh-executor">
                           {warehouseOptions.map((w) => (
@@ -1536,8 +1536,8 @@ function ProcurementDashboard({ user }) {
                                 <th className="procurement-col-initial-qty">Початкова кількість по заявці</th>
                                 <th>Прийоми завскладом</th>
                                 <th className="procurement-col-remainder">Залишок (макс.)</th>
-                                <th className="procurement-col-price">Ціна за од. з ПДВ *</th>
-                                <th className="procurement-col-total-vat">Загальна сума з ПДВ</th>
+                                <th className="procurement-col-price">Ціна закупівлі за од. грн. з ПДВ *</th>
+                                <th className="procurement-col-total-vat">Загальна сума закупівлі грн. з ПДВ</th>
                                 <th className="procurement-col-edrpou">ЄДРПОУ постачальника</th>
                                 <th>Назва постачальника *</th>
                                 <th>Рахунок</th>
@@ -1977,8 +1977,8 @@ function ProcurementDashboard({ user }) {
                             <th className="procurement-col-initial-qty">Початкова кількість по заявці</th>
                             <th>Прийоми завскладом</th>
                             <th className="procurement-col-remainder">Залишок (макс.)</th>
-                            <th className="procurement-col-price">Ціна за од. з ПДВ</th>
-                            <th className="procurement-col-total-vat">Загальна сума з ПДВ</th>
+                            <th className="procurement-col-price">Ціна закупівлі за од. грн. з ПДВ</th>
+                            <th className="procurement-col-total-vat">Загальна сума закупівлі грн. з ПДВ</th>
                             <th className="procurement-col-edrpou">ЄДРПОУ постачальника</th>
                             <th>Назва постачальника</th>
                             <th>Рахунок / ВН</th>

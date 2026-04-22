@@ -886,7 +886,7 @@ const equipmentSchema = new mongoose.Schema({
   batchIndex: { type: Number },  // Індекс одиниці в партії (1, 2, 3...)
   batchName: String,  // Назва для партійного обладнання
   batchUnit: String,  // Одиниця виміру (шт., л., комплект, упаковка, балон, м.п.)
-  batchPriceWithVAT: Number,  // Ціна за одиницю з ПДВ
+  batchPriceWithVAT: Number,  // Ціна закупки за одиницю з ПДВ (грн.)
   currency: { type: String, default: 'грн.' },  // Тип валюти (грн., USD, EURO)
   
   // Складські дані
@@ -967,6 +967,8 @@ const equipmentSchema = new mongoose.Schema({
     clientAddress: String,
     invoiceRecipientDetails: String,
     totalPrice: Number,
+    /** Ціна відвантаження за одиницю, грн. з ПДВ (обовʼязково при відвантаженні; має бути > batchPriceWithVAT, якщо вона задана) */
+    unitSalePriceUahWithVat: Number,
     notes: String,
     attachedFiles: [{
       cloudinaryUrl: String,
@@ -13200,11 +13202,48 @@ app.post('/api/equipment/quantity/move', authenticateToken, async (req, res) => 
   }
 });
 
+function parseRequiredUnitSalePriceUahWithVat(raw) {
+  if (raw === null || raw === undefined || raw === '') {
+    return { error: 'Вкажіть ціну в грн. з ПДВ за одиницю товару при відвантаженні.' };
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    return { error: 'Ціна в грн. з ПДВ за одиницю має бути додатним числом.' };
+  }
+  return { value: n };
+}
+
+function validateUnitSaleAbovePurchaseUnit(equipmentDoc, unitSale) {
+  if (!equipmentDoc) return null;
+  const p = equipmentDoc.batchPriceWithVAT;
+  if (p === null || p === undefined || p === '') return null;
+  const pn = Number(p);
+  if (!Number.isFinite(pn)) return null;
+  if (unitSale <= pn) {
+    return `Ціна в грн. з ПДВ за одиницю (${unitSale}) має бути більшою за ціну закупки (${pn}) грн за одиницю.`;
+  }
+  return null;
+}
+
 // Масове відвантаження обладнання (для партій) - ПОВИННО БУТИ ПЕРЕД /api/equipment/:id/ship
 app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { batchId, quantity, fromWarehouse, shippedTo, orderNumber, invoiceNumber, clientEdrpou, clientAddress, invoiceRecipientDetails, totalPrice, notes, attachedFiles } = req.body;
+    const {
+      batchId,
+      quantity,
+      fromWarehouse,
+      shippedTo,
+      orderNumber,
+      invoiceNumber,
+      clientEdrpou,
+      clientAddress,
+      invoiceRecipientDetails,
+      totalPrice,
+      unitSalePriceUahWithVat,
+      notes,
+      attachedFiles
+    } = req.body;
     const user = await User.findOne({ login: req.user.login });
     
     if (!user) {
@@ -13240,6 +13279,15 @@ app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
         error: `На складі доступно тільки ${batchItems.length} одиниць з партії` 
       });
     }
+
+    const saleParsed = parseRequiredUnitSalePriceUahWithVat(unitSalePriceUahWithVat);
+    if (saleParsed.error) {
+      return res.status(400).json({ error: saleParsed.error });
+    }
+    const purchaseErr = validateUnitSaleAbovePurchaseUnit(batchItems[0], saleParsed.value);
+    if (purchaseErr) {
+      return res.status(400).json({ error: purchaseErr });
+    }
     
     const shipment = {
       shippedTo: shippedTo,
@@ -13252,6 +13300,7 @@ app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
       clientAddress: clientAddress || '',
       invoiceRecipientDetails: invoiceRecipientDetails || '',
       totalPrice: totalPrice || null,
+      unitSalePriceUahWithVat: saleParsed.value,
       notes: notes || '',
       attachedFiles: attachedFiles || []
     };
@@ -13331,7 +13380,21 @@ app.post('/api/equipment/batch/ship', authenticateToken, async (req, res) => {
 app.post('/api/equipment/quantity/ship', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { equipmentId, quantity, fromWarehouse, shippedTo, orderNumber, invoiceNumber, clientEdrpou, clientAddress, invoiceRecipientDetails, totalPrice, notes, attachedFiles } = req.body;
+    const {
+      equipmentId,
+      quantity,
+      fromWarehouse,
+      shippedTo,
+      orderNumber,
+      invoiceNumber,
+      clientEdrpou,
+      clientAddress,
+      invoiceRecipientDetails,
+      totalPrice,
+      unitSalePriceUahWithVat,
+      notes,
+      attachedFiles
+    } = req.body;
     const user = await User.findOne({ login: req.user.login });
     
     if (!user) {
@@ -13389,6 +13452,15 @@ app.post('/api/equipment/quantity/ship', authenticateToken, async (req, res) => 
         error: `Некоректний статус для відвантаження: ${equipment.status || '—'}`
       });
     }
+
+    const saleParsedQ = parseRequiredUnitSalePriceUahWithVat(unitSalePriceUahWithVat);
+    if (saleParsedQ.error) {
+      return res.status(400).json({ error: saleParsedQ.error });
+    }
+    const purchaseErrQ = validateUnitSaleAbovePurchaseUnit(equipment, saleParsedQ.value);
+    if (purchaseErrQ) {
+      return res.status(400).json({ error: purchaseErrQ });
+    }
     
     const shipment = {
       shippedTo: shippedTo,
@@ -13401,6 +13473,7 @@ app.post('/api/equipment/quantity/ship', authenticateToken, async (req, res) => 
       clientAddress: clientAddress || '',
       invoiceRecipientDetails: invoiceRecipientDetails || '',
       totalPrice: totalPrice || null,
+      unitSalePriceUahWithVat: saleParsedQ.value,
       notes: notes || '',
       attachedFiles: attachedFiles || []
     };
@@ -13651,7 +13724,18 @@ app.post('/api/equipment/:id/move', authenticateToken, async (req, res) => {
 app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { shippedTo, orderNumber, invoiceNumber, clientEdrpou, clientAddress, invoiceRecipientDetails, totalPrice, notes, attachedFiles } = req.body;
+    const {
+      shippedTo,
+      orderNumber,
+      invoiceNumber,
+      clientEdrpou,
+      clientAddress,
+      invoiceRecipientDetails,
+      totalPrice,
+      unitSalePriceUahWithVat,
+      notes,
+      attachedFiles
+    } = req.body;
     const user = await User.findOne({ login: req.user.login });
     
     if (!user) {
@@ -13678,6 +13762,15 @@ app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
         error: `Некоректний статус для відвантаження: ${equipment.status || '—'}`
       });
     }
+
+    const saleParsed1 = parseRequiredUnitSalePriceUahWithVat(unitSalePriceUahWithVat);
+    if (saleParsed1.error) {
+      return res.status(400).json({ error: saleParsed1.error });
+    }
+    const purchaseErr1 = validateUnitSaleAbovePurchaseUnit(equipment, saleParsed1.value);
+    if (purchaseErr1) {
+      return res.status(400).json({ error: purchaseErr1 });
+    }
     
     const shipment = {
       shippedTo: shippedTo,
@@ -13690,6 +13783,7 @@ app.post('/api/equipment/:id/ship', authenticateToken, async (req, res) => {
       clientAddress: clientAddress || '',
       invoiceRecipientDetails: invoiceRecipientDetails || '',
       totalPrice: totalPrice || null,
+      unitSalePriceUahWithVat: saleParsed1.value,
       notes: notes || '',
       attachedFiles: attachedFiles || []
     };

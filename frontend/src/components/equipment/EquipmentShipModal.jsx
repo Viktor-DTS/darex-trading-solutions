@@ -7,6 +7,20 @@ import ClientDataSelectionModal from '../ClientDataSelectionModal';
 import EquipmentFileUpload from './EquipmentFileUpload';
 import './EquipmentShipModal.css';
 
+function isQuantityBasedEquipment(eq) {
+  return (
+    eq &&
+    !eq.batchId &&
+    (!eq.serialNumber || String(eq.serialNumber).trim() === '') &&
+    Number(eq.quantity) > 1
+  );
+}
+
+function batchGroupStateKey(eq) {
+  if (!eq || !eq.batchId) return '';
+  return `${eq.batchId}-${eq.currentWarehouse || eq.currentWarehouseName || ''}`;
+}
+
 function EquipmentShipModal({
   equipment,
   warehouses = [],
@@ -41,7 +55,9 @@ function EquipmentShipModal({
   const [batchQuantity, setBatchQuantity] = useState(1);
   const [batchQuantities, setBatchQuantities] = useState({}); // { batchId-warehouse: quantity }
   const [quantityBasedQuantities, setQuantityBasedQuantities] = useState({}); // { equipmentId: quantity } для обладнання без серійного номера
-  
+  /** Ціна відвантаження за одиницю (грн. з ПДВ): ключ — equipmentId або batchGroupStateKey для партії */
+  const [unitSalePricesUah, setUnitSalePricesUah] = useState({});
+
   // Стан для автозаповнення ЄДРПОУ
   const [edrpouList, setEdrpouList] = useState([]);
   const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false);
@@ -73,6 +89,7 @@ function EquipmentShipModal({
         const data = await res.json();
         const eqList = Array.isArray(data.equipment) ? data.equipment : [];
         setSelectedEquipmentList(eqList);
+        setUnitSalePricesUah({});
         setShippedTo(data.clientName || data.sale?.clientId?.name || '');
         setClientEdrpou(data.sale?.clientId?.edrpou || '');
         setClientAddress(data.shipmentAddress || '');
@@ -218,13 +235,17 @@ function EquipmentShipModal({
   }, []);
 
   const handleEquipmentToggle = (eq) => {
-    setSelectedEquipmentList(prev => {
-      const exists = prev.find(e => e._id === eq._id);
+    setSelectedEquipmentList((prev) => {
+      const exists = prev.find((e) => e._id === eq._id);
       if (exists) {
-        return prev.filter(e => e._id !== eq._id);
-      } else {
-        return [...prev, eq];
+        setUnitSalePricesUah((p) => {
+          const n = { ...p };
+          delete n[String(eq._id)];
+          return n;
+        });
+        return prev.filter((e) => e._id !== eq._id);
       }
+      return [...prev, eq];
     });
   };
 
@@ -276,6 +297,15 @@ function EquipmentShipModal({
   const handleSelectAll = () => {
     if (selectedEquipmentList.length === groupedEquipment.length && groupedEquipment.length > 0) {
       const filteredIds = new Set(groupedEquipment.map((eq) => eq._id));
+      setUnitSalePricesUah((prev) => {
+        const n = { ...prev };
+        for (const eq of groupedEquipment) {
+          delete n[String(eq._id)];
+          const bk = eq.batchId ? batchGroupStateKey(eq) : '';
+          if (bk) delete n[bk];
+        }
+        return n;
+      });
       setSelectedEquipmentList((prev) => prev.filter((eq) => !filteredIds.has(eq._id)));
     } else {
       const filteredIds = new Set(selectedEquipmentList.map((eq) => eq._id));
@@ -290,6 +320,28 @@ function EquipmentShipModal({
     setFilterCategoryId('');
     setSearchInput('');
   };
+
+  function getPurchaseFloorPerUnit(eq) {
+    const v = eq?.batchPriceWithVAT;
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function validateRawUnitSalePrice(raw, repEq, titleWithQuotes) {
+    if (raw === undefined || raw === null || String(raw).trim() === '') {
+      return `Вкажіть «Ціна в грн. з ПДВ» для ${titleWithQuotes}.`;
+    }
+    const sale = Number(String(raw).replace(',', '.'));
+    if (!Number.isFinite(sale) || sale <= 0) {
+      return `Некоректна «Ціна в грн. з ПДВ» для ${titleWithQuotes}.`;
+    }
+    const floor = getPurchaseFloorPerUnit(repEq);
+    if (floor != null && sale <= floor) {
+      return `Для ${titleWithQuotes}: ціна має бути більшою за ціну закупки (${floor} грн за од.).`;
+    }
+    return null;
+  }
 
   const handleBatchSelect = (batch) => {
     setSelectedBatch(batch);
@@ -609,10 +661,15 @@ function EquipmentShipModal({
                                     (e.currentWarehouse === group.currentWarehouse || 
                                      e.currentWarehouseName === group.currentWarehouseName))
                                 ));
-                                setBatchQuantities(prev => {
+                                setBatchQuantities((prev) => {
                                   const newQuantities = { ...prev };
                                   delete newQuantities[key];
                                   return newQuantities;
+                                });
+                                setUnitSalePricesUah((p) => {
+                                  const n = { ...p };
+                                  delete n[key];
+                                  return n;
                                 });
                               } else {
                                 handleEquipmentToggle(group);
@@ -753,6 +810,20 @@ function EquipmentShipModal({
       return;
     }
 
+    const priceKeysDone = new Set();
+    for (const eq of selectedEquipmentList) {
+      const pkey = eq.batchId ? batchGroupStateKey(eq) : String(eq._id);
+      if (priceKeysDone.has(pkey)) continue;
+      priceKeysDone.add(pkey);
+      const raw = unitSalePricesUah[pkey] ?? '';
+      const title = `«${eq.type || '—'}»${eq.batchId ? ' (партія)' : ''}`;
+      const vErr = validateRawUnitSalePrice(raw, eq, title);
+      if (vErr) {
+        setError(vErr);
+        return;
+      }
+    }
+
     if (preflightError) {
       setError(preflightError);
       return;
@@ -785,12 +856,11 @@ function EquipmentShipModal({
       
       selectedEquipmentList.forEach(eq => {
         // Quantity-based обладнання (без серійного номера, quantity > 1)
-        const isQuantityBased = !eq.batchId && (!eq.serialNumber || eq.serialNumber.trim() === '') && eq.quantity > 1;
-        if (isQuantityBased) {
+        if (isQuantityBasedEquipment(eq)) {
           quantityBasedItems.push(eq);
         }
         // Batch обладнання (з batchId)
-        else if (eq.isBatch && eq.batchId) {
+        else if (eq.batchId) {
           const key = `${eq.batchId}-${eq.currentWarehouse || eq.currentWarehouseName}`;
           if (!batchGroups[key]) {
             batchGroups[key] = {
@@ -812,6 +882,7 @@ function EquipmentShipModal({
       
       // Обробка одиничного обладнання
       for (const item of singleItems) {
+        const unitSale = Number(String(unitSalePricesUah[String(item._id)] ?? '').replace(',', '.'));
         const result = await fetch(`${API_BASE_URL}/equipment/${item._id}/ship`, {
           method: 'POST',
           headers: {
@@ -826,6 +897,7 @@ function EquipmentShipModal({
             clientAddress: clientAddress,
             invoiceRecipientDetails: invoiceRecipientDetails,
             totalPrice: totalPrice ? parseFloat(totalPrice) : null,
+            unitSalePriceUahWithVat: unitSale,
             notes: notes,
             attachedFiles: attachedFiles.map(f => ({
               cloudinaryUrl: f.cloudinaryUrl,
@@ -842,6 +914,7 @@ function EquipmentShipModal({
       // Обробка quantity-based обладнання
       for (const item of quantityBasedItems) {
         const quantity = quantityBasedQuantities[item._id] || item.quantity || 1;
+        const unitSale = Number(String(unitSalePricesUah[String(item._id)] ?? '').replace(',', '.'));
         
         const result = await fetch(`${API_BASE_URL}/equipment/quantity/ship`, {
           method: 'POST',
@@ -860,6 +933,7 @@ function EquipmentShipModal({
             clientAddress: clientAddress,
             invoiceRecipientDetails: invoiceRecipientDetails,
             totalPrice: totalPrice ? parseFloat(totalPrice) : null,
+            unitSalePriceUahWithVat: unitSale,
             notes: notes,
             attachedFiles: attachedFiles.map(f => ({
               cloudinaryUrl: f.cloudinaryUrl,
@@ -887,6 +961,7 @@ function EquipmentShipModal({
       for (const key in batchGroups) {
         const group = batchGroups[key];
         const quantity = batchQuantities[key] || group.items.length;
+        const unitSale = Number(String(unitSalePricesUah[key] ?? '').replace(',', '.'));
         
         const result = await fetch(`${API_BASE_URL}/equipment/batch/ship`, {
           method: 'POST',
@@ -905,6 +980,7 @@ function EquipmentShipModal({
             clientAddress: clientAddress,
             invoiceRecipientDetails: invoiceRecipientDetails,
             totalPrice: totalPrice ? parseFloat(totalPrice) : null,
+            unitSalePriceUahWithVat: unitSale,
             notes: notes,
             attachedFiles: attachedFiles.map(f => ({
               cloudinaryUrl: f.cloudinaryUrl,
@@ -955,7 +1031,7 @@ function EquipmentShipModal({
             <p><strong>Вибрано обладнання:</strong> {selectedEquipmentList.length} шт.</p>
             <div className="selected-equipment-list">
               {selectedEquipmentList.map(eq => {
-                const isQuantityBased = !eq.batchId && (!eq.serialNumber || eq.serialNumber.trim() === '') && eq.quantity > 1;
+                const isQuantityBased = isQuantityBasedEquipment(eq);
                 const selectedQuantity = isQuantityBased ? (quantityBasedQuantities[eq._id] || eq.quantity || 1) : null;
                 return (
                   <div key={eq._id} className="selected-equipment-item">
@@ -992,11 +1068,13 @@ function EquipmentShipModal({
           <form onSubmit={handleSubmit}>
             {/* Поле вибору кількості для обладнання без серійного номера */}
             {selectedEquipmentList.map(eq => {
-              const isQuantityBased = !eq.batchId && (!eq.serialNumber || eq.serialNumber.trim() === '') && eq.quantity > 1;
+              const isQuantityBased = isQuantityBasedEquipment(eq);
               if (!isQuantityBased) return null;
               
               const currentQuantity = quantityBasedQuantities[eq._id] || eq.quantity || 1;
               const maxQuantity = eq.quantity || 1;
+              const purchaseFloor = getPurchaseFloorPerUnit(eq);
+              const idKey = String(eq._id);
               
               return (
                 <div key={eq._id} className="form-group" style={{ marginBottom: '16px', padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
@@ -1022,9 +1100,118 @@ function EquipmentShipModal({
                   <div style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
                     Доступно на складі: <strong>{maxQuantity} шт.</strong>
                   </div>
+                  <label style={{ display: 'block', marginTop: '14px' }}>
+                    Ціна в грн. з ПДВ (за од.): <strong>{eq.type || '—'}</strong> *
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={unitSalePricesUah[idKey] ?? ''}
+                    onChange={(e) =>
+                      setUnitSalePricesUah((prev) => ({ ...prev, [idKey]: e.target.value }))
+                    }
+                    style={{ width: '100%', padding: '8px', marginTop: '8px' }}
+                    required
+                  />
+                  {purchaseFloor != null && (
+                    <div style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+                      Ціна закупки: <strong>{purchaseFloor}</strong> грн за од. — має бути менше за ціну відвантаження.
+                    </div>
+                  )}
                 </div>
               );
             })}
+
+            {(() => {
+              const seen = new Set();
+              return selectedEquipmentList.map((eq) => {
+                if (!eq.batchId) return null;
+                const bkey = batchGroupStateKey(eq);
+                if (!bkey || seen.has(bkey)) return null;
+                seen.add(bkey);
+                const qty = batchQuantities[bkey] || 1;
+                const purchaseFloor = getPurchaseFloorPerUnit(eq);
+                return (
+                  <div
+                    key={`batch-sale-${bkey}`}
+                    className="form-group"
+                    style={{
+                      marginBottom: '16px',
+                      padding: '12px',
+                      backgroundColor: 'var(--bg-secondary)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                    }}
+                  >
+                    <label>
+                      Ціна в грн. з ПДВ (за од.): <strong>{eq.type || '—'}</strong> (партія, {qty} шт.) *
+                    </label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={unitSalePricesUah[bkey] ?? ''}
+                      onChange={(e) =>
+                        setUnitSalePricesUah((prev) => ({ ...prev, [bkey]: e.target.value }))
+                      }
+                      style={{ width: '100%', padding: '8px', marginTop: '8px' }}
+                      required
+                    />
+                    {purchaseFloor != null && (
+                      <div style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+                        Ціна закупки: <strong>{purchaseFloor}</strong> грн за од. — має бути менше за ціну відвантаження.
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+            })()}
+
+            {selectedEquipmentList
+              .filter((eq) => !eq.batchId && !isQuantityBasedEquipment(eq))
+              .filter((eq, idx, arr) => arr.findIndex((x) => String(x._id) === String(eq._id)) === idx)
+              .map((eq) => {
+                const idKey = String(eq._id);
+                const purchaseFloor = getPurchaseFloorPerUnit(eq);
+                return (
+                  <div
+                    key={`unit-sale-${idKey}`}
+                    className="form-group"
+                    style={{
+                      marginBottom: '16px',
+                      padding: '12px',
+                      backgroundColor: 'var(--bg-secondary)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                    }}
+                  >
+                    <label>
+                      Ціна в грн. з ПДВ (за од.): <strong>{eq.type || '—'}</strong>
+                      {eq.serialNumber ? ` (серійний: ${eq.serialNumber})` : ''} *
+                    </label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={unitSalePricesUah[idKey] ?? ''}
+                      onChange={(e) =>
+                        setUnitSalePricesUah((prev) => ({ ...prev, [idKey]: e.target.value }))
+                      }
+                      style={{ width: '100%', padding: '8px', marginTop: '8px' }}
+                      required
+                    />
+                    {purchaseFloor != null && (
+                      <div style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+                        Ціна закупки: <strong>{purchaseFloor}</strong> грн за од. — має бути менше за ціну відвантаження.
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
             <div className="form-group">
               <label>Замовник *</label>
