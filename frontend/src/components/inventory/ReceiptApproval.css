@@ -71,6 +71,23 @@
   color: var(--text-secondary, #555);
 }
 
+.procurement-receipt-line-foreign {
+  opacity: 0.72;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.procurement-receipt-line-foreign .procurement-receipt-line-warehouse {
+  color: var(--text-secondary, #777);
+}
+
+.procurement-receipt-foreign-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-secondary, #888);
+  font-weight: 500;
+}
+
 .procurement-receipt-table input[type='text'],
 .procurement-receipt-table input[type='number'] {
   width: 100%;

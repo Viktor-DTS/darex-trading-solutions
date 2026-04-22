@@ -1621,6 +1621,20 @@ function procurementLineShipmentWarehouseName(line, pr) {
   return leg;
 }
 
+/**
+ * Склад для перевірки прав на прийом (завсклад/склад): лише власне line.actualWarehouse
+ * або єдине pr.actualWarehouse без коми. Якщо в заявці кілька складів у рядку pr.actualWarehouse,
+ * а в рядку не вказано line.actualWarehouse — не «вгадуємо» — регіональні ролі не керують рядком.
+ */
+function procurementLineOwnWarehouseNameForScope(line, pr) {
+  const w = String(line?.actualWarehouse || '').trim();
+  if (w) return w;
+  const leg = String(pr?.actualWarehouse || '').trim();
+  if (!leg) return '';
+  if (leg.includes(',')) return '';
+  return leg;
+}
+
 function procurementRequestWhNeededNameSet(pr) {
   const whNeeded = new Set();
   for (const line of pr.materials || []) {
@@ -1643,16 +1657,15 @@ function procurementRequestWhNeededNameSet(pr) {
 /**
  * Чи рядок прийому може обробити цей користувач.
  * `allowed` з getWarehouseNamesForProcurementReceiptUser = назви складів у регіоні користувача
- * (завсклад/склад логічно «за регіоном»; admin/mgradm — усі; відхилені — після перетину whNeeded).
+ * (завсклад/склад за регіоном; admin/mgradm — усі рядки).
  */
 function procurementLineInReceiptScopeForUser(reqUser, allowed, whNeeded, pr, line) {
   const r = String(reqUser.role || '').toLowerCase();
   if (['admin', 'administrator', 'mgradm'].includes(r)) return true;
   if (![...whNeeded].some((n) => allowed.includes(n))) return false;
-  if (line.rejected) return true;
-  const wn = procurementLineShipmentWarehouseName(line, pr);
-  if (wn) return allowed.includes(wn);
-  return true;
+  const wn = procurementLineOwnWarehouseNameForScope(line, pr);
+  if (!wn) return false;
+  return allowed.includes(wn);
 }
 
 function allProcurementShippableLinesHaveReceivedValue(pr) {
@@ -3394,6 +3407,12 @@ app.get('/api/procurement-requests/pending-warehouse-receipt', async (req, res) 
       .select(PROCUREMENT_DOC_LIST_PROJECTION)
       .sort({ createdAt: -1 })
       .lean();
+    for (const pr of rows) {
+      const whNeeded = procurementRequestWhNeededNameSet(pr);
+      for (const line of pr.materials || []) {
+        line.receiptLineEditable = procurementLineInReceiptScopeForUser(req.user, names, whNeeded, pr, line);
+      }
+    }
     logPerformance('GET pending-warehouse-receipt', startTime, rows.length);
     res.json(rows);
   } catch (error) {

@@ -452,9 +452,9 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
       <div className="procurement-receipt-section" id="procurement-inbound-block">
         <h3>Надходження від закупівель</h3>
         <p className="procurement-receipt-hint">
-          Заявки у статусі «Чекає відвантаження на склад». Якщо по заявці різні склади — підтверджуйте лише рядки свого
-          складу (інші збережуться після підтвердження іншим складом). У колонці «Прийнято факт» введіть фактичну
-          кількість; якщо вона відрізняється від очікуваної, відділ закупівель отримає сповіщення.
+          Заявки у статусі «Чекає відвантаження на склад». Рядки інших регіонів/складів недоступні для редагування; їх
+          підтвердить відповідний завсклад. У колонці «Прийнято факт» введіть фактичну кількість по своїх рядках; при
+          розбіжностях відділ закупівель отримає сповіщення.
         </p>
         {procurementLoading ? (
           <div className="loading-indicator">Завантаження…</div>
@@ -495,6 +495,7 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                   </thead>
                   <tbody>
                     {(pr.materials || []).map((m, idx) => {
+                      const lineEditable = m.receiptLineEditable !== false;
                       const exp = expectedQtyForProcurementLine(m);
                       const expLabel = m.rejected
                         ? '0 (відхилено)'
@@ -509,7 +510,10 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                       const draftRow = receiptDrafts[pr._id] || [];
                       const val = draftRow[idx] ?? '';
                       return (
-                        <tr key={idx}>
+                        <tr
+                          key={idx}
+                          className={!lineEditable ? 'procurement-receipt-line-foreign' : undefined}
+                        >
                           <td>{idx + 1}</td>
                           <td className="procurement-receipt-line-warehouse">{lineWh}</td>
                           <td>{rowLabel}</td>
@@ -519,7 +523,7 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                               type="text"
                               inputMode="decimal"
                               value={val}
-                              disabled={procurementSubmitting === pr._id}
+                              disabled={procurementSubmitting === pr._id || !lineEditable}
                               onChange={(e) => updateReceiptDraft(pr._id, idx, e.target.value)}
                               aria-label={`Прийнято факт, позиція ${idx + 1}`}
                             />
@@ -598,6 +602,7 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                   </thead>
                   <tbody>
                     {(procurementConfirmModalPr.materials || []).map((m, idx) => {
+                      const lineEditable = m.receiptLineEditable !== false;
                       const exp = expectedQtyForProcurementLine(m);
                       const expLabel = m.rejected
                         ? '0 (відхилено)'
@@ -614,12 +619,23 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                       const draftRow = receiptDrafts[procurementConfirmModalPr._id] || [];
                       const val = draftRow[idx] ?? '';
                       return (
-                        <tr key={idx}>
+                        <tr
+                          key={idx}
+                          className={!lineEditable ? 'procurement-receipt-line-foreign' : undefined}
+                        >
                           <td>{idx + 1}</td>
                           <td className="procurement-receipt-line-warehouse">{lineWh}</td>
                           <td>{rowLabel}</td>
                           <td>{expLabel}</td>
-                          <td>{val === '' ? '—' : val}</td>
+                          <td>
+                            {val === '' ? '—' : val}
+                            {!lineEditable && (
+                              <span className="procurement-receipt-foreign-hint" title="Рядок іншого регіону">
+                                {' '}
+                                (інший регіон)
+                              </span>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
