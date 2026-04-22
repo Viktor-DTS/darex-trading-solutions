@@ -665,6 +665,11 @@
   min-width: 220px;
 }
 
+/* Картка заявки: заголовок «Матеріали» зверху, таблиця та кнопка — на всю ширину під ним */
+.procurement-detail-materials--full {
+  grid-template-columns: 1fr;
+}
+
 .procurement-detail-materials--full .procurement-detail-k {
   align-self: start;
 }
