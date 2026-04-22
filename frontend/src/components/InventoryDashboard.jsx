@@ -467,6 +467,7 @@ function InventoryDashboard({ user }) {
             user={user}
             focusProcurementId={procurementReceiptFocusId}
             onConsumedFocusProcurement={() => setProcurementReceiptFocusId(null)}
+            onProcurementReceiptChanged={loadProcurementPendingCount}
           />
         );
 

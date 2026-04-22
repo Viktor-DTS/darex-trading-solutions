@@ -39,7 +39,13 @@ function buildProcurementReceiptPayloadLine(m, raw) {
   return { receivedQuantity: Number.isFinite(v) ? v : exp };
 }
 
-function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocusProcurement }) {
+function ReceiptApproval({
+  user,
+  warehouses,
+  focusProcurementId,
+  onConsumedFocusProcurement,
+  onProcurementReceiptChanged
+}) {
   const [movementDocuments, setMovementDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState(new Set());
@@ -386,6 +392,7 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
       }
       const data = await res.json().catch(() => ({}));
       await loadProcurementInbound();
+      onProcurementReceiptChanged?.();
       setProcurementConfirmModalPr(null);
       if (data.warehouseStockError) {
         alert(
@@ -452,9 +459,9 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
       <div className="procurement-receipt-section" id="procurement-inbound-block">
         <h3>Надходження від закупівель</h3>
         <p className="procurement-receipt-hint">
-          Заявки у статусі «Чекає відвантаження на склад». Рядки інших регіонів/складів недоступні для редагування; їх
-          підтвердить відповідний завсклад. У колонці «Прийнято факт» введіть фактичну кількість по своїх рядках; при
-          розбіжностях відділ закупівель отримає сповіщення.
+          Заявки у статусі «Чекає відвантаження на склад» для складів вашого регіону. У колонці «Прийнято факт» введіть
+          фактичну кількість; при розбіжностях відділ закупівель отримає сповіщення. Після підтвердження вашої частини
+          заявка зникне зі списку, доки інший регіон не завершить прийом (якщо заявка на кілька складів).
         </p>
         {procurementLoading ? (
           <div className="loading-indicator">Завантаження…</div>
@@ -494,8 +501,10 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                     </tr>
                   </thead>
                   <tbody>
-                    {(pr.materials || []).map((m, idx) => {
-                      const lineEditable = m.receiptLineEditable !== false;
+                    {(pr.materials || [])
+                      .map((m, idx) => ({ m, idx }))
+                      .filter(({ m }) => m.receiptLineEditable !== false)
+                      .map(({ m, idx }, visIdx) => {
                       const exp = expectedQtyForProcurementLine(m);
                       const expLabel = m.rejected
                         ? '0 (відхилено)'
@@ -510,11 +519,8 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                       const draftRow = receiptDrafts[pr._id] || [];
                       const val = draftRow[idx] ?? '';
                       return (
-                        <tr
-                          key={idx}
-                          className={!lineEditable ? 'procurement-receipt-line-foreign' : undefined}
-                        >
-                          <td>{idx + 1}</td>
+                        <tr key={idx}>
+                          <td>{visIdx + 1}</td>
                           <td className="procurement-receipt-line-warehouse">{lineWh}</td>
                           <td>{rowLabel}</td>
                           <td>{expLabel}</td>
@@ -523,7 +529,7 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                               type="text"
                               inputMode="decimal"
                               value={val}
-                              disabled={procurementSubmitting === pr._id || !lineEditable}
+                              disabled={procurementSubmitting === pr._id}
                               onChange={(e) => updateReceiptDraft(pr._id, idx, e.target.value)}
                               aria-label={`Прийнято факт, позиція ${idx + 1}`}
                             />
@@ -601,8 +607,10 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                     </tr>
                   </thead>
                   <tbody>
-                    {(procurementConfirmModalPr.materials || []).map((m, idx) => {
-                      const lineEditable = m.receiptLineEditable !== false;
+                    {(procurementConfirmModalPr.materials || [])
+                      .map((m, idx) => ({ m, idx }))
+                      .filter(({ m }) => m.receiptLineEditable !== false)
+                      .map(({ m, idx }, visIdx) => {
                       const exp = expectedQtyForProcurementLine(m);
                       const expLabel = m.rejected
                         ? '0 (відхилено)'
@@ -619,23 +627,12 @@ function ReceiptApproval({ user, warehouses, focusProcurementId, onConsumedFocus
                       const draftRow = receiptDrafts[procurementConfirmModalPr._id] || [];
                       const val = draftRow[idx] ?? '';
                       return (
-                        <tr
-                          key={idx}
-                          className={!lineEditable ? 'procurement-receipt-line-foreign' : undefined}
-                        >
-                          <td>{idx + 1}</td>
+                        <tr key={idx}>
+                          <td>{visIdx + 1}</td>
                           <td className="procurement-receipt-line-warehouse">{lineWh}</td>
                           <td>{rowLabel}</td>
                           <td>{expLabel}</td>
-                          <td>
-                            {val === '' ? '—' : val}
-                            {!lineEditable && (
-                              <span className="procurement-receipt-foreign-hint" title="Рядок іншого регіону">
-                                {' '}
-                                (інший регіон)
-                              </span>
-                            )}
-                          </td>
+                          <td>{val === '' ? '—' : val}</td>
                         </tr>
                       );
                     })}

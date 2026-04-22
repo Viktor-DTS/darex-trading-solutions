@@ -1683,6 +1683,38 @@ function allProcurementShippableLinesHaveReceivedValue(pr) {
   return true;
 }
 
+/**
+ * Чи всі рядки прийому, доступні регіональному завсклад/складу, уже мають збережену «Прийнято» кількість.
+ * Якщо рядків зони немає (не повинно трапитись) — true (не показувати в очікуванні для цього ключа).
+ */
+function procurementUserRegionReceiptLinesComplete(reqUser, allowed, whNeeded, pr) {
+  let anyInScope = false;
+  for (const line of pr.materials || []) {
+    if (!procurementLineInReceiptScopeForUser(reqUser, allowed, whNeeded, pr, line)) continue;
+    anyInScope = true;
+    if (line.rejected) {
+      if (line.receivedQuantity == null) return false;
+      if (!Number.isFinite(Number(line.receivedQuantity))) return false;
+      continue;
+    }
+    const exp = expectedQtyForProcurementMaterialLine(line);
+    if (exp == null || exp <= 0) continue;
+    if (line.receivedQuantity == null) return false;
+    if (!Number.isFinite(Number(line.receivedQuantity))) return false;
+  }
+  return true;
+}
+
+/** Показувати в лічильнику / pending-запиті: заявка ще потребує дій саме цього користувача. */
+function procurementReceiptAwaitingThisUserAction(reqUser, names, pr) {
+  const whNeeded = procurementRequestWhNeededNameSet(pr);
+  const r = String(reqUser.role || '').toLowerCase();
+  if (['admin', 'administrator', 'mgradm'].includes(r)) {
+    return !allProcurementShippableLinesHaveReceivedValue(pr);
+  }
+  return !procurementUserRegionReceiptLinesComplete(reqUser, names, whNeeded, pr);
+}
+
 async function notifyWarehouseStaffProcurementIncoming(pr) {
   try {
     const whSet = new Set();
@@ -3379,10 +3411,13 @@ app.get('/api/procurement-requests/pending-warehouse-receipt/count', async (req,
       logPerformance('GET pending-warehouse-receipt/count', startTime, 0);
       return res.json({ count: 0 });
     }
-    const count = await ProcurementRequest.countDocuments({
+    const candidates = await ProcurementRequest.find({
       status: 'awaiting_warehouse',
       $or: [{ actualWarehouse: { $in: names } }, { 'materials.actualWarehouse': { $in: names } }]
-    });
+    })
+      .select(PROCUREMENT_DOC_LIST_PROJECTION)
+      .lean();
+    const count = candidates.filter((pr) => procurementReceiptAwaitingThisUserAction(req.user, names, pr)).length;
     logPerformance('GET pending-warehouse-receipt/count', startTime, count);
     res.json({ count });
   } catch (error) {
@@ -3400,13 +3435,14 @@ app.get('/api/procurement-requests/pending-warehouse-receipt', async (req, res) 
       logPerformance('GET pending-warehouse-receipt', startTime, 0);
       return res.json([]);
     }
-    const rows = await ProcurementRequest.find({
+    const rowsAll = await ProcurementRequest.find({
       status: 'awaiting_warehouse',
       $or: [{ actualWarehouse: { $in: names } }, { 'materials.actualWarehouse': { $in: names } }]
     })
       .select(PROCUREMENT_DOC_LIST_PROJECTION)
       .sort({ createdAt: -1 })
       .lean();
+    const rows = rowsAll.filter((pr) => procurementReceiptAwaitingThisUserAction(req.user, names, pr));
     for (const pr of rows) {
       const whNeeded = procurementRequestWhNeededNameSet(pr);
       for (const line of pr.materials || []) {
@@ -3587,6 +3623,20 @@ app.post('/api/procurement-requests/:id/warehouse-receipt', async (req, res) => 
     }
     pr.markModified('materials');
     await pr.save();
+
+    try {
+      await ManagerUserNotification.updateMany(
+        {
+          recipientLogin: req.user.login,
+          procurementRequestId: pr._id,
+          kind: 'procurement_incoming_to_warehouse',
+          read: false
+        },
+        { $set: { read: true } }
+      );
+    } catch (e) {
+      console.error('[procurement] mark incoming notification read:', e.message);
+    }
 
     let warehouseStockError = null;
     if (stockLinesByWarehouse.size) {
