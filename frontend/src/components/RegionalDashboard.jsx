@@ -54,8 +54,55 @@ function isTaskOnAccountantApproval(task) {
 
 /** id коефіцієнта «Відсоток за виконану роботу» (як у backend) */
 const SERVICE_WORK_BONUS_COEFFICIENT_ID = 'service_work_completion_pct';
+const SERVICE_REPAIR_WORK_BONUS_COEFFICIENT_ID = 'service_repair_work_completion_pct';
 /** Якщо з БД немає дійсного відсотка — як раніше 25% */
 const FALLBACK_SERVICE_BONUS_PERCENT = 25;
+/** Премія за ремонтні заявки — від цієї дати включно за полем «Дата проведення робіт» */
+const SERVICE_REPAIR_BONUS_EFFECTIVE_YMD = '2026-05-01';
+
+const REPAIR_SERVICE_WORK_NAMES = new Set([
+  'Ремонт в цеху',
+  'Ремонт на місці',
+  'Ремонт на місті',
+  'Діагностика+ремонт',
+  'Ремонт в цеху (волонтерство)'
+]);
+
+function parseTaskDateToYmd(dateVal) {
+  if (dateVal == null) return '';
+  const s = String(dateVal).trim();
+  if (!s) return '';
+  const iso = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${da}`;
+}
+
+function taskUsesRepairServiceBonusCoefficient(task, repairPct) {
+  if (typeof repairPct !== 'number' || Number.isNaN(repairPct) || repairPct <= 0) return false;
+  const workName = String(task?.work || '').trim();
+  if (!REPAIR_SERVICE_WORK_NAMES.has(workName)) return false;
+  const ymd = parseTaskDateToYmd(task?.date);
+  if (!ymd || ymd < SERVICE_REPAIR_BONUS_EFFECTIVE_YMD) return false;
+  return true;
+}
+
+function effectiveServiceBonusPercentForTask(task, standardPct, repairPct) {
+  const std =
+    typeof standardPct === 'number' && !Number.isNaN(standardPct) && standardPct > 0
+      ? standardPct
+      : FALLBACK_SERVICE_BONUS_PERCENT;
+  if (taskUsesRepairServiceBonusCoefficient(task, repairPct)) return repairPct;
+  return std;
+}
+
+function effectiveServiceBonusFractionForTask(task, standardPct, repairPct) {
+  return effectiveServiceBonusPercentForTask(task, standardPct, repairPct) / 100;
+}
 
 function RegionalDashboard({ user }) {
   const [allTasks, setAllTasks] = useState([]);
@@ -94,6 +141,7 @@ function RegionalDashboard({ user }) {
   const [saveStatus, setSaveStatus] = useState(''); // '', 'saving', 'saved', 'error'
   /** Відсоток премії з /api/global-calculation-coefficients (service); null = ще не завантажено */
   const [serviceBonusPercentFromApi, setServiceBonusPercentFromApi] = useState(null);
+  const [serviceRepairBonusPercentFromApi, setServiceRepairBonusPercentFromApi] = useState(null);
 
   /** Вивантаження заявок (папка + файли через File System Access API) */
   const [exportRootDirHandle, setExportRootDirHandle] = useState(null);
@@ -162,18 +210,6 @@ function RegionalDashboard({ user }) {
     }
   }, [user?.region, availableRegions, selectedRegion]);
 
-  const serviceWorkBonusFraction = useMemo(() => {
-    const p = serviceBonusPercentFromApi;
-    if (typeof p === 'number' && p > 0) return p / 100;
-    return FALLBACK_SERVICE_BONUS_PERCENT / 100;
-  }, [serviceBonusPercentFromApi]);
-
-  const displayServiceBonusPercent = useMemo(() => {
-    const p = serviceBonusPercentFromApi;
-    if (typeof p === 'number' && p > 0) return p;
-    return FALLBACK_SERVICE_BONUS_PERCENT;
-  }, [serviceBonusPercentFromApi]);
-
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -189,6 +225,10 @@ function RegionalDashboard({ user }) {
         const row = svcRows.find((r) => r.id === SERVICE_WORK_BONUS_COEFFICIENT_ID);
         if (row != null && typeof row.value === 'number' && !Number.isNaN(row.value)) {
           setServiceBonusPercentFromApi(row.value);
+        }
+        const rowRepair = svcRows.find((r) => r.id === SERVICE_REPAIR_WORK_BONUS_COEFFICIENT_ID);
+        if (rowRepair != null && typeof rowRepair.value === 'number' && !Number.isNaN(rowRepair.value)) {
+          setServiceRepairBonusPercentFromApi(rowRepair.value);
         }
       } catch (_) {
         /* залишаємо null → фолбек 25% */
@@ -799,7 +839,12 @@ function RegionalDashboard({ user }) {
         
         if (bonusMonth === month && bonusYear === year) {
           const workPrice = parseFloat(t.workPrice) || 0;
-          const taskBonus = workPrice * serviceWorkBonusFraction;
+          const frac = effectiveServiceBonusFractionForTask(
+            t,
+            serviceBonusPercentFromApi,
+            serviceRepairBonusPercentFromApi
+          );
+          const taskBonus = workPrice * frac;
           
           const engineers = [
             (t.engineer1 || '').trim(),
@@ -818,7 +863,7 @@ function RegionalDashboard({ user }) {
     });
     
     return bonus;
-  }, [allTasks, month, year, serviceWorkBonusFraction]);
+  }, [allTasks, month, year, serviceBonusPercentFromApi, serviceRepairBonusPercentFromApi]);
 
   // Розрахунок зарплати для користувача
   const calculateUserPay = useCallback((userId, userName) => {
@@ -1033,7 +1078,13 @@ function RegionalDashboard({ user }) {
       regionTasksForDetails.forEach(t => {
         const serviceTotal = parseFloat(t.serviceTotal) || 0;
         const workPrice = parseFloat(t.workPrice) || 0;
-        const bonus = workPrice * serviceWorkBonusFraction;
+        const bonus =
+          workPrice *
+          effectiveServiceBonusFractionForTask(
+            t,
+            serviceBonusPercentFromApi,
+            serviceRepairBonusPercentFromApi
+          );
         
         totalServiceSum += serviceTotal;
         totalWorkPrice += workPrice;
@@ -1057,13 +1108,19 @@ function RegionalDashboard({ user }) {
               <th>Компанія виконавець</th>
               <th>Загальна сума з матеріалами</th>
               <th>Вартість робіт</th>
-              <th>Загальна премія (${displayServiceBonusPercent}%)</th>
+              <th>% премії</th>
+              <th>Загальна премія</th>
             </tr>
           </thead>
           <tbody>
             ${regionTasksForDetails.map((t, index) => {
-              const bonus = (parseFloat(t.workPrice) || 0) * serviceWorkBonusFraction;
               const workPrice = parseFloat(t.workPrice) || 0;
+              const pctUsed = effectiveServiceBonusPercentForTask(
+                t,
+                serviceBonusPercentFromApi,
+                serviceRepairBonusPercentFromApi
+              );
+              const bonus = workPrice * (pctUsed / 100);
               return `
                 <tr>
                   <td>${index + 1}</td>
@@ -1084,6 +1141,7 @@ function RegionalDashboard({ user }) {
                   <td>${t.company || ''}</td>
                   <td>${t.serviceTotal || ''}</td>
                   <td>${workPrice.toFixed(2)}</td>
+                  <td>${pctUsed}%</td>
                   <td>${bonus.toFixed(2)}</td>
                 </tr>
               `;
@@ -1092,6 +1150,7 @@ function RegionalDashboard({ user }) {
               <td colspan="9" style="text-align: right;"><strong>ЗАГАЛЬНА СУМА:</strong></td>
               <td><strong>${totalServiceSum.toFixed(2)}</strong></td>
               <td><strong>${totalWorkPrice.toFixed(2)}</strong></td>
+              <td>—</td>
               <td><strong>${totalBonus.toFixed(2)}</strong></td>
             </tr>
           </tbody>
@@ -1168,7 +1227,21 @@ function RegionalDashboard({ user }) {
     const newWindow = window.open('', '_blank');
     newWindow.document.write(html);
     newWindow.document.close();
-  }, [month, year, months, selectedRegion, availableRegions, filteredUsers, days, timesheetData, calculateUserPay, workDaysInfo, allTasks, serviceWorkBonusFraction, displayServiceBonusPercent]);
+  }, [
+    month,
+    year,
+    months,
+    selectedRegion,
+    availableRegions,
+    filteredUsers,
+    days,
+    timesheetData,
+    calculateUserPay,
+    workDaysInfo,
+    allTasks,
+    serviceBonusPercentFromApi,
+    serviceRepairBonusPercentFromApi
+  ]);
 
   if (loading) {
     return <div className="loading">Завантаження...</div>;

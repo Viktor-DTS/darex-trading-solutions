@@ -89,6 +89,13 @@ function GlobalCalculationCoefficientsEditor({ user, scope, title, description }
         );
         return;
       }
+      const repair = rows.find((r) => r.id === 'service_repair_work_completion_pct');
+      if (repair && roundToHundredths(repair.value) <= 0) {
+        alert(
+          '«Відсоток за виконану роботу за ремонтні роботи» має бути більшим за 0. Введіть відсоток (наприклад 25 для 25%).'
+        );
+        return;
+      }
     }
     setSaving(true);
     try {

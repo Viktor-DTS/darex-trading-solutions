@@ -604,6 +604,7 @@ async function getReservationMaxDaysForBasis(basisTrim) {
 }
 
 const SERVICE_WORK_COMPLETION_PCT_ID = 'service_work_completion_pct';
+const SERVICE_REPAIR_WORK_COMPLETION_PCT_ID = 'service_repair_work_completion_pct';
 
 /** Коефіцієнти та тарифи для тексту нарядів (підстановка в шаблон). group: 'template' — окремий підрозділ у UI. */
 const PROGRAMMATIC_SERVICE_COEFFICIENTS = [
@@ -613,6 +614,13 @@ const PROGRAMMATIC_SERVICE_COEFFICIENTS = [
     defaultValue: 25,
     note:
       'Премія за виконані роботи згідно заявці в відсотковому значенні, в розрахунок іде тільки ціна робіт.'
+  },
+  {
+    id: SERVICE_REPAIR_WORK_COMPLETION_PCT_ID,
+    label: 'Відсоток за виконану роботу за ремонтні роботи',
+    defaultValue: 25,
+    note:
+      'Та сама формула, що й «Відсоток за виконану роботу» (від ціни робіт). Застосовується лише з 01.05.2026 за датою проведення робіт і лише для найменувань: Ремонт в цеху, Ремонт на місці, Діагностика+ремонт, Ремонт в цеху (волонтерство). Для таких заявок базовий «Відсоток за виконану роботу» не використовується.'
   },
   {
     id: 'wo_template_travel_city_uah',
@@ -7395,6 +7403,13 @@ app.post('/api/global-calculation-coefficients', authenticateToken, async (req, 
         return res.status(400).json({
           error:
             '«Відсоток за виконану роботу» має бути більшим за 0 (введіть відсоток, наприклад 25).'
+        });
+      }
+      const repairPct = compactRows.find((r) => r.id === SERVICE_REPAIR_WORK_COMPLETION_PCT_ID);
+      if (repairPct && repairPct.value <= 0) {
+        return res.status(400).json({
+          error:
+            '«Відсоток за виконану роботу за ремонтні роботи» має бути більшим за 0 (введіть відсоток, наприклад 25).'
         });
       }
       const tmplCheck = validateServiceTemplateCoefficientsFromCompact(compactRows);
