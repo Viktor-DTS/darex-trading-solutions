@@ -85,7 +85,7 @@ function GlobalCalculationCoefficientsEditor({ user, scope, title, description }
       const svc = rows.find((r) => r.id === 'service_work_completion_pct');
       if (svc && roundToHundredths(svc.value) <= 0) {
         alert(
-          '«Відсоток за виконану роботу» має бути більшим за 0. Введіть відсоток (наприклад 25 для 25%).'
+          '«Базовий відсоток за виконану роботу» має бути більшим за 0. Введіть відсоток (наприклад 25 для 25%).'
         );
         return;
       }

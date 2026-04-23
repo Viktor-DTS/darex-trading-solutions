@@ -52,7 +52,7 @@ function isTaskOnAccountantApproval(task) {
   return true;
 }
 
-/** id коефіцієнта «Відсоток за виконану роботу» (як у backend) */
+/** id коефіцієнта «Базовий відсоток за виконану роботу» (як у backend) */
 const SERVICE_WORK_BONUS_COEFFICIENT_ID = 'service_work_completion_pct';
 const SERVICE_REPAIR_WORK_BONUS_COEFFICIENT_ID = 'service_repair_work_completion_pct';
 /** Якщо з БД немає дійсного відсотка — як раніше 25% */
