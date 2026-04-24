@@ -156,10 +156,11 @@ const normalizeOtherMaterialLines = (raw) => {
     name: row?.name != null ? String(row.name) : '',
     count: row?.count != null ? String(row.count) : '',
     price: row?.price != null ? String(row.price) : '',
+    note: row?.note != null ? String(row.note) : '',
   }));
 };
 
-const newEmptyOtherMaterialLine = () => ({ name: '', count: '', price: '' });
+const newEmptyOtherMaterialLine = () => ({ name: '', count: '', price: '', note: '' });
 
 // Форматування дати для datetime-local input (YYYY-MM-DDTHH:mm)
 const formatDateForInput = (dateValue) => {
@@ -2610,7 +2611,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     {(formData.otherMaterialLines || []).map((row, idx) => {
                       const lineSum = parseNumber(row.count) * parseNumber(row.price);
                       return (
-                        <div className="form-row five-cols" key={`other-mat-${idx}`}>
+                        <div className="form-row six-cols" key={`other-mat-${idx}`}>
                           <div className="form-group">
                             <label>Назва</label>
                             <input
@@ -2643,6 +2644,17 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                           <div className="form-group calculated">
                             <label>Сума, грн</label>
                             <input type="text" value={formatNumber(lineSum)} readOnly className="calculated-field" />
+                          </div>
+                          <div className="form-group">
+                            <label>Примітка</label>
+                            <textarea
+                              value={row.note || ''}
+                              onChange={(e) => updateOtherMaterialLine(idx, 'note', e.target.value)}
+                              readOnly={isReadOnly}
+                              rows={2}
+                              style={{ width: '100%', minHeight: '60px' }}
+                              placeholder="Примітка..."
+                            />
                           </div>
                           <div className="form-group" style={{ justifyContent: 'flex-end' }}>
                             <label style={{ visibility: 'hidden' }}>—</label>
