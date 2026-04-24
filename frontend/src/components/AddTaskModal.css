@@ -169,6 +169,22 @@
   grid-template-columns: repeat(6, 1fr);
 }
 
+/* Додаткові матеріали (позиції): розширюємо "Примітка", звужуємо "Видалити" */
+.form-row.other-material-line-row {
+  grid-template-columns: 1.3fr 0.7fr 0.9fr 0.9fr 2fr auto;
+}
+
+.form-row.other-material-line-row .other-material-line-actions {
+  justify-content: flex-end;
+}
+
+.form-row.other-material-line-row .other-material-line-actions .btn-secondary {
+  width: fit-content;
+  padding-left: 12px;
+  padding-right: 12px;
+  white-space: nowrap;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;

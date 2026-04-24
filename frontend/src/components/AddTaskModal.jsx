@@ -2611,7 +2611,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     {(formData.otherMaterialLines || []).map((row, idx) => {
                       const lineSum = parseNumber(row.count) * parseNumber(row.price);
                       return (
-                        <div className="form-row six-cols" key={`other-mat-${idx}`}>
+                        <div className="form-row six-cols other-material-line-row" key={`other-mat-${idx}`}>
                           <div className="form-group">
                             <label>Назва</label>
                             <input
@@ -2656,7 +2656,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                               placeholder="Примітка..."
                             />
                           </div>
-                          <div className="form-group" style={{ justifyContent: 'flex-end' }}>
+                          <div className="form-group other-material-line-actions" style={{ justifyContent: 'flex-end' }}>
                             <label style={{ visibility: 'hidden' }}>—</label>
                             <button
                               type="button"
