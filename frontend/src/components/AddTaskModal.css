@@ -636,8 +636,8 @@
 }
 
 .accountant-mode .task-form {
-  padding: 8px;
-  gap: 6px;
+  padding: 6px;
+  gap: 4px;
   background: #f5f5f5;
 }
 
@@ -651,12 +651,12 @@
 }
 
 .accountant-mode .section-content {
-  padding: 6px 8px;
+  padding: 4px 6px;
   border-top: none;
 }
 
 .accountant-mode .form-section {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   border: none;
   border-bottom: 1px solid var(--border);
   border-radius: 0;
@@ -668,28 +668,30 @@
 
 /* Зменшуємо відступи в формах */
 .accountant-mode .form-row {
-  gap: 6px;
-  margin-bottom: 4px;
+  gap: 4px;
+  margin-bottom: 2px;
 }
 
 .accountant-mode .form-group {
-  gap: 2px;
+  gap: 1px;
 }
 
 .accountant-mode .form-group label {
-  font-size: 10px;
-  margin-bottom: 2px;
+  font-size: 9px;
+  margin-bottom: 1px;
+  line-height: 1.15;
 }
 
 .accountant-mode .form-group input,
 .accountant-mode .form-group select,
 .accountant-mode .form-group textarea {
-  padding: 4px 6px;
+  padding: 3px 6px;
   font-size: 11px;
+  line-height: 1.15;
 }
 
 .accountant-mode .form-group textarea {
-  min-height: 35px;
+  min-height: 28px;
   resize: vertical;
 }
 
@@ -736,7 +738,7 @@
 }
 
 .accountant-mode .subsection {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 /* Чорний шрифт для всіх полів на світлому фоні, крім номера рахунку */
