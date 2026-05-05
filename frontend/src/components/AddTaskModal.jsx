@@ -2614,11 +2614,13 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                         <div className="form-row six-cols other-material-line-row" key={`other-mat-${idx}`}>
                           <div className="form-group">
                             <label>Назва</label>
-                            <input
-                              type="text"
+                            <textarea
                               value={row.name}
                               onChange={(e) => updateOtherMaterialLine(idx, 'name', e.target.value)}
                               readOnly={isReadOnly}
+                              rows={1}
+                              className="other-material-name"
+                              placeholder="Назва..."
                             />
                           </div>
                           <div className="form-group">
