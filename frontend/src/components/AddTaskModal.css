@@ -759,6 +759,11 @@
   white-space: nowrap;
 }
 
+/* Додаткові матеріали (позиції): менший інтервал між рядками */
+.accountant-mode .other-material-lines {
+  gap: 4px !important;
+}
+
 /* Чорний шрифт для всіх полів на світлому фоні, крім номера рахунку */
 .accountant-mode .form-group input:not([name="invoice"]),
 .accountant-mode .form-group select:not([name="invoice"]),

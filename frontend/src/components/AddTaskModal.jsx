@@ -2607,7 +2607,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                 {/* Додаткові матеріали — динамічні позиції (назва, кількість, ціна за одиницю, сума) */}
                 <div className="form-group" style={{ marginTop: '6px' }}>
                   <label>Додаткові матеріали (позиції)</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div className="other-material-lines" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {(formData.otherMaterialLines || []).map((row, idx) => {
                       const lineSum = parseNumber(row.count) * parseNumber(row.price);
                       return (
