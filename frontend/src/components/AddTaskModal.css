@@ -743,11 +743,11 @@
 
 /* Додаткові матеріали (позиції): компактніша "Примітка" та кнопка "Видалити" */
 .accountant-mode .form-row.other-material-line-row .form-group textarea {
-  height: 22px !important;
   min-height: 22px !important; /* перебиваємо inline minHeight: 60px */
   padding-top: 2px;
   padding-bottom: 2px;
   resize: vertical;
+  overflow: auto;
 }
 
 .accountant-mode .form-row.other-material-line-row .form-group.other-material-line-actions .btn-secondary {
