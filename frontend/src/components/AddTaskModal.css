@@ -176,7 +176,8 @@
 
 /* Бухгалтерський режим: ширше "Назва", вужчі кількість/ціна/сума */
 .accountant-mode .form-row.other-material-line-row {
-  grid-template-columns: 2.6fr 0.35fr 0.45fr 0.45fr 2fr auto;
+  /* перебиваємо .accountant-mode .form-row.six-cols { ... !important } */
+  grid-template-columns: 2.6fr 0.35fr 0.45fr 0.45fr 2fr auto !important;
 }
 
 .accountant-mode .form-row.other-material-line-row .form-group {
@@ -185,10 +186,11 @@
 
 .accountant-mode .form-row.other-material-line-row textarea.other-material-name {
   min-height: 22px;
-  height: 22px;
-  resize: horizontal;
-  overflow: auto;
-  white-space: nowrap;
+  height: auto;
+  resize: vertical;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .form-row.other-material-line-row .other-material-line-actions {
