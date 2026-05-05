@@ -741,6 +741,24 @@
   margin-bottom: 2px;
 }
 
+/* Додаткові матеріали (позиції): компактніша "Примітка" та кнопка "Видалити" */
+.accountant-mode .form-row.other-material-line-row .form-group textarea {
+  height: 22px !important;
+  min-height: 22px !important; /* перебиваємо inline minHeight: 60px */
+  padding-top: 2px;
+  padding-bottom: 2px;
+  resize: vertical;
+}
+
+.accountant-mode .form-row.other-material-line-row .form-group.other-material-line-actions .btn-secondary {
+  min-height: 22px !important; /* перебиваємо inline minHeight: 38px */
+  height: 22px;
+  padding: 2px 8px;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 /* Чорний шрифт для всіх полів на світлому фоні, крім номера рахунку */
 .accountant-mode .form-group input:not([name="invoice"]),
 .accountant-mode .form-group select:not([name="invoice"]),
