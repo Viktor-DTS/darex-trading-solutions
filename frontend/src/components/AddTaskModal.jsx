@@ -2676,31 +2676,33 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                     </button>
                   </div>
                 </div>
-                {/* Попередній формат опису + одна сума: без даних поля лише для перегляду (не вводити нові) */}
-                <div className="form-row two-cols">
-                  <div className="form-group" style={{flex: 2}}>
-                    <label>Інші матеріали: Опис інших матеріалів</label>
-                    <textarea
-                      name="otherMaterials"
-                      value={formData.otherMaterials}
-                      onChange={handleChange}
-                      readOnly={isReadOnly || !String(formData.otherMaterials || '').trim()}
-                      rows={4}
-                      style={{ minHeight: '100px', resize: 'both', width: '100%', padding: '0.5rem' }}
-                    />
+                {/* Попередній формат опису + одна сума: показуємо тільки якщо є дані (старі заявки) */}
+                {(String(formData.otherMaterials || '').trim() || String(formData.otherSum || '').trim()) ? (
+                  <div className="form-row two-cols">
+                    <div className="form-group" style={{flex: 2}}>
+                      <label>Інші матеріали: Опис інших матеріалів</label>
+                      <textarea
+                        name="otherMaterials"
+                        value={formData.otherMaterials}
+                        onChange={handleChange}
+                        readOnly={isReadOnly}
+                        rows={4}
+                        style={{ minHeight: '100px', resize: 'both', width: '100%', padding: '0.5rem' }}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Загальна ціна, грн</label>
+                      <input
+                        type="text"
+                        name="otherSum"
+                        value={formData.otherSum}
+                        onChange={handleChange}
+                        readOnly={isReadOnly}
+                        placeholder="0"
+                      />
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label>Загальна ціна, грн</label>
-                    <input
-                      type="text"
-                      name="otherSum"
-                      value={formData.otherSum}
-                      onChange={handleChange}
-                      readOnly={isReadOnly || !String(formData.otherSum || '').trim()}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
+                ) : null}
                 {/* Рядок: Вартість робіт грн (авторозрахунок) */}
                 <div className="form-group calculated">
                   <label>Вартість робіт, грн (авторозрахунок)</label>
