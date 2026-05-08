@@ -8,11 +8,54 @@ const WINDOWS_RESERVED_NAMES = new Set([
   'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
 ]);
 
+/** Двокрапки/слеші/заборонені аналоги Unicode, які не потрапляють у діапазон \x00-\x1F і не як ASCII. */
+const UNICODE_FS_UNSAFE = /[\uFF1A\uFE55\uFE56\uFE57\u2236\u204F\u034F\u2028\u2029\u0000]/g;
+
+function extensionFromMimetype(mimetype) {
+  if (!mimetype) return '';
+  const m = String(mimetype).toLowerCase();
+  const map = {
+    'image/jpeg': '.jpg',
+    'image/jpg': '.jpg',
+    'image/png': '.png',
+    'image/gif': '.gif',
+    'image/webp': '.webp',
+    'application/pdf': '.pdf',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/msword': '.doc',
+    'text/plain': '.txt',
+  };
+  if (map[m]) return map[m];
+  if (m.startsWith('image/')) {
+    const sub = m.split('/')[1];
+    if (sub === 'jpeg') return '.jpg';
+    return sub ? `.${sub.replace(/[^a-z0-9]/gi, '')}` : '';
+  }
+  return '';
+}
+
+function safeFileIdSlug(file) {
+  const raw = String(file?.id || file?._id || file?.cloudinaryId || '').trim();
+  const slug = raw.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '');
+  return slug.slice(-120) || `t${Date.now()}`;
+}
+
+function isGetFileHandleNameRejected(err) {
+  const msg = String(err?.message || '');
+  return (
+    err instanceof TypeError &&
+    /Name is not allowed|getFileHandle/i.test(msg)
+  );
+}
+
 /** Імена для FileSystemDirectoryHandle.getFileHandle — сумісність з Windows / Chromium. */
 function sanitizeFileNameForLocalSave(name) {
   if (name == null || typeof name !== 'string') return 'file';
   let base = name.replace(/^.*[/\\]/, '');
   base = base.replace(/[\u0000-\u001F\\/:*?"<>|]/g, '_');
+  base = base.replace(UNICODE_FS_UNSAFE, '_');
   base = base.replace(/[\u200B-\u200D\uFEFF]/g, '');
 
   const lastDot = base.lastIndexOf('.');
@@ -431,10 +474,32 @@ const FileUpload = ({ taskId, onFilesUploaded, readOnly = false }) => {
           }
           const response = await fetch(file.cloudinaryUrl);
           const blob = await response.blob();
-          const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-          const writable = await fileHandle.createWritable();
-          await writable.write(blob);
-          await writable.close();
+
+          const writeWithName = async (name) => {
+            const fileHandle = await dirHandle.getFileHandle(name, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+          };
+
+          try {
+            await writeWithName(fileName);
+          } catch (e) {
+            if (!isGetFileHandleNameRejected(e)) throw e;
+            let extFallback = '';
+            const ld = fileName.lastIndexOf('.');
+            if (ld > 0 && ld < fileName.length - 1) extFallback = fileName.slice(ld);
+            if (!extFallback) extFallback = extensionFromMimetype(file.mimetype);
+            const slug = safeFileIdSlug(file);
+            let fallback = `file_${slug}${extFallback}`;
+            let bump = 0;
+            while (usedNames.has(fallback)) {
+              bump += 1;
+              fallback = `file_${slug}_${bump}${extFallback}`;
+            }
+            usedNames.set(fallback, 1);
+            await writeWithName(fallback);
+          }
         }
         alert(`✅ Збережено ${uploadedFiles.length} файлів`);
       } else {
