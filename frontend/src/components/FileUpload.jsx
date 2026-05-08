@@ -8,28 +8,56 @@ const WINDOWS_RESERVED_NAMES = new Set([
   'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
 ]);
 
-/** Імена для FileSystemDirectoryHandle.getFileHandle — без символів, заборонених Windows / Chromium. */
+/** Імена для FileSystemDirectoryHandle.getFileHandle — сумісність з Windows / Chromium. */
 function sanitizeFileNameForLocalSave(name) {
   if (name == null || typeof name !== 'string') return 'file';
   let base = name.replace(/^.*[/\\]/, '');
   base = base.replace(/[\u0000-\u001F\\/:*?"<>|]/g, '_');
-  base = base.replace(/[\s.]+$/g, '');
-  base = base.trim();
+  base = base.replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+  const lastDot = base.lastIndexOf('.');
+  const extCandidate = lastDot > 0 ? base.slice(lastDot + 1) : '';
+  /** Останній сегмент після точки — розширення, якщо короткий ASCII-надпис */
+  const hasReasonableExt =
+    lastDot > 0 &&
+    lastDot < base.length - 1 &&
+    /^[\w-]{1,24}$/i.test(extCandidate);
+
+  let stem;
+  let ext;
+  if (hasReasonableExt) {
+    stem = base.slice(0, lastDot);
+    ext = base.slice(lastDot);
+  } else {
+    stem = base;
+    ext = '';
+  }
+
+  stem = stem.trim().replace(/^\.+/, '');
+  while (/[.\s\u00A0\u202F]$/.test(stem)) stem = stem.slice(0, -1);
+
+  if (stem) base = stem + ext;
+  else if (ext && hasReasonableExt) base = `file${ext}`;
+  else base = stem + ext || 'file';
+
+  base = base.replace(/[\s.]+$/g, '').trim();
+  if (/^\./.test(base)) base = `file${base}`;
   if (!base) return 'file';
-  // Один компонент шляху в Windows зазвичай до 255 символів; обрізаємо зі збереженням розширення
+
   if (base.length > 200) {
     const dot = base.lastIndexOf('.');
     if (dot > 0 && dot < base.length - 1) {
-      const ext = base.slice(dot);
-      const stem = base.slice(0, dot);
-      const maxStem = Math.max(1, 200 - ext.length);
-      base = stem.slice(0, maxStem) + ext;
+      const extPart = base.slice(dot);
+      const stemPart = base.slice(0, dot);
+      const maxStem = Math.max(1, 200 - extPart.length);
+      base = stemPart.slice(0, maxStem) + extPart;
     } else {
       base = base.slice(0, 200);
     }
   }
-  const stem = base.includes('.') ? base.slice(0, base.lastIndexOf('.')) : base;
-  if (stem && WINDOWS_RESERVED_NAMES.has(stem.toUpperCase())) {
+
+  const stemForReserve = base.includes('.') ? base.slice(0, base.lastIndexOf('.')) : base;
+  if (stemForReserve && WINDOWS_RESERVED_NAMES.has(stemForReserve.toUpperCase())) {
     base = `_${base}`;
   }
   return base || 'file';
