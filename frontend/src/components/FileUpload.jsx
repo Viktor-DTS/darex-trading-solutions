@@ -2,6 +2,39 @@ import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 import './FileUpload.css';
 
+const WINDOWS_RESERVED_NAMES = new Set([
+  'CON', 'PRN', 'AUX', 'NUL',
+  'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+  'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
+]);
+
+/** Імена для FileSystemDirectoryHandle.getFileHandle — без символів, заборонених Windows / Chromium. */
+function sanitizeFileNameForLocalSave(name) {
+  if (name == null || typeof name !== 'string') return 'file';
+  let base = name.replace(/^.*[/\\]/, '');
+  base = base.replace(/[\u0000-\u001F\\/:*?"<>|]/g, '_');
+  base = base.replace(/[\s.]+$/g, '');
+  base = base.trim();
+  if (!base) return 'file';
+  // Один компонент шляху в Windows зазвичай до 255 символів; обрізаємо зі збереженням розширення
+  if (base.length > 200) {
+    const dot = base.lastIndexOf('.');
+    if (dot > 0 && dot < base.length - 1) {
+      const ext = base.slice(dot);
+      const stem = base.slice(0, dot);
+      const maxStem = Math.max(1, 200 - ext.length);
+      base = stem.slice(0, maxStem) + ext;
+    } else {
+      base = base.slice(0, 200);
+    }
+  }
+  const stem = base.includes('.') ? base.slice(0, base.lastIndexOf('.')) : base;
+  if (stem && WINDOWS_RESERVED_NAMES.has(stem.toUpperCase())) {
+    base = `_${base}`;
+  }
+  return base || 'file';
+}
+
 const FileUpload = ({ taskId, onFilesUploaded, readOnly = false }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [description, setDescription] = useState('');
@@ -360,7 +393,7 @@ const FileUpload = ({ taskId, onFilesUploaded, readOnly = false }) => {
         const usedNames = new Map();
         for (const file of uploadedFiles) {
           const originalName = file.originalName || 'file';
-          let fileName = originalName;
+          let fileName = sanitizeFileNameForLocalSave(originalName);
           const count = (usedNames.get(fileName) || 0) + 1;
           usedNames.set(fileName, count);
           if (count > 1) {
