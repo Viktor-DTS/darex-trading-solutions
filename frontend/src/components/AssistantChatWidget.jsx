@@ -22,6 +22,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   const location = useLocation();
   const modalPanelId = assistantPanelType || currentPanel || 'service';
   const [open, setOpen] = useState(false);
+  const [panelWide, setPanelWide] = useState(false);
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [convListLoading, setConvListLoading] = useState(false);
@@ -420,10 +421,23 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
       </button>
 
       {open && (
-        <div className="assistant-chat-panel" role="dialog" aria-label="Чат з асистентом">
+        <div
+          className={`assistant-chat-panel${panelWide ? ' assistant-chat-panel--wide' : ''}`}
+          role="dialog"
+          aria-label="Чат з асистентом"
+        >
           <div className="assistant-chat-panel-header">
             <h3>Асистент DTS</h3>
             <div className="assistant-chat-actions">
+              <button
+                type="button"
+                className="assistant-chat-toggle-wide"
+                aria-pressed={panelWide}
+                title={panelWide ? 'Звичний розмір вікна' : 'Ширший і вищий — зручніше читати'}
+                onClick={() => setPanelWide((w) => !w)}
+              >
+                {panelWide ? 'Компактно' : 'Ширше'}
+              </button>
               <button type="button" onClick={newChat}>
                 Новий чат
               </button>
@@ -519,25 +533,36 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
 
           <div className="assistant-chat-messages">
             {messages.length === 0 && !historyLoading && !conversationId && (
-              <div className="assistant-chat-bubble assistant-chat-bubble-ai assistant-chat-welcome">
-                Привіт! Запитайте про роботу з DTS. Асистенту передається активна вкладка й що на ній зазвичай роблять — підказки не плутають ваш екран з іншим розділом. Номер заявки (наприклад KV-1022)
-                можна вписати тут або в попередніх повідомленнях; сервер підставить дані з бази відповідно до прав доступу в обліковому записі.
+              <div className="assistant-chat-msg assistant-chat-msg--ai">
+                <span className="assistant-chat-msg-label">Асистент</span>
+                <div className="assistant-chat-bubble assistant-chat-bubble-ai assistant-chat-welcome">
+                  Привіт! Запитайте про роботу з DTS. Асистенту передається активна вкладка й що на ній зазвичай роблять — підказки не плутають ваш екран з іншим розділом. Номер заявки (наприклад KV-1022)
+                  можна вписати тут або в попередніх повідомленнях; сервер підставить дані з бази відповідно до прав доступу в обліковому записі.
+                </div>
               </div>
             )}
-            {messages.map((m, i) =>
-              m.role === 'user' ? (
+            {messages.map((m, i) => {
+              const panelHint = getPanelById(currentPanel)?.label || currentPanel || '';
+              const userMetaLine = m.createdAt
+                ? formatConvDate(m.createdAt)
+                : [panelHint, 'щойно'].filter(Boolean).join(' · ');
+
+              return m.role === 'user' ? (
                 <div
                   key={`${m.role}-${i}-${String(m.content).slice(0, 24)}`}
-                  className="assistant-chat-bubble assistant-chat-bubble-user"
+                  className="assistant-chat-msg assistant-chat-msg--user"
                 >
-                  {m.content}
+                  <span className="assistant-chat-msg-label">Ви</span>
+                  <div className="assistant-chat-bubble assistant-chat-bubble-user">{m.content}</div>
+                  <div className="assistant-chat-msg-meta">{userMetaLine}</div>
                 </div>
               ) : (
                 <div
                   key={`${m.role}-${i}-${String(m.content).slice(0, 24)}`}
-                  className="assistant-chat-bubble assistant-chat-bubble-ai"
+                  className="assistant-chat-msg assistant-chat-msg--ai"
                 >
-                  <div className="assistant-chat-ai-meta">
+                  <div className="assistant-chat-msg-head">
+                    <span className="assistant-chat-msg-label">Асистент</span>
                     <button
                       type="button"
                       className="assistant-chat-copy"
@@ -546,12 +571,14 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
                       Копіювати
                     </button>
                   </div>
-                  <div className="assistant-chat-bubble-text">
-                    <AssistantMessageContent text={m.content} />
+                  <div className="assistant-chat-bubble assistant-chat-bubble-ai">
+                    <div className="assistant-chat-bubble-text">
+                      <AssistantMessageContent text={m.content} />
+                    </div>
                   </div>
                 </div>
-              ),
-            )}
+              );
+            })}
             {loading ? <div className="assistant-chat-loading">Асистент думає…</div> : null}
           </div>
 
@@ -598,17 +625,27 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
               role="group"
               aria-label="Відкрити заявку з результатів пошуку асистента"
             >
-              <div className="assistant-chat-discovery-open-title">Відкрити заявку</div>
-              {taskContextHint.discovery.openActions.map((row) => (
-                <button
-                  key={row.taskId}
-                  type="button"
-                  className="assistant-chat-discovery-open-btn"
-                  onClick={() => openTaskFromAssistant(row.taskId)}
-                >
-                  Відкрити форму: {row.requestNumber || row.taskId}
-                </button>
-              ))}
+              <div className="assistant-chat-discovery-open-head">
+                <div className="assistant-chat-discovery-open-title">Заявки</div>
+                <p className="assistant-chat-discovery-open-hint">Оберіть номер — відкриється картка в модальному вікні.</p>
+              </div>
+              <div className="assistant-chat-discovery-open-grid">
+                {taskContextHint.discovery.openActions.map((row) => {
+                  const label = row.requestNumber || row.taskId;
+                  return (
+                    <button
+                      key={row.taskId}
+                      type="button"
+                      className="assistant-chat-discovery-open-btn"
+                      title={`Відкрити форму заявки ${label}`}
+                      aria-label={`Відкрити форму заявки ${label}`}
+                      onClick={() => openTaskFromAssistant(row.taskId)}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
 
