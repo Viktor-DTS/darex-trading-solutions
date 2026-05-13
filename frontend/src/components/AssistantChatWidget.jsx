@@ -585,7 +585,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
           {taskContextHint?.requestNumbers?.length > 0 ||
           taskContextHint?.taskModal ||
           (Array.isArray(taskContextHint?.discovery?.openActions) &&
-            taskContextHint.discovery.openActions.length > 1) ? (
+            taskContextHint.discovery.openActions.length >= 1) ? (
             <div className="assistant-chat-context-hint" role="status">
               {(taskContextHint.requestNumbers || []).length > 0 ? (
                 <span>
@@ -619,7 +619,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
           ) : null}
 
           {Array.isArray(taskContextHint?.discovery?.openActions) &&
-          taskContextHint.discovery.openActions.length > 1 ? (
+          taskContextHint.discovery.openActions.length >= 1 ? (
             <div
               className="assistant-chat-discovery-open-list"
               role="group"

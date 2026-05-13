@@ -200,6 +200,83 @@ function collectRequestNumbers(primary, priorUserMessages, priorAssistantMessage
   return [...out];
 }
 
+/**
+ * Префікси LV/KV/… з уже згаданих у треді номерів (для «заявку 678» після відповіді з KV-…).
+ * @param {string[]} texts
+ * @returns {string[]}
+ */
+function collectRequestNumberPrefixesFromTexts(texts) {
+  const prefs = new Set();
+  for (const t of texts || []) {
+    for (const token of extractRequestNumbers(String(t || ''))) {
+      const m = String(token || '').match(/^([A-Za-zА-Яа-яІіЇїЄєҐґ]+)-/u);
+      if (m && m[1]) prefs.add(String(m[1]));
+      if (prefs.size >= MAX_DISTINCT_REQUEST_NUMBERS) return [...prefs];
+    }
+  }
+  return [...prefs];
+}
+
+/**
+ * «Покажи заявку 678» без літерного префікса — лише суфікс цифрами в поточному повідомленні.
+ * @param {string} primary
+ */
+function extractBareDigitsAfterTaskWord(primary) {
+  const norm = String(primary || '').replace(/\s+/g, ' ').trim();
+  if (!norm) return null;
+  let m =
+    /заявк\p{L}*\s*[:\s-]*(\d{2,8})\b/iu.exec(norm) ||
+    /номер\s+заявк\p{L}*\s*[:\s-]*(\d{2,8})\b/iu.exec(norm);
+  if (!m) return null;
+  const dig = String(m[1] || '');
+  return /^\d{2,8}$/.test(dig) ? dig : null;
+}
+
+/**
+ * Номери заявок для Mongo-фільтра в цьому кроці діалогу.
+ * Якщо в останній репліці користувача є код (KV-… / лише суфікс після «заявк…») — використовуємо **лише його**,
+ * щоб KV з попередньої відповіді асистента не потрапляв в OR-пошук разом із новим запитом (і не ламав кнопку «Відкрити форму»).
+ *
+ * Якщо в поточному повідомленні токена немає — залишаємо сумісність: збір із усього треду в т.ч. асистента.
+ *
+ * @param {string} messageText
+ * @param {string[] | undefined} priorUserMessages
+ * @param {string[] | undefined} priorAssistantMessages
+ * @returns {string[]}
+ */
+function collectRequestNumbersForLookup(messageText, priorUserMessages, priorAssistantMessages) {
+  const primary = String(messageText || '').trim();
+
+  let fromLatest = [...new Set(extractRequestNumbers(primary))];
+  if (!fromLatest.length) {
+    const bare = extractBareDigitsAfterTaskWord(primary);
+    if (bare) {
+      const clip = (p) => String(p || '').slice(0, MAX_CHARS_PER_PRIOR_MESSAGE);
+      /** Текст для виводу префікса: лише користувач + асистент (старі номери там), без «змішування» з новими цифрами первинного тексту двічі */
+      const historyParts = [...(priorUserMessages || []).map(clip), ...(priorAssistantMessages || []).map(clip)];
+      const prefs = collectRequestNumberPrefixesFromTexts(historyParts.length ? historyParts : [primary]);
+      if (prefs.length === 1) {
+        fromLatest = [`${prefs[0]}-${bare}`];
+      } else if (prefs.length === 0) {
+        fromLatest = [`KV-${bare}`];
+      } else {
+        fromLatest = prefs.map((p) => `${p}-${bare}`).slice(0, MAX_DISTINCT_REQUEST_NUMBERS);
+      }
+    }
+  }
+
+  if (fromLatest.length) {
+    const out = new Set();
+    for (const n of fromLatest) {
+      out.add(n);
+      if (out.size >= MAX_DISTINCT_REQUEST_NUMBERS) return [...out];
+    }
+    return [...out];
+  }
+
+  return collectRequestNumbers(primary, priorUserMessages, priorAssistantMessages);
+}
+
 function normalizeEdrpou(e) {
   return String(e || '').replace(/\s+/g, '').toLowerCase();
 }
@@ -348,7 +425,9 @@ function userWantsTaskCardUi(messageText) {
 
   const hasCode =
     /[A-Za-zА-Яа-яІіЇїЄєҐґ]{1,12}\s*-\s*\d{1,12}/i.test(raw) ||
-    /[A-Za-zА-Яа-яІіЇїЄєҐґ]{1,12}\d{2,}/i.test(raw);
+    /[A-Za-zА-Яа-яІіЇїЄєҐґ]{1,12}\d{2,}/i.test(raw) ||
+    /заявк\p{L}*\s*[:\s-]*\d{2,8}\b/iu.test(raw) ||
+    /номер\s+заявк\p{L}*\s*[:\s-]*\d{2,8}\b/iu.test(raw);
 
   const mentionsTaskWord = /заявк|картк/.test(s) || /\b(task|ticket|request)s?\b/i.test(raw);
 
@@ -478,7 +557,7 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
     priorAssistSlice = priorAssistSlice.slice(-MAX_PRIOR_ASSISTANT_MESSAGES);
   }
 
-  const nums = collectRequestNumbers(messageText, priorSlice, priorAssistSlice);
+  const nums = collectRequestNumbersForLookup(messageText, priorSlice, priorAssistSlice);
   const cardUiIntent =
     userWantsTaskCardUi(messageText) || userMessageIsBareRequestPing(messageText);
   const wantCard = nums.length > 0 && cardUiIntent;
@@ -611,6 +690,7 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
 module.exports = {
   extractRequestNumbers,
   collectRequestNumbers,
+  collectRequestNumbersForLookup,
   expandRequestNumberVariants,
   buildTaskContextForLlm,
   summarizeOneTask,
