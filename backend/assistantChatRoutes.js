@@ -173,7 +173,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
       .map((m) => truncate(m.content, ASSISTANT_PRIOR_SCAN.maxChars))
       .slice(-ASSISTANT_PRIOR_SCAN.maxAssistantMessages);
 
-    /** @type {{ matched: number, requestNumbers: string[] } | undefined} */
+    /** @type {{ matched: number, requestNumbers: string[], elevated?: boolean } | undefined} */
     let taskContextPayload = undefined;
     try {
       const tack = await buildTaskContextForLlm(req.user, userMsg, {
@@ -188,6 +188,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
         taskContextPayload = {
           matched: tack.meta.matched,
           requestNumbers: tack.meta.requestNumbers,
+          elevated: Boolean(tack.meta.elevated),
         };
       }
     } catch (e) {

@@ -224,6 +224,7 @@ export default function AssistantChatWidget({ currentPanel, user }) {
         setTaskContextHint({
           matched: Number(data.taskContext.matched) || 0,
           requestNumbers: data.taskContext.requestNumbers,
+          elevated: Boolean(data.taskContext.elevated),
         });
       } else {
         setTaskContextHint(null);
@@ -365,7 +366,9 @@ export default function AssistantChatWidget({ currentPanel, user }) {
             <div className="assistant-chat-context-hint" role="status">
               {taskContextHint.matched > 0
                 ? `Підставлено дані із DTS для: ${taskContextHint.requestNumbers.join(', ')}.`
-                : `У вашому доступі не знайдено заявок за номерами: ${taskContextHint.requestNumbers.join(', ')} (асистент не повинен уточнювати деталі із бази).`}
+                : taskContextHint.elevated
+                  ? `У базі DTS не знайдено заявок з номерами: ${taskContextHint.requestNumbers.join(', ')} (повний доступ адміністратора — перевірте номер або глобальний пошук у системі).`
+                  : `У межах вашого доступу не видно заявок: ${taskContextHint.requestNumbers.join(', ')}.`}
             </div>
           ) : null}
 

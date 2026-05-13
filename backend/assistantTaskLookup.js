@@ -262,7 +262,7 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
 
   const empty = () => ({
     textForLlm: '',
-    meta: { requestNumbers: nums, matched: 0 },
+    meta: { requestNumbers: nums, matched: 0, elevated: false },
   });
 
   if (!login || nums.length === 0) return empty();
@@ -285,7 +285,7 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
 
   const numberOr = {
     $or: nums.map((n) => ({
-      requestNumber: new RegExp(`^${escapeRegex(n)}$`, 'i'),
+      requestNumber: new RegExp(`^\\s*${escapeRegex(n)}\\s*$`, 'i'),
     })),
   };
 
@@ -313,11 +313,18 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
     tasks = tasks.filter((t) => taskAllowedForManager(t, keys));
   }
 
-  const meta = { requestNumbers: nums, matched: tasks.length };
+  const meta = { requestNumbers: nums, matched: tasks.length, elevated };
 
   if (tasks.length === 0) {
-    const hint =
-      '[DTS] У діалозі згадано номер(и) заявки; запис із DTS у межах вашого профілю (регіон, роль, закріплені клієнти або інженерні призначення) не знайдено. Перегляньте профіль у [DTS/User] та відкрийте заявку на відповідній панелі в самій системі. Не вигадуйте дані заявки.';
+    const numList = nums.join(', ');
+    const hintElevated =
+      `[DTS] За номером(ами) «${numList}» запису сервісної заявки в базі DTS не знайдено. ` +
+      'Для облікового запису з правами адміністратора це означає саме відсутність такого номера в даних (помилка в номері, інший формат збереження або заявку ще не створювали) — ' +
+      'не пояснюй це як «нема авторизації» чи необхідність «зареєструватись» у DTS. Запропонуй перевірити номер або глобальний пошук / вкладку з таблицею заявок. Не вигадай поля заявки.';
+    const hintScoped =
+      `[DTS] У діалозі згадано номер(и) «${numList}»; у межах вашого профілю (регіон, роль, закріплені клієнти або інженерські призначення) відповідного запису в DTS не видно. ` +
+      'Див. [DTS/User]. Відкрийте заявку безпосередньо в системі на відповідній панелі. Не вигадайте дані заявки.';
+    const hint = elevated ? hintElevated : hintScoped;
     return { textForLlm: hint, meta };
   }
 
