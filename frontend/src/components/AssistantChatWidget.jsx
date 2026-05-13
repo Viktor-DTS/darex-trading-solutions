@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import API_BASE_URL from '../config';
 import { tryHandleUnauthorizedResponse } from '../utils/authSession';
+import { AssistantMessageContent } from './assistantChatFormat';
 import './AssistantChatWidget.css';
 
 /** Плаваючий чат з асистентом — історія в асистентській MongoDB */
@@ -19,6 +20,13 @@ export default function AssistantChatWidget({ currentPanel }) {
   const [error, setError] = useState('');
   const [taskContextHint, setTaskContextHint] = useState(null);
   const listRef = useRef(null);
+  const abortRef = useRef(null);
+
+  const abortSend = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const copyAssistantReply = useCallback((text) => {
     const t = String(text || '');
@@ -117,6 +125,7 @@ export default function AssistantChatWidget({ currentPanel }) {
   }, [open, conversationId, loadMessages]);
 
   const newChat = () => {
+    abortSend();
     setConversationId(null);
     setMessages([]);
     setInput('');
@@ -141,6 +150,7 @@ export default function AssistantChatWidget({ currentPanel }) {
   };
 
   const pickConversation = (cid) => {
+    abortSend();
     setConversationId(cid);
     setMessages([]);
     setError('');
@@ -154,6 +164,10 @@ export default function AssistantChatWidget({ currentPanel }) {
 
     const snapshot = [...messages];
 
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+
     setLoading(true);
     setError('');
     setTaskContextHint(null);
@@ -164,6 +178,7 @@ export default function AssistantChatWidget({ currentPanel }) {
       const res = await fetch(`${API_BASE_URL}/assistant/chat`, {
         method: 'POST',
         headers: authHeaders(),
+        signal: ac.signal,
         body: JSON.stringify({
           conversationId,
           message: text,
@@ -209,9 +224,16 @@ export default function AssistantChatWidget({ currentPanel }) {
 
       loadConversationList();
     } catch (e) {
+      if (e?.name === 'AbortError') {
+        setMessages(snapshot);
+        setInput(text);
+        setError('');
+        return;
+      }
       setMessages(snapshot);
       setError(String(e.message || e));
     } finally {
+      if (abortRef.current === ac) abortRef.current = null;
       setLoading(false);
     }
   };
@@ -324,7 +346,9 @@ export default function AssistantChatWidget({ currentPanel }) {
                       Копіювати
                     </button>
                   </div>
-                  <div className="assistant-chat-bubble-text">{m.content}</div>
+                  <div className="assistant-chat-bubble-text">
+                    <AssistantMessageContent text={m.content} />
+                  </div>
                 </div>
               ),
             )}
@@ -349,6 +373,11 @@ export default function AssistantChatWidget({ currentPanel }) {
               maxLength={4500}
             />
             <div className="assistant-chat-send-row">
+              {loading ? (
+                <button type="button" className="assistant-chat-stop" onClick={abortSend}>
+                  Зупинити
+                </button>
+              ) : null}
               <button type="button" className="assistant-chat-send" onClick={send} disabled={loading}>
                 Надіслати
               </button>

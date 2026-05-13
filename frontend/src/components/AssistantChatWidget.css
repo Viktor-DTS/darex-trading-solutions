@@ -308,7 +308,44 @@
 .assistant-chat-send-row {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
+}
+
+.assistant-chat-stop {
+  margin-right: auto;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fca5a5;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.assistant-chat-stop:hover {
+  background: rgba(248, 113, 113, 0.16);
+}
+
+.assistant-chat-msg-link {
+  color: #7dd3fc;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+
+.assistant-chat-msg-link:hover {
+  color: #bae6fd;
+}
+
+.assistant-chat-msg-code {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 11.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .assistant-chat-send {
