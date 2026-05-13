@@ -2,11 +2,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import API_BASE_URL from '../config';
 import { tryHandleUnauthorizedResponse } from '../utils/authSession';
+import { getPanelById } from '../constants/panelsCatalog';
 import { AssistantMessageContent } from './assistantChatFormat';
 import './AssistantChatWidget.css';
 
 /** Плаваючий чат з асистентом — історія в асистентській MongoDB */
-export default function AssistantChatWidget({ currentPanel }) {
+export default function AssistantChatWidget({ currentPanel, user }) {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [conversationId, setConversationId] = useState(null);
@@ -175,6 +176,7 @@ export default function AssistantChatWidget({ currentPanel }) {
     setMessages([...snapshot, { role: 'user', content: text }]);
 
     try {
+      const panelMeta = getPanelById(currentPanel);
       const res = await fetch(`${API_BASE_URL}/assistant/chat`, {
         method: 'POST',
         headers: authHeaders(),
@@ -184,7 +186,12 @@ export default function AssistantChatWidget({ currentPanel }) {
           message: text,
           context: {
             panelId: currentPanel || '',
+            panelLabel: panelMeta?.label || '',
+            panelHint: panelMeta?.assistHint || '',
             path: location.pathname || '',
+            userRole: user?.role || '',
+            userName: user?.name || user?.login || '',
+            userRegion: user?.region || '',
           },
         }),
       });
@@ -319,9 +326,8 @@ export default function AssistantChatWidget({ currentPanel }) {
           <div className="assistant-chat-messages" ref={listRef}>
             {messages.length === 0 && !historyLoading && !conversationId && (
               <div className="assistant-chat-bubble assistant-chat-bubble-ai assistant-chat-welcome">
-                Привіт! Запитайте про роботу з DTS: навігація по панелях, заявки, обладнання. Номер заявки можна написати
-                у цьому або в попередніх повідомленнях — за форматом на кшталт KV-1022 сервер автоматично підставить
-                перевірені поля із бази (залежить від ваших прав доступу).
+                Привіт! Запитайте про роботу з DTS. Асистенту передається активна вкладка й що на ній зазвичай роблять — підказки не плутають ваш екран з іншим розділом. Номер заявки (наприклад KV-1022)
+                можна вписати тут або в попередніх повідомленнях; сервер підставить дані з бази відповідно до прав доступу в обліковому записі.
               </div>
             )}
             {messages.map((m, i) =>

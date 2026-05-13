@@ -4,9 +4,10 @@
 const mongoose = require('mongoose');
 const { assistantChatCompletion } = require('./assistantChatLlm');
 const { buildTaskContextForLlm, ASSISTANT_PRIOR_SCAN } = require('./assistantTaskLookup');
+const { loadUserLeanForAssistant, formatAssistantSessionBlock } = require('./assistantUiContext');
 
 const MAX_USER_MESSAGE = 4000;
-const MAX_LLM_USER_COMBINED = 18000;
+const MAX_LLM_USER_COMBINED = 22000;
 const MAX_MESSAGES_CONTEXT = 24;
 const MESSAGE_MAX_LENGTH = 12000;
 
@@ -93,8 +94,34 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
       return res.status(400).json({ error: 'Введіть повідомлення' });
     }
 
-    const panelId = String(req.body?.context?.panelId || '').trim().slice(0, 80);
-    const pathHint = String(req.body?.context?.path || '').trim().slice(0, 200);
+    const bodyCtx =
+      req.body?.context && typeof req.body.context === 'object' && !Array.isArray(req.body.context)
+        ? req.body.context
+        : {};
+    const panelId = String(bodyCtx.panelId || '').trim().slice(0, 80);
+    const pathHint = String(bodyCtx.path || '').trim().slice(0, 400);
+
+    /** @type {Record<string, unknown> | null} */
+    let dbUserLeanForAssistant = null;
+    try {
+      dbUserLeanForAssistant = await loadUserLeanForAssistant(login);
+    } catch (e) {
+      console.warn('[assistant-chat] loadUserLeanForAssistant:', e?.message || e);
+    }
+
+    const sessionBlock = formatAssistantSessionBlock({
+      client: {
+        panelId,
+        panelLabel: String(bodyCtx.panelLabel || '').trim().slice(0, 240),
+        panelHint: String(bodyCtx.panelHint || '').trim().slice(0, 1200),
+        path: pathHint,
+        userRole: String(bodyCtx.userRole || req.user?.role || '').trim().slice(0, 80),
+        userName: String(bodyCtx.userName || '').trim().slice(0, 120),
+        userRegion: String(bodyCtx.userRegion || '').trim().slice(0, 200),
+      },
+      serverUser: dbUserLeanForAssistant,
+      login,
+    });
 
     /** @type {import('mongoose').Document | null} */
     let lastUserDoc = null;
@@ -134,13 +161,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
       });
     }
 
-    let contentForChat = userMsg;
-    const ctxParts = [];
-    if (panelId) ctxParts.push(`панель «${panelId}»`);
-    if (pathHint) ctxParts.push(`маршрут ${pathHint}`);
-    if (ctxParts.length) {
-      contentForChat = `${userMsg}\n\n(Контекст DTS: ${ctxParts.join('; ')})`;
-    }
+    let contentForChat = `${userMsg}\n\n${sessionBlock}`;
 
     const priorUserForNumberScan = prior
       .filter((m) => m.role === 'user')
@@ -158,6 +179,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
       const tack = await buildTaskContextForLlm(req.user, userMsg, {
         priorUserMessages: priorUserForNumberScan,
         priorAssistantMessages: priorAssistantForNumberScan,
+        dbUserLean: dbUserLeanForAssistant,
       });
       if (tack.textForLlm) {
         contentForChat = `${contentForChat}\n\n${tack.textForLlm}`;

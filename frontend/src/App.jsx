@@ -22,28 +22,11 @@ import SalesAccountingDashboard from './components/SalesAccountingDashboard';
 import ProcurementDashboard from './components/ProcurementDashboard';
 import AssistantChatWidget from './components/AssistantChatWidget';
 import API_BASE_URL from './config';
+import { PANELS } from './constants/panelsCatalog';
 import { resetAuthSessionExpiredState, tryHandleUnauthorizedResponse } from './utils/authSession';
 
-// Доступні панелі
-const PANELS = [
-  { id: 'service', label: 'Сервісна служба', icon: '🔧' },
-  { id: 'operator', label: 'Оператор', icon: '📞' },
-  { id: 'warehouse', label: 'Зав. склад', icon: '📦' },
-  { id: 'inventory', label: 'Складський облік', icon: '📋' },
-  { id: 'manager', label: 'Менеджери', icon: '👔' },
-  { id: 'salesAccounting', label: 'Відділ продаж — бухгалтерія', icon: '📒' },
-  { id: 'testing', label: 'Відділ тестування', icon: '🧪' },
-  { id: 'finance', label: 'Фінансовий відділ', icon: '💹' },
-  { id: 'accountant', label: 'Бух рахунки', icon: '📄' },
-  { id: 'accountantApproval', label: 'Бух на затвердженні', icon: '💰' },
-  { id: 'regional', label: 'Регіональний керівник', icon: '👔' },
-  { id: 'reports', label: 'Звіти', icon: '📊' },
-  { id: 'analytics', label: 'Аналітика', icon: '📈' },
-  { id: 'procurement', label: 'Відділ закупівель', icon: '🛒' },
-  { id: 'admin', label: 'Адміністратор', icon: '⚙️' },
-];
-
-// Права доступу за замовчуванням (резервні, якщо база недоступна)
+// Права доступу за замовчуванням (резервні, якщо база недоступна).
+// Перелік панелей (`PANELS`) — constants/panelsCatalog.js.
 const DEFAULT_ACCESS_RULES = {
   admin: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
   administrator: ['service', 'operator', 'warehouse', 'inventory', 'manager', 'salesAccounting', 'testing', 'finance', 'accountant', 'accountantApproval', 'regional', 'reports', 'analytics', 'procurement', 'admin'],
@@ -483,7 +466,7 @@ function App() {
                     String(user?.role || '').toLowerCase() !== 'golovnkervserv' && (
                       <TasksStatisticsBar user={user} />
                     )}
-                  <AssistantChatWidget currentPanel={currentPanel} />
+                  <AssistantChatWidget currentPanel={currentPanel} user={user} />
                 </div>
               )}
             </div>

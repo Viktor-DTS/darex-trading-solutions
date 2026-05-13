@@ -123,6 +123,49 @@ function summarizeOneTask(t, index) {
     if (rm) parts.push(`регіон. менедж.: ${rm}`);
     block += `Підтвердження: ${parts.join('; ')}\n`;
   }
+
+  /** @type {string[]} */
+  const extras = [];
+  const pt = truncateField(t.paymentType, 100);
+  if (pt && pt !== '') extras.push(`Оплата: ${pt}`);
+  if (t.internalWork === true || String(t.internalWork).toLowerCase() === 'true') extras.push('Внутрішні роботи: так');
+
+  const inv = truncateField(t.invoice, 80);
+  if (inv) extras.push(`Рахунок/invoice: ${inv}`);
+  if (t.needInvoice === true || String(t.needInvoice).toLowerCase() === 'true') extras.push('Потрібен рахунок: так');
+  if (t.needAct === true || String(t.needAct).toLowerCase() === 'true') extras.push('Потрібен акт: так');
+  if (t.warehouseApproved === true || String(t.warehouseApproved).toLowerCase() === 'true') extras.push('Підтверджено завскладом (прапорець): так');
+
+  const st = truncateField(t.serviceTotal, 40);
+  if (st) extras.push(`Сума робіт (ориєнтовно): ${st}`);
+  if (t.paymentDate) extras.push(`Дата оплати: ${String(t.paymentDate)}`);
+
+  const ser = [truncateField(t.equipmentSerial, 80), truncateField(t.engineSerial, 80), truncateField(t.customerEquipmentNumber, 80)]
+    .filter(Boolean)
+    .join(', ');
+  if (ser) extras.push(`Серійні/номери: ${ser}`);
+  const em = truncateField(t.engineModel, 80);
+  if (em) extras.push(`Модель двигуна: ${em}`);
+  const car = truncateField(t.carNumber, 40);
+  if (car) extras.push(`Авто №: ${car}`);
+
+  const comm = truncateField(t.comments, 350);
+  if (comm) extras.push(`Коментарі: ${comm}`);
+  const whc = truncateField(t.warehouseComment, 200);
+  if (whc) extras.push(`Коментар завскладу: ${whc}`);
+  const rmc = truncateField(t.regionalManagerComment, 200);
+  if (rmc) extras.push(`Коментар регіон. керівника: ${rmc}`);
+  const accc = truncateField(t.accountantComment || t.accountantComments, 200);
+  if (accc) extras.push(`Бухгалтер: ${accc}`);
+  const blk = truncateField(t.blockDetail, 200);
+  if (blk) extras.push(`Блок/деталі: ${blk}`);
+  const debt = truncateField(t.debtStatus, 80);
+  if (debt) extras.push(`Заборгованість (статус): ${debt}`);
+
+  if (extras.length) {
+    block += `Додатково: ${extras.join(' · ')}\n`;
+  }
+
   block += `Дата заявки: ${t.requestDate ? String(t.requestDate) : '—'}\n`;
   return maskPhones(block);
 }
@@ -201,7 +244,7 @@ function taskAllowedForManager(task, { edrpouSet, nameSet }) {
 /**
  * @param {{ login?: string, role?: string, name?: string }} userJwt
  * @param {string} messageText
- * @param {{ priorUserMessages?: string[], priorAssistantMessages?: string[] }} [opts]
+ * @param {{ priorUserMessages?: string[], priorAssistantMessages?: string[], dbUserLean?: Record<string, unknown> | null }} [opts]
  * @returns {Promise<{ textForLlm: string, meta: { requestNumbers: string[], matched: number } }>}
  */
 async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
@@ -228,7 +271,13 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
   const UserModel = mongoose.models.User;
   if (!TaskModel || !UserModel) return empty();
 
-  const dbUser = await UserModel.findOne({ login }).select('region role name').lean();
+  /** @type {import('mongoose').LeanDocument<{ region?: string, role?: string, name?: string }> | null | undefined} */
+  let dbUser;
+  if (Object.prototype.hasOwnProperty.call(opts, 'dbUserLean')) {
+    dbUser = opts.dbUserLean === undefined ? null : opts.dbUserLean;
+  } else {
+    dbUser = await UserModel.findOne({ login }).select('region role name').lean();
+  }
   const jwtRole = String(userJwt?.role || '').toLowerCase();
   const dbRole = String(dbUser?.role || '').toLowerCase();
   const elevated = isElevatedRole(jwtRole) || isElevatedRole(dbRole);
@@ -268,7 +317,7 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
 
   if (tasks.length === 0) {
     const hint =
-      '[DTS] У діалозі згадано номер(и) заявки, але запис не знайдено серед доступних цьому користувачу (регіон, закріплені клієнти чи призначення). Не вигадуйте дані заявки.';
+      '[DTS] У діалозі згадано номер(и) заявки; запис із DTS у межах вашого профілю (регіон, роль, закріплені клієнти або інженерні призначення) не знайдено. Перегляньте профіль у [DTS/User] та відкрийте заявку на відповідній панелі в самій системі. Не вигадуйте дані заявки.';
     return { textForLlm: hint, meta };
   }
 
