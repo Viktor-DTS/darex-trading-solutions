@@ -219,8 +219,6 @@
   border-radius: 12px;
   font-size: 13px;
   line-height: 1.45;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .assistant-chat-bubble-user {
@@ -228,13 +226,59 @@
   background: rgba(59, 130, 246, 0.25);
   border: 1px solid rgba(59, 130, 246, 0.35);
   color: var(--text-primary, #e2e8f0);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .assistant-chat-bubble-ai {
   align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   background: rgba(30, 41, 59, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.06);
   color: var(--text-secondary, #cbd5e1);
+}
+
+.assistant-chat-welcome {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.assistant-chat-ai-meta {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.assistant-chat-copy {
+  padding: 3px 8px;
+  font-size: 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary, #94a3b8);
+  cursor: pointer;
+}
+
+.assistant-chat-copy:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.assistant-chat-bubble-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.assistant-chat-context-hint {
+  flex-shrink: 0;
+  margin: 0 10px 4px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.38;
+  color: #bae6fd;
+  background: rgba(14, 116, 184, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
 }
 
 .assistant-chat-compose {

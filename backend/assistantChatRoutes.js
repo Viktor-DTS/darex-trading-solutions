@@ -147,12 +147,26 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
       .map((m) => truncate(m.content, ASSISTANT_PRIOR_SCAN.maxChars))
       .slice(-ASSISTANT_PRIOR_SCAN.maxMessages);
 
+    const priorAssistantForNumberScan = prior
+      .filter((m) => m.role === 'assistant')
+      .map((m) => truncate(m.content, ASSISTANT_PRIOR_SCAN.maxChars))
+      .slice(-ASSISTANT_PRIOR_SCAN.maxAssistantMessages);
+
+    /** @type {{ matched: number, requestNumbers: string[] } | undefined} */
+    let taskContextPayload = undefined;
     try {
       const tack = await buildTaskContextForLlm(req.user, userMsg, {
         priorUserMessages: priorUserForNumberScan,
+        priorAssistantMessages: priorAssistantForNumberScan,
       });
       if (tack.textForLlm) {
         contentForChat = `${contentForChat}\n\n${tack.textForLlm}`;
+      }
+      if (tack.meta?.requestNumbers?.length) {
+        taskContextPayload = {
+          matched: tack.meta.matched,
+          requestNumbers: tack.meta.requestNumbers,
+        };
       }
     } catch (e) {
       console.error('[assistant-chat] task context:', e?.message || e);
@@ -189,6 +203,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
         conversationId: String(conversationId),
         reply: assistantContent,
         model: out.model || undefined,
+        taskContext: taskContextPayload,
       });
     } catch (e) {
       console.error('[assistant-chat] LLM:', e.code || '', e.message);

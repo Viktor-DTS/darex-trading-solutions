@@ -8,6 +8,7 @@ const MAX_SUMMARY_CHARS_PER_FIELD = 600;
 const MAX_TASKS = 8;
 const MAX_DISTINCT_REQUEST_NUMBERS = 12;
 const MAX_PRIOR_USER_MESSAGES = 14;
+const MAX_PRIOR_ASSISTANT_MESSAGES = 4;
 const MAX_CHARS_PER_PRIOR_MESSAGE = 6000;
 
 const ENGINEER_SLOT_KEYS = ['engineer1', 'engineer2', 'engineer3', 'engineer4', 'engineer5', 'engineer6'];
@@ -36,14 +37,18 @@ function extractRequestNumbers(text) {
 }
 
 /**
- * Збирає унікальні номери з поточного тексту та попередніх реплік користувача.
+ * Збирає унікальні номери з поточного тексту, попередніх реплік користувача
+ * та останніх відповідей асистента (коли номер лише там, напр. «за заявкою KV-1022»).
  * @param {string} primary
  * @param {string[] | undefined} priorUserMessages
+ * @param {string[] | undefined} priorAssistantMessages
  */
-function collectRequestNumbers(primary, priorUserMessages) {
+function collectRequestNumbers(primary, priorUserMessages, priorAssistantMessages) {
+  const clip = (p) => String(p || '').slice(0, MAX_CHARS_PER_PRIOR_MESSAGE);
   const chunks = [
     primary,
-    ...(priorUserMessages || []).map((p) => String(p || '').slice(0, MAX_CHARS_PER_PRIOR_MESSAGE)),
+    ...(priorUserMessages || []).map(clip),
+    ...(priorAssistantMessages || []).map(clip),
   ];
   const out = new Set();
   for (const ch of chunks) {
@@ -57,6 +62,14 @@ function collectRequestNumbers(primary, priorUserMessages) {
 
 function normalizeEdrpou(e) {
   return String(e || '').replace(/\s+/g, '').toLowerCase();
+}
+
+/** Частково прихований ЄДРПОУ для підказки асистента (не повне значення). */
+function maskEdrpouBrief(edrpou) {
+  const x = normalizeEdrpou(edrpou);
+  if (!x) return '';
+  if (x.length <= 4) return '***';
+  return `***…${x.slice(-6)}`;
 }
 
 function truncateField(val, max = MAX_SUMMARY_CHARS_PER_FIELD) {
@@ -79,17 +92,37 @@ function summarizeOneTask(t, index) {
   const desc = truncateField(t.requestDesc);
   const equip = truncateField(t.equipment);
   const work = truncateField(t.work);
-  const engParts = [truncateField(t.engineer1, 80), truncateField(t.engineer2, 80)].filter(Boolean);
+  const edrpouBrief = maskEdrpouBrief(t.edrpou);
+  const contactPerson = truncateField(t.contactPerson, 120);
+  const engParts = [
+    truncateField(t.engineer1, 80),
+    truncateField(t.engineer2, 80),
+    truncateField(t.engineer3, 80),
+    truncateField(t.engineer4, 80),
+    truncateField(t.engineer5, 80),
+    truncateField(t.engineer6, 80),
+  ].filter(Boolean);
+
+  const wh = truncateField(t.approvedByWarehouse, 40);
+  const acc = truncateField(t.approvedByAccountant, 40);
+  const rm = truncateField(t.approvedByRegionalManager, 40);
 
   let block = `[Заявка ${index + 1}]\n`;
   block += `Номер: ${truncateField(t.requestNumber, 40) || '—'}\n`;
   block += `Статус: ${truncateField(t.status, 120) || '—'}\n`;
   block += `Регіон: ${truncateField(t.serviceRegion, 120) || '—'}\n`;
+  if (edrpouBrief) block += `ЄДРПОУ (скорочено): ${edrpouBrief}\n`;
   if (client) block += `Клієнт / об'єкт: ${client}\n`;
+  if (contactPerson) block += `Контакт: ${contactPerson}\n`;
   if (addr) block += `Адреса: ${addr}\n`;
   if (desc) block += `Опис: ${desc}\n`;
   if (equip || work) block += `Обладнання / роботи: ${equip}${equip && work ? ' · ' : ''}${work}\n`;
   if (engParts.length) block += `Інженери: ${engParts.join(' · ')}\n`;
+  if (wh || acc || rm) {
+    const parts = [`завсклад: ${wh || '—'}`, `бухгалтер: ${acc || '—'}`];
+    if (rm) parts.push(`регіон. менедж.: ${rm}`);
+    block += `Підтвердження: ${parts.join('; ')}\n`;
+  }
   block += `Дата заявки: ${t.requestDate ? String(t.requestDate) : '—'}\n`;
   return maskPhones(block);
 }
@@ -168,7 +201,7 @@ function taskAllowedForManager(task, { edrpouSet, nameSet }) {
 /**
  * @param {{ login?: string, role?: string, name?: string }} userJwt
  * @param {string} messageText
- * @param {{ priorUserMessages?: string[] }} [opts]
+ * @param {{ priorUserMessages?: string[], priorAssistantMessages?: string[] }} [opts]
  * @returns {Promise<{ textForLlm: string, meta: { requestNumbers: string[], matched: number } }>}
  */
 async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
@@ -177,8 +210,12 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
   if (priorSlice.length > MAX_PRIOR_USER_MESSAGES) {
     priorSlice = priorSlice.slice(-MAX_PRIOR_USER_MESSAGES);
   }
+  let priorAssistSlice = opts.priorAssistantMessages || [];
+  if (priorAssistSlice.length > MAX_PRIOR_ASSISTANT_MESSAGES) {
+    priorAssistSlice = priorAssistSlice.slice(-MAX_PRIOR_ASSISTANT_MESSAGES);
+  }
 
-  const nums = collectRequestNumbers(messageText, priorSlice);
+  const nums = collectRequestNumbers(messageText, priorSlice, priorAssistSlice);
 
   const empty = () => ({
     textForLlm: '',
@@ -247,6 +284,7 @@ module.exports = {
   buildTaskContextForLlm,
   ASSISTANT_PRIOR_SCAN: {
     maxMessages: MAX_PRIOR_USER_MESSAGES,
+    maxAssistantMessages: MAX_PRIOR_ASSISTANT_MESSAGES,
     maxChars: MAX_CHARS_PER_PRIOR_MESSAGE,
   },
 };

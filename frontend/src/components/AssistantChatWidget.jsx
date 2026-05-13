@@ -17,7 +17,32 @@ export default function AssistantChatWidget({ currentPanel }) {
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState('');
+  const [taskContextHint, setTaskContextHint] = useState(null);
   const listRef = useRef(null);
+
+  const copyAssistantReply = useCallback((text) => {
+    const t = String(text || '');
+    if (!t) return;
+    const fallback = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = t;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch {
+        /* ignore */
+      }
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(t).catch(fallback);
+    } else {
+      fallback();
+    }
+  }, []);
 
   useEffect(() => {
     const el = listRef.current;
@@ -96,6 +121,7 @@ export default function AssistantChatWidget({ currentPanel }) {
     setMessages([]);
     setInput('');
     setError('');
+    setTaskContextHint(null);
     loadConversationList();
   };
 
@@ -118,6 +144,7 @@ export default function AssistantChatWidget({ currentPanel }) {
     setConversationId(cid);
     setMessages([]);
     setError('');
+    setTaskContextHint(null);
     setShowConvList(true);
   };
 
@@ -129,6 +156,7 @@ export default function AssistantChatWidget({ currentPanel }) {
 
     setLoading(true);
     setError('');
+    setTaskContextHint(null);
     setInput('');
     setMessages([...snapshot, { role: 'user', content: text }]);
 
@@ -169,6 +197,15 @@ export default function AssistantChatWidget({ currentPanel }) {
         { role: 'user', content: text },
         { role: 'assistant', content: reply },
       ]);
+
+      if (data?.taskContext?.requestNumbers?.length) {
+        setTaskContextHint({
+          matched: Number(data.taskContext.matched) || 0,
+          requestNumbers: data.taskContext.requestNumbers,
+        });
+      } else {
+        setTaskContextHint(null);
+      }
 
       loadConversationList();
     } catch (e) {
@@ -259,21 +296,48 @@ export default function AssistantChatWidget({ currentPanel }) {
 
           <div className="assistant-chat-messages" ref={listRef}>
             {messages.length === 0 && !historyLoading && !conversationId && (
-              <div className="assistant-chat-bubble assistant-chat-bubble-ai">
-                Привіт! Запитайте про роботу з DTS: панелі, заявки, обладнання — відповім текстом. Я не бачу ваші особисті
-                дані без того, що ви самі опишете в повідомленні.
+              <div className="assistant-chat-bubble assistant-chat-bubble-ai assistant-chat-welcome">
+                Привіт! Запитайте про роботу з DTS: навігація по панелях, заявки, обладнання. Номер заявки можна написати
+                у цьому або в попередніх повідомленнях — за форматом на кшталт KV-1022 сервер автоматично підставить
+                перевірені поля із бази (залежить від ваших прав доступу).
               </div>
             )}
-            {messages.map((m, i) => (
-              <div
-                key={`${m.role}-${i}-${String(m.content).slice(0, 24)}`}
-                className={`assistant-chat-bubble assistant-chat-bubble-${m.role === 'user' ? 'user' : 'ai'}`}
-              >
-                {m.content}
-              </div>
-            ))}
+            {messages.map((m, i) =>
+              m.role === 'user' ? (
+                <div
+                  key={`${m.role}-${i}-${String(m.content).slice(0, 24)}`}
+                  className="assistant-chat-bubble assistant-chat-bubble-user"
+                >
+                  {m.content}
+                </div>
+              ) : (
+                <div
+                  key={`${m.role}-${i}-${String(m.content).slice(0, 24)}`}
+                  className="assistant-chat-bubble assistant-chat-bubble-ai"
+                >
+                  <div className="assistant-chat-ai-meta">
+                    <button
+                      type="button"
+                      className="assistant-chat-copy"
+                      onClick={() => copyAssistantReply(m.content)}
+                    >
+                      Копіювати
+                    </button>
+                  </div>
+                  <div className="assistant-chat-bubble-text">{m.content}</div>
+                </div>
+              ),
+            )}
             {loading ? <div className="assistant-chat-loading">Асистент думає…</div> : null}
           </div>
+
+          {taskContextHint?.requestNumbers?.length ? (
+            <div className="assistant-chat-context-hint" role="status">
+              {taskContextHint.matched > 0
+                ? `Підставлено дані із DTS для: ${taskContextHint.requestNumbers.join(', ')}.`
+                : `У вашому доступі не знайдено заявок за номерами: ${taskContextHint.requestNumbers.join(', ')} (асистент не повинен уточнювати деталі із бази).`}
+            </div>
+          ) : null}
 
           <div className="assistant-chat-compose">
             <textarea
