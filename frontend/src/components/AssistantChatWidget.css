@@ -185,32 +185,40 @@
   opacity: 0.9;
 }
 
-.assistant-chat-messages {
+.assistant-chat-panel-main {
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.45) rgba(15, 23, 42, 0.5);
+  scrollbar-color: rgba(148, 163, 184, 0.5) rgba(15, 23, 42, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.assistant-chat-panel-main::-webkit-scrollbar {
+  width: 10px;
+}
+
+.assistant-chat-panel-main::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.45);
+  border-radius: 6px;
+  border: 2px solid rgba(15, 23, 42, 0.6);
+}
+
+.assistant-chat-panel-main::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.35);
+  border-radius: 6px;
+}
+
+.assistant-chat-messages {
+  flex: 0 0 auto;
+  overflow: visible;
   padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.assistant-chat-messages::-webkit-scrollbar {
-  width: 8px;
-}
-
-.assistant-chat-messages::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.35);
-  border-radius: 6px;
-}
-
-.assistant-chat-messages::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.4);
-  border-radius: 6px;
 }
 
 .assistant-chat-bubble {
@@ -271,7 +279,7 @@
 
 .assistant-chat-context-hint {
   flex-shrink: 0;
-  margin: 0 10px 4px;
+  margin: 0 10px 8px;
   padding: 8px 10px;
   font-size: 11px;
   line-height: 1.38;
@@ -366,7 +374,7 @@
 
 .assistant-chat-error {
   flex-shrink: 0;
-  margin: 0 10px;
+  margin: 8px 10px 0;
   padding: 8px 10px;
   font-size: 12px;
   color: #fca5a5;
@@ -383,7 +391,7 @@
 
 .assistant-chat-task-proposal {
   flex-shrink: 0;
-  margin: 4px 10px 0;
+  margin: 0 10px 14px;
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid rgba(59, 130, 246, 0.35);

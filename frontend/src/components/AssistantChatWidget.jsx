@@ -37,7 +37,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   const [assistantTaskReadOnly, setAssistantTaskReadOnly] = useState(false);
   /** Пропозиція відкрити картку після перевірки номера й підписів (без автозапуску). */
   const [pendingTaskProposal, setPendingTaskProposal] = useState(null);
-  const listRef = useRef(null);
+  const panelScrollRef = useRef(null);
   const abortRef = useRef(null);
 
   const abortSend = useCallback(() => {
@@ -71,13 +71,13 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   }, []);
 
   useEffect(() => {
-    const el = listRef.current;
+    const el = panelScrollRef.current;
     if (!el) return;
     const id = requestAnimationFrame(() => {
       el.scrollTop = el.scrollHeight;
     });
     return () => cancelAnimationFrame(id);
-  }, [messages, open, loading]);
+  }, [messages, open, loading, pendingTaskProposal]);
 
   const authHeaders = () => {
     const token = localStorage.getItem('token');
@@ -379,10 +379,11 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
             </div>
           ) : null}
 
-          {error ? <div className="assistant-chat-error">{error}</div> : null}
-          {historyLoading ? <div className="assistant-chat-loading">Завантаження історії…</div> : null}
+          <div className="assistant-chat-panel-main" ref={panelScrollRef}>
+            {error ? <div className="assistant-chat-error">{error}</div> : null}
+            {historyLoading ? <div className="assistant-chat-loading">Завантаження історії…</div> : null}
 
-          <div className="assistant-chat-messages" ref={listRef}>
+          <div className="assistant-chat-messages">
             {messages.length === 0 && !historyLoading && !conversationId && (
               <div className="assistant-chat-bubble assistant-chat-bubble-ai assistant-chat-welcome">
                 Привіт! Запитайте про роботу з DTS. Асистенту передається активна вкладка й що на ній зазвичай роблять — підказки не плутають ваш екран з іншим розділом. Номер заявки (наприклад KV-1022)
@@ -488,6 +489,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
               </div>
             </div>
           ) : null}
+          </div>
 
           <div className="assistant-chat-compose">
             <textarea
