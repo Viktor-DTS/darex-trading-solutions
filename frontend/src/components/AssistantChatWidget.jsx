@@ -35,6 +35,8 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   const [assistantTaskModalOpen, setAssistantTaskModalOpen] = useState(false);
   const [assistantTaskInitial, setAssistantTaskInitial] = useState(null);
   const [assistantTaskReadOnly, setAssistantTaskReadOnly] = useState(false);
+  /** Пропозиція відкрити картку після перевірки номера й підписів (без автозапуску). */
+  const [pendingTaskProposal, setPendingTaskProposal] = useState(null);
   const listRef = useRef(null);
   const abortRef = useRef(null);
 
@@ -175,6 +177,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
     setAssistantTaskModalOpen(false);
     setAssistantTaskInitial(null);
     setAssistantTaskReadOnly(false);
+    setPendingTaskProposal(null);
     loadConversationList();
   };
 
@@ -202,6 +205,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
     setAssistantTaskModalOpen(false);
     setAssistantTaskInitial(null);
     setAssistantTaskReadOnly(false);
+    setPendingTaskProposal(null);
     setShowConvList(true);
   };
 
@@ -277,12 +281,15 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
         setTaskContextHint(null);
       }
 
-      const tm = data?.taskContext?.taskModal;
-      if (tm?.open === true && tm.taskId) {
-        openTaskFromAssistant(String(tm.taskId));
+      const proposal = data?.taskContext?.taskModal?.proposal;
+      if (proposal?.taskId) {
+        setPendingTaskProposal(proposal);
+      } else {
+        setPendingTaskProposal(null);
       }
 
       loadConversationList();
+    } catch (e) {
       if (e?.name === 'AbortError') {
         setMessages(snapshot);
         setInput(text);
@@ -424,15 +431,61 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
                       : `У межах вашого доступу не видно заявок: ${(taskContextHint.requestNumbers || []).join(', ')}. `}
                 </span>
               ) : null}
-              {taskContextHint.taskModal?.open ? (
-                <span>Відкривається картка заявки в модальному вікні (режим редагування залежить від вашої ролі та статусу заявки).</span>
+              {pendingTaskProposal?.taskId ? (
+                <span>Перевірте номер і підписи нижче, потім натисніть «Відкрити форму заявки».</span>
               ) : null}
-              {taskContextHint.taskModal && taskContextHint.taskModal.open === false && taskContextHint.taskModal.reason === 'multiple_matches' ? (
+              {!pendingTaskProposal?.taskId &&
+              taskContextHint.taskModal &&
+              taskContextHint.taskModal.reason === 'multiple_matches' ? (
                 <span>Знайдено кілька заявок за запитом — оберіть конкретний номер у таблиці або уточніть у чаті.</span>
               ) : null}
-              {taskContextHint.taskModal && taskContextHint.taskModal.open === false && taskContextHint.taskModal.reason === 'no_request_number_in_thread' ? (
+              {!pendingTaskProposal?.taskId &&
+              taskContextHint.taskModal &&
+              taskContextHint.taskModal.reason === 'no_request_number_in_thread' ? (
                 <span>Укажіть номер заявки (наприклад KV-1022), щоб відкрити картку з чату.</span>
               ) : null}
+            </div>
+          ) : null}
+
+          {pendingTaskProposal?.taskId ? (
+            <div className="assistant-chat-task-proposal" role="region" aria-labelledby="assistant-proposal-heading">
+              <div id="assistant-proposal-heading" className="assistant-chat-task-proposal-title">
+                Відкрити форму заявки?
+              </div>
+              <dl className="assistant-chat-task-proposal-dl">
+                <dt>Номер у базі DTS</dt>
+                <dd>{pendingTaskProposal.requestNumberInDb || '—'}</dd>
+                <dt>Згадано у чаті</dt>
+                <dd>{(pendingTaskProposal.mentionedNumbers || []).join(', ') || '—'}</dd>
+                {pendingTaskProposal.statusInDb ? (
+                  <>
+                    <dt>Статус у записі</dt>
+                    <dd>{pendingTaskProposal.statusInDb}</dd>
+                  </>
+                ) : null}
+                <dt>Узгодження номера</dt>
+                <dd>{pendingTaskProposal.numberAlignmentNoteUk}</dd>
+                <dt>Підтвердження (зведення)</dt>
+                <dd>{pendingTaskProposal.confirmationsSummaryUk}</dd>
+                <dt>Доступ після відкриття</dt>
+                <dd>{pendingTaskProposal.accessHintUk}</dd>
+              </dl>
+              <div className="assistant-chat-task-proposal-actions">
+                <button
+                  type="button"
+                  className="assistant-chat-proposal-open"
+                  onClick={() => {
+                    const id = pendingTaskProposal.taskId;
+                    setPendingTaskProposal(null);
+                    openTaskFromAssistant(id);
+                  }}
+                >
+                  Відкрити форму заявки
+                </button>
+                <button type="button" className="assistant-chat-proposal-dismiss" onClick={() => setPendingTaskProposal(null)}>
+                  Скасувати
+                </button>
+              </div>
             </div>
           ) : null}
 

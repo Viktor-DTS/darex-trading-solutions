@@ -73,6 +73,76 @@ function buildRequestNumbersFilter(nums) {
   return { $or: branches };
 }
 
+function normalizeRequestNumberToken(raw) {
+  return String(raw || '').trim().replace(/\s+/g, '');
+}
+
+/**
+ * Коротко: завсклад / бухгалтер / регіон. менедж. для блоку підтвердження в чаті.
+ * @param {Record<string, unknown>} t
+ */
+function confirmationsSummaryUk(t) {
+  const wh = truncateField(String(t?.approvedByWarehouse || '').trim(), 48) || '—';
+  const acc = truncateField(String(t?.approvedByAccountant || '').trim(), 48) || '—';
+  const rm = truncateField(String(t?.approvedByRegionalManager || '').trim(), 48);
+  let line = `Завсклад: ${wh}; бухгалтер: ${acc}`;
+  if (rm) line += `; регіон. менедж.: ${rm}`;
+  return line;
+}
+
+/**
+ * Пояснення користувачу щодо узгодження «KV-997» vs номера в БД.
+ * @param {string[]} mentionedNums
+ * @param {string} dbRequestNumber
+ */
+function numberAlignmentNoteUk(mentionedNums, dbRequestNumber) {
+  const db = normalizeRequestNumberToken(dbRequestNumber);
+  const uniq = [...new Set((mentionedNums || []).map((x) => normalizeRequestNumberToken(x)).filter(Boolean))];
+  let matchesVariant = false;
+  for (const m of uniq) {
+    const vars = expandRequestNumberVariants(m);
+    if (vars.some((v) => normalizeRequestNumberToken(v).toLowerCase() === db.toLowerCase())) {
+      matchesVariant = true;
+      break;
+    }
+  }
+  const listed = uniq.length ? uniq.join(', ') : '—';
+  if (!db)
+    return 'У записі немає заповненого номера заявки в звичному полі — перевірте заявку в таблиці DTS.';
+  if (!matchesVariant)
+    return `У чаті згадано: ${listed}. У базі номер запису: ${db}. Переконайтеся вручну, що це саме та заявка, перш ніж відкривати картку.`;
+  if (uniq.length === 1 && uniq[0].toLowerCase() === db.toLowerCase())
+    return `Номер збігається: у діалозі та в базі ${db}.`;
+  if (uniq.length === 1)
+    return `У чаті: ${uniq[0]}; у базі DTS збережено як ${db} — одна й та сама заявка (формат суфікса номера може відрізнятися).`;
+  return `Запис у базі має номер ${db}; він відповідає вашому запиту за правилами пошуку (згадано: ${listed}). Перевірте, що це потрібна заявка.`;
+}
+
+/**
+ * Дані для кнопки «Відкрити форму» — без автозапуску модалки.
+ * @param {Record<string, unknown>} task
+ * @param {string[]} mentionedNums
+ * @param {{ role?: string } | null | undefined} userJwt
+ * @param {{ role?: string } | null | undefined} dbUser
+ */
+function buildTaskOpenProposal(task, mentionedNums, userJwt, dbUser) {
+  const readOnly = computeAssistantTaskModalReadOnly(userJwt, dbUser, task);
+  const dbNum = String(task?.requestNumber || '').trim();
+  const accessHintUk = readOnly
+    ? 'Після підтвердження заявку буде відкрито лише для перегляду (Виконано + підтверджено бухгалтерією); повне редагування — для адміністратора DTS.'
+    : 'Після підтвердження форму можна редагувати згідно з вашою роллю; окремі поля в картці можуть мати додаткові обмеження.';
+  return {
+    taskId: String(task._id),
+    requestNumberInDb: dbNum,
+    mentionedNumbers: [...new Set((mentionedNums || []).map((x) => String(x || '').trim()).filter(Boolean))],
+    statusInDb: String(task?.status || '').trim() || undefined,
+    numberAlignmentNoteUk: numberAlignmentNoteUk(mentionedNums, dbNum),
+    confirmationsSummaryUk: confirmationsSummaryUk(task),
+    readOnly,
+    accessHintUk,
+  };
+}
+
 /**
  * Виділяє номери заявок на кшталт KV-1022, NU - 0045 тощо.
  * @param {string} text
@@ -452,6 +522,7 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
     if (wantCard) {
       meta.taskModal = {
         open: false,
+        proposal: null,
         reason: elevated ? 'not_in_database' : 'not_visible_under_profile',
       };
     }
@@ -467,18 +538,16 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
     const t = tasks[0];
     const readOnly = computeAssistantTaskModalReadOnly(userJwt, dbUser, t);
     meta.taskModal = {
-      open: true,
-      taskId: String(t._id),
-      requestNumber: String(t.requestNumber || ''),
-      readOnly,
+      open: false,
+      proposal: buildTaskOpenProposal(t, nums, userJwt, dbUser),
     };
-    actionNote = `\n\n[DTS/UI-action] Клієнт DTS відкриває модальне вікно картки заявки ${t.requestNumber || ''}. ${
+    actionNote = `\n\n[DTS/UI-action] Під повідомленням є блок пропозиції: там номер із БД, згадані в чаті номери, узгодження формату KV-997 vs запис у базі й рядки підтвердження (завсклад/бухгалтер). Форму заявки відкривають лише після того, як користувач натисне «Відкрити форму заявки» — автоматично вікно не відкривається. По суті поясни, що перевірити, і що буде відкрито (${
       readOnly
-        ? 'Режим: лише перегляд (статус «Виконано» і підтверджено бухгалтерією; повне редагування — для адміністратора).'
-        : 'Режим: редагування згідно з роллю; окремі поля форми можуть бути заблоковані власними правилами DTS.'
-    } Поясни користувачу доступ коротко; не копіюй цей абзац дослівно у відповідь.`;
+        ? 'після кнопки — перегляд без повного редагування через підтвердження бухгалтерії'
+        : 'після кнопки — редагування згідно з роллю, окремі поля мають свої правила'
+    }). Не кажи прямим текстом що картку вже відкрито.`;
   } else if (wantCard && tasks.length > 1) {
-    meta.taskModal = { open: false, reason: 'multiple_matches', count: tasks.length };
+    meta.taskModal = { open: false, proposal: null, reason: 'multiple_matches', count: tasks.length };
     actionNote = `\n\n[DTS/UI-action] Знайдено кілька заявок (${tasks.length}) — модальне вікно не відкривається автоматично; запропонуй уточнити один номер.`;
   }
 

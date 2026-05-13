@@ -380,3 +380,70 @@
   color: var(--text-secondary);
   padding: 6px 12px;
 }
+
+.assistant-chat-task-proposal {
+  flex-shrink: 0;
+  margin: 4px 10px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.assistant-chat-task-proposal-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+  margin-bottom: 8px;
+}
+
+.assistant-chat-task-proposal-dl {
+  margin: 0 0 12px;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 10px;
+  font-size: 11.5px;
+  color: var(--text-secondary, #cbd5e1);
+  line-height: 1.4;
+}
+
+.assistant-chat-task-proposal-dl dt {
+  margin: 0;
+  font-weight: 600;
+  color: #93c5fd;
+}
+
+.assistant-chat-task-proposal-dl dd {
+  margin: 0;
+}
+
+.assistant-chat-task-proposal-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.assistant-chat-proposal-open {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background: var(--primary, #3b82f6);
+  color: #fff;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.assistant-chat-proposal-dismiss {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.assistant-chat-proposal-dismiss:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
