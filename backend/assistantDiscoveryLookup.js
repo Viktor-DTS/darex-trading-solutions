@@ -10,13 +10,131 @@ const {
   userMessageIsBareRequestPing,
 } = require('./assistantTaskLookup');
 
-const MAX_TASKS = 8;
+
+/** На кордон Mongo $or занадто великої кількості гілок. */
+const MAX_OR_BRANCHES = 80;
+
+function leafSignature(leaf) {
+  const k = Object.keys(leaf)[0];
+  const v = leaf[k];
+  if (v instanceof RegExp) return `${k}:re:${v.source}:${v.flags}`;
+  try {
+    return `${k}:${JSON.stringify(v)}`;
+  } catch {
+    return `${k}:obj`;
+  }
+}
+
+function dedupeMongoLeaves(leaves) {
+  const seen = new Set();
+  const out = [];
+  for (const leaf of leaves) {
+    const sig = leafSignature(leaf);
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    out.push(leaf);
+    if (out.length >= MAX_OR_BRANCHES) break;
+  }
+  return out;
+}
+
+const MAX_TASKS_SEARCH = 20;
 const MAX_CLIENTS = 6;
 const MAX_DIGIT_RUNS = 4;
+
+/** Як normalizeProcurementEdrpouDigits: лише цифри для порівняння записів із пробілами/роздільниками. */
+function normalizeEdrpouDigits(v) {
+  return String(v || '').replace(/\D/g, '');
+}
+
+/** Телефон у вигляді цифр; країна UA → локальний 0XXXXXXXXX. */
+function normalizePhoneDigits(v) {
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.startsWith('380') && d.length >= 12) d = `0${d.slice(3)}`;
+  return d;
+}
+
+/** Номер/РН для грубого співставлення із запитом. */
+function normalizeTokenLoose(v) {
+  return String(v || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function normalizeSerialLoose(v) {
+  return String(v || '').replace(/[\s\-_.]/gi, '').toUpperCase();
+}
 
 function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+/** Співставлення запису ЄДРПОУ з урахуванням нецифрових символів у полі БД (наприклад «UA 22859846»). */
+function edrpouDigitFieldsMatch(normalizedStoredDigits, normalizedQueryDigits) {
+  const s = normalizedStoredDigits || '';
+  const q = normalizedQueryDigits || '';
+  if (q.length < 8 || s.length === 0) return false;
+  if (s === q || s.includes(q)) return true;
+  const flex = [...q].join('\\D*');
+  try {
+    return new RegExp(flex).test(s);
+  } catch {
+    return false;
+  }
+}
+
+/** @returns {{ leaf: Record<string, RegExp>; label: string }[]} */
+function buildEdrpouMongoLeaves(digitRun) {
+  const d = normalizeEdrpouDigits(digitRun);
+  if (d.length < 8 || d.length > 10) return [];
+  const esc = escapeRegex(d);
+  const flex = [...d].map((ch) => escapeRegex(ch)).join('\\D*');
+  return [
+    { leaf: { edrpou: new RegExp(`^\\s*${esc}\\s*$`, 'i') }, label: 'ЄДРПОУ (точний вигляд)' },
+    { leaf: { edrpou: new RegExp(flex, 'i') }, label: 'ЄДРПОУ з роздільниками між цифрами' },
+    { leaf: { edrpou: new RegExp(esc, 'i') }, label: 'ЄДРПОУ (підряд)' },
+  ];
+}
+
+/** Останній «хвіст» із цифр для узгодження форматів + гнучкі розділювачі між цифрами телефону. */
+function buildPhoneMongoLeavesContact(phone0) {
+  const d = normalizePhoneDigits(phone0);
+  if (d.length < 10) return [];
+  const last10 = d.slice(-10);
+  const last9 = last10.slice(-9);
+  const flex9 = [...last9].map((ch) => escapeRegex(ch)).join('\\D*');
+  const flex10 = [...last10].map((ch) => escapeRegex(ch)).join('\\D*');
+  return [
+    { leaf: { contactPhone: new RegExp(flex9, 'i') }, label: 'телефон (9 останніх цифр)' },
+    { leaf: { 'contacts.phone': new RegExp(flex9, 'i') }, label: 'телефон у дод. контактах' },
+    { leaf: { contactPhone: new RegExp(flex10, 'i') }, label: 'телефон (10 цифр із 0)' },
+    { leaf: { 'contacts.phone': new RegExp(flex10, 'i') }, label: 'телефон CRM (повний із 0)' },
+  ];
+}
+
+function buildPhoneMongoLeavesTask(phone0) {
+  const d = normalizePhoneDigits(phone0);
+  if (d.length < 10) return [];
+  const last10 = d.slice(-10);
+  const last9 = last10.slice(-9);
+  const flex9 = [...last9].map((ch) => escapeRegex(ch)).join('\\D*');
+  const flex10 = [...last10].map((ch) => escapeRegex(ch)).join('\\D*');
+  return [
+    { leaf: { contactPhone: new RegExp(flex9, 'i') }, label: 'телефон' },
+    { leaf: { contactPhone: new RegExp(flex10, 'i') }, label: 'телефон (10 цифр)' },
+  ];
+}
+
+/**
+ * Поля заявки, по яких шукує discovery.
+ * Порядок = пріоритет формулювань під користувацький UI.
+ */
+const TASK_LITE_MATCH_KEYS = /** @type {const} */ ([
+  { key: 'edrpou', label: 'ЄДРПОУ', kind: 'edrpou' },
+  { key: 'contactPerson', label: 'контактна особа / ПІБ', kind: 'text' },
+  { key: 'contactPhone', label: 'телефон контактної особи', kind: 'phone' },
+  { key: 'engineSerial', label: 'заводський/серійний номер (двигун)', kind: 'serial' },
+  { key: 'customerEquipmentNumber', label: 'заводський номер обладнання', kind: 'serial' },
+  { key: 'equipmentSerial', label: 'серійний номер обладнання', kind: 'serial' },
+]);
 
 function isElevatedRole(roleLow) {
   return ['admin', 'administrator', 'mgradm'].includes(String(roleLow || '').toLowerCase());
@@ -59,11 +177,10 @@ async function loadManagerClientKeys(login) {
     .lean()
     .catch(() => []);
 
-  const normalizeEdrpouLocal = (e) => String(e || '').replace(/\s+/g, '').toLowerCase();
   const edrpouSet = new Set();
   const nameSet = new Set();
   for (const c of rows || []) {
-    const e = normalizeEdrpouLocal(c.edrpou);
+    const e = normalizeEdrpouDigits(c.edrpou).toLowerCase();
     if (e) edrpouSet.add(e);
     const n = String(c.name || '').trim().toLowerCase();
     if (n) nameSet.add(n);
@@ -72,8 +189,7 @@ async function loadManagerClientKeys(login) {
 }
 
 function taskAllowedForManager(task, { edrpouSet, nameSet }) {
-  const normalizeEdrpouLocal = (e) => String(e || '').replace(/\s+/g, '').toLowerCase();
-  const e = normalizeEdrpouLocal(task.edrpou);
+  const e = normalizeEdrpouDigits(task.edrpou).toLowerCase();
   if (e && edrpouSet.has(e)) return true;
   const label = String(task.client || task.company || '').trim().toLowerCase();
   if (label && nameSet.has(label)) return true;
@@ -218,75 +334,196 @@ function clientAccessRestricted(client, login, elevated) {
   return !isOwner;
 }
 
-function buildClientOrForLiteral(q) {
-  const esc = escapeRegex(q.trim());
-  if (esc.length < 2) return null;
-  const rx = new RegExp(esc, 'i');
-  return {
-    $or: [
-      { name: rx },
-      { edrpou: rx },
-      { contactPerson: rx },
-      { contactPhone: rx },
-      { address: rx },
-      { 'contacts.person': rx },
-      { 'contacts.phone': rx },
-    ],
-  };
+function uniqTasksById(tasks) {
+  const seen = new Set();
+  return tasks.filter((t) => {
+    const id = String(t._id || '');
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
 }
 
-function buildTaskOrForLiteral(q) {
-  const esc = escapeRegex(q.trim());
-  if (esc.length < 2) return null;
-  const rx = new RegExp(esc, 'i');
-  return {
-    $or: [
-      { edrpou: rx },
-      { contactPerson: rx },
-      { contactPhone: rx },
-      { engineSerial: rx },
-      { customerEquipmentNumber: rx },
-      { equipmentSerial: rx },
-      { client: rx },
-      { company: rx },
-      { requestDesc: rx },
-      { description: rx },
-      { equipment: rx },
-      { work: rx },
-      { requestNumber: rx },
-    ],
-  };
+function buildFlexiblePairRegex(qNorm) {
+  const t = String(qNorm || '').trim();
+  if (t.length < 2)
+    return { rxTight: null, rxLoose: null };
+  const rxTight = new RegExp(escapeRegex(t), 'i');
+  const parts = t.split(/\s+/).filter((p) => p.length >= 2);
+  const rxLoose =
+    parts.length >= 2
+      ? new RegExp(parts.map(escapeRegex).join('\\s+'), 'i')
+      : rxTight;
+  return { rxTight, rxLoose };
 }
 
-function edrpouClientBranch(digits) {
-  const d = String(digits || '').replace(/\D/g, '');
-  if (d.length < 8 || d.length > 10) return null;
-  const esc = escapeRegex(d);
-  return {
-    $or: [
-      { edrpou: new RegExp(`^\\s*${esc}\\s*$`, 'i') },
-      { edrpou: new RegExp(esc, 'i') },
-    ],
-  };
+/** Плоскі гілки $or для пошукового рядка (кілька ключових слів узгоджуються з пробілами в БД). */
+function buildClientLiteralLeaves(qNorm) {
+  const { rxTight, rxLoose } = buildFlexiblePairRegex(qNorm);
+  if (!rxTight) return [];
+  const keys = [
+    'name',
+    'edrpou',
+    'contactPerson',
+    'contactPhone',
+    'address',
+    'contacts.person',
+    'contacts.phone',
+  ];
+  const leaves = [];
+  for (const k of keys) {
+    leaves.push({ [k]: rxTight });
+    if (rxLoose && rxLoose.source !== rxTight.source) leaves.push({ [k]: rxLoose });
+  }
+  const digitsFromQ = normalizeEdrpouDigits(qNorm);
+  if (digitsFromQ.length >= 8 && digitsFromQ.length <= 10) {
+    for (const { leaf } of buildEdrpouMongoLeaves(digitsFromQ)) {
+      leaves.push(leaf);
+    }
+  }
+  const pDigits = normalizePhoneDigits(qNorm);
+  if (pDigits.length >= 10) {
+    for (const { leaf } of buildPhoneMongoLeavesContact(normalizePhoneDigits(qNorm))) {
+      leaves.push(leaf);
+    }
+  }
+  return leaves;
 }
 
-/** Останні 9 цифр для узгодження з форматом у полі. */
-function phoneClientBranch(phone0) {
-  const p = String(phone0 || '').replace(/\D/g, '');
-  if (p.length < 10) return null;
-  const tail = p.slice(-9);
-  const esc = escapeRegex(tail);
-  return {
-    $or: [{ contactPhone: new RegExp(esc, 'i') }, { 'contacts.phone': new RegExp(esc, 'i') }],
-  };
+function buildTaskLiteralLeaves(qNorm) {
+  const { rxTight, rxLoose } = buildFlexiblePairRegex(qNorm);
+  if (!rxTight) return [];
+  const keys = [
+    'edrpou',
+    'contactPerson',
+    'contactPhone',
+    'engineSerial',
+    'customerEquipmentNumber',
+    'equipmentSerial',
+    'client',
+    'company',
+    'requestDesc',
+    'description',
+    'equipment',
+    'work',
+    'requestNumber',
+  ];
+  const leaves = [];
+  for (const k of keys) {
+    leaves.push({ [k]: rxTight });
+    if (rxLoose && rxLoose.source !== rxTight.source) leaves.push({ [k]: rxLoose });
+  }
+  const digitsFromQ = normalizeEdrpouDigits(qNorm);
+  if (digitsFromQ.length >= 8 && digitsFromQ.length <= 10) {
+    for (const { leaf } of buildEdrpouMongoLeaves(digitsFromQ)) {
+      leaves.push(leaf);
+    }
+  }
+  if (normalizePhoneDigits(qNorm).length >= 10) {
+    for (const { leaf } of buildPhoneMongoLeavesTask(qNorm)) {
+      leaves.push(leaf);
+    }
+  }
+  return leaves;
 }
 
-function phoneTaskMongoBranch(phone0) {
-  const p = String(phone0 || '').replace(/\D/g, '');
-  if (p.length < 10) return null;
-  const tail = p.slice(-9);
-  const esc = escapeRegex(tail);
-  return { contactPhone: new RegExp(esc, 'i') };
+/**
+ * @param {Record<string, unknown>} task
+ * @param {{ digits: string[], phones: string[], textQ: string }} ctx
+ */
+function discoveryMatchLabelsForTask(task, ctx) {
+  const labels = [];
+  const seen = new Set();
+  /** @param {string} lbl */
+  const push = (lbl) => {
+    if (!lbl || seen.has(lbl)) return;
+    seen.add(lbl);
+    labels.push(lbl);
+  };
+
+  const tEdrp = normalizeEdrpouDigits(task.edrpou);
+  for (const dig of ctx.digits) {
+    const q = normalizeEdrpouDigits(dig);
+    if (q.length >= 8 && edrpouDigitFieldsMatch(tEdrp, q)) push('ЄДРПОУ');
+  }
+
+  const tTel = normalizePhoneDigits(task.contactPhone);
+  if (ctx.phones.length && tTel.length >= 9) {
+    for (const ph of ctx.phones) {
+      const p = normalizePhoneDigits(ph).slice(-9);
+      const t = tTel.slice(-9);
+      if (p.length === 9 && (t.endsWith(p) || p.endsWith(t) || tTel.includes(p))) {
+        push('телефон контактної особи');
+        break;
+      }
+    }
+  }
+
+  const txt = String(ctx.textQ || '').trim();
+  if (txt.length >= 2) {
+    const tnorm = normalizeTokenLoose(txt);
+    const tser = normalizeSerialLoose(txt);
+    const qPhoneTail = normalizePhoneDigits(txt).slice(-9);
+
+    for (const { key, label, kind } of TASK_LITE_MATCH_KEYS) {
+      if (kind === 'edrpou') continue;
+      const val = task[key];
+      if (val == null || String(val).trim() === '') continue;
+      if (kind === 'edrpou') {
+        if (edrpouDigitFieldsMatch(normalizeEdrpouDigits(val), normalizeEdrpouDigits(txt)))
+          push(label);
+      } else if (kind === 'text') {
+        if (normalizeTokenLoose(String(val)).includes(tnorm)) push(label);
+      } else if (kind === 'phone') {
+        const vd = normalizePhoneDigits(val).slice(-9);
+        if (qPhoneTail.length === 9 && vd === qPhoneTail) push(label);
+      } else if (kind === 'serial' && tser.length >= 3) {
+        if (normalizeSerialLoose(String(val)).includes(tser)) push(label);
+      }
+    }
+
+    for (const [k, labelUk] of /** @type {const} */ ([
+      ['client', 'клієнт / об’єкт у заявці'],
+      ['company', 'компанія в заявці'],
+      ['requestDesc', 'опис заявки'],
+      ['description', 'опис'],
+      ['equipment', 'обладнання'],
+      ['work', 'роботи'],
+      ['requestNumber', 'номер заявки'],
+    ])) {
+      const val = task[k];
+      if (val && normalizeTokenLoose(String(val)).includes(tnorm)) push(labelUk);
+    }
+  }
+
+  if (!labels.length) push('збіг за умовами пошуку (уточніть номер заявки для деталей)');
+  return labels;
+}
+
+function discoveryAccessNoteUk(elevated, isManagerOnly) {
+  if (elevated) {
+    return 'Увага доступу [DTS-discovery-access]: перелік сформовано з правами адміністратора; це не гарантує, що в системі немає інших записів з іншими полями чи дублікатами — лише збіги за правилами пошуку.';
+  }
+  if (isManagerOnly) {
+    return 'Увага доступу [DTS-discovery-access]: у переліку лише ваші клієнти з CRM і сервісні заявки, видимі менеджеру в межах регіону й закріплень; інші заявки або клієнти інших менеджерів тут не показуються.';
+  }
+  return 'Увага доступу [DTS-discovery-access]: доступ не повний — у списку лише заявки, що одночасно відповідають вашому регіону та/або призначенню інженера; збіги «по всій базі» для цього користувача можуть бути ширшими, ніж цей перелік.';
+}
+
+function formatMultiTaskDiscoveryOverview(tasks, ctx, accessNote) {
+  const lines = tasks.map((t, i) => {
+    const num = truncateField(t.requestNumber, 48) || '—';
+    const st = truncateField(t.status, 48) || '—';
+    const cli = truncateField(t.client || t.company, 80) || '—';
+    const where = discoveryMatchLabelsForTask(t, ctx).join('; ');
+    return `${i + 1}) ${num} — статус «${st}»; клієнт/об’єкт: ${cli}\n   Де видно запитані дані: ${where}`;
+  });
+  return (
+    `[DTS-discovery] Знайдено кілька заявок (${tasks.length}) за вашим пошуком. ${accessNote}\n` +
+    'Перелік (лише доступні цьому користувачу):\n' +
+    `${lines.join('\n')}\n` +
+    '\n[DTS/UI-action-discovery] Попросіть користувача вказати **один** номер заявки (наприклад KV-0000997), який цікавить; досі не стверджуйте, що відкрито картку. Після явного номера у наступному повідомленні сервер підставить повні дані заявки з [DTS], якщо номер відомий.'
+  );
 }
 
 /**
@@ -328,7 +565,6 @@ async function buildDiscoveryContextForLlm(userJwt, messageText, opts = {}) {
     return { textForLlm: '', meta: {} };
   }
 
-  const curPhones = extractUaPhoneKeys(messageText);
   const curDigits = extractEdrpouDigitRuns(messageText);
 
   /**
@@ -339,7 +575,7 @@ async function buildDiscoveryContextForLlm(userJwt, messageText, opts = {}) {
     reqFromCurrent.length > 0 &&
     !wantsIntent &&
     !curDigits.length &&
-    !curPhones.length &&
+    !extractUaPhoneKeys(messageText).length &&
     !textQ
   ) {
     return { textForLlm: '', meta: {} };
@@ -366,32 +602,33 @@ async function buildDiscoveryContextForLlm(userJwt, messageText, opts = {}) {
   const clientBranches = [];
   const taskBranches = [];
   for (const d of digits) {
-    const cb = edrpouClientBranch(d);
-    if (cb) {
-      clientBranches.push(cb);
-      const esc = escapeRegex(String(d).replace(/\D/g, ''));
-      taskBranches.push({ edrpou: new RegExp(esc, 'i') });
+    for (const { leaf } of buildEdrpouMongoLeaves(d)) {
+      clientBranches.push(leaf);
+      taskBranches.push(leaf);
     }
   }
   for (const ph of phones) {
-    const cb = phoneClientBranch(ph);
-    const tb = phoneTaskMongoBranch(ph);
-    if (cb) clientBranches.push(cb);
-    if (tb) taskBranches.push(tb);
+    for (const { leaf } of buildPhoneMongoLeavesContact(ph)) {
+      clientBranches.push(leaf);
+    }
+    for (const { leaf } of buildPhoneMongoLeavesTask(ph)) {
+      taskBranches.push(leaf);
+    }
   }
   if (textQ.length >= 3) {
-    const c = buildClientOrForLiteral(textQ);
-    const t = buildTaskOrForLiteral(textQ);
-    if (c) clientBranches.push(c);
-    if (t) taskBranches.push(t);
+    clientBranches.push(...buildClientLiteralLeaves(textQ));
+    taskBranches.push(...buildTaskLiteralLeaves(textQ));
   }
 
-  if (!clientBranches.length && !taskBranches.length) {
+  const dedupClients = dedupeMongoLeaves(clientBranches);
+  const dedupTasksLeaves = dedupeMongoLeaves(taskBranches);
+
+  if (!dedupClients.length && !dedupTasksLeaves.length) {
     return { textForLlm: '', meta: {} };
   }
 
-  const clientFilterRaw = clientBranches.length ? { $or: clientBranches } : null;
-  const taskFilterLiteral = taskBranches.length ? { $or: taskBranches } : null;
+  const clientFilterRaw = dedupClients.length ? { $or: dedupClients } : null;
+  const taskFilterLiteral = dedupTasksLeaves.length ? { $or: dedupTasksLeaves } : null;
 
   /** @type {Record<string, unknown> | null} */
   let taskAccess = null;
@@ -431,7 +668,8 @@ async function buildDiscoveryContextForLlm(userJwt, messageText, opts = {}) {
   /** @type {import('mongoose').LeanDocument<Record<string, unknown>>[]} */
   let tasks = [];
   if (taskQuery) {
-    tasks = await TaskModel.find(taskQuery).sort({ requestDate: -1 }).limit(MAX_TASKS).lean();
+    tasks = await TaskModel.find(taskQuery).sort({ requestDate: -1 }).limit(MAX_TASKS_SEARCH).lean();
+    tasks = uniqTasksById(tasks);
     if (isManagerOnly && tasks.length) {
       const keys = await loadManagerClientKeys(login);
       tasks = tasks.filter((t) => taskAllowedForManager(t, keys));
@@ -454,27 +692,45 @@ async function buildDiscoveryContextForLlm(userJwt, messageText, opts = {}) {
   }
 
   const sections = [];
+  const discoveryCtx = { digits, phones, textQ };
+  const accessUk = discoveryAccessNoteUk(elevated, isManagerOnly);
+
   if (clients.length) {
     sections.push(
-      '[DTS] Записи з довідника клієнтів (CRM) за пошуком (не розголошувати зайвого):',
+      `[DTS] Записи з довідника клієнтів (CRM) за пошуком; ЄДРПОУ й телефон узгоджуються з урахуванням пробілів/розрядних символів (не розголошувати зайвого):\n${accessUk}`,
       ...clients.map((c, i) =>
         formatClientBlock(c, i, { restricted: clientAccessRestricted(c, login, elevated) }),
       ),
     );
   }
-  if (tasks.length) {
+
+  if (tasks.length === 1) {
     sections.push(
-      '[DTS] Сервісні заявки, де співпало поле (ЄДРПОУ / контактна особа / телефон / серійні чи заводські номери тощо):',
-      ...tasks.map((t, i) => summarizeOneTask(t, i)),
+      `[DTS] Одна сервісна заявка за пошуком (узгодження пробілів/розрядних у ЄДРПОУ, телефону, серіях за даними DTS):\n${accessUk}`,
+      summarizeOneTask(tasks[0], 0),
     );
+    if (discoveryCtx.digits.length || discoveryCtx.phones.length || discoveryCtx.textQ) {
+      const where = discoveryMatchLabelsForTask(tasks[0], discoveryCtx).join('; ');
+      sections.push(`[DTS-discovery] Де збігаються шукані дані: ${where}`);
+    }
+  } else if (tasks.length > 1) {
+    sections.push(formatMultiTaskDiscoveryOverview(tasks, discoveryCtx, accessUk));
   }
 
-  const note =
-    '\n\n[DTS-hint] Передай користувачу структуровано: ЄДРПОУ (як у блоці), контактну особу, телефон стримано, заводський/серійний номер з рядка заявки. Якщо є і CRM, і заявки — коротко поясни зв’язок.';
+  let note =
+    tasks.length > 1
+      ? `\n\n[DTS-hint] Дайте користувачу перелік номерів і спитайте, яка заявка потрібна; не виводьте повні картки всіх заявок у відповіді.`
+      : `\n\n[DTS-hint] Передай структуровано поля з [DTS]: ЄДРПОУ, контактна особа, телефон стримано, заводський/серійний номер.`;
 
   return {
     textForLlm: `${sections.join('\n')}${note}`,
-    meta: { discovery: { clients: clients.length, tasks: tasks.length } },
+    meta: {
+      discovery: {
+        clients: clients.length,
+        tasks: tasks.length,
+        multiTaskMatches: tasks.length > 1,
+      },
+    },
   };
 }
 
