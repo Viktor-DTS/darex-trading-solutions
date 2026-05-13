@@ -56,20 +56,37 @@ try {
   const expressRouter = path.join(projectRoot, 'node_modules', 'express', 'lib', 'router', 'index.js');
   const expressApp = path.join(projectRoot, 'node_modules', 'express', 'lib', 'application.js');
   
-  if (!checkFile(expressRouter, 'express/lib/router/index.js') || 
-      !checkFile(expressApp, 'express/lib/application.js')) {
-    console.warn('[postinstall] Express appears broken. Forcing clean reinstall from package-lock.json...');
+  if (
+    !checkFile(expressRouter, 'express/lib/router/index.js') ||
+    !checkFile(expressApp, 'express/lib/application.js')
+  ) {
+    console.warn('[postinstall] Express appears broken. Removing folder and reinstalling express@4.22.1...');
     try {
-      // Reinstall express using exact version from package-lock.json (4.22.1)
-      // This ensures we use the exact same version that was working before
-      execSync('npm install express@4.22.1 --no-save', { cwd: projectRoot, stdio: 'inherit' });
-      console.log('[postinstall] Express reinstalled successfully (version 4.22.1 from package-lock.json).');
+      const expressDir = path.join(projectRoot, 'node_modules', 'express');
+      fs.rmSync(expressDir, { recursive: true, force: true });
+    } catch (e) {
+      console.warn('[postinstall] Could not remove broken express:', e.message);
+    }
+    try {
+      execSync('npm install express@4.22.1 --no-save', {
+        cwd: projectRoot,
+        stdio: 'inherit',
+      });
+      console.log('[postinstall] Express reinstalled (4.22.1).');
     } catch (err) {
       console.error('[postinstall] Failed to reinstall Express:', err.message);
-      // Don't fail - let the app try to start and show the real error
+    }
+
+    const stillBroken =
+      !checkFile(expressRouter, 'express/lib/router/index.js') ||
+      !checkFile(expressApp, 'express/lib/application.js');
+    if (stillBroken) {
+      console.error('[postinstall] Express still incomplete after reinstall. Aborting install.');
+      console.error('[postinstall] On Render use: Clear build cache & redeploy.');
+      process.exit(1);
     }
   }
-  
+
   console.log('[postinstall] Dependency check complete.');
 } catch (err) {
   // Never fail install on this helper; log for diagnosis.
