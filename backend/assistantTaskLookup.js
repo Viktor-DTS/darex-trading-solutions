@@ -358,7 +358,10 @@ function userWantsTaskCardUi(messageText) {
     /розкрий|розкрит|розгорни|розгорнут|вивести/.test(s) ||
     /детал|інфо|інформаці|повністю|розпис/.test(s) ||
     /\b(show|open|view|display)\b/i.test(raw) ||
-    /\bdetails?\b/i.test(raw);
+    /\bdetails?\b/i.test(raw) ||
+    /найди|найти|знайди|знайти|шукай|шукати|шукаю|пошук|відшук|розкаж|розпов|розказ|опиш|видати\s+форма|видати\s+картку|видати\s+заяв|де\s+(заяв|номер|цей\s+kv|цей\s+dp)/.test(s) ||
+    /find|lookup|fetch/i.test(raw);
+
 
   const showEnTask =
     /\b(show|open|view|display)\s+(the\s+)?(task|ticket|request)/i.test(raw) ||
@@ -368,6 +371,25 @@ function userWantsTaskCardUi(messageText) {
   const hasVerbCombined = hasVerb || showEnTask;
 
   return hasVerbCombined && hasSubject;
+}
+
+/**
+ * Повідомлення майже лише номер заявки (наприклад «KV-0000972», «ще KV123» без довгих уточнень) —
+ * трактуємо як намір побачити картку під кнопкою.
+ * @param {string} messageText
+ */
+function userMessageIsBareRequestPing(messageText) {
+  const trimmed = String(messageText || '').trim();
+  if (!trimmed || trimmed.length > 96) return false;
+  if (!extractRequestNumbers(trimmed).length) return false;
+  let rest = trimmed
+    .replace(/\b([A-Za-zА-Яа-яІіЇїЄєҐґ]{1,12})\s*-\s*(\d{1,12})\b/gi, '')
+    .replace(/\b([A-Za-zА-Яа-яІіЇїЄєҐґ]{1,12})(\d{2,})\b/gi, '')
+    .replace(/\s+/g, '')
+    .replace(/^[,.;:!?_\-№"'«»()/]+|[,.;:!?_\-№"'«»()/]+$/g, '');
+  if (!rest.length) return true;
+  if (/^(так|ок(?:ей)?|да|давай|узгод|підход|ніби|верно)$/i.test(rest)) return true;
+  return false;
 }
 
 /** @returns {Record<string, unknown> | undefined} */
@@ -455,7 +477,9 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
   }
 
   const nums = collectRequestNumbers(messageText, priorSlice, priorAssistSlice);
-  const wantCard = userWantsTaskCardUi(messageText);
+  const cardUiIntent =
+    userWantsTaskCardUi(messageText) || userMessageIsBareRequestPing(messageText);
+  const wantCard = nums.length > 0 && cardUiIntent;
 
   if (!login) {
     return {
@@ -471,7 +495,9 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
         requestNumbers: [],
         matched: 0,
         elevated: false,
-        taskModal: wantCard ? { open: false, reason: 'no_request_number_in_thread' } : null,
+        taskModal: userWantsTaskCardUi(messageText)
+          ? { open: false, reason: 'no_request_number_in_thread' }
+          : null,
       },
     };
   }
