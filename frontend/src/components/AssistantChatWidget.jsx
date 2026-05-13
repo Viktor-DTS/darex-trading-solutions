@@ -21,8 +21,12 @@ export default function AssistantChatWidget({ currentPanel }) {
 
   useEffect(() => {
     const el = listRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, open]);
+    if (!el) return;
+    const id = requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [messages, open, loading]);
 
   const authHeaders = () => {
     const token = localStorage.getItem('token');
