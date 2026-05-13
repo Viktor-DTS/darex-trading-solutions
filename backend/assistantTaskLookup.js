@@ -234,6 +234,7 @@ function summarizeOneTask(t, index) {
   const work = truncateField(t.work);
   const edrpouBrief = maskEdrpouBrief(t.edrpou);
   const contactPerson = truncateField(t.contactPerson, 120);
+  const contactPhone = truncateField(t.contactPhone, 80);
   const engParts = [
     truncateField(t.engineer1, 80),
     truncateField(t.engineer2, 80),
@@ -253,7 +254,8 @@ function summarizeOneTask(t, index) {
   block += `Регіон: ${truncateField(t.serviceRegion, 120) || '—'}\n`;
   if (edrpouBrief) block += `ЄДРПОУ (скорочено): ${edrpouBrief}\n`;
   if (client) block += `Клієнт / об'єкт: ${client}\n`;
-  if (contactPerson) block += `Контакт: ${contactPerson}\n`;
+  if (contactPerson) block += `Контактна особа: ${contactPerson}\n`;
+  if (contactPhone) block += `Тел. контактної особи: ${maskPhones(contactPhone)}\n`;
   if (addr) block += `Адреса: ${addr}\n`;
   if (desc) block += `Опис: ${desc}\n`;
   if (equip || work) block += `Обладнання / роботи: ${equip}${equip && work ? ' · ' : ''}${work}\n`;
@@ -611,6 +613,9 @@ module.exports = {
   collectRequestNumbers,
   expandRequestNumberVariants,
   buildTaskContextForLlm,
+  summarizeOneTask,
+  userWantsTaskCardUi,
+  userMessageIsBareRequestPing,
   ASSISTANT_PRIOR_SCAN: {
     maxMessages: MAX_PRIOR_USER_MESSAGES,
     maxAssistantMessages: MAX_PRIOR_ASSISTANT_MESSAGES,

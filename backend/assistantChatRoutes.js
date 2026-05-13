@@ -4,6 +4,7 @@
 const mongoose = require('mongoose');
 const { assistantChatCompletion } = require('./assistantChatLlm');
 const { buildTaskContextForLlm, ASSISTANT_PRIOR_SCAN } = require('./assistantTaskLookup');
+const { buildDiscoveryContextForLlm } = require('./assistantDiscoveryLookup');
 const { loadUserLeanForAssistant, formatAssistantSessionBlock } = require('./assistantUiContext');
 
 const MAX_USER_MESSAGE = 4000;
@@ -201,6 +202,19 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
       }
     } catch (e) {
       console.error('[assistant-chat] task context:', e?.message || e);
+    }
+
+    try {
+      const disc = await buildDiscoveryContextForLlm(req.user, userMsg, {
+        priorUserMessages: priorUserForNumberScan,
+        priorAssistantMessages: priorAssistantForNumberScan,
+        dbUserLean: dbUserLeanForAssistant,
+      });
+      if (disc.textForLlm) {
+        contentForChat = `${contentForChat}\n\n${disc.textForLlm}`;
+      }
+    } catch (e) {
+      console.error('[assistant-chat] discovery context:', e?.message || e);
     }
 
     lastUserDoc = await Msg.create({
