@@ -3,8 +3,10 @@
  */
 const mongoose = require('mongoose');
 const { assistantChatCompletion } = require('./assistantChatLlm');
+const { buildTaskContextForLlm, ASSISTANT_PRIOR_SCAN } = require('./assistantTaskLookup');
 
 const MAX_USER_MESSAGE = 4000;
+const MAX_LLM_USER_COMBINED = 18000;
 const MAX_MESSAGES_CONTEXT = 24;
 const MESSAGE_MAX_LENGTH = 12000;
 
@@ -140,6 +142,22 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
       contentForChat = `${userMsg}\n\n(Контекст DTS: ${ctxParts.join('; ')})`;
     }
 
+    const priorUserForNumberScan = prior
+      .filter((m) => m.role === 'user')
+      .map((m) => truncate(m.content, ASSISTANT_PRIOR_SCAN.maxChars))
+      .slice(-ASSISTANT_PRIOR_SCAN.maxMessages);
+
+    try {
+      const tack = await buildTaskContextForLlm(req.user, userMsg, {
+        priorUserMessages: priorUserForNumberScan,
+      });
+      if (tack.textForLlm) {
+        contentForChat = `${contentForChat}\n\n${tack.textForLlm}`;
+      }
+    } catch (e) {
+      console.error('[assistant-chat] task context:', e?.message || e);
+    }
+
     lastUserDoc = await Msg.create({
       conversationId,
       role: 'user',
@@ -151,7 +169,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
         ...histForApi,
         {
           role: 'user',
-          content: truncate(contentForChat, MAX_USER_MESSAGE + 350),
+          content: truncate(contentForChat, MAX_LLM_USER_COMBINED),
         },
       ]);
 
