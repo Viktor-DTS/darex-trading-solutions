@@ -20,6 +20,7 @@ import TestingDashboard from './components/TestingDashboard';
 import FinancialDashboard from './components/FinancialDashboard';
 import SalesAccountingDashboard from './components/SalesAccountingDashboard';
 import ProcurementDashboard from './components/ProcurementDashboard';
+import AssistantChatWidget from './components/AssistantChatWidget';
 import API_BASE_URL from './config';
 import { resetAuthSessionExpiredState, tryHandleUnauthorizedResponse } from './utils/authSession';
 
@@ -482,6 +483,7 @@ function App() {
                     String(user?.role || '').toLowerCase() !== 'golovnkervserv' && (
                       <TasksStatisticsBar user={user} />
                     )}
+                  <AssistantChatWidget currentPanel={currentPanel} />
                 </div>
               )}
             </div>

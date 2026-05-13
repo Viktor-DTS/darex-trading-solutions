@@ -37,7 +37,7 @@ const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const { connectAssistantMongoDB } = require('./assistantMongo');
+const { connectAssistantMongoDB, getAssistantConnection } = require('./assistantMongo');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
@@ -47,6 +47,7 @@ const {
   suggest: productCardAssistantSuggest,
   importImageFromUrl: productCardAssistantImportImage,
 } = require('./productCardAssistant');
+const { registerAssistantChatRoutes } = require('./assistantChatRoutes');
 
 // Cloudinary конфігурація
 console.log('[CLOUDINARY] CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET');
@@ -15870,6 +15871,8 @@ app.post('/api/notifications/send-system-message', authenticateToken, async (req
     res.status(500).json({ error: error.message });
   }
 });
+
+registerAssistantChatRoutes(app, { getAssistantConnection });
 
 // ============================================
 // СТАРТ СЕРВЕРА
