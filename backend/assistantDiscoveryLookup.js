@@ -271,6 +271,32 @@ function truncateField(val, max = 600) {
   return t.length > max ? `${t.slice(0, max)}…` : t;
 }
 
+/** Дата лише (ISO / Date) → ДД.ММ.РРРР, як у полі «дата» із картки (UTC-доба). */
+function formatDateUkForAssistant(value) {
+  if (value == null || value === '') return '';
+  const dt = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(dt.getTime())) return '';
+  const y = dt.getUTCFullYear();
+  const m = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(dt.getUTCDate()).padStart(2, '0');
+  return `${d}.${m}.${y}`;
+}
+
+/**
+ * «Дата виконання» для переліку: спочатку дата проведення робіт із картки,
+ * інакше службова дата переходу в «Виконано», заплановані роботи або явне «не вказано».
+ * @param {Record<string, unknown>} task
+ */
+function taskCompletionLineUk(task) {
+  const work = formatDateUkForAssistant(task?.date);
+  if (work) return `дата проведення робіт: ${work}`;
+  const auto = formatDateUkForAssistant(task?.autoCompletedAt);
+  if (auto) return `дата переходу в «Виконано» у системі: ${auto}`;
+  const planned = formatDateUkForAssistant(task?.plannedDate);
+  if (planned) return `запланована дата робіт: ${planned}`;
+  return 'дата виконання не вказана в полях картки';
+}
+
 function maskPhonesSingle(val) {
   const x = String(val || '').trim();
   if (!x) return '';
@@ -515,8 +541,9 @@ function formatMultiTaskDiscoveryOverview(tasks, ctx, accessNote) {
     const num = truncateField(t.requestNumber, 48) || '—';
     const st = truncateField(t.status, 48) || '—';
     const cli = truncateField(t.client || t.company, 80) || '—';
+    const exec = taskCompletionLineUk(t);
     const where = discoveryMatchLabelsForTask(t, ctx).join('; ');
-    return `${i + 1}) ${num} — статус «${st}»; клієнт/об’єкт: ${cli}\n   Де видно запитані дані: ${where}`;
+    return `${i + 1}) ${num} — статус «${st}»; клієнт/об’єкт: ${cli}; ${exec}\n   Де видно запитані дані: ${where}`;
   });
   return (
     `[DTS-discovery] Знайдено кілька заявок (${tasks.length}) за вашим пошуком. ${accessNote}\n` +
@@ -709,6 +736,7 @@ async function buildDiscoveryContextForLlm(userJwt, messageText, opts = {}) {
       `[DTS] Одна сервісна заявка за пошуком (узгодження пробілів/розрядних у ЄДРПОУ, телефону, серіях за даними DTS):\n${accessUk}`,
       summarizeOneTask(tasks[0], 0),
     );
+    sections.push(`[DTS-discovery] ${taskCompletionLineUk(tasks[0])}`);
     if (discoveryCtx.digits.length || discoveryCtx.phones.length || discoveryCtx.textQ) {
       const where = discoveryMatchLabelsForTask(tasks[0], discoveryCtx).join('; ');
       sections.push(`[DTS-discovery] Де збігаються шукані дані: ${where}`);
@@ -719,8 +747,8 @@ async function buildDiscoveryContextForLlm(userJwt, messageText, opts = {}) {
 
   let note =
     tasks.length > 1
-      ? `\n\n[DTS-hint] Дайте користувачу перелік номерів і спитайте, яка заявка потрібна; не виводьте повні картки всіх заявок у відповіді.`
-      : `\n\n[DTS-hint] Передай структуровано поля з [DTS]: ЄДРПОУ, контактна особа, телефон стримано, заводський/серійний номер.`;
+      ? `\n\n[DTS-hint] Дайте перелік номерів уже з датою проведення робіт або службовою датою «Виконано», спитайте один номер для деталей; не розгортайте повні картки кожної заявки одразу.`
+      : `\n\n[DTS-hint] Передай структуровано поля з [DTS]: ЄДРПОУ, контактна особа, телефон стримано, заводський/серійний номер, дата проведення робіт (як у блоці [DTS-discovery]).`;
 
   return {
     textForLlm: `${sections.join('\n')}${note}`,
