@@ -3,6 +3,7 @@
  */
 const mongoose = require('mongoose');
 const { assistantChatCompletion } = require('./assistantChatLlm');
+const { appendAssistantScopeHintToUserPayload } = require('./assistantChatScopeHints');
 const { buildTaskContextForLlm, ASSISTANT_PRIOR_SCAN } = require('./assistantTaskLookup');
 const { buildDiscoveryContextForLlm } = require('./assistantDiscoveryLookup');
 const { loadUserLeanForAssistant, formatAssistantSessionBlock } = require('./assistantUiContext');
@@ -234,6 +235,11 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
       if (discoveryMeta) Object.assign(base, { discovery: discoveryMeta });
       return Object.keys(base).length ? base : undefined;
     })();
+
+    const discoveryOpenActionsLen = Array.isArray(discoveryMeta?.openActions)
+      ? discoveryMeta.openActions.length
+      : 0;
+    contentForChat = appendAssistantScopeHintToUserPayload(userMsg, contentForChat, discoveryOpenActionsLen);
 
     lastUserDoc = await Msg.create({
       conversationId,
