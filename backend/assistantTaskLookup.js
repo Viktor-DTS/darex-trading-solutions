@@ -21,14 +21,19 @@ const REQUEST_NUM_PAD_MIN = 3;
 const REQUEST_NUM_PAD_MAX = 12;
 
 /**
- * Однакова заявка: KV-997 у чаті vs KV-0000997 у БД — узгодження за числовим значенням суфікса.
+ * Однакова заявка: KV-997 / KV0000972 (без дефіса) vs KV-0000997 у БД — узгодження за числовим значенням суфікса.
  * @param {string} rawToken
  * @returns {string[]}
  */
 function expandRequestNumberVariants(rawToken) {
-  const trimmed = String(rawToken || '')
+  let trimmed = String(rawToken || '')
     .trim()
     .replace(/\s+/g, '');
+  trimmed = trimmed.replace(/^([A-Za-zА-Яа-яІіЇїЄєҐґ]+)[_/](\d+)$/u, '$1-$2');
+  const hyphenFused = trimmed.match(/^([A-Za-zА-Яа-яІіЇїЄєҐґ]+)(\d{1,12})$/u);
+  if (hyphenFused && !trimmed.includes('-')) {
+    return expandRequestNumberVariants(`${hyphenFused[1]}-${hyphenFused[2]}`);
+  }
   const um = trimmed.match(/^([A-Za-zА-Яа-яІіЇїЄєҐґ]+)-(\d{1,12})$/u);
   if (!um) {
     return [trimmed];
@@ -151,11 +156,20 @@ function buildTaskOpenProposal(task, mentionedNums, userJwt, dbUser) {
 function extractRequestNumbers(text) {
   const s = String(text || '');
   const found = new Set();
-  const re = /\b([A-Za-zА-Яа-яІіЇїЄєҐґ]{1,12})\s*-\s*(\d{1,12})\b/g;
+  const reHyphen = /\b([A-Za-zА-Яа-яІіЇїЄєҐґ]{1,12})\s*-\s*(\d{1,12})\b/g;
   let m;
-  while ((m = re.exec(s)) !== null) {
+  while ((m = reHyphen.exec(s)) !== null) {
     const left = String(m[1] || '').replace(/\s+/g, '');
     const num = String(m[2] || '');
+    found.add(`${left}-${num}`);
+    if (found.size >= MAX_DISTINCT_REQUEST_NUMBERS) break;
+  }
+  /** Без дефіса: KV0000972, DP_0001558 (мінімум 2 цифри в суфіксі). */
+  const reFused = /\b([A-Za-zА-Яа-яІіЇїЄєҐґ]{1,12})[_\s]?(\d{2,})\b/g;
+  while ((m = reFused.exec(s)) !== null) {
+    const left = String(m[1] || '').replace(/\s+/g, '');
+    const num = String(m[2] || '');
+    if (!left || !num) continue;
     found.add(`${left}-${num}`);
     if (found.size >= MAX_DISTINCT_REQUEST_NUMBERS) break;
   }
@@ -330,7 +344,9 @@ function userWantsTaskCardUi(messageText) {
   const s = raw.replace(/\s+/g, ' ').toLowerCase();
   if (!s) return false;
 
-  const hasCode = /([a-zа-яіїєґ]{1,12})\s*-\s*\d{1,12}/i.test(raw);
+  const hasCode =
+    /[A-Za-zА-Яа-яІіЇїЄєҐґ]{1,12}\s*-\s*\d{1,12}/i.test(raw) ||
+    /[A-Za-zА-Яа-яІіЇїЄєҐґ]{1,12}\d{2,}/i.test(raw);
 
   const mentionsTaskWord = /заявк|картк/.test(s) || /\b(task|ticket|request)s?\b/i.test(raw);
 
@@ -522,11 +538,11 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
   if (tasks.length === 0) {
     const numList = nums.join(', ');
     const hintElevated =
-      `[DTS] За номером(ами) «${numList}» (перевірені також еквівалентні формати суфікса з ведучими нулями, як-от KV-0000997 замість KV-997) запису заявки в базі DTS не знайдено. ` +
+      `[DTS] За номером(ами) «${numList}» (перевірені еквівалентні написання: суфікс з ведучими нулями, наприклад KV-00972 vs KV-0000972, а також той самий номер без дефіса між префіксом і цифрами — KV0000972 для пошуку еквівалентно KV-0000972) запису заявки в базі DTS не знайдено. ` +
       'Для облікового запису з правами адміністратора це зазвичай означає відсутність запису серед відомих номерів або зовсім інший текст у полі requestNumber у БД — ' +
-      'не пояснюй це як «нема авторизації». Запропонуй глобальний пошук у DTS за повним номером з екрану. Не вигадай поля заявки.';
+      'не пояснюй це як «нема авторизації». Запропонуй глобальний пошук у DTS за повним номером з екрану у стандартному вигляді з дефісом. Не вигадай поля заявки.';
     const hintScoped =
-      `[DTS] У діалозі згадано номер(и) «${numList}» (перевірені варіанти з ведучими нулями в суфіксі); у межах вашого профілю відповідного запису в DTS не видно. ` +
+      `[DTS] У діалозі згадано номер(и) «${numList}» (перевірені також ведучі нулі суфікса та форми без дефіса KV0000972); у межах вашого профілю відповідного запису в DTS не видно. ` +
       'Див. [DTS/User]. Відкрийте заявку в системі. Не вигадайте дані заявки.';
     const hint = elevated ? hintElevated : hintScoped;
     if (wantCard) {
