@@ -322,26 +322,36 @@ function computeAssistantTaskModalReadOnly(userJwt, dbUser, task) {
 }
 
 /**
- * Чи користувач просить відкрити картку заявки в інтерфейсі (модальне вікно).
+ * Перевірка наміру без \b: у JS межа слова ASCII і не працює з кирилицею (наприклад «покажи заявку»).
  * @param {string} messageText
  */
 function userWantsTaskCardUi(messageText) {
   const raw = String(messageText || '').trim();
-  const s = raw.toLowerCase();
+  const s = raw.replace(/\s+/g, ' ').toLowerCase();
   if (!s) return false;
-  const hasCode = /\b([A-Za-zА-Яа-яІіЇїЄєҐґ]+)\s*-\s*\d{1,12}\b/.test(raw);
-  const mentionsTaskWord = /\b(заявк|картк|ticket|task|request)\b/i.test(s);
-  const verbOpen =
-    /\b(показати|покажи|покажіть|відкрити|відкрий|відкрийте|переглянути|переглянь|перегляньте|подивитись|подивись|дивись|перегляд|бачити|побачити|розкрити|розкрий|вивести|розгорнути)\b/i.test(
-      s,
-    );
-  const verbDetail =
-    /\b(деталі|детально|інформаці|інфо|повністю|розписати|подивитись\s+на)\b/i.test(s);
-  const showEn =
-    /\b(show|open|view|display)\b/i.test(s) && /\b(task|ticket|request|card)\b/i.test(s);
-  const hasVerb = verbOpen || verbDetail || showEn;
+
+  const hasCode = /([a-zа-яіїєґ]{1,12})\s*-\s*\d{1,12}/i.test(raw);
+
+  const mentionsTaskWord = /заявк|картк/.test(s) || /\b(task|ticket|request)s?\b/i.test(raw);
+
+  const hasVerb =
+    /покаж|показат|показуй/.test(s) ||
+    /відкри|відкрит/.test(s) ||
+    /переглянь|перегляд|переглянут/.test(s) ||
+    /подивись|подивит|побачити|бачити|дивись/.test(s) ||
+    /розкрий|розкрит|розгорни|розгорнут|вивести/.test(s) ||
+    /детал|інфо|інформаці|повністю|розпис/.test(s) ||
+    /\b(show|open|view|display)\b/i.test(raw) ||
+    /\bdetails?\b/i.test(raw);
+
+  const showEnTask =
+    /\b(show|open|view|display)\s+(the\s+)?(task|ticket|request)/i.test(raw) ||
+    /\b(task|ticket)\s+(details|card|window)/i.test(raw);
+
   const hasSubject = mentionsTaskWord || hasCode;
-  return hasVerb && hasSubject;
+  const hasVerbCombined = hasVerb || showEnTask;
+
+  return hasVerbCombined && hasSubject;
 }
 
 /** @returns {Record<string, unknown> | undefined} */
