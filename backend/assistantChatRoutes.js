@@ -322,6 +322,59 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
     });
   });
 
+  /**
+   * Масове видалення давніх діалогів (повідомлення + документ розмови) — лише поточний користувач.
+   * Query/body: days — мінімальна «давність» за полем updatedAt (1…730).
+   */
+  app.delete('/api/assistant/conversations/purge-old', async (req, res) => {
+    const login = req.user?.login;
+    if (!login) {
+      return res.status(401).json({ error: 'Користувач не визначений' });
+    }
+
+    const raw =
+      req.query?.days ??
+      req.query?.olderThanDays ??
+      (req.body && typeof req.body === 'object' ? req.body.days : undefined);
+    const days = parseInt(String(raw ?? ''), 10);
+    if (!Number.isFinite(days) || days < 1 || days > 730) {
+      return res.status(400).json({
+        error: 'Параметр days має бути цілим числом від 1 до 730 (неактивність за останнім оновленням діалогу).',
+      });
+    }
+
+    const models = getModels(getAssistantConnection);
+    if (!models.conn) {
+      return res.status(503).json({ error: 'Асистентська база даних недоступна.' });
+    }
+
+    const cutoff = new Date(Date.now() - days * 86400000);
+    const oldRows = await models.AssistantConversation.find({
+      userLogin: login,
+      updatedAt: { $lt: cutoff },
+    })
+      .select('_id')
+      .lean();
+
+    const ids = oldRows.map((r) => r._id).filter(Boolean);
+    if (!ids.length) {
+      return res.json({ deletedConversations: 0, deletedMessages: 0 });
+    }
+
+    const msgDel = await models.AssistantMessage.deleteMany({
+      conversationId: { $in: ids },
+    });
+    const convDel = await models.AssistantConversation.deleteMany({
+      _id: { $in: ids },
+      userLogin: login,
+    });
+
+    res.json({
+      deletedConversations: convDel.deletedCount ?? 0,
+      deletedMessages: msgDel.deletedCount ?? 0,
+    });
+  });
+
   app.get('/api/assistant/conversations/:id/messages', async (req, res) => {
     const login = req.user?.login;
     if (!login) return res.status(401).json({ error: 'Користувач не визначений' });
@@ -359,6 +412,43 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
         createdAt: m.createdAt,
       })),
     });
+  });
+
+  /** Видалити один діалог і всі його повідомлення в асистентській MongoDB. */
+  app.delete('/api/assistant/conversations/:id', async (req, res) => {
+    const login = req.user?.login;
+    if (!login) {
+      return res.status(401).json({ error: 'Користувач не визначений' });
+    }
+
+    const idStr = req.params.id;
+    if (!validObjectId(idStr)) {
+      return res.status(400).json({ error: 'Невірний ідентифікатор діалогу' });
+    }
+
+    const models = getModels(getAssistantConnection);
+    if (!models.conn) {
+      return res.status(503).json({ error: 'Асистентська база даних недоступна.' });
+    }
+
+    const owns = await models.AssistantConversation.findOne({
+      _id: idStr,
+      userLogin: login,
+    })
+      .select('_id')
+      .lean();
+
+    if (!owns) {
+      return res.status(404).json({ error: 'Діалог не знайдено' });
+    }
+
+    await models.AssistantMessage.deleteMany({ conversationId: idStr });
+    await models.AssistantConversation.deleteOne({
+      _id: idStr,
+      userLogin: login,
+    });
+
+    res.json({ ok: true });
   });
 }
 

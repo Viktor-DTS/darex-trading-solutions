@@ -25,6 +25,8 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [convListLoading, setConvListLoading] = useState(false);
+  const [deletingConversationId, setDeletingConversationId] = useState(null);
+  const [purgeBusy, setPurgeBusy] = useState(false);
   const [showConvList, setShowConvList] = useState(true);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -166,6 +168,95 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
     if (!open || !conversationId) return;
     loadMessages(conversationId);
   }, [open, conversationId, loadMessages]);
+
+  const refreshAfterPurgeAndResetIfMissing = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/assistant/conversations`, {
+        headers: authHeaders(),
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      const data = await res.json().catch(() => null);
+      if (!res.ok) return;
+      const rows = Array.isArray(data?.conversations) ? data.conversations : [];
+      setConversations(rows);
+      const cid = conversationId ? String(conversationId) : '';
+      const stillOpen = cid && rows.some((r) => String(r.id) === cid);
+      if (cid && !stillOpen) {
+        abortSend();
+        setConversationId(null);
+        setMessages([]);
+        setInput('');
+        setError('');
+        setTaskContextHint(null);
+        setAssistantTaskModalOpen(false);
+        setAssistantTaskInitial(null);
+        setAssistantTaskReadOnly(false);
+        setPendingTaskProposal(null);
+      }
+    } catch {
+      await loadConversationList();
+    }
+  };
+
+  const deleteConversationPermanently = async (cid) => {
+    const id = String(cid || '').trim();
+    if (!id || deletingConversationId || purgeBusy || loading) return;
+    const ok = window.confirm(
+      'Видалити цей діалог з бази DTS? Усі повідомлення буде стерто з асистентської MongoDB без відновлення.',
+    );
+    if (!ok) return;
+    setDeletingConversationId(id);
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/assistant/conversations/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(payload?.error || 'Не вдалося видалити діалог');
+        return;
+      }
+      if (String(conversationId) === id) {
+        newChat();
+      } else {
+        loadConversationList();
+      }
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setDeletingConversationId(null);
+    }
+  };
+
+  const purgeInactiveConversations = async (days) => {
+    const d = Number(days);
+    if (!Number.isFinite(d) || d < 1 || d > 730 || purgeBusy || loading || deletingConversationId) return;
+    const ok = window.confirm(
+      `Будуть остаточно видалені з асистентської бази ваші збережені діалоги, не оновлювані більш ніж ${d} діб (за полем останнього оновлення). Продовжити?`,
+    );
+    if (!ok) return;
+    setPurgeBusy(true);
+    setError('');
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/assistant/conversations/purge-old?days=${encodeURIComponent(String(d))}`,
+        { method: 'DELETE', headers: authHeaders() },
+      );
+      if (tryHandleUnauthorizedResponse(res)) return;
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(payload?.error || 'Не вдалося прибрати старі діалоги');
+        return;
+      }
+      await refreshAfterPurgeAndResetIfMissing();
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setPurgeBusy(false);
+    }
+  };
 
   const newChat = () => {
     abortSend();
@@ -366,10 +457,11 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
               ) : null}
               <ul className="assistant-chat-conv-list" role="list">
                 {conversations.map((c) => (
-                  <li key={c.id}>
+                  <li key={c.id} className="assistant-chat-conv-row">
                     <button
                       type="button"
                       className={`assistant-chat-conv-item ${conversationId === c.id ? 'active' : ''}`}
+                      disabled={String(deletingConversationId) === String(c.id)}
                       onClick={() => pickConversation(c.id)}
                     >
                       <span className="assistant-chat-conv-item-title">{c.title || 'Чат'}</span>
@@ -378,9 +470,46 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
                         {formatConvDate(c.updatedAt)}
                       </span>
                     </button>
+                    <button
+                      type="button"
+                      className="assistant-chat-conv-delete"
+                      aria-label="Видалити діалог з бази"
+                      title="Видалити діалог і повідомлення з MongoDB"
+                      disabled={purgeBusy || loading || Boolean(deletingConversationId)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        deleteConversationPermanently(c.id);
+                      }}
+                    >
+                      ×
+                    </button>
                   </li>
                 ))}
               </ul>
+              {conversations.length > 0 ? (
+                <div className="assistant-chat-conv-purge" role="group" aria-label="Очистити старі збережені діалоги">
+                  <span className="assistant-chat-conv-purge-label">Неактивні в MongoDB:</span>
+                  <button
+                    type="button"
+                    className="assistant-chat-conv-purge-btn"
+                    title="Видалити з асистентської бази ваші чати без оновлень понад 30 діб"
+                    disabled={purgeBusy || Boolean(deletingConversationId) || loading}
+                    onClick={() => purgeInactiveConversations(30)}
+                  >
+                    &gt;30 д.
+                  </button>
+                  <button
+                    type="button"
+                    className="assistant-chat-conv-purge-btn"
+                    title="Видалити з асистентської бази ваші чати без оновлень понад 90 діб"
+                    disabled={purgeBusy || Boolean(deletingConversationId) || loading}
+                    onClick={() => purgeInactiveConversations(90)}
+                  >
+                    &gt;90 д.
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
