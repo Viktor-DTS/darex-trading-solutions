@@ -192,7 +192,7 @@ const formatDateOnly = (dateValue) => {
   }
 };
 
-function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType = 'service', debtOnly = false, readOnly = false, hideDebtFields = false, allowDebtEditInArchive = false }) {
+function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType = 'service', debtOnly = false, readOnly = false, hideDebtFields = false, allowDebtEditInArchive = false, overlayStyle }) {
   const initialFormData = {
     status: 'Заявка',
     requestDate: new Date().toISOString().split('T')[0],
@@ -1806,7 +1806,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const isDebtOnlyMode = debtOnly && isApprovedTask;
   
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" style={overlayStyle} onClick={onClose}>
       <div className={`modal-content ${isDebtOnlyMode ? 'debt-only-mode' : ''} ${isReadOnly ? 'read-only-mode' : ''} ${isAccountantMode ? 'accountant-mode' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>

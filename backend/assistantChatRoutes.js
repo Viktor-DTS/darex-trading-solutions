@@ -173,7 +173,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
       .map((m) => truncate(m.content, ASSISTANT_PRIOR_SCAN.maxChars))
       .slice(-ASSISTANT_PRIOR_SCAN.maxAssistantMessages);
 
-    /** @type {{ matched: number, requestNumbers: string[], elevated?: boolean } | undefined} */
+    /** @type {{ matched: number, requestNumbers: string[], elevated?: boolean, taskModal?: unknown } | undefined} */
     let taskContextPayload = undefined;
     try {
       const tack = await buildTaskContextForLlm(req.user, userMsg, {
@@ -189,6 +189,14 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
           matched: tack.meta.matched,
           requestNumbers: tack.meta.requestNumbers,
           elevated: Boolean(tack.meta.elevated),
+          taskModal: tack.meta.taskModal ?? null,
+        };
+      } else if (tack.meta?.taskModal) {
+        taskContextPayload = {
+          matched: tack.meta.matched ?? 0,
+          requestNumbers: Array.isArray(tack.meta.requestNumbers) ? tack.meta.requestNumbers : [],
+          elevated: Boolean(tack.meta.elevated),
+          taskModal: tack.meta.taskModal,
         };
       }
     } catch (e) {

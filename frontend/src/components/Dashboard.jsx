@@ -8,6 +8,7 @@ import AddTaskModal from './AddTaskModal';
 import LogisticsMap from './LogisticsMap';
 import GlobalSearch from './GlobalSearch';
 import { buildTaskDataFromExisting } from '../utils/taskCopyForCreate';
+import { computeTaskModalReadOnly } from '../utils/taskModalAccess';
 import './Dashboard.css';
 
 function Dashboard({ user, panelType = 'service' }) {
@@ -68,19 +69,8 @@ function Dashboard({ user, panelType = 'service' }) {
   }, []);
 
   const handleRowClick = (task) => {
-    // Перевірка: підтверджені бухгалтером заявки можуть редагувати тільки admin/administrator
-    const isApprovedByAccountant = task.status === 'Виконано' && task.approvedByAccountant === 'Підтверджено';
-    const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
-    
-    if (isApprovedByAccountant && !isAdmin) {
-      setEditingTask(task);
-      setIsReadOnlyMode(true);
-      setShowAddTaskModal(true);
-      return;
-    }
-    
     setEditingTask(task);
-    setIsReadOnlyMode(false);
+    setIsReadOnlyMode(computeTaskModalReadOnly(user, task));
     setShowAddTaskModal(true);
   };
 

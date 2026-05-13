@@ -3,12 +3,24 @@ import { useLocation } from 'react-router-dom';
 import API_BASE_URL from '../config';
 import { tryHandleUnauthorizedResponse } from '../utils/authSession';
 import { getPanelById } from '../constants/panelsCatalog';
+import { computeTaskModalReadOnly } from '../utils/taskModalAccess';
+import AddTaskModal from './AddTaskModal';
 import { AssistantMessageContent } from './assistantChatFormat';
 import './AssistantChatWidget.css';
 
+/** panelType для AddTaskModal залежить від вкладки; невідомі id зводимо до сервісу. */
+function taskModalPanelType(navPanelId) {
+  const id = String(navPanelId || 'service').toLowerCase();
+  const direct = ['service', 'operator', 'warehouse', 'regional', 'accountant'];
+  if (direct.includes(id)) return id;
+  if (id === 'accountantapproval') return 'accountant';
+  return 'service';
+}
+
 /** Плаваючий чат з асистентом — історія в асистентській MongoDB */
-export default function AssistantChatWidget({ currentPanel, user }) {
+export default function AssistantChatWidget({ currentPanel, assistantPanelType, user }) {
   const location = useLocation();
+  const modalPanelId = assistantPanelType || currentPanel || 'service';
   const [open, setOpen] = useState(false);
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
@@ -20,6 +32,9 @@ export default function AssistantChatWidget({ currentPanel, user }) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState('');
   const [taskContextHint, setTaskContextHint] = useState(null);
+  const [assistantTaskModalOpen, setAssistantTaskModalOpen] = useState(false);
+  const [assistantTaskInitial, setAssistantTaskInitial] = useState(null);
+  const [assistantTaskReadOnly, setAssistantTaskReadOnly] = useState(false);
   const listRef = useRef(null);
   const abortRef = useRef(null);
 
@@ -69,6 +84,31 @@ export default function AssistantChatWidget({ currentPanel, user }) {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
   };
+
+  const openTaskFromAssistant = useCallback(
+    async (taskId) => {
+      const id = String(taskId || '').trim();
+      if (!id) return;
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE_URL}/tasks/${encodeURIComponent(id)}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (tryHandleUnauthorizedResponse(res)) return;
+        if (!res.ok) {
+          setError('Не вдалося завантажити заявку для модального вікна.');
+          return;
+        }
+        const task = await res.json();
+        setAssistantTaskInitial(task);
+        setAssistantTaskReadOnly(computeTaskModalReadOnly(user, task));
+        setAssistantTaskModalOpen(true);
+      } catch {
+        setError('Помилка мережі при відкритті заявки.');
+      }
+    },
+    [user],
+  );
 
   const loadConversationList = useCallback(async () => {
     setConvListLoading(true);
@@ -132,6 +172,9 @@ export default function AssistantChatWidget({ currentPanel, user }) {
     setInput('');
     setError('');
     setTaskContextHint(null);
+    setAssistantTaskModalOpen(false);
+    setAssistantTaskInitial(null);
+    setAssistantTaskReadOnly(false);
     loadConversationList();
   };
 
@@ -156,6 +199,9 @@ export default function AssistantChatWidget({ currentPanel, user }) {
     setMessages([]);
     setError('');
     setTaskContextHint(null);
+    setAssistantTaskModalOpen(false);
+    setAssistantTaskInitial(null);
+    setAssistantTaskReadOnly(false);
     setShowConvList(true);
   };
 
@@ -220,18 +266,23 @@ export default function AssistantChatWidget({ currentPanel, user }) {
         { role: 'assistant', content: reply },
       ]);
 
-      if (data?.taskContext?.requestNumbers?.length) {
+      if (data?.taskContext?.requestNumbers?.length || data?.taskContext?.taskModal) {
         setTaskContextHint({
           matched: Number(data.taskContext.matched) || 0,
-          requestNumbers: data.taskContext.requestNumbers,
+          requestNumbers: data.taskContext.requestNumbers || [],
           elevated: Boolean(data.taskContext.elevated),
+          taskModal: data.taskContext.taskModal || null,
         });
       } else {
         setTaskContextHint(null);
       }
 
+      const tm = data?.taskContext?.taskModal;
+      if (tm?.open === true && tm.taskId) {
+        openTaskFromAssistant(String(tm.taskId));
+      }
+
       loadConversationList();
-    } catch (e) {
       if (e?.name === 'AbortError') {
         setMessages(snapshot);
         setInput(text);
@@ -362,13 +413,26 @@ export default function AssistantChatWidget({ currentPanel, user }) {
             {loading ? <div className="assistant-chat-loading">Асистент думає…</div> : null}
           </div>
 
-          {taskContextHint?.requestNumbers?.length ? (
+          {taskContextHint?.requestNumbers?.length || taskContextHint?.taskModal ? (
             <div className="assistant-chat-context-hint" role="status">
-              {taskContextHint.matched > 0
-                ? `Підставлено дані із DTS для: ${taskContextHint.requestNumbers.join(', ')}.`
-                : taskContextHint.elevated
-                  ? `У базі DTS не знайдено заявок з номерами: ${taskContextHint.requestNumbers.join(', ')} (повний доступ адміністратора — перевірте номер або глобальний пошук у системі).`
-                  : `У межах вашого доступу не видно заявок: ${taskContextHint.requestNumbers.join(', ')}.`}
+              {(taskContextHint.requestNumbers || []).length > 0 ? (
+                <span>
+                  {taskContextHint.matched > 0
+                    ? `Підставлено дані із DTS для: ${(taskContextHint.requestNumbers || []).join(', ')}. `
+                    : taskContextHint.elevated
+                      ? `У базі DTS не знайдено заявок з номерами: ${(taskContextHint.requestNumbers || []).join(', ')} (повний доступ адміністратора — перевірте номер або глобальний пошук у системі). `
+                      : `У межах вашого доступу не видно заявок: ${(taskContextHint.requestNumbers || []).join(', ')}. `}
+                </span>
+              ) : null}
+              {taskContextHint.taskModal?.open ? (
+                <span>Відкривається картка заявки в модальному вікні (режим редагування залежить від вашої ролі та статусу заявки).</span>
+              ) : null}
+              {taskContextHint.taskModal && taskContextHint.taskModal.open === false && taskContextHint.taskModal.reason === 'multiple_matches' ? (
+                <span>Знайдено кілька заявок за запитом — оберіть конкретний номер у таблиці або уточніть у чаті.</span>
+              ) : null}
+              {taskContextHint.taskModal && taskContextHint.taskModal.open === false && taskContextHint.taskModal.reason === 'no_request_number_in_thread' ? (
+                <span>Укажіть номер заявки (наприклад KV-1022), щоб відкрити картку з чату.</span>
+              ) : null}
             </div>
           ) : null}
 
@@ -394,6 +458,29 @@ export default function AssistantChatWidget({ currentPanel, user }) {
           </div>
         </div>
       )}
+      {assistantTaskModalOpen && assistantTaskInitial ? (
+        <AddTaskModal
+          open={assistantTaskModalOpen}
+          overlayStyle={{ zIndex: 10008 }}
+          onClose={() => {
+            setAssistantTaskModalOpen(false);
+            setAssistantTaskInitial(null);
+            setAssistantTaskReadOnly(false);
+          }}
+          user={user}
+          initialData={assistantTaskInitial}
+          panelType={taskModalPanelType(modalPanelId)}
+          readOnly={assistantTaskReadOnly}
+          onSave={(savedTask, options) => {
+            if (!options?.keepModalOpen) {
+              setAssistantTaskModalOpen(false);
+              setAssistantTaskInitial(null);
+              setAssistantTaskReadOnly(false);
+              setTimeout(() => window.location.reload(), 500);
+            }
+          }}
+        />
+      ) : null}
     </>
   );
 }

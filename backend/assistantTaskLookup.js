@@ -230,6 +230,50 @@ function isElevatedRole(roleLow) {
   return ['admin', 'administrator', 'mgradm'].includes(String(roleLow || '').toLowerCase());
 }
 
+/** Як у фронті Dashboard: лише administrator/admin редагують після підтвердження бухгалтерії. */
+function canEditFullyAfterAccountantApproval(roleRaw) {
+  const r = String(roleRaw || '').toLowerCase();
+  return r === 'admin' || r === 'administrator';
+}
+
+/**
+ * Той самий глобальний read-only, що режим модалки після кліку по заявці (не режим «лише перегляд» кнопки).
+ * @param {{ role?: string } | null | undefined} userJwt
+ * @param {{ role?: string } | null | undefined} dbUser
+ * @param {Record<string, unknown>} task
+ */
+function computeAssistantTaskModalReadOnly(userJwt, dbUser, task) {
+  const isApprovedByAccountant =
+    String(task?.status || '') === 'Виконано' && String(task?.approvedByAccountant || '') === 'Підтверджено';
+  const canEdit =
+    canEditFullyAfterAccountantApproval(userJwt?.role) || canEditFullyAfterAccountantApproval(dbUser?.role);
+  if (isApprovedByAccountant && !canEdit) return true;
+  return false;
+}
+
+/**
+ * Чи користувач просить відкрити картку заявки в інтерфейсі (модальне вікно).
+ * @param {string} messageText
+ */
+function userWantsTaskCardUi(messageText) {
+  const raw = String(messageText || '').trim();
+  const s = raw.toLowerCase();
+  if (!s) return false;
+  const hasCode = /\b([A-Za-zА-Яа-яІіЇїЄєҐґ]+)\s*-\s*\d{1,12}\b/.test(raw);
+  const mentionsTaskWord = /\b(заявк|картк|ticket|task|request)\b/i.test(s);
+  const verbOpen =
+    /\b(показати|покажи|покажіть|відкрити|відкрий|відкрийте|переглянути|переглянь|перегляньте|подивитись|подивись|дивись|перегляд|бачити|побачити|розкрити|розкрий|вивести|розгорнути)\b/i.test(
+      s,
+    );
+  const verbDetail =
+    /\b(деталі|детально|інформаці|інфо|повністю|розписати|подивитись\s+на)\b/i.test(s);
+  const showEn =
+    /\b(show|open|view|display)\b/i.test(s) && /\b(task|ticket|request|card)\b/i.test(s);
+  const hasVerb = verbOpen || verbDetail || showEn;
+  const hasSubject = mentionsTaskWord || hasCode;
+  return hasVerb && hasSubject;
+}
+
 /** @returns {Record<string, unknown> | undefined} */
 function regionFilterFromUserRegion(regionRaw) {
   const raw = String(regionRaw || '').trim();
@@ -315,17 +359,40 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
   }
 
   const nums = collectRequestNumbers(messageText, priorSlice, priorAssistSlice);
+  const wantCard = userWantsTaskCardUi(messageText);
 
-  const empty = () => ({
-    textForLlm: '',
-    meta: { requestNumbers: nums, matched: 0, elevated: false },
-  });
+  if (!login) {
+    return {
+      textForLlm: '',
+      meta: { requestNumbers: nums, matched: 0, elevated: false, taskModal: null },
+    };
+  }
 
-  if (!login || nums.length === 0) return empty();
+  if (nums.length === 0) {
+    return {
+      textForLlm: '',
+      meta: {
+        requestNumbers: [],
+        matched: 0,
+        elevated: false,
+        taskModal: wantCard ? { open: false, reason: 'no_request_number_in_thread' } : null,
+      },
+    };
+  }
 
   const TaskModel = mongoose.models.Task;
   const UserModel = mongoose.models.User;
-  if (!TaskModel || !UserModel) return empty();
+  if (!TaskModel || !UserModel) {
+    return {
+      textForLlm: '',
+      meta: {
+        requestNumbers: nums,
+        matched: 0,
+        elevated: false,
+        taskModal: wantCard ? { open: false, reason: 'task_model_unavailable' } : null,
+      },
+    };
+  }
 
   /** @type {import('mongoose').LeanDocument<{ region?: string, role?: string, name?: string }> | null | undefined} */
   let dbUser;
@@ -365,7 +432,12 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
     tasks = tasks.filter((t) => taskAllowedForManager(t, keys));
   }
 
-  const meta = { requestNumbers: nums, matched: tasks.length, elevated };
+  const meta = {
+    requestNumbers: nums,
+    matched: tasks.length,
+    elevated,
+    taskModal: null,
+  };
 
   if (tasks.length === 0) {
     const numList = nums.join(', ');
@@ -377,13 +449,40 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
       `[DTS] У діалозі згадано номер(и) «${numList}» (перевірені варіанти з ведучими нулями в суфіксі); у межах вашого профілю відповідного запису в DTS не видно. ` +
       'Див. [DTS/User]. Відкрийте заявку в системі. Не вигадайте дані заявки.';
     const hint = elevated ? hintElevated : hintScoped;
+    if (wantCard) {
+      meta.taskModal = {
+        open: false,
+        reason: elevated ? 'not_in_database' : 'not_visible_under_profile',
+      };
+    }
     return { textForLlm: hint, meta };
   }
 
   const parts = tasks.map((t, i) => summarizeOneTask(t, i));
   const header =
     '[DTS] Дані з системи за згаданими номерами (лише для відповіді; не розголошуйте стороннім без потреби):';
-  return { textForLlm: `${header}\n\n${parts.join('\n')}`, meta };
+
+  let actionNote = '';
+  if (wantCard && tasks.length === 1) {
+    const t = tasks[0];
+    const readOnly = computeAssistantTaskModalReadOnly(userJwt, dbUser, t);
+    meta.taskModal = {
+      open: true,
+      taskId: String(t._id),
+      requestNumber: String(t.requestNumber || ''),
+      readOnly,
+    };
+    actionNote = `\n\n[DTS/UI-action] Клієнт DTS відкриває модальне вікно картки заявки ${t.requestNumber || ''}. ${
+      readOnly
+        ? 'Режим: лише перегляд (статус «Виконано» і підтверджено бухгалтерією; повне редагування — для адміністратора).'
+        : 'Режим: редагування згідно з роллю; окремі поля форми можуть бути заблоковані власними правилами DTS.'
+    } Поясни користувачу доступ коротко; не копіюй цей абзац дослівно у відповідь.`;
+  } else if (wantCard && tasks.length > 1) {
+    meta.taskModal = { open: false, reason: 'multiple_matches', count: tasks.length };
+    actionNote = `\n\n[DTS/UI-action] Знайдено кілька заявок (${tasks.length}) — модальне вікно не відкривається автоматично; запропонуй уточнити один номер.`;
+  }
+
+  return { textForLlm: `${header}\n\n${parts.join('\n')}${actionNote}`, meta };
 }
 
 module.exports = {

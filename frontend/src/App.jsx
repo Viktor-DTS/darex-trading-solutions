@@ -466,7 +466,7 @@ function App() {
                     String(user?.role || '').toLowerCase() !== 'golovnkervserv' && (
                       <TasksStatisticsBar user={user} />
                     )}
-                  <AssistantChatWidget currentPanel={currentPanel} user={user} />
+                  <AssistantChatWidget currentPanel={currentPanel} assistantPanelType={currentPanel} user={user} />
                 </div>
               )}
             </div>
