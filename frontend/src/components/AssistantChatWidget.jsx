@@ -9,6 +9,9 @@ export default function AssistantChatWidget({ currentPanel }) {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [conversationId, setConversationId] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [convListLoading, setConvListLoading] = useState(false);
+  const [showConvList, setShowConvList] = useState(true);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,6 +31,28 @@ export default function AssistantChatWidget({ currentPanel }) {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
   };
+
+  const loadConversationList = useCallback(async () => {
+    setConvListLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/assistant/conversations`, {
+        headers: authHeaders(),
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      const data = await res.json().catch(() => null);
+      if (!res.ok) return;
+      setConversations(Array.isArray(data?.conversations) ? data.conversations : []);
+    } catch {
+      /* ignore */
+    } finally {
+      setConvListLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    loadConversationList();
+  }, [open, loadConversationList]);
 
   const loadMessages = useCallback(async (cid) => {
     if (!cid) return;
@@ -58,9 +83,8 @@ export default function AssistantChatWidget({ currentPanel }) {
   }, []);
 
   useEffect(() => {
-    if (open && conversationId) {
-      loadMessages(conversationId);
-    }
+    if (!open || !conversationId) return;
+    loadMessages(conversationId);
   }, [open, conversationId, loadMessages]);
 
   const newChat = () => {
@@ -68,6 +92,29 @@ export default function AssistantChatWidget({ currentPanel }) {
     setMessages([]);
     setInput('');
     setError('');
+    loadConversationList();
+  };
+
+  const formatConvDate = (iso) => {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString('uk-UA', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return '';
+    }
+  };
+
+  const pickConversation = (cid) => {
+    setConversationId(cid);
+    setMessages([]);
+    setError('');
+    setShowConvList(true);
   };
 
   const send = async () => {
@@ -118,6 +165,8 @@ export default function AssistantChatWidget({ currentPanel }) {
         { role: 'user', content: text },
         { role: 'assistant', content: reply },
       ]);
+
+      loadConversationList();
     } catch (e) {
       setMessages(snapshot);
       setError(String(e.message || e));
@@ -159,11 +208,53 @@ export default function AssistantChatWidget({ currentPanel }) {
             </div>
           </div>
 
+          <div className="assistant-chat-conv-toolbar">
+            <button
+              type="button"
+              className="assistant-chat-toggle-list"
+              onClick={() => setShowConvList((v) => !v)}
+              aria-expanded={showConvList}
+            >
+              Діалоги {showConvList ? '▼' : '▶'}
+              {convListLoading ? (
+                <span className="assistant-chat-conv-loading"> …</span>
+              ) : (
+                <span className="assistant-chat-conv-count"> ({conversations.length})</span>
+              )}
+            </button>
+            {!conversationId ? <span className="assistant-chat-draft-badge">Чернетка</span> : null}
+          </div>
+
+          {showConvList ? (
+            <div className="assistant-chat-conv-list-wrap">
+              {conversations.length === 0 && !convListLoading ? (
+                <div className="assistant-chat-conv-empty">Ще немає збережених чатів — напишіть перше повідомлення нижче.</div>
+              ) : null}
+              <ul className="assistant-chat-conv-list" role="list">
+                {conversations.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      className={`assistant-chat-conv-item ${conversationId === c.id ? 'active' : ''}`}
+                      onClick={() => pickConversation(c.id)}
+                    >
+                      <span className="assistant-chat-conv-item-title">{c.title || 'Чат'}</span>
+                      <span className="assistant-chat-conv-item-meta">
+                        {c.lastPanelId ? `${c.lastPanelId} · ` : ''}
+                        {formatConvDate(c.updatedAt)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           {error ? <div className="assistant-chat-error">{error}</div> : null}
           {historyLoading ? <div className="assistant-chat-loading">Завантаження історії…</div> : null}
 
           <div className="assistant-chat-messages" ref={listRef}>
-            {messages.length === 0 && !historyLoading && (
+            {messages.length === 0 && !historyLoading && !conversationId && (
               <div className="assistant-chat-bubble assistant-chat-bubble-ai">
                 Привіт! Запитайте про роботу з DTS: панелі, заявки, обладнання — відповім текстом. Я не бачу ваші особисті
                 дані без того, що ви самі опишете в повідомленні.

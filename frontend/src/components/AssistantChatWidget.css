@@ -73,7 +73,118 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
-.assistant-chat-messages {
+.assistant-chat-conv-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.assistant-chat-toggle-list {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary, #94a3b8);
+  cursor: pointer;
+}
+
+.assistant-chat-toggle-list:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.assistant-chat-conv-count,
+.assistant-chat-conv-loading {
+  font-weight: 500;
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+.assistant-chat-draft-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #818cf8;
+  background: rgba(129, 140, 248, 0.12);
+  border: 1px solid rgba(129, 140, 248, 0.25);
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.assistant-chat-conv-list-wrap {
+  flex-shrink: 0;
+  max-height: 120px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.assistant-chat-conv-empty {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 8px 12px 0;
+  line-height: 1.35;
+}
+
+.assistant-chat-conv-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 8px 8px;
+  overflow-y: auto;
+  max-height: 120px;
+}
+
+.assistant-chat-conv-list li {
+  margin: 0;
+}
+
+.assistant-chat-conv-item {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: rgba(30, 41, 59, 0.55);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.assistant-chat-conv-item:hover {
+  background: rgba(51, 65, 85, 0.65);
+}
+
+.assistant-chat-conv-item.active {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.assistant-chat-conv-item-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary, #e2e8f0);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.assistant-chat-conv-item-meta {
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.9;
+}
+
   flex: 1;
   overflow-y: auto;
   padding: 12px;
