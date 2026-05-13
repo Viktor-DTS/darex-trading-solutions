@@ -6,6 +6,9 @@
  *
  * This script patches missing files during `postinstall` and forces a clean
  * reinstall if Express is broken (since it's critical).
+ *
+ * Render caches node_modules: partial installs can miss express/lib/router or
+ * hoisted deps like path-to-regexp — we reinstall those when needed.
  */
 const fs = require('fs');
 const path = require('path');
@@ -68,11 +71,11 @@ try {
       console.warn('[postinstall] Could not remove broken express:', e.message);
     }
     try {
-      execSync('npm install express@4.22.1 --no-save', {
+      execSync('npm install express@4.22.1 path-to-regexp@0.1.12 --no-save', {
         cwd: projectRoot,
         stdio: 'inherit',
       });
-      console.log('[postinstall] Express reinstalled (4.22.1).');
+      console.log('[postinstall] Express + path-to-regexp reinstalled.');
     } catch (err) {
       console.error('[postinstall] Failed to reinstall Express:', err.message);
     }
@@ -83,6 +86,24 @@ try {
     if (stillBroken) {
       console.error('[postinstall] Express still incomplete after reinstall. Aborting install.');
       console.error('[postinstall] On Render use: Clear build cache & redeploy.');
+      process.exit(1);
+    }
+  }
+
+  // 3. path-to-regexp must resolve from express/lib/router/layer.js (hoisted or nested)
+  const ptrEntry = path.join(projectRoot, 'node_modules', 'path-to-regexp', 'index.js');
+  if (!checkFile(ptrEntry, 'path-to-regexp/index.js')) {
+    console.warn('[postinstall] Installing missing path-to-regexp@0.1.12...');
+    try {
+      execSync('npm install path-to-regexp@0.1.12 --no-save', {
+        cwd: projectRoot,
+        stdio: 'inherit',
+      });
+    } catch (err) {
+      console.error('[postinstall] path-to-regexp install failed:', err.message);
+    }
+    if (!checkFile(ptrEntry, 'path-to-regexp/index.js')) {
+      console.error('[postinstall] path-to-regexp still missing. Aborting install.');
       process.exit(1);
     }
   }
