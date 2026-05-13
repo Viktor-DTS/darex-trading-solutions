@@ -77,7 +77,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
       el.scrollTop = el.scrollHeight;
     });
     return () => cancelAnimationFrame(id);
-  }, [messages, open, loading, pendingTaskProposal]);
+  }, [messages, open, loading, pendingTaskProposal, taskContextHint]);
 
   const authHeaders = () => {
     const token = localStorage.getItem('token');
@@ -270,12 +270,17 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
         { role: 'assistant', content: reply },
       ]);
 
-      if (data?.taskContext?.requestNumbers?.length || data?.taskContext?.taskModal) {
+      const tc = data?.taskContext;
+      const showTaskCtxHint =
+        tc &&
+        ((tc.requestNumbers?.length ?? 0) > 0 || Boolean(tc.taskModal) || Boolean(tc.discovery));
+      if (showTaskCtxHint && tc) {
         setTaskContextHint({
-          matched: Number(data.taskContext.matched) || 0,
-          requestNumbers: data.taskContext.requestNumbers || [],
-          elevated: Boolean(data.taskContext.elevated),
-          taskModal: data.taskContext.taskModal || null,
+          matched: Number(tc.matched) || 0,
+          requestNumbers: Array.isArray(tc.requestNumbers) ? tc.requestNumbers : [],
+          elevated: Boolean(tc.elevated),
+          taskModal: tc.taskModal ?? null,
+          discovery: tc.discovery ?? null,
         });
       } else {
         setTaskContextHint(null);
@@ -421,7 +426,10 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
             {loading ? <div className="assistant-chat-loading">Асистент думає…</div> : null}
           </div>
 
-          {taskContextHint?.requestNumbers?.length || taskContextHint?.taskModal ? (
+          {taskContextHint?.requestNumbers?.length > 0 ||
+          taskContextHint?.taskModal ||
+          (Array.isArray(taskContextHint?.discovery?.openActions) &&
+            taskContextHint.discovery.openActions.length > 1) ? (
             <div className="assistant-chat-context-hint" role="status">
               {(taskContextHint.requestNumbers || []).length > 0 ? (
                 <span>
@@ -430,6 +438,12 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
                     : taskContextHint.elevated
                       ? `У базі DTS не знайдено заявок з номерами: ${(taskContextHint.requestNumbers || []).join(', ')} (повний доступ адміністратора — перевірте номер або глобальний пошук у системі). `
                       : `У межах вашого доступу не видно заявок: ${(taskContextHint.requestNumbers || []).join(', ')}. `}
+                </span>
+              ) : null}
+              {Array.isArray(taskContextHint?.discovery?.openActions) &&
+              taskContextHint.discovery.openActions.length > 1 ? (
+                <span>
+                  Кілька заявок за результатом пошуку — оберіть кнопку «Відкрити форму» біля потрібного номера нижче.
                 </span>
               ) : null}
               {pendingTaskProposal?.taskId ? (
@@ -445,6 +459,27 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
               taskContextHint.taskModal.reason === 'no_request_number_in_thread' ? (
                 <span>Укажіть номер заявки (наприклад KV-1022), щоб відкрити картку з чату.</span>
               ) : null}
+            </div>
+          ) : null}
+
+          {Array.isArray(taskContextHint?.discovery?.openActions) &&
+          taskContextHint.discovery.openActions.length > 1 ? (
+            <div
+              className="assistant-chat-discovery-open-list"
+              role="group"
+              aria-label="Відкрити заявку з результатів пошуку асистента"
+            >
+              <div className="assistant-chat-discovery-open-title">Відкрити заявку</div>
+              {taskContextHint.discovery.openActions.map((row) => (
+                <button
+                  key={row.taskId}
+                  type="button"
+                  className="assistant-chat-discovery-open-btn"
+                  onClick={() => openTaskFromAssistant(row.taskId)}
+                >
+                  Відкрити форму: {row.requestNumber || row.taskId}
+                </button>
+              ))}
             </div>
           ) : null}
 

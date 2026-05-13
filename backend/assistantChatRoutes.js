@@ -176,6 +176,8 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
 
     /** @type {{ matched: number, requestNumbers: string[], elevated?: boolean, taskModal?: unknown } | undefined} */
     let taskContextPayload = undefined;
+    /** @type {Record<string, unknown> | undefined} */
+    let discoveryMeta = undefined;
     try {
       const tack = await buildTaskContextForLlm(req.user, userMsg, {
         priorUserMessages: priorUserForNumberScan,
@@ -213,9 +215,25 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
       if (disc.textForLlm) {
         contentForChat = `${contentForChat}\n\n${disc.textForLlm}`;
       }
+      const dmeta = disc.meta?.discovery;
+      if (dmeta && typeof dmeta === 'object') {
+        const oa = dmeta.openActions;
+        const attach =
+          (Array.isArray(oa) && oa.length > 1) ||
+          (Number(dmeta.tasks) || 0) > 0 ||
+          (Number(dmeta.clients) || 0) > 0;
+        if (attach) discoveryMeta = dmeta;
+      }
     } catch (e) {
       console.error('[assistant-chat] discovery context:', e?.message || e);
     }
+
+    /** @type {Record<string, unknown> | undefined} */
+    const combinedTaskContext = (() => {
+      const base = taskContextPayload ? { ...taskContextPayload } : {};
+      if (discoveryMeta) Object.assign(base, { discovery: discoveryMeta });
+      return Object.keys(base).length ? base : undefined;
+    })();
 
     lastUserDoc = await Msg.create({
       conversationId,
@@ -248,7 +266,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
         conversationId: String(conversationId),
         reply: assistantContent,
         model: out.model || undefined,
-        taskContext: taskContextPayload,
+        taskContext: combinedTaskContext,
       });
     } catch (e) {
       console.error('[assistant-chat] LLM:', e.code || '', e.message);

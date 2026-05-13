@@ -287,6 +287,9 @@
   background: rgba(14, 116, 184, 0.15);
   border: 1px solid rgba(56, 189, 248, 0.25);
   border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .assistant-chat-compose {
@@ -454,4 +457,44 @@
 
 .assistant-chat-proposal-dismiss:hover {
   background: rgba(255, 255, 255, 0.06);
+}
+
+.assistant-chat-discovery-open-list {
+  flex-shrink: 0;
+  margin: 0 10px 8px;
+  padding: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 8px;
+  background: rgba(30, 58, 138, 0.2);
+}
+
+.assistant-chat-discovery-open-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #93c5fd;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.assistant-chat-discovery-open-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  text-align: left;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.55);
+  background: rgba(59, 130, 246, 0.18);
+  color: #dbeafe;
+  cursor: pointer;
+}
+
+.assistant-chat-discovery-open-btn:hover {
+  background: rgba(59, 130, 246, 0.32);
+}
+
+.assistant-chat-discovery-open-btn:last-of-type {
+  margin-bottom: 0;
 }

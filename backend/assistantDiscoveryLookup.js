@@ -549,7 +549,7 @@ function formatMultiTaskDiscoveryOverview(tasks, ctx, accessNote) {
     `[DTS-discovery] Знайдено кілька заявок (${tasks.length}) за вашим пошуком. ${accessNote}\n` +
     'Перелік (лише доступні цьому користувачу):\n' +
     `${lines.join('\n')}\n` +
-    '\n[DTS/UI-action-discovery] Попросіть користувача вказати **один** номер заявки (наприклад KV-0000997), який цікавить; досі не стверджуйте, що відкрито картку. Після явного номера у наступному повідомленні сервер підставить повні дані заявки з [DTS], якщо номер відомий.'
+    '\n[DTS/UI-action-discovery] У веб-клієнті DTS під панеллю чату з’явилися окремі кнопки «Відкрити форму» для кожного номера нижче. Не просіть користувача набити номер заявки в чаті — він може просто натиснути кнопку. Формат відповіді: короткий перелік із датою проведення робіт та полем збігів для кожного рядка.'
   );
 }
 
@@ -747,8 +747,16 @@ async function buildDiscoveryContextForLlm(userJwt, messageText, opts = {}) {
 
   let note =
     tasks.length > 1
-      ? `\n\n[DTS-hint] Дайте перелік номерів уже з датою проведення робіт або службовою датою «Виконано», спитайте один номер для деталей; не розгортайте повні картки кожної заявки одразу.`
+      ? `\n\n[DTS-hint] Дайте стисло перелік із датами; не просіть уточнити номер у чаті — для кожної заявки є кнопка відкриття форми під чатом.`
       : `\n\n[DTS-hint] Передай структуровано поля з [DTS]: ЄДРПОУ, контактна особа, телефон стримано, заводський/серійний номер, дата проведення робіт (як у блоці [DTS-discovery]).`;
+
+  const openActions =
+    tasks.length > 1
+      ? tasks.map((t) => ({
+          taskId: String(t._id),
+          requestNumber: String(t.requestNumber || '').trim() || undefined,
+        }))
+      : undefined;
 
   return {
     textForLlm: `${sections.join('\n')}${note}`,
@@ -757,6 +765,7 @@ async function buildDiscoveryContextForLlm(userJwt, messageText, opts = {}) {
         clients: clients.length,
         tasks: tasks.length,
         multiTaskMatches: tasks.length > 1,
+        ...(openActions && openActions.length ? { openActions } : {}),
       },
     },
   };
