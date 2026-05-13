@@ -17,6 +17,62 @@ function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const REQUEST_NUM_PAD_MIN = 3;
+const REQUEST_NUM_PAD_MAX = 12;
+
+/**
+ * Однакова заявка: KV-997 у чаті vs KV-0000997 у БД — узгодження за числовим значенням суфікса.
+ * @param {string} rawToken
+ * @returns {string[]}
+ */
+function expandRequestNumberVariants(rawToken) {
+  const trimmed = String(rawToken || '')
+    .trim()
+    .replace(/\s+/g, '');
+  const um = trimmed.match(/^([A-Za-zА-Яа-яІіЇїЄєҐґ]+)-(\d{1,12})$/u);
+  if (!um) {
+    return [trimmed];
+  }
+  const prefix = um[1];
+  const digitsStr = um[2];
+  const normalizedNum = parseInt(digitsStr, 10);
+  if (!Number.isFinite(normalizedNum) || normalizedNum < 0) {
+    return [trimmed];
+  }
+
+  const out = new Set();
+  out.add(`${prefix}-${digitsStr}`);
+  out.add(`${prefix}-${normalizedNum}`);
+  for (let w = REQUEST_NUM_PAD_MIN; w <= REQUEST_NUM_PAD_MAX; w++) {
+    out.add(`${prefix}-${String(normalizedNum).padStart(w, '0')}`);
+  }
+  return [...out];
+}
+
+/**
+ * Один згаданий номер -> умова Mongo по полю requestNumber ($or декількох точних regex).
+ * @param {string} token
+ * @returns {Record<string, unknown>}
+ */
+function tokenToRequestNumberBranch(token) {
+  const variants = expandRequestNumberVariants(token);
+  const rx = variants.map((v) => ({
+    requestNumber: new RegExp(`^\\s*${escapeRegex(v)}\\s*$`, 'i'),
+  }));
+  return rx.length === 1 ? rx[0] : { $or: rx };
+}
+
+/**
+ * Кілька номерів з повідомлення — збіг із будь-яким (кожен з варіантами padding).
+ * @param {string[]} nums
+ * @returns {Record<string, unknown>}
+ */
+function buildRequestNumbersFilter(nums) {
+  const branches = nums.map((n) => tokenToRequestNumberBranch(n));
+  if (branches.length === 1) return branches[0];
+  return { $or: branches };
+}
+
 /**
  * Виділяє номери заявок на кшталт KV-1022, NU - 0045 тощо.
  * @param {string} text
@@ -25,7 +81,7 @@ function escapeRegex(s) {
 function extractRequestNumbers(text) {
   const s = String(text || '');
   const found = new Set();
-  const re = /\b([A-Za-zА-Яа-яІіЇїЄєҐґ]{1,12})\s*-\s*(\d{2,10})\b/g;
+  const re = /\b([A-Za-zА-Яа-яІіЇїЄєҐґ]{1,12})\s*-\s*(\d{1,12})\b/g;
   let m;
   while ((m = re.exec(s)) !== null) {
     const left = String(m[1] || '').replace(/\s+/g, '');
@@ -283,11 +339,7 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
   const elevated = isElevatedRole(jwtRole) || isElevatedRole(dbRole);
   const isManagerOnly = !elevated && (jwtRole === 'manager' || dbRole === 'manager');
 
-  const numberOr = {
-    $or: nums.map((n) => ({
-      requestNumber: new RegExp(`^\\s*${escapeRegex(n)}\\s*$`, 'i'),
-    })),
-  };
+  const numberOr = buildRequestNumbersFilter(nums);
 
   /** @type {Record<string, unknown>} */
   let filter;
@@ -318,12 +370,12 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
   if (tasks.length === 0) {
     const numList = nums.join(', ');
     const hintElevated =
-      `[DTS] За номером(ами) «${numList}» запису сервісної заявки в базі DTS не знайдено. ` +
-      'Для облікового запису з правами адміністратора це означає саме відсутність такого номера в даних (помилка в номері, інший формат збереження або заявку ще не створювали) — ' +
-      'не пояснюй це як «нема авторизації» чи необхідність «зареєструватись» у DTS. Запропонуй перевірити номер або глобальний пошук / вкладку з таблицею заявок. Не вигадай поля заявки.';
+      `[DTS] За номером(ами) «${numList}» (перевірені також еквівалентні формати суфікса з ведучими нулями, як-от KV-0000997 замість KV-997) запису заявки в базі DTS не знайдено. ` +
+      'Для облікового запису з правами адміністратора це зазвичай означає відсутність запису серед відомих номерів або зовсім інший текст у полі requestNumber у БД — ' +
+      'не пояснюй це як «нема авторизації». Запропонуй глобальний пошук у DTS за повним номером з екрану. Не вигадай поля заявки.';
     const hintScoped =
-      `[DTS] У діалозі згадано номер(и) «${numList}»; у межах вашого профілю (регіон, роль, закріплені клієнти або інженерські призначення) відповідного запису в DTS не видно. ` +
-      'Див. [DTS/User]. Відкрийте заявку безпосередньо в системі на відповідній панелі. Не вигадайте дані заявки.';
+      `[DTS] У діалозі згадано номер(и) «${numList}» (перевірені варіанти з ведучими нулями в суфіксі); у межах вашого профілю відповідного запису в DTS не видно. ` +
+      'Див. [DTS/User]. Відкрийте заявку в системі. Не вигадайте дані заявки.';
     const hint = elevated ? hintElevated : hintScoped;
     return { textForLlm: hint, meta };
   }
@@ -337,6 +389,7 @@ async function buildTaskContextForLlm(userJwt, messageText, opts = {}) {
 module.exports = {
   extractRequestNumbers,
   collectRequestNumbers,
+  expandRequestNumberVariants,
   buildTaskContextForLlm,
   ASSISTANT_PRIOR_SCAN: {
     maxMessages: MAX_PRIOR_USER_MESSAGES,
