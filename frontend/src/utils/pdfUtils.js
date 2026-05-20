@@ -127,6 +127,153 @@ export async function loadPdfKeys(urls, onProgress = null) {
 }
 
 /**
+ * Групує текстові елементи PDF.js у рядки за Y-координатою (зверху вниз).
+ * @param {{ items?: Array<{ str?: string, transform?: number[] }> }} textContent
+ * @returns {string[]}
+ */
+function getPdfPageLinesFromTextContent(textContent) {
+  const items = (textContent?.items || [])
+    .map((item) => ({
+      str: item.str != null ? String(item.str).trim() : '',
+      y: Array.isArray(item.transform) ? item.transform[5] : 0,
+      x: Array.isArray(item.transform) ? item.transform[4] : 0,
+    }))
+    .filter((item) => item.str !== '');
+
+  items.sort((a, b) => {
+    const dy = b.y - a.y;
+    if (Math.abs(dy) > 3) return dy > 0 ? -1 : 1;
+    return a.x - b.x;
+  });
+
+  const lines = [];
+  let bucket = [];
+  let lastY = null;
+  const Y_TOLERANCE = 5;
+
+  for (const item of items) {
+    if (lastY !== null && Math.abs(item.y - lastY) > Y_TOLERANCE) {
+      if (bucket.length) lines.push(bucket.map((i) => i.str).join(' '));
+      bucket = [];
+    }
+    bucket.push(item);
+    lastY = item.y;
+  }
+  if (bucket.length) lines.push(bucket.map((i) => i.str).join(' '));
+
+  return lines;
+}
+
+/** Збирає текст першої сторінки: рядки + плоский варіант */
+function buildPdfPageTextVariants(textContent) {
+  const lines = getPdfPageLinesFromTextContent(textContent);
+  const lineJoined = lines.join('\n');
+  const flatJoined = (textContent?.items || [])
+    .map((item) => (item.str != null ? String(item.str).trim() : ''))
+    .filter(Boolean)
+    .join(' ');
+  return { lines, lineJoined, flatJoined };
+}
+
+const UK_MONTH_TO_MM = {
+  січня: '01',
+  січень: '01',
+  лютого: '02',
+  лютий: '02',
+  березня: '03',
+  березень: '03',
+  квітня: '04',
+  квітень: '04',
+  травня: '05',
+  травень: '05',
+  червня: '06',
+  червень: '06',
+  липня: '07',
+  липень: '07',
+  серпня: '08',
+  серпень: '08',
+  вересня: '09',
+  вересень: '09',
+  жовтня: '10',
+  жовтень: '10',
+  листопада: '11',
+  листопад: '11',
+  грудня: '12',
+  грудень: '12',
+};
+
+function normalizeContractNumberToken(raw) {
+  let s = String(raw || '').replace(/\u00A0/g, ' ').trim();
+
+  const stops = [
+    /\s+м\.?\s*[А-ЯІЇЄҐA-Za-z]/iu,
+    /\s+місто\s+/iu,
+    /\s+(?:19|20)\d{2}(?:-\d{2}-\d{2})?/u,
+    /\s+про\s+/iu,
+    /\s+на\s+(?:дання|виконання)/iu,
+    /\s+«/u,
+    /\s+\d{1,2}\s*[»"']?\s+(?:січня|лютого|березня|квітня|травня|червня|липня|серпня|вересня|жовтня|листопада|грудня)/iu,
+  ];
+  for (const re of stops) {
+    const idx = s.search(re);
+    if (idx > 0) s = s.slice(0, idx);
+  }
+
+  s = s.replace(/((?:19|20)\d{2})-(\d{2})-(\d{2}).*$/u, '');
+  s = s.replace(/((?:19|20)\d{2})$/u, '');
+
+  s = s.replace(/^[«"'(\[\s]+/, '').replace(/[»"')\]\s,;:]+$/, '');
+  s = s.replace(/\s+/g, '');
+  return s.trim();
+}
+
+function parseUkrainianTextDate(text) {
+  const t = String(text || '');
+  const m = t.match(
+    /[«"']?\s*(\d{1,2})\s*[»"']?\s+(січня|січень|лютого|лютий|березня|березень|квітня|квітень|травня|травень|червня|червень|липня|липень|серпня|серпень|вересня|вересень|жовтня|жовтень|листопада|листопад|грудня|грудень)\s+(\d{4})\s*(?:р\.?)?/iu,
+  );
+  if (!m) return '';
+  const mm = UK_MONTH_TO_MM[m[2].toLowerCase()];
+  if (!mm) return '';
+  const dd = m[1].padStart(2, '0');
+  return `${m[3]}-${mm}-${dd}`;
+}
+
+function extractContractNumberFromText(headSlice) {
+  const patterns = [
+    /(?:ДОГОВІР|Договор|договор|ДОГОВОР|договору)\s*[:\-]?\s*([\u2116]|№|N[oо°#])\s*([0-9A-Za-zА-ЯІЇЄҐа-яёїєґ\-_/\.]+(?:\s+[0-9A-Za-zА-ЯІЇЄҐа-яёїєґ\-_/\.]+){0,4})/iu,
+    /(?:ДОГОВІР|Договор|договор|ДОГОВОР|договору)[\s\S]{0,120}?([\u2116]|№|N[oо°#])\s*([0-9A-Za-zА-ЯІЇЄҐа-яёїєґ\-_/\.]+(?:\s+[0-9A-Za-zА-ЯІЇЄҐа-яёїєґ\-_/\.]+){0,4})/iu,
+    /([\u2116]|№|N[oо°#])\s*([A-Za-zА-ЯІЇЄҐа-яёїєґ]{0,4}[\-./]?[0-9A-Za-zА-ЯІЇЄҐа-яёїєґ\-_/\.]+(?:\s+[0-9A-Za-zА-ЯІЇЄҐа-яёїєґ\-_/\.]+){0,3})/u,
+  ];
+
+  for (const re of patterns) {
+    const m = headSlice.match(re);
+    if (!m) continue;
+    const candidate = normalizeContractNumberToken(m[2] || '');
+    if (candidate.length >= 2 && candidate.length <= 32) {
+      return candidate;
+    }
+  }
+  return '';
+}
+
+function extractContractDateFromText(headSlice) {
+  const isoM = headSlice.match(/\b(19\d{2}|20\d{2})-(\d{2})-(\d{2})\b/);
+  if (isoM) return `${isoM[1]}-${isoM[2]}-${isoM[3]}`;
+
+  const dm = headSlice.match(/\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b/u);
+  if (dm) {
+    const [, ddRaw, mmRaw, yyyy] = dm;
+    return `${yyyy}-${mmRaw.padStart(2, '0')}-${ddRaw.padStart(2, '0')}`;
+  }
+
+  const uk = parseUkrainianTextDate(headSlice);
+  if (uk) return uk;
+
+  return '';
+}
+
+/**
  * Об'єднує текст першої сторінки PDF (порядок елементів — як видає PDF.js).
  * @param {*} pdfDoc
  * @returns {Promise<string>}
@@ -134,63 +281,54 @@ export async function loadPdfKeys(urls, onProgress = null) {
 async function getPdfFirstPagePlainText(pdfDoc) {
   const firstPage = await pdfDoc.getPage(1);
   const textContent = await firstPage.getTextContent();
-  const chunks = [];
-  for (const item of textContent.items || []) {
-    const s = item.str != null ? String(item.str) : '';
-    const t = s.trim();
-    if (t !== '') chunks.push(t);
-  }
-  return chunks.join(' ');
+  const { lineJoined } = buildPdfPageTextVariants(textContent);
+  return lineJoined;
 }
 
 /**
  * Визначення номера та дати договору з уже зчитаного тексту першої сторінки.
- * Стійко до пробілів/перенесень; орієнтир — шапка «ДОГОВІР … № …» та ISO-дата або дд.мм.рррр.
+ * Підтримує: «ДОГОВІР № 15ТО25», «№ П-0156625», ISO / дд.мм.рррр, ««18» липня 2025 р.».
  * @param {string} plainText
  * @returns {{ contractNumber: string, contractDate: string }}
  */
 export function parseContractMetaFromPdfPlainText(plainText) {
-  let contractNumber = '';
-  let contractDate = '';
+  const raw = String(plainText || '');
+  const flat = raw.replace(/\s+/g, ' ').trim();
+  const headFlat = flat.length > 5000 ? flat.slice(0, 5000) : flat;
+  const headMultiline = raw.length > 5000 ? raw.slice(0, 5000) : raw;
 
-  const text = String(plainText || '').replace(/\s+/g, ' ').trim();
-  const headSlice = text.length > 4000 ? text.slice(0, 4000) : text;
-  const nbsp = /\u00A0/g;
+  let contractNumber = extractContractNumberFromText(headMultiline);
+  if (!contractNumber) contractNumber = extractContractNumberFromText(headFlat);
 
-  const afterDogovir = headSlice.match(
-    /(?:ДОГОВІР|Договор|договор|ДОГОВОР|договору)[\s\S]*?([\u2116]|№|N[oо°])\s*[:\.]?\s*([^\s;:]{1,64})/iu
-  );
-  const genericNo =
-    !afterDogovir &&
-    headSlice.match(
-      /([\u2116]|№|N[oо°])\s*[:\.]?\s*([A-Za-zА-ЯІЇЄҐа-іяїєґ]{0,3}[\-./]?[A-Za-zА-ЯІЇЄҐа-іяїєґ0-9\-/_]+(?:\.[A-Za-zА-ЯІЇЄҐа-іяїєґ0-9\-/_]+)?)/u
-    );
-
-  const noMatch = afterDogovir || genericNo;
-  if (noMatch) {
-    contractNumber = String(noMatch[2] || '')
-      .replace(nbsp, ' ')
-      .replace(/^[,.;:]+/, '')
-      .replace(/[,;:]+$/, '')
-      .trim();
-  }
-
-  const isoM = headSlice.match(/\b(19\d{2}|20\d{2})-(\d{2})-(\d{2})\b/);
-  if (isoM) {
-    contractDate = `${isoM[1]}-${isoM[2]}-${isoM[3]}`;
-  }
-
-  if (!contractDate) {
-    const dm = headSlice.match(/\b(\d{2})\.(\d{2})\.(\d{4})\b/u);
-    if (dm) {
-      const [, dd, mm, yyyy] = dm;
-      contractDate = `${yyyy}-${mm}-${dd}`;
-    }
-  }
+  let contractDate = extractContractDateFromText(headMultiline);
+  if (!contractDate) contractDate = extractContractDateFromText(headFlat);
 
   return {
     contractNumber: contractNumber || '',
-    contractDate: contractDate || ''
+    contractDate: contractDate || '',
+  };
+}
+
+function parseContractMetaFromTextContent(textContent) {
+  const { lines, lineJoined, flatJoined } = buildPdfPageTextVariants(textContent);
+
+  let contractNumber = '';
+  let contractDate = '';
+
+  for (const line of lines.slice(0, 40)) {
+    if (!contractNumber && /(?:ДОГОВІР|договор|[\u2116]|№)/iu.test(line)) {
+      contractNumber = extractContractNumberFromText(line);
+    }
+    if (!contractDate) {
+      contractDate = extractContractDateFromText(line);
+    }
+    if (contractNumber && contractDate) break;
+  }
+
+  const merged = parseContractMetaFromPdfPlainText(`${lineJoined}\n${flatJoined}`);
+  return {
+    contractNumber: contractNumber || merged.contractNumber,
+    contractDate: contractDate || merged.contractDate,
   };
 }
 
@@ -222,8 +360,7 @@ export async function analyzeContractPdfByUrl(pdfUrl) {
       .filter((str) => String(str).trim() !== '');
     const firstThreeLines = textItems.slice(0, 3);
     const pdfKey = firstThreeLines.join('|').toLowerCase().trim() || pdfUrl;
-    const plainJoined = textItems.join(' ');
-    const meta = parseContractMetaFromPdfPlainText(plainJoined);
+    const meta = parseContractMetaFromTextContent(textContent);
 
     return { pdfKey, meta };
   } catch (e) {
@@ -260,8 +397,9 @@ export async function extractContractMetaFromPdf(source = {}) {
     }
 
     const pdf = await loadingTask.promise;
-    const plainText = await getPdfFirstPagePlainText(pdf);
-    return parseContractMetaFromPdfPlainText(plainText);
+    const firstPage = await pdf.getPage(1);
+    const textContent = await firstPage.getTextContent();
+    return parseContractMetaFromTextContent(textContent);
   } catch (e) {
     console.warn('[PDF] extractContractMetaFromPdf:', e?.message || e);
     return { contractNumber: '', contractDate: '' };

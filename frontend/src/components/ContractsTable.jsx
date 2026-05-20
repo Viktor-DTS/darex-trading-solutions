@@ -5,7 +5,7 @@ import './ContractsTable.css';
 
 /** v1 — лише pdfKey рядком; v2 — об'єкт { pdfKey, contractNumber, contractDate } */
 const PDF_LEGACY_KEYS_PREFIX = 'darex-contracts-pdf-keys-v1:';
-const PDF_ANALYSIS_STORAGE_PREFIX = 'darex-contracts-pdf-analysis-v1:';
+const PDF_ANALYSIS_STORAGE_PREFIX = 'darex-contracts-pdf-analysis-v2:';
 
 function storageSuffixForUser(user) {
   const id = user?.login || user?.username || user?.email || 'default';
@@ -191,12 +191,14 @@ function ContractsTable({ user }) {
 
   const loadPdfAnalysisForUrl = useCallback(
     async (url) => {
-      if (
-        !url ||
-        pdfAnalysisByUrl.has(url) ||
-        pdfAnalysisLoadingUrls.has(url)
-      ) {
-        return;
+      if (!url || pdfAnalysisLoadingUrls.has(url)) return;
+
+      const existing = pdfAnalysisByUrl.get(url);
+      if (existing) {
+        const hasMeta =
+          String(existing.contractNumber || '').trim() ||
+          String(existing.contractDate || '').trim();
+        if (hasMeta) return;
       }
 
       setPdfAnalysisLoadingUrls((prev) => new Set(prev).add(url));
@@ -251,6 +253,12 @@ function ContractsTable({ user }) {
             continue;
           }
           const { legacyKeyOnly: _drop, ...rest } = row;
+          if (
+            !String(rest.contractNumber || '').trim() &&
+            !String(rest.contractDate || '').trim()
+          ) {
+            continue;
+          }
           next.set(u, rest);
           restored++;
         }
@@ -268,7 +276,12 @@ function ContractsTable({ user }) {
     const uniqueUrls = new Set();
     tasks.forEach((task) => {
       const url = getContractFileUrl(task.contractFile);
-      if (url && !pdfAnalysisByUrl.has(url)) uniqueUrls.add(url);
+      if (!url) return;
+      const row = pdfAnalysisByUrl.get(url);
+      const hasMeta =
+        row &&
+        (String(row.contractNumber || '').trim() || String(row.contractDate || '').trim());
+      if (!row || !hasMeta) uniqueUrls.add(url);
     });
 
     if (uniqueUrls.size > 0) {
