@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import API_BASE_URL from '../config';
-import { getPdfUniqueKey } from '../utils/pdfUtils';
+import { getPdfUniqueKey, extractContractMetaFromPdf } from '../utils/pdfUtils';
 import { getEdrpouList, getEquipmentTypes, getEquipmentData } from '../utils/edrpouAPI';
 import FileUpload from './FileUpload';
 import InvoiceRequestBlock from './InvoiceRequestBlock';
@@ -9,6 +9,14 @@ import EquipmentDataSelectionModal from './EquipmentDataSelectionModal';
 import './AddTaskModal.css';
 
 const normalizeEdrpou = (s) => (s || '').toString().trim().toLowerCase();
+
+function getContractFileUrlString(contractFile) {
+  if (contractFile == null) return '';
+  if (typeof contractFile === 'string') return contractFile.trim();
+  const u =
+    contractFile.url || contractFile.href || contractFile.secure_url || contractFile.publicUrl || '';
+  return String(u).trim();
+}
 
 // Функція для отримання коду регіону
 const getRegionCode = (region) => {
@@ -212,6 +220,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
     paymentType: 'не вибрано',
     invoiceRecipientDetails: '',
     contractFile: '', // Файл договору
+    contractNumber: '',
+    contractDate: '',
     equipment: '',
     equipmentSerial: '',
     engineModel: '',
@@ -303,6 +313,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   // Стан для файлу договору
   const [contractFileUploading, setContractFileUploading] = useState(false);
   const contractFileInputRef = useRef(null);
+  const lastContractPdfBackfillKeyRef = useRef('');
   const [showContractSelector, setShowContractSelector] = useState(false);
   const [existingContracts, setExistingContracts] = useState([]);
   const [contractsLoading, setContractsLoading] = useState(false);
@@ -513,6 +524,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           invoiceRequestId: updatedTask.invoiceRequestId,
           invoiceFile: updatedTask.invoiceFile || prevFormData.invoiceFile,
           invoiceFileName: updatedTask.invoiceFileName || prevFormData.invoiceFileName,
+          contractNumber:
+            updatedTask.contractNumber !== undefined ? updatedTask.contractNumber : prevFormData.contractNumber,
+          contractDate:
+            updatedTask.contractDate !== undefined && updatedTask.contractDate !== null && updatedTask.contractDate !== ''
+              ? formatDateOnly(updatedTask.contractDate)
+              : prevFormData.contractDate,
           invoice: updatedTask.invoice || prevFormData.invoice,
           needInvoice: updatedTask.needInvoice !== undefined ? updatedTask.needInvoice : prevFormData.needInvoice,
           needAct: updatedTask.needAct !== undefined ? updatedTask.needAct : prevFormData.needAct
@@ -543,6 +560,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           requestNumber: initialData.requestNumber || '',
           // Файл договору
           contractFile: initialData.contractFile || '',
+          contractNumber: initialData.contractNumber || '',
+          contractDate: formatDateOnly(initialData.contractDate),
           // Форматуємо дати для date inputs
           requestDate: formatDateOnly(initialData.requestDate),
           date: formatDateOnly(initialData.date),
@@ -577,6 +596,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             requestNumber: '',
             requestAuthor: user?.name || user?.login || '',
             contractFile: initialData.contractFile || '',
+            contractNumber: '',
+            contractDate: '',
             requestDate: formatDateOnly(initialData.requestDate) || initialFormData.requestDate,
             plannedDate: '',
             date: '',           // дата виконанання — не копіюємо
@@ -620,6 +641,93 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       setError(null);
     }
   }, [open, user, isNewTask, initialData]);
+
+  useEffect(() => {
+    lastContractPdfBackfillKeyRef.current = '';
+  }, [open, initialData?._id, initialData?.id]);
+
+  // Якщо в заявці вже є PDF договору, але ще немає номера/дати — зчитуємо з першої сторінки і зберігаємо в БД
+  useEffect(() => {
+    if (!open || isReadOnly || isNewTask) return;
+
+    const taskId = initialData?._id || initialData?.id;
+    const url = getContractFileUrlString(formData.contractFile);
+    if (!taskId || !url) return;
+
+    const needNumber = !(formData.contractNumber || '').trim();
+    const needDate = !(formData.contractDate || '').trim();
+    if (!needNumber && !needDate) return;
+
+    const key = `${taskId}|${url}`;
+    if (lastContractPdfBackfillKeyRef.current === key) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const meta = await extractContractMetaFromPdf({ url });
+        if (cancelled) return;
+
+        const patch = {};
+        if (needNumber && meta.contractNumber && String(meta.contractNumber).trim()) {
+          patch.contractNumber = String(meta.contractNumber).trim();
+        }
+        if (needDate && meta.contractDate && String(meta.contractDate).trim()) {
+          patch.contractDate = formatDateOnly(meta.contractDate);
+        }
+
+        if (!Object.keys(patch).length) {
+          lastContractPdfBackfillKeyRef.current = key;
+          return;
+        }
+
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(patch)
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const savedTask = await response.json();
+        if (cancelled) return;
+
+        setFormData((prev) => ({
+          ...prev,
+          ...(patch.contractNumber != null ? { contractNumber: patch.contractNumber } : {}),
+          ...(patch.contractDate != null ? { contractDate: patch.contractDate } : {})
+        }));
+
+        if (onSave) {
+          onSave(savedTask, { keepModalOpen: true });
+        }
+
+        lastContractPdfBackfillKeyRef.current = key;
+      } catch (e) {
+        console.warn('[CONTRACT] Не вдалося автоматично зчитати договір із PDF:', e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    open,
+    isReadOnly,
+    isNewTask,
+    initialData?._id,
+    initialData?.id,
+    formData.contractFile,
+    formData.contractNumber,
+    formData.contractDate,
+    onSave
+  ]);
 
   // Ініціалізація Google Places Autocomplete для поля адреси
   useEffect(() => {
@@ -1093,9 +1201,26 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       if (response.ok) {
         const result = await response.json();
         console.log('[DEBUG] Файл договору завантажено:', result);
-        setFormData(prev => ({
+
+        let meta = { contractNumber: '', contractDate: '' };
+        try {
+          meta = await extractContractMetaFromPdf({ file });
+        } catch (parseErr) {
+          console.warn('[CONTRACT] Парсинг PDF після завантаження:', parseErr);
+        }
+
+        const parsedDate =
+          meta.contractDate && String(meta.contractDate).trim()
+            ? formatDateOnly(meta.contractDate)
+            : '';
+
+        setFormData((prev) => ({
           ...prev,
-          contractFile: result.url || result.fileUrl || result.path
+          contractFile: result.url || result.fileUrl || result.path,
+          ...(meta.contractNumber && String(meta.contractNumber).trim()
+            ? { contractNumber: String(meta.contractNumber).trim() }
+            : {}),
+          ...(parsedDate ? { contractDate: parsedDate } : {})
         }));
       } else {
         const errorText = await response.text();
@@ -1113,9 +1238,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   // Видалення файлу договору
   const handleRemoveContractFile = () => {
     if (isReadOnly) return;
-    setFormData(prev => ({
+    lastContractPdfBackfillKeyRef.current = '';
+    setFormData((prev) => ({
       ...prev,
-      contractFile: ''
+      contractFile: '',
+      contractNumber: '',
+      contractDate: ''
     }));
     if (contractFileInputRef.current) {
       contractFileInputRef.current.value = '';
@@ -1280,11 +1408,33 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   // Вибір існуючого договору
   const handleSelectExistingContract = (contract) => {
     if (isReadOnly) return;
-    setFormData(prev => ({
+    const url = contract?.url || '';
+    setFormData((prev) => ({
       ...prev,
-      contractFile: contract.url
+      contractFile: url
     }));
     setShowContractSelector(false);
+
+    if (!url) return;
+    (async () => {
+      try {
+        const meta = await extractContractMetaFromPdf({ url });
+        if (!meta.contractNumber?.trim() && !meta.contractDate?.trim()) return;
+        const parsedDate =
+          meta.contractDate && String(meta.contractDate).trim()
+            ? formatDateOnly(meta.contractDate)
+            : '';
+        setFormData((prev) => ({
+          ...prev,
+          ...(meta.contractNumber && String(meta.contractNumber).trim()
+            ? { contractNumber: String(meta.contractNumber).trim() }
+            : {}),
+          ...(parsedDate ? { contractDate: parsedDate } : {})
+        }));
+      } catch (e) {
+        console.warn('[CONTRACT] Парсинг існуючого PDF за URL:', e);
+      }
+    })();
   };
 
   // Відкриття вибору існуючих договорів
@@ -2156,6 +2306,38 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                   </div>
                 </div>
                 
+                {/* Номер і дата договору — підставляються з першої сторінки PDF після завантаження або при відкритті заявки */}
+                <div className="form-row four-cols">
+                  <div className="form-group">
+                    <label>Номер договору</label>
+                    <input
+                      type="text"
+                      name="contractNumber"
+                      value={formData.contractNumber || ''}
+                      onChange={handleChange}
+                      readOnly={isReadOnly}
+                      disabled={isReadOnly}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Дата договору</label>
+                    <input
+                      type="date"
+                      name="contractDate"
+                      value={formData.contractDate || ''}
+                      onChange={handleChange}
+                      readOnly={isReadOnly}
+                      disabled={isReadOnly}
+                    />
+                  </div>
+                  <div className="form-group">
+                    {/* резерв місця під сітку four-cols */}
+                  </div>
+                  <div className="form-group">
+                    {/* резерв місця під сітку four-cols */}
+                  </div>
+                </div>
+
                 {/* Файл договору */}
                 <div className="contract-file-block">
                   <label>Файл договору</label>

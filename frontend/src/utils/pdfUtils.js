@@ -125,3 +125,107 @@ export async function loadPdfKeys(urls, onProgress = null) {
   
   return keysMap;
 }
+
+/**
+ * Об'єднує текст першої сторінки PDF (порядок елементів — як видає PDF.js).
+ * @param {*} pdfDoc
+ * @returns {Promise<string>}
+ */
+async function getPdfFirstPagePlainText(pdfDoc) {
+  const firstPage = await pdfDoc.getPage(1);
+  const textContent = await firstPage.getTextContent();
+  const chunks = [];
+  for (const item of textContent.items || []) {
+    const s = item.str != null ? String(item.str) : '';
+    const t = s.trim();
+    if (t !== '') chunks.push(t);
+  }
+  return chunks.join(' ');
+}
+
+/**
+ * Визначення номера та дати договору з уже зчитаного тексту першої сторінки.
+ * Стійко до пробілів/перенесень; орієнтир — шапка «ДОГОВІР … № …» та ISO-дата або дд.мм.рррр.
+ * @param {string} plainText
+ * @returns {{ contractNumber: string, contractDate: string }}
+ */
+export function parseContractMetaFromPdfPlainText(plainText) {
+  let contractNumber = '';
+  let contractDate = '';
+
+  const text = String(plainText || '').replace(/\s+/g, ' ').trim();
+  const headSlice = text.length > 4000 ? text.slice(0, 4000) : text;
+  const nbsp = /\u00A0/g;
+
+  const afterDogovir = headSlice.match(
+    /(?:ДОГОВІР|Договор|договор|ДОГОВОР|договору)[\s\S]*?([\u2116]|№|N[oо°])\s*[:\.]?\s*([^\s;:]{1,64})/iu
+  );
+  const genericNo =
+    !afterDogovir &&
+    headSlice.match(
+      /([\u2116]|№|N[oо°])\s*[:\.]?\s*([A-Za-zА-ЯІЇЄҐа-іяїєґ]{0,3}[\-./]?[A-Za-zА-ЯІЇЄҐа-іяїєґ0-9\-/_]+(?:\.[A-Za-zА-ЯІЇЄҐа-іяїєґ0-9\-/_]+)?)/u
+    );
+
+  const noMatch = afterDogovir || genericNo;
+  if (noMatch) {
+    contractNumber = String(noMatch[2] || '')
+      .replace(nbsp, ' ')
+      .replace(/^[,.;:]+/, '')
+      .replace(/[,;:]+$/, '')
+      .trim();
+  }
+
+  const isoM = headSlice.match(/\b(19\d{2}|20\d{2})-(\d{2})-(\d{2})\b/);
+  if (isoM) {
+    contractDate = `${isoM[1]}-${isoM[2]}-${isoM[3]}`;
+  }
+
+  if (!contractDate) {
+    const dm = headSlice.match(/\b(\d{2})\.(\d{2})\.(\d{4})\b/u);
+    if (dm) {
+      const [, dd, mm, yyyy] = dm;
+      contractDate = `${yyyy}-${mm}-${dd}`;
+    }
+  }
+
+  return {
+    contractNumber: contractNumber || '',
+    contractDate: contractDate || ''
+  };
+}
+
+/**
+ * Перша сторінка PDF → номер і дата договору.
+ * Передано локальний `File` (після вибору) або віддалений `url` (Cloudinary тощо).
+ * @param {{ url?: string, file?: File | Blob }} source
+ * @returns {Promise<{ contractNumber: string, contractDate: string }>}
+ */
+export async function extractContractMetaFromPdf(source = {}) {
+  const { url, file } = source;
+  try {
+    if (!url && !file) return { contractNumber: '', contractDate: '' };
+
+    const pdfjs = await loadPdfJs();
+
+    let loadingTask;
+    if (file) {
+      const data = await file.arrayBuffer();
+      loadingTask = pdfjs.getDocument({ data });
+    } else if (typeof url === 'string' && url.trim()) {
+      loadingTask = pdfjs.getDocument({
+        url: url.trim(),
+        httpHeaders: {},
+        withCredentials: false
+      });
+    } else {
+      return { contractNumber: '', contractDate: '' };
+    }
+
+    const pdf = await loadingTask.promise;
+    const plainText = await getPdfFirstPagePlainText(pdf);
+    return parseContractMetaFromPdfPlainText(plainText);
+  } catch (e) {
+    console.warn('[PDF] extractContractMetaFromPdf:', e?.message || e);
+    return { contractNumber: '', contractDate: '' };
+  }
+}
