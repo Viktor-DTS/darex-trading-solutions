@@ -1178,7 +1178,8 @@
 .contract-selector-num-cell,
 .contract-selector-date-cell {
   font-size: 11px;
-  color: var(--text-primary);
+  color: #e53935;
+  font-weight: 600;
   line-height: 1.35;
   word-break: break-word;
 }
