@@ -289,7 +289,7 @@
 
 /* Модальне вікно */
 .contract-modal {
-  max-width: 900px;
+  max-width: 960px;
   max-height: 80vh;
 }
 
@@ -388,6 +388,112 @@
   background: #3b82f6;
 }
 
+/* Оптимізований рядок договору: номер/дата + файл */
+.contract-file-item.contract-file-item--optimized {
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.contract-file-main {
+  flex: 1;
+  min-width: min(280px, 100%);
+}
+
+.contract-file-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 8px;
+}
+
+.contract-meta-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.contract-meta-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.contract-meta-num .contract-meta-value,
+.contract-meta-date .contract-meta-value {
+  color: #e53935;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.contract-files-chip {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+}
+
+.contract-file-name.contract-file-name--muted {
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 12px;
+  margin-bottom: 6px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  overflow: hidden;
+}
+
+.contract-file-name--muted span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contract-file-slot {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.contract-file-stats--compact {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.contract-stats-div {
+  opacity: 0.45;
+}
+
+.active-count-none {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.active-tasks-numbers--clamp .numbers-list {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.contract-file-item.contract-file-item--optimized .btn-open-file {
+  margin-left: 0;
+  align-self: center;
+}
+
 .no-contracts {
   color: var(--text-secondary);
   text-align: center;
@@ -399,7 +505,8 @@
 /* Підсумок */
 .contract-summary {
   display: flex;
-  gap: 24px;
+  flex-wrap: wrap;
+  gap: 12px 20px;
   padding: 16px;
   background: var(--surface-dark);
   border-radius: 8px;

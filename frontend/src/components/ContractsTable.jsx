@@ -1,36 +1,128 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { API_BASE_URL } from '../config';
-import { getPdfUniqueKey } from '../utils/pdfUtils';
+import { analyzeContractPdfByUrl } from '../utils/pdfUtils';
 import './ContractsTable.css';
 
-const PDF_CACHE_STORAGE_PREFIX = 'darex-contracts-pdf-keys-v1:';
+/** v1 — лише pdfKey рядком; v2 — об'єкт { pdfKey, contractNumber, contractDate } */
+const PDF_LEGACY_KEYS_PREFIX = 'darex-contracts-pdf-keys-v1:';
+const PDF_ANALYSIS_STORAGE_PREFIX = 'darex-contracts-pdf-analysis-v1:';
 
-function getPdfCacheStorageKey(user) {
+function storageSuffixForUser(user) {
   const id = user?.login || user?.username || user?.email || 'default';
-  return `${PDF_CACHE_STORAGE_PREFIX}${encodeURIComponent(String(id))}`;
+  return encodeURIComponent(String(id));
 }
 
-function readPersistedPdfMap(storageKey) {
+/** Дата поля заявки → YYYY-MM-DD */
+function taskContractDateToIso(raw) {
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'string') {
+    const t = raw.trim();
+    const m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    const d = new Date(t);
+    return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+  }
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) return raw.toISOString().slice(0, 10);
+  return '';
+}
+
+function formatUkDotsFromIso(iso) {
+  if (!iso || typeof iso !== 'string') return '';
+  const m = iso.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '';
+  return `${m[3]}.${m[2]}.${m[1]}`;
+}
+
+function normalizeAnalysisEntry(raw) {
+  if (raw && typeof raw === 'object' && raw.pdfKey != null) {
+    return {
+      pdfKey: String(raw.pdfKey || ''),
+      contractNumber: String(raw.contractNumber || ''),
+      contractDate: String(raw.contractDate || ''),
+      legacyKeyOnly: !!raw.legacyKeyOnly,
+    };
+  }
+  if (typeof raw === 'string') return { pdfKey: raw, contractNumber: '', contractDate: '', legacyKeyOnly: false };
+  return { pdfKey: '', contractNumber: '', contractDate: '', legacyKeyOnly: false };
+}
+
+function readPersistedPdfAnalysisMap(user) {
   try {
-    const raw = localStorage.getItem(storageKey);
-    if (!raw) return null;
-    const o = JSON.parse(raw);
+    const suf = storageSuffixForUser(user);
+    const v2Raw = localStorage.getItem(`${PDF_ANALYSIS_STORAGE_PREFIX}${suf}`);
+    if (v2Raw) {
+      const o = JSON.parse(v2Raw);
+      if (!o || !Array.isArray(o.entries)) return null;
+      const map = new Map();
+      for (const [url, payload] of o.entries) map.set(url, normalizeAnalysisEntry(payload));
+      return map;
+    }
+    const v1Raw = localStorage.getItem(`${PDF_LEGACY_KEYS_PREFIX}${suf}`);
+    if (!v1Raw) return null;
+    const o = JSON.parse(v1Raw);
     if (!o || !Array.isArray(o.entries)) return null;
-    return new Map(o.entries);
+    const map = new Map();
+    for (const [url, key] of o.entries)
+      map.set(url, {
+        pdfKey: String(key || ''),
+        contractNumber: '',
+        contractDate: '',
+        legacyKeyOnly: true,
+      });
+    return map;
   } catch {
     return null;
   }
 }
 
-function writePersistedPdfMap(storageKey, map) {
+function writePersistedPdfAnalysisMap(user, map) {
   try {
+    const suf = storageSuffixForUser(user);
     localStorage.setItem(
-      storageKey,
-      JSON.stringify({ entries: Array.from(map.entries()) })
+      `${PDF_ANALYSIS_STORAGE_PREFIX}${suf}`,
+      JSON.stringify({
+        entries: Array.from(map.entries()).map(([u, row]) => [
+        u,
+        {
+          pdfKey: row.pdfKey,
+          contractNumber: row.contractNumber,
+          contractDate: row.contractDate,
+        },
+      ]),
+      }),
     );
   } catch (e) {
-    console.warn('[Contracts] Не вдалося зберегти кеш ключів PDF:', e);
+    console.warn('[Contracts] Не вдалося зберегти кеш аналізу PDF:', e);
   }
+}
+
+/** Підпис рядка: заявки в групі та з кешованого парсера PDF */
+function resolveContractRowPresentation(contractFileData, pdfByUrl) {
+  const tasksRef = contractFileData.tasks || [];
+  const dbNum =
+    tasksRef.map((t) => (t.contractNumber || '').trim()).find((s) => s) || '';
+  const isoDb =
+    tasksRef.map((t) => taskContractDateToIso(t.contractDate)).find((s) => s) || '';
+
+  const repUrl = contractFileData.representativeUrl || contractFileData.urls?.[0];
+  const analyzed = repUrl ? pdfByUrl.get(repUrl) : null;
+
+  const number = dbNum || (analyzed?.contractNumber || '').trim() || '';
+  const iso =
+    isoDb ||
+    ((analyzed?.contractDate || '').trim().match(/^(\d{4}-\d{2}-\d{2})/)?.[0] ?? '');
+  const isoSortKey = iso || '';
+  const fileLabel =
+    typeof contractFileData.fileName === 'string' ? contractFileData.fileName : 'contract.pdf';
+
+  return {
+    numberLabel: number || '—',
+    dateUkLabel: iso ? formatUkDotsFromIso(iso) : '—',
+    fileShortName: fileLabel,
+    /** Для сортування списку: новіші дати вище */
+    isoForSort: isoSortKey || '1900-01-01',
+    numberPlain: number,
+  };
 }
 
 function collectContractFileUrls(tasks, getContractFileUrl) {
@@ -54,9 +146,9 @@ function ContractsTable({ user }) {
   const [selectedContract, setSelectedContract] = useState(null);
   const [showActiveTasksModal, setShowActiveTasksModal] = useState(null);
   
-  // Кеш для ключів PDF
-  const [pdfKeysCache, setPdfKeysCache] = useState(new Map());
-  const [pdfKeysLoading, setPdfKeysLoading] = useState(new Set());
+  // Кеш: URL → ключ унікальності PDF + номер/дата з першої сторінки
+  const [pdfAnalysisByUrl, setPdfAnalysisByUrl] = useState(new Map());
+  const [pdfAnalysisLoadingUrls, setPdfAnalysisLoadingUrls] = useState(new Set());
 
   // Завантаження всіх заявок для договорів
   useEffect(() => {
@@ -92,109 +184,122 @@ function ContractsTable({ user }) {
     return contractFile.url || contractFile.name || null;
   }, []);
 
-  // Отримати ключ з кешу
-  const getPdfKeyFromCache = useCallback((url) => {
-    return pdfKeysCache.get(url) || url;
-  }, [pdfKeysCache]);
+  const getDedupePdfKeyForUrl = useCallback(
+    (url) => pdfAnalysisByUrl.get(url)?.pdfKey || url,
+    [pdfAnalysisByUrl],
+  );
 
-  // Завантажити ключ PDF
-  const loadPdfKey = useCallback(async (url) => {
-    if (!url || pdfKeysCache.has(url) || pdfKeysLoading.has(url)) {
-      return;
-    }
+  const loadPdfAnalysisForUrl = useCallback(
+    async (url) => {
+      if (
+        !url ||
+        pdfAnalysisByUrl.has(url) ||
+        pdfAnalysisLoadingUrls.has(url)
+      ) {
+        return;
+      }
 
-    setPdfKeysLoading(prev => new Set(prev).add(url));
+      setPdfAnalysisLoadingUrls((prev) => new Set(prev).add(url));
 
-    try {
-      const key = await getPdfUniqueKey(url);
-      setPdfKeysCache(prev => {
-        const newMap = new Map(prev);
-        newMap.set(url, key);
-        return newMap;
-      });
-    } catch (error) {
-      console.error('[PDF] Помилка завантаження ключа:', error);
-      setPdfKeysCache(prev => {
-        const newMap = new Map(prev);
-        newMap.set(url, url);
-        return newMap;
-      });
-    } finally {
-      setPdfKeysLoading(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(url);
-        return newSet;
-      });
-    }
-  }, [pdfKeysCache, pdfKeysLoading]);
+      try {
+        const { pdfKey, meta } = await analyzeContractPdfByUrl(url);
+        const row = {
+          pdfKey: pdfKey || url,
+          contractNumber: meta?.contractNumber || '',
+          contractDate: meta?.contractDate || '',
+        };
+        setPdfAnalysisByUrl((prev) => {
+          const next = new Map(prev);
+          next.set(url, row);
+          return next;
+        });
+      } catch (error) {
+        console.error('[PDF] Помилка аналізу договору:', error);
+        setPdfAnalysisByUrl((prev) => {
+          const next = new Map(prev);
+          next.set(url, { pdfKey: url, contractNumber: '', contractDate: '' });
+          return next;
+        });
+      } finally {
+        setPdfAnalysisLoadingUrls((prev) => {
+          const next = new Set(prev);
+          next.delete(url);
+          return next;
+        });
+      }
+    },
+    [pdfAnalysisByUrl, pdfAnalysisLoadingUrls],
+  );
 
-  // Відновлення кешу з localStorage до запуску мережевих запитів (лише нові URL обробляються заново)
+  // Відновлення з localStorage (v2 або міграція з v1-лише-ключі)
   useLayoutEffect(() => {
     if (loading || tasks.length === 0) return;
 
     const urlsNow = collectContractFileUrls(tasks, getContractFileUrl);
     if (urlsNow.size === 0) return;
 
-    const storageKey = getPdfCacheStorageKey(user);
-    const stored = readPersistedPdfMap(storageKey);
+    const stored = readPersistedPdfAnalysisMap(user);
     if (!stored || stored.size === 0) return;
 
-    setPdfKeysCache((prev) => {
+    setPdfAnalysisByUrl((prev) => {
       const next = new Map(prev);
       let restored = 0;
       for (const u of urlsNow) {
         if (!next.has(u) && stored.has(u)) {
-          next.set(u, stored.get(u));
+          const row = normalizeAnalysisEntry(stored.get(u));
+          if (row.legacyKeyOnly) {
+            continue;
+          }
+          const { legacyKeyOnly: _drop, ...rest } = row;
+          next.set(u, rest);
           restored++;
         }
       }
       if (restored === 0) return prev;
-      console.log('[PDF] З кешу браузера відновлено ключів:', restored, '/', urlsNow.size);
+      console.log('[PDF] З кешу відновлено аналізів PDF:', restored, '/', urlsNow.size);
       return next;
     });
   }, [loading, tasks, getContractFileUrl, user]);
 
-  // Завантажуємо ключі PDF лише для URL, яких ще немає в кеші (після відновлення з localStorage)
+  // Аналіз PDF для URL, яких ще немає в кеші
   useEffect(() => {
     if (loading || tasks.length === 0) return;
 
     const uniqueUrls = new Set();
-    tasks.forEach(task => {
+    tasks.forEach((task) => {
       const url = getContractFileUrl(task.contractFile);
-      if (url && !pdfKeysCache.has(url)) {
-        uniqueUrls.add(url);
-      }
+      if (url && !pdfAnalysisByUrl.has(url)) uniqueUrls.add(url);
     });
 
     if (uniqueUrls.size > 0) {
-      console.log('[PDF] Завантажуємо ключі для', uniqueUrls.size, 'нових файлів договорів');
-      uniqueUrls.forEach(url => {
-        loadPdfKey(url);
+      console.log('[PDF] Аналіз договорів (ключ + номер/дата):', uniqueUrls.size);
+      uniqueUrls.forEach((url) => {
+        loadPdfAnalysisForUrl(url);
       });
     }
-  }, [tasks, loading, getContractFileUrl, loadPdfKey, pdfKeysCache]);
+  }, [tasks, loading, getContractFileUrl, loadPdfAnalysisForUrl, pdfAnalysisByUrl]);
 
-  // Прогрес і стан «стабілізації» таблиці (поки не пораховані ключі PDF — рядки не показуємо, щоб не стрибала верстка)
+  // Прогрес стабілізації таблиці
   const pdfKeyProgress = useMemo(() => {
     if (loading || !tasks.length) return { total: 0, done: 0 };
     const urls = new Set();
-    tasks.forEach(t => {
+    tasks.forEach((t) => {
       const u = getContractFileUrl(t.contractFile);
       if (u) urls.add(u);
     });
     let done = 0;
-    urls.forEach(u => {
-      if (pdfKeysCache.has(u)) done++;
+    urls.forEach((u) => {
+      if (pdfAnalysisByUrl.has(u)) done++;
     });
     return { total: urls.size, done };
-  }, [tasks, loading, pdfKeysCache, getContractFileUrl]);
+  }, [tasks, loading, pdfAnalysisByUrl, getContractFileUrl]);
 
   const isAnalyzingPdfKeys =
     !loading &&
     pdfKeyProgress.total > 0 &&
     pdfKeyProgress.done < pdfKeyProgress.total;
 
-  // Повне збереження кешу після аналізу (оновлюється при появі нових URL)
+  // Збереження повного аналізу після завершення
   useEffect(() => {
     if (loading || pdfKeyProgress.total === 0) return;
     if (pdfKeyProgress.done < pdfKeyProgress.total) return;
@@ -204,22 +309,22 @@ function ContractsTable({ user }) {
 
     const toSave = new Map();
     for (const u of urlsNow) {
-      if (pdfKeysCache.has(u)) toSave.set(u, pdfKeysCache.get(u));
+      if (pdfAnalysisByUrl.has(u)) toSave.set(u, { ...pdfAnalysisByUrl.get(u) });
     }
     if (toSave.size !== urlsNow.size) return;
 
-    writePersistedPdfMap(getPdfCacheStorageKey(user), toSave);
+    writePersistedPdfAnalysisMap(user, toSave);
   }, [
     loading,
     tasks,
     user,
     pdfKeyProgress.total,
     pdfKeyProgress.done,
-    pdfKeysCache,
-    getContractFileUrl
+    pdfAnalysisByUrl,
+    getContractFileUrl,
   ]);
 
-  // Групування заявок по ЄДРПОУ з унікальними договорами
+  /** Номер/дата: спочатку з полів заявок, потім з PDF */
   const contractsData = useMemo(() => {
     const contractsMap = new Map();
     
@@ -262,23 +367,24 @@ function ContractsTable({ user }) {
       
       // Додаємо файл договору
       // Отримуємо унікальний ключ з кешу (або використовуємо URL)
-      const pdfKey = getPdfKeyFromCache(contractFileUrl);
-      
-      if (!contract.contractFiles.has(pdfKey)) {
+      const dedupeKey = getDedupePdfKeyForUrl(contractFileUrl);
+
+      if (!contract.contractFiles.has(dedupeKey)) {
         const fileName = typeof task.contractFile === 'string' 
           ? task.contractFile.split('/').pop() 
           : (task.contractFile?.name || 'contract.pdf');
-        contract.contractFiles.set(pdfKey, {
+        contract.contractFiles.set(dedupeKey, {
           fileName: fileName,
           urls: new Set([contractFileUrl]),
           tasks: [],
-          pdfKey: pdfKey
+          pdfKey: dedupeKey,
+          representativeUrl: contractFileUrl
         });
       } else {
         // Додаємо URL до існуючого ключа
-        contract.contractFiles.get(pdfKey).urls.add(contractFileUrl);
+        contract.contractFiles.get(dedupeKey).urls.add(contractFileUrl);
       }
-      contract.contractFiles.get(pdfKey).tasks.push(task);
+      contract.contractFiles.get(dedupeKey).tasks.push(task);
     });
     
     // Конвертуємо Map в масив
@@ -290,7 +396,7 @@ function ContractsTable({ user }) {
       })),
       contractsCount: contract.contractFiles.size
     }));
-  }, [tasks, getContractFileUrl, getPdfKeyFromCache]);
+  }, [tasks, getContractFileUrl, getDedupePdfKeyForUrl]);
 
   // Фільтрація договорів
   const filteredContracts = useMemo(() => {
@@ -401,8 +507,8 @@ function ContractsTable({ user }) {
                 <td colSpan="7" className="contracts-analyzing-cell">
                   <div className="contracts-analyzing-inner" role="status" aria-live="polite">
                     <div className="contracts-analyzing-spinner" aria-hidden />
-                    <p className="contracts-analyzing-title">Аналіз унікальності договорів за вмістом PDF</p>
-                    <p className="contracts-analyzing-hint">Таблиця з’явиться після завершення — так уникаємо стрибків верстки</p>
+                    <p className="contracts-analyzing-title">Аналіз договорів (унікальність PDF, номер і дата)</p>
+                    <p className="contracts-analyzing-hint">Це один раз завантажує кожний PDF: групування за вмістом і зчитування реквізитів із першої сторінки. Таблиця з’являється після завершення.</p>
                     <div className="contracts-analyzing-progress">
                       <span>
                         Оброблено файлів: {pdfKeyProgress.done} / {pdfKeyProgress.total}
@@ -486,54 +592,83 @@ function ContractsTable({ user }) {
                 <strong>Контрагент:</strong> {selectedContract.client}
               </div>
               
-              <h3>Унікальні договори (групуються по вмісту PDF):</h3>
+              <h3>Унікальні договори за вмістом PDF:</h3>
               {selectedContract.contractFiles && selectedContract.contractFiles.length > 0 ? (
                 <div className="contract-files-list">
-                  {selectedContract.contractFiles.map((contractFileData, index) => {
-                    const activeTasks = contractFileData.tasks.filter(t => 
-                      t.status === 'Заявка' || t.status === 'В роботі'
-                    );
-                    
-                    return (
-                      <div key={index} className="contract-file-item">
-                        <div className="contract-file-info">
-                          <div className="contract-file-name">
-                            Договір #{index + 1}: {contractFileData.fileName}
-                            {contractFileData.urls.length > 1 && (
-                              <span className="files-count">
-                                ({contractFileData.urls.length} однакових файлів)
+                  {[...selectedContract.contractFiles]
+                    .map((cf) => ({
+                      cf,
+                      pres: resolveContractRowPresentation(cf, pdfAnalysisByUrl),
+                    }))
+                    .sort((a, b) => {
+                      const d = b.pres.isoForSort.localeCompare(a.pres.isoForSort);
+                      if (d !== 0) return d;
+                      return (b.pres.numberPlain || '').localeCompare(a.pres.numberPlain || '', 'uk');
+                    })
+                    .map(({ cf: contractFileData, pres }, index) => {
+                      const activeTasks = contractFileData.tasks.filter((t) => t.status === 'Заявка' || t.status === 'В роботі');
+                      const { numberLabel, dateUkLabel, fileShortName } = pres;
+
+                      return (
+                        <div key={`${contractFileData.pdfKey}-${index}`} className="contract-file-item contract-file-item--optimized">
+                          <div className="contract-file-main">
+                            <div className="contract-file-meta-row">
+                              <span className="contract-meta-pill contract-meta-num">
+                                <span className="contract-meta-label">Номер</span>
+                                <span className="contract-meta-value">{numberLabel}</span>
                               </span>
-                            )}
-                          </div>
-                          <div className="contract-file-stats">
-                            Заявок: {contractFileData.tasks.length} | 
-                            Активних: {activeTasks.length > 0 ? (
-                              <span className="active-count">{activeTasks.length}</span>
-                            ) : '0'}
-                          </div>
-                          {activeTasks.length > 0 && (
-                            <div className="active-tasks-numbers">
-                              <strong>Номери активних заявок:</strong>{' '}
-                              <span className="numbers-list">
-                                {activeTasks.map((task, idx) => (
-                                  <span key={task._id || idx}>
-                                    {task.requestNumber || task.taskNumber || 'N/A'}
-                                    {idx < activeTasks.length - 1 ? ', ' : ''}
-                                  </span>
-                                ))}
+                              <span className="contract-meta-pill contract-meta-date">
+                                <span className="contract-meta-label">Дата</span>
+                                <span className="contract-meta-value">{dateUkLabel}</span>
+                              </span>
+                              {contractFileData.urls.length > 1 && (
+                                <span className="contract-files-chip">
+                                  {contractFileData.urls.length} однакових PDF
+                                </span>
+                              )}
+                            </div>
+                            <div className="contract-file-name contract-file-name--muted">
+                              <span className="contract-file-slot">#{index + 1}</span>
+                              <span title={fileShortName}>{fileShortName}</span>
+                            </div>
+                            <div className="contract-file-stats contract-file-stats--compact">
+                              <span>
+                                Заявок: <strong>{contractFileData.tasks.length}</strong>
+                              </span>
+                              <span className="contract-stats-div">|</span>
+                              <span>
+                                Активних:&nbsp;
+                                {activeTasks.length > 0 ? (
+                                  <strong className="active-count">{activeTasks.length}</strong>
+                                ) : (
+                                  <strong className="active-count-none">0</strong>
+                                )}
                               </span>
                             </div>
-                          )}
+                            {activeTasks.length > 0 && (
+                              <div className="active-tasks-numbers active-tasks-numbers--clamp">
+                                <strong>Номери активних заявок:</strong>{' '}
+                                <span className="numbers-list">
+                                  {activeTasks.map((task, idx) => (
+                                    <span key={task._id || idx}>
+                                      {task.requestNumber || task.taskNumber || 'N/A'}
+                                      {idx < activeTasks.length - 1 ? ', ' : ''}
+                                    </span>
+                                  ))}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            className="btn-open-file"
+                            onClick={() => openContractFile(contractFileData.urls[0])}
+                          >
+                            📄 Відкрити
+                          </button>
                         </div>
-                        <button
-                          className="btn-open-file"
-                          onClick={() => openContractFile(contractFileData.urls[0])}
-                        >
-                          📄 Відкрити договір
-                        </button>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
               ) : (
                 <div className="no-contracts">
