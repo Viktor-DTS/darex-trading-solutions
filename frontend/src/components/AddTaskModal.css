@@ -1035,8 +1035,8 @@
 .contract-selector-modal {
   background: var(--surface);
   border-radius: 10px;
-  width: 90%;
-  max-width: 500px;
+  width: 92%;
+  max-width: 640px;
   max-height: 70vh;
   display: flex;
   flex-direction: column;
@@ -1146,10 +1146,52 @@
   gap: 6px;
 }
 
-.contract-selector-item {
-  display: flex;
-  align-items: center;
+.contract-selector-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(108px, 130px) minmax(88px, 104px) 44px;
   gap: 8px;
+  align-items: center;
+}
+
+.contract-selector-columns-header {
+  padding: 4px 10px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+
+.contract-selector-columns-header .contract-selector-col-doc {
+  padding-left: 26px;
+}
+
+.contract-selector-doc-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.contract-selector-num-cell,
+.contract-selector-date-cell {
+  font-size: 11px;
+  color: var(--text-primary);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.contract-selector-date-cell {
+  white-space: nowrap;
+}
+
+.contract-selector-col-eye {
+  width: 44px;
+}
+
+.contract-selector-item.contract-selector-columns {
   padding: 8px 10px;
   background: var(--surface-dark);
   border: 1px solid var(--border);

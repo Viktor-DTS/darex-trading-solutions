@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import API_BASE_URL from '../config';
-import { getPdfUniqueKey, extractContractMetaFromPdf } from '../utils/pdfUtils';
+import { getPdfUniqueKey, extractContractMetaFromPdf, analyzeContractPdfByUrl } from '../utils/pdfUtils';
 import { getEdrpouList, getEquipmentTypes, getEquipmentData } from '../utils/edrpouAPI';
 import FileUpload from './FileUpload';
 import InvoiceRequestBlock from './InvoiceRequestBlock';
@@ -16,6 +16,15 @@ function getContractFileUrlString(contractFile) {
   const u =
     contractFile.url || contractFile.href || contractFile.secure_url || contractFile.publicUrl || '';
   return String(u).trim();
+}
+
+/** Дата YYYY-MM-DD → дд.мм.рррр для списку вибору договору */
+function formatUkListDateFromIso(iso) {
+  if (!iso || typeof iso !== 'string') return '';
+  const m = iso.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '';
+  const [, y, mm, dd] = m;
+  return `${dd}.${mm}.${y}`;
 }
 
 // Функція для отримання коду регіону
@@ -1286,35 +1295,50 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   // Групування договорів по унікальному вмісту PDF (спільна логіка для ручного вибору та автопідстановки)
   const buildUniqueContractsAsync = async (filteredData, keysMapSeed, onKeysProgress) => {
     const keysMap = new Map(keysMapSeed);
-    const uniqueUrls = [...new Set(filteredData.map(c => c.url).filter(Boolean))];
+    const metaByUrl = new Map();
+    const uniqueUrls = [...new Set(filteredData.map((c) => c.url).filter(Boolean))];
     if (onKeysProgress) onKeysProgress({ loaded: 0, total: uniqueUrls.length });
 
     let loadedCount = 0;
     for (let i = 0; i < uniqueUrls.length; i += 5) {
       const batch = uniqueUrls.slice(i, i + 5);
-      await Promise.all(batch.map(async (url) => {
-        if (!keysMap.has(url)) {
+      await Promise.all(
+        batch.map(async (url) => {
           try {
-            keysMap.set(url, await getPdfUniqueKey(url));
+            if (!keysMap.has(url) || !metaByUrl.has(url)) {
+              const { pdfKey, meta } = await analyzeContractPdfByUrl(url);
+              if (!keysMap.has(url)) {
+                keysMap.set(url, pdfKey || url);
+              }
+              if (!metaByUrl.has(url)) {
+                metaByUrl.set(url, meta || { contractNumber: '', contractDate: '' });
+              }
+            }
           } catch (e) {
-            keysMap.set(url, url);
+            if (!keysMap.has(url)) keysMap.set(url, url);
+            if (!metaByUrl.has(url)) {
+              metaByUrl.set(url, { contractNumber: '', contractDate: '' });
+            }
           }
-        }
-        loadedCount++;
-        if (onKeysProgress) onKeysProgress({ loaded: loadedCount, total: uniqueUrls.length });
-      }));
+          loadedCount++;
+          if (onKeysProgress) onKeysProgress({ loaded: loadedCount, total: uniqueUrls.length });
+        })
+      );
     }
 
     const contractsMap = new Map();
     for (const contract of filteredData) {
       if (!contract.url) continue;
       const pdfKey = keysMap.get(contract.url) || contract.url;
+      const parsed = metaByUrl.get(contract.url) || { contractNumber: '', contractDate: '' };
       if (!contractsMap.has(pdfKey)) {
         contractsMap.set(pdfKey, {
           ...contract,
           pdfKey,
           urls: [contract.url],
-          filesCount: 1
+          filesCount: 1,
+          parsedContractNumber: parsed.contractNumber || '',
+          parsedContractDate: parsed.contractDate || ''
         });
       } else {
         const existing = contractsMap.get(pdfKey);
@@ -1409,13 +1433,24 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   const handleSelectExistingContract = (contract) => {
     if (isReadOnly) return;
     const url = contract?.url || '';
+    const fromListNum = (contract?.parsedContractNumber || '').trim();
+    const fromListDateIso = (contract?.parsedContractDate || '').trim()
+      ? formatDateOnly(contract.parsedContractDate)
+      : '';
+
     setFormData((prev) => ({
       ...prev,
-      contractFile: url
+      contractFile: url,
+      ...(fromListNum ? { contractNumber: fromListNum } : {}),
+      ...(fromListDateIso ? { contractDate: fromListDateIso } : {})
     }));
     setShowContractSelector(false);
 
     if (!url) return;
+
+    const needFallback = !fromListNum || !fromListDateIso;
+    if (!needFallback) return;
+
     (async () => {
       try {
         const meta = await extractContractMetaFromPdf({ url });
@@ -1426,10 +1461,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             : '';
         setFormData((prev) => ({
           ...prev,
-          ...(meta.contractNumber && String(meta.contractNumber).trim()
+          ...(!fromListNum && meta.contractNumber && String(meta.contractNumber).trim()
             ? { contractNumber: String(meta.contractNumber).trim() }
             : {}),
-          ...(parsedDate ? { contractDate: parsedDate } : {})
+          ...(!fromListDateIso && parsedDate ? { contractDate: parsedDate } : {})
         }));
       } catch (e) {
         console.warn('[CONTRACT] Парсинг існуючого PDF за URL:', e);
@@ -2453,29 +2488,52 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
                           </div>
                         ) : (
                           <div className="contract-selector-list">
+                            <div className="contract-selector-columns contract-selector-columns-header" aria-hidden>
+                              <span className="contract-selector-col-doc">Документ</span>
+                              <span className="contract-selector-col-num">Номер договору</span>
+                              <span className="contract-selector-col-date">Дата договору</span>
+                              <span className="contract-selector-col-eye" />
+                            </div>
                             {existingContracts.map((contract, idx) => (
                               <div
                                 key={contract.pdfKey || contract.url || idx}
-                                className="contract-selector-item"
+                                className="contract-selector-item contract-selector-columns"
                                 onClick={() => handleSelectExistingContract(contract)}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    handleSelectExistingContract(contract);
+                                  }
+                                }}
                               >
-                                <span className="contract-selector-icon">📄</span>
-                                <div className="contract-selector-info">
-                                  <div className="contract-selector-filename">
-                                    {contract.fileName || 'Договір'}
-                                    {contract.filesCount > 1 && (
-                                      <span className="contract-files-count">
-                                        ({contract.filesCount} однакових)
-                                      </span>
-                                    )}
+                                <div className="contract-selector-doc-cell">
+                                  <span className="contract-selector-icon">📄</span>
+                                  <div className="contract-selector-info">
+                                    <div className="contract-selector-filename">
+                                      {contract.fileName || 'Договір'}
+                                      {contract.filesCount > 1 && (
+                                        <span className="contract-files-count">
+                                          ({contract.filesCount} однакових)
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="contract-selector-client">
+                                      {contract.client} {contract.edrpou && `(${contract.edrpou})`}
+                                    </div>
                                   </div>
-                                  <div className="contract-selector-client">
-                                    {contract.client} {contract.edrpou && `(${contract.edrpou})`}
-                                  </div>
+                                </div>
+                                <div className="contract-selector-num-cell" title={contract.parsedContractNumber || ''}>
+                                  {(contract.parsedContractNumber || '').trim() || '—'}
+                                </div>
+                                <div className="contract-selector-date-cell" title={contract.parsedContractDate || ''}>
+                                  {formatUkListDateFromIso(contract.parsedContractDate) || '—'}
                                 </div>
                                 <button
                                   type="button"
                                   className="contract-selector-preview"
+                                  title="Відкрити PDF"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     window.open(contract.url, '_blank');

@@ -195,6 +195,44 @@ export function parseContractMetaFromPdfPlainText(plainText) {
 }
 
 /**
+ * За один прохід PDF по URL будує ключ дедуплікації (як перші три «рядки» у getPdfUniqueKey) і метадані з першої сторінки.
+ * @param {string} pdfUrl
+ * @returns {Promise<{ pdfKey: string, meta: { contractNumber: string, contractDate: string } }>}
+ */
+export async function analyzeContractPdfByUrl(pdfUrl) {
+  const emptyMeta = { contractNumber: '', contractDate: '' };
+  try {
+    if (!pdfUrl || typeof pdfUrl !== 'string') {
+      return { pdfKey: pdfUrl || '', meta: emptyMeta };
+    }
+
+    const pdfjs = await loadPdfJs();
+    const loadingTask = pdfjs.getDocument({
+      url: pdfUrl.trim(),
+      httpHeaders: {},
+      withCredentials: false
+    });
+
+    const pdf = await loadingTask.promise;
+    const firstPage = await pdf.getPage(1);
+    const textContent = await firstPage.getTextContent();
+
+    const textItems = textContent.items
+      .map((item) => item.str)
+      .filter((str) => String(str).trim() !== '');
+    const firstThreeLines = textItems.slice(0, 3);
+    const pdfKey = firstThreeLines.join('|').toLowerCase().trim() || pdfUrl;
+    const plainJoined = textItems.join(' ');
+    const meta = parseContractMetaFromPdfPlainText(plainJoined);
+
+    return { pdfKey, meta };
+  } catch (e) {
+    console.error('[PDF] analyzeContractPdfByUrl:', e?.message || e);
+    return { pdfKey: pdfUrl, meta: emptyMeta };
+  }
+}
+
+/**
  * Перша сторінка PDF → номер і дата договору.
  * Передано локальний `File` (після вибору) або віддалений `url` (Cloudinary тощо).
  * @param {{ url?: string, file?: File | Blob }} source
