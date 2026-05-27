@@ -402,7 +402,7 @@ function App() {
       case 'reports':
         return <ReportBuilder user={user} />;
       case 'analytics':
-        return <AnalyticsDashboard user={user} />;
+        return <AnalyticsDashboard user={user} accessRules={accessRules} />;
       case 'procurement':
         return <ProcurementDashboard user={user} />;
       case 'admin':

@@ -181,7 +181,18 @@ const SimpleLineChart = ({ data, lines, nameKey }) => {
   );
 };
 
-export default function AnalyticsDashboard({ user }) {
+const getPanelsForRole = (role, accessRules) => {
+  if (!role || !accessRules) return [];
+  if (accessRules[role]) return accessRules[role];
+  const roleLower = String(role).toLowerCase();
+  const matchedKey = Object.keys(accessRules).find((key) => key.toLowerCase() === roleLower);
+  return matchedKey ? accessRules[matchedKey] : [];
+};
+
+const userHasOperatorPanelAccess = (userRole, accessRules) =>
+  getPanelsForRole(userRole, accessRules).includes('operator');
+
+export default function AnalyticsDashboard({ user, accessRules = {} }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [regions, setRegions] = useState([]);
@@ -527,9 +538,9 @@ export default function AnalyticsDashboard({ user }) {
       .slice(0, 15);
   }, [filteredTasks]);
 
-  // Статистика по операторах: користувачі з роллю operator → фільтруємо заявки по полю "Автор заявки" (requestAuthor)
+  // Статистика по операторах: користувачі з доступом до панелі «Оператор» → заявки по полю «Автор заявки» (requestAuthor)
   const operatorData = useMemo(() => {
-    const operatorUsers = users.filter(u => u.role === 'operator');
+    const operatorUsers = users.filter(u => userHasOperatorPanelAccess(u.role, accessRules));
     const operatorIdentifiers = new Set(
       operatorUsers.flatMap(u => [(u.name || '').trim(), (u.login || '').trim()].filter(Boolean))
     );
@@ -553,7 +564,7 @@ export default function AnalyticsDashboard({ user }) {
       totalByOperators: operatorTasks.length,
       byOperator: Object.values(byOperator).sort((a, b) => b.tasks - a.tasks)
     };
-  }, [filteredTasks, users]);
+  }, [filteredTasks, users, accessRules]);
 
   // Порівняльна аналітика (попередній період)
   const comparisonData = useMemo(() => {
@@ -1242,7 +1253,7 @@ export default function AnalyticsDashboard({ user }) {
       {activeTab === 'operators' && (
         <div className="tab-content">
           <div className="kpi-grid">
-            <div className="kpi-card blue" title="Загальна кількість заявок, внесених операторами (роль operator) за вибраний період та регіон">
+            <div className="kpi-card blue" title="Загальна кількість заявок, внесених користувачами з доступом до панелі «Оператор», за вибраний період та регіон">
               <div className="kpi-icon">📋</div>
               <div className="kpi-info">
                 <div className="kpi-value">{operatorData.totalByOperators}</div>
@@ -1270,7 +1281,7 @@ export default function AnalyticsDashboard({ user }) {
             ) : (
               <p className="no-data-message">
                 Немає даних. Виберіть рік та регіон, переконайтесь що заявки мають заповнене поле «Автор заявки», 
-                і що автори є користувачами з роллю «Оператор».
+                і що автори мають доступ до панелі «Оператор».
               </p>
             )}
           </div>
