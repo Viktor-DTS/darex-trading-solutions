@@ -1,0 +1,104 @@
+.accountant-stuck-panel {
+  padding: 20px;
+  color: #e0e0e0;
+  height: 100%;
+  overflow: auto;
+}
+
+.accountant-stuck-panel.loading,
+.accountant-stuck-panel.error,
+.accountant-stuck-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  color: #aaa;
+  font-size: 16px;
+}
+
+.accountant-stuck-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: #1a2636;
+  border-radius: 12px;
+  border-left: 4px solid #ff7043;
+}
+
+.accountant-stuck-header h3 {
+  margin: 0 0 8px;
+  color: #fff;
+  font-size: 20px;
+}
+
+.accountant-stuck-header p {
+  margin: 0;
+  color: #aaa;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.accountant-stuck-count {
+  min-width: 64px;
+  padding: 12px 16px;
+  background: rgba(255, 112, 67, 0.15);
+  border: 1px solid rgba(255, 112, 67, 0.35);
+  border-radius: 10px;
+  color: #ff7043;
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.accountant-stuck-table-wrap {
+  background: #1a2636;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.accountant-stuck-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.accountant-stuck-table thead {
+  background: #22334a;
+}
+
+.accountant-stuck-table th,
+.accountant-stuck-table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.accountant-stuck-table th {
+  color: #4fc3f7;
+  font-weight: 600;
+}
+
+.accountant-stuck-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.accountant-stuck-row:hover {
+  background: rgba(33, 150, 243, 0.12);
+}
+
+.accountant-stuck-days {
+  color: #ff7043;
+  font-weight: 700;
+}
+
+.accountant-stuck-hint {
+  margin: 0;
+  padding: 12px 16px;
+  color: #888;
+  font-size: 13px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}

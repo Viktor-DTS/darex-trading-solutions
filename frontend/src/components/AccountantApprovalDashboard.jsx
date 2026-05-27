@@ -3,6 +3,7 @@ import TaskTable, { clearTasksCache } from './TaskTable';
 import ColumnSettings from './ColumnSettings';
 import AddTaskModal from './AddTaskModal';
 import AccountantReportsModal from './AccountantReportsModal';
+import AccountantStuckTasksPanel from './AccountantStuckTasksPanel';
 import API_BASE_URL from '../config';
 import './Dashboard.css';
 
@@ -210,6 +211,7 @@ function AccountantApprovalDashboard({ user }) {
 
   const tabs = [
     { id: 'pending', label: 'Заявка на підтвердженні', icon: '⏳' },
+    { id: 'stuck', label: 'Завислі заявки', icon: '⚠️' },
     { id: 'archive', label: 'Архів виконаних заявок', icon: '📁' },
     { id: 'debt', label: 'Заборгованість по документам', icon: '💰' },
     { id: 'paymentDebt', label: 'Заборгованість по оплаті', icon: '💳' },
@@ -257,28 +259,37 @@ function AccountantApprovalDashboard({ user }) {
 
         {/* Table Area */}
         <main className="table-area">
-          <TaskTable 
-            user={user}
-            refreshTrigger={refreshKey}
-            onTasksLoaded={handleTasksLoaded}
-            status={
-                activeTab === 'pending' ? 'accountantPending' :
-                activeTab === 'archive' ? 'done' :
-                activeTab === 'debt' ? 'accountantDebt' :
-                activeTab === 'paymentDebt' ? 'paymentDebt' :
-                activeTab === 'allExceptApproved' ? 'allExceptApproved' :
-                'accountantPending'
-              }
-              onColumnSettingsClick={() => setShowColumnSettings(true)}
-              showRejectedApprovals={false}
-              showRejectedInvoices={false}
-              onRowClick={handleRowClick}
-              onViewClick={handleViewClick}
-              onApprove={handleApprove}
-              showApproveButtons={activeTab === 'pending'}
-              approveRole="accountant"
-              columnsArea="accountant-approval"
+          {activeTab === 'stuck' ? (
+            <AccountantStuckTasksPanel
+              user={user}
+              refreshTrigger={refreshKey}
+              onTaskClick={handleRowClick}
+              onTasksLoaded={handleTasksLoaded}
             />
+          ) : (
+            <TaskTable 
+              user={user}
+              refreshTrigger={refreshKey}
+              onTasksLoaded={handleTasksLoaded}
+              status={
+                  activeTab === 'pending' ? 'accountantPending' :
+                  activeTab === 'archive' ? 'done' :
+                  activeTab === 'debt' ? 'accountantDebt' :
+                  activeTab === 'paymentDebt' ? 'paymentDebt' :
+                  activeTab === 'allExceptApproved' ? 'allExceptApproved' :
+                  'accountantPending'
+                }
+                onColumnSettingsClick={() => setShowColumnSettings(true)}
+                showRejectedApprovals={false}
+                showRejectedInvoices={false}
+                onRowClick={handleRowClick}
+                onViewClick={handleViewClick}
+                onApprove={handleApprove}
+                showApproveButtons={activeTab === 'pending'}
+                approveRole="accountant"
+                columnsArea="accountant-approval"
+              />
+          )}
         </main>
       </div>
 
