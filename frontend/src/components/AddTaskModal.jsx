@@ -1645,9 +1645,6 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
       });
       if (taskId && !taskData.autoCreatedAt) delete taskData.autoCreatedAt;
 
-      // Визначаємо URL і метод в залежності від режиму (створення або редагування)
-      const taskId = initialData?._id || initialData?.id;
-
       // Логіка для завскладу
       if (taskId) {
         const wasWarehouseNotApproved = initialData?.approvedByWarehouse !== 'Підтверджено';
