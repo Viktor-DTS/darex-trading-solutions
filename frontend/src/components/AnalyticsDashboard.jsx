@@ -11,6 +11,25 @@ const STATUS_COLORS = {
   'Заблоковано': '#f44336'
 };
 
+const UNKNOWN_LABELS = new Set(['Не вказано', 'Невідомо', 'Невідомий']);
+const MIN_WORK_TYPE_TASKS = 5;
+const MIN_CLIENT_TASKS = 3;
+const STUCK_ACTIVE_DAYS = 14;
+const STUCK_APPROVAL_DAYS = 7;
+const DATA_QUALITY_THRESHOLD = 10;
+
+const isUnknownLabel = (value) => {
+  const trimmed = String(value || '').trim();
+  return !trimmed || UNKNOWN_LABELS.has(trimmed);
+};
+
+const getDaysSince = (dateValue) => {
+  if (!dateValue) return null;
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return null;
+  return (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24);
+};
+
 // Функція форматування валюти
 const formatCurrency = (value) => {
   if (!value && value !== 0) return '0 ₴';
@@ -566,6 +585,24 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
     };
   }, [filteredTasks, users, accessRules]);
 
+  const filterContextLabel = useMemo(() => {
+    const parts = [`Рік: ${filters.year}`];
+    if (filters.period === 'month' && filters.month) {
+      parts.push(`Місяць: ${getMonthName(parseInt(filters.month, 10))}`);
+    } else if (filters.period === 'quarter') {
+      parts.push('Квартал: поточний');
+    }
+    if (filters.region) {
+      parts.push(`Регіон: ${filters.region}`);
+    } else if (user?.region && user.region !== 'Україна') {
+      parts.push(`Регіон: ${user.region}`);
+    } else {
+      parts.push('Регіон: всі');
+    }
+    if (filters.company) parts.push(`Компанія: ${filters.company}`);
+    return parts.join(' · ');
+  }, [filters, user]);
+
   // Порівняльна аналітика (попередній період)
   const comparisonData = useMemo(() => {
     const currentYear = filters.year;
@@ -717,6 +754,98 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
     };
 
     const recs = [];
+    const completedTasks = filteredTasks.filter(t => t.status === 'Виконано');
+    const activeStatuses = ['Заявка', 'В роботі'];
+
+    // 0. Якість даних — незаповнений тип робіт
+    if (completedTasks.length >= 5) {
+      const missingWork = completedTasks.filter(t => isUnknownLabel(t.work)).length;
+      const missingWorkPct = (missingWork / completedTasks.length) * 100;
+      if (missingWorkPct >= DATA_QUALITY_THRESHOLD) {
+        recs.push({
+          category: 'Якість даних',
+          priority: 'high',
+          icon: '📝',
+          title: 'Незаповнений тип робіт у виконаних заявках',
+          description: `${missingWork} з ${completedTasks.length} виконаних заявок (${missingWorkPct.toFixed(1)}%) без типу робіт — це спотворює аналітику продуктивності`,
+          action: 'Зробіть поле «Тип робіт» обов\'язковим при закритті заявки та заповніть тип для історичних записів',
+          impact: 'Коректні дані дозволять точніше виявляти вузькі місця та формувати рекомендації',
+          metrics: {
+            current: `${missingWorkPct.toFixed(1)}%`,
+            target: `< ${DATA_QUALITY_THRESHOLD}%`,
+            improvement: `-${Math.max(0, missingWorkPct - DATA_QUALITY_THRESHOLD).toFixed(1)}%`
+          }
+        });
+      }
+    }
+
+    // 0b. Якість даних — відсутній автор заявки
+    if (filteredTasks.length >= 10) {
+      const missingAuthor = filteredTasks.filter(t => isUnknownLabel(t.requestAuthor)).length;
+      const missingAuthorPct = (missingAuthor / filteredTasks.length) * 100;
+      if (missingAuthorPct >= DATA_QUALITY_THRESHOLD) {
+        recs.push({
+          category: 'Якість даних',
+          priority: 'medium',
+          icon: '👤',
+          title: 'Заявки без автора',
+          description: `${missingAuthor} з ${filteredTasks.length} заявок (${missingAuthorPct.toFixed(1)}%) без поля «Автор заявки»`,
+          action: 'Перевірте, чи оператори заповнюють автора при створенні заявки; доповніть старі записи для коректної статистики «Робота операторів»',
+          impact: 'Покращить контроль навантаження операторів та достовірність звітів',
+          metrics: {
+            current: `${missingAuthorPct.toFixed(1)}%`,
+            target: `< ${DATA_QUALITY_THRESHOLD}%`,
+            improvement: `-${Math.max(0, missingAuthorPct - DATA_QUALITY_THRESHOLD).toFixed(1)}%`
+          }
+        });
+      }
+    }
+
+    // 0c. Завислі заявки в активних статусах
+    const stuckActive = filteredTasks.filter(t => {
+      if (!activeStatuses.includes(t.status)) return false;
+      const days = getDaysSince(t.autoCreatedAt || t.date || t.requestDate);
+      return days !== null && days > STUCK_ACTIVE_DAYS;
+    });
+    if (stuckActive.length >= 3) {
+      recs.push({
+        category: 'Процеси',
+        priority: 'high',
+        icon: '⏳',
+        title: 'Заявки зависли в роботі',
+        description: `${stuckActive.length} заявок у статусі «Заявка» або «В роботі» більше ${STUCK_ACTIVE_DAYS} днів`,
+        action: 'Перегляньте чергу: призначте інженерів, з\'ясуйте причини затримки або закрийте неактуальні заявки',
+        impact: 'Прискорення обробки зменшить час очікування клієнтів та покращить конверсію',
+        metrics: {
+          current: `${stuckActive.length} заявок`,
+          target: `< 3 заявок`,
+          improvement: `-${Math.max(0, stuckActive.length - 3)}`
+        }
+      });
+    }
+
+    // 0d. Завислі на підтвердженні бухгалтерією
+    const stuckApproval = completedTasks.filter(t => {
+      if (t.approvedByAccountant === 'Підтверджено') return false;
+      const days = getDaysSince(t.autoCompletedAt);
+      return days !== null && days > STUCK_APPROVAL_DAYS;
+    });
+    if (stuckApproval.length >= 5) {
+      recs.push({
+        category: 'Процеси',
+        priority: 'high',
+        icon: '📄',
+        title: 'Виконані заявки очікують підтвердження бухгалтерії',
+        description: `${stuckApproval.length} виконаних заявок не підтверджено бухгалтером більше ${STUCK_APPROVAL_DAYS} днів`,
+        action: 'Передайте чергу бухгалтерії на опрацювання або перевірте, чи не блокують заявки відсутні документи',
+        impact: 'Прискорення підтвердження покращить обіг коштів та закриття періоду',
+        metrics: {
+          current: `${stuckApproval.length} заявок`,
+          target: `< 5 заявок`,
+          improvement: `-${Math.max(0, stuckApproval.length - 5)}`
+        }
+      });
+    }
     
     // 1. Аналіз конверсії
     if (kpiData.conversionRate < 70 && filteredTasks.length > 10) {
@@ -821,9 +950,10 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
       }
     }
 
-    // 6. Аналіз типів робіт - найдовші
+    // 6. Аналіз типів робіт - найдовші (лише реальні типи з достатньою вибіркою)
     if (workTypeData.length > 0) {
       const longestWork = workTypeData
+        .filter(w => !isUnknownLabel(w.name) && w.tasks >= MIN_WORK_TYPE_TASKS)
         .filter(w => parseFloat(w.avgTime) > 10)
         .sort((a, b) => parseFloat(b.avgTime) - parseFloat(a.avgTime))[0];
       
@@ -833,7 +963,7 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
           priority: 'medium',
           icon: '🔧',
           title: `Оптимізація типу робіт: ${longestWork.name}`,
-          description: `Середній час виконання "${longestWork.name}" становить ${longestWork.avgTime} днів`,
+          description: `Середній час виконання «${longestWork.name}» (${longestWork.tasks} заявок) становить ${longestWork.avgTime} днів`,
           action: 'Проаналізуйте процес виконання цього типу робіт, виявіть вузькі місця та оптимізуйте',
           impact: `Зменшення часу на ${(parseFloat(longestWork.avgTime) - 5).toFixed(1)} днів може збільшити пропускну здатність`,
           metrics: {
@@ -846,9 +976,10 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
     }
 
     // 7. Аналіз клієнтів - можливості для зростання
-    if (topClients.length > 0) {
-      const topClient = topClients[0];
-      const avgClientRevenue = topClients.reduce((sum, c) => sum + c.revenue, 0) / topClients.length;
+    const meaningfulClients = topClients.filter(c => !isUnknownLabel(c.name) && c.tasks >= MIN_CLIENT_TASKS);
+    if (meaningfulClients.length > 0) {
+      const topClient = meaningfulClients[0];
+      const avgClientRevenue = meaningfulClients.reduce((sum, c) => sum + c.revenue, 0) / meaningfulClients.length;
       
       if (topClient.revenue > avgClientRevenue * 2) {
         recs.push({
@@ -856,8 +987,8 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
           priority: 'low',
           icon: '🏢',
           title: 'Розширення роботи з ключовими клієнтами',
-          description: `Клієнт "${topClient.name}" генерує ${formatCurrency(topClient.revenue)} - значно більше середнього`,
-          action: `Розробіть індивідуальну програму лояльності для "${topClient.name}", запропонуйте додаткові послуги`,
+          description: `Клієнт «${topClient.name}» (${topClient.tasks} заявок) генерує ${formatCurrency(topClient.revenue)} — значно більше середнього`,
+          action: `Проаналізуйте структуру робіт з «${topClient.name}», запропонуйте додаткові послуги або SLA для ключового клієнта`,
           impact: `Потенційне збільшення доходу від ключового клієнта на 15-20%`,
           metrics: {
             current: formatCurrency(topClient.revenue),
@@ -932,10 +1063,32 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
       }
     }
 
+    // 11. Нерівномірне навантаження операторів
+    if (operatorData.byOperator.length >= 2 && operatorData.totalByOperators >= 10) {
+      const topOperator = operatorData.byOperator[0];
+      const operatorShare = (topOperator.tasks / operatorData.totalByOperators) * 100;
+      if (operatorShare > 75) {
+        recs.push({
+          category: 'Команда',
+          priority: 'medium',
+          icon: '📞',
+          title: 'Нерівномірне навантаження операторів',
+          description: `${topOperator.name} обробляє ${operatorShare.toFixed(0)}% заявок (${topOperator.tasks} з ${operatorData.totalByOperators})`,
+          action: 'Перевірте графіки операторів і розподіліть прийом заявок рівномірніше між командою',
+          impact: 'Зменшить ризик перевантаження та покращить якість обслуговування клієнтів',
+          metrics: {
+            current: `${operatorShare.toFixed(0)}%`,
+            target: '< 60%',
+            improvement: `-${(operatorShare - 60).toFixed(0)}%`
+          }
+        });
+      }
+    }
+
     // Сортування за пріоритетом
     const priorityOrder = { high: 3, medium: 2, low: 1 };
     return recs.sort((a, b) => priorityOrder[b.priority] - priorityOrder[a.priority]);
-  }, [kpiData, filteredTasks, regionData, engineerData, workTypeData, topClients, monthlyData, users]);
+  }, [kpiData, filteredTasks, regionData, engineerData, workTypeData, topClients, monthlyData, users, operatorData]);
 
   if (loading) {
     return <div className="analytics-loading">⏳ Завантаження аналітики...</div>;
@@ -1513,8 +1666,9 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
       {activeTab === 'recommendations' && (
         <div className="tab-content">
           <div className="recommendations-header">
-            <h3>💡 Інтелектуальні рекомендації для покращення показників</h3>
-            <p>На основі аналізу ваших даних система пропонує наступні рекомендації:</p>
+            <h3>💡 Рекомендації для покращення показників</h3>
+            <p>Період аналізу: <strong>{filterContextLabel}</strong></p>
+            <p>На основі правил аналітики система пропонує наступні рекомендації:</p>
           </div>
 
           {recommendations.length === 0 ? (
