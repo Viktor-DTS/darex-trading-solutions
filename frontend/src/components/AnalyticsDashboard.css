@@ -940,3 +940,42 @@
   color: #ff7043;
   font-weight: 700;
 }
+
+.funnel-step-stuck-muted {
+  color: #666;
+  font-size: 13px;
+}
+
+.funnel-stuck-toggle,
+.funnel-stuck-link {
+  background: rgba(255, 112, 67, 0.15);
+  color: #ff7043;
+  border: 1px solid rgba(255, 112, 67, 0.35);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.funnel-stuck-toggle:hover,
+.funnel-stuck-link:hover {
+  background: rgba(255, 112, 67, 0.28);
+}
+
+.funnel-stuck-list {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.funnel-stuck-list-title {
+  margin: 0 0 10px;
+  color: #ffab91;
+  font-size: 13px;
+}
+
+.funnel-stuck-table {
+  font-size: 13px;
+}

@@ -48,27 +48,112 @@ const classifyTaskFunnelStage = (task) => {
   return 'other';
 };
 
+const getTaskCreatedAt = (task) => task.autoCreatedAt || task.date || task.requestDate;
+
 const getFunnelStageDays = (task, stageId) => {
   switch (stageId) {
     case 'operator':
     case 'service':
-      return getDaysSince(task.autoCreatedAt || task.date || task.requestDate);
+      return getDaysSince(getTaskCreatedAt(task));
     case 'warehouse':
       return getDaysSince(task.autoCompletedAt);
     case 'accountant':
-      return getDaysSince(task.autoWarehouseApprovedAt || task.autoCompletedAt);
+      return task.autoWarehouseApprovedAt ? getDaysSince(task.autoWarehouseApprovedAt) : null;
     default:
       return null;
   }
 };
 
-const isFunnelStageStuck = (task, stageId) => {
-  const days = getFunnelStageDays(task, stageId);
-  if (days === null) return false;
-  if (stageId === 'warehouse' || stageId === 'accountant') {
-    return days > STUCK_APPROVAL_DAYS;
+const isServiceQueueStuck = (task) => {
+  if (task.status !== 'Заявка') return false;
+  const days = getDaysSince(getTaskCreatedAt(task));
+  return days !== null && days > STUCK_ACTIVE_DAYS;
+};
+
+const getServiceInWorkStartDate = (task) => task.date || task.plannedDate || getTaskCreatedAt(task);
+
+const isServiceInWorkStuck = (task) => {
+  if (task.status !== 'В роботі') return false;
+  const days = getDaysSince(getServiceInWorkStartDate(task));
+  return days !== null && days > STUCK_ACTIVE_DAYS;
+};
+
+const getServiceStuckInfo = (task) => {
+  if (isServiceQueueStuck(task)) {
+    return {
+      days: getDaysSince(getTaskCreatedAt(task)),
+      reason: 'Не взято в роботу',
+    };
   }
-  return days > STUCK_ACTIVE_DAYS;
+  if (isServiceInWorkStuck(task)) {
+    return {
+      days: getDaysSince(getServiceInWorkStartDate(task)),
+      reason: 'В роботі без виконання',
+    };
+  }
+  return null;
+};
+
+const isWarehouseStuck = (task) => {
+  if (task.status !== 'Виконано') return false;
+  if (isApprovalConfirmed(task.approvedByWarehouse) || isApprovalRejected(task.approvedByWarehouse)) {
+    return false;
+  }
+  const days = getDaysSince(task.autoCompletedAt);
+  return days !== null && days > STUCK_APPROVAL_DAYS;
+};
+
+const isAccountantStuck = (task) => {
+  if (task.status !== 'Виконано') return false;
+  if (!isApprovalConfirmed(task.approvedByWarehouse)) return false;
+  if (isApprovalConfirmed(task.approvedByAccountant) || isApprovalRejected(task.approvedByAccountant)) {
+    return false;
+  }
+  if (!task.autoWarehouseApprovedAt) return false;
+  const days = getDaysSince(task.autoWarehouseApprovedAt);
+  return days !== null && days > STUCK_APPROVAL_DAYS;
+};
+
+const getStuckTasksForStage = (stageId, tasks) => {
+  switch (stageId) {
+    case 'service':
+      return tasks.filter((t) => isServiceQueueStuck(t) || isServiceInWorkStuck(t));
+    case 'warehouse':
+      return tasks.filter(isWarehouseStuck);
+    case 'accountant':
+      return tasks.filter(isAccountantStuck);
+    default:
+      return [];
+  }
+};
+
+const getStuckTaskDays = (task, stageId) => {
+  switch (stageId) {
+    case 'service': {
+      const info = getServiceStuckInfo(task);
+      return info?.days ?? null;
+    }
+    case 'warehouse':
+      return getDaysSince(task.autoCompletedAt);
+    case 'accountant':
+      return getDaysSince(task.autoWarehouseApprovedAt);
+    default:
+      return null;
+  }
+};
+
+const mapStuckTaskRow = (task, stageId) => {
+  const serviceInfo = stageId === 'service' ? getServiceStuckInfo(task) : null;
+  return {
+    id: task._id || task.id,
+    number: task.requestNumber || task._id || task.id,
+    client: (task.client || '').trim() || '—',
+    region: (task.serviceRegion || '').trim() || '—',
+    status: task.status || '—',
+    days: serviceInfo?.days ?? getStuckTaskDays(task, stageId),
+    reason: serviceInfo?.reason || null,
+    author: (task.requestAuthor || '').trim() || '—',
+  };
 };
 
 const taskNeedsPendingInvoice = (task) => {
@@ -267,6 +352,7 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
   const [regions, setRegions] = useState([]);
   const [users, setUsers] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
+  const [expandedStuckStage, setExpandedStuckStage] = useState(null);
   
   // Фільтри
   const [filters, setFilters] = useState({
@@ -669,6 +755,7 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
         icon: '🔧',
         panel: 'Сервісна служба',
         description: 'Заявки в роботі у інженерів',
+        stuckHint: `Не взято в роботу або в роботі без виконання більше ${STUCK_ACTIVE_DAYS} дн`,
         color: '#FF9800',
       },
       {
@@ -677,6 +764,7 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
         icon: '📦',
         panel: 'Зав. склад',
         description: 'Виконано, очікує підтвердження складу',
+        stuckHint: `Виконано, склад не підтвердив більше ${STUCK_APPROVAL_DAYS} дн`,
         color: '#9C27B0',
       },
       {
@@ -685,6 +773,7 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
         icon: '💰',
         panel: 'Бух на затвердженні',
         description: 'Склад підтвердив, очікує бухгалтерії',
+        stuckHint: `Після підтвердження складом бух не затвердив більше ${STUCK_APPROVAL_DAYS} дн`,
         color: '#FFC107',
       },
       {
@@ -722,14 +811,19 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
       const avgDays = daysList.length
         ? daysList.reduce((a, b) => a + b, 0) / daysList.length
         : null;
-      const stuck = stageTasks.filter((t) => isFunnelStageStuck(t, def.id)).length;
+      const stuckTasksRaw = getStuckTasksForStage(def.id, filteredTasks);
+      const stuckTasks = stuckTasksRaw
+        .map((t) => mapStuckTaskRow(t, def.id))
+        .sort((a, b) => (b.days ?? 0) - (a.days ?? 0));
 
       return {
         ...def,
         count: stageTasks.length,
         percent: filteredTasks.length ? (stageTasks.length / filteredTasks.length) * 100 : 0,
         avgDays: avgDays !== null ? avgDays.toFixed(1) : '—',
-        stuck,
+        stuck: stuckTasks.length,
+        stuckTasks,
+        showStuck: def.id === 'service' || def.id === 'warehouse' || def.id === 'accountant',
       };
     });
 
@@ -1878,10 +1972,54 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
                   </div>
                   <div className="funnel-step-footer">
                     <span>Сер. час на етапі: <strong>{stage.avgDays}</strong> дн</span>
-                    {stage.stuck > 0 && (
-                      <span className="funnel-step-stuck">Зависло: {stage.stuck}</span>
+                    {stage.showStuck ? (
+                      stage.stuck > 0 ? (
+                        <button
+                          type="button"
+                          className="funnel-stuck-toggle"
+                          onClick={() => setExpandedStuckStage(expandedStuckStage === stage.id ? null : stage.id)}
+                          title={stage.stuckHint}
+                        >
+                          Зависло: {stage.stuck} {expandedStuckStage === stage.id ? '▲' : '▼'}
+                        </button>
+                      ) : (
+                        <span className="funnel-step-stuck-muted" title={stage.stuckHint}>Зависло: 0</span>
+                      )
+                    ) : (
+                      <span className="funnel-step-stuck-muted">—</span>
                     )}
                   </div>
+                  {stage.showStuck && expandedStuckStage === stage.id && stage.stuckTasks.length > 0 && (
+                    <div className="funnel-stuck-list">
+                      <div className="funnel-stuck-list-title">{stage.stuckHint}</div>
+                      <table className="data-table funnel-stuck-table">
+                        <thead>
+                          <tr>
+                            <th>№ заявки</th>
+                            <th>Клієнт</th>
+                            <th>Регіон</th>
+                            <th>Статус</th>
+                            {stage.id === 'service' && <th>Причина</th>}
+                            <th>Автор</th>
+                            <th>Днів</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {stage.stuckTasks.map((row) => (
+                            <tr key={row.id}>
+                              <td>{row.number}</td>
+                              <td>{row.client}</td>
+                              <td>{row.region}</td>
+                              <td>{row.status}</td>
+                              {stage.id === 'service' && <td>{row.reason || '—'}</td>}
+                              <td>{row.author}</td>
+                              <td className="funnel-stuck-cell">{row.days !== null ? row.days.toFixed(1) : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1941,12 +2079,71 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
                     <td>{stage.count}</td>
                     <td>{stage.percent.toFixed(1)}%</td>
                     <td>{stage.avgDays}</td>
-                    <td className={stage.stuck > 0 ? 'funnel-stuck-cell' : ''}>{stage.stuck}</td>
+                    <td className={stage.stuck > 0 ? 'funnel-stuck-cell' : ''}>
+                      {stage.showStuck ? (
+                        stage.stuck > 0 ? (
+                          <button
+                            type="button"
+                            className="funnel-stuck-link"
+                            onClick={() => setExpandedStuckStage(expandedStuckStage === stage.id ? null : stage.id)}
+                            title={stage.stuckHint}
+                          >
+                            {stage.stuck}
+                          </button>
+                        ) : (
+                          '0'
+                        )
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {processFunnelData.stages.some((s) => s.showStuck && expandedStuckStage === s.id && s.stuckTasks.length > 0) && (
+            <div className="data-table-card">
+              <h3>
+                ⏳ Завислі заявки —{' '}
+                {processFunnelData.stages.find((s) => s.id === expandedStuckStage)?.label}
+              </h3>
+              <p className="funnel-stuck-list-title">
+                {processFunnelData.stages.find((s) => s.id === expandedStuckStage)?.stuckHint}
+              </p>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>№</th>
+                    <th>№ заявки</th>
+                    <th>Клієнт</th>
+                    <th>Регіон</th>
+                    <th>Статус</th>
+                    {expandedStuckStage === 'service' && <th>Причина</th>}
+                    <th>Автор</th>
+                    <th>Днів на етапі</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {processFunnelData.stages
+                    .find((s) => s.id === expandedStuckStage)
+                    ?.stuckTasks.map((row, index) => (
+                      <tr key={row.id}>
+                        <td>{index + 1}</td>
+                        <td>{row.number}</td>
+                        <td>{row.client}</td>
+                        <td>{row.region}</td>
+                        <td>{row.status}</td>
+                        {expandedStuckStage === 'service' && <td>{row.reason || '—'}</td>}
+                        <td>{row.author}</td>
+                        <td className="funnel-stuck-cell">{row.days !== null ? row.days.toFixed(1) : '—'}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
