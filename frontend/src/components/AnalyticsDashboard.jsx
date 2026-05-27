@@ -30,6 +30,56 @@ const getDaysSince = (dateValue) => {
   return (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24);
 };
 
+const isApprovalConfirmed = (value) => value === 'Підтверджено';
+const isApprovalRejected = (value) => value === 'Відмова';
+
+const classifyTaskFunnelStage = (task) => {
+  if (task.status === 'Заблоковано') return 'blocked';
+  if (isApprovalRejected(task.approvedByWarehouse) || isApprovalRejected(task.approvedByAccountant)) {
+    return 'rejected';
+  }
+  if (task.status === 'Заявка') return 'operator';
+  if (task.status === 'В роботі') return 'service';
+  if (task.status === 'Виконано') {
+    if (!isApprovalConfirmed(task.approvedByWarehouse)) return 'warehouse';
+    if (!isApprovalConfirmed(task.approvedByAccountant)) return 'accountant';
+    return 'closed';
+  }
+  return 'other';
+};
+
+const getFunnelStageDays = (task, stageId) => {
+  switch (stageId) {
+    case 'operator':
+    case 'service':
+      return getDaysSince(task.autoCreatedAt || task.date || task.requestDate);
+    case 'warehouse':
+      return getDaysSince(task.autoCompletedAt);
+    case 'accountant':
+      return getDaysSince(task.autoWarehouseApprovedAt || task.autoCompletedAt);
+    default:
+      return null;
+  }
+};
+
+const isFunnelStageStuck = (task, stageId) => {
+  const days = getFunnelStageDays(task, stageId);
+  if (days === null) return false;
+  if (stageId === 'warehouse' || stageId === 'accountant') {
+    return days > STUCK_APPROVAL_DAYS;
+  }
+  return days > STUCK_ACTIVE_DAYS;
+};
+
+const taskNeedsPendingInvoice = (task) => {
+  const hasInvoiceRequest = task.invoiceRequested === true || task.invoiceRequestId || task.invoiceStatus;
+  const needInvoice = task.needInvoice === true || task.needInvoice === 'Так' || task.needInvoice === 'так';
+  if (!hasInvoiceRequest && !needInvoice) return false;
+  if (task.invoiceFile && String(task.invoiceFile).trim()) return false;
+  if (task.invoiceStatus === 'completed') return false;
+  return true;
+};
+
 // Функція форматування валюти
 const formatCurrency = (value) => {
   if (!value && value !== 0) return '0 ₴';
@@ -602,6 +652,154 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
     if (filters.company) parts.push(`Компанія: ${filters.company}`);
     return parts.join(' · ');
   }, [filters, user]);
+
+  const processFunnelData = useMemo(() => {
+    const stageDefs = [
+      {
+        id: 'operator',
+        label: 'Оператор',
+        icon: '📞',
+        panel: 'Оператор',
+        description: 'Нові заявки, очікують взяття в роботу',
+        color: '#2196F3',
+      },
+      {
+        id: 'service',
+        label: 'Сервіс',
+        icon: '🔧',
+        panel: 'Сервісна служба',
+        description: 'Заявки в роботі у інженерів',
+        color: '#FF9800',
+      },
+      {
+        id: 'warehouse',
+        label: 'Зав. склад',
+        icon: '📦',
+        panel: 'Зав. склад',
+        description: 'Виконано, очікує підтвердження складу',
+        color: '#9C27B0',
+      },
+      {
+        id: 'accountant',
+        label: 'Бухгалтерія',
+        icon: '💰',
+        panel: 'Бух на затвердженні',
+        description: 'Склад підтвердив, очікує бухгалтерії',
+        color: '#FFC107',
+      },
+      {
+        id: 'closed',
+        label: 'Закрито',
+        icon: '✅',
+        panel: '—',
+        description: 'Підтверджено складом і бухгалтерією',
+        color: '#4CAF50',
+      },
+    ];
+
+    const buckets = {
+      operator: [],
+      service: [],
+      warehouse: [],
+      accountant: [],
+      closed: [],
+      blocked: [],
+      rejected: [],
+      other: [],
+    };
+
+    filteredTasks.forEach((task) => {
+      const stage = classifyTaskFunnelStage(task);
+      if (buckets[stage]) buckets[stage].push(task);
+      else buckets.other.push(task);
+    });
+
+    const stages = stageDefs.map((def) => {
+      const stageTasks = buckets[def.id] || [];
+      const daysList = stageTasks
+        .map((t) => getFunnelStageDays(t, def.id))
+        .filter((d) => d !== null);
+      const avgDays = daysList.length
+        ? daysList.reduce((a, b) => a + b, 0) / daysList.length
+        : null;
+      const stuck = stageTasks.filter((t) => isFunnelStageStuck(t, def.id)).length;
+
+      return {
+        ...def,
+        count: stageTasks.length,
+        percent: filteredTasks.length ? (stageTasks.length / filteredTasks.length) * 100 : 0,
+        avgDays: avgDays !== null ? avgDays.toFixed(1) : '—',
+        stuck,
+      };
+    });
+
+    const invoicePending = filteredTasks.filter(taskNeedsPendingInvoice);
+    const invoiceRejected = filteredTasks.filter(
+      (t) => t.invoiceStatus === 'rejected' || (t.invoiceRejectionReason && !t.invoiceRequestId)
+    );
+
+    const transitionSamples = {
+      serviceToDone: filteredTasks.filter((t) => t.autoCreatedAt && t.autoCompletedAt && t.status === 'Виконано'),
+      doneToWarehouse: filteredTasks.filter((t) => t.autoCompletedAt && t.autoWarehouseApprovedAt),
+      warehouseToAccountant: filteredTasks.filter((t) => t.autoWarehouseApprovedAt && t.autoAccountantApprovedAt),
+    };
+
+    const avgTransitionDays = (items, startField, endField) => {
+      const times = items
+        .map((t) => {
+          const start = new Date(t[startField]);
+          const end = new Date(t[endField]);
+          if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+          return (end - start) / (1000 * 60 * 60 * 24);
+        })
+        .filter((d) => d !== null && d >= 0);
+      return times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : '—';
+    };
+
+    const transitions = [
+      {
+        label: 'Створення → виконання',
+        value: avgTransitionDays(transitionSamples.serviceToDone, 'autoCreatedAt', 'autoCompletedAt'),
+      },
+      {
+        label: 'Виконання → склад',
+        value: avgTransitionDays(transitionSamples.doneToWarehouse, 'autoCompletedAt', 'autoWarehouseApprovedAt'),
+      },
+      {
+        label: 'Склад → бухгалтерія',
+        value: avgTransitionDays(
+          transitionSamples.warehouseToAccountant,
+          'autoWarehouseApprovedAt',
+          'autoAccountantApprovedAt'
+        ),
+      },
+    ];
+
+    const pipelineActive = stages
+      .filter((s) => ['operator', 'service', 'warehouse', 'accountant'].includes(s.id))
+      .reduce((sum, s) => sum + s.count, 0);
+
+    const bottleneck = [...stages]
+      .filter((s) => ['operator', 'service', 'warehouse', 'accountant'].includes(s.id))
+      .sort((a, b) => b.count - a.count)[0];
+
+    return {
+      stages,
+      maxStageCount: Math.max(...stages.map((s) => s.count), 1),
+      pipelineActive,
+      fullyClosed: buckets.closed.length,
+      blocked: buckets.blocked.length,
+      rejected: buckets.rejected.length,
+      other: buckets.other.length,
+      invoicePending: invoicePending.length,
+      invoiceRejected: invoiceRejected.length,
+      transitions,
+      bottleneck,
+      closeRate: filteredTasks.length
+        ? ((buckets.closed.length / filteredTasks.length) * 100).toFixed(1)
+        : '0.0',
+    };
+  }, [filteredTasks]);
 
   // Порівняльна аналітика (попередній період)
   const comparisonData = useMemo(() => {
@@ -1202,6 +1400,12 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
           🔧 Обладнання
         </button>
         <button 
+          className={`tab-btn ${activeTab === 'funnel' ? 'active' : ''}`}
+          onClick={() => setActiveTab('funnel')}
+        >
+          🔄 Воронка процесу
+        </button>
+        <button 
           className={`tab-btn ${activeTab === 'comparison' ? 'active' : ''}`}
           onClick={() => setActiveTab('comparison')}
         >
@@ -1585,6 +1789,159 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
                     <td>{eq.tasks}</td>
                     <td>{formatCurrency(eq.revenue)}</td>
                     <td>{formatCurrency(eq.avgCost)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ВОРОНКА ПРОЦЕСУ */}
+      {activeTab === 'funnel' && (
+        <div className="tab-content">
+          <div className="funnel-header-note">
+            <p>Період аналізу: <strong>{filterContextLabel}</strong></p>
+            <p>Розподіл заявок за етапами процесу DTS: оператор → сервіс → склад → бухгалтерія → закрито.</p>
+          </div>
+
+          <div className="kpi-grid">
+            <div className="kpi-card blue" title="Заявки в активних етапах (не закриті повністю)">
+              <div className="kpi-icon">🔄</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{processFunnelData.pipelineActive}</div>
+                <div className="kpi-label">У процесі</div>
+              </div>
+            </div>
+            <div className="kpi-card green" title="Підтверджено складом і бухгалтерією">
+              <div className="kpi-icon">✅</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{processFunnelData.fullyClosed}</div>
+                <div className="kpi-label">Закрито ({processFunnelData.closeRate}%)</div>
+              </div>
+            </div>
+            <div className="kpi-card orange" title="Найбільший етап за кількістю заявок">
+              <div className="kpi-icon">⚠️</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{processFunnelData.bottleneck?.count || 0}</div>
+                <div className="kpi-label">Вузьке місце: {processFunnelData.bottleneck?.label || '—'}</div>
+              </div>
+            </div>
+            <div className="kpi-card gold" title="Запити на рахунок без завантаженого файлу">
+              <div className="kpi-icon">📄</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{processFunnelData.invoicePending}</div>
+                <div className="kpi-label">Очікують рахунок</div>
+              </div>
+            </div>
+            <div className="kpi-card red" title="Відхилені заявки або рахунки">
+              <div className="kpi-icon">❌</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{processFunnelData.rejected + processFunnelData.invoiceRejected}</div>
+                <div className="kpi-label">Відхилено</div>
+              </div>
+            </div>
+            <div className="kpi-card indigo" title="Заблоковані заявки">
+              <div className="kpi-icon">🚫</div>
+              <div className="kpi-info">
+                <div className="kpi-value">{processFunnelData.blocked}</div>
+                <div className="kpi-label">Заблоковано</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="chart-card full-width" title="Кількість заявок на кожному етапі процесу">
+            <h3>🔄 Воронка процесу</h3>
+            <div className="process-funnel">
+              {processFunnelData.stages.map((stage) => (
+                <div key={stage.id} className="funnel-step">
+                  <div className="funnel-step-meta">
+                    <span className="funnel-step-icon">{stage.icon}</span>
+                    <div className="funnel-step-text">
+                      <strong>{stage.label}</strong>
+                      <span>{stage.description}</span>
+                      <span className="funnel-step-panel">Панель: {stage.panel}</span>
+                    </div>
+                    <div className="funnel-step-stats">
+                      <span className="funnel-step-count">{stage.count}</span>
+                      <span className="funnel-step-percent">{stage.percent.toFixed(1)}%</span>
+                    </div>
+                  </div>
+                  <div className="funnel-step-bar-track">
+                    <div
+                      className="funnel-step-bar-fill"
+                      style={{
+                        width: `${Math.max(4, (stage.count / processFunnelData.maxStageCount) * 100)}%`,
+                        backgroundColor: stage.color,
+                      }}
+                    />
+                  </div>
+                  <div className="funnel-step-footer">
+                    <span>Сер. час на етапі: <strong>{stage.avgDays}</strong> дн</span>
+                    {stage.stuck > 0 && (
+                      <span className="funnel-step-stuck">Зависло: {stage.stuck}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="charts-row">
+            <div className="chart-card" title="Середній час переходу між етапами (за наявності дат auto*)">
+              <h3>⏱️ Час переходів між етапами</h3>
+              <div className="funnel-transitions">
+                {processFunnelData.transitions.map((tr) => (
+                  <div key={tr.label} className="funnel-transition-item">
+                    <span className="funnel-transition-label">{tr.label}</span>
+                    <span className="funnel-transition-value">
+                      {tr.value === '—' ? '—' : `${tr.value} дн`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="chart-card" title="Паралельний процес оформлення рахунків">
+              <h3>📄 Рахунки</h3>
+              <div className="funnel-transitions">
+                <div className="funnel-transition-item">
+                  <span className="funnel-transition-label">Очікують рахунок</span>
+                  <span className="funnel-transition-value">{processFunnelData.invoicePending}</span>
+                </div>
+                <div className="funnel-transition-item">
+                  <span className="funnel-transition-label">Відхилені рахунки</span>
+                  <span className="funnel-transition-value funnel-step-stuck">{processFunnelData.invoiceRejected}</span>
+                </div>
+                <div className="funnel-transition-item">
+                  <span className="funnel-transition-label">Інші статуси</span>
+                  <span className="funnel-transition-value">{processFunnelData.other}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="data-table-card" title="Детальна таблиця етапів воронки">
+            <h3>📋 Деталізація етапів</h3>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Етап</th>
+                  <th>Панель</th>
+                  <th>Заявок</th>
+                  <th>%</th>
+                  <th>Сер. час (дні)</th>
+                  <th>Зависло</th>
+                </tr>
+              </thead>
+              <tbody>
+                {processFunnelData.stages.map((stage) => (
+                  <tr key={stage.id}>
+                    <td>{stage.icon} {stage.label}</td>
+                    <td>{stage.panel}</td>
+                    <td>{stage.count}</td>
+                    <td>{stage.percent.toFixed(1)}%</td>
+                    <td>{stage.avgDays}</td>
+                    <td className={stage.stuck > 0 ? 'funnel-stuck-cell' : ''}>{stage.stuck}</td>
                   </tr>
                 ))}
               </tbody>

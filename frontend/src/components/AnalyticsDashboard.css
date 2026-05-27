@@ -789,3 +789,154 @@
     align-self: flex-start;
   }
 }
+
+/* Воронка процесу */
+.funnel-header-note {
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: #1a2636;
+  border-radius: 12px;
+  border-left: 4px solid #2196F3;
+}
+
+.funnel-header-note p {
+  margin: 0 0 8px;
+  color: #bbb;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.funnel-header-note p:last-child {
+  margin-bottom: 0;
+}
+
+.process-funnel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.funnel-step {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.funnel-step-meta {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.funnel-step-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.funnel-step-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.funnel-step-text strong {
+  color: #fff;
+  font-size: 16px;
+}
+
+.funnel-step-text span {
+  color: #999;
+  font-size: 13px;
+}
+
+.funnel-step-panel {
+  color: #4fc3f7 !important;
+  font-size: 12px !important;
+}
+
+.funnel-step-stats {
+  text-align: right;
+  min-width: 80px;
+}
+
+.funnel-step-count {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+
+.funnel-step-percent {
+  display: block;
+  margin-top: 4px;
+  color: #888;
+  font-size: 13px;
+}
+
+.funnel-step-bar-track {
+  height: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.funnel-step-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.funnel-step-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: #888;
+}
+
+.funnel-step-footer strong {
+  color: #fff;
+}
+
+.funnel-step-stuck {
+  color: #ff7043;
+  font-weight: 600;
+}
+
+.funnel-transitions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.funnel-transition-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+}
+
+.funnel-transition-label {
+  color: #ccc;
+  font-size: 14px;
+}
+
+.funnel-transition-value {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.funnel-stuck-cell {
+  color: #ff7043;
+  font-weight: 700;
+}
