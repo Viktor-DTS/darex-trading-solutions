@@ -55,6 +55,14 @@ const normalizeForCompare = (val) => {
   return String(val);
 };
 
+// Поля, які сервер заповнює автоматично — не порівнюємо суворо, якщо клієнт надіслав порожнє
+const SERVER_MANAGED_AUTO_FIELDS = new Set([
+  'autoCreatedAt',
+  'autoCompletedAt',
+  'autoWarehouseApprovedAt',
+  'autoAccountantApprovedAt',
+]);
+
 // Порівняння відправлених даних з тим, що повернув сервер (перевірка при нестабільному інтернеті)
 const taskDataMatchesSaved = (sent, saved) => {
   const mismatched = [];
@@ -62,6 +70,7 @@ const taskDataMatchesSaved = (sent, saved) => {
     if (key === '_id' || key === 'id' || key === '__v') continue;
     const a = normalizeForCompare(sent[key]);
     const b = normalizeForCompare(saved[key]);
+    if (SERVER_MANAGED_AUTO_FIELDS.has(key) && !a && b) continue;
     if (a !== b) mismatched.push(key);
   }
   return { match: mismatched.length === 0, mismatchedFields: mismatched };
@@ -1630,6 +1639,12 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         bonusApprovalDate: bonusApprovalDate
       };
 
+      // Не надсилаємо порожні auto-поля — сервер сам їх заповнює; інакше PUT перезаписує дати порожнім рядком
+      ['autoCompletedAt', 'autoWarehouseApprovedAt', 'autoAccountantApprovedAt', 'invoiceRequestDate', 'invoiceUploadDate'].forEach((field) => {
+        if (!taskData[field]) delete taskData[field];
+      });
+      if (taskId && !taskData.autoCreatedAt) delete taskData.autoCreatedAt;
+
       // Визначаємо URL і метод в залежності від режиму (створення або редагування)
       const taskId = initialData?._id || initialData?.id;
 
@@ -1767,6 +1782,14 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
         throw new Error('Не вдалося зберегти заявку після кількох спроб генерації унікального номера. Спробуйте ще раз.');
       }
       console.log(`[DEBUG] Заявка ${taskId ? 'оновлена' : 'створена'}:`, savedTask);
+
+      setFormData((prev) => ({
+        ...prev,
+        autoCreatedAt: formatDateForInput(savedTask.autoCreatedAt) || prev.autoCreatedAt,
+        autoCompletedAt: formatDateForInput(savedTask.autoCompletedAt) || prev.autoCompletedAt,
+        autoWarehouseApprovedAt: formatDateForInput(savedTask.autoWarehouseApprovedAt) || prev.autoWarehouseApprovedAt,
+        autoAccountantApprovedAt: formatDateForInput(savedTask.autoAccountantApprovedAt) || prev.autoAccountantApprovedAt,
+      }));
       
       // Зберігаємо координати для нової заявки, якщо адреса була вибрана з Google Places
       if (!taskId && savedTask._id && lastPlaceCoordinates) {

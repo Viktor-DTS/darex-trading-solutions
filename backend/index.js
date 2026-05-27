@@ -6739,6 +6739,13 @@ app.put('/api/tasks/:id', async (req, res) => {
       updateData.autoAccountantApprovedAt = new Date();
       console.log('[DEBUG] PUT /api/tasks/:id - автоматично встановлено autoAccountantApprovedAt:', updateData.autoAccountantApprovedAt);
     }
+
+    // Не перезаписувати auto-дати порожнім рядком з клієнта (форма надсилає '' для read-only полів)
+    for (const field of ['autoCreatedAt', 'autoCompletedAt', 'autoWarehouseApprovedAt', 'autoAccountantApprovedAt']) {
+      if (updateData[field] === '' || updateData[field] === null) {
+        delete updateData[field];
+      }
+    }
     
     const task = await Task.findByIdAndUpdate(req.params.id, updateData, { new: true, lean: true });
 
