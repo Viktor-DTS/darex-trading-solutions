@@ -6638,6 +6638,13 @@ app.post('/api/tasks', async (req, res) => {
       taskData.autoCompletedAt = new Date();
       console.log('[DEBUG] POST /api/tasks - автоматично встановлено autoCompletedAt при створенні зі статусом "Виконано":', taskData.autoCompletedAt);
     }
+
+    // Автоматичне встановлення autoWarehouseApprovedAt якщо заявка створюється одразу з підтвердженням складом
+    const isWarehouseApprovedOnCreate = taskData.approvedByWarehouse === true || taskData.approvedByWarehouse === 'Підтверджено';
+    if (isWarehouseApprovedOnCreate && !taskData.autoWarehouseApprovedAt) {
+      taskData.autoWarehouseApprovedAt = new Date();
+      console.log('[DEBUG] POST /api/tasks - автоматично встановлено autoWarehouseApprovedAt при створенні з підтвердженням складом:', taskData.autoWarehouseApprovedAt);
+    }
     
     const task = new Task(taskData);
     const savedTask = await task.save();
@@ -6688,30 +6695,41 @@ app.put('/api/tasks/:id', async (req, res) => {
       return res.status(404).json({ error: 'Задачу не знайдено' });
     }
     
-    // Автоматичне встановлення autoCompletedAt при зміні статусу на "Виконано"
-    if (updateData.status === 'Виконано' && currentTask.status !== 'Виконано') {
-      // Встановлюємо дату тільки якщо поле порожнє, щоб зберегти оригінальну дату виконання
-      if (!currentTask.autoCompletedAt) {
-        updateData.autoCompletedAt = new Date();
-        console.log('[DEBUG] PUT /api/tasks/:id - автоматично встановлено autoCompletedAt:', updateData.autoCompletedAt);
-      } else {
-        console.log('[DEBUG] PUT /api/tasks/:id - autoCompletedAt вже встановлено, зберігаємо оригінальну дату:', currentTask.autoCompletedAt);
-      }
-    }
-    
     const isWarehouseApprovedValue = (value) => value === true || value === 'Підтверджено';
     const isAccountantApprovedValue = (value) => value === true || value === 'Підтверджено';
+    const hasValidTimestamp = (value) => {
+      if (value == null || value === '') return false;
+      const date = new Date(value);
+      return !Number.isNaN(date.getTime());
+    };
 
-    // Автоматичне встановлення autoWarehouseApprovedAt при затвердженні завскладом
-    if (
-      isWarehouseApprovedValue(updateData.approvedByWarehouse) &&
-      !isWarehouseApprovedValue(currentTask.approvedByWarehouse) &&
-      !currentTask.autoWarehouseApprovedAt
-    ) {
-      updateData.autoWarehouseApprovedAt = new Date();
-      console.log('[DEBUG] PUT /api/tasks/:id - автоматично встановлено autoWarehouseApprovedAt:', updateData.autoWarehouseApprovedAt);
+    const effectiveStatus = updateData.status !== undefined ? updateData.status : currentTask.status;
+    if (effectiveStatus === 'Виконано') {
+      const resolvedCompleted =
+        updateData.autoCompletedAt !== undefined && updateData.autoCompletedAt !== ''
+          ? updateData.autoCompletedAt
+          : currentTask.autoCompletedAt;
+      if (!hasValidTimestamp(resolvedCompleted)) {
+        updateData.autoCompletedAt = new Date();
+        console.log('[DEBUG] PUT /api/tasks/:id - автоматично встановлено autoCompletedAt:', updateData.autoCompletedAt);
+      }
     }
-    
+
+    const effectiveWarehouseApproval =
+      updateData.approvedByWarehouse !== undefined
+        ? updateData.approvedByWarehouse
+        : currentTask.approvedByWarehouse;
+    if (isWarehouseApprovedValue(effectiveWarehouseApproval)) {
+      const resolvedWarehouseApproved =
+        updateData.autoWarehouseApprovedAt !== undefined && updateData.autoWarehouseApprovedAt !== ''
+          ? updateData.autoWarehouseApprovedAt
+          : currentTask.autoWarehouseApprovedAt;
+      if (!hasValidTimestamp(resolvedWarehouseApproved)) {
+        updateData.autoWarehouseApprovedAt = new Date();
+        console.log('[DEBUG] PUT /api/tasks/:id - автоматично встановлено autoWarehouseApprovedAt:', updateData.autoWarehouseApprovedAt);
+      }
+    }
+
     // Автоматичне встановлення autoAccountantApprovedAt при затвердженні бухгалтером
     if (
       isAccountantApprovedValue(updateData.approvedByAccountant) &&
