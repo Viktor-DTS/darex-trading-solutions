@@ -5910,6 +5910,17 @@ app.get('/api/tasks/filter', async (req, res) => {
       }
       return conditions.length === 1 ? conditions[0] : { $and: conditions };
     };
+    const buildColumnDateMatch = (field, fromObj, toObj) => {
+      if (field === 'warehouseApprovalDate') {
+        return {
+          $or: [
+            buildDateMatch('warehouseApprovalDate', fromObj, toObj),
+            buildDateMatch('autoWarehouseApprovedAt', fromObj, toObj),
+          ],
+        };
+      }
+      return buildDateMatch(field, fromObj, toObj);
+    };
     // Фільтри «Сервісний інженер №1…№6»: значення може бути в будь-якому з полів — кожен непорожній фільтр дає OR по всіх слотах, між фільтрами — AND
     const ENGINEER_COLUMN_KEYS = ['engineer1', 'engineer2', 'engineer3', 'engineer4', 'engineer5', 'engineer6'];
     const pushEngineerColumnFilterConditions = (engineerPatterns, matchConditions) => {
@@ -6014,7 +6025,7 @@ app.get('/api/tasks/filter', async (req, res) => {
             }
             const matchConditions = [];
             for (const [field, { from, to }] of Object.entries(dateFiltersByField)) {
-              matchConditions.push(buildDateMatch(field, from, to));
+              matchConditions.push(buildColumnDateMatch(field, from, to));
             }
             for (const [k, v] of Object.entries(colMatch)) matchConditions.push({ [k]: v });
             pushEngineerColumnFilterConditions(engineerPatterns, matchConditions);
@@ -6080,7 +6091,7 @@ app.get('/api/tasks/filter', async (req, res) => {
           }
           const matchConditions = [];
           for (const [field, { from, to }] of Object.entries(dateFiltersByField)) {
-            matchConditions.push(buildDateMatch(field, from, to));
+            matchConditions.push(buildColumnDateMatch(field, from, to));
           }
           for (const [k, v] of Object.entries(colMatch)) matchConditions.push({ [k]: v });
           pushEngineerColumnFilterConditions(engineerPatterns, matchConditions);
@@ -6391,7 +6402,7 @@ app.get('/api/tasks/filter', async (req, res) => {
           }
           const matchConditions = [];
           for (const [field, { from, to }] of Object.entries(dateFiltersByField)) {
-            matchConditions.push(buildDateMatch(field, from, to));
+            matchConditions.push(buildColumnDateMatch(field, from, to));
           }
           for (const [k, v] of Object.entries(colMatch)) matchConditions.push({ [k]: v });
           pushEngineerColumnFilterConditions(engineerPatterns, matchConditions);
@@ -6688,14 +6699,25 @@ app.put('/api/tasks/:id', async (req, res) => {
       }
     }
     
+    const isWarehouseApprovedValue = (value) => value === true || value === 'Підтверджено';
+    const isAccountantApprovedValue = (value) => value === true || value === 'Підтверджено';
+
     // Автоматичне встановлення autoWarehouseApprovedAt при затвердженні завскладом
-    if (updateData.approvedByWarehouse === true && currentTask.approvedByWarehouse !== true && !currentTask.autoWarehouseApprovedAt) {
+    if (
+      isWarehouseApprovedValue(updateData.approvedByWarehouse) &&
+      !isWarehouseApprovedValue(currentTask.approvedByWarehouse) &&
+      !currentTask.autoWarehouseApprovedAt
+    ) {
       updateData.autoWarehouseApprovedAt = new Date();
       console.log('[DEBUG] PUT /api/tasks/:id - автоматично встановлено autoWarehouseApprovedAt:', updateData.autoWarehouseApprovedAt);
     }
     
     // Автоматичне встановлення autoAccountantApprovedAt при затвердженні бухгалтером
-    if (updateData.approvedByAccountant === true && currentTask.approvedByAccountant !== true && !currentTask.autoAccountantApprovedAt) {
+    if (
+      isAccountantApprovedValue(updateData.approvedByAccountant) &&
+      !isAccountantApprovedValue(currentTask.approvedByAccountant) &&
+      !currentTask.autoAccountantApprovedAt
+    ) {
       updateData.autoAccountantApprovedAt = new Date();
       console.log('[DEBUG] PUT /api/tasks/:id - автоматично встановлено autoAccountantApprovedAt:', updateData.autoAccountantApprovedAt);
     }

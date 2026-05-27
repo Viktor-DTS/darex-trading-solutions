@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import API_BASE_URL from '../config.js';
+import {
+  STUCK_APPROVAL_DAYS,
+  getAccountantStuckDays,
+  getWarehouseApprovedAt,
+  isAccountantStuck,
+} from '../utils/taskStuckRules';
 import './AnalyticsDashboard.css';
 
 // Кольори
@@ -15,7 +21,6 @@ const UNKNOWN_LABELS = new Set(['Не вказано', 'Невідомо', 'Не
 const MIN_WORK_TYPE_TASKS = 5;
 const MIN_CLIENT_TASKS = 3;
 const STUCK_ACTIVE_DAYS = 14;
-const STUCK_APPROVAL_DAYS = 7;
 const DATA_QUALITY_THRESHOLD = 10;
 
 const isUnknownLabel = (value) => {
@@ -57,8 +62,10 @@ const getFunnelStageDays = (task, stageId) => {
       return getDaysSince(getTaskCreatedAt(task));
     case 'warehouse':
       return getDaysSince(task.autoCompletedAt);
-    case 'accountant':
-      return task.autoWarehouseApprovedAt ? getDaysSince(task.autoWarehouseApprovedAt) : null;
+    case 'accountant': {
+      const approvedAt = getWarehouseApprovedAt(task);
+      return approvedAt ? getDaysSince(approvedAt) : null;
+    }
     default:
       return null;
   }
@@ -103,17 +110,6 @@ const isWarehouseStuck = (task) => {
   return days !== null && days > STUCK_APPROVAL_DAYS;
 };
 
-const isAccountantStuck = (task) => {
-  if (task.status !== 'Виконано') return false;
-  if (!isApprovalConfirmed(task.approvedByWarehouse)) return false;
-  if (isApprovalConfirmed(task.approvedByAccountant) || isApprovalRejected(task.approvedByAccountant)) {
-    return false;
-  }
-  if (!task.autoWarehouseApprovedAt) return false;
-  const days = getDaysSince(task.autoWarehouseApprovedAt);
-  return days !== null && days > STUCK_APPROVAL_DAYS;
-};
-
 const getStuckTasksForStage = (stageId, tasks) => {
   switch (stageId) {
     case 'service':
@@ -136,7 +132,7 @@ const getStuckTaskDays = (task, stageId) => {
     case 'warehouse':
       return getDaysSince(task.autoCompletedAt);
     case 'accountant':
-      return getDaysSince(task.autoWarehouseApprovedAt);
+      return getAccountantStuckDays(task);
     default:
       return null;
   }
@@ -834,15 +830,16 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
 
     const transitionSamples = {
       serviceToDone: filteredTasks.filter((t) => t.autoCreatedAt && t.autoCompletedAt && t.status === 'Виконано'),
-      doneToWarehouse: filteredTasks.filter((t) => t.autoCompletedAt && t.autoWarehouseApprovedAt),
-      warehouseToAccountant: filteredTasks.filter((t) => t.autoWarehouseApprovedAt && t.autoAccountantApprovedAt),
+      doneToWarehouse: filteredTasks.filter((t) => t.autoCompletedAt && getWarehouseApprovedAt(t)),
+      warehouseToAccountant: filteredTasks.filter((t) => getWarehouseApprovedAt(t) && t.autoAccountantApprovedAt),
     };
 
-    const avgTransitionDays = (items, startField, endField) => {
+    const avgTransitionDays = (items, startField, endField, endResolver = null) => {
       const times = items
         .map((t) => {
           const start = new Date(t[startField]);
-          const end = new Date(t[endField]);
+          const endValue = endResolver ? endResolver(t) : t[endField];
+          const end = new Date(endValue);
           if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
           return (end - start) / (1000 * 60 * 60 * 24);
         })
@@ -857,14 +854,15 @@ export default function AnalyticsDashboard({ user, accessRules = {} }) {
       },
       {
         label: 'Виконання → склад',
-        value: avgTransitionDays(transitionSamples.doneToWarehouse, 'autoCompletedAt', 'autoWarehouseApprovedAt'),
+        value: avgTransitionDays(transitionSamples.doneToWarehouse, 'autoCompletedAt', null, getWarehouseApprovedAt),
       },
       {
         label: 'Склад → бухгалтерія',
         value: avgTransitionDays(
           transitionSamples.warehouseToAccountant,
-          'autoWarehouseApprovedAt',
-          'autoAccountantApprovedAt'
+          null,
+          'autoAccountantApprovedAt',
+          (t) => getWarehouseApprovedAt(t)
         ),
       },
     ];

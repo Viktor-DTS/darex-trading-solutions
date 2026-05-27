@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs';
 import API_BASE_URL from '../config';
 import { authFetch } from '../utils/authFetch';
 import { generateWorkOrder } from '../utils/workOrderGenerator';
+import { getWarehouseApprovedAt } from '../utils/taskStuckRules';
 import './TaskTable.css';
 
 // Кеш списку заявок на клієнті (TTL 90 с) — менше запитів при перемиканні вкладок
@@ -178,6 +179,27 @@ function isRejected(value) {
 }
 
 // Парсинг дати з фільтра: YYYY-MM-DD (input type="date") та DD.MM.YYYY
+const getTaskDateFieldValue = (task, field) => {
+  if (field === 'warehouseApprovalDate') {
+    return getWarehouseApprovedAt(task);
+  }
+  return task[field];
+};
+
+const getTaskColumnValue = (task, colKey) => {
+  if (colKey === 'warehouseApprovalDate') {
+    return getWarehouseApprovedAt(task);
+  }
+  return task[colKey];
+};
+
+const getTaskColumnFormatKey = (task, colKey) => {
+  if (colKey === 'warehouseApprovalDate' && task.autoWarehouseApprovedAt) {
+    return 'autoWarehouseApprovedAt';
+  }
+  return colKey;
+};
+
 function parseFilterDate(val, endOfDay = false) {
   if (!val || typeof val !== 'string') return null;
   const s = val.trim();
@@ -702,8 +724,9 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         const filterDate = parseFilterDate(value);
         if (filterDate) {
           result = result.filter(task => {
-            if (!task[field]) return false;
-            const taskDate = new Date(task[field]);
+            const fieldValue = getTaskDateFieldValue(task, field);
+            if (!fieldValue) return false;
+            const taskDate = new Date(fieldValue);
             return !isNaN(taskDate.getTime()) && taskDate >= filterDate;
           });
         }
@@ -715,8 +738,9 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         const filterDate = parseFilterDate(value, true);
         if (filterDate) {
           result = result.filter(task => {
-            if (!task[field]) return false;
-            const taskDate = new Date(task[field]);
+            const fieldValue = getTaskDateFieldValue(task, field);
+            if (!fieldValue) return false;
+            const taskDate = new Date(fieldValue);
             return !isNaN(taskDate.getTime()) && taskDate <= filterDate;
           });
         }
@@ -967,21 +991,8 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       return value ? 'Так' : 'Ні';
     }
     
-    // Дати
-    if (key && (key.includes('Date') || key.includes('At') || key === 'date' || key === 'requestDate' || key === 'paymentDate')) {
-      try {
-        const date = new Date(value);
-        if (!isNaN(date.getTime())) {
-          return date.toLocaleDateString('uk-UA');
-        }
-      } catch (e) {
-        // Якщо не вдалося розпарсити як дату, повертаємо як є
-      }
-    }
-    
-    // Дата з часом (datetime)
-    if (key && (key.includes('At') || key === 'autoCreatedAt' || key === 'autoCompletedAt' || 
-                key === 'invoiceRequestDate' || key === 'invoiceUploadDate')) {
+    // Дата з часом (поля *At та datetime — перевіряємо раніше за date-only)
+    if (key && (key.endsWith('At') || key === 'invoiceRequestDate' || key === 'invoiceUploadDate')) {
       try {
         const date = new Date(value);
         if (!isNaN(date.getTime())) {
@@ -994,6 +1005,18 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         }
       } catch (e) {
         // Якщо не вдалося розпарсити, повертаємо як є
+      }
+    }
+
+    // Дати без часу
+    if (key && (key.includes('Date') || key === 'date' || key === 'requestDate' || key === 'paymentDate')) {
+      try {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleDateString('uk-UA');
+        }
+      } catch (e) {
+        // Якщо не вдалося розпарсити як дату, повертаємо як є
       }
     }
     
@@ -1079,8 +1102,8 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
       // Додавання даних
       tasksToExport.forEach(task => {
         const row = displayedColumns.map(col => {
-          const value = task[col.key];
-          return formatValue(value, col.key);
+          const value = getTaskColumnValue(task, col.key);
+          return formatValue(value, getTaskColumnFormatKey(task, col.key));
         });
         worksheet.addRow(row);
       });
@@ -1092,7 +1115,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         // Знаходимо максимальну довжину тексту в колонці
         let maxLength = col.label.length;
         tasksToExport.forEach(task => {
-          const value = formatValue(task[col.key], col.key);
+          const value = formatValue(getTaskColumnValue(task, col.key), getTaskColumnFormatKey(task, col.key));
           if (value) {
             const strValue = String(value);
             const lines = strValue.split('\n');
@@ -1599,7 +1622,10 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                       
                       return (
                         <td key={col.key} style={{ width: widthValue, maxWidth: widthValue }}>
-                          {formatValue(task[col.key], col.key)}
+                          {formatValue(
+                            getTaskColumnValue(task, col.key),
+                            getTaskColumnFormatKey(task, col.key)
+                          )}
                         </td>
                       );
                     })}
