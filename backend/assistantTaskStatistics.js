@@ -13,14 +13,32 @@ const STAT_LABELS = {
   pendingInvoiceRequests: 'Заявки на рахунки (pending/processing)',
 };
 
+const SUM_FIELD_NOTE =
+  'Сума по полях serviceTotal (пріоритет) або workPrice, як у таблицях DTS; порожні значення = 0.';
+
 /** @param {string} text */
 function isTaskStatisticsQuery(text) {
   const s = String(text || '').trim();
   if (s.length < 8) return false;
   const hasCountIntent =
     /скільк\w*|кількість|число|статистик\w*|підрахун\w*|count|how\s+many/i.test(s);
-  if (!hasCountIntent) return false;
-  return /заяв\w*|задач\w*|task/i.test(s);
+  const hasSumIntent = /сума|суми|загальн\w*\s+сума|разом|вартість|гривн|₴|uah/i.test(s);
+  const aboutTasks = /заяв\w*|задач\w*|task|робіт\w*|робот\w*/i.test(s);
+  if (hasCountIntent && /заяв\w*|задач\w*|task/i.test(s)) return true;
+  if (hasSumIntent && aboutTasks) return true;
+  return false;
+}
+
+/** @param {string} text @returns {'count'|'sum'} */
+function detectStatisticsKind(text) {
+  if (/сума|суми|загальн\w*\s+сума|разом|вартість|гривн|₴|uah/i.test(String(text || ''))) return 'sum';
+  return 'count';
+}
+
+/** @param {number} amount */
+function formatUah(amount) {
+  const n = Math.round((Number(amount) || 0) * 100) / 100;
+  return `${new Intl.NumberFormat('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)} грн`;
 }
 
 /** @param {string} roleLow */
@@ -129,6 +147,32 @@ function regionMongoFilter(region) {
   return { serviceRegion: region };
 }
 
+/** @param {'inWork'|'notInWork'|'pendingWarehouse'|'pendingAccountant'} focus @param {string | null} region */
+function buildFocusMatch(focus, region) {
+  const regionFilter = regionMongoFilter(region);
+  switch (focus) {
+    case 'notInWork':
+      return { ...regionFilter, status: 'Заявка' };
+    case 'inWork':
+      return { ...regionFilter, status: 'В роботі' };
+    case 'pendingWarehouse':
+      return {
+        ...regionFilter,
+        status: 'Виконано',
+        approvedByWarehouse: { $nin: ['Підтверджено', true] },
+      };
+    case 'pendingAccountant':
+      return {
+        ...regionFilter,
+        status: 'Виконано',
+        $or: [{ approvedByWarehouse: 'Підтверджено' }, { approvedByWarehouse: true }],
+        approvedByAccountant: { $nin: ['Підтверджено', true] },
+      };
+    default:
+      return regionFilter;
+  }
+}
+
 /**
  * @param {import('mongoose').Model} Task
  * @param {import('mongoose').Model | null | undefined} InvoiceRequest
@@ -138,25 +182,61 @@ async function fetchTaskStatisticsCounts(Task, InvoiceRequest, region) {
   const regionFilter = regionMongoFilter(region);
   const [notInWork, inWork, pendingWarehouse, pendingAccountant, pendingInvoiceRequests] =
     await Promise.all([
-      Task.countDocuments({ ...regionFilter, status: 'Заявка' }),
-      Task.countDocuments({ ...regionFilter, status: 'В роботі' }),
-      Task.countDocuments({
-        ...regionFilter,
-        status: 'Виконано',
-        approvedByWarehouse: { $nin: ['Підтверджено', true] },
-      }),
-      Task.countDocuments({
-        ...regionFilter,
-        status: 'Виконано',
-        $or: [{ approvedByWarehouse: 'Підтверджено' }, { approvedByWarehouse: true }],
-        approvedByAccountant: { $nin: ['Підтверджено', true] },
-      }),
+      Task.countDocuments(buildFocusMatch('notInWork', region)),
+      Task.countDocuments(buildFocusMatch('inWork', region)),
+      Task.countDocuments(buildFocusMatch('pendingWarehouse', region)),
+      Task.countDocuments(buildFocusMatch('pendingAccountant', region)),
       InvoiceRequest
         ? InvoiceRequest.countDocuments({ status: { $in: ['pending', 'processing'] } })
         : Promise.resolve(0),
     ]);
 
   return { notInWork, inWork, pendingWarehouse, pendingAccountant, pendingInvoiceRequests };
+}
+
+/**
+ * @param {import('mongoose').Model} Task
+ * @param {'inWork'|'notInWork'|'pendingWarehouse'|'pendingAccountant'} focus
+ * @param {string | null} region
+ */
+async function fetchWorkSumForFocus(Task, focus, region) {
+  const match = buildFocusMatch(focus, region);
+  const rows = await Task.aggregate([
+    { $match: match },
+    {
+      $addFields: {
+        _st: {
+          $convert: { input: { $ifNull: ['$serviceTotal', 0] }, to: 'double', onError: 0, onNull: 0 },
+        },
+        _wp: {
+          $convert: { input: { $ifNull: ['$workPrice', 0] }, to: 'double', onError: 0, onNull: 0 },
+        },
+      },
+    },
+    {
+      $addFields: {
+        _amount: {
+          $cond: [{ $gt: ['$_st', 0] }, '$_st', '$_wp'],
+        },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        count: { $sum: 1 },
+        totalAmount: { $sum: '$_amount' },
+        withAmount: { $sum: { $cond: [{ $gt: ['$_amount', 0] }, 1, 0] } },
+      },
+    },
+  ]);
+
+  const row = rows[0] || { count: 0, totalAmount: 0, withAmount: 0 };
+  return {
+    count: row.count || 0,
+    totalAmount: row.totalAmount || 0,
+    withAmount: row.withAmount || 0,
+    focus,
+  };
 }
 
 /** @param {Record<string, number>} stats @param {'inWork'|'notInWork'|'pendingWarehouse'|'pendingAccountant'|'all'} focus */
@@ -187,6 +267,56 @@ function formatStatisticsReplyUk(regionLabel, stats, focus) {
     lines.push(`• ${STAT_LABELS.pendingInvoiceRequests}: **${stats.pendingInvoiceRequests}**`);
   }
   return lines.join('\n');
+}
+
+/** @param {string} regionLabel */
+function regionPhraseUk(regionLabel) {
+  if (regionLabel === 'усі регіони') return '**усіх регіонах**';
+  return `**${regionLabel.replace(/ський$/i, 'ському')}** регіоні`;
+}
+
+/**
+ * @param {string} regionLabel
+ * @param {{ count: number, totalAmount: number, withAmount: number, focus: string }} sumRow
+ */
+function formatWorkSumReplyUk(regionLabel, sumRow) {
+  const region = regionPhraseUk(regionLabel);
+  const label = STAT_LABELS[sumRow.focus] || sumRow.focus;
+  const { count, totalAmount, withAmount } = sumRow;
+
+  if (count === 0) {
+    return `У ${region} зараз немає заявок у категорії «${label}».`;
+  }
+
+  if (totalAmount <= 0) {
+    return (
+      `У ${region} **${count}** заявок у категорії «${label}», ` +
+      `але сума робіт (serviceTotal/workPrice) у них не заповнена або дорівнює 0. ` +
+      `Перевірте вкладку «Бух на затвердженні» / таблицю заявок у DTS.`
+    );
+  }
+
+  const filledNote =
+    withAmount < count
+      ? ` (сума заповнена в ${withAmount} з ${count} заявок; решта без суми врахована як 0)`
+      : '';
+
+  return (
+    `У ${region} сума робіт по **${count}** заявках («${label}»): **${formatUah(totalAmount)}**${filledNote}.`
+  );
+}
+
+/** @param {string} regionLabel @param {{ count: number, totalAmount: number, withAmount: number, focus: string }} sumRow */
+function buildWorkSumLlmBlock(regionLabel, sumRow) {
+  const label = STAT_LABELS[sumRow.focus] || sumRow.focus;
+  let block =
+    `[DTS-stats-sum] Сума робіт (${regionLabel}), категорія «${label}», дані з бази DTS:\n` +
+    `- Кількість заявок: ${sumRow.count}\n` +
+    `- Загальна сума: ${formatUah(sumRow.totalAmount)}\n` +
+    `- Заповнене поле суми: ${sumRow.withAmount} з ${sumRow.count}\n` +
+    `- ${SUM_FIELD_NOTE}\n` +
+    'Не вигадуй інших цифр; не кажи 0, якщо тут указана ненульова сума або count > 0.';
+  return block.trim();
 }
 
 /** @param {string} regionLabel @param {Record<string, number>} stats */
@@ -237,13 +367,35 @@ async function tryTaskStatisticsTurn({ userJwt, dbUserLean, messageText }) {
   }
 
   const focus = detectStatisticsFocus(messageText);
+  const kind = detectStatisticsKind(messageText);
+
+  if (kind === 'sum') {
+    const sumFocus =
+      focus === 'all'
+        ? /бухгалтер|затверджен/i.test(messageText)
+          ? 'pendingAccountant'
+          : /завсклад|склад/i.test(messageText)
+            ? 'pendingWarehouse'
+            : /в\s+робот/i.test(messageText)
+              ? 'inWork'
+              : 'pendingAccountant'
+        : focus;
+    const sumRow = await fetchWorkSumForFocus(Task, sumFocus, access.region);
+    const reply = formatWorkSumReplyUk(access.regionLabel, sumRow);
+    return {
+      handled: true,
+      reply,
+      statsMeta: { region: access.regionLabel, kind: 'sum', focus: sumFocus, ...sumRow },
+    };
+  }
+
   const stats = await fetchTaskStatisticsCounts(Task, InvoiceRequest, access.region);
   const reply = formatStatisticsReplyUk(access.regionLabel, stats, focus);
 
   return {
     handled: true,
     reply,
-    statsMeta: { region: access.regionLabel, focus, ...stats },
+    statsMeta: { region: access.regionLabel, kind: 'count', focus, ...stats },
   };
 }
 
@@ -272,18 +424,37 @@ async function buildTaskStatisticsContextForLlm(userJwt, messageText, opts = {})
     };
   }
 
+  const focus = detectStatisticsFocus(messageText);
+  const kind = detectStatisticsKind(messageText);
+
+  if (kind === 'sum') {
+    const sumFocus =
+      focus === 'all'
+        ? /бухгалтер|затверджен/i.test(messageText)
+          ? 'pendingAccountant'
+          : 'pendingAccountant'
+        : focus;
+    const sumRow = await fetchWorkSumForFocus(Task, sumFocus, access.region);
+    return {
+      textForLlm: buildWorkSumLlmBlock(access.regionLabel, sumRow),
+      meta: { region: access.regionLabel, kind: 'sum', ...sumRow },
+    };
+  }
+
   const InvoiceRequest = mongoose.models.InvoiceRequest;
   const stats = await fetchTaskStatisticsCounts(Task, InvoiceRequest, access.region);
   return {
     textForLlm: buildStatisticsLlmBlock(access.regionLabel, stats),
-    meta: { region: access.regionLabel, ...stats },
+    meta: { region: access.regionLabel, kind: 'count', ...stats },
   };
 }
 
 module.exports = {
   isTaskStatisticsQuery,
+  detectStatisticsKind,
   tryTaskStatisticsTurn,
   buildTaskStatisticsContextForLlm,
   fetchTaskStatisticsCounts,
+  fetchWorkSumForFocus,
   parseRegionFromStatisticsQuery,
 };
