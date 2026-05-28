@@ -23,6 +23,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   const modalPanelId = assistantPanelType || currentPanel || 'service';
   const [open, setOpen] = useState(false);
   const [panelWide, setPanelWide] = useState(false);
+  const [panelFullscreen, setPanelFullscreen] = useState(false);
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [convListLoading, setConvListLoading] = useState(false);
@@ -65,6 +66,22 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   }, []);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  useEffect(() => {
+    if (!open || !panelFullscreen) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setPanelFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, panelFullscreen]);
+
+  useEffect(() => {
+    if (!open) setPanelFullscreen(false);
+  }, [open]);
 
   const copyAssistantReply = useCallback((text) => {
     const t = String(text || '');
@@ -611,9 +628,16 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
 
       {open && (
         <div
-          className={`assistant-chat-panel${panelWide ? ' assistant-chat-panel--wide' : ''}`}
+          className={[
+            'assistant-chat-panel',
+            panelWide ? 'assistant-chat-panel--wide' : '',
+            panelFullscreen ? 'assistant-chat-panel--fullscreen' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           role="dialog"
           aria-label="Чат з асистентом"
+          aria-modal={panelFullscreen ? 'true' : undefined}
         >
           <div className="assistant-chat-panel-header">
             <h3>
@@ -633,6 +657,15 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
                 onClick={() => setPanelWide((w) => !w)}
               >
                 {panelWide ? 'Компактно' : 'Ширше'}
+              </button>
+              <button
+                type="button"
+                className="assistant-chat-toggle-fullscreen"
+                aria-pressed={panelFullscreen}
+                title={panelFullscreen ? 'Згорнути до вікна' : 'На весь екран — зручніше переглядати списки заявок'}
+                onClick={() => setPanelFullscreen((f) => !f)}
+              >
+                {panelFullscreen ? 'Вікно' : 'На весь екран'}
               </button>
               <button type="button" onClick={newChat}>
                 Новий чат
@@ -743,6 +776,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
             </div>
           ) : null}
 
+          <div className="assistant-chat-panel-body">
           <div className="assistant-chat-conv-toolbar">
             <button
               type="button"
@@ -823,49 +857,52 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
             </div>
           ) : null}
 
-          {cashlessAlert?.openActions?.length > 0 ? (
-            <div className="assistant-chat-cashless-alert" role="region" aria-label="Заявки без рахунку">
-              <div className="assistant-chat-cashless-alert-title">Безготівка без рахунку</div>
-              <p className="assistant-chat-cashless-alert-text">
-                {cashlessAlert.summaryUk ||
-                  'Є заявки на затвердженні у бухгалтера з безготівковою оплатою без рахунку та без заявки на рахунок. Перевірте та запросіть рахунок.'}
-              </p>
-              <p className="assistant-chat-cashless-alert-hint">
-                «Відкрити» — перегляд картки. «Пояснити» — прив’язати наступне повідомлення в чаті до цієї заявки (передача бухгалтеру після підтвердження Так/Ні).
-              </p>
-              <ul className="assistant-chat-cashless-task-list" role="list">
-                {cashlessAlert.openActions.map((row) => {
-                  const label = row.requestNumber || row.taskId;
-                  const selected = relayTaskContext?.taskId === row.taskId;
-                  return (
-                    <li key={row.taskId} className={`assistant-chat-cashless-task-row${selected ? ' selected' : ''}`}>
-                      <span className="assistant-chat-cashless-task-label">{label}</span>
-                      <div className="assistant-chat-cashless-task-actions">
-                        <button
-                          type="button"
-                          className="assistant-chat-cashless-open-btn"
-                          title={`Відкрити заявку ${label}`}
-                          onClick={() => openTaskFromAssistant(row.taskId)}
-                        >
-                          Відкрити
-                        </button>
-                        <button
-                          type="button"
-                          className={`assistant-chat-cashless-explain-btn${selected ? ' active' : ''}`}
-                          title={`Пояснення для ${label} — опишіть причину в полі нижче`}
-                          onClick={() => selectRelayTask(row)}
-                        >
-                          Пояснити
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ) : null}
-
           <div className="assistant-chat-panel-main" ref={panelScrollRef}>
+            {cashlessAlert?.openActions?.length > 0 ? (
+              <div className="assistant-chat-cashless-alert" role="region" aria-label="Заявки без рахунку">
+                <div className="assistant-chat-cashless-alert-title">
+                  Безготівка без рахунку ({cashlessAlert.openActions.length})
+                </div>
+                <p className="assistant-chat-cashless-alert-text">
+                  Заявки на затвердженні у бухгалтера з безготівковою оплатою, але без рахунку та без заявки на
+                  рахунок. Перевірте список нижче та запросіть рахунок.
+                </p>
+                <p className="assistant-chat-cashless-alert-hint">
+                  «Відкрити» — перегляд картки. «Пояснити» — прив’язати наступне повідомлення до цієї заявки.
+                  Прокрутіть список ↓
+                </p>
+                <ul className="assistant-chat-cashless-task-list" role="list">
+                  {cashlessAlert.openActions.map((row) => {
+                    const label = row.requestNumber || row.taskId;
+                    const selected = relayTaskContext?.taskId === row.taskId;
+                    return (
+                      <li key={row.taskId} className={`assistant-chat-cashless-task-row${selected ? ' selected' : ''}`}>
+                        <span className="assistant-chat-cashless-task-label">{label}</span>
+                        <div className="assistant-chat-cashless-task-actions">
+                          <button
+                            type="button"
+                            className="assistant-chat-cashless-open-btn"
+                            title={`Відкрити заявку ${label}`}
+                            onClick={() => openTaskFromAssistant(row.taskId)}
+                          >
+                            Відкрити
+                          </button>
+                          <button
+                            type="button"
+                            className={`assistant-chat-cashless-explain-btn${selected ? ' active' : ''}`}
+                            title={`Пояснення для ${label}`}
+                            onClick={() => selectRelayTask(row)}
+                          >
+                            Пояснити
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+
             {error ? <div className="assistant-chat-error">{error}</div> : null}
             {historyLoading ? <div className="assistant-chat-loading">Завантаження історії…</div> : null}
 
@@ -1094,6 +1131,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
               </div>
             </div>
           ) : null}
+          </div>
           </div>
 
           <div className="assistant-chat-compose">

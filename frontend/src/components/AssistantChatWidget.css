@@ -41,6 +41,35 @@
   height: min(680px, calc(100vh - 120px));
 }
 
+.assistant-chat-panel--fullscreen {
+  inset: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  z-index: 10020;
+}
+
+.assistant-chat-panel--fullscreen .assistant-chat-panel-header {
+  padding: 12px 16px;
+}
+
+.assistant-chat-panel--fullscreen .assistant-chat-beta-banner,
+.assistant-chat-panel--fullscreen .assistant-chat-rating-banner {
+  font-size: 12px;
+}
+
+.assistant-chat-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .assistant-chat-panel-header {
   flex-shrink: 0;
   padding: 10px 12px;
@@ -189,6 +218,18 @@
 .assistant-chat-actions button.assistant-chat-toggle-wide[aria-pressed='true'] {
   background: rgba(59, 130, 246, 0.22);
   border-color: rgba(59, 130, 246, 0.5);
+}
+
+.assistant-chat-actions button.assistant-chat-toggle-fullscreen {
+  border-color: rgba(129, 140, 248, 0.4);
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.assistant-chat-actions button.assistant-chat-toggle-fullscreen[aria-pressed='true'] {
+  background: rgba(99, 102, 241, 0.28);
+  border-color: rgba(129, 140, 248, 0.55);
+  color: #c7d2fe;
 }
 
 .assistant-chat-conv-toolbar {
@@ -871,7 +912,7 @@
 
 .assistant-chat-cashless-alert {
   flex-shrink: 0;
-  margin: 0 14px 8px;
+  margin: 10px 14px 8px;
   padding: 10px 10px 8px;
   border: 1px solid rgba(251, 191, 36, 0.45);
   border-radius: 8px;
@@ -911,8 +952,28 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 140px;
+  max-height: min(240px, 38vh);
   overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(251, 191, 36, 0.5) rgba(0, 0, 0, 0.2);
+}
+
+.assistant-chat-panel--wide .assistant-chat-cashless-task-list {
+  max-height: min(320px, 42vh);
+}
+
+.assistant-chat-panel--fullscreen .assistant-chat-cashless-task-list {
+  max-height: min(480px, 52vh);
+}
+
+.assistant-chat-cashless-task-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.assistant-chat-cashless-task-list::-webkit-scrollbar-thumb {
+  background: rgba(251, 191, 36, 0.45);
+  border-radius: 4px;
 }
 
 .assistant-chat-cashless-task-row {
