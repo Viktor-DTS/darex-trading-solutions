@@ -45,10 +45,14 @@ const InvoiceRequestBlock = ({ task, user, onRequest, onFileUploaded, readOnly =
 
   // Перевірка чи можна показувати блок
   const canShowBlock = () => {
-    const allowedRoles = ['admin', 'administrator', 'operator', 'service', 'buhgalteria', 'accountant', 'regkerivn', 'regional'];
+    const allowedRoles = [
+      'admin', 'administrator', 'operator', 'operatorbuh', 'service',
+      'buhgalteria', 'accountant', 'regkerivn', 'regional',
+    ];
+    const role = (user?.role || '').toLowerCase();
     return (
-      (task.status === 'Виконано' || task.status === 'Заявка' || task.status === 'В роботі') && 
-      allowedRoles.includes(user?.role)
+      (task.status === 'Виконано' || task.status === 'Заявка' || task.status === 'В роботі') &&
+      allowedRoles.includes(role)
     );
   };
 
