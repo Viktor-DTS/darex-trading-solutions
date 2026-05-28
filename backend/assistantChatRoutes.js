@@ -3,6 +3,7 @@
  */
 const mongoose = require('mongoose');
 const { assistantChatCompletion } = require('./assistantChatLlm');
+const { isCasualOffTopicUserMessage } = require('./assistantChatSanitize');
 const { appendAssistantScopeHintToUserPayload } = require('./assistantChatScopeHints');
 const { buildTaskContextForLlm, ASSISTANT_PRIOR_SCAN } = require('./assistantTaskLookup');
 const { buildDiscoveryContextForLlm } = require('./assistantDiscoveryLookup');
@@ -508,13 +509,17 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
     });
 
     try {
-      const out = await assistantChatCompletion([
-        ...histForLlm,
-        {
-          role: 'user',
-          content: contentForLlm,
-        },
-      ]);
+      const casualOffTopic = isCasualOffTopicUserMessage(userMsg);
+      const out = await assistantChatCompletion(
+        [
+          ...histForLlm,
+          {
+            role: 'user',
+            content: contentForLlm,
+          },
+        ],
+        { casual: casualOffTopic },
+      );
 
       const assistantContentRaw = truncate(out.content, MESSAGE_MAX_LENGTH);
       const assistantContent = truncate(privacySession.unmask(assistantContentRaw), MESSAGE_MAX_LENGTH);
