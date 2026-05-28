@@ -28,6 +28,7 @@ function getAssistantDisclosureForClient() {
           RATING_PROMPT,
           'Асистент бачить ваші інші збережені чати (без змішування тем без вашого «Так/Ні»).',
           '👍 зберігає відповідь у базі знань; 👎 допомагає знайти помилки.',
+          'Якщо питання незрозуміле — асистент уточнить; успішна відповідь після уточнень теж потрапляє в базу знань.',
         ]
       : [
           RATING_PROMPT,
@@ -37,6 +38,7 @@ function getAssistantDisclosureForClient() {
       persistsAcrossNewChat: true,
       crossDialogContext: true,
       topicClarification: true,
+      clarifyLoopLearning: true,
       selfLearningFromThumbsUp: true,
       privacyMaskingForLlm: true,
       edrpouIsPublic: true,

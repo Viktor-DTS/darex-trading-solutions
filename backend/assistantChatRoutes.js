@@ -4,6 +4,7 @@
 const mongoose = require('mongoose');
 const { assistantChatCompletion } = require('./assistantChatLlm');
 const { isCasualOffTopicUserMessage, casualJokeLlmHintUk } = require('./assistantChatSanitize');
+const { curatedJokesEnabled, pickCuratedJoke } = require('./assistantCasualJokes');
 const { appendAssistantScopeHintToUserPayload } = require('./assistantChatScopeHints');
 const { buildTaskContextForLlm, ASSISTANT_PRIOR_SCAN } = require('./assistantTaskLookup');
 const { buildDiscoveryContextForLlm } = require('./assistantDiscoveryLookup');
@@ -28,6 +29,11 @@ const {
   getAssistantUnreadNotificationCount,
   markAssistantNotificationsSeen,
 } = require('./assistantNotifications');
+const {
+  clarificationEnabled,
+  appendClarifyFollowUpToPrompt,
+  applyClarificationTurn,
+} = require('./assistantChatClarification');
 
 const MAX_USER_MESSAGE = 4000;
 const MAX_LLM_USER_COMBINED = 22000;
@@ -54,6 +60,9 @@ function getModels(getAssistantConnection) {
         topicPriorSummary: { type: String, default: '', maxlength: 600 },
         topicBoundaryAfterMessageId: { type: mongoose.Schema.Types.ObjectId, default: null },
         topicClarifyAssistantMessageId: { type: mongoose.Schema.Types.ObjectId, default: null },
+        clarifyAwaitingUser: { type: Boolean, default: false },
+        clarifyRootQuestion: { type: String, default: '', maxlength: 4000 },
+        clarifyRound: { type: Number, default: 0 },
       },
       { timestamps: true },
     );
@@ -318,6 +327,34 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
       console.error('[assistant-chat] relay:', e?.message || e);
     }
 
+    if (curatedJokesEnabled() && isCasualOffTopicUserMessage(userMsg) && !convDoc?.clarifyAwaitingUser) {
+      const lastAsst = await Msg.findOne({ conversationId, role: 'assistant' })
+        .sort({ createdAt: -1 })
+        .select('content')
+        .lean();
+      const jokeReply = pickCuratedJoke({
+        login,
+        conversationId: String(conversationId),
+        userMsg,
+        lastAssistantContent: lastAsst?.content,
+      });
+
+      await Msg.create({ conversationId, role: 'user', content: userMsg });
+      const assistantJokeDoc = await Msg.create({
+        conversationId,
+        role: 'assistant',
+        content: truncate(jokeReply, MESSAGE_MAX_LENGTH),
+      });
+      await Conv.updateOne({ _id: conversationId }, { $set: { updatedAt: new Date() } }).catch(() => {});
+
+      return res.json({
+        conversationId: String(conversationId),
+        reply: jokeReply,
+        assistantMessageId: String(assistantJokeDoc._id),
+        ratingPrompt: getAssistantDisclosureForClient().ratingPrompt,
+      });
+    }
+
     const priorRaw = await Msg.find({ conversationId })
       .sort({ createdAt: -1 })
       .limit(MAX_MESSAGES_CONTEXT)
@@ -327,45 +364,47 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
 
     let effectiveUserMsg = userMsg;
     try {
-      const topicResult = await processTopicTurn({
-        getAssistantConnection,
-        Conv,
-        convDoc,
-        userMsg,
-        priorMessages: prior,
-        login,
-        conversationId,
-      });
-
-      if (topicResult.shortCircuit && topicResult.reply) {
-        await Msg.create({ conversationId, role: 'user', content: userMsg });
-        const assistantTopicDoc = await Msg.create({
+      if (!convDoc?.clarifyAwaitingUser) {
+        const topicResult = await processTopicTurn({
+          getAssistantConnection,
+          Conv,
+          convDoc,
+          userMsg,
+          priorMessages: prior,
+          login,
           conversationId,
-          role: 'assistant',
-          content: truncate(topicResult.reply, MESSAGE_MAX_LENGTH),
         });
-        const convUpdate = {
-          updatedAt: new Date(),
-          topicAwaitingClarification: true,
-          topicClarifyAssistantMessageId: assistantTopicDoc._id,
-        };
-        if (topicResult.setAwaiting) {
-          Object.assign(convUpdate, topicResult.setAwaiting);
+
+        if (topicResult.shortCircuit && topicResult.reply) {
+          await Msg.create({ conversationId, role: 'user', content: userMsg });
+          const assistantTopicDoc = await Msg.create({
+            conversationId,
+            role: 'assistant',
+            content: truncate(topicResult.reply, MESSAGE_MAX_LENGTH),
+          });
+          const convUpdate = {
+            updatedAt: new Date(),
+            topicAwaitingClarification: true,
+            topicClarifyAssistantMessageId: assistantTopicDoc._id,
+          };
+          if (topicResult.setAwaiting) {
+            Object.assign(convUpdate, topicResult.setAwaiting);
+          }
+          await Conv.updateOne({ _id: conversationId }, { $set: convUpdate }).catch(() => {});
+
+          return res.json({
+            conversationId: String(conversationId),
+            reply: topicResult.reply,
+            assistantMessageId: String(assistantTopicDoc._id),
+            topicMeta: topicResult.topicMeta,
+            ratingPrompt: getAssistantDisclosureForClient().ratingPrompt,
+          });
         }
-        await Conv.updateOne({ _id: conversationId }, { $set: convUpdate }).catch(() => {});
 
-        return res.json({
-          conversationId: String(conversationId),
-          reply: topicResult.reply,
-          assistantMessageId: String(assistantTopicDoc._id),
-          topicMeta: topicResult.topicMeta,
-          ratingPrompt: getAssistantDisclosureForClient().ratingPrompt,
-        });
-      }
-
-      effectiveUserMsg = topicResult.effectiveUserMsg || userMsg;
-      if (topicResult.topicBoundaryAfterMessageId) {
-        prior = filterPriorByBoundary(prior, topicResult.topicBoundaryAfterMessageId);
+        effectiveUserMsg = topicResult.effectiveUserMsg || userMsg;
+        if (topicResult.topicBoundaryAfterMessageId) {
+          prior = filterPriorByBoundary(prior, topicResult.topicBoundaryAfterMessageId);
+        }
       }
     } catch (e) {
       console.warn('[assistant-chat] topic:', e?.message || e);
@@ -495,6 +534,10 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
 
     contentForChat = `${contentForChat}\n\n${privacyNoteForLlmUk()}`;
 
+    if (clarificationEnabled()) {
+      contentForChat = appendClarifyFollowUpToPrompt(contentForChat, convDoc, userMsg);
+    }
+
     const histForLlm = histForApi.map((m) => ({
       role: m.role,
       content: privacySession.mask(truncate(m.content, MESSAGE_MAX_LENGTH)),
@@ -509,7 +552,8 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
     });
 
     try {
-      const casualOffTopic = isCasualOffTopicUserMessage(userMsg);
+      const casualOffTopic =
+        !convDoc?.clarifyAwaitingUser && isCasualOffTopicUserMessage(userMsg);
       const userContentForLlm = casualOffTopic
         ? `${contentForLlm}\n\n${casualJokeLlmHintUk()}`
         : contentForLlm;
@@ -525,9 +569,32 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
       );
 
       const assistantContentRaw = truncate(out.content, MESSAGE_MAX_LENGTH);
-      const assistantContent = truncate(privacySession.unmask(assistantContentRaw), MESSAGE_MAX_LENGTH);
+      let assistantContent = truncate(privacySession.unmask(assistantContentRaw), MESSAGE_MAX_LENGTH);
+      /** @type {Record<string, unknown> | null} */
+      let clarifyMeta = null;
+
+      const assistantMsgId = new mongoose.Types.ObjectId();
+
+      if (clarificationEnabled()) {
+        const clarifyTurn = await applyClarificationTurn({
+          getAssistantConnection,
+          Conv,
+          convDoc,
+          conversationId,
+          userMsg: effectiveUserMsg,
+          rawAssistantReply: assistantContent,
+          panelId,
+          assistantMessageId: assistantMsgId,
+        });
+        assistantContent = truncate(clarifyTurn.reply, MESSAGE_MAX_LENGTH);
+        clarifyMeta = clarifyTurn.clarifyMeta;
+        if (clarifyTurn.convUpdate) {
+          await Conv.updateOne({ _id: conversationId }, { $set: clarifyTurn.convUpdate }).catch(() => {});
+        }
+      }
 
       const assistantDoc = await Msg.create({
+        _id: assistantMsgId,
         conversationId,
         role: 'assistant',
         content: assistantContent,
@@ -562,6 +629,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
         taskContext: Object.keys(taskContextOut).length ? taskContextOut : undefined,
         cashlessAlert: cashlessForClient,
         ratingPrompt: getAssistantDisclosureForClient().ratingPrompt,
+        clarifyMeta: clarifyMeta || undefined,
       });
     } catch (e) {
       console.error('[assistant-chat] LLM:', e.code || '', e.message);

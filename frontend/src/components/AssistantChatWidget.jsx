@@ -111,6 +111,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   const [feedbackReportLoading, setFeedbackReportLoading] = useState(false);
   /** Очікування Так/Ні щодо теми діалогу. */
   const [topicMeta, setTopicMeta] = useState(null);
+  const [clarifyMeta, setClarifyMeta] = useState(null);
   const [ratingPrompt, setRatingPrompt] = useState('');
   /** Заявка, до якої прив’язується пояснення для бухгалтерії (кнопка «Пояснити»). */
   const [relayTaskContext, setRelayTaskContext] = useState(null);
@@ -842,6 +843,13 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
         setTopicMeta(null);
       }
 
+      const cm = data?.clarifyMeta;
+      if (cm?.awaitingClarification) {
+        setClarifyMeta(cm);
+      } else {
+        setClarifyMeta(cm?.learnedSaved ? cm : null);
+      }
+
       loadConversationList();
     } catch (e) {
       if (e?.name === 'AbortError') {
@@ -1493,6 +1501,21 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
                 </div>
               </div>
             ) : null}
+            {clarifyMeta?.awaitingClarification ? (
+              <div className="assistant-chat-clarify-hint" role="status">
+                <p className="assistant-chat-clarify-hint-text">
+                  Асистент уточнює деталі (крок {clarifyMeta.round || 1}) — відповідайте нижче.
+                </p>
+                {clarifyMeta.rootQuestionPreview ? (
+                  <p className="assistant-chat-clarify-hint-preview">Початкове питання: «{clarifyMeta.rootQuestionPreview}»</p>
+                ) : null}
+              </div>
+            ) : null}
+            {clarifyMeta?.learnedSaved ? (
+              <div className="assistant-chat-clarify-learned" role="status">
+                Відповідь збережено в базу знань асистента — надалі допоможе всій команді.
+              </div>
+            ) : null}
             {relayTaskContext?.taskId ? (
               <div className="assistant-chat-relay-task-chip" role="status">
                 <span>
@@ -1511,6 +1534,8 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
               placeholder={
                 topicMeta?.awaitingTopicConfirm
                   ? 'Або введіть Так / Ні…'
+                  : clarifyMeta?.awaitingClarification
+                  ? 'Ваша відповідь на уточнення… (Enter — надіслати)'
                   : relayTaskContext?.requestNumber
                   ? `Пояснення для ${relayTaskContext.requestNumber}… (Enter — надіслати)`
                   : 'Запит… (Enter — надіслати, Shift+Enter — новий рядок)'
