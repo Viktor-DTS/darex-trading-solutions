@@ -7,6 +7,22 @@ const { appendAssistantScopeHintToUserPayload } = require('./assistantChatScopeH
 const { buildTaskContextForLlm, ASSISTANT_PRIOR_SCAN } = require('./assistantTaskLookup');
 const { buildDiscoveryContextForLlm } = require('./assistantDiscoveryLookup');
 const { loadUserLeanForAssistant, formatAssistantSessionBlock } = require('./assistantUiContext');
+const { getAssistantDisclosureLlmBlockUk, getAssistantDisclosureForClient } = require('./assistantChatDisclosure');
+const {
+  isAssistantAdminRole,
+  mapMessageForClient,
+  submitAssistantMessageFeedback,
+  buildAssistantFeedbackReport,
+} = require('./assistantChatFeedback');
+const { createPrivacyMaskSession, privacyNoteForLlmUk } = require('./assistantChatPrivacy');
+const { buildLearnedContextForLlm, recordPositiveKnowledge, getKnowledgeStats } = require('./assistantChatLearning');
+const {
+  processTopicTurn,
+  filterPriorByBoundary,
+  buildCrossDialogContextForLlm,
+  getTopicMemoryModel,
+} = require('./assistantChatTopicContext');
+const { processRelayUserTurn, getPendingRelayInbox } = require('./assistantAccountantRelay');
 
 const MAX_USER_MESSAGE = 4000;
 const MAX_LLM_USER_COMBINED = 22000;
@@ -28,6 +44,11 @@ function getModels(getAssistantConnection) {
         userLogin: { type: String, required: true },
         title: { type: String, default: 'Діалог' },
         lastPanelId: { type: String, default: '' },
+        topicAwaitingClarification: { type: Boolean, default: false },
+        topicPendingMessage: { type: String, default: '', maxlength: 4000 },
+        topicPriorSummary: { type: String, default: '', maxlength: 600 },
+        topicBoundaryAfterMessageId: { type: mongoose.Schema.Types.ObjectId, default: null },
+        topicClarifyAssistantMessageId: { type: mongoose.Schema.Types.ObjectId, default: null },
       },
       { timestamps: true },
     );
@@ -42,10 +63,17 @@ function getModels(getAssistantConnection) {
         },
         role: { type: String, enum: ['user', 'assistant'], required: true },
         content: { type: String, required: true, maxlength: MESSAGE_MAX_LENGTH },
+        feedback: {
+          helpful: { type: Boolean },
+          comment: { type: String, maxlength: 500, default: '' },
+          ratedAt: { type: Date },
+          userLogin: { type: String, default: '' },
+        },
       },
       { timestamps: true },
     );
     msgSchema.index({ conversationId: 1, createdAt: 1 });
+    msgSchema.index({ role: 1, 'feedback.ratedAt': -1 });
 
     AssistantConversation =
       conn.models.AssistantConversation || conn.model('AssistantConversation', convSchema);
@@ -67,9 +95,54 @@ function validObjectId(id) {
 
 /**
  * @param {import('express').Application} app
- * @param {{ getAssistantConnection: () => import('mongoose').Connection | null }} opts
+ * @param {{ getAssistantConnection: () => import('mongoose').Connection | null, getCashlessPendingAlertsForUser?: (login: string, dbUser: object | null) => Promise<{ tasks: object[], summaryUk: string }> }} opts
  */
-function registerAssistantChatRoutes(app, { getAssistantConnection }) {
+function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessPendingAlertsForUser }) {
+  app.get('/api/assistant/info', async (req, res) => {
+    const login = req.user?.login;
+    if (!login) return res.status(401).json({ error: 'Користувач не визначений' });
+    res.json(getAssistantDisclosureForClient());
+  });
+
+  app.get('/api/assistant/alerts/cashless-pending', async (req, res) => {
+    const login = req.user?.login;
+    if (!login) return res.status(401).json({ error: 'Користувач не визначений' });
+    if (typeof getCashlessPendingAlertsForUser !== 'function') {
+      return res.json({ tasks: [], summaryUk: '' });
+    }
+    try {
+      const dbUser = await loadUserLeanForAssistant(login);
+      const data = await getCashlessPendingAlertsForUser(login, dbUser);
+      res.json(data);
+    } catch (e) {
+      console.error('[assistant-alerts] cashless-pending', e?.message || e);
+      res.status(500).json({ error: 'Не вдалося завантажити нагадування' });
+    }
+  });
+
+  app.get('/api/assistant/relay/pending', async (req, res) => {
+    const login = req.user?.login;
+    if (!login) return res.status(401).json({ error: 'Користувач не визначений' });
+    const role = req.user?.role || '';
+    try {
+      const items = await getPendingRelayInbox(login, role, getAssistantConnection);
+      res.json({
+        items: (items || []).map((r) => ({
+          id: String(r._id),
+          taskId: r.taskId || '',
+          requestNumber: r.requestNumber || '',
+          messageText: r.messageText || '',
+          direction: r.direction,
+          status: r.status,
+          recipientLogin: r.recipientLogin || '',
+        })),
+      });
+    } catch (e) {
+      console.error('[assistant-relay] pending', e?.message || e);
+      res.status(500).json({ error: 'Не вдалося завантажити чергу' });
+    }
+  });
+
   app.post('/api/assistant/chat', async (req, res) => {
     const start = Date.now();
     const login = req.user?.login;
@@ -124,6 +197,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
       serverUser: dbUserLeanForAssistant,
       login,
     });
+    const disclosureBlock = getAssistantDisclosureLlmBlockUk();
 
     /** @type {import('mongoose').Document | null} */
     let lastUserDoc = null;
@@ -149,12 +223,124 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
       await Conv.updateOne({ _id: conversationId }, { $set: { lastPanelId: panelId } }).catch(() => {});
     }
 
+    let convDoc = await Conv.findOne({ _id: conversationId, userLogin: login }).lean();
+
+    /** @type {{ tasks?: object[], summaryUk?: string } | null} */
+    let cashlessAlertPayload = null;
+    if (typeof getCashlessPendingAlertsForUser === 'function') {
+      try {
+        cashlessAlertPayload = await getCashlessPendingAlertsForUser(login, dbUserLeanForAssistant);
+      } catch (e) {
+        console.warn('[assistant-chat] cashless alerts:', e?.message || e);
+      }
+    }
+    const cashlessTasksList = Array.isArray(cashlessAlertPayload?.tasks) ? cashlessAlertPayload.tasks : [];
+    const relayTaskContextRaw =
+      req.body?.relayTaskContext && typeof req.body.relayTaskContext === 'object'
+        ? req.body.relayTaskContext
+        : null;
+    const relayTaskContext = relayTaskContextRaw
+      ? {
+          taskId: String(relayTaskContextRaw.taskId || '').trim(),
+          requestNumber: String(relayTaskContextRaw.requestNumber || '').trim(),
+        }
+      : null;
+
+    try {
+      const relayOut = await processRelayUserTurn({
+        login,
+        role: String(req.user?.role || dbUserLeanForAssistant?.role || ''),
+        userName: String(bodyCtx.userName || dbUserLeanForAssistant?.name || login),
+        conversationId: String(conversationId),
+        messageText: userMsg,
+        getAssistantConnection,
+        cashlessTasks: cashlessTasksList,
+        relayTaskContext,
+      });
+      if (relayOut.handled) {
+        await Msg.create({ conversationId, role: 'user', content: userMsg });
+        const assistantRelayDoc = await Msg.create({
+          conversationId,
+          role: 'assistant',
+          content: truncate(relayOut.reply, MESSAGE_MAX_LENGTH),
+        });
+        await Conv.updateOne({ _id: conversationId }, { $set: { updatedAt: new Date() } }).catch(() => {});
+
+        return res.json({
+          conversationId: String(conversationId),
+          reply: relayOut.reply,
+          assistantMessageId: String(assistantRelayDoc._id),
+          relayMeta: relayOut.relayMeta,
+          cashlessAlert:
+            cashlessAlertPayload?.tasks?.length > 0
+              ? {
+                  tasks: cashlessAlertPayload.tasks,
+                  summaryUk: cashlessAlertPayload.summaryUk,
+                  openActions: cashlessAlertPayload.tasks.map((t) => ({
+                    taskId: t.taskId,
+                    requestNumber: t.requestNumber,
+                  })),
+                }
+              : undefined,
+        });
+      }
+    } catch (e) {
+      console.error('[assistant-chat] relay:', e?.message || e);
+    }
+
     const priorRaw = await Msg.find({ conversationId })
       .sort({ createdAt: -1 })
       .limit(MAX_MESSAGES_CONTEXT)
       .lean();
 
-    const prior = [...priorRaw].reverse();
+    let prior = [...priorRaw].reverse();
+
+    let effectiveUserMsg = userMsg;
+    try {
+      const topicResult = await processTopicTurn({
+        getAssistantConnection,
+        Conv,
+        convDoc,
+        userMsg,
+        priorMessages: prior,
+        login,
+        conversationId,
+      });
+
+      if (topicResult.shortCircuit && topicResult.reply) {
+        await Msg.create({ conversationId, role: 'user', content: userMsg });
+        const assistantTopicDoc = await Msg.create({
+          conversationId,
+          role: 'assistant',
+          content: truncate(topicResult.reply, MESSAGE_MAX_LENGTH),
+        });
+        const convUpdate = {
+          updatedAt: new Date(),
+          topicAwaitingClarification: true,
+          topicClarifyAssistantMessageId: assistantTopicDoc._id,
+        };
+        if (topicResult.setAwaiting) {
+          Object.assign(convUpdate, topicResult.setAwaiting);
+        }
+        await Conv.updateOne({ _id: conversationId }, { $set: convUpdate }).catch(() => {});
+
+        return res.json({
+          conversationId: String(conversationId),
+          reply: topicResult.reply,
+          assistantMessageId: String(assistantTopicDoc._id),
+          topicMeta: topicResult.topicMeta,
+          ratingPrompt: getAssistantDisclosureForClient().ratingPrompt,
+        });
+      }
+
+      effectiveUserMsg = topicResult.effectiveUserMsg || userMsg;
+      if (topicResult.topicBoundaryAfterMessageId) {
+        prior = filterPriorByBoundary(prior, topicResult.topicBoundaryAfterMessageId);
+      }
+    } catch (e) {
+      console.warn('[assistant-chat] topic:', e?.message || e);
+    }
+
     const histForApi = [];
     for (const m of prior) {
       histForApi.push({
@@ -163,7 +349,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
       });
     }
 
-    let contentForChat = `${userMsg}\n\n${sessionBlock}`;
+    let contentForChat = `${effectiveUserMsg}\n\n${sessionBlock}\n\n${disclosureBlock}`;
 
     const priorUserForNumberScan = prior
       .filter((m) => m.role === 'user')
@@ -180,7 +366,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
     /** @type {Record<string, unknown> | undefined} */
     let discoveryMeta = undefined;
     try {
-      const tack = await buildTaskContextForLlm(req.user, userMsg, {
+      const tack = await buildTaskContextForLlm(req.user, effectiveUserMsg, {
         priorUserMessages: priorUserForNumberScan,
         priorAssistantMessages: priorAssistantForNumberScan,
         dbUserLean: dbUserLeanForAssistant,
@@ -208,7 +394,7 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
     }
 
     try {
-      const disc = await buildDiscoveryContextForLlm(req.user, userMsg, {
+      const disc = await buildDiscoveryContextForLlm(req.user, effectiveUserMsg, {
         priorUserMessages: priorUserForNumberScan,
         priorAssistantMessages: priorAssistantForNumberScan,
         dbUserLean: dbUserLeanForAssistant,
@@ -239,7 +425,52 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
     const discoveryOpenActionsLen = Array.isArray(discoveryMeta?.openActions)
       ? discoveryMeta.openActions.length
       : 0;
-    contentForChat = appendAssistantScopeHintToUserPayload(userMsg, contentForChat, discoveryOpenActionsLen);
+    contentForChat = appendAssistantScopeHintToUserPayload(
+      effectiveUserMsg,
+      contentForChat,
+      discoveryOpenActionsLen,
+    );
+
+    const privacySession = createPrivacyMaskSession();
+
+    try {
+      const crossDialogBlock = await buildCrossDialogContextForLlm({
+        Msg,
+        Conv,
+        login,
+        currentConversationId: conversationId,
+        userMessage: effectiveUserMsg,
+        maskSession: privacySession,
+      });
+      if (crossDialogBlock) {
+        contentForChat = `${contentForChat}\n\n${crossDialogBlock}`;
+      }
+    } catch (e) {
+      console.warn('[assistant-chat] cross-dialog:', e?.message || e);
+    }
+
+    try {
+      const learnedBlock = await buildLearnedContextForLlm(
+        getAssistantConnection,
+        effectiveUserMsg,
+        panelId,
+        privacySession,
+      );
+      if (learnedBlock) {
+        contentForChat = `${contentForChat}\n\n${learnedBlock}`;
+      }
+    } catch (e) {
+      console.warn('[assistant-chat] learned context:', e?.message || e);
+    }
+
+    contentForChat = `${contentForChat}\n\n${privacyNoteForLlmUk()}`;
+
+    const histForLlm = histForApi.map((m) => ({
+      role: m.role,
+      content: privacySession.mask(truncate(m.content, MESSAGE_MAX_LENGTH)),
+    }));
+
+    const contentForLlm = privacySession.mask(truncate(contentForChat, MAX_LLM_USER_COMBINED));
 
     lastUserDoc = await Msg.create({
       conversationId,
@@ -249,16 +480,17 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
 
     try {
       const out = await assistantChatCompletion([
-        ...histForApi,
+        ...histForLlm,
         {
           role: 'user',
-          content: truncate(contentForChat, MAX_LLM_USER_COMBINED),
+          content: contentForLlm,
         },
       ]);
 
-      const assistantContent = truncate(out.content, MESSAGE_MAX_LENGTH);
+      const assistantContentRaw = truncate(out.content, MESSAGE_MAX_LENGTH);
+      const assistantContent = truncate(privacySession.unmask(assistantContentRaw), MESSAGE_MAX_LENGTH);
 
-      await Msg.create({
+      const assistantDoc = await Msg.create({
         conversationId,
         role: 'assistant',
         content: assistantContent,
@@ -268,11 +500,31 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
 
       console.log(`✅ [PERF] POST /api/assistant/chat - ${Date.now() - start}ms (${login})`);
 
+      const cashlessForClient =
+        cashlessAlertPayload?.tasks?.length > 0
+          ? {
+              tasks: cashlessAlertPayload.tasks,
+              summaryUk: cashlessAlertPayload.summaryUk,
+              openActions: cashlessAlertPayload.tasks.map((t) => ({
+                taskId: t.taskId,
+                requestNumber: t.requestNumber,
+              })),
+            }
+          : undefined;
+
+      const taskContextOut = combinedTaskContext ? { ...combinedTaskContext } : {};
+      if (cashlessForClient) {
+        taskContextOut.cashlessPending = cashlessForClient;
+      }
+
       res.json({
         conversationId: String(conversationId),
         reply: assistantContent,
+        assistantMessageId: String(assistantDoc._id),
         model: out.model || undefined,
-        taskContext: combinedTaskContext,
+        taskContext: Object.keys(taskContextOut).length ? taskContextOut : undefined,
+        cashlessAlert: cashlessForClient,
+        ratingPrompt: getAssistantDisclosureForClient().ratingPrompt,
       });
     } catch (e) {
       console.error('[assistant-chat] LLM:', e.code || '', e.message);
@@ -401,17 +653,109 @@ function registerAssistantChatRoutes(app, { getAssistantConnection }) {
     const msgs = await models.AssistantMessage.find({ conversationId: idStr })
       .sort({ createdAt: 1 })
       .limit(200)
-      .select('role content createdAt')
+      .select('role content createdAt feedback')
       .lean();
 
     res.json({
       conversationId: idStr,
-      messages: msgs.map((m) => ({
-        role: m.role,
-        content: m.content,
-        createdAt: m.createdAt,
-      })),
+      messages: msgs.map(mapMessageForClient),
     });
+  });
+
+  app.post('/api/assistant/messages/:id/feedback', async (req, res) => {
+    const login = req.user?.login;
+    if (!login) return res.status(401).json({ error: 'Користувач не визначений' });
+
+    const idStr = req.params.id;
+    const models = getModels(getAssistantConnection);
+    if (!models.conn) {
+      return res.status(503).json({ error: 'Асистентська база даних недоступна.' });
+    }
+
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    try {
+      const result = await submitAssistantMessageFeedback(
+        models.AssistantMessage,
+        models.AssistantConversation,
+        login,
+        idStr,
+        {
+          helpful: body.helpful,
+          comment: body.comment,
+        },
+      );
+
+      if (body.helpful === true) {
+        try {
+          const msg = await models.AssistantMessage.findById(idStr).lean();
+          if (msg?.conversationId) {
+            const priorUser = await models.AssistantMessage.findOne({
+              conversationId: msg.conversationId,
+              role: 'user',
+              createdAt: { $lt: msg.createdAt },
+            })
+              .sort({ createdAt: -1 })
+              .select('content')
+              .lean();
+            const conv = await models.AssistantConversation.findById(msg.conversationId)
+              .select('lastPanelId')
+              .lean();
+            const learnResult = await recordPositiveKnowledge(getAssistantConnection, {
+              questionRaw: priorUser?.content || '',
+              answerRaw: msg.content || '',
+              panelId: conv?.lastPanelId || '',
+              sourceMessageId: msg._id,
+              sourceConversationId: msg.conversationId,
+            });
+            if (learnResult) result.knowledge = learnResult;
+          }
+        } catch (learnErr) {
+          console.warn('[assistant-feedback] knowledge:', learnErr?.message || learnErr);
+        }
+      }
+
+      res.json(result);
+    } catch (e) {
+      const status = e.status || 500;
+      if (status >= 500) console.error('[assistant-feedback]', e?.message || e);
+      res.status(status).json({ error: e.message || 'Не вдалося зберегти оцінку' });
+    }
+  });
+
+  app.get('/api/assistant/feedback/report', async (req, res) => {
+    const login = req.user?.login;
+    const role = req.user?.role || '';
+    if (!login) return res.status(401).json({ error: 'Користувач не визначений' });
+    if (!isAssistantAdminRole(role)) {
+      return res.status(403).json({ error: 'Звіт доступний лише адміністраторам' });
+    }
+
+    const models = getModels(getAssistantConnection);
+    if (!models.conn) {
+      return res.status(503).json({ error: 'Асистентська база даних недоступна.' });
+    }
+
+    const days = parseInt(String(req.query?.days ?? '7'), 10);
+    const limit = parseInt(String(req.query?.limit ?? '40'), 10);
+
+    try {
+      const report = await buildAssistantFeedbackReport(
+        models.AssistantMessage,
+        models.AssistantConversation,
+        { days, limit },
+      );
+      report.knowledge = await getKnowledgeStats(getAssistantConnection);
+      const TopicMem = getTopicMemoryModel(getAssistantConnection);
+      report.topicDecisions = TopicMem
+        ? await TopicMem.countDocuments({
+            createdAt: { $gte: new Date(Date.now() - days * 86400000) },
+          })
+        : 0;
+      res.json(report);
+    } catch (e) {
+      console.error('[assistant-feedback-report]', e?.message || e);
+      res.status(500).json({ error: 'Не вдалося сформувати звіт' });
+    }
   });
 
   /** Видалити один діалог і всі його повідомлення в асистентській MongoDB. */

@@ -48,6 +48,12 @@ const {
   importImageFromUrl: productCardAssistantImportImage,
 } = require('./productCardAssistant');
 const { registerAssistantChatRoutes } = require('./assistantChatRoutes');
+const {
+  initAssistantCashlessPending,
+  getCashlessPendingAlertsForUser,
+  scheduleCashlessPendingJob,
+} = require('./assistantCashlessPending');
+const { initAssistantAccountantRelay } = require('./assistantAccountantRelay');
 
 // Cloudinary конфігурація
 console.log('[CLOUDINARY] CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET');
@@ -384,7 +390,10 @@ const MANAGER_NOTIFICATION_KINDS = [
   'procurement_incoming_to_warehouse',
   'procurement_receipt_partial',
   'procurement_request_new',
-  'procurement_request_completed'
+  'procurement_request_completed',
+  'task_cashless_no_invoice_pending',
+  'assistant_accountant_relay',
+  'assistant_accountant_relay_reply'
 ];
 
 /** Лише для GET/POST manager-notifications з ?procurement=1 (вкладка «Відділ закупівель») */
@@ -15919,7 +15928,22 @@ app.post('/api/notifications/send-system-message', authenticateToken, async (req
   }
 });
 
-registerAssistantChatRoutes(app, { getAssistantConnection });
+registerAssistantChatRoutes(app, {
+  getAssistantConnection,
+  getCashlessPendingAlertsForUser,
+});
+
+initAssistantCashlessPending({
+  Task,
+  InvoiceRequest,
+  User,
+  createManagerNotificationDeduped,
+});
+initAssistantAccountantRelay({
+  User,
+  createManagerNotificationDeduped,
+});
+scheduleCashlessPendingJob();
 
 // ============================================
 // СТАРТ СЕРВЕРА

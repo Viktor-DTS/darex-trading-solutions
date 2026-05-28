@@ -309,7 +309,7 @@ function summarizeOneTask(t, index) {
   const desc = truncateField(t.requestDesc);
   const equip = truncateField(t.equipment);
   const work = truncateField(t.work);
-  const edrpouBrief = maskEdrpouBrief(t.edrpou);
+  const edrpouFull = truncateField(String(t.edrpou || '').replace(/\s+/g, ' ').trim(), 32);
   const contactPerson = truncateField(t.contactPerson, 120);
   const contactPhone = truncateField(t.contactPhone, 80);
   const engParts = [
@@ -329,7 +329,7 @@ function summarizeOneTask(t, index) {
   block += `Номер: ${truncateField(t.requestNumber, 40) || '—'}\n`;
   block += `Статус: ${truncateField(t.status, 120) || '—'}\n`;
   block += `Регіон: ${truncateField(t.serviceRegion, 120) || '—'}\n`;
-  if (edrpouBrief) block += `ЄДРПОУ (скорочено): ${edrpouBrief}\n`;
+  if (edrpouFull) block += `ЄДРПОУ: ${edrpouFull}\n`;
   if (client) block += `Клієнт / об'єкт: ${client}\n`;
   if (contactPerson) block += `Контактна особа: ${contactPerson}\n`;
   if (contactPhone) block += `Тел. контактної особи: ${maskPhones(contactPhone)}\n`;

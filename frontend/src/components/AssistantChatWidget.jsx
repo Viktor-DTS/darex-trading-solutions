@@ -40,6 +40,23 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   const [assistantTaskReadOnly, setAssistantTaskReadOnly] = useState(false);
   /** Пропозиція відкрити картку після перевірки номера й підписів (без автозапуску). */
   const [pendingTaskProposal, setPendingTaskProposal] = useState(null);
+  /** Безготівка на бухгалтерії без рахунку / заявки на рахунок (перевірка кожні 3 дні). */
+  const [cashlessAlert, setCashlessAlert] = useState(null);
+  /** Тестовий режим / чесний опис пам’яті (GET /api/assistant/info). */
+  const [assistantInfo, setAssistantInfo] = useState({ testMode: true, badge: 'Тестовий режим', lines: [] });
+  /** id повідомлення, для якого відкрито поле коментаря до 👎 */
+  const [feedbackDraftId, setFeedbackDraftId] = useState(null);
+  const [feedbackDraftComment, setFeedbackDraftComment] = useState('');
+  const [feedbackSubmittingId, setFeedbackSubmittingId] = useState(null);
+  /** Звіт негативних оцінок (лише admin). */
+  const [feedbackReportOpen, setFeedbackReportOpen] = useState(false);
+  const [feedbackReport, setFeedbackReport] = useState(null);
+  const [feedbackReportLoading, setFeedbackReportLoading] = useState(false);
+  /** Очікування Так/Ні щодо теми діалогу. */
+  const [topicMeta, setTopicMeta] = useState(null);
+  const [ratingPrompt, setRatingPrompt] = useState('');
+  /** Заявка, до якої прив’язується пояснення для бухгалтерії (кнопка «Пояснити»). */
+  const [relayTaskContext, setRelayTaskContext] = useState(null);
   const panelScrollRef = useRef(null);
   const abortRef = useRef(null);
 
@@ -115,6 +132,136 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
     [user],
   );
 
+  const selectRelayTask = useCallback((row) => {
+    const taskId = String(row?.taskId || '').trim();
+    if (!taskId) return;
+    setRelayTaskContext({
+      taskId,
+      requestNumber: String(row?.requestNumber || '').trim(),
+    });
+  }, []);
+
+  const isAssistantAdmin = ['admin', 'administrator', 'mgradm'].includes(
+    String(user?.role || '').toLowerCase(),
+  );
+
+  const mapApiMessage = (m) => ({
+    id: m.id || null,
+    role: m.role,
+    content: m.content,
+    createdAt: m.createdAt,
+    feedback: m.feedback || null,
+  });
+
+  const patchMessageFeedback = useCallback((messageId, feedback) => {
+    const mid = String(messageId || '');
+    if (!mid) return;
+    setMessages((prev) =>
+      prev.map((m) => (String(m.id) === mid ? { ...m, feedback } : m)),
+    );
+  }, []);
+
+  const submitMessageFeedback = useCallback(
+    async (messageId, helpful, comment = '') => {
+      const mid = String(messageId || '').trim();
+      if (!mid || feedbackSubmittingId) return;
+      setFeedbackSubmittingId(mid);
+      setError('');
+      try {
+        const res = await fetch(`${API_BASE_URL}/assistant/messages/${encodeURIComponent(mid)}/feedback`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ helpful, comment: String(comment || '').trim() }),
+        });
+        if (tryHandleUnauthorizedResponse(res)) return;
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          setError(data?.error || 'Не вдалося зберегти оцінку');
+          return;
+        }
+        if (data?.feedback) {
+          patchMessageFeedback(mid, data.feedback);
+        }
+        setFeedbackDraftId(null);
+        setFeedbackDraftComment('');
+      } catch (e) {
+        setError(String(e.message || e));
+      } finally {
+        setFeedbackSubmittingId(null);
+      }
+    },
+    [feedbackSubmittingId, patchMessageFeedback],
+  );
+
+  const loadFeedbackReport = useCallback(async () => {
+    if (!isAssistantAdmin) return;
+    setFeedbackReportLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/assistant/feedback/report?days=7&limit=30`, {
+        headers: authHeaders(),
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(data?.error || 'Не вдалося завантажити звіт');
+        return;
+      }
+      setFeedbackReport(data);
+      setFeedbackReportOpen(true);
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setFeedbackReportLoading(false);
+    }
+  }, [isAssistantAdmin]);
+
+  const loadAssistantInfo = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/assistant/info`, {
+        headers: authHeaders(),
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) return;
+      setAssistantInfo(data);
+      if (data.ratingPrompt) setRatingPrompt(data.ratingPrompt);
+    } catch {
+      /* ignore — залишаємо дефолт testMode */
+    }
+  }, []);
+
+  const loadCashlessAlerts = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/assistant/alerts/cashless-pending`, {
+        headers: authHeaders(),
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      const data = await res.json().catch(() => null);
+      if (!res.ok) return;
+      if (Array.isArray(data?.tasks) && data.tasks.length > 0) {
+        setCashlessAlert({
+          tasks: data.tasks,
+          summaryUk: data.summaryUk || '',
+          openActions: data.tasks.map((t) => ({
+            taskId: t.taskId,
+            requestNumber: t.requestNumber,
+          })),
+        });
+      } else {
+        setCashlessAlert(null);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    loadCashlessAlerts();
+    loadAssistantInfo();
+  }, [open, loadCashlessAlerts, loadAssistantInfo]);
+
   const loadConversationList = useCallback(async () => {
     setConvListLoading(true);
     try {
@@ -151,13 +298,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
         setError(data?.error || 'Не вдалося завантажити історію');
         return;
       }
-      setMessages(
-        (data?.messages || []).map((m) => ({
-          role: m.role,
-          content: m.content,
-          createdAt: m.createdAt,
-        })),
-      );
+      setMessages((data?.messages || []).map(mapApiMessage));
     } catch (e) {
       setError(String(e.message || e));
     } finally {
@@ -266,6 +407,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
     setInput('');
     setError('');
     setTaskContextHint(null);
+    setTopicMeta(null);
     setAssistantTaskModalOpen(false);
     setAssistantTaskInitial(null);
     setAssistantTaskReadOnly(false);
@@ -294,6 +436,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
     setMessages([]);
     setError('');
     setTaskContextHint(null);
+    setTopicMeta(null);
     setAssistantTaskModalOpen(false);
     setAssistantTaskInitial(null);
     setAssistantTaskReadOnly(false);
@@ -301,11 +444,16 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
     setShowConvList(true);
   };
 
-  const send = async () => {
-    const text = input.trim();
+  const sendTopicAnswer = (yes) => {
+    send(yes ? 'Так' : 'Ні');
+  };
+
+  const send = async (overrideText) => {
+    const text = String(overrideText ?? input).trim();
     if (!text || loading) return;
 
     const snapshot = [...messages];
+    const relayCtxSnapshot = relayTaskContext;
 
     abortRef.current?.abort();
     const ac = new AbortController();
@@ -326,6 +474,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
         body: JSON.stringify({
           conversationId,
           message: text,
+          relayTaskContext: relayCtxSnapshot?.taskId ? relayCtxSnapshot : undefined,
           context: {
             panelId: currentPanel || '',
             panelLabel: panelMeta?.label || '',
@@ -356,16 +505,42 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
       if (cid) setConversationId(cid);
 
       const reply = String(data?.reply || '');
+      const assistantMessageId = data?.assistantMessageId ? String(data.assistantMessageId) : null;
       setMessages([
         ...snapshot,
         { role: 'user', content: text },
-        { role: 'assistant', content: reply },
+        {
+          role: 'assistant',
+          content: reply,
+          id: assistantMessageId,
+          feedback: null,
+        },
       ]);
 
+      const relayMeta = data?.relayMeta;
+      if (relayMeta?.completed) {
+        setRelayTaskContext(null);
+      } else if (relayMeta?.awaitingConfirm && relayMeta?.taskId) {
+        setRelayTaskContext({
+          taskId: String(relayMeta.taskId),
+          requestNumber: String(relayMeta.requestNumber || ''),
+        });
+      }
+
       const tc = data?.taskContext;
+      const cashlessFromServer = data?.cashlessAlert || tc?.cashlessPending;
+      if (cashlessFromServer?.openActions?.length) {
+        setCashlessAlert(cashlessFromServer);
+      } else {
+        loadCashlessAlerts();
+      }
+
       const showTaskCtxHint =
         tc &&
-        ((tc.requestNumbers?.length ?? 0) > 0 || Boolean(tc.taskModal) || Boolean(tc.discovery));
+        ((tc.requestNumbers?.length ?? 0) > 0 ||
+          Boolean(tc.taskModal) ||
+          Boolean(tc.discovery) ||
+          Boolean(tc.cashlessPending));
       if (showTaskCtxHint && tc) {
         setTaskContextHint({
           matched: Number(tc.matched) || 0,
@@ -373,6 +548,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
           elevated: Boolean(tc.elevated),
           taskModal: tc.taskModal ?? null,
           discovery: tc.discovery ?? null,
+          cashlessPending: tc.cashlessPending ?? null,
         });
       } else {
         setTaskContextHint(null);
@@ -383,6 +559,19 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
         setPendingTaskProposal(proposal);
       } else {
         setPendingTaskProposal(null);
+      }
+
+      if (data?.ratingPrompt) {
+        setRatingPrompt(data.ratingPrompt);
+      }
+
+      const tm = data?.topicMeta;
+      if (tm?.awaitingTopicConfirm) {
+        setTopicMeta(tm);
+      } else if (tm?.completed) {
+        setTopicMeta(null);
+      } else if (!tm?.awaitingTopicConfirm) {
+        setTopicMeta(null);
       }
 
       loadConversationList();
@@ -414,7 +603,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
         type="button"
         className="assistant-chat-fab"
         aria-label="Відкрити асистента"
-        title="Асистент DTS"
+        title={assistantInfo?.testMode ? 'Асистент DTS — тестовий режим (beta)' : 'Асистент DTS'}
         onClick={() => setOpen((o) => !o)}
       >
         🤖
@@ -427,7 +616,14 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
           aria-label="Чат з асистентом"
         >
           <div className="assistant-chat-panel-header">
-            <h3>Асистент DTS</h3>
+            <h3>
+              Асистент DTS
+              {assistantInfo?.badge ? (
+                <span className="assistant-chat-beta-badge" title="Асистент у розробці">
+                  {assistantInfo.badge}
+                </span>
+              ) : null}
+            </h3>
             <div className="assistant-chat-actions">
               <button
                 type="button"
@@ -441,11 +637,111 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
               <button type="button" onClick={newChat}>
                 Новий чат
               </button>
+              {isAssistantAdmin ? (
+                <button
+                  type="button"
+                  className="assistant-chat-feedback-report-btn"
+                  title="Звіт оцінок асистента за 7 днів"
+                  disabled={feedbackReportLoading}
+                  onClick={() => {
+                    if (feedbackReportOpen) {
+                      setFeedbackReportOpen(false);
+                    } else {
+                      loadFeedbackReport();
+                    }
+                  }}
+                >
+                  {feedbackReportLoading ? '…' : feedbackReportOpen ? 'Звіт ▲' : 'Звіт 👎'}
+                </button>
+              ) : null}
               <button type="button" onClick={() => setOpen(false)}>
                 Закрити
               </button>
             </div>
           </div>
+
+          {assistantInfo?.testMode ? (
+            <div className="assistant-chat-beta-banner" role="note" aria-label="Про тестовий режим асистента">
+              <div className="assistant-chat-beta-banner-title">
+                {assistantInfo.title || 'Асистент у тестовому режимі'}
+              </div>
+              <ul className="assistant-chat-beta-banner-list">
+                {(assistantInfo.lines?.length
+                  ? assistantInfo.lines
+                  : [
+                      'Асистент ще невеликий і в розробці — можливі помилки.',
+                      'Не навчається сам на ваших листуваннях; пам’ять лише в цьому збереженому чаті.',
+                    ]
+                ).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {ratingPrompt ? (
+            <div className="assistant-chat-rating-banner" role="note">
+              {ratingPrompt}
+            </div>
+          ) : null}
+
+          {feedbackReportOpen && feedbackReport ? (
+            <div className="assistant-chat-feedback-report" role="region" aria-label="Звіт зворотного зв’язку">
+              <div className="assistant-chat-feedback-report-head">
+                <strong>Зворотний зв’язок за {feedbackReport.periodDays} д.</strong>
+                <span>
+                  👍 {feedbackReport.summary?.positive ?? 0} · 👎 {feedbackReport.summary?.negative ?? 0}
+                  {feedbackReport.summary?.positiveRate != null
+                    ? ` · ${feedbackReport.summary.positiveRate}% корисних`
+                    : ''}
+                </span>
+              </div>
+              {(feedbackReport.negativeItems || []).length === 0 ? (
+                <p className="assistant-chat-feedback-report-empty">Негативних оцінок за період немає.</p>
+              ) : (
+                <ul className="assistant-chat-feedback-report-list" role="list">
+                  {(feedbackReport.negativeItems || []).map((row) => (
+                    <li key={row.messageId}>
+                      <div className="assistant-chat-feedback-report-meta">
+                        {row.userLogin || '—'} · {formatConvDate(row.ratedAt)}
+                        {row.conversationTitle ? ` · ${row.conversationTitle}` : ''}
+                      </div>
+                      {row.userQuestionPreview ? (
+                        <div className="assistant-chat-feedback-report-q">
+                          <span>Питання:</span> {row.userQuestionPreview}
+                        </div>
+                      ) : null}
+                      <div className="assistant-chat-feedback-report-a">
+                        <span>Відповідь:</span> {row.assistantPreview}
+                      </div>
+                      {row.comment ? (
+                        <div className="assistant-chat-feedback-report-c">
+                          <span>Коментар:</span> {row.comment}
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {feedbackReport.knowledge ? (
+                <div className="assistant-chat-feedback-report-knowledge">
+                  <strong>База знань (👍):</strong> {feedbackReport.knowledge.total ?? 0} записів
+                  {feedbackReport.topicDecisions != null ? (
+                    <span> · рішень про тему: {feedbackReport.topicDecisions}</span>
+                  ) : null}
+                  {(feedbackReport.knowledge.top || []).length > 0 ? (
+                    <ul className="assistant-chat-feedback-report-list" role="list">
+                      {(feedbackReport.knowledge.top || []).map((k) => (
+                        <li key={`${k.questionPreview}-${k.helpfulCount}`}>
+                          👍×{k.helpfulCount} · {k.questionPreview}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="assistant-chat-conv-toolbar">
             <button
@@ -527,6 +823,48 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
             </div>
           ) : null}
 
+          {cashlessAlert?.openActions?.length > 0 ? (
+            <div className="assistant-chat-cashless-alert" role="region" aria-label="Заявки без рахунку">
+              <div className="assistant-chat-cashless-alert-title">Безготівка без рахунку</div>
+              <p className="assistant-chat-cashless-alert-text">
+                {cashlessAlert.summaryUk ||
+                  'Є заявки на затвердженні у бухгалтера з безготівковою оплатою без рахунку та без заявки на рахунок. Перевірте та запросіть рахунок.'}
+              </p>
+              <p className="assistant-chat-cashless-alert-hint">
+                «Відкрити» — перегляд картки. «Пояснити» — прив’язати наступне повідомлення в чаті до цієї заявки (передача бухгалтеру після підтвердження Так/Ні).
+              </p>
+              <ul className="assistant-chat-cashless-task-list" role="list">
+                {cashlessAlert.openActions.map((row) => {
+                  const label = row.requestNumber || row.taskId;
+                  const selected = relayTaskContext?.taskId === row.taskId;
+                  return (
+                    <li key={row.taskId} className={`assistant-chat-cashless-task-row${selected ? ' selected' : ''}`}>
+                      <span className="assistant-chat-cashless-task-label">{label}</span>
+                      <div className="assistant-chat-cashless-task-actions">
+                        <button
+                          type="button"
+                          className="assistant-chat-cashless-open-btn"
+                          title={`Відкрити заявку ${label}`}
+                          onClick={() => openTaskFromAssistant(row.taskId)}
+                        >
+                          Відкрити
+                        </button>
+                        <button
+                          type="button"
+                          className={`assistant-chat-cashless-explain-btn${selected ? ' active' : ''}`}
+                          title={`Пояснення для ${label} — опишіть причину в полі нижче`}
+                          onClick={() => selectRelayTask(row)}
+                        >
+                          Пояснити
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
+
           <div className="assistant-chat-panel-main" ref={panelScrollRef}>
             {error ? <div className="assistant-chat-error">{error}</div> : null}
             {historyLoading ? <div className="assistant-chat-loading">Завантаження історії…</div> : null}
@@ -536,9 +874,10 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
               <div className="assistant-chat-msg assistant-chat-msg--ai">
                 <span className="assistant-chat-msg-label">Асистент</span>
                 <div className="assistant-chat-bubble assistant-chat-bubble-ai assistant-chat-welcome">
-                  Привіт! Запитайте про роботу з DTS. Асистенту передається активна вкладка й що на ній зазвичай роблять — підказки не плутають ваш екран з іншим розділом. Номер заявки (наприклад KV-1022)
-                  можна вписати тут або в попередніх повідомленнях; сервер підставить дані з бази відповідно до прав доступу в обліковому записі.
-                </div>
+                  Привіт! Я асистент DTS у <strong>тестовому режимі</strong>.
+                  <strong> Оцінюйте відповіді 👍</strong> — так я навчаюся для всієї команди DTS.
+                  Бачу ваші інші збережені чати; якщо зміните тему в одному чаті — запитаю «Так/Ні», чи це продовження попереднього.
+                  Фінанси та ПІБ маскуються перед GPT; <strong>ЄДРПОУ</strong> — відкрито. Номер заявки (KV-1022) можна вписати тут або раніше.                </div>
               </div>
             )}
             {messages.map((m, i) => {
@@ -546,36 +885,101 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
               const userMetaLine = m.createdAt
                 ? formatConvDate(m.createdAt)
                 : [panelHint, 'щойно'].filter(Boolean).join(' · ');
+              const msgKey = m.id || `${m.role}-${i}-${String(m.content).slice(0, 24)}`;
+              const canRate = Boolean(m.id) && m.role === 'assistant';
+              const ratedUp = m.feedback?.helpful === true;
+              const ratedDown = m.feedback?.helpful === false;
+              const draftOpen = feedbackDraftId === m.id;
+              const submitting = feedbackSubmittingId === m.id;
 
               return m.role === 'user' ? (
-                <div
-                  key={`${m.role}-${i}-${String(m.content).slice(0, 24)}`}
-                  className="assistant-chat-msg assistant-chat-msg--user"
-                >
+                <div key={msgKey} className="assistant-chat-msg assistant-chat-msg--user">
                   <span className="assistant-chat-msg-label">Ви</span>
                   <div className="assistant-chat-bubble assistant-chat-bubble-user">{m.content}</div>
                   <div className="assistant-chat-msg-meta">{userMetaLine}</div>
                 </div>
               ) : (
-                <div
-                  key={`${m.role}-${i}-${String(m.content).slice(0, 24)}`}
-                  className="assistant-chat-msg assistant-chat-msg--ai"
-                >
+                <div key={msgKey} className="assistant-chat-msg assistant-chat-msg--ai">
                   <div className="assistant-chat-msg-head">
                     <span className="assistant-chat-msg-label">Асистент</span>
-                    <button
-                      type="button"
-                      className="assistant-chat-copy"
-                      onClick={() => copyAssistantReply(m.content)}
-                    >
-                      Копіювати
-                    </button>
+                    <div className="assistant-chat-msg-actions">
+                      {canRate ? (
+                        <>
+                          <button
+                            type="button"
+                            className={`assistant-chat-feedback-btn${ratedUp ? ' active-up' : ''}`}
+                            title="Корисна відповідь — додає її в базу знань для всієї команди DTS"
+                            disabled={submitting}
+                            aria-pressed={ratedUp}
+                            onClick={() => submitMessageFeedback(m.id, true)}
+                          >
+                            👍
+                          </button>
+                          <button
+                            type="button"
+                            className={`assistant-chat-feedback-btn${ratedDown ? ' active-down' : ''}`}
+                            title="Не те — додати коментар (необов’язково)"
+                            disabled={submitting}
+                            aria-pressed={ratedDown}
+                            onClick={() => {
+                              setFeedbackDraftId(m.id);
+                              setFeedbackDraftComment(m.feedback?.comment || '');
+                            }}
+                          >
+                            👎
+                          </button>
+                        </>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="assistant-chat-copy"
+                        onClick={() => copyAssistantReply(m.content)}
+                      >
+                        Копіювати
+                      </button>
+                    </div>
                   </div>
                   <div className="assistant-chat-bubble assistant-chat-bubble-ai">
                     <div className="assistant-chat-bubble-text">
                       <AssistantMessageContent text={m.content} />
                     </div>
                   </div>
+                  {canRate && draftOpen ? (
+                    <div className="assistant-chat-feedback-draft">
+                      <textarea
+                        className="assistant-chat-feedback-comment"
+                        rows={2}
+                        maxLength={500}
+                        placeholder="Що не так або чого бракує? (необов’язково)"
+                        value={feedbackDraftComment}
+                        onChange={(e) => setFeedbackDraftComment(e.target.value)}
+                      />
+                      <div className="assistant-chat-feedback-draft-actions">
+                        <button
+                          type="button"
+                          className="assistant-chat-feedback-send"
+                          disabled={submitting}
+                          onClick={() => submitMessageFeedback(m.id, false, feedbackDraftComment)}
+                        >
+                          Надіслати 👎
+                        </button>
+                        <button
+                          type="button"
+                          className="assistant-chat-feedback-cancel"
+                          disabled={submitting}
+                          onClick={() => {
+                            setFeedbackDraftId(null);
+                            setFeedbackDraftComment('');
+                          }}
+                        >
+                          Скасувати
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {ratedDown && m.feedback?.comment && !draftOpen ? (
+                    <div className="assistant-chat-feedback-note">Ваш коментар: {m.feedback.comment}</div>
+                  ) : null}
                 </div>
               );
             })}
@@ -693,11 +1097,44 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
           </div>
 
           <div className="assistant-chat-compose">
+            {topicMeta?.awaitingTopicConfirm ? (
+              <div className="assistant-chat-topic-confirm" role="group" aria-label="Підтвердження теми діалогу">
+                <p className="assistant-chat-topic-confirm-text">Це стосується попередньої теми в цьому чаті?</p>
+                {topicMeta.pendingMessagePreview ? (
+                  <p className="assistant-chat-topic-confirm-preview">«{topicMeta.pendingMessagePreview}»</p>
+                ) : null}
+                <div className="assistant-chat-topic-confirm-actions">
+                  <button type="button" className="assistant-chat-topic-yes" disabled={loading} onClick={() => sendTopicAnswer(true)}>
+                    Так
+                  </button>
+                  <button type="button" className="assistant-chat-topic-no" disabled={loading} onClick={() => sendTopicAnswer(false)}>
+                    Ні
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {relayTaskContext?.taskId ? (
+              <div className="assistant-chat-relay-task-chip" role="status">
+                <span>
+                  Пояснення для:{' '}
+                  <strong>{relayTaskContext.requestNumber || relayTaskContext.taskId}</strong>
+                </span>
+                <button type="button" className="assistant-chat-relay-task-clear" onClick={() => setRelayTaskContext(null)}>
+                  ×
+                </button>
+              </div>
+            ) : null}
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder="Запит… (Enter — надіслати, Shift+Enter — новий рядок)"
+              placeholder={
+                topicMeta?.awaitingTopicConfirm
+                  ? 'Або введіть Так / Ні…'
+                  : relayTaskContext?.requestNumber
+                  ? `Пояснення для ${relayTaskContext.requestNumber}… (Enter — надіслати)`
+                  : 'Запит… (Enter — надіслати, Shift+Enter — новий рядок)'
+              }
               disabled={loading}
               maxLength={4500}
             />
@@ -707,7 +1144,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
                   Зупинити
                 </button>
               ) : null}
-              <button type="button" className="assistant-chat-send" onClick={send} disabled={loading}>
+              <button type="button" className="assistant-chat-send" onClick={() => send()} disabled={loading}>
                 Надіслати
               </button>
             </div>
