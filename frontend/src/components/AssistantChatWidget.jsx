@@ -1256,7 +1256,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
                   Привіт! Я асистент DTS у <strong>тестовому режимі</strong>.
                   <strong> Оцінюйте відповіді 👍</strong> — так я навчаюся для всієї команди DTS.
                   Бачу ваші інші збережені чати; якщо зміните тему в одному чаті — запитаю «Так/Ні», чи це продовження попереднього.
-                  Номер заявки (KV-1022) можна вписати тут або раніше.                </div>
+                </div>
               </div>
             )}
             {messages.map((m, i) => {
