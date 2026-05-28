@@ -25,6 +25,16 @@ function isCasualOffTopicUserMessage(text) {
   );
 }
 
+/** Підказка в payload LLM (не показується користувачу в історії). */
+function casualJokeLlmHintUk() {
+  return (
+    '[DTS-casual-joke]\n' +
+    'Користувач просить анекдот/жарт. Розкажи один короткий анекдот українською з несподіваним punchline. ' +
+    'Уникай «псевдоглибоких» порівнянь без кульмінації. Без преамбули «давайте розкажу». ' +
+    'Без нав’язливого речення про допомогу з DTS наприкінці.'
+  );
+}
+
 function normalizeRepeatKey(s) {
   return String(s || '')
     .toLowerCase()
@@ -65,6 +75,13 @@ function sanitizeAssistantReply(text, opts = {}) {
   }
   s = keptSent.join(' ').trim();
 
+  if (opts.casual) {
+    s = s
+      .replace(/^[\s«"']*(?:давайте|добре|ок(?:ей)?)[,!.]?\s*(?:я\s+)?(?:розкажу|розповім)\s+(?:вам\s+)?анекдот[:.]?\s*/iu, '')
+      .replace(/\s*(?:давайте|можу)\s+допом(?:огти|ожу)\s+з\s+робот(?:ою|і)\s+dts[.?!…]*\s*$/iu, '')
+      .trim();
+  }
+
   const limit = maxReplyChars(Boolean(opts.casual));
   if (s.length > limit) {
     const slice = s.slice(0, limit);
@@ -80,4 +97,5 @@ module.exports = {
   isCasualOffTopicUserMessage,
   sanitizeAssistantReply,
   maxReplyChars,
+  casualJokeLlmHintUk,
 };

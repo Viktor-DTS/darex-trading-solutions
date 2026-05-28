@@ -3,7 +3,7 @@
  */
 const mongoose = require('mongoose');
 const { assistantChatCompletion } = require('./assistantChatLlm');
-const { isCasualOffTopicUserMessage } = require('./assistantChatSanitize');
+const { isCasualOffTopicUserMessage, casualJokeLlmHintUk } = require('./assistantChatSanitize');
 const { appendAssistantScopeHintToUserPayload } = require('./assistantChatScopeHints');
 const { buildTaskContextForLlm, ASSISTANT_PRIOR_SCAN } = require('./assistantTaskLookup');
 const { buildDiscoveryContextForLlm } = require('./assistantDiscoveryLookup');
@@ -510,12 +510,15 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
 
     try {
       const casualOffTopic = isCasualOffTopicUserMessage(userMsg);
+      const userContentForLlm = casualOffTopic
+        ? `${contentForLlm}\n\n${casualJokeLlmHintUk()}`
+        : contentForLlm;
       const out = await assistantChatCompletion(
         [
           ...histForLlm,
           {
             role: 'user',
-            content: contentForLlm,
+            content: userContentForLlm,
           },
         ],
         { casual: casualOffTopic },
