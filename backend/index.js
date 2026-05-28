@@ -15931,6 +15931,7 @@ app.post('/api/notifications/send-system-message', authenticateToken, async (req
 registerAssistantChatRoutes(app, {
   getAssistantConnection,
   getCashlessPendingAlertsForUser,
+  ManagerUserNotification,
 });
 
 initAssistantCashlessPending({

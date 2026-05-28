@@ -23,6 +23,10 @@ const {
   getTopicMemoryModel,
 } = require('./assistantChatTopicContext');
 const { processRelayUserTurn, getPendingRelayInbox } = require('./assistantAccountantRelay');
+const {
+  getAssistantUnreadNotificationCount,
+  markAssistantNotificationsSeen,
+} = require('./assistantNotifications');
 
 const MAX_USER_MESSAGE = 4000;
 const MAX_LLM_USER_COMBINED = 22000;
@@ -97,7 +101,7 @@ function validObjectId(id) {
  * @param {import('express').Application} app
  * @param {{ getAssistantConnection: () => import('mongoose').Connection | null, getCashlessPendingAlertsForUser?: (login: string, dbUser: object | null) => Promise<{ tasks: object[], summaryUk: string }> }} opts
  */
-function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessPendingAlertsForUser }) {
+function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessPendingAlertsForUser, ManagerUserNotification }) {
   app.get('/api/assistant/info', async (req, res) => {
     const login = req.user?.login;
     if (!login) return res.status(401).json({ error: 'Користувач не визначений' });
@@ -117,6 +121,31 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
     } catch (e) {
       console.error('[assistant-alerts] cashless-pending', e?.message || e);
       res.status(500).json({ error: 'Не вдалося завантажити нагадування' });
+    }
+  });
+
+  app.get('/api/assistant/notifications/unread-count', async (req, res) => {
+    const login = req.user?.login;
+    if (!login) return res.status(401).json({ error: 'Користувач не визначений' });
+    try {
+      const count = await getAssistantUnreadNotificationCount(ManagerUserNotification, login);
+      res.json({ count });
+    } catch (e) {
+      console.error('[assistant-notifications] unread-count', e?.message || e);
+      res.status(500).json({ error: 'Не вдалося завантажити лічильник сповіщень' });
+    }
+  });
+
+  app.post('/api/assistant/notifications/mark-seen', async (req, res) => {
+    const login = req.user?.login;
+    if (!login) return res.status(401).json({ error: 'Користувач не визначений' });
+    try {
+      const result = await markAssistantNotificationsSeen(ManagerUserNotification, login);
+      const count = await getAssistantUnreadNotificationCount(ManagerUserNotification, login);
+      res.json({ ...result, count });
+    } catch (e) {
+      console.error('[assistant-notifications] mark-seen', e?.message || e);
+      res.status(500).json({ error: 'Не вдалося позначити сповіщення переглянутими' });
     }
   });
 

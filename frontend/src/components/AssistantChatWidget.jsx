@@ -8,6 +8,56 @@ import AddTaskModal from './AddTaskModal';
 import { AssistantMessageContent } from './assistantChatFormat';
 import './AssistantChatWidget.css';
 
+const PANEL_DEFAULT = { width: 440, height: 560 };
+const PANEL_WIDE = { width: 620, height: 680 };
+const PANEL_MIN_WIDTH = 340;
+const PANEL_MIN_HEIGHT = 380;
+/** Модалка заявки з чату — завжди поверх панелі асистента (fullscreen = 10020). */
+const ASSISTANT_TASK_MODAL_Z = 10030;
+
+function panelSizeStorageKey(login) {
+  return `dts-assistant-panel-v1:${String(login || 'guest').trim() || 'guest'}`;
+}
+
+function clampPanelSize(size) {
+  const maxW = Math.max(PANEL_MIN_WIDTH, window.innerWidth - 20);
+  const maxH = Math.max(PANEL_MIN_HEIGHT, window.innerHeight - 100);
+  return {
+    width: Math.round(
+      Math.min(maxW, Math.max(PANEL_MIN_WIDTH, Number(size?.width) || PANEL_DEFAULT.width)),
+    ),
+    height: Math.round(
+      Math.min(maxH, Math.max(PANEL_MIN_HEIGHT, Number(size?.height) || PANEL_DEFAULT.height)),
+    ),
+  };
+}
+
+function readPanelSize(login) {
+  try {
+    const raw = localStorage.getItem(panelSizeStorageKey(login));
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object') return null;
+    return {
+      ...clampPanelSize(data),
+      wide: Boolean(data.wide),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePanelSize(login, size, wide) {
+  try {
+    localStorage.setItem(
+      panelSizeStorageKey(login),
+      JSON.stringify({ ...clampPanelSize(size), wide: Boolean(wide) }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
 /** panelType для AddTaskModal залежить від вкладки; невідомі id зводимо до сервісу. */
 function taskModalPanelType(navPanelId) {
   const id = String(navPanelId || 'service').toLowerCase();
@@ -24,6 +74,8 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   const [open, setOpen] = useState(false);
   const [panelWide, setPanelWide] = useState(false);
   const [panelFullscreen, setPanelFullscreen] = useState(false);
+  const [panelSize, setPanelSize] = useState(PANEL_DEFAULT);
+  const [panelResizing, setPanelResizing] = useState(false);
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [convListLoading, setConvListLoading] = useState(false);
@@ -43,6 +95,8 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   const [pendingTaskProposal, setPendingTaskProposal] = useState(null);
   /** Безготівка на бухгалтерії без рахунку / заявки на рахунок (перевірка кожні 3 дні). */
   const [cashlessAlert, setCashlessAlert] = useState(null);
+  /** Непрочитані сповіщення асистента (безготівка, relay тощо). */
+  const [assistantUnreadCount, setAssistantUnreadCount] = useState(0);
   /** Тестовий режим / чесний опис пам’яті (GET /api/assistant/info). */
   const [assistantInfo, setAssistantInfo] = useState({ testMode: true, badge: 'Тестовий режим', lines: [] });
   /** id повідомлення, для якого відкрито поле коментаря до 👎 */
@@ -59,7 +113,16 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   /** Заявка, до якої прив’язується пояснення для бухгалтерії (кнопка «Пояснити»). */
   const [relayTaskContext, setRelayTaskContext] = useState(null);
   const panelScrollRef = useRef(null);
+  const panelRef = useRef(null);
+  const panelSizeRef = useRef(panelSize);
   const abortRef = useRef(null);
+  const resizeSessionRef = useRef(null);
+
+  const userLogin = String(user?.login || '').trim();
+
+  useEffect(() => {
+    panelSizeRef.current = panelSize;
+  }, [panelSize]);
 
   const abortSend = useCallback(() => {
     abortRef.current?.abort();
@@ -82,6 +145,141 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   useEffect(() => {
     if (!open) setPanelFullscreen(false);
   }, [open]);
+
+  useEffect(() => {
+    const stored = readPanelSize(userLogin);
+    if (stored) {
+      setPanelSize({ width: stored.width, height: stored.height });
+      setPanelWide(stored.wide);
+    } else {
+      setPanelSize(clampPanelSize(PANEL_DEFAULT));
+      setPanelWide(false);
+    }
+  }, [userLogin]);
+
+  useEffect(() => {
+    if (panelFullscreen) return undefined;
+    const onWinResize = () => {
+      setPanelSize((prev) => clampPanelSize(prev));
+    };
+    window.addEventListener('resize', onWinResize);
+    return () => window.removeEventListener('resize', onWinResize);
+  }, [panelFullscreen]);
+
+  const togglePanelWide = useCallback(() => {
+    if (panelFullscreen) return;
+    if (panelWide) {
+      const stored = readPanelSize(userLogin);
+      const size =
+        stored && !stored.wide
+          ? { width: stored.width, height: stored.height }
+          : clampPanelSize(PANEL_DEFAULT);
+      setPanelSize(size);
+      setPanelWide(false);
+      writePanelSize(userLogin, size, false);
+    } else {
+      const size = clampPanelSize(PANEL_WIDE);
+      setPanelSize(size);
+      setPanelWide(true);
+      writePanelSize(userLogin, size, true);
+    }
+  }, [panelFullscreen, panelWide, userLogin]);
+
+  const finishPanelResize = useCallback(
+    (size, wide) => {
+      setPanelResizing(false);
+      resizeSessionRef.current = null;
+      document.body.style.removeProperty('user-select');
+      document.body.style.removeProperty('cursor');
+      writePanelSize(userLogin, size, wide);
+    },
+    [userLogin],
+  );
+
+  const onPanelResizeMove = useCallback(
+    (clientX, clientY) => {
+      const session = resizeSessionRef.current;
+      if (!session) return;
+      const deltaX = session.startX - clientX;
+      const deltaY = session.startY - clientY;
+      const next = clampPanelSize({
+        width: session.startW + deltaX,
+        height: session.startH + deltaY,
+      });
+      setPanelSize(next);
+      setPanelWide(false);
+    },
+    [],
+  );
+
+  const onPanelResizeStart = useCallback(
+    (e) => {
+      if (panelFullscreen) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = panelRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      resizeSessionRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        startW: rect.width,
+        startH: rect.height,
+      };
+      setPanelResizing(true);
+      setPanelWide(false);
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'nwse-resize';
+
+      const onMouseMove = (ev) => onPanelResizeMove(ev.clientX, ev.clientY);
+      const onMouseUp = () => {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        finishPanelResize(panelSizeRef.current, false);
+      };
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    },
+    [panelFullscreen, onPanelResizeMove, finishPanelResize],
+  );
+
+  const onPanelResizeTouchStart = useCallback(
+    (e) => {
+      if (panelFullscreen || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      e.preventDefault();
+      const rect = panelRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      resizeSessionRef.current = {
+        startX: touch.clientX,
+        startY: touch.clientY,
+        startW: rect.width,
+        startH: rect.height,
+      };
+      setPanelResizing(true);
+      setPanelWide(false);
+
+      const onTouchMove = (ev) => {
+        if (ev.touches.length !== 1) return;
+        onPanelResizeMove(ev.touches[0].clientX, ev.touches[0].clientY);
+      };
+      const onTouchEnd = () => {
+        document.removeEventListener('touchmove', onTouchMove);
+        document.removeEventListener('touchend', onTouchEnd);
+        finishPanelResize(panelSizeRef.current, false);
+      };
+      document.addEventListener('touchmove', onTouchMove, { passive: false });
+      document.addEventListener('touchend', onTouchEnd);
+    },
+    [panelFullscreen, onPanelResizeMove, finishPanelResize],
+  );
+
+  useEffect(
+    () => () => {
+      document.body.style.removeProperty('user-select');
+      document.body.style.removeProperty('cursor');
+    },
+    [],
+  );
 
   const copyAssistantReply = useCallback((text) => {
     const t = String(text || '');
@@ -273,11 +471,49 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
     }
   }, []);
 
+  const loadAssistantUnreadCount = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/assistant/notifications/unread-count`, {
+        headers: authHeaders(),
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      const data = await res.json().catch(() => null);
+      if (!res.ok) return;
+      setAssistantUnreadCount(Number(data?.count) || 0);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const markAssistantNotificationsSeen = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/assistant/notifications/mark-seen`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      if (tryHandleUnauthorizedResponse(res)) return;
+      const data = await res.json().catch(() => null);
+      if (res.ok && data) {
+        setAssistantUnreadCount(Number(data.count) || 0);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!userLogin) return undefined;
+    loadAssistantUnreadCount();
+    const id = setInterval(loadAssistantUnreadCount, 60000);
+    return () => clearInterval(id);
+  }, [userLogin, loadAssistantUnreadCount]);
+
   useEffect(() => {
     if (!open) return;
     loadCashlessAlerts();
     loadAssistantInfo();
-  }, [open, loadCashlessAlerts, loadAssistantInfo]);
+    markAssistantNotificationsSeen();
+  }, [open, loadCashlessAlerts, loadAssistantInfo, markAssistantNotificationsSeen]);
 
   const loadConversationList = useCallback(async () => {
     setConvListLoading(true);
@@ -614,31 +850,95 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
     }
   };
 
+  const hasUnreadAssistantAlerts = assistantUnreadCount > 0;
+
   return (
     <>
       <button
         type="button"
-        className="assistant-chat-fab"
-        aria-label="Відкрити асистента"
-        title={assistantInfo?.testMode ? 'Асистент DTS — тестовий режим (beta)' : 'Асистент DTS'}
+        className={[
+          'assistant-chat-fab',
+          hasUnreadAssistantAlerts ? 'assistant-chat-fab--angry' : 'assistant-chat-fab--happy',
+        ].join(' ')}
+        aria-label={
+          hasUnreadAssistantAlerts
+            ? `Відкрити асистента (${assistantUnreadCount} непрочитаних сповіщень)`
+            : 'Відкрити асистента'
+        }
+        title={
+          hasUnreadAssistantAlerts
+            ? `Асистент DTS — ${assistantUnreadCount} нових сповіщень`
+            : assistantInfo?.testMode
+            ? 'Асистент DTS — тестовий режим (beta)'
+            : 'Асистент DTS'
+        }
         onClick={() => setOpen((o) => !o)}
       >
-        🤖
+        {hasUnreadAssistantAlerts ? (
+          <span className="assistant-chat-fab-steam" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+        ) : null}
+        <svg className="assistant-chat-fab-face" viewBox="0 0 48 48" aria-hidden="true">
+          <rect className="assistant-fab-head" x="8" y="10" width="32" height="28" rx="6" />
+          <line className="assistant-fab-antenna" x1="24" y1="10" x2="24" y2="4" />
+          <circle className="assistant-fab-antenna-tip" cx="24" cy="3" r="2.5" />
+          {hasUnreadAssistantAlerts ? (
+            <>
+              <path className="assistant-fab-brow assistant-fab-brow--left" d="M14 16 L22 18" />
+              <path className="assistant-fab-brow assistant-fab-brow--right" d="M34 16 L26 18" />
+            </>
+          ) : null}
+          <circle className="assistant-fab-eye assistant-fab-eye--left" cx="18" cy="22" r="3" />
+          <circle className="assistant-fab-eye assistant-fab-eye--right" cx="30" cy="22" r="3" />
+          {hasUnreadAssistantAlerts ? (
+            <path className="assistant-fab-mouth assistant-fab-mouth--angry" d="M17 32 Q24 28 31 32" />
+          ) : (
+            <path className="assistant-fab-mouth assistant-fab-mouth--happy" d="M17 30 Q24 36 31 30" />
+          )}
+        </svg>
+        {hasUnreadAssistantAlerts ? (
+          <span className="assistant-chat-fab-badge" aria-hidden="true">
+            {assistantUnreadCount > 9 ? '9+' : assistantUnreadCount}
+          </span>
+        ) : null}
       </button>
 
       {open && (
         <div
+          ref={panelRef}
           className={[
             'assistant-chat-panel',
-            panelWide ? 'assistant-chat-panel--wide' : '',
-            panelFullscreen ? 'assistant-chat-panel--fullscreen' : '',
+            panelFullscreen ? 'assistant-chat-panel--fullscreen' : 'assistant-chat-panel--sized',
+            panelResizing ? 'assistant-chat-panel--resizing' : '',
           ]
             .filter(Boolean)
             .join(' ')}
+          style={
+            panelFullscreen
+              ? undefined
+              : {
+                  width: `${panelSize.width}px`,
+                  height: `${panelSize.height}px`,
+                }
+          }
           role="dialog"
           aria-label="Чат з асистентом"
           aria-modal={panelFullscreen ? 'true' : undefined}
         >
+          {!panelFullscreen ? (
+            <div
+              className="assistant-chat-resize-handle"
+              role="separator"
+              aria-orientation="both"
+              aria-label="Змінити розмір вікна асистента"
+              title="Перетягніть для зміни ширини та висоти (розмір зберігається для вашого облікового запису)"
+              onMouseDown={onPanelResizeStart}
+              onTouchStart={onPanelResizeTouchStart}
+            />
+          ) : null}
           <div className="assistant-chat-panel-header">
             <h3>
               Асистент DTS
@@ -654,7 +954,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
                 className="assistant-chat-toggle-wide"
                 aria-pressed={panelWide}
                 title={panelWide ? 'Звичний розмір вікна' : 'Ширший і вищий — зручніше читати'}
-                onClick={() => setPanelWide((w) => !w)}
+                onClick={togglePanelWide}
               >
                 {panelWide ? 'Компактно' : 'Ширше'}
               </button>
@@ -1192,7 +1492,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
       {assistantTaskModalOpen && assistantTaskInitial ? (
         <AddTaskModal
           open={assistantTaskModalOpen}
-          overlayStyle={{ zIndex: 10008 }}
+          overlayStyle={{ zIndex: ASSISTANT_TASK_MODAL_Z }}
           onClose={() => {
             setAssistantTaskModalOpen(false);
             setAssistantTaskInitial(null);
