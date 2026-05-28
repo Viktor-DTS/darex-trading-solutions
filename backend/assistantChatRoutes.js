@@ -34,6 +34,7 @@ const {
   appendClarifyFollowUpToPrompt,
   applyClarificationTurn,
 } = require('./assistantChatClarification');
+const { tryTaskStatisticsTurn, buildTaskStatisticsContextForLlm } = require('./assistantTaskStatistics');
 
 const MAX_USER_MESSAGE = 4000;
 const MAX_LLM_USER_COMBINED = 22000;
@@ -286,6 +287,43 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
       : null;
 
     try {
+      const statsTurn = await tryTaskStatisticsTurn({
+        userJwt: req.user,
+        dbUserLean: dbUserLeanForAssistant,
+        messageText: userMsg,
+      });
+      if (statsTurn.handled) {
+        await Msg.create({ conversationId, role: 'user', content: userMsg });
+        const assistantStatsDoc = await Msg.create({
+          conversationId,
+          role: 'assistant',
+          content: truncate(statsTurn.reply, MESSAGE_MAX_LENGTH),
+        });
+        await Conv.updateOne({ _id: conversationId }, { $set: { updatedAt: new Date() } }).catch(() => {});
+
+        return res.json({
+          conversationId: String(conversationId),
+          reply: statsTurn.reply,
+          assistantMessageId: String(assistantStatsDoc._id),
+          statsMeta: statsTurn.statsMeta,
+          cashlessAlert:
+            cashlessAlertPayload?.tasks?.length > 0
+              ? {
+                  tasks: cashlessAlertPayload.tasks,
+                  summaryUk: cashlessAlertPayload.summaryUk,
+                  openActions: cashlessAlertPayload.tasks.map((t) => ({
+                    taskId: t.taskId,
+                    requestNumber: t.requestNumber,
+                  })),
+                }
+              : undefined,
+        });
+      }
+    } catch (e) {
+      console.error('[assistant-chat] statistics:', e?.message || e);
+    }
+
+    try {
       const relayOut = await processRelayUserTurn({
         login,
         role: String(req.user?.role || dbUserLeanForAssistant?.role || ''),
@@ -460,6 +498,17 @@ function registerAssistantChatRoutes(app, { getAssistantConnection, getCashlessP
       }
     } catch (e) {
       console.error('[assistant-chat] task context:', e?.message || e);
+    }
+
+    try {
+      const statsCtx = await buildTaskStatisticsContextForLlm(req.user, effectiveUserMsg, {
+        dbUserLean: dbUserLeanForAssistant,
+      });
+      if (statsCtx.textForLlm) {
+        contentForChat = `${contentForChat}\n\n${statsCtx.textForLlm}`;
+      }
+    } catch (e) {
+      console.error('[assistant-chat] statistics context:', e?.message || e);
     }
 
     try {

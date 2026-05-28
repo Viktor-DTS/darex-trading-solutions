@@ -6,6 +6,7 @@ const {
   extractRequestNumbers,
   expandRequestNumberVariants,
 } = require('./assistantTaskLookup');
+const { isTaskStatisticsQuery } = require('./assistantTaskStatistics');
 
 /** @type {{ User: import('mongoose').Model | null, createManagerNotificationDeduped: ((doc: object) => Promise<void>) | null }} */
 const mainDb = {
@@ -62,10 +63,9 @@ function looksLikeExplanation(text) {
   const s = String(text || '').trim();
   if (s.length < 12) return false;
   if (isAffirmative(s) || isNegative(s)) return false;
-  return (
-    /не\s+мож|неможлив|не\s+вда|через|тому\s+що|бо\s|причин|реквізит|договор|клієнт|контрагент|очіку|немає|нема\b|відсутн/i.test(
-      s,
-    ) || s.length >= 40
+  if (isTaskStatisticsQuery(s)) return false;
+  return /не\s+мож|неможлив|не\s+вда|через|тому\s+що|бо\s|причин|реквізит|договор|клієнт|контрагент|очіку|немає|нема\b|відсутн|безгот|рахунк|оплат|вистав/i.test(
+    s,
   );
 }
 
