@@ -81,7 +81,9 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   const [convListLoading, setConvListLoading] = useState(false);
   const [deletingConversationId, setDeletingConversationId] = useState(null);
   const [purgeBusy, setPurgeBusy] = useState(false);
-  const [showConvList, setShowConvList] = useState(true);
+  const [showConvList, setShowConvList] = useState(false);
+  /** Розгорнути жовтий/зелений інтро-блок (за замовч. згорнуто, якщо є cashless). */
+  const [introExpanded, setIntroExpanded] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -117,6 +119,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
   const panelSizeRef = useRef(panelSize);
   const abortRef = useRef(null);
   const resizeSessionRef = useRef(null);
+  const prevCashlessCountRef = useRef(0);
 
   const userLogin = String(user?.login || '').trim();
 
@@ -515,6 +518,18 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
     markAssistantNotificationsSeen();
   }, [open, loadCashlessAlerts, loadAssistantInfo, markAssistantNotificationsSeen]);
 
+  const cashlessCount = cashlessAlert?.openActions?.length ?? 0;
+  const hasCashlessAlert = cashlessCount > 0;
+  const showIntroBanners = !hasCashlessAlert || introExpanded;
+
+  useEffect(() => {
+    if (cashlessCount > 0 && prevCashlessCountRef.current === 0) {
+      setShowConvList(false);
+      setIntroExpanded(false);
+    }
+    prevCashlessCountRef.current = cashlessCount;
+  }, [cashlessCount]);
+
   const loadConversationList = useCallback(async () => {
     setConvListLoading(true);
     try {
@@ -852,6 +867,52 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
 
   const hasUnreadAssistantAlerts = assistantUnreadCount > 0;
 
+  const cashlessAlertBlock = hasCashlessAlert ? (
+    <div className="assistant-chat-priority-zone" role="region" aria-label="Заявки без рахунку">
+      <div className="assistant-chat-cashless-alert assistant-chat-cashless-alert--priority">
+        <div className="assistant-chat-cashless-alert-title">
+          ⚠ Безготівка без рахунку ({cashlessCount})
+        </div>
+        <p className="assistant-chat-cashless-alert-text">
+          Заявки на затвердженні у бухгалтера з безготівковою оплатою, але без рахунку та без заявки на
+          рахунок. Перевірте список і запросіть рахунок.
+        </p>
+        <p className="assistant-chat-cashless-alert-hint">
+          «Відкрити» — перегляд картки. «Пояснити» — прив’язати наступне повідомлення до цієї заявки.
+        </p>
+        <ul className="assistant-chat-cashless-task-list" role="list">
+          {cashlessAlert.openActions.map((row) => {
+            const label = row.requestNumber || row.taskId;
+            const selected = relayTaskContext?.taskId === row.taskId;
+            return (
+              <li key={row.taskId} className={`assistant-chat-cashless-task-row${selected ? ' selected' : ''}`}>
+                <span className="assistant-chat-cashless-task-label">{label}</span>
+                <div className="assistant-chat-cashless-task-actions">
+                  <button
+                    type="button"
+                    className="assistant-chat-cashless-open-btn"
+                    title={`Відкрити заявку ${label}`}
+                    onClick={() => openTaskFromAssistant(row.taskId)}
+                  >
+                    Відкрити
+                  </button>
+                  <button
+                    type="button"
+                    className={`assistant-chat-cashless-explain-btn${selected ? ' active' : ''}`}
+                    title={`Пояснення для ${label}`}
+                    onClick={() => selectRelayTask(row)}
+                  >
+                    Пояснити
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <>
       <button
@@ -942,6 +1003,11 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
           <div className="assistant-chat-panel-header">
             <h3>
               Асистент DTS
+              {hasCashlessAlert ? (
+                <span className="assistant-chat-urgent-badge" title="Потребують вашої уваги">
+                  {cashlessCount} без рахунку
+                </span>
+              ) : null}
               {assistantInfo?.badge ? (
                 <span className="assistant-chat-beta-badge" title="Асистент у розробці">
                   {assistantInfo.badge}
@@ -993,8 +1059,29 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
             </div>
           </div>
 
-          {assistantInfo?.testMode ? (
+          {cashlessAlertBlock}
+
+          {hasCashlessAlert && !introExpanded ? (
+            <button
+              type="button"
+              className="assistant-chat-intro-toggle"
+              onClick={() => setIntroExpanded(true)}
+            >
+              ℹ️ Про тестовий режим, 👍 навчання та конфіденційність
+            </button>
+          ) : null}
+
+          {assistantInfo?.testMode && showIntroBanners ? (
             <div className="assistant-chat-beta-banner" role="note" aria-label="Про тестовий режим асистента">
+              {hasCashlessAlert ? (
+                <button
+                  type="button"
+                  className="assistant-chat-intro-collapse"
+                  onClick={() => setIntroExpanded(false)}
+                >
+                  Згорнути ▲
+                </button>
+              ) : null}
               <div className="assistant-chat-beta-banner-title">
                 {assistantInfo.title || 'Асистент у тестовому режимі'}
               </div>
@@ -1012,7 +1099,7 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
             </div>
           ) : null}
 
-          {ratingPrompt ? (
+          {ratingPrompt && showIntroBanners ? (
             <div className="assistant-chat-rating-banner" role="note">
               {ratingPrompt}
             </div>
@@ -1158,51 +1245,6 @@ export default function AssistantChatWidget({ currentPanel, assistantPanelType, 
           ) : null}
 
           <div className="assistant-chat-panel-main" ref={panelScrollRef}>
-            {cashlessAlert?.openActions?.length > 0 ? (
-              <div className="assistant-chat-cashless-alert" role="region" aria-label="Заявки без рахунку">
-                <div className="assistant-chat-cashless-alert-title">
-                  Безготівка без рахунку ({cashlessAlert.openActions.length})
-                </div>
-                <p className="assistant-chat-cashless-alert-text">
-                  Заявки на затвердженні у бухгалтера з безготівковою оплатою, але без рахунку та без заявки на
-                  рахунок. Перевірте список нижче та запросіть рахунок.
-                </p>
-                <p className="assistant-chat-cashless-alert-hint">
-                  «Відкрити» — перегляд картки. «Пояснити» — прив’язати наступне повідомлення до цієї заявки.
-                  Прокрутіть список ↓
-                </p>
-                <ul className="assistant-chat-cashless-task-list" role="list">
-                  {cashlessAlert.openActions.map((row) => {
-                    const label = row.requestNumber || row.taskId;
-                    const selected = relayTaskContext?.taskId === row.taskId;
-                    return (
-                      <li key={row.taskId} className={`assistant-chat-cashless-task-row${selected ? ' selected' : ''}`}>
-                        <span className="assistant-chat-cashless-task-label">{label}</span>
-                        <div className="assistant-chat-cashless-task-actions">
-                          <button
-                            type="button"
-                            className="assistant-chat-cashless-open-btn"
-                            title={`Відкрити заявку ${label}`}
-                            onClick={() => openTaskFromAssistant(row.taskId)}
-                          >
-                            Відкрити
-                          </button>
-                          <button
-                            type="button"
-                            className={`assistant-chat-cashless-explain-btn${selected ? ' active' : ''}`}
-                            title={`Пояснення для ${label}`}
-                            onClick={() => selectRelayTask(row)}
-                          >
-                            Пояснити
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ) : null}
-
             {error ? <div className="assistant-chat-error">{error}</div> : null}
             {historyLoading ? <div className="assistant-chat-loading">Завантаження історії…</div> : null}
 

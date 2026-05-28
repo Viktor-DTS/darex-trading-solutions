@@ -349,6 +349,69 @@
   border: 1px solid rgba(234, 179, 8, 0.35);
 }
 
+.assistant-chat-urgent-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.22);
+  color: #fecaca;
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  text-transform: none;
+  letter-spacing: 0;
+  animation: assistant-urgent-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes assistant-urgent-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.12);
+  }
+}
+
+.assistant-chat-priority-zone {
+  flex-shrink: 0;
+  border-bottom: 2px solid rgba(251, 191, 36, 0.55);
+  background: rgba(69, 26, 3, 0.35);
+}
+
+.assistant-chat-intro-toggle {
+  flex-shrink: 0;
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(234, 179, 8, 0.07);
+  color: #fde047;
+  font-size: 11px;
+  padding: 7px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.assistant-chat-intro-toggle:hover {
+  background: rgba(234, 179, 8, 0.14);
+}
+
+.assistant-chat-intro-collapse {
+  float: right;
+  border: none;
+  background: transparent;
+  color: #fde047;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0 0 0 8px;
+  opacity: 0.85;
+}
+
+.assistant-chat-intro-collapse:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
 .assistant-chat-beta-banner {
   flex-shrink: 0;
   margin: 0;
@@ -1163,6 +1226,29 @@
   background: rgba(120, 53, 15, 0.28);
 }
 
+.assistant-chat-cashless-alert--priority {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  padding: 10px 12px 8px;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: min(220px, 38vh);
+}
+
+.assistant-chat-cashless-alert--priority .assistant-chat-cashless-alert-title {
+  font-size: 13px;
+}
+
+.assistant-chat-cashless-alert--priority .assistant-chat-cashless-task-list {
+  flex: 1 1 auto;
+  min-height: 64px;
+  max-height: none;
+  overflow-y: auto;
+}
+
 .assistant-chat-cashless-alert-title {
   font-size: 12px;
   font-weight: 700;
@@ -1207,8 +1293,24 @@
   max-height: min(320px, 42vh);
 }
 
+.assistant-chat-panel--wide .assistant-chat-cashless-alert--priority {
+  max-height: min(260px, 42vh);
+}
+
+.assistant-chat-panel--wide .assistant-chat-cashless-alert--priority .assistant-chat-cashless-task-list {
+  max-height: none;
+}
+
 .assistant-chat-panel--fullscreen .assistant-chat-cashless-task-list {
   max-height: min(480px, 52vh);
+}
+
+.assistant-chat-panel--fullscreen .assistant-chat-cashless-alert--priority {
+  max-height: min(320px, 45vh);
+}
+
+.assistant-chat-panel--fullscreen .assistant-chat-cashless-alert--priority .assistant-chat-cashless-task-list {
+  max-height: none;
 }
 
 .assistant-chat-cashless-task-list::-webkit-scrollbar {
