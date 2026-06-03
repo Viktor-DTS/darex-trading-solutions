@@ -137,8 +137,14 @@ export const generateWorkOrder = async (task) => {
     filterName: (task.filterName || '').toString().trim(),
     fuelFilterName: (task.fuelFilterName || '').toString().trim(),
     airFilterName: (task.airFilterName || '').toString().trim(),
-    antifreezeType: (task.antifreezeType || '').toString().trim()
+    antifreezeType: (task.antifreezeType || '').toString().trim(),
+    customerEquipmentNumber: (task.customerEquipmentNumber || '').toString().trim()
   };
+
+  // Якщо вказано інвентарний номер обладнання від замовника — додаємо його до значення "Зав. №"
+  workOrderData.serialNumberDisplay = workOrderData.customerEquipmentNumber
+    ? `${workOrderData.serialNumber}, Інвент. № ${workOrderData.customerEquipmentNumber}`
+    : workOrderData.serialNumber;
 
   // Перевіряємо умову для номера наряду
   const hasRequestNumber = task.requestNumber && task.requestNumber.trim() !== '';
@@ -555,7 +561,7 @@ const generateDTSTemplate = (data, workOrderNumber, formattedDate, engineers, wo
         
         <div class="field">
           <span class="field-label">Зав. №:</span>
-          <span class="field-value">${data.serialNumber}</span>
+          <span class="field-value">${data.serialNumberDisplay}</span>
         </div>
         
         <div class="field">
@@ -1093,7 +1099,7 @@ const generateDarexEnergyTemplate = (data, workOrderNumber, formattedDate, engin
         
         <div class="field">
           <span class="field-label">Зав. №:</span>
-          <span class="field-value">${data.serialNumber}</span>
+          <span class="field-value">${data.serialNumberDisplay}</span>
         </div>
         
         <div class="field">
