@@ -461,11 +461,10 @@ function App() {
                     {renderPanel()}
                   </div>
                   
-                  {/* Панель статистики заявок — приховано в Менеджери та Складський облік */}
-                  {!['manager', 'inventory'].includes(currentPanel) &&
-                    String(user?.role || '').toLowerCase() !== 'golovnkervserv' && (
-                      <TasksStatisticsBar user={user} />
-                    )}
+                  {/* Панель статистики заявок — приховано лише в Менеджери та Складський облік */}
+                  {!['manager', 'inventory'].includes(currentPanel) && (
+                    <TasksStatisticsBar user={user} />
+                  )}
                   <AssistantChatWidget currentPanel={currentPanel} assistantPanelType={currentPanel} user={user} />
                 </div>
               )}
