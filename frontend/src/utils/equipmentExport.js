@@ -1,6 +1,6 @@
-import ExcelJS from 'exceljs';
-
 export const exportEquipmentToExcel = async (equipmentList, filename = 'equipment') => {
+  // Лінива загрузка ExcelJS — важка бібліотека вантажиться лише при експорті
+  const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Обладнання');
 
@@ -110,6 +110,8 @@ export const exportEquipmentToExcel = async (equipmentList, filename = 'equipmen
 };
 
 export const exportEquipmentHistoryToExcel = async (equipment, filename = 'equipment_history') => {
+  // Лінива загрузка ExcelJS — важка бібліотека вантажиться лише при експорті
+  const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
   
   // Аркуш з інформацією про обладнання

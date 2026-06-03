@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import ExcelJS from 'exceljs';
 import API_BASE_URL from '../config';
 import { authFetch } from '../utils/authFetch';
 import { generateWorkOrder } from '../utils/workOrderGenerator';
@@ -222,6 +221,40 @@ function parseFilterDate(val, endOfDay = false) {
 
 const ENGINEER_FILTER_KEYS = ['engineer1', 'engineer2', 'engineer3', 'engineer4', 'engineer5', 'engineer6'];
 
+const DATE_FILTER_KEYS = ['requestDate', 'plannedDate', 'date', 'paymentDate', 'autoCreatedAt', 'autoCompletedAt',
+  'autoWarehouseApprovedAt', 'autoAccountantApprovedAt', 'invoiceRequestDate',
+  'invoiceUploadDate', 'warehouseApprovalDate', 'approvalDate', 'bonusApprovalDate'];
+
+const SELECT_FILTER_KEYS = ['status', 'company', 'paymentType', 'serviceRegion',
+  'approvedByWarehouse', 'approvedByAccountant', 'approvedByRegionalManager'];
+
+// Тип фільтра для колонки (чиста функція — поза компонентом, щоб не ламати меморизацію)
+function getFilterType(columnKey) {
+  if (DATE_FILTER_KEYS.includes(columnKey)) return 'date';
+  if (SELECT_FILTER_KEYS.includes(columnKey)) return 'select';
+  return 'text';
+}
+
+// Опції для select-фільтра (чиста функція)
+function getFilterOptions(columnKey) {
+  switch (columnKey) {
+    case 'status':
+      return ['', 'Заявка', 'В роботі', 'Виконано', 'Заблоковано'];
+    case 'company':
+      return ['', 'ДТС', 'Дарекс Енерго', 'інша'];
+    case 'paymentType':
+      return ['', 'Безготівка', 'Готівка', 'На карту', 'Інше'];
+    case 'serviceRegion':
+      return ['', 'Київський', 'Одеський', 'Львівський', 'Дніпровський', 'Хмельницький', 'Кропивницький', 'Україна'];
+    case 'approvedByWarehouse':
+    case 'approvedByAccountant':
+    case 'approvedByRegionalManager':
+      return ['', 'На розгляді', 'Підтверджено', 'Відмова'];
+    default:
+      return [];
+  }
+}
+
 /** Кожен заповнений фільтр по колонках інженера №1…№6: збіг шукається в будь-якому з полів engineer1…engineer6; кілька фільтрів поєднуються через AND. */
 function taskMatchesEngineerColumnFilters(task, engineerEntries, getFilterTypeForKey) {
   for (const [key, rawValue] of engineerEntries) {
@@ -284,27 +317,24 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   const [total, setTotal] = useState(0);
   const PAGE_SIZE = 30;
 
-  // Затримка 2 с перед фільтрацією (щоб не йшли запити на кожен символ)
-  const [debouncedFilter, setDebouncedFilter] = useState('');
-  const [debouncedColumnFilters, setDebouncedColumnFilters] = useState({});
+  // Дебаунс фільтрації: 2 с для серверних запитів (пагінація), 300 мс для клієнтської
+  // фільтрації (щоб не перераховувати весь список і не перемальовувати таблицю на кожен символ).
+  const [debouncedFilter, setDebouncedFilter] = useState(filter);
+  const [debouncedColumnFilters, setDebouncedColumnFilters] = useState(columnFilters);
   const debounceFirstRun = useRef(true);
   useEffect(() => {
-    if (!enablePagination) {
-      setDebouncedFilter(filter);
-      setDebouncedColumnFilters(columnFilters);
-      debounceFirstRun.current = true;
-      return;
-    }
+    // Перший запуск (і зміна панелі) — застосовуємо одразу, щоб збережені фільтри не «мигали»
     if (debounceFirstRun.current) {
       debounceFirstRun.current = false;
       setDebouncedFilter(filter);
       setDebouncedColumnFilters(columnFilters);
       return;
     }
+    const delay = enablePagination ? 2000 : 300;
     const tid = setTimeout(() => {
       setDebouncedFilter(filter);
       setDebouncedColumnFilters(columnFilters);
-    }, 2000);
+    }, delay);
     return () => clearTimeout(tid);
   }, [filter, columnFilters, enablePagination]);
 
@@ -331,6 +361,8 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   
   // Оновлюємо фільтри при зміні columnsArea (коли користувач переходить між панелями)
   useEffect(() => {
+    // Нова панель — застосувати її збережені фільтри одразу, без дебаунсу
+    debounceFirstRun.current = true;
     try {
       const newFiltersKey = `taskTable_filters_${columnsArea}`;
       const newFilterKey = `taskTable_filter_${columnsArea}`;
@@ -383,46 +415,6 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
 
   // Перевірка чи є активні фільтри
   const hasActiveFilters = Object.values(columnFilters).some(v => v && v.trim() !== '') || filter.trim() !== '';
-
-  // Отримати тип фільтра для колонки
-  const getFilterType = (columnKey) => {
-    // Дати
-    if (['requestDate', 'plannedDate', 'date', 'paymentDate', 'autoCreatedAt', 'autoCompletedAt', 
-         'autoWarehouseApprovedAt', 'autoAccountantApprovedAt', 'invoiceRequestDate', 
-         'invoiceUploadDate', 'warehouseApprovalDate', 'approvalDate', 'bonusApprovalDate'].includes(columnKey)) {
-      return 'date';
-    }
-    // Випадаючі списки
-    if (columnKey === 'status') return 'select';
-    if (columnKey === 'company') return 'select';
-    if (columnKey === 'paymentType') return 'select';
-    if (columnKey === 'serviceRegion') return 'select';
-    if (columnKey === 'approvedByWarehouse') return 'select';
-    if (columnKey === 'approvedByAccountant') return 'select';
-    if (columnKey === 'approvedByRegionalManager') return 'select';
-    // Текстові
-    return 'text';
-  };
-
-  // Отримати опції для select фільтра
-  const getFilterOptions = (columnKey) => {
-    switch (columnKey) {
-      case 'status':
-        return ['', 'Заявка', 'В роботі', 'Виконано', 'Заблоковано'];
-      case 'company':
-        return ['', 'ДТС', 'Дарекс Енерго', 'інша'];
-      case 'paymentType':
-        return ['', 'Безготівка', 'Готівка', 'На карту', 'Інше'];
-      case 'serviceRegion':
-        return ['', 'Київський', 'Одеський', 'Львівський', 'Дніпровський', 'Хмельницький', 'Кропивницький', 'Україна'];
-      case 'approvedByWarehouse':
-      case 'approvedByAccountant':
-      case 'approvedByRegionalManager':
-        return ['', 'На розгляді', 'Підтверджено', 'Відмова'];
-      default:
-        return [];
-    }
-  };
 
   // Функція перевірки права на видалення заявки
   const canDeleteTask = () => {
@@ -495,7 +487,6 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         
         setTasks(prev => prev.filter(t => (t._id || t.id) !== taskId));
         clearTasksCache();
-        console.log('[DEBUG] Заявку успішно видалено:', taskId);
       } else {
         const errorData = await response.json();
         alert(`Помилка видалення: ${errorData.error || 'Невідома помилка'}`);
@@ -523,16 +514,12 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
         
         if (response.ok) {
           const settings = await response.json();
-          console.log('[DEBUG] Завантажені налаштування колонок:', settings);
-          
+
           // Перевіряємо, чи всі ключі з налаштувань існують у поточних колонках
           // Як в оригінальному проекті
           if (settings.visible && 
               settings.visible.length > 0 && 
               settings.visible.every(k => ALL_COLUMNS.some(c => c.key === k))) {
-            console.log('[DEBUG] ✅ Встановлюємо збережені налаштування:', settings.visible);
-            console.log('[DEBUG] ✅ Порядок колонок з сервера:', settings.order);
-            
             // Встановлюємо налаштування
             // Переконуємося, що ширини - це числа
             const normalizedWidths = {};
@@ -542,9 +529,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                 normalizedWidths[key] = typeof width === 'number' ? width : parseInt(width) || 150;
               });
             }
-            
-            console.log('[DEBUG] ✅ Ширини колонок:', normalizedWidths);
-            
+
             setColumnSettings({
               visible: settings.visible,
               order: settings.order && settings.order.length > 0 
@@ -554,7 +539,6 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
             });
           } else {
             // Якщо налаштування невалідні або порожні, встановлюємо стандартні
-            console.log('[DEBUG] ⚠️ Скидаємо на стандартні (дефолтні колонки)');
             setColumnSettings({
               visible: DEFAULT_VISIBLE_COLUMNS,
               order: DEFAULT_VISIBLE_COLUMNS,
@@ -562,7 +546,6 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
             });
           }
         } else {
-          console.log('[DEBUG] Помилка завантаження, використання дефолтних колонок');
           // Використовуємо основні колонки за замовчуванням
           setColumnSettings({
             visible: DEFAULT_VISIBLE_COLUMNS,
@@ -698,8 +681,8 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     let result = [...tasks];
 
     // Фільтрація по глобальному тексту
-    if (filter) {
-      const lowerFilter = filter.toLowerCase();
+    if (debouncedFilter) {
+      const lowerFilter = debouncedFilter.toLowerCase();
       result = result.filter(task => {
         return Object.values(task).some(value => 
           value && value.toString().toLowerCase().includes(lowerFilter)
@@ -708,11 +691,11 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     }
 
     // Фільтрація по колонках
-    const engineerFilterEntries = Object.entries(columnFilters).filter(
+    const engineerFilterEntries = Object.entries(debouncedColumnFilters).filter(
       ([k, v]) => ENGINEER_FILTER_KEYS.includes(k) && v && String(v).trim() !== ''
     );
 
-    Object.entries(columnFilters).forEach(([key, value]) => {
+    Object.entries(debouncedColumnFilters).forEach(([key, value]) => {
       if (!value || value.trim() === '') return;
       if (ENGINEER_FILTER_KEYS.includes(key)) return;
 
@@ -887,7 +870,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     });
 
     return result;
-  }, [tasks, filter, columnFilters, sortField, sortDirection, showRejectedApprovals, showRejectedInvoices, approveRole, enablePagination, getFilterType]);
+  }, [tasks, debouncedFilter, debouncedColumnFilters, sortField, sortDirection, showRejectedApprovals, showRejectedInvoices, approveRole, enablePagination]);
 
   // Відображені колонки в правильному порядку
   const displayedColumns = useMemo(() => {
@@ -1076,6 +1059,8 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     }
 
     try {
+      // Лінива загрузка ExcelJS — важка бібліотека вантажиться лише при експорті
+      const ExcelJS = (await import('exceljs')).default;
       // Створення нової робочої книги
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Дані');

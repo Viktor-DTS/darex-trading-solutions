@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import ExcelJS from 'exceljs';
 import API_BASE_URL from '../config.js';
 import './ReportBuilder.css';
 
@@ -811,6 +810,8 @@ export default function ReportBuilder({ user }) {
   // Експорт в Excel (XLSX)
   const exportToCSV = async () => {
     try {
+      // Лінива загрузка ExcelJS — важка бібліотека вантажиться лише при експорті
+      const ExcelJS = (await import('exceljs')).default;
       const selectedFieldsData = getOrderedFields();
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Звіт');
