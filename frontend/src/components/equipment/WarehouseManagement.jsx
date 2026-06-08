@@ -141,22 +141,23 @@ function WarehouseManagement({ user }) {
     }
   };
 
-  const loadWarehouses = async () => {
-    setLoading(true);
+  const loadWarehouses = async ({ includeInactive = false, silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/warehouses`, {
+      const q = includeInactive && isAdmin ? '?includeInactive=1' : '';
+      const response = await fetch(`${API_BASE_URL}/warehouses${q}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
       if (response.ok) {
         const data = await response.json();
-        setWarehouses(data);
+        setWarehouses(Array.isArray(data) ? data : []);
       }
     } catch (error) {
       console.error('Помилка завантаження складів:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -440,8 +441,13 @@ function WarehouseManagement({ user }) {
 
   const openAliasModal = () => {
     setAliasModalOpen(true);
+    loadWarehouses({ includeInactive: true, silent: true });
     loadAliases();
   };
+
+  const mappingWarehouseOptions = useMemo(() => {
+    return [...warehouses].sort((x, y) => (x.name || '').localeCompare(y.name || '', 'uk'));
+  }, [warehouses]);
 
   const updateAlias = async (alias, patch) => {
     setAliasSaving(alias._id);
@@ -967,6 +973,12 @@ function WarehouseManagement({ user }) {
                 <span> Нерозпізнаних: <strong>{unmappedAliasCount}</strong>.</span>
               )}
             </p>
+            {mappingWarehouseOptions.length === 0 && (
+              <div className="import-hint" style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
+                ⚠️ У системі немає складів для прив'язки. Спочатку натисніть <strong>«➕ Додати склад»</strong> на цій сторінці
+                (наприклад «Головний склад», «Склад Біла Церква» тощо), потім поверніться сюди.
+              </div>
+            )}
             {aliasLoading ? (
               <div className="loading">Завантаження…</div>
             ) : aliases.length === 0 ? (
@@ -990,7 +1002,11 @@ function WarehouseManagement({ user }) {
                       onChange={(e) => {
                         const action = e.target.value;
                         if (action === 'map') {
-                          updateAlias(a, { action: 'map', kind: 'physical', mappedWarehouseId: a.mappedWarehouseId || '' });
+                          setAliases((prev) =>
+                            prev.map((x) =>
+                              x._id === a._id ? { ...x, action: 'map', kind: 'physical' } : x
+                            )
+                          );
                         } else {
                           updateAlias(a, { action, kind: action === 'mol' ? 'mol' : a.kind });
                         }
@@ -1001,18 +1017,20 @@ function WarehouseManagement({ user }) {
                       <option value="ignore">Ігнор</option>
                     </select>
                     <select
-                      value={a.mappedWarehouseId || ''}
-                      disabled={a.action !== 'map' || aliasSaving === a._id}
-                      onChange={(e) =>
-                        updateAlias(a, { action: 'map', kind: 'physical', mappedWarehouseId: e.target.value })
-                      }
+                      value={String(a.mappedWarehouseId || '')}
+                      disabled={a.action !== 'map' || aliasSaving === a._id || mappingWarehouseOptions.length === 0}
+                      onChange={(e) => {
+                        const mappedWarehouseId = e.target.value;
+                        if (!mappedWarehouseId) return;
+                        updateAlias(a, { action: 'map', kind: 'physical', mappedWarehouseId });
+                      }}
                     >
                       <option value="">— оберіть склад —</option>
-                      {[...warehouses]
-                        .sort((x, y) => (x.name || '').localeCompare(y.name || '', 'uk'))
-                        .map((w) => (
-                          <option key={w._id} value={w._id}>{w.name}</option>
-                        ))}
+                      {mappingWarehouseOptions.map((w) => (
+                        <option key={String(w._id)} value={String(w._id)}>
+                          {w.name}{w.isActive === false ? ' (неактивний)' : ''}
+                        </option>
+                      ))}
                     </select>
                     <span className="onec-alias-count">{a.seenCount || 0}</span>
                   </div>

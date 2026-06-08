@@ -9510,9 +9510,14 @@ app.get('/api/warehouses', authenticateToken, async (req, res) => {
           : [];
       }
     } else {
-      warehouses = await Warehouse.find({ isActive: true })
-        .sort({ name: 1 })
-        .lean();
+      const includeInactive = ['1', 'true', 'yes'].includes(
+        String(req.query.includeInactive || '').trim().toLowerCase()
+      );
+      const whFilter =
+        includeInactive && ['admin', 'administrator'].includes(req.user.role)
+          ? {}
+          : { isActive: true };
+      warehouses = await Warehouse.find(whFilter).sort({ name: 1 }).lean();
     }
     logPerformance('GET /api/warehouses', startTime, warehouses.length);
     res.json(warehouses);
@@ -10939,13 +10944,12 @@ app.put('/api/onec/warehouse-aliases/:id', async (req, res) => {
     if (kind && ['physical', 'mol', 'unknown'].includes(kind)) update.kind = kind;
     if (action && ['map', 'ignore', 'mol'].includes(action)) update.action = action;
     if (action === 'map') {
-      if (!mappedWarehouseId) {
-        return res.status(400).json({ error: 'Для action=map потрібен mappedWarehouseId' });
+      if (mappedWarehouseId) {
+        const wh = await Warehouse.findById(mappedWarehouseId).lean();
+        if (!wh) return res.status(400).json({ error: 'Склад не знайдено' });
+        update.mappedWarehouseId = wh._id;
+        update.mappedWarehouseName = wh.name;
       }
-      const wh = await Warehouse.findById(mappedWarehouseId).lean();
-      if (!wh) return res.status(400).json({ error: 'Склад не знайдено' });
-      update.mappedWarehouseId = wh._id;
-      update.mappedWarehouseName = wh.name;
     } else if (action === 'ignore' || action === 'mol') {
       update.mappedWarehouseId = null;
       update.mappedWarehouseName = '';
