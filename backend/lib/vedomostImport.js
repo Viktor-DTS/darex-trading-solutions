@@ -494,42 +494,47 @@ async function runVedomostImport({
       continue;
     }
 
-    const existing = await Equipment.findOne(stock.batchSearchQuery(nome, wh.id, region));
-    if (existing) {
-      existing.quantity = qty;
-      existing.batchUnit = batchUnit;
-      if (categoryId) existing.categoryId = categoryId;
-      if (itemKind) existing.itemKind = itemKind;
-      existing.currentWarehouse = wh.id;
-      existing.currentWarehouseName = wh.name;
-      existing.region = region;
-      existing.status = 'in_stock';
-      existing.lastModified = now;
-      if (!existing.batchName) existing.batchName = nome;
-      await existing.save();
-      summary.stock.updated++;
-    } else {
-      if (qty <= 0) {
-        summary.stock.skipped++;
-        continue;
+    try {
+      const existing = await Equipment.findOne(stock.batchSearchQuery(nome, wh.id, region));
+      if (existing) {
+        existing.quantity = qty;
+        existing.batchUnit = batchUnit;
+        if (categoryId) existing.categoryId = categoryId;
+        if (itemKind) existing.itemKind = itemKind;
+        existing.currentWarehouse = wh.id;
+        existing.currentWarehouseName = wh.name;
+        existing.region = region;
+        existing.status = qty > 0 ? 'in_stock' : existing.status;
+        existing.lastModified = now;
+        if (!existing.batchName) existing.batchName = nome;
+        await existing.save();
+        summary.stock.updated++;
+      } else {
+        if (qty <= 0) {
+          summary.stock.skipped++;
+          continue;
+        }
+        await Equipment.create({
+          type: nome,
+          isBatch: false,
+          quantity: qty,
+          batchUnit,
+          batchName: nome,
+          categoryId: categoryId || null,
+          itemKind: itemKind || 'parts',
+          addedBy: String(adminUser._id),
+          addedByName: adminUser.name || adminUser.login,
+          currentWarehouse: wh.id,
+          currentWarehouseName: wh.name,
+          region,
+          status: 'in_stock',
+          notes: `Імпорт «Ведомости» 1С (${parsed.sheetName})`,
+        });
+        summary.stock.created++;
       }
-      await Equipment.create({
-        type: nome,
-        isBatch: false,
-        quantity: qty,
-        batchUnit,
-        batchName: nome,
-        categoryId: categoryId || null,
-        itemKind: itemKind || 'parts',
-        addedBy: String(adminUser._id),
-        addedByName: adminUser.name || adminUser.login,
-        currentWarehouse: wh.id,
-        currentWarehouseName: wh.name,
-        region,
-        status: 'in_stock',
-        notes: `Імпорт «Ведомости» 1С (${parsed.sheetName})`,
-      });
-      summary.stock.created++;
+    } catch (e) {
+      summary.stock.skipped++;
+      summary.warnings.push(`Залишок «${nome}» (${wh.name}): ${e.message}`);
     }
   }
 

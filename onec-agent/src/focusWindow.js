@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const { getAgentRoot } = require('./paths');
 
 const DEFAULT_NEEDLES = ['предприятие', 'ведомость', '1с', '1c', 'утп', '1cv8'];
+const SAVE_DIALOG_NEEDLES = ['сохранение', 'сохранить', 'save'];
 
 function normalizeForMatch(s) {
   return String(s || '')
@@ -19,8 +20,12 @@ function normalizeForMatch(s) {
 }
 
 function needlesFromStep(step, automation) {
-  const raw = step.titleContains ?? automation.windowTitleContains ?? DEFAULT_NEEDLES;
-  const list = Array.isArray(raw) ? raw : [raw];
+  const raw = step.titleContains ?? automation.windowTitleContains;
+  if (step.dialog === 'save') {
+    const list = Array.isArray(raw) ? raw : raw ? [raw] : SAVE_DIALOG_NEEDLES;
+    return [...new Set(list.map(normalizeForMatch))];
+  }
+  const list = Array.isArray(raw) ? raw : raw ? [raw] : DEFAULT_NEEDLES;
   return [...new Set([...list, ...DEFAULT_NEEDLES].map(normalizeForMatch))];
 }
 
@@ -118,6 +123,12 @@ async function focusWindow(step, automation, getWindows, log) {
     mainOnly: !!(step.mainOnly || step.dialog === 'main'),
   };
 
+  // Діалог «Сохранение»: спочатку PowerShell (nut.js помилково ловить «DTS 1C Agent» через needle «1c»)
+  if (step.dialog === 'save') {
+    const psFirst = focusViaPowerShell(needles, log, psOpts);
+    if (psFirst.ok) return;
+  }
+
   const nutResult = await focusViaNut(getWindows, needles, log);
   if (nutResult === true) return;
 
@@ -136,8 +147,6 @@ async function focusWindow(step, automation, getWindows, log) {
       'Переконайтесь, що звіт «Ведомость» відкритий і вікно не згорнуте.'
   );
 }
-
-const SAVE_DIALOG_NEEDLES = ['сохранение', 'сохранить', 'save'];
 
 function findSaveDialog(log) {
   const needles = SAVE_DIALOG_NEEDLES;

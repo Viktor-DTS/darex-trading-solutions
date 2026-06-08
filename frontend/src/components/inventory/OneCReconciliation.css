@@ -34,6 +34,8 @@
   padding: 6px 8px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
+  background: #fff;
+  color: #1e293b;
 }
 
 .onec-recon-btn {
@@ -75,11 +77,13 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  color: #1e293b;
 }
 
 .onec-recon-card .num {
   font-size: 1.6em;
   font-weight: 700;
+  color: #0f172a;
 }
 
 .onec-recon-card .lbl {
@@ -102,12 +106,15 @@
   overflow-x: auto;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
+  background: #fff;
+  color: #1e293b;
 }
 
 .onec-recon-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85em;
+  color: #1e293b;
 }
 
 .onec-recon-table th,
@@ -116,6 +123,7 @@
   text-align: left;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: top;
+  color: #1e293b;
 }
 
 .onec-recon-table th {
@@ -126,9 +134,18 @@
   color: #475569;
 }
 
-.onec-recon-table tr.row-err { background: #fef2f2; }
-.onec-recon-table tr.row-warn { background: #fffbeb; }
-.onec-recon-table tr.row-info { background: #eff6ff; }
+.onec-recon-table tbody tr { background: #fff; }
+.onec-recon-table tr.row-ok { background: #f0fdf4; color: #14532d; }
+.onec-recon-table tr.row-err { background: #fef2f2; color: #7f1d1d; }
+.onec-recon-table tr.row-warn { background: #fffbeb; color: #92400e; }
+.onec-recon-table tr.row-info { background: #eff6ff; color: #1e3a8a; }
+
+.onec-recon-table tr.row-ok td,
+.onec-recon-table tr.row-err td,
+.onec-recon-table tr.row-warn td,
+.onec-recon-table tr.row-info td {
+  color: inherit;
+}
 
 .onec-recon-badge {
   display: inline-block;
@@ -143,11 +160,11 @@
 .onec-recon-badge.err { background: #fee2e2; color: #991b1b; }
 .onec-recon-badge.info { background: #dbeafe; color: #1e40af; }
 
-.onec-recon-doc { font-weight: 600; }
+.onec-recon-doc { font-weight: 600; color: #0f172a; }
 .onec-recon-ref { font-size: 0.85em; color: #2563eb; }
 .onec-recon-comment {
   font-size: 0.8em;
-  color: #94a3b8;
+  color: #64748b;
   max-width: 220px;
   white-space: nowrap;
   overflow: hidden;
@@ -156,8 +173,10 @@
 
 .onec-recon-nome {
   max-width: 260px;
+  color: #0f172a;
+  font-weight: 500;
 }
 
-.onec-recon-qty { text-align: center; font-variant-numeric: tabular-nums; }
-.onec-recon-contractor { max-width: 200px; }
-.onec-recon-wh { max-width: 220px; font-size: 0.9em; color: #475569; }
+.onec-recon-qty { text-align: center; font-variant-numeric: tabular-nums; color: #334155; }
+.onec-recon-contractor { max-width: 200px; color: #334155; }
+.onec-recon-wh { max-width: 220px; font-size: 0.9em; color: #334155; }

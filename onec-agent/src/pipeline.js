@@ -57,7 +57,14 @@ async function runPipeline(config, log, trigger = 'schedule') {
       if (!newest) {
         throw new Error(`Файл не знайдено після збереження: ${filePath}. Перевірте кроки автоматизації/діалог збереження.`);
       }
-      log(`! Очікуваний файл відсутній, беремо найновіший: ${newest}`);
+      const ageMs = Date.now() - fs.statSync(newest).mtimeMs;
+      if (ageMs > 3 * 60 * 1000) {
+        throw new Error(
+          `Очікуваний файл «${fileName}» не створено. Найновіший у папці «${path.basename(newest)}» старіший за 3 хв — ` +
+            'збереження в 1С, ймовірно, не відбулось (перевірте фокус діалогу «Сохранение»).'
+        );
+      }
+      log(`! Очікуваний файл відсутній, беремо найновіший (свіжий): ${newest}`);
       finalPath = newest;
     }
   } else {

@@ -919,7 +919,7 @@ const equipmentSchema = new mongoose.Schema({
   
   // Поля для партійного обладнання
   isBatch: { type: Boolean, default: false },  // Чи це партія
-  quantity: { type: Number, default: 1, min: 1 },  // Кількість одиниць (для партій)
+  quantity: { type: Number, default: 1, min: 0 },  // Кількість (дробові залишки з 1С: м, кг, л тощо)
   batchId: { type: String, sparse: true },  // ID партії для групування
   batchIndex: { type: Number },  // Індекс одиниці в партії (1, 2, 3...)
   batchName: String,  // Назва для партійного обладнання
