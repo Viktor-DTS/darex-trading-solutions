@@ -721,5 +721,7 @@ module.exports = {
   parseXlsxBuffer,
   resolveBatchUnit,
   resolveCategory,
+  buildCategoryIndex,
+  batchSearchQuery,
   runStockImport,
 };

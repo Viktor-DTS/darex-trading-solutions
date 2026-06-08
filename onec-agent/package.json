@@ -1,0 +1,45 @@
+{
+  "name": "dts-onec-agent",
+  "version": "1.0.0",
+  "description": "Локальний агент на сервері 1С: емуляція звіту, збереження, імпорт у DTS.",
+  "main": "src/index.js",
+  "bin": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "run-once": "node src/runOnce.js",
+    "prefetch": "pkg-fetch -n node20 -p win -a x64",
+    "build": "npm run prefetch && pkg src/index.js --targets node20-win-x64 --output dist/dts-onec-agent.exe --compress GZip && node scripts/prepare-dist.js",
+    "build:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-portable.ps1",
+    "build:lite": "npm run build",
+    "build:full": "npm install @nut-tree-fork/nut-js --no-save && npm run build"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3"
+  },
+  "optionalDependencies": {
+    "@nut-tree-fork/nut-js": "^4.2.0"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^6.5.1",
+    "@yao-pkg/pkg-fetch": "3.5.33"
+  },
+  "overrides": {
+    "@yao-pkg/pkg-fetch": "3.5.33"
+  },
+  "pkg": {
+    "scripts": [
+      "src/**/*.js"
+    ],
+    "assets": [
+      "node_modules/@nut-tree-fork/**/*.node",
+      "node_modules/@nut-tree-fork/**/*.dll"
+    ],
+    "outputPath": "dist"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

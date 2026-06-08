@@ -527,6 +527,72 @@
   min-height: 80px;
 }
 
+.form-hint {
+  display: block;
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 0.82em;
+  line-height: 1.35;
+}
+
+/* Таблиця зіставлення складів 1С */
+.onec-alias-table {
+  max-height: 60vh;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.onec-alias-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 2fr) 70px 130px minmax(160px, 2fr) 60px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.9em;
+}
+
+.onec-alias-row:last-child {
+  border-bottom: none;
+}
+
+.onec-alias-head {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  font-weight: 600;
+  color: #475569;
+  z-index: 1;
+}
+
+.onec-alias-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: monospace;
+}
+
+.onec-alias-row.pending {
+  background: #fff7ed;
+}
+
+.onec-alias-row.mapped {
+  background: #f0fdf4;
+}
+
+.onec-alias-row select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+}
+
+.onec-alias-count {
+  text-align: center;
+  color: #64748b;
+}
+
 @media (max-width: 768px) {
   .warehouses-grid {
     grid-template-columns: 1fr;
@@ -538,6 +604,10 @@
 
   .btn-action {
     width: 100%;
+  }
+
+  .onec-alias-row {
+    grid-template-columns: 1fr 1fr;
   }
 }
 

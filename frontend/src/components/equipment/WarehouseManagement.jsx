@@ -11,9 +11,23 @@ function WarehouseManagement({ user }) {
   const [formData, setFormData] = useState({
     name: '',
     region: '',
-    address: ''
+    address: '',
+    oneCNames: '',
+    isStockSource: true
   });
   const [errors, setErrors] = useState([]);
+  // Черга мапінгу складів 1С
+  const [aliasModalOpen, setAliasModalOpen] = useState(false);
+  const [aliases, setAliases] = useState([]);
+  const [aliasLoading, setAliasLoading] = useState(false);
+  const [aliasSaving, setAliasSaving] = useState('');
+  // Імпорт «Ведомости» 1С (рух + залишки)
+  const [vedModalOpen, setVedModalOpen] = useState(false);
+  const [vedFile, setVedFile] = useState(null);
+  const [vedDryRun, setVedDryRun] = useState(true);
+  const [vedLoading, setVedLoading] = useState(false);
+  const [vedResult, setVedResult] = useState(null);
+  const [vedError, setVedError] = useState(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importDryRun, setImportDryRun] = useState(true);
@@ -152,11 +166,13 @@ function WarehouseManagement({ user }) {
       setFormData({
         name: warehouse.name || '',
         region: warehouse.region || '',
-        address: warehouse.address || ''
+        address: warehouse.address || '',
+        oneCNames: Array.isArray(warehouse.oneCNames) ? warehouse.oneCNames.join('\n') : '',
+        isStockSource: warehouse.isStockSource !== false
       });
     } else {
       setEditingWarehouse(null);
-      setFormData({ name: '', region: '', address: '' });
+      setFormData({ name: '', region: '', address: '', oneCNames: '', isStockSource: true });
     }
     setErrors([]);
     setShowModal(true);
@@ -165,7 +181,7 @@ function WarehouseManagement({ user }) {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingWarehouse(null);
-    setFormData({ name: '', region: '', address: '' });
+    setFormData({ name: '', region: '', address: '', oneCNames: '', isStockSource: true });
     setErrors([]);
   };
 
@@ -190,13 +206,25 @@ function WarehouseManagement({ user }) {
       
       const method = editingWarehouse ? 'PUT' : 'POST';
 
+      const oneCNamesArr = String(formData.oneCNames || '')
+        .split(/[\n,;]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const payload = {
+        name: formData.name,
+        region: formData.region,
+        address: formData.address,
+        oneCNames: oneCNamesArr,
+        isStockSource: formData.isStockSource !== false
+      };
+
       const response = await fetch(url, {
         method,
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
@@ -352,6 +380,96 @@ function WarehouseManagement({ user }) {
     }
   };
 
+  const openVedModal = () => {
+    setVedModalOpen(true);
+    setVedFile(null);
+    setVedDryRun(true);
+    setVedResult(null);
+    setVedError(null);
+  };
+
+  const handleImportVedomost = async () => {
+    if (!vedFile) {
+      setVedError('Оберіть файл звіту «Ведомость» (.xls/.xlsx)');
+      return;
+    }
+    setVedLoading(true);
+    setVedError(null);
+    setVedResult(null);
+    try {
+      const token = localStorage.getItem('token');
+      const fd = new FormData();
+      fd.append('file', vedFile);
+      const q = vedDryRun ? '?dryRun=1' : '';
+      const r = await fetch(`${API_BASE_URL}/onec/import-vedomost${q}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setVedError(data.error || `Помилка ${r.status}`);
+        return;
+      }
+      setVedResult(data);
+      if (!vedDryRun) loadWarehouses();
+    } catch (err) {
+      setVedError(err.message || 'Помилка мережі');
+    } finally {
+      setVedLoading(false);
+    }
+  };
+
+  const loadAliases = async () => {
+    setAliasLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const r = await fetch(`${API_BASE_URL}/onec/warehouse-aliases`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (r.ok) {
+        const data = await r.json();
+        setAliases(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.error('Помилка завантаження аліасів складів 1С:', e);
+    } finally {
+      setAliasLoading(false);
+    }
+  };
+
+  const openAliasModal = () => {
+    setAliasModalOpen(true);
+    loadAliases();
+  };
+
+  const updateAlias = async (alias, patch) => {
+    setAliasSaving(alias._id);
+    try {
+      const token = localStorage.getItem('token');
+      const r = await fetch(`${API_BASE_URL}/onec/warehouse-aliases/${alias._id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok) {
+        setAliases((prev) => prev.map((a) => (a._id === alias._id ? data : a)));
+      } else {
+        alert(data.error || `Помилка ${r.status}`);
+      }
+    } catch (e) {
+      alert(e.message || 'Помилка мережі');
+    } finally {
+      setAliasSaving('');
+    }
+  };
+
+  const unmappedAliasCount = useMemo(
+    () => aliases.filter((a) => a.action !== 'map' && a.action !== 'ignore' && a.action !== 'mol').length,
+    [aliases]
+  );
+
   const handleToggleActive = async (warehouse) => {
     try {
       const token = localStorage.getItem('token');
@@ -380,6 +498,16 @@ function WarehouseManagement({ user }) {
           {isAdmin && (
             <button type="button" className="btn-import-stock" onClick={openImportModal}>
               📥 Імпорт залишків (1С / Excel)
+            </button>
+          )}
+          {isAdmin && (
+            <button type="button" className="btn-import-stock" onClick={openVedModal}>
+              📊 Імпорт «Ведомості» 1С (рух+залишки)
+            </button>
+          )}
+          {isAdmin && (
+            <button type="button" className="btn-import-stock" onClick={openAliasModal}>
+              🔗 Склади 1С (зіставлення)
             </button>
           )}
           <button className="btn-primary" onClick={() => handleOpenModal()}>
@@ -421,6 +549,16 @@ function WarehouseManagement({ user }) {
                     <span className="info-value">{warehouse.address}</span>
                   </div>
                 )}
+                {Array.isArray(warehouse.oneCNames) && warehouse.oneCNames.length > 0 && (
+                  <div className="warehouse-info">
+                    <span className="info-label">Назви в 1С:</span>
+                    <span className="info-value">{warehouse.oneCNames.join(', ')}</span>
+                  </div>
+                )}
+                <div className="warehouse-info">
+                  <span className="info-label">Джерело залишків:</span>
+                  <span className="info-value">{warehouse.isStockSource === false ? 'ні' : 'так'}</span>
+                </div>
                 <div className="warehouse-info">
                   <span className="info-label">Створено:</span>
                   <span className="info-value">
@@ -739,6 +877,156 @@ function WarehouseManagement({ user }) {
         </div>
       )}
 
+      {vedModalOpen && (
+        <div className="modal-overlay import-stock-overlay" onClick={() => setVedModalOpen(false)}>
+          <div className="modal-content import-stock-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>📊 Імпорт «Ведомости по товарам на складах»</h2>
+              <button type="button" className="btn-close" onClick={() => setVedModalOpen(false)}>✕</button>
+            </div>
+            <p className="import-hint">
+              Звіт 1С «Ведомость по товарам на складах» (.xls/.xlsx). На відміну від «Анализ доступности», цей звіт
+              оновлює <strong>залишки всіх прив'язаних складів</strong> та наповнює <strong>журнал руху</strong> (рух по документах).
+              Нерозпізнані назви складів зʼявляться у «Склади 1С (зіставлення)».
+            </p>
+            <div className="import-file-row">
+              <input
+                type="file"
+                accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={(e) => {
+                  setVedFile(e.target.files?.[0] || null);
+                  setVedError(null);
+                  setVedResult(null);
+                }}
+              />
+            </div>
+            <label className="import-dry-run">
+              <input type="checkbox" checked={vedDryRun} onChange={(e) => setVedDryRun(e.target.checked)} />
+              Лише перевірка (нічого не записувати в базу)
+            </label>
+            {vedError && <div className="error-message import-err" style={{ marginBottom: 12 }}>{vedError}</div>}
+            {vedResult && (
+              <div className="import-result-box">
+                <div><strong>Результат</strong> {vedResult.dryRun ? '(перевірка)' : '(імпорт)'} · Період: {vedResult.period || '—'}</div>
+                <div>Залишків у файлі: {vedResult.balancesParsed} · Рухів: {vedResult.movementsParsed}</div>
+                <div>
+                  Рух по типах:{' '}
+                  {vedResult.movementsByType
+                    ? Object.entries(vedResult.movementsByType).map(([k, v]) => `${k}:${v}`).join(' · ')
+                    : '—'}
+                </div>
+                <div>
+                  Залишки → створено {vedResult.stock?.created ?? '—'} · оновлено {vedResult.stock?.updated ?? '—'} ·
+                  пропущено {vedResult.stock?.skipped ?? '—'} · без складу {vedResult.stock?.unmappedWarehouse ?? '—'}
+                </div>
+                <div>
+                  Рух → записано {vedResult.movements?.inserted ?? '—'} · дублі {vedResult.movements?.duplicates ?? '—'} ·
+                  без складу {vedResult.movements?.unmappedWarehouse ?? '—'}
+                </div>
+                <div>Аліаси складів: +{vedResult.aliases?.created ?? 0} нових / {vedResult.aliases?.updated ?? 0} оновлено</div>
+                {Array.isArray(vedResult.unmappedWarehouses) && vedResult.unmappedWarehouses.length > 0 && (
+                  <div className="import-warn" style={{ marginTop: 8 }}>
+                    <strong>Не прив'язані склади ({vedResult.unmappedWarehouses.length}):</strong>
+                    <div style={{ fontSize: '0.9em', marginTop: 4 }}>{vedResult.unmappedWarehouses.join(' · ')}</div>
+                    <button type="button" className="btn-import-stock" style={{ marginTop: 8 }} onClick={openAliasModal}>
+                      Відкрити зіставлення складів
+                    </button>
+                  </div>
+                )}
+                {Array.isArray(vedResult.warnings) && vedResult.warnings.length > 0 && (
+                  <div className="import-err" style={{ marginTop: 8 }}>
+                    <strong>Попередження:</strong>
+                    <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                      {vedResult.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button type="button" className="btn-secondary" onClick={() => setVedModalOpen(false)}>Закрити</button>
+              <button type="button" className="btn-primary" onClick={handleImportVedomost} disabled={vedLoading}>
+                {vedLoading ? 'Завантаження…' : vedDryRun ? 'Перевірити' : 'Імпортувати'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {aliasModalOpen && (
+        <div className="modal-overlay import-stock-overlay" onClick={() => setAliasModalOpen(false)}>
+          <div className="modal-content import-stock-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>🔗 Склади 1С → наші склади</h2>
+              <button type="button" className="btn-close" onClick={() => setAliasModalOpen(false)}>✕</button>
+            </div>
+            <p className="import-hint">
+              Назви складів, виявлені при імпорті «Ведомости» 1С. Для кожної оберіть наш склад (<strong>Прив'язати</strong>),
+              або позначте як <strong>Підзвіт (МОЛ)</strong> чи <strong>Ігнор</strong>. Залишки/рух враховуються лише для прив'язаних складів.
+              {unmappedAliasCount > 0 && (
+                <span> Нерозпізнаних: <strong>{unmappedAliasCount}</strong>.</span>
+              )}
+            </p>
+            {aliasLoading ? (
+              <div className="loading">Завантаження…</div>
+            ) : aliases.length === 0 ? (
+              <div className="empty-state"><p>Поки порожньо. Спочатку зробіть імпорт «Ведомости» 1С.</p></div>
+            ) : (
+              <div className="onec-alias-table">
+                <div className="onec-alias-row onec-alias-head">
+                  <span>Назва в 1С</span>
+                  <span>Тип</span>
+                  <span>Дія</span>
+                  <span>Наш склад</span>
+                  <span>К-сть</span>
+                </div>
+                {aliases.map((a) => (
+                  <div key={a._id} className={`onec-alias-row ${a.action === 'map' ? 'mapped' : a.action === 'ignore' || a.action === 'mol' ? 'resolved' : 'pending'}`}>
+                    <span className="onec-alias-name" title={a.oneCName}>{a.oneCName}</span>
+                    <span>{a.kind === 'physical' ? 'склад' : a.kind === 'mol' ? 'МОЛ' : '—'}</span>
+                    <select
+                      value={a.action || 'ignore'}
+                      disabled={aliasSaving === a._id}
+                      onChange={(e) => {
+                        const action = e.target.value;
+                        if (action === 'map') {
+                          updateAlias(a, { action: 'map', kind: 'physical', mappedWarehouseId: a.mappedWarehouseId || '' });
+                        } else {
+                          updateAlias(a, { action, kind: action === 'mol' ? 'mol' : a.kind });
+                        }
+                      }}
+                    >
+                      <option value="map">Прив'язати</option>
+                      <option value="mol">Підзвіт (МОЛ)</option>
+                      <option value="ignore">Ігнор</option>
+                    </select>
+                    <select
+                      value={a.mappedWarehouseId || ''}
+                      disabled={a.action !== 'map' || aliasSaving === a._id}
+                      onChange={(e) =>
+                        updateAlias(a, { action: 'map', kind: 'physical', mappedWarehouseId: e.target.value })
+                      }
+                    >
+                      <option value="">— оберіть склад —</option>
+                      {[...warehouses]
+                        .sort((x, y) => (x.name || '').localeCompare(y.name || '', 'uk'))
+                        .map((w) => (
+                          <option key={w._id} value={w._id}>{w.name}</option>
+                        ))}
+                    </select>
+                    <span className="onec-alias-count">{a.seenCount || 0}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button type="button" className="btn-secondary" onClick={loadAliases}>↻ Оновити</button>
+              <button type="button" className="btn-primary" onClick={() => setAliasModalOpen(false)}>Готово</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showModal && (
         <div className="modal-overlay" onClick={handleCloseModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -790,6 +1078,30 @@ function WarehouseManagement({ user }) {
                   placeholder="Адреса складу"
                   rows="3"
                 />
+              </div>
+
+              <div className="form-group">
+                <label>Назви в 1С (по одній на рядок)</label>
+                <textarea
+                  value={formData.oneCNames}
+                  onChange={(e) => handleInputChange('oneCNames', e.target.value)}
+                  placeholder={'Напр.:\nСКЛАД КИЕВ\nСКЛАД КИЕВ СОЛЮШН'}
+                  rows="3"
+                />
+                <small className="form-hint">
+                  Один наш склад може відповідати кільком назвам у 1С (різні юрособи/мови). Залишки під цими назвами зведуться сюди.
+                </small>
+              </div>
+
+              <div className="form-group">
+                <label className="import-dry-run">
+                  <input
+                    type="checkbox"
+                    checked={formData.isStockSource !== false}
+                    onChange={(e) => handleInputChange('isStockSource', e.target.checked)}
+                  />
+                  Джерело залишків (фізичний склад — оновлювати залишки при імпорті 1С)
+                </label>
               </div>
 
               <div className="modal-actions">

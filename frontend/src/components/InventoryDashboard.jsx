@@ -14,6 +14,7 @@ import InventoryDocuments from './inventory/InventoryDocuments';
 import Reservations from './inventory/Reservations';
 import InventoryReports from './inventory/InventoryReports';
 import InventoryMovementJournal from './inventory/InventoryMovementJournal';
+import OneCReconciliation from './inventory/OneCReconciliation';
 import ReceiptApproval from './inventory/ReceiptApproval';
 import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import './InventoryDashboard.css';
@@ -27,6 +28,7 @@ const INVENTORY_TAB_IDS = new Set([
   'movement',
   'shipment',
   'movement-journal',
+  'onec-reconciliation',
   'notifications',
   'write-off',
   'approval',
@@ -217,6 +219,7 @@ function InventoryDashboard({ user }) {
     { id: 'movement', label: 'Переміщення', icon: '🔄' },
     { id: 'shipment', label: 'Відвантаження', icon: '🚚' },
     { id: 'movement-journal', label: 'Журнал руху товару', icon: '📒' },
+    { id: 'onec-reconciliation', label: 'Звірка з 1С', icon: '🔍' },
     { id: 'notifications', label: 'Сповіщення', icon: '🔔' },
     { id: 'write-off', label: 'Списання', icon: '📝' },
     {
@@ -487,6 +490,13 @@ function InventoryDashboard({ user }) {
         return (
           <div className="inventory-tab-content">
             <InventoryMovementJournal />
+          </div>
+        );
+
+      case 'onec-reconciliation':
+        return (
+          <div className="inventory-tab-content">
+            <OneCReconciliation />
           </div>
         );
 

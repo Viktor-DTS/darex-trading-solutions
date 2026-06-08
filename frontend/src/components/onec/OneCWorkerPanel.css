@@ -1,0 +1,153 @@
+.onec-worker {
+  padding: 20px;
+  max-width: 920px;
+}
+
+.ow-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.ow-head h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+.ow-sub {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+  max-width: 620px;
+  line-height: 1.5;
+}
+
+.ow-run {
+  flex-shrink: 0;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 22px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.ow-run:hover:not(:disabled) { background: #1d4ed8; }
+.ow-run:disabled { background: #9ca3af; cursor: not-allowed; }
+
+.ow-settings {
+  margin-bottom: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: #f9fafb;
+}
+.ow-settings summary { cursor: pointer; font-weight: 600; color: #374151; }
+.ow-settings-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-top: 12px;
+}
+.ow-settings-body label {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: #6b7280;
+  gap: 4px;
+}
+.ow-settings-body input {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  min-width: 260px;
+  font-size: 13px;
+}
+.ow-settings-body button {
+  padding: 8px 14px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ow-health {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #374151;
+  margin-bottom: 12px;
+}
+.ow-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.ow-dot.ok { background: #16a34a; }
+.ow-dot.warn { background: #d97706; }
+
+.ow-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.ow-status {
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  border: 1px solid #e5e7eb;
+}
+.ow-status.running { background: #eff6ff; border-color: #bfdbfe; }
+.ow-status.done { background: #f0fdf4; border-color: #bbf7d0; }
+.ow-status.error { background: #fef2f2; border-color: #fecaca; }
+.ow-status.idle { background: #f9fafb; }
+.ow-status-row { font-size: 14px; margin: 2px 0; }
+.ow-muted { color: #6b7280; font-size: 12px; }
+.ow-err-text { color: #b91c1c; font-weight: 500; }
+.ow-trigger { color: #6b7280; margin-left: 6px; font-size: 12px; }
+
+.ow-summary { margin-bottom: 16px; }
+.ow-summary h3 { font-size: 15px; margin: 0 0 10px; }
+.ow-cards { display: flex; flex-wrap: wrap; gap: 12px; }
+.ow-card {
+  flex: 1;
+  min-width: 130px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+}
+.ow-num { display: block; font-size: 24px; font-weight: 700; color: #111827; }
+.ow-lbl { display: block; font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+.ow-unmapped {
+  margin-top: 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #92400e;
+}
+.ow-hint { margin-top: 4px; font-size: 12px; color: #b45309; }
+
+.ow-log { margin-top: 8px; }
+.ow-log h3 { font-size: 14px; margin: 0 0 8px; }
+.ow-log pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

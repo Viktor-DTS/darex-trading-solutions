@@ -1003,7 +1003,8 @@
   margin-bottom: 6px;
 }
 
-.telegram-form input {
+.telegram-form input,
+.telegram-form textarea {
   width: 100%;
   padding: 10px;
   background: #1e2d3d;
@@ -1011,6 +1012,13 @@
   border-radius: 6px;
   color: #fff;
   font-size: 13px;
+  box-sizing: border-box;
+}
+
+.telegram-form textarea {
+  resize: vertical;
+  min-height: 90px;
+  font-family: inherit;
 }
 
 .btn-test {

@@ -1,0 +1,51 @@
+{
+  "port": 8765,
+  "host": "127.0.0.1",
+  "agentToken": "ЗМІНІТЬ_МЕНЕ_секретний_рядок",
+  "allowedOrigins": [
+    "http://localhost:5173",
+    "https://darex-trading-solutions.onrender.com"
+  ],
+
+  "dts": {
+    "apiBaseUrl": "https://darex-trading-solutions.onrender.com/api",
+    "login": "bugai1c",
+    "password": "ЗМІНІТЬ_МЕНЕ_пароль_bugai1c",
+    "dryRun": false
+  },
+
+  "save": {
+    "dir": "C:\\Users\\V.Buhai\\Desktop\\Залишки на складах імпорт",
+    "fileNamePattern": "Залишки_{{ts}}.xlsx",
+    "fileType": "Лист Excel 2007"
+  },
+
+  "schedule": {
+    "enabled": true,
+    "cron": "0 8,12,16 * * *",
+    "timezone": "Europe/Kyiv"
+  },
+
+  "automation": {
+    "enabled": true,
+    "windowTitleContains": "1С",
+    "perStepDelayMs": 600,
+    "screenshotOnError": true,
+    "steps": [
+      { "action": "focusWindow", "titleContains": "1С" },
+      { "action": "wait", "ms": 800 },
+      { "action": "comment", "text": "Натиснути 'Сформировать' (типово гаряча клавіша)" },
+      { "action": "key", "keys": ["LeftControl", "Enter"] },
+      { "action": "wait", "ms": 6000 },
+      { "action": "comment", "text": "Зберегти як... (відкриває діалог збереження)" },
+      { "action": "key", "keys": ["LeftControl", "S"] },
+      { "action": "wait", "ms": 1500 },
+      { "action": "comment", "text": "Вписати повний шлях до файлу у поле 'Имя файла'" },
+      { "action": "type", "text": "{{filePath}}" },
+      { "action": "wait", "ms": 500 },
+      { "action": "comment", "text": "ENTER зберегти; за потреби додайте кроки вибору типу файлу" },
+      { "action": "key", "keys": ["Enter"] },
+      { "action": "wait", "ms": 2500 }
+    ]
+  }
+}

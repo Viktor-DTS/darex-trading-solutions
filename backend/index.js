@@ -1411,11 +1411,79 @@ const warehouseSchema = new mongoose.Schema({
   name: { type: String, required: true },
   region: String,
   address: String,
-  isActive: { type: Boolean, default: true }
+  isActive: { type: Boolean, default: true },
+  // Інтеграція з 1С: одному нашому складу може відповідати кілька назв у 1С
+  // (дублі юросіб ДАРЕКС/СОЛЮШН, різні мови назв тощо).
+  oneCNames: { type: [String], default: [] },
+  oneCRef: { type: String, default: '' },
+  // Чи є цей склад джерелом залишків при імпорті «Ведомости» (фізичний склад).
+  isStockSource: { type: Boolean, default: true }
 }, { timestamps: true });
 
 warehouseSchema.index({ name: 1 }, { unique: true });
+warehouseSchema.index({ oneCNames: 1 });
 const Warehouse = mongoose.model('Warehouse', warehouseSchema);
+
+// Черга/довідник назв складів 1С, виявлених при імпорті «Ведомости».
+// Адміністратор зіставляє кожну назву з нашим складом, або позначає як підзвіт (МОЛ)/ігнор.
+const oneCWarehouseAliasSchema = new mongoose.Schema({
+  oneCName: { type: String, required: true, unique: true },
+  // physical — фізичний склад 1С; mol — підзвіт/МОЛ; unknown — ще не класифіковано
+  kind: { type: String, enum: ['physical', 'mol', 'unknown'], default: 'unknown' },
+  // map — прив'язано до нашого складу; ignore — не враховувати; mol — підзвіт (поки ignore для залишків)
+  action: { type: String, enum: ['map', 'ignore', 'mol'], default: 'ignore' },
+  mappedWarehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', default: null },
+  mappedWarehouseName: { type: String, default: '' },
+  firstSeenAt: { type: Date, default: Date.now },
+  lastSeenAt: { type: Date, default: Date.now },
+  seenCount: { type: Number, default: 0 }
+}, { timestamps: true });
+oneCWarehouseAliasSchema.index({ action: 1 });
+const OneCWarehouseAlias = mongoose.model('OneCWarehouseAlias', oneCWarehouseAliasSchema);
+
+// Журнал реального руху товару з 1С (рядки документів зі звіту «Ведомость по товарам на складах»).
+const oneCMovementSchema = new mongoose.Schema({
+  // Ідемпотентність між імпортами з перекриттям періодів
+  fileHash: { type: String, index: true },
+  importedAt: { type: Date, default: Date.now, index: true },
+  importedByLogin: String,
+  // Документ 1С
+  docType: { type: String, index: true }, // sale/receipt/move/assembly/writeoff/return/inventory/other
+  docTypeName: String,
+  docNumber: { type: String, index: true },
+  docDate: { type: Date, index: true },
+  registrarRaw: String,
+  posted: String,
+  // Номенклатура та кількість
+  nomenclature: { type: String, index: true },
+  unit: String,
+  serial: { type: String, default: null },
+  incoming: { type: Number, default: 0 },
+  outgoing: { type: Number, default: 0 },
+  direction: String, // in/out/none
+  qty: { type: Number, default: 0 },
+  // Склади (як у 1С) + прив'язка до наших складів
+  warehouse1c: String,
+  warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', default: null },
+  fromWarehouse1c: { type: String, default: null },
+  toWarehouse1c: { type: String, default: null },
+  warehouseMapped: { type: Boolean, default: false },
+  // Контрагент/відповідальні/сума
+  contractor: String,
+  responsible: String,
+  department: String,
+  manager: String,
+  comment: String,
+  docSum: { type: Number, default: null },
+  currency: String,
+  paymentDate: { type: Date, default: null }
+}, { timestamps: true });
+// Дедуп рядка руху між повторними/перекритими імпортами
+oneCMovementSchema.index(
+  { docType: 1, docNumber: 1, docDate: 1, nomenclature: 1, qty: 1, direction: 1, warehouse1c: 1 },
+  { unique: true, partialFilterExpression: { docNumber: { $type: 'string' } } }
+);
+const OneCMovement = mongoose.model('OneCMovement', oneCMovementSchema);
 
 // Заявки відділу закупівель (вкладення PDF/Word/Excel у MongoDB як Buffer)
 const PROCUREMENT_EXECUTOR_DOC_KINDS = ['invoice', 'delivery_note', 'other'];
@@ -9435,7 +9503,7 @@ app.post('/api/warehouses', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
 
-    const { name, region, address } = req.body;
+    const { name, region, address, oneCNames, oneCRef, isStockSource } = req.body;
     if (
       isRegionalWarehouseStaffRole(req.user.role) &&
       !bypassesRegionalWarehouseInventoryLock(req.user.role)
@@ -9448,7 +9516,17 @@ app.post('/api/warehouses', authenticateToken, async (req, res) => {
       }
     }
 
-    const warehouse = await Warehouse.create({ name, region, address });
+    const normNames = Array.isArray(oneCNames)
+      ? [...new Set(oneCNames.map((n) => String(n).trim()).filter(Boolean))]
+      : [];
+    const warehouse = await Warehouse.create({
+      name,
+      region,
+      address,
+      oneCNames: normNames,
+      oneCRef: oneCRef ? String(oneCRef).trim() : '',
+      isStockSource: isStockSource !== false,
+    });
     logPerformance('POST /api/warehouses', startTime);
     res.status(201).json(warehouse);
   } catch (error) {
@@ -9482,10 +9560,18 @@ app.put('/api/warehouses/:id', authenticateToken, async (req, res) => {
       if (!okWh) return;
     }
 
-    const { name, region, address, isActive } = req.body;
+    const { name, region, address, isActive, oneCNames, oneCRef, isStockSource } = req.body;
+    const update = { name, region, address, isActive };
+    if (oneCNames !== undefined) {
+      update.oneCNames = Array.isArray(oneCNames)
+        ? [...new Set(oneCNames.map((n) => String(n).trim()).filter(Boolean))]
+        : [];
+    }
+    if (oneCRef !== undefined) update.oneCRef = oneCRef ? String(oneCRef).trim() : '';
+    if (isStockSource !== undefined) update.isStockSource = isStockSource !== false;
     const warehouse = await Warehouse.findByIdAndUpdate(
       req.params.id,
-      { name, region, address, isActive },
+      update,
       { new: true, runValidators: true }
     );
     
@@ -10706,6 +10792,181 @@ app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), asy
     console.error('[ERROR] POST /api/equipment/import-stock-xlsx:', error);
     logPerformance('POST /api/equipment/import-stock-xlsx', startTime);
     res.status(400).json({ error: error.message });
+  }
+});
+
+// ============================================
+// Інтеграція 1С: імпорт «Ведомости по товарам на складах» (залишки + рух) та мапінг складів
+// ============================================
+const { runVedomostImport } = require('./lib/vedomostImport');
+
+// Імпорт звіту «Ведомость по товарам на складах» (оновлює залишки + журнал руху OneCMovement)
+app.post('/api/onec/import-vedomost', uploadStockXlsx.single('file'), async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено (потрібна роль admin)' });
+    }
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: 'Файл не завантажено (поле file, формат .xls/.xlsx)' });
+    }
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true' || req.body?.dryRun === true;
+    const nomenclatureCategoryMapFromDb = await loadStockImportNomenclatureMap();
+    const summary = await runVedomostImport({
+      Equipment,
+      Category,
+      Warehouse,
+      OneCWarehouseAlias,
+      OneCMovement,
+      EventLog,
+      buffer: req.file.buffer,
+      adminUser: { _id: user._id, login: user.login, name: user.name, role: user.role },
+      dryRun,
+      nomenclatureCategoryMapFromDb,
+    });
+    logPerformance('POST /api/onec/import-vedomost', startTime);
+    res.json(summary);
+  } catch (error) {
+    console.error('[ERROR] POST /api/onec/import-vedomost:', error);
+    logPerformance('POST /api/onec/import-vedomost', startTime);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Черга мапінгу складів 1С: список виявлених назв
+app.get('/api/onec/warehouse-aliases', async (req, res) => {
+  try {
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const filter = {};
+    if (req.query.action) filter.action = String(req.query.action);
+    if (req.query.kind) filter.kind = String(req.query.kind);
+    const aliases = await OneCWarehouseAlias.find(filter).sort({ kind: 1, oneCName: 1 }).lean();
+    res.json(aliases);
+  } catch (error) {
+    console.error('[ERROR] GET /api/onec/warehouse-aliases:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Оновлення мапінгу однієї назви складу 1С
+app.put('/api/onec/warehouse-aliases/:id', async (req, res) => {
+  try {
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const { kind, action, mappedWarehouseId } = req.body || {};
+    const update = {};
+    if (kind && ['physical', 'mol', 'unknown'].includes(kind)) update.kind = kind;
+    if (action && ['map', 'ignore', 'mol'].includes(action)) update.action = action;
+    if (action === 'map') {
+      if (!mappedWarehouseId) {
+        return res.status(400).json({ error: 'Для action=map потрібен mappedWarehouseId' });
+      }
+      const wh = await Warehouse.findById(mappedWarehouseId).lean();
+      if (!wh) return res.status(400).json({ error: 'Склад не знайдено' });
+      update.mappedWarehouseId = wh._id;
+      update.mappedWarehouseName = wh.name;
+    } else if (action === 'ignore' || action === 'mol') {
+      update.mappedWarehouseId = null;
+      update.mappedWarehouseName = '';
+    }
+    const alias = await OneCWarehouseAlias.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!alias) return res.status(404).json({ error: 'Аліас не знайдено' });
+    res.json(alias);
+  } catch (error) {
+    console.error('[ERROR] PUT /api/onec/warehouse-aliases/:id:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Журнал руху товару з 1С (OneCMovement)
+app.get('/api/onec/movements', async (req, res) => {
+  try {
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const filter = {};
+    if (req.query.docType) filter.docType = String(req.query.docType);
+    if (req.query.warehouseId) filter.warehouseId = req.query.warehouseId;
+    if (req.query.search) {
+      const rx = new RegExp(escapeRegExpForRegion(String(req.query.search)), 'i');
+      filter.$or = [{ nomenclature: rx }, { docNumber: rx }, { contractor: rx }];
+    }
+    if (req.query.from || req.query.to) {
+      filter.docDate = {};
+      if (req.query.from) filter.docDate.$gte = new Date(req.query.from);
+      if (req.query.to) filter.docDate.$lte = new Date(req.query.to);
+    }
+    const limit = Math.min(2000, Math.max(1, parseInt(req.query.limit, 10) || 200));
+    const skip = Math.max(0, parseInt(req.query.skip, 10) || 0);
+    const [items, total] = await Promise.all([
+      OneCMovement.find(filter).sort({ docDate: -1, _id: -1 }).skip(skip).limit(limit).lean(),
+      OneCMovement.countDocuments(filter),
+    ]);
+    res.json({ items, total, limit, skip });
+  } catch (error) {
+    console.error('[ERROR] GET /api/onec/movements:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Звірка руху товару: 1С (OneCMovement) ↔ наша система (InventoryMovementLog)
+const { reconcile: reconcileOneC } = require('./lib/onecReconcile');
+app.get('/api/onec/reconciliation', async (req, res) => {
+  try {
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const to = req.query.to ? new Date(req.query.to) : new Date();
+    const from = req.query.from
+      ? new Date(req.query.from)
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const oneCFilter = { docDate: { $gte: from, $lte: to } };
+    if (req.query.warehouseId) oneCFilter.warehouseId = req.query.warehouseId;
+    if (req.query.docType) oneCFilter.docType = String(req.query.docType);
+
+    const [oneCMovements, internalLogs] = await Promise.all([
+      OneCMovement.find(oneCFilter).limit(20000).lean(),
+      InventoryMovementLog.find({ occurredAt: { $gte: from, $lte: to } }).limit(20000).lean(),
+    ]);
+
+    const { rows, summary } = reconcileOneC(oneCMovements, internalLogs, {
+      windowDays: parseInt(req.query.windowDays, 10) || 5,
+    });
+
+    let filtered = rows;
+    if (req.query.status) {
+      const want = String(req.query.status).split(',');
+      filtered = rows.filter((r) => want.includes(r.status));
+    }
+    const limit = Math.min(5000, Math.max(1, parseInt(req.query.limit, 10) || 500));
+    const skip = Math.max(0, parseInt(req.query.skip, 10) || 0);
+    const statusOrder = { discrepancy: 0, qty_mismatch: 1, unaccounted_in_dts: 2, pending_in_1c: 3, matched: 4 };
+    filtered.sort((a, b) => {
+      const so = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
+      if (so !== 0) return so;
+      return new Date(b.docDate || 0) - new Date(a.docDate || 0);
+    });
+    const page = filtered.slice(skip, skip + limit);
+
+    res.json({
+      range: { from, to },
+      summary,
+      total: filtered.length,
+      limit,
+      skip,
+      rows: page,
+    });
+  } catch (error) {
+    console.error('[ERROR] GET /api/onec/reconciliation:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -15760,7 +16021,70 @@ class TelegramService {
   }
 }
 
+// Клас для роботи з SMS (TurboSMS API)
+class SmsService {
+  constructor() {
+    this.apiToken = process.env.SMS_API_TOKEN || process.env.TURBOSMS_API_TOKEN;
+    this.sender = process.env.SMS_SENDER || process.env.TURBOSMS_SENDER || '';
+    this.apiUrl = process.env.SMS_API_URL || 'https://api.turbosms.ua/message/send.json';
+  }
+
+  isConfigured() {
+    return !!(this.apiToken && this.sender);
+  }
+
+  normalizePhone(phone) {
+    let digits = String(phone || '').replace(/\D/g, '');
+    if (digits.startsWith('0')) {
+      digits = `38${digits}`;
+    } else if (!digits.startsWith('38') && digits.length === 9) {
+      digits = `38${digits}`;
+    }
+    return digits;
+  }
+
+  async sendMessage(phone, text) {
+    if (!this.isConfigured()) {
+      throw new Error('SMS API не налаштовано (SMS_API_TOKEN та SMS_SENDER)');
+    }
+
+    const recipient = this.normalizePhone(phone);
+    if (!/^38\d{10}$/.test(recipient)) {
+      throw new Error('Невірний формат номера. Використовуйте формат 380XXXXXXXXX');
+    }
+
+    const response = await fetch(this.apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiToken}`
+      },
+      body: JSON.stringify({
+        recipients: [recipient],
+        sms: {
+          sender: this.sender,
+          text: String(text || '').trim()
+        }
+      })
+    });
+
+    const result = await response.json().catch(() => ({}));
+    const success = result.response_code === 0 || result.response_code === '0';
+
+    if (!response.ok || !success) {
+      const errorMessage = result.response_status
+        || result.error
+        || result.message
+        || `Помилка SMS API (код ${result.response_code ?? response.status})`;
+      throw new Error(errorMessage);
+    }
+
+    return { success: true, recipient, response: result };
+  }
+}
+
 const telegramService = new TelegramService();
+const smsService = new SmsService();
 
 // Відправка push на мобільні пристрої
 async function sendPushToUsers(users, { title, body, data = {} }) {
@@ -15834,6 +16158,40 @@ async function sendFcmTaskNotification(type, task, user) {
     console.error('[FCM] Помилка sendFcmTaskNotification:', err);
   }
 }
+
+// Статус SMS
+app.get('/api/sms/status', authenticateToken, (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'administrator') {
+    return res.status(403).json({ error: 'Доступ заборонено' });
+  }
+
+  res.json({
+    apiTokenConfigured: !!(process.env.SMS_API_TOKEN || process.env.TURBOSMS_API_TOKEN),
+    senderConfigured: !!(process.env.SMS_SENDER || process.env.TURBOSMS_SENDER),
+    provider: 'TurboSMS'
+  });
+});
+
+// Тест відправки SMS
+app.post('/api/sms/test', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'administrator') {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+
+    const { phone, message } = req.body;
+
+    if (!phone || !message) {
+      return res.status(400).json({ error: 'phone та message обов\'язкові' });
+    }
+
+    const result = await smsService.sendMessage(phone, message);
+    res.json({ success: true, recipient: result.recipient });
+  } catch (error) {
+    console.error('[SMS] Помилка тесту:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // Статус Telegram
 app.get('/api/telegram/status', (req, res) => {

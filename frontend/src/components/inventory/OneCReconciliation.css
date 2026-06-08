@@ -1,0 +1,163 @@
+.onec-recon {
+  padding: 16px;
+}
+
+.onec-recon-header h2 {
+  margin: 0 0 4px;
+}
+
+.onec-recon-sub {
+  margin: 0 0 16px;
+  color: #64748b;
+  font-size: 0.9em;
+  max-width: 900px;
+}
+
+.onec-recon-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+}
+
+.onec-recon-filters label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8em;
+  color: #475569;
+  gap: 4px;
+}
+
+.onec-recon-filters input,
+.onec-recon-filters select {
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+}
+
+.onec-recon-btn {
+  padding: 8px 16px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.onec-recon-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.onec-recon-error {
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.onec-recon-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.onec-recon-card {
+  flex: 1 1 130px;
+  min-width: 130px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.onec-recon-card .num {
+  font-size: 1.6em;
+  font-weight: 700;
+}
+
+.onec-recon-card .lbl {
+  font-size: 0.78em;
+  color: #64748b;
+}
+
+.onec-recon-card.ok { border-left: 4px solid #16a34a; }
+.onec-recon-card.warn { border-left: 4px solid #d97706; }
+.onec-recon-card.err { border-left: 4px solid #dc2626; }
+.onec-recon-card.info { border-left: 4px solid #2563eb; }
+
+.onec-recon-count {
+  font-size: 0.82em;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.onec-recon-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.onec-recon-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85em;
+}
+
+.onec-recon-table th,
+.onec-recon-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
+}
+
+.onec-recon-table th {
+  background: #f8fafc;
+  position: sticky;
+  top: 0;
+  font-weight: 600;
+  color: #475569;
+}
+
+.onec-recon-table tr.row-err { background: #fef2f2; }
+.onec-recon-table tr.row-warn { background: #fffbeb; }
+.onec-recon-table tr.row-info { background: #eff6ff; }
+
+.onec-recon-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.82em;
+  white-space: nowrap;
+}
+
+.onec-recon-badge.ok { background: #dcfce7; color: #166534; }
+.onec-recon-badge.warn { background: #fef3c7; color: #92400e; }
+.onec-recon-badge.err { background: #fee2e2; color: #991b1b; }
+.onec-recon-badge.info { background: #dbeafe; color: #1e40af; }
+
+.onec-recon-doc { font-weight: 600; }
+.onec-recon-ref { font-size: 0.85em; color: #2563eb; }
+.onec-recon-comment {
+  font-size: 0.8em;
+  color: #94a3b8;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.onec-recon-nome {
+  max-width: 260px;
+}
+
+.onec-recon-qty { text-align: center; font-variant-numeric: tabular-nums; }
+.onec-recon-contractor { max-width: 200px; }
+.onec-recon-wh { max-width: 220px; font-size: 0.9em; color: #475569; }

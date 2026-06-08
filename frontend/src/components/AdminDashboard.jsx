@@ -4,6 +4,7 @@ import WarehouseManagement from './equipment/WarehouseManagement';
 import CategoryManagement from './equipment/CategoryManagement';
 import ProductCardManagement from './equipment/ProductCardManagement';
 import SystemCoefficientsSettings from './SystemCoefficientsSettings';
+import OneCWorkerPanel from './onec/OneCWorkerPanel';
 import './AdminDashboard.css';
 
 /** Ключі панелей у матриці (як у App.jsx) */
@@ -54,12 +55,14 @@ const ADMIN_TABS = [
   { id: 'roles', label: '🎭 Ролі', icon: '🎭' },
   { id: 'telegram', label: '📱 Telegram', icon: '📱' },
   { id: 'notifications', label: '🔔 Сповіщення', icon: '🔔' },
+  { id: 'advertising', label: '📢 Реклама', icon: '📢' },
   { id: 'backup', label: '💾 Бекап', icon: '💾' },
   { id: 'logs', label: '📜 Логи', icon: '📜' },
   { id: 'warehouses', label: '🏢 Управління складами', icon: '🏢' },
   { id: 'categories', label: '📂 Категорії номенклатури', icon: '📂' },
   { id: 'productCards', label: '📇 Карточки продуктів', icon: '📇' },
   { id: 'systemCoefficients', label: '🔢 Системні коефіцієнти', icon: '🔢' },
+  { id: 'onecAgent', label: '🤖 Агент 1С', icon: '🤖' },
 ];
 
 function AdminDashboard({ user }) {
@@ -1837,6 +1840,154 @@ function AdminDashboard({ user }) {
     }
   };
 
+  // Стан для SMS (Реклама)
+  const [smsSettings, setSmsSettings] = useState({
+    phone: '',
+    message: ''
+  });
+  const [smsStatus, setSmsStatus] = useState(null);
+  const [smsTestResult, setSmsTestResult] = useState(null);
+  const [smsTestError, setSmsTestError] = useState('');
+  const [sendingSms, setSendingSms] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'advertising') {
+      loadSmsStatus();
+    }
+  }, [activeTab]);
+
+  const loadSmsStatus = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/sms/status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setSmsStatus(await res.json());
+      }
+    } catch (error) {
+      console.error('Помилка завантаження статусу SMS:', error);
+    }
+  };
+
+  const sendTestSms = async () => {
+    if (!smsSettings.phone.trim() || !smsSettings.message.trim()) {
+      alert('Введіть номер телефону та текст повідомлення');
+      return;
+    }
+
+    setSendingSms(true);
+    setSmsTestResult(null);
+    setSmsTestError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/sms/test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          phone: smsSettings.phone.trim(),
+          message: smsSettings.message.trim()
+        })
+      });
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        setSmsTestResult('success');
+      } else {
+        setSmsTestResult('error');
+        setSmsTestError(result.error || 'Помилка відправки');
+      }
+      setTimeout(() => {
+        setSmsTestResult(null);
+        setSmsTestError('');
+      }, 8000);
+    } catch (error) {
+      setSmsTestResult('error');
+      setSmsTestError(error.message);
+      setTimeout(() => {
+        setSmsTestResult(null);
+        setSmsTestError('');
+      }, 8000);
+    } finally {
+      setSendingSms(false);
+    }
+  };
+
+  const renderAdvertisingTab = () => (
+    <div className="admin-section">
+      <h3>📢 Реклама — SMS повідомлення</h3>
+
+      {smsStatus && (
+        <div className="telegram-status">
+          <h4>📊 Статус підключення SMS:</h4>
+          <div className="status-items">
+            <div className={`status-item ${smsStatus.apiTokenConfigured ? 'ok' : 'error'}`}>
+              🔑 API Token: {smsStatus.apiTokenConfigured ? '✅ Налаштовано' : '❌ Не налаштовано'}
+            </div>
+            <div className={`status-item ${smsStatus.senderConfigured ? 'ok' : 'error'}`}>
+              📤 Відправник (альфа-ім&apos;я): {smsStatus.senderConfigured ? '✅ Налаштовано' : '❌ Не налаштовано'}
+            </div>
+            <div className="status-item ok">
+              🌐 Провайдер: {smsStatus.provider || 'TurboSMS'}
+            </div>
+          </div>
+          {(!smsStatus.apiTokenConfigured || !smsStatus.senderConfigured) && (
+            <div className="status-warning">
+              ⚠️ Для відправки SMS налаштуйте змінні середовища SMS_API_TOKEN (або TURBOSMS_API_TOKEN) та SMS_SENDER (або TURBOSMS_SENDER)
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="telegram-form">
+        <h4>🧪 Тестова відправка SMS</h4>
+        <div className="form-group">
+          <label>Номер телефону:</label>
+          <input
+            type="text"
+            placeholder="Наприклад: 380501234567 або 0501234567"
+            value={smsSettings.phone}
+            onChange={(e) => setSmsSettings(prev => ({ ...prev, phone: e.target.value }))}
+          />
+        </div>
+        <div className="form-group">
+          <label>Текст повідомлення:</label>
+          <textarea
+            rows={4}
+            placeholder="Введіть текст SMS для перевірки"
+            value={smsSettings.message}
+            onChange={(e) => setSmsSettings(prev => ({ ...prev, message: e.target.value }))}
+          />
+        </div>
+        <button className="btn-test" onClick={sendTestSms} disabled={sendingSms}>
+          {sendingSms ? '⏳ Відправка...' : '📤 Надіслати тестове SMS'}
+        </button>
+        {smsTestResult && (
+          <div className={`test-result ${smsTestResult}`}>
+            {smsTestResult === 'success'
+              ? '✅ SMS надіслано успішно!'
+              : `❌ Помилка відправки${smsTestError ? `: ${smsTestError}` : ''}`}
+          </div>
+        )}
+      </div>
+
+      <div className="telegram-instructions">
+        <h4>📋 Інструкція:</h4>
+        <ol>
+          <li>Зареєструйтеся на TurboSMS (turbosms.ua) та отримайте API Token</li>
+          <li>Зареєструйте альфа-ім&apos;я відправника (SMS_SENDER)</li>
+          <li>Додайте змінні середовища на сервері: SMS_API_TOKEN та SMS_SENDER</li>
+          <li>Введіть номер у форматі 380XXXXXXXXX та текст повідомлення</li>
+          <li>Натисніть «Надіслати тестове SMS» для перевірки</li>
+        </ol>
+      </div>
+    </div>
+  );
+
   const renderNotificationsTab = () => (
     <div className="admin-section">
       <h3>🔔 Управління сповіщеннями користувачів</h3>
@@ -1921,12 +2072,14 @@ function AdminDashboard({ user }) {
       case 'access': return renderAccessTab();
       case 'telegram': return renderTelegramTab();
       case 'notifications': return renderNotificationsTab();
+      case 'advertising': return renderAdvertisingTab();
       case 'backup': return renderBackupTab();
       case 'logs': return renderLogsTab();
       case 'warehouses': return <WarehouseManagement user={user} />;
       case 'categories': return <CategoryManagement user={user} />;
       case 'productCards': return <ProductCardManagement />;
       case 'systemCoefficients': return <SystemCoefficientsSettings />;
+      case 'onecAgent': return <OneCWorkerPanel />;
       default: return renderUsersTab();
     }
   };
