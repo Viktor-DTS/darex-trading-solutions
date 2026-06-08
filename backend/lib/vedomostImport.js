@@ -34,6 +34,11 @@ const HEADER_LABELS = {
 /** Назва схожа на фізичний склад (а не серійний номер / підзвітну особу). */
 const WAREHOUSE_NAME_RE = /(склад|солюшн|дарекс|главн)/i;
 const DATE_RE = /(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}):(\d{2}))?/;
+/** Одиниці виміру з 1С (не плутати з серійним номером у колонці «Базовая единица»). */
+const KNOWN_UNITS = new Set([
+  'шт', 'штука', 'км', 'м', 'м2', 'м3', 'кг', 'г', 'л', 'компл', 'упак', 'балон', 'мп', 'пог', 'т', 'рул',
+  'комплект', 'упаковка', 'бухта', 'лист', 'пара', 'набор', 'секц', 'секция',
+]);
 
 function cellStr(v) {
   if (v === undefined || v === null) return '';
@@ -48,6 +53,47 @@ function num(v) {
 
 function hasNum(v) {
   return cellStr(v) !== '' && Number.isFinite(Number(String(v).replace(/\s/g, '').replace(',', '.')));
+}
+
+function normalizeUnit(u) {
+  return cellStr(u).toLowerCase().replace(/\./g, '').replace(/\s+/g, '');
+}
+
+/** Справжня одиниця виміру (шт, км…), а не дубль серійника в сусідній колонці. */
+function isRealUnit(unit) {
+  const u = normalizeUnit(unit);
+  if (!u) return false;
+  if (KNOWN_UNITS.has(u)) return true;
+  if (/^\d+$/.test(u)) return false;
+  // короткі кириличні позначення од. виміру
+  if (/^[а-яіїєґ]{1,8}$/i.test(u)) return true;
+  return false;
+}
+
+/** Рядок під номенклатурою: у col7 серійний номер, у col8 часто той самий номер замість «шт». */
+function isSerialBalanceRow(c7, unit, currentNome) {
+  if (!currentNome) return false;
+  const name = cellStr(c7);
+  if (!name) return false;
+  const unitS = cellStr(unit);
+  if (isRealUnit(unitS)) return false;
+  if (unitS && unitS === name) return true;
+  if (/^\d{5,}$/.test(name)) return true;
+  // латинсько-цифровий серійник без кирилиці в назві
+  if (/^[A-Z0-9][A-Z0-9\-_/]{3,}$/i.test(name) && !/[а-яіїєґ]/i.test(name)) return true;
+  return false;
+}
+
+/** Якщо для складу+номенклатури є розбивка по серіях — не імпортуємо агрегований рядок «шт». */
+function dropBatchBalancesWhenSerialsExist(balances) {
+  const withSerial = new Set(
+    balances.filter((b) => b.serial).map((b) => `${b.warehouse}\0${b.nomenclature}`)
+  );
+  if (!withSerial.size) return balances;
+  return balances.filter((b) => {
+    if (b.serial) return true;
+    return !withSerial.has(`${b.warehouse}\0${b.nomenclature}`);
+  });
 }
 
 /**
@@ -239,6 +285,24 @@ function parseVedomostRows(rows) {
     const isDocRow = DATE_RE.test(c7) || (hasAnyMeta(meta) && !unit);
 
     if (unit) {
+      if (isSerialBalanceRow(c7, unit, currentNome)) {
+        const serial = cellStr(c7);
+        currentSerial = serial;
+        balances.push({
+          warehouse: currentWarehouse,
+          nomenclature: currentNome,
+          unit: currentUnit,
+          serial,
+          opening: num(row[idx.opening]),
+          incoming: num(row[idx.incoming]),
+          outgoing: num(row[idx.outgoing]),
+          closing: num(row[idx.closing]),
+        });
+        continue;
+      }
+      if (!isRealUnit(unit)) {
+        continue;
+      }
       // Рядок НОМЕНКЛАТУРИ → поточний залишок = Конечный остаток
       currentNome = c7;
       currentUnit = unit;
@@ -324,7 +388,7 @@ function parseVedomostRows(rows) {
       movementOnly: onlyParties.sort(), // ймовірно МОЛ/підзвіт
       all: [...new Set([...physical, ...movementParties])].sort(),
     },
-    balances,
+    balances: dropBatchBalancesWhenSerialsExist(balances),
     movements,
   };
 }
@@ -402,7 +466,7 @@ async function runVedomostImport({
     balancesParsed: parsed.balances.length,
     movementsParsed: parsed.movements.length,
     movementsByType: {},
-    stock: { created: 0, updated: 0, skipped: 0, unmappedWarehouse: 0 },
+    stock: { created: 0, updated: 0, skipped: 0, unmappedWarehouse: 0, serialized: 0 },
     movements: { inserted: 0, duplicates: 0, unmappedWarehouse: 0 },
     aliases: { created: 0, updated: 0 },
     unmappedWarehouses: [],
@@ -486,6 +550,67 @@ async function runVedomostImport({
     const batchUnit = b.unit || stock.resolveBatchUnit(nome, rules);
     const { categoryId, itemKind } = stock.resolveCategory(nome, rules, categoryIndex);
     const region = whById.get(wh.id)?.region || '';
+    const resolvedKind = itemKind || (b.serial ? 'equipment' : 'parts');
+
+    // Окрема одиниця з серійним номером (підрядок під номенклатурою в «Ведомости»)
+    if (b.serial) {
+      const serialNumber = String(b.serial);
+      const qty = Math.max(0, Math.round((b.closing || 0) * 1000) / 1000);
+      if (qty <= 0) {
+        summary.stock.skipped++;
+        continue;
+      }
+      try {
+        const existing = await Equipment.findOne({
+          type: nome,
+          serialNumber,
+          isDeleted: { $ne: true },
+        });
+        if (dryRun) {
+          if (existing) summary.stock.updated++;
+          else summary.stock.created++;
+          summary.stock.serialized++;
+          continue;
+        }
+        if (existing) {
+          existing.batchUnit = batchUnit;
+          if (categoryId) existing.categoryId = categoryId;
+          existing.itemKind = resolvedKind;
+          existing.currentWarehouse = wh.id;
+          existing.currentWarehouseName = wh.name;
+          existing.region = region;
+          existing.status = 'in_stock';
+          existing.quantity = 1;
+          existing.lastModified = now;
+          await existing.save();
+          summary.stock.updated++;
+        } else {
+          await Equipment.create({
+            type: nome,
+            serialNumber,
+            isBatch: false,
+            quantity: 1,
+            batchUnit,
+            batchName: nome,
+            categoryId: categoryId || null,
+            itemKind: resolvedKind,
+            addedBy: String(adminUser._id),
+            addedByName: adminUser.name || adminUser.login,
+            currentWarehouse: wh.id,
+            currentWarehouseName: wh.name,
+            region,
+            status: 'in_stock',
+            notes: `Імпорт «Ведомости» 1С (${parsed.sheetName}), серія ${serialNumber}`,
+          });
+          summary.stock.created++;
+        }
+        summary.stock.serialized++;
+      } catch (e) {
+        summary.stock.skipped++;
+        summary.warnings.push(`Серія «${serialNumber}» (${nome}): ${e.message}`);
+      }
+      continue;
+    }
 
     if (dryRun) {
       const existing = await Equipment.findOne(stock.batchSearchQuery(nome, wh.id, region)).lean();
@@ -521,7 +646,7 @@ async function runVedomostImport({
           batchUnit,
           batchName: nome,
           categoryId: categoryId || null,
-          itemKind: itemKind || 'parts',
+          itemKind: resolvedKind,
           addedBy: String(adminUser._id),
           addedByName: adminUser.name || adminUser.login,
           currentWarehouse: wh.id,
