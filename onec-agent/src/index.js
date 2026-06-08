@@ -49,7 +49,7 @@ async function triggerRun(trigger) {
   status.log = [];
   pushLog(`Запуск циклу (${trigger}).`);
 
-  return runPipeline(config, pushLog)
+  return runPipeline(config, pushLog, trigger)
     .then((res) => {
       status.fileName = res.fileName;
       status.importSummary = res.summary;

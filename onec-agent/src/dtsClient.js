@@ -30,7 +30,7 @@ async function login(dts) {
  * Завантажити збережений файл у DTS та запустити імпорт «Ведомости».
  * @returns {object} summary з бекенду
  */
-async function uploadVedomost(dts, filePath) {
+async function uploadVedomost(dts, filePath, trigger = 'schedule') {
   const token = await login(dts);
   const buf = fs.readFileSync(filePath);
   const fd = new FormData();
@@ -38,7 +38,10 @@ async function uploadVedomost(dts, filePath) {
   const q = dts.dryRun ? '?dryRun=1' : '';
   const r = await fetch(`${dts.apiBaseUrl}/onec/import-vedomost${q}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-OneC-Trigger': trigger,
+    },
     body: fd,
   });
   const data = await r.json().catch(() => ({}));

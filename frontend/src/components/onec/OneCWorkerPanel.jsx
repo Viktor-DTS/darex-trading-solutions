@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import API_BASE_URL from '../../config';
 import './OneCWorkerPanel.css';
 
 const LS_URL = 'onecAgentUrl';
@@ -12,6 +13,17 @@ const STATE_META = {
   error: { label: 'Помилка', cls: 'error' },
 };
 
+const TRIGGER_LABELS = {
+  manual: 'Вручну (агент)',
+  schedule: 'Розклад',
+  upload: 'Завантаження в адмінці',
+};
+
+function formatDt(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('uk-UA');
+}
+
 function OneCWorkerPanel() {
   const [agentUrl, setAgentUrl] = useState(() => localStorage.getItem(LS_URL) || DEFAULT_URL);
   const [agentToken, setAgentToken] = useState(() => localStorage.getItem(LS_TOKEN) || '');
@@ -19,7 +31,12 @@ function OneCWorkerPanel() {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [journal, setJournal] = useState([]);
+  const [journalTotal, setJournalTotal] = useState(0);
+  const [journalLoading, setJournalLoading] = useState(false);
+  const [journalError, setJournalError] = useState('');
   const pollRef = useRef(null);
+  const prevStateRef = useRef(null);
 
   const base = agentUrl.replace(/\/+$/, '');
   const headers = agentToken ? { 'x-agent-token': agentToken } : {};
@@ -62,6 +79,29 @@ function OneCWorkerPanel() {
     }
   };
 
+  const fetchJournal = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setJournalError('Увійдіть у систему, щоб бачити журнал імпортів.');
+      return;
+    }
+    setJournalLoading(true);
+    setJournalError('');
+    try {
+      const r = await fetch(`${API_BASE_URL}/onec/import-journal?limit=30`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+      setJournal(data.entries || []);
+      setJournalTotal(data.total ?? 0);
+    } catch (e) {
+      setJournalError(`Журнал недоступний: ${e.message}`);
+    } finally {
+      setJournalLoading(false);
+    }
+  }, []);
+
   const startPolling = useCallback(() => {
     stopPolling();
     pollRef.current = setInterval(async () => {
@@ -96,9 +136,19 @@ function OneCWorkerPanel() {
     fetchStatus().then((s) => {
       if (s && s.state === 'running') startPolling();
     });
+    fetchJournal();
     return stopPolling;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const cur = status?.state;
+    const prev = prevStateRef.current;
+    if (prev === 'running' && (cur === 'done' || cur === 'error')) {
+      fetchJournal();
+    }
+    prevStateRef.current = cur;
+  }, [status?.state, fetchJournal]);
 
   const sm = status ? STATE_META[status.state] || STATE_META.idle : null;
   const sum = status?.importSummary;
@@ -205,10 +255,85 @@ function OneCWorkerPanel() {
 
       {status?.log?.length > 0 && (
         <div className="ow-log">
-          <h3>Журнал виконання</h3>
+          <h3>Журнал виконання (поточний цикл)</h3>
           <pre>{status.log.join('\n')}</pre>
         </div>
       )}
+
+      <div className="ow-journal">
+        <div className="ow-journal-head">
+          <h3>📋 Журнал завантажень у DTS</h3>
+          <button type="button" className="ow-refresh" onClick={fetchJournal} disabled={journalLoading}>
+            {journalLoading ? 'Оновлення…' : '↻ Оновити'}
+          </button>
+        </div>
+        <p className="ow-journal-sub">
+          Історія імпортів «Ведомости» з сервера DTS — працює навіть якщо локальний агент недоступний з браузера.
+          {journalTotal > 0 && ` Всього записів: ${journalTotal}.`}
+        </p>
+        {journalError && <div className="ow-error">{journalError}</div>}
+        {!journalError && journal.length === 0 && !journalLoading && (
+          <div className="ow-journal-empty">Записів ще немає. Після першого успішного імпорту вони з’являться тут.</div>
+        )}
+        {journal.length > 0 && (
+          <div className="ow-journal-wrap">
+            <table className="ow-journal-table">
+              <thead>
+                <tr>
+                  <th>Дата / час</th>
+                  <th>Файл</th>
+                  <th>Джерело</th>
+                  <th>Статус</th>
+                  <th>Залишки</th>
+                  <th>Рух</th>
+                  <th>Деталі</th>
+                </tr>
+              </thead>
+              <tbody>
+                {journal.map((row) => (
+                  <tr key={row._id} className={row.status === 'error' ? 'ow-row-err' : ''}>
+                    <td className="ow-dt">{formatDt(row.importedAt)}</td>
+                    <td className="ow-file" title={row.fileName || ''}>
+                      {row.fileName || '—'}
+                    </td>
+                    <td>{TRIGGER_LABELS[row.trigger] || row.trigger || '—'}</td>
+                    <td>
+                      <span className={`ow-badge ${row.status === 'success' ? 'ok' : 'err'}`}>
+                        {row.status === 'success' ? 'OK' : 'Помилка'}
+                      </span>
+                      {row.dryRun && <span className="ow-dry">dryRun</span>}
+                    </td>
+                    <td>
+                      {row.status === 'success'
+                        ? `+${row.stock?.created ?? 0} / ~${row.stock?.updated ?? 0}`
+                        : '—'}
+                    </td>
+                    <td>
+                      {row.status === 'success'
+                        ? `+${row.movements?.inserted ?? 0} (дублі ${row.movements?.duplicates ?? 0})`
+                        : '—'}
+                    </td>
+                    <td className="ow-details">
+                      {row.status === 'error' && row.error ? (
+                        <span className="ow-err-text" title={row.error}>{row.error}</span>
+                      ) : (
+                        <>
+                          {row.importedByLogin && <span>{row.importedByLogin}</span>}
+                          {(row.unmappedWarehousesCount ?? 0) > 0 && (
+                            <span className="ow-warn">
+                              {' '}· незіставлені склади: {row.unmappedWarehousesCount}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

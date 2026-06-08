@@ -1,6 +1,6 @@
 .onec-worker {
   padding: 20px;
-  max-width: 920px;
+  max-width: 1100px;
 }
 
 .ow-head {
@@ -150,4 +150,105 @@
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.ow-journal {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+.ow-journal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.ow-journal-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.ow-journal-sub {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.45;
+}
+.ow-refresh {
+  padding: 6px 12px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ow-refresh:hover:not(:disabled) { background: #f3f4f6; }
+.ow-refresh:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.ow-journal-empty {
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.ow-journal-wrap {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+.ow-journal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.ow-journal-table th,
+.ow-journal-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: top;
+}
+.ow-journal-table th {
+  background: #f9fafb;
+  color: #374151;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ow-journal-table tbody tr:hover { background: #f9fafb; }
+.ow-journal-table tbody tr.ow-row-err { background: #fef2f2; }
+.ow-journal-table tbody tr:last-child td { border-bottom: none; }
+
+.ow-dt { white-space: nowrap; color: #374151; }
+.ow-file {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ow-details { max-width: 220px; color: #6b7280; }
+.ow-warn { color: #b45309; }
+
+.ow-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.ow-badge.ok { background: #dcfce7; color: #166534; }
+.ow-badge.err { background: #fee2e2; color: #991b1b; }
+.ow-dry {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 10px;
+  font-weight: 600;
 }

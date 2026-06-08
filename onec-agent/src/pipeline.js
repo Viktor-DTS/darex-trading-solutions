@@ -31,7 +31,7 @@ function newestReportInDir(dir) {
  * @param {object} config
  * @param {(msg:string)=>void} log
  */
-async function runPipeline(config, log) {
+async function runPipeline(config, log, trigger = 'schedule') {
   const ts = timestamp();
   const dir = config.save.dir;
   const fileName = (config.save.fileNamePattern || 'Залишки_{{ts}}.xlsx').replace(/\{\{ts\}\}/g, ts);
@@ -46,11 +46,11 @@ async function runPipeline(config, log) {
     log(`Старт емуляції 1С. Файл буде збережено: ${filePath}`);
     await automation.runSteps(
       config.automation,
-      { filePath, fileName, dir, ts, logsDir },
+      { filePath, fileName, dir, ts, logsDir, save: config.save },
       log
     );
     // дати 1С час дописати файл
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 4000));
     if (!fs.existsSync(filePath)) {
       // деякі версії 1С додають розширення самі — пробуємо знайти найновіший
       const newest = newestReportInDir(dir);
@@ -68,7 +68,7 @@ async function runPipeline(config, log) {
   }
 
   log(`Завантаження у DTS: ${path.basename(finalPath)}${config.dts.dryRun ? ' (dryRun)' : ''}`);
-  const summary = await uploadVedomost(config.dts, finalPath);
+  const summary = await uploadVedomost(config.dts, finalPath, trigger);
   log(
     `Готово. Залишки: +${summary.stock?.created ?? 0}/~${summary.stock?.updated ?? 0}, ` +
       `рух: +${summary.movements?.inserted ?? 0} (дублі ${summary.movements?.duplicates ?? 0}). ` +

@@ -1485,6 +1485,35 @@ oneCMovementSchema.index(
 );
 const OneCMovement = mongoose.model('OneCMovement', oneCMovementSchema);
 
+// Журнал імпортів звіту «Ведомость» (історія завантажень з агента / адмінки).
+const oneCImportLogSchema = new mongoose.Schema({
+  importedAt: { type: Date, default: Date.now, index: true },
+  importedByLogin: String,
+  importedByName: String,
+  fileName: String,
+  fileHash: String,
+  trigger: { type: String, default: 'upload' }, // manual | schedule | upload
+  dryRun: { type: Boolean, default: false },
+  status: { type: String, enum: ['success', 'error'], index: true },
+  error: String,
+  period: { type: Object, default: null },
+  stock: {
+    created: { type: Number, default: 0 },
+    updated: { type: Number, default: 0 },
+    skipped: { type: Number, default: 0 },
+  },
+  movements: {
+    inserted: { type: Number, default: 0 },
+    duplicates: { type: Number, default: 0 },
+    parsed: { type: Number, default: 0 },
+  },
+  movementsByType: { type: Object, default: {} },
+  unmappedWarehousesCount: { type: Number, default: 0 },
+  unmappedWarehouses: { type: [String], default: [] },
+}, { timestamps: true });
+oneCImportLogSchema.index({ importedAt: -1 });
+const OneCImportLog = mongoose.model('OneCImportLog', oneCImportLogSchema);
+
 // Заявки відділу закупівель (вкладення PDF/Word/Excel у MongoDB як Buffer)
 const PROCUREMENT_EXECUTOR_DOC_KINDS = ['invoice', 'delivery_note', 'other'];
 
@@ -10815,6 +10844,8 @@ app.post('/api/onec/import-vedomost', uploadStockXlsx.single('file'), async (req
       return res.status(401).json({ error: 'Користувач не знайдено' });
     }
     const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true' || req.body?.dryRun === true;
+    const trigger = String(req.get('x-onec-trigger') || req.body?.trigger || 'upload').slice(0, 32);
+    const fileName = req.file.originalname || 'vedomost.xlsx';
     const nomenclatureCategoryMapFromDb = await loadStockImportNomenclatureMap();
     const summary = await runVedomostImport({
       Equipment,
@@ -10823,17 +10854,60 @@ app.post('/api/onec/import-vedomost', uploadStockXlsx.single('file'), async (req
       OneCWarehouseAlias,
       OneCMovement,
       EventLog,
+      OneCImportLog,
       buffer: req.file.buffer,
       adminUser: { _id: user._id, login: user.login, name: user.name, role: user.role },
       dryRun,
       nomenclatureCategoryMapFromDb,
+      fileName,
+      trigger,
     });
     logPerformance('POST /api/onec/import-vedomost', startTime);
     res.json(summary);
   } catch (error) {
     console.error('[ERROR] POST /api/onec/import-vedomost:', error);
     logPerformance('POST /api/onec/import-vedomost', startTime);
+    try {
+      const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true' || req.body?.dryRun === true;
+      const trigger = String(req.get('x-onec-trigger') || req.body?.trigger || 'upload').slice(0, 32);
+      const login = req.user?.login || 'unknown';
+      const name = req.user?.name || login;
+      await OneCImportLog.create({
+        importedByLogin: login,
+        importedByName: name,
+        fileName: req.file?.originalname || null,
+        trigger,
+        dryRun: !!dryRun,
+        status: 'error',
+        error: error.message,
+      });
+    } catch (logErr) {
+      console.error('[ERROR] OneCImportLog (failure):', logErr);
+    }
     res.status(400).json({ error: error.message });
+  }
+});
+
+// Журнал імпортів «Ведомости» 1С (для контролю роботи агента)
+app.get('/api/onec/import-journal', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено (потрібна роль admin)' });
+    }
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const skip = (page - 1) * limit;
+    const [entries, total] = await Promise.all([
+      OneCImportLog.find().sort({ importedAt: -1 }).skip(skip).limit(limit).lean(),
+      OneCImportLog.countDocuments(),
+    ]);
+    logPerformance('GET /api/onec/import-journal', startTime, entries.length);
+    res.json({ entries, total, page, limit });
+  } catch (error) {
+    console.error('[ERROR] GET /api/onec/import-journal:', error);
+    logPerformance('GET /api/onec/import-journal', startTime);
+    res.status(500).json({ error: error.message });
   }
 });
 

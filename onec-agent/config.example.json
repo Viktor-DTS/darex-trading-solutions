@@ -4,20 +4,20 @@
   "agentToken": "ЗМІНІТЬ_МЕНЕ_секретний_рядок",
   "allowedOrigins": [
     "http://localhost:5173",
-    "https://darex-trading-solutions.onrender.com"
+    "https://darex-trading-solutions.onrender.com",
+    "https://darex-trading-solutions-f.onrender.com"
   ],
 
   "dts": {
     "apiBaseUrl": "https://darex-trading-solutions.onrender.com/api",
     "login": "bugai1c",
     "password": "ЗМІНІТЬ_МЕНЕ_пароль_bugai1c",
-    "dryRun": false
+    "dryRun": true
   },
 
   "save": {
     "dir": "C:\\Users\\V.Buhai\\Desktop\\Залишки на складах імпорт",
-    "fileNamePattern": "Залишки_{{ts}}.xlsx",
-    "fileType": "Лист Excel 2007"
+    "fileNamePattern": "Залишки_{{ts}}.xlsx"
   },
 
   "schedule": {
@@ -28,24 +28,30 @@
 
   "automation": {
     "enabled": true,
-    "windowTitleContains": "1С",
-    "perStepDelayMs": 600,
+    "perStepDelayMs": 400,
     "screenshotOnError": true,
+    "reportClick": { "x": 700, "y": 450 },
+    "formWaitMs": 35000,
+    "saveRetry": { "maxAttempts": 18, "intervalMs": 5000 },
     "steps": [
-      { "action": "focusWindow", "titleContains": "1С" },
-      { "action": "wait", "ms": 800 },
-      { "action": "comment", "text": "Натиснути 'Сформировать' (типово гаряча клавіша)" },
-      { "action": "key", "keys": ["LeftControl", "Enter"] },
-      { "action": "wait", "ms": 6000 },
-      { "action": "comment", "text": "Зберегти як... (відкриває діалог збереження)" },
-      { "action": "key", "keys": ["LeftControl", "S"] },
-      { "action": "wait", "ms": 1500 },
-      { "action": "comment", "text": "Вписати повний шлях до файлу у поле 'Имя файла'" },
-      { "action": "type", "text": "{{filePath}}" },
+      { "action": "comment", "text": "=== 1. Сформировать ===" },
+      { "action": "focusWindow", "dialog": "main", "titleContains": ["Ведомость", "Предприятие"] },
       { "action": "wait", "ms": 500 },
-      { "action": "comment", "text": "ENTER зберегти; за потреби додайте кроки вибору типу файлу" },
+      { "action": "key", "keys": ["LeftControl", "Enter"] },
+
+      { "action": "comment", "text": "=== 2. Чекати звіт + Сохранение ===" },
+      { "action": "retryOpenSave", "minWaitMs": 35000, "maxAttempts": 18, "intervalMs": 5000 },
+
+      { "action": "comment", "text": "=== 3. Шлях файлу + зберегти (тип за замовчуванням) ===" },
+      { "action": "focusWindow", "dialog": "save", "preferShort": true, "titleContains": ["Сохранение", "Сохранить"] },
+      { "action": "wait", "ms": 400 },
+      { "action": "key", "keys": ["LeftControl", "A"] },
+      { "action": "wait", "ms": 200 },
+      { "action": "paste", "text": "{{filePath}}", "focusAfterClipboard": { "dialog": "save", "preferShort": true, "titleContains": ["Сохранение", "Сохранить"] } },
+      { "action": "wait", "ms": 400 },
       { "action": "key", "keys": ["Enter"] },
-      { "action": "wait", "ms": 2500 }
+
+      { "action": "wait", "ms": 5000 }
     ]
   }
 }

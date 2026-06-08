@@ -357,10 +357,13 @@ function parseVedomostBuffer(buffer) {
  * @param {import('mongoose').Model} p.OneCWarehouseAlias
  * @param {import('mongoose').Model} p.OneCMovement
  * @param {import('mongoose').Model} [p.EventLog]
+ * @param {import('mongoose').Model} [p.OneCImportLog]
  * @param {Buffer} p.buffer
  * @param {object} p.adminUser
  * @param {boolean} p.dryRun
  * @param {Record<string,string>} [p.nomenclatureCategoryMapFromDb]
+ * @param {string} [p.fileName]
+ * @param {string} [p.trigger]
  */
 async function runVedomostImport({
   Equipment,
@@ -369,10 +372,13 @@ async function runVedomostImport({
   OneCWarehouseAlias,
   OneCMovement,
   EventLog,
+  OneCImportLog,
   buffer,
   adminUser,
   dryRun,
   nomenclatureCategoryMapFromDb,
+  fileName,
+  trigger = 'upload',
 }) {
   const crypto = require('crypto');
   const stock = require('./stockXlsxImport');
@@ -609,6 +615,36 @@ async function runVedomostImport({
       });
     } catch (e) {
       summary.warnings.push(`EventLog: ${e.message}`);
+    }
+  }
+
+  if (OneCImportLog) {
+    try {
+      await OneCImportLog.create({
+        importedByLogin: adminUser.login,
+        importedByName: adminUser.name || adminUser.login,
+        fileName: fileName || null,
+        fileHash,
+        trigger,
+        dryRun: !!dryRun,
+        status: 'success',
+        period: parsed.period || null,
+        stock: {
+          created: summary.stock.created,
+          updated: summary.stock.updated,
+          skipped: summary.stock.skipped,
+        },
+        movements: {
+          inserted: summary.movements.inserted,
+          duplicates: summary.movements.duplicates,
+          parsed: summary.movementsParsed,
+        },
+        movementsByType: summary.movementsByType,
+        unmappedWarehousesCount: summary.unmappedWarehouses.length,
+        unmappedWarehouses: summary.unmappedWarehouses.slice(0, 30),
+      });
+    } catch (e) {
+      summary.warnings.push(`OneCImportLog: ${e.message}`);
     }
   }
 

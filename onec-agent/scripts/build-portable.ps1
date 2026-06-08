@@ -26,6 +26,11 @@ try {
   Copy-Item -Path (Join-Path $root 'package.json') -Destination $appDest
   Copy-Item -Path (Join-Path $root 'node_modules') -Destination (Join-Path $appDest 'node_modules') -Recurse
 
+  $scriptsSrc = Join-Path $root 'scripts'
+  if (Test-Path $scriptsSrc) {
+    Copy-Item -Path $scriptsSrc -Destination (Join-Path $dist 'scripts') -Recurse
+  }
+
   $example = Join-Path $root 'config.example.json'
   if (Test-Path $example) {
     Copy-Item $example (Join-Path $dist 'config.example.json')
