@@ -535,12 +535,14 @@
   line-height: 1.35;
 }
 
-/* Таблиця зіставлення складів 1С */
+/* Таблиця зіставлення складів 1С (світла панель у темній модалці) */
 .onec-alias-table {
   max-height: 60vh;
   overflow-y: auto;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
+  background: #fff;
+  color: #1e293b;
 }
 
 .onec-alias-row {
@@ -551,6 +553,7 @@
   padding: 8px 12px;
   border-bottom: 1px solid #f1f5f9;
   font-size: 0.9em;
+  color: #1e293b;
 }
 
 .onec-alias-row:last-child {
@@ -571,14 +574,35 @@
   overflow: hidden;
   text-overflow: ellipsis;
   font-family: monospace;
+  color: #0f172a;
+  font-weight: 500;
 }
 
 .onec-alias-row.pending {
   background: #fff7ed;
+  color: #9a3412;
+}
+
+.onec-alias-row.pending .onec-alias-name {
+  color: #9a3412;
 }
 
 .onec-alias-row.mapped {
   background: #f0fdf4;
+  color: #14532d;
+}
+
+.onec-alias-row.mapped .onec-alias-name {
+  color: #14532d;
+}
+
+.onec-alias-row.resolved {
+  background: #f8fafc;
+  color: #475569;
+}
+
+.onec-alias-row.resolved .onec-alias-name {
+  color: #334155;
 }
 
 .onec-alias-row select {
@@ -586,6 +610,8 @@
   padding: 4px 6px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
+  background: #fff;
+  color: #1e293b;
 }
 
 .onec-alias-count {
