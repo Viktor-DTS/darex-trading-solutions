@@ -156,7 +156,8 @@
 
 .btn-export-excel,
 .btn-toggle-filters,
-.btn-clear-filters {
+.btn-clear-filters,
+.btn-clear-selection {
   padding: 5px 10px;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -167,11 +168,41 @@
   transition: all 0.2s;
 }
 
+.btn-bulk-delete {
+  padding: 5px 12px;
+  border: 1px solid #dc2626;
+  border-radius: 4px;
+  font-size: 11px;
+  background: rgba(220, 38, 38, 0.15);
+  color: #fecaca;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+}
+
+.btn-bulk-delete:hover {
+  background: rgba(220, 38, 38, 0.3);
+}
+
 .btn-export-excel:hover,
 .btn-toggle-filters:hover,
-.btn-clear-filters:hover {
+.btn-clear-filters:hover,
+.btn-clear-selection:hover {
   background: var(--surface);
   border-color: var(--primary);
+}
+
+.th-select,
+.select-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.eq-select-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary, #2563eb);
 }
 
 .btn-toggle-filters.active {

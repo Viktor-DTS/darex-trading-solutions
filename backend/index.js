@@ -12851,6 +12851,79 @@ app.post('/api/equipment/:id/return-testing', authenticateToken, async (req, res
   }
 });
 
+// Масове видалення обладнання (тільки для admin/administrator)
+app.post('/api/equipment/bulk-delete', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено. Тільки адміністратор може видаляти обладнання.' });
+    }
+    const { ids, reason } = req.body || {};
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Потрібен непорожній масив ids' });
+    }
+    if (!reason || !String(reason).trim()) {
+      return res.status(400).json({ error: 'Причина видалення обов\'язкова' });
+    }
+    const user = await User.findOne({ login: req.user.login });
+    if (!user) {
+      return res.status(401).json({ error: 'Користувач не знайдено' });
+    }
+    const uniqueIds = [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))].slice(0, 500);
+    const reasonTrim = String(reason).trim();
+    let deleted = 0;
+    const failed = [];
+    for (const id of uniqueIds) {
+      try {
+        const equipment = await Equipment.findById(id);
+        if (!equipment) {
+          failed.push({ id, error: 'Не знайдено' });
+          continue;
+        }
+        if (equipment.isDeleted || equipment.status === 'deleted') {
+          failed.push({ id, error: 'Вже видалено' });
+          continue;
+        }
+        const statusBeforeDelete = equipment.status;
+        const qtyBeforeDelete = equipment.quantity || 1;
+        equipment.deletionHistory = equipment.deletionHistory || [];
+        equipment.deletionHistory.push({
+          deletedAt: new Date(),
+          deletedBy: user.login,
+          deletedByName: user.name || user.login,
+          reason: reasonTrim,
+        });
+        equipment.isDeleted = true;
+        equipment.status = 'deleted';
+        clearActiveEquipmentTesting(equipment);
+        equipment.lastModified = new Date();
+        await equipment.save();
+        await logInventoryMovement({
+          eventType: 'equipment_deleted',
+          performedByLogin: user.login,
+          performedByName: user.name || user.login,
+          equipmentId: equipment._id,
+          equipmentType: equipment.type,
+          serialNumber: equipment.serialNumber,
+          quantity: qtyBeforeDelete,
+          fromStatus: statusBeforeDelete,
+          toStatus: 'deleted',
+          notes: `Масове видалення: ${reasonTrim}`,
+        });
+        deleted++;
+      } catch (e) {
+        failed.push({ id, error: e.message });
+      }
+    }
+    logPerformance('POST /api/equipment/bulk-delete', startTime, deleted);
+    res.json({ deleted, failed: failed.length, failures: failed.slice(0, 20) });
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/bulk-delete:', error);
+    logPerformance('POST /api/equipment/bulk-delete', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Видалення обладнання (тільки для admin/administrator)
 app.delete('/api/equipment/:id', authenticateToken, async (req, res) => {
   const startTime = Date.now();

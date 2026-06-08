@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './EquipmentDeleteModal.css';
 
-function EquipmentDeleteModal({ equipment, onClose, onConfirm }) {
+function EquipmentDeleteModal({ equipment, onClose, onConfirm, bulkCount = 0 }) {
   const [reason, setReason] = useState('');
   const [errors, setErrors] = useState([]);
   const [deleting, setDeleting] = useState(false);
@@ -28,14 +28,18 @@ function EquipmentDeleteModal({ equipment, onClose, onConfirm }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>🗑️ Видалити обладнання</h2>
+          <h2>{bulkCount > 1 ? `🗑️ Видалити вибрані (${bulkCount})` : '🗑️ Видалити обладнання'}</h2>
           <button className="btn-close" onClick={onClose}>✕</button>
         </div>
 
         <div className="delete-modal-body">
           <div className="delete-warning">
-            <p>Ви впевнені, що хочете видалити це обладнання?</p>
-            {equipment && (
+            <p>
+              {bulkCount > 1
+                ? `Ви впевнені, що хочете видалити ${bulkCount} позицій зі складу?`
+                : 'Ви впевнені, що хочете видалити це обладнання?'}
+            </p>
+            {bulkCount <= 1 && equipment && (
               <div className="equipment-info">
                 <p><strong>Тип:</strong> {equipment.type || '—'}</p>
                 <p><strong>Серійний номер:</strong> {equipment.serialNumber || '—'}</p>
@@ -58,7 +62,7 @@ function EquipmentDeleteModal({ equipment, onClose, onConfirm }) {
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Вкажіть причину видалення обладнання..."
+                placeholder={bulkCount > 1 ? 'Вкажіть причину масового видалення...' : 'Вкажіть причину видалення обладнання...'}
                 rows="4"
                 required
                 disabled={deleting}

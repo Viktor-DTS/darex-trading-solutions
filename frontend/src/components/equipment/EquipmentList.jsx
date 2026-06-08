@@ -143,6 +143,27 @@ function formatEquipmentQuantityCell(item) {
   return `${getEquipmentQuantityNumber(item)} ${getEquipmentBatchUnit(item)}`;
 }
 
+/** MongoDB _id усіх документів, що відповідають рядку таблиці (включно зі згрупованими). */
+function getEquipmentIdsFromRow(item) {
+  if (item?.isGrouped && Array.isArray(item.batchItems) && item.batchItems.length) {
+    return item.batchItems.map((b) => String(b._id)).filter((id) => id && id !== 'undefined');
+  }
+  const id = item?._id != null ? String(item._id) : '';
+  if (!id || id.startsWith('batch-') || id.startsWith('merged-ns-')) return [];
+  return [id];
+}
+
+function rowIsFullySelected(item, selectedIds) {
+  const ids = getEquipmentIdsFromRow(item);
+  return ids.length > 0 && ids.every((id) => selectedIds.has(id));
+}
+
+function rowIsPartiallySelected(item, selectedIds) {
+  const ids = getEquipmentIdsFromRow(item);
+  const n = ids.filter((id) => selectedIds.has(id)).length;
+  return n > 0 && n < ids.length;
+}
+
 const EquipmentList = forwardRef(({
   user,
   warehouses,
@@ -156,6 +177,7 @@ const EquipmentList = forwardRef(({
   /** true — фільтр по visibleToManagers (панель менеджера; працює й для адміна під цим контекстом) */
   managerCategoryContext = false,
 }, ref) => {
+  const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
   const showReservationClientColumn = canSeeReservationClient(user?.role || '');
   const visibleColumns = useMemo(
     () =>
@@ -172,6 +194,8 @@ const EquipmentList = forwardRef(({
   const [showHistory, setShowHistory] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
@@ -511,6 +535,42 @@ const EquipmentList = forwardRef(({
     fixedAssetsCategoryIds
   ]);
 
+  const toggleRowSelection = (item, e) => {
+    e?.stopPropagation?.();
+    const ids = getEquipmentIdsFromRow(item);
+    if (!ids.length) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const allOn = ids.every((id) => next.has(id));
+      if (allOn) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const toggleSelectAllVisible = () => {
+    const visibleIds = filteredAndSortedEquipment.flatMap(getEquipmentIdsFromRow);
+    if (!visibleIds.length) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const allSelected = visibleIds.every((id) => next.has(id));
+      if (allSelected) visibleIds.forEach((id) => next.delete(id));
+      else visibleIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const visibleSelectableIds = useMemo(
+    () => filteredAndSortedEquipment.flatMap(getEquipmentIdsFromRow),
+    [filteredAndSortedEquipment]
+  );
+  const allVisibleSelected =
+    visibleSelectableIds.length > 0 && visibleSelectableIds.every((id) => selectedIds.has(id));
+  const someVisibleSelected =
+    visibleSelectableIds.some((id) => selectedIds.has(id)) && !allVisibleSelected;
+
   const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -683,6 +743,26 @@ const EquipmentList = forwardRef(({
           <span>Показати обладнання без картки</span>
         </label>
         <div className="toolbar-actions">
+          {isAdmin && selectedIds.size > 0 && (
+            <button
+              type="button"
+              className="btn-bulk-delete"
+              onClick={() => setShowBulkDeleteModal(true)}
+              title="Видалити вибрані позиції"
+            >
+              🗑️ Видалити вибрані ({selectedIds.size})
+            </button>
+          )}
+          {isAdmin && selectedIds.size > 0 && (
+            <button
+              type="button"
+              className="btn-clear-selection"
+              onClick={clearSelection}
+              title="Зняти виділення"
+            >
+              ✖ Зняти вибір
+            </button>
+          )}
           <button
             className="btn-export-excel"
             onClick={handleExport}
@@ -719,6 +799,20 @@ const EquipmentList = forwardRef(({
           <thead>
             {/* Рядок заголовків */}
             <tr>
+              {isAdmin && (
+                <th className="th-select" style={{ width: '42px', minWidth: '42px' }} rowSpan={showFilters ? 2 : 1}>
+                  <input
+                    type="checkbox"
+                    className="eq-select-checkbox"
+                    checked={allVisibleSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someVisibleSelected;
+                    }}
+                    onChange={toggleSelectAllVisible}
+                    title="Вибрати всі на сторінці"
+                  />
+                </th>
+              )}
               <th className="th-actions" style={{ width: '90px', minWidth: '90px' }} rowSpan={showFilters ? 2 : 1}>
                 <div className="th-content">Дія</div>
               </th>
@@ -757,7 +851,7 @@ const EquipmentList = forwardRef(({
           <tbody>
             {filteredAndSortedEquipment.length === 0 ? (
               <tr>
-                <td colSpan={visibleColumns.length + 1} className="empty-state">
+                <td colSpan={visibleColumns.length + (isAdmin ? 2 : 1)} className="empty-state">
                   Обладнання не знайдено
                 </td>
               </tr>
@@ -768,6 +862,20 @@ const EquipmentList = forwardRef(({
                   onClick={() => handleRowClick(item)}
                   style={{ cursor: 'pointer' }}
                 >
+                  {isAdmin && (
+                    <td className="select-cell" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="eq-select-checkbox"
+                        checked={rowIsFullySelected(item, selectedIds)}
+                        ref={(el) => {
+                          if (el) el.indeterminate = rowIsPartiallySelected(item, selectedIds);
+                        }}
+                        onChange={(e) => toggleRowSelection(item, e)}
+                        title="Вибрати для видалення"
+                      />
+                    </td>
+                  )}
                   <td className="actions-cell" onClick={(e) => e.stopPropagation()}>
                     <div className="action-buttons" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', gap: '4px' }}>
                       {showReserveAction && onReserve && (
@@ -810,7 +918,7 @@ const EquipmentList = forwardRef(({
                           🧪
                         </button>
                       )}
-                      {(user?.role === 'admin' || user?.role === 'administrator') && (
+                      {isAdmin && (
                         <button
                           className="btn-action btn-delete"
                           onClick={(e) => {
@@ -970,6 +1078,44 @@ const EquipmentList = forwardRef(({
             } catch (error) {
               console.error('[DELETE] Помилка запиту:', error);
               throw error;
+            }
+          }}
+        />
+      )}
+
+      {showBulkDeleteModal && isAdmin && selectedIds.size > 0 && (
+        <EquipmentDeleteModal
+          equipment={null}
+          bulkCount={selectedIds.size}
+          onClose={() => setShowBulkDeleteModal(false)}
+          onConfirm={async (reason) => {
+            const token = localStorage.getItem('token');
+            const ids = [...selectedIds];
+            const chunkSize = 500;
+            let deleted = 0;
+            let failed = 0;
+            for (let i = 0; i < ids.length; i += chunkSize) {
+              const chunk = ids.slice(i, i + chunkSize);
+              const response = await fetch(`${API_BASE_URL}/equipment/bulk-delete`, {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ ids: chunk, reason }),
+              });
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok) {
+                throw new Error(data.error || 'Помилка масового видалення');
+              }
+              deleted += data.deleted || 0;
+              failed += data.failed || 0;
+            }
+            setShowBulkDeleteModal(false);
+            clearSelection();
+            refreshEquipment();
+            if (failed > 0) {
+              alert(`Видалено: ${deleted}. Не вдалося: ${failed}.`);
             }
           }}
         />
