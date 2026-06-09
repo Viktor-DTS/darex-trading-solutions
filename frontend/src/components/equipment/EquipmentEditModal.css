@@ -303,6 +303,30 @@
 }
 
 /* Прев’ю фото з карточки продукту (довідник) — перед таблицею характеристик */
+.equipment-edit-modal__product-card-specs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.equipment-edit-modal__product-card-specs-table th,
+.equipment-edit-modal__product-card-specs-table td {
+  padding: 8px 10px;
+  border-top: 1px solid rgba(128, 128, 128, 0.25);
+  text-align: left;
+  vertical-align: top;
+}
+
+.equipment-edit-modal__product-card-specs-table th {
+  width: 42%;
+  font-weight: 600;
+  color: var(--text-secondary, #8b949e);
+}
+
+.equipment-edit-modal__product-card-specs-table td {
+  color: var(--text-primary, #e6edf3);
+}
+
 .equipment-edit-modal__product-card-images {
   display: flex;
   flex-wrap: wrap;

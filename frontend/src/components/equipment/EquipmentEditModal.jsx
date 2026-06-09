@@ -99,6 +99,8 @@ function EquipmentEditModal({
   const [productCardHits, setProductCardHits] = useState([]);
   const [productCardsLoading, setProductCardsLoading] = useState(false);
   const [showCreateProductCard, setShowCreateProductCard] = useState(false);
+  const [equipmentDetail, setEquipmentDetail] = useState(null);
+  const [equipmentDetailLoading, setEquipmentDetailLoading] = useState(false);
   const presetAppliedForIdRef = useRef(null);
   const isNewEquipment = !equipment;
 
@@ -112,6 +114,53 @@ function EquipmentEditModal({
   }, [equipment, warehouses, user?.role]);
 
   const effectiveReadOnly = readOnly || regionalForeignReadOnly;
+
+  useEffect(() => {
+    if (!effectiveReadOnly || !equipment?._id) {
+      setEquipmentDetail(null);
+      setEquipmentDetailLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setEquipmentDetailLoading(true);
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE_URL}/equipment/${equipment._id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setEquipmentDetail(data);
+      } catch (_) {
+        /* ignore */
+      } finally {
+        if (!cancelled) setEquipmentDetailLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveReadOnly, equipment?._id]);
+
+  const linkedProductCard = useMemo(() => {
+    for (const src of [equipmentDetail, equipment].filter(Boolean)) {
+      const p = src.productId;
+      if (p && typeof p === 'object' && (p._id || p.type)) return p;
+    }
+    return null;
+  }, [equipmentDetail, equipment]);
+
+  const productCardSpecsForView = useMemo(() => {
+    const specs = linkedProductCard?.technicalSpecs;
+    if (!Array.isArray(specs)) return [];
+    return specs.filter((s) => String(s?.name || '').trim() || String(s?.value || '').trim());
+  }, [linkedProductCard]);
+
+  const productCardImagesForView = useMemo(
+    () => productCardImageAttachments(linkedProductCard),
+    [linkedProductCard]
+  );
 
   const { units: uomList } = useUnitsOfMeasure();
 
@@ -1236,8 +1285,58 @@ function EquipmentEditModal({
             </div>
           )}
 
-          {/* Технічні характеристики (legacy) — лише при редагуванні існуючої позиції */}
-          {!isNewEquipment && !(equipmentType === 'batch' || equipment?.isBatch) && (
+          {effectiveReadOnly && !isNewEquipment && equipmentDetailLoading && (
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 12px' }}>
+              Завантаження даних карточки продукту…
+            </p>
+          )}
+
+          {effectiveReadOnly && !isNewEquipment && linkedProductCard && productCardSpecsForView.length > 0 && (
+            <div className="form-section">
+              <h3>Технічні характеристики</h3>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 10px' }}>
+                З карточки продукту: <strong>{linkedProductCard.type || '—'}</strong>
+                {linkedProductCard.manufacturer ? ` · ${linkedProductCard.manufacturer}` : ''}
+              </p>
+              <table className="equipment-edit-modal__product-card-specs-table">
+                <tbody>
+                  {productCardSpecsForView.map((s, i) => (
+                    <tr key={`${s.name}-${i}`}>
+                      <th>{s.name || '—'}</th>
+                      <td>{s.value || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {effectiveReadOnly && !isNewEquipment && linkedProductCard && productCardImagesForView.length > 0 && (
+            <div className="form-section">
+              <h3>Фото</h3>
+              <div className="equipment-edit-modal__product-card-images">
+                {productCardImagesForView.map((f, i) => (
+                  <a
+                    key={f.cloudinaryId || `${f.cloudinaryUrl}-${i}`}
+                    href={f.cloudinaryUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="equipment-edit-modal__product-card-image-link"
+                    title={f.originalName || 'Відкрити зображення'}
+                  >
+                    <img
+                      src={f.cloudinaryUrl}
+                      alt={f.originalName || ''}
+                      className="equipment-edit-modal__product-card-image-thumb"
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Технічні характеристики (legacy) — лише при редагуванні складом */}
+          {!effectiveReadOnly && !isNewEquipment && !(equipmentType === 'batch' || equipment?.isBatch) && (
             <div className="form-section">
               <h3>Технічні характеристики</h3>
               <div className="form-grid">
@@ -1333,7 +1432,7 @@ function EquipmentEditModal({
             </div>
           )}
 
-          {!isNewEquipment && (
+          {!effectiveReadOnly && !isNewEquipment && (
             <div className="form-section">
               <h3>Фізичні параметри</h3>
               <div className="form-grid">
@@ -1374,15 +1473,11 @@ function EquipmentEditModal({
             </div>
           )}
 
-          {!isNewEquipment &&
-            (!effectiveReadOnly ||
-              (formData.technicalSpecs || []).some(
-                (r) => String(r.name || '').trim() || String(r.value || '').trim(),
-              )) && (
+          {!effectiveReadOnly && !isNewEquipment && (
               <div className="form-section">
                 <TechnicalSpecsConstructorBlock
                   rows={formData.technicalSpecs}
-                  readOnly={effectiveReadOnly}
+                  readOnly={false}
                   onAddRow={addReceiptSpecRow}
                   onRemoveRow={removeReceiptSpecRow}
                   onUpdateRow={updateReceiptSpecRow}
@@ -1400,7 +1495,10 @@ function EquipmentEditModal({
               />
             </div>
           )}
-          {effectiveReadOnly && equipment?.attachedFiles && equipment.attachedFiles.length > 0 && (
+          {effectiveReadOnly &&
+            !linkedProductCard &&
+            equipment?.attachedFiles &&
+            equipment.attachedFiles.length > 0 && (
             <div className="form-section">
               <h3>Документи та фото ({equipment.attachedFiles.length})</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px', marginTop: '15px' }}>
