@@ -1,6 +1,9 @@
 /**
  * Клієнт до DTS API: логін сервісного користувача + завантаження файлу «Ведомости».
- * Використовує вбудовані fetch/FormData/Blob (Node >= 20).
+ * Використовує fetch/FormData/Blob (Node >= 20).
+ *
+ * Імпорт ~4–5 тис. рядків на Render триває довше 5 хв — вбудований fetch (undici)
+ * обриває з'єднання з «fetch failed». Тому для upload використовуємо Agent з довшим таймаутом.
  */
 const fs = require('fs');
 const path = require('path');
@@ -8,6 +11,23 @@ const path = require('path');
 let cachedToken = null;
 let cachedAt = 0;
 const TOKEN_TTL_MS = 20 * 60 * 60 * 1000; // 20 годин (токен живе 24h)
+const IMPORT_TIMEOUT_MS = 45 * 60 * 1000; // 45 хв — парсинг + тисячі записів у Mongo
+
+let importDispatcher = null;
+function getImportDispatcher() {
+  if (importDispatcher) return importDispatcher;
+  try {
+    const { Agent } = require('undici');
+    importDispatcher = new Agent({
+      connectTimeout: 60_000,
+      headersTimeout: IMPORT_TIMEOUT_MS,
+      bodyTimeout: IMPORT_TIMEOUT_MS,
+    });
+    return importDispatcher;
+  } catch {
+    return null;
+  }
+}
 
 async function login(dts) {
   const now = Date.now();
@@ -36,14 +56,18 @@ async function uploadVedomost(dts, filePath, trigger = 'schedule') {
   const fd = new FormData();
   fd.append('file', new Blob([buf]), path.basename(filePath));
   const q = dts.dryRun ? '?dryRun=1' : '';
-  const r = await fetch(`${dts.apiBaseUrl}/onec/import-vedomost${q}`, {
+  const url = `${dts.apiBaseUrl}/onec/import-vedomost${q}`;
+  const opts = {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'X-OneC-Trigger': trigger,
     },
     body: fd,
-  });
+  };
+  const dispatcher = getImportDispatcher();
+  if (dispatcher) opts.dispatcher = dispatcher;
+  const r = await fetch(url, opts);
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
     // якщо токен протух — скинути кеш і спробувати раз

@@ -11141,78 +11141,219 @@ async function getManagerEquipmentCategoryFilterIds() {
   return Array.from(merged.values());
 }
 
+/** Поля для таблиці залишків — без важких масивів історії/файлів. */
+const EQUIPMENT_LIST_PROJECTION = {
+  type: 1,
+  serialNumber: 1,
+  manufacturer: 1,
+  standbyPower: 1,
+  primePower: 1,
+  phase: 1,
+  voltage: 1,
+  amperage: 1,
+  rpm: 1,
+  dimensions: 1,
+  weight: 1,
+  manufactureDate: 1,
+  materialValueType: 1,
+  categoryId: 1,
+  itemKind: 1,
+  productId: 1,
+  isBatch: 1,
+  quantity: 1,
+  batchId: 1,
+  batchIndex: 1,
+  batchName: 1,
+  batchUnit: 1,
+  currentWarehouse: 1,
+  currentWarehouseName: 1,
+  region: 1,
+  status: 1,
+  reservedBy: 1,
+  reservedByName: 1,
+  reservedByLogin: 1,
+  reservedAt: 1,
+  reservationClientName: 1,
+  reservationNotes: 1,
+  reservationEndDate: 1,
+  reservationBasis: 1,
+  testingStatus: 1,
+  testingDate: 1,
+  isDeleted: 1,
+  addedBy: 1,
+  addedByName: 1,
+  addedAt: 1,
+  lastModified: 1,
+  notes: 1,
+};
+
+const EQUIPMENT_LIST_SORT_FIELDS = new Set([
+  'type',
+  'serialNumber',
+  'manufacturer',
+  'quantity',
+  'currentWarehouseName',
+  'status',
+  'reservationEndDate',
+  'testingDate',
+  'addedAt',
+  'itemKind',
+  'standbyPower',
+  'primePower',
+  'lastModified',
+]);
+
+function equipmentStatusFromUiLabel(label) {
+  const s = String(label || '').trim();
+  if (!s) return null;
+  if (s === 'На складі') return { $in: ['in_stock', 'reserved'] };
+  const map = {
+    'На відвантаженні': 'pending_shipment',
+    'В дорозі': 'in_transit',
+    'Відвантажено': 'shipped',
+    'Списано': 'written_off',
+  };
+  return map[s] || null;
+}
+
+async function buildEquipmentListQuery(req) {
+  const {
+    warehouse,
+    status,
+    region,
+    search,
+    categoryId,
+    itemKind,
+    includeSubtree,
+    managerCategoryContext,
+    warehouseName,
+    statusLabel,
+  } = req.query;
+  const query = {};
+  const includeDeleted = ['1', 'true'].includes(String(req.query.includeDeleted || '').toLowerCase());
+  if (!includeDeleted) {
+    query.isDeleted = { $ne: true };
+    query.status = { $ne: 'deleted' };
+  }
+
+  if (warehouse) {
+    query.currentWarehouse = warehouse;
+  } else {
+    const cwMulti = req.query.currentWarehouses;
+    if (cwMulti != null && String(cwMulti).trim()) {
+      const parts = String(cwMulti)
+        .split(/[,;]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const oids = parts
+        .filter((id) => mongoose.isValidObjectId(id))
+        .map((id) => new mongoose.Types.ObjectId(id));
+      if (oids.length) query.currentWarehouse = { $in: oids };
+    }
+  }
+  if (warehouseName && String(warehouseName).trim()) {
+    query.currentWarehouseName = String(warehouseName).trim();
+  }
+  if (status) query.status = status;
+  if (statusLabel) {
+    const mapped = equipmentStatusFromUiLabel(statusLabel);
+    if (mapped) query.status = mapped;
+  }
+  if (region) query.region = region;
+  if (itemKind && ['equipment', 'parts'].includes(itemKind)) query.itemKind = itemKind;
+
+  const withoutProductCard = ['1', 'true'].includes(String(req.query.withoutProductCard || '').toLowerCase());
+  if (withoutProductCard) {
+    query.$and = (query.$and || []).concat([
+      { $or: [{ productId: null }, { productId: { $exists: false } }] },
+    ]);
+  }
+
+  let subtreeIds = null;
+  if (categoryId) {
+    if (includeSubtree === 'true') {
+      subtreeIds = await getCategoryDescendantIds(categoryId);
+    } else {
+      subtreeIds = [typeof categoryId === 'string' ? new mongoose.Types.ObjectId(categoryId) : categoryId];
+    }
+  }
+
+  const roleLc = (req.user.role || '').toLowerCase();
+  const isManagerStockRole = ['manager', 'mgradm'].includes(roleLc);
+  const managerCtx = ['1', 'true'].includes(String(managerCategoryContext || '').toLowerCase());
+  const applyManagerCategoryFilter = isManagerStockRole || managerCtx;
+
+  let managerAllowedIds = null;
+  if (applyManagerCategoryFilter) {
+    managerAllowedIds = await getManagerEquipmentCategoryFilterIds();
+  }
+
+  if (applyManagerCategoryFilter && managerAllowedIds && managerAllowedIds.length > 0) {
+    const allowedSet = new Set(managerAllowedIds.map((id) => id.toString()));
+    if (subtreeIds) {
+      const filtered = subtreeIds.filter((id) => allowedSet.has(id.toString()));
+      query.categoryId = filtered.length ? { $in: filtered } : { $in: [] };
+    } else {
+      query.categoryId = { $in: managerAllowedIds };
+    }
+  } else if (subtreeIds) {
+    query.categoryId = subtreeIds.length === 1 && includeSubtree !== 'true'
+      ? subtreeIds[0]
+      : { $in: subtreeIds };
+  }
+
+  if (search && String(search).trim()) {
+    const safe = escapeRegexForMongo(String(search).trim());
+    const searchClause = {
+      $or: [
+        { serialNumber: { $regex: safe, $options: 'i' } },
+        { type: { $regex: safe, $options: 'i' } },
+        { manufacturer: { $regex: safe, $options: 'i' } },
+        { currentWarehouseName: { $regex: safe, $options: 'i' } },
+      ],
+    };
+    if (query.$and) query.$and.push(searchClause);
+    else query.$and = [searchClause];
+  }
+
+  return query;
+}
+
 // Отримання списку обладнання
 app.get('/api/equipment', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { warehouse, status, region, search, categoryId, itemKind, includeSubtree, managerCategoryContext } = req.query;
-    const query = { isDeleted: { $ne: true } }; // Виключаємо видалене обладнання (для ефективного індексу)
-    
-    if (warehouse) {
-      query.currentWarehouse = warehouse;
-    } else {
-      const cwMulti = req.query.currentWarehouses;
-      if (cwMulti != null && String(cwMulti).trim()) {
-        const parts = String(cwMulti)
-          .split(/[,;]/)
-          .map((s) => s.trim())
-          .filter(Boolean);
-        const oids = parts
-          .filter((id) => mongoose.isValidObjectId(id))
-          .map((id) => new mongoose.Types.ObjectId(id));
-        if (oids.length) query.currentWarehouse = { $in: oids };
-      }
-    }
-    if (status) query.status = status;
-    if (region) query.region = region;
-    if (itemKind && ['equipment', 'parts'].includes(itemKind)) query.itemKind = itemKind;
+    const query = await buildEquipmentListQuery(req);
 
-    let subtreeIds = null;
-    if (categoryId) {
-      if (includeSubtree === 'true') {
-        subtreeIds = await getCategoryDescendantIds(categoryId);
-      } else {
-        subtreeIds = [typeof categoryId === 'string' ? new mongoose.Types.ObjectId(categoryId) : categoryId];
-      }
-    }
+    const page = Math.max(parseInt(req.query.page, 10) || 0, 0);
+    const limitRaw = parseInt(req.query.limit, 10) || 0;
+    const paginated = page > 0 && limitRaw > 0;
+    const limit = paginated ? Math.min(Math.max(limitRaw, 10), 200) : 0;
 
-    const roleLc = (req.user.role || '').toLowerCase();
-    const isManagerStockRole = ['manager', 'mgradm'].includes(roleLc);
-    const managerCtx = ['1', 'true'].includes(String(managerCategoryContext || '').toLowerCase());
-    const applyManagerCategoryFilter = isManagerStockRole || managerCtx;
+    let sortField = String(req.query.sort || 'type').trim();
+    if (!EQUIPMENT_LIST_SORT_FIELDS.has(sortField)) sortField = 'type';
+    const sortDir = String(req.query.sortDir || 'asc').toLowerCase() === 'desc' ? -1 : 1;
+    const sort = { [sortField]: sortDir };
 
-    let managerAllowedIds = null;
-    if (applyManagerCategoryFilter) {
-      managerAllowedIds = await getManagerEquipmentCategoryFilterIds();
+    const baseQ = Equipment.find(query).select(EQUIPMENT_LIST_PROJECTION).sort(sort).lean();
+
+    if (paginated) {
+      const skip = (page - 1) * limit;
+      const [items, total] = await Promise.all([
+        baseQ.skip(skip).limit(limit),
+        Equipment.countDocuments(query),
+      ]);
+      logPerformance('GET /api/equipment (paged)', startTime, items.length);
+      return res.json({
+        items,
+        total,
+        page,
+        limit,
+        pages: Math.max(Math.ceil(total / limit), 1),
+      });
     }
 
-    if (applyManagerCategoryFilter && managerAllowedIds && managerAllowedIds.length > 0) {
-      const allowedSet = new Set(managerAllowedIds.map((id) => id.toString()));
-      if (subtreeIds) {
-        const filtered = subtreeIds.filter((id) => allowedSet.has(id.toString()));
-        query.categoryId = filtered.length ? { $in: filtered } : { $in: [] };
-      } else {
-        query.categoryId = { $in: managerAllowedIds };
-      }
-    } else if (subtreeIds) {
-      query.categoryId = subtreeIds.length === 1 && includeSubtree !== 'true'
-        ? subtreeIds[0]
-        : { $in: subtreeIds };
-    }
-
-    if (search && String(search).trim()) {
-      const safe = escapeRegexForMongo(String(search).trim());
-      query.$or = [
-        { serialNumber: { $regex: safe, $options: 'i' } },
-        { type: { $regex: safe, $options: 'i' } },
-        { manufacturer: { $regex: safe, $options: 'i' } },
-      ];
-    }
-    
-    const equipment = await Equipment.find(query)
-      .sort({ addedAt: -1 })
-      .lean();
-    
+    const equipment = await baseQ;
     logPerformance('GET /api/equipment', startTime, equipment.length);
     res.json(equipment);
   } catch (error) {

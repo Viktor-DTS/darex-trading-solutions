@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, useImperativeHandle, forwardRef } from 'react';
 import API_BASE_URL from '../../config';
 import { authFetch } from '../../utils/authFetch';
 import {
@@ -53,6 +53,8 @@ function getEquipmentRowForProductCardCheck(item) {
 }
 
 // Визначення всіх колонок
+const PAGE_SIZE = 100;
+
 const ALL_COLUMNS = [
   { key: 'itemKind', label: 'Тип номенклатури', width: 140 },
   { key: 'status', label: 'Статус на складі', width: 140 },
@@ -190,6 +192,10 @@ const EquipmentList = forwardRef(({
   );
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -206,6 +212,7 @@ const EquipmentList = forwardRef(({
   const [showWithoutProductCardOnly, setShowWithoutProductCardOnly] = useState(false);
   /** null — дерево ще не завантажено; Set — id категорій гілки необоротних активів */
   const [fixedAssetsCategoryIds, setFixedAssetsCategoryIds] = useState(null);
+  const initialLoadDone = useRef(false);
 
   // Фільтри колонок
   const [columnFilters, setColumnFilters] = useState(() => {
@@ -217,7 +224,7 @@ const EquipmentList = forwardRef(({
     }
   });
   
-  // Глобальний пошук
+  // Глобальний пошук (на сервері, з debounce)
   const [filter, setFilter] = useState(() => {
     try {
       const savedFilter = localStorage.getItem('equipmentTable_filter');
@@ -226,6 +233,7 @@ const EquipmentList = forwardRef(({
       return '';
     }
   });
+  const [debouncedFilter, setDebouncedFilter] = useState(filter);
 
   // Зберігаємо фільтри в localStorage
   useEffect(() => {
@@ -245,8 +253,101 @@ const EquipmentList = forwardRef(({
   }, [filter]);
 
   useEffect(() => {
-    loadEquipment();
-  }, [categoryId, includeSubtree, managerCategoryContext]);
+    const timer = setTimeout(() => setDebouncedFilter(filter), 400);
+    return () => clearTimeout(timer);
+  }, [filter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    categoryId,
+    includeSubtree,
+    managerCategoryContext,
+    debouncedFilter,
+    showWithoutProductCardOnly,
+    showDeleted,
+    columnFilters.currentWarehouse,
+    columnFilters.status,
+    sortField,
+    sortDirection,
+  ]);
+
+  const buildListQueryParams = useCallback(
+    (pageOverride) => {
+      const params = new URLSearchParams();
+      params.set('page', String(pageOverride ?? currentPage));
+      params.set('limit', String(PAGE_SIZE));
+      params.set('sort', sortField);
+      params.set('sortDir', sortDirection);
+      if (categoryId) {
+        params.set('categoryId', categoryId);
+        if (includeSubtree) params.set('includeSubtree', 'true');
+      }
+      if (managerCategoryContext) params.set('managerCategoryContext', '1');
+      if (debouncedFilter.trim()) params.set('search', debouncedFilter.trim());
+      if (showWithoutProductCardOnly) params.set('withoutProductCard', '1');
+      if (showDeleted) params.set('includeDeleted', '1');
+      const whFilter = columnFilters.currentWarehouse?.trim();
+      if (whFilter) params.set('warehouseName', whFilter);
+      const statusFilter = columnFilters.status?.trim();
+      if (statusFilter) params.set('statusLabel', statusFilter);
+      return params;
+    },
+    [
+      currentPage,
+      sortField,
+      sortDirection,
+      categoryId,
+      includeSubtree,
+      managerCategoryContext,
+      debouncedFilter,
+      showWithoutProductCardOnly,
+      showDeleted,
+      columnFilters.currentWarehouse,
+      columnFilters.status,
+    ]
+  );
+
+  const loadEquipment = useCallback(
+    async (opts = {}) => {
+      const page = opts.page ?? currentPage;
+      if (!initialLoadDone.current) setLoading(true);
+      else setRefreshing(true);
+      try {
+        const token = localStorage.getItem('token');
+        const params = buildListQueryParams(page);
+        const response = await authFetch(`${API_BASE_URL}/equipment?${params}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.status === 401) return;
+
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            setEquipment(data);
+            setTotalItems(data.length);
+            setTotalPages(1);
+          } else {
+            setEquipment(data.items || []);
+            setTotalItems(data.total ?? 0);
+            setTotalPages(data.pages ?? 1);
+          }
+          initialLoadDone.current = true;
+        }
+      } catch (error) {
+        console.error('Помилка завантаження обладнання:', error);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [buildListQueryParams, currentPage]
+  );
+
+  useEffect(() => {
+    loadEquipment({ page: currentPage });
+  }, [currentPage, buildListQueryParams, loadEquipment]);
 
   useEffect(() => {
     if (managerCategoryContext) {
@@ -273,40 +374,29 @@ const EquipmentList = forwardRef(({
     };
   }, [managerCategoryContext]);
 
-  const loadEquipment = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const params = new URLSearchParams();
-      if (categoryId) {
-        params.set('categoryId', categoryId);
-        if (includeSubtree) params.set('includeSubtree', 'true');
-      }
-      if (managerCategoryContext) {
-        params.set('managerCategoryContext', '1');
-      }
-      const url = params.toString() ? `${API_BASE_URL}/equipment?${params}` : `${API_BASE_URL}/equipment`;
-      const response = await authFetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.status === 401) {
-        return;
-      }
-
-      if (response.ok) {
-        const data = await response.json();
-        setEquipment(data);
-      }
-    } catch (error) {
-      console.error('Помилка завантаження обладнання:', error);
-    } finally {
-      setLoading(false);
-    }
+  const refreshEquipment = () => {
+    loadEquipment({ silent: true });
   };
 
-  const refreshEquipment = () => {
-    loadEquipment();
+  const fetchAllEquipmentForExport = async () => {
+    const token = localStorage.getItem('token');
+    const all = [];
+    let page = 1;
+    let pages = 1;
+    do {
+      const params = buildListQueryParams(page);
+      params.set('limit', '200');
+      const response = await authFetch(`${API_BASE_URL}/equipment?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) break;
+      const data = await response.json();
+      if (Array.isArray(data)) return data;
+      all.push(...(data.items || []));
+      pages = data.pages || 1;
+      page += 1;
+    } while (page <= pages);
+    return all;
   };
 
   // Експортуємо метод оновлення через ref
@@ -349,7 +439,11 @@ const EquipmentList = forwardRef(({
 
   const getFilterOptions = (columnKey) => {
     if (columnKey === 'currentWarehouse') {
-      const uniqueWarehouses = [...new Set(equipment.map(eq => eq.currentWarehouseName || eq.currentWarehouse).filter(Boolean))];
+      const fromProp = (warehouses || []).map((w) => w.name).filter(Boolean);
+      const fromPage = equipment.map((eq) => eq.currentWarehouseName || eq.currentWarehouse).filter(Boolean);
+      const uniqueWarehouses = [...new Set([...fromProp, ...fromPage])].sort((a, b) =>
+        String(a).localeCompare(String(b), 'uk')
+      );
       return ['', ...uniqueWarehouses];
     }
     if (columnKey === 'status') {
@@ -377,23 +471,7 @@ const EquipmentList = forwardRef(({
       result = result.filter(item => !item.isDeleted && item.status !== 'deleted');
     }
 
-    // Лише позиції без карточки продукту (надходження без номенклатури тощо)
-    if (showWithoutProductCardOnly) {
-      result = result.filter((item) => !equipmentHasProductCard(getEquipmentRowForProductCardCheck(item)));
-    }
-
-    // Глобальний пошук
-    if (filter.trim()) {
-      const searchLower = filter.toLowerCase();
-      result = result.filter(item => {
-        return Object.values(item).some(value => {
-          if (value == null) return false;
-          return String(value).toLowerCase().includes(searchLower);
-        });
-      });
-    }
-
-    // Фільтри колонок
+    // Фільтри колонок (склад/статус — на сервері; решта — у межах поточної сторінки)
     Object.keys(columnFilters).forEach(key => {
       if (managerCategoryContext && key === 'itemKind') return;
       const filterValue = columnFilters[key];
@@ -421,14 +499,8 @@ const EquipmentList = forwardRef(({
           // Спеціальна обробка для select фільтрів (точне співпадіння)
           if (getFilterType(key) === 'select') {
             result = result.filter(item => {
-              if (key === 'currentWarehouse') {
-                const warehouseName = item.currentWarehouseName || '';
-                const warehouse = item.currentWarehouse || '';
-                return warehouseName === filterValue || warehouse === filterValue;
-              }
-              if (key === 'status') {
-                const statusLabel = getStatusLabel(item.status || '');
-                return statusLabel === filterValue;
+              if (key === 'currentWarehouse' || key === 'status') {
+                return true;
               }
               if (key === 'reservationStatus') {
                 const reservationStatus = getReservationStatusLabel(item);
@@ -453,30 +525,7 @@ const EquipmentList = forwardRef(({
       }
     });
 
-    // Сортування
-    result.sort((a, b) => {
-      const aVal = a[sortField];
-      const bVal = b[sortField];
-
-      if (sortField === 'reservationEndDate' || sortField === 'manufactureDate' || sortField === 'testingDate') {
-        const ta = aVal ? new Date(aVal).getTime() : NaN;
-        const tb = bVal ? new Date(bVal).getTime() : NaN;
-        if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
-        if (Number.isNaN(ta)) return 1;
-        if (Number.isNaN(tb)) return -1;
-        const cmp = ta === tb ? 0 : ta > tb ? 1 : -1;
-        return sortDirection === 'asc' ? cmp : -cmp;
-      }
-
-      if (aVal === bVal) return 0;
-      if (aVal == null) return 1;
-      if (bVal == null) return -1;
-
-      const comparison = aVal > bVal ? 1 : -1;
-      return sortDirection === 'asc' ? comparison : -comparison;
-    });
-
-    // Групування партій за batchId + склад; потім — однакові «на складі» позиції без серійника
+    // Групування партій (у межах поточної сторінки; сортування — на сервері) за batchId + склад; потім — однакові «на складі» позиції без серійника
     const batchGroups = {};
     const noSerialGroups = {};
     const singleItems = [];
@@ -525,12 +574,8 @@ const EquipmentList = forwardRef(({
     return [...Object.values(batchGroups), ...noSerialMergedRows, ...singleItems];
   }, [
     equipment,
-    filter,
     columnFilters,
-    sortField,
-    sortDirection,
     showDeleted,
-    showWithoutProductCardOnly,
     managerCategoryContext,
     fixedAssetsCategoryIds
   ]);
@@ -572,12 +617,19 @@ const EquipmentList = forwardRef(({
     visibleSelectableIds.some((id) => selectedIds.has(id)) && !allVisibleSelected;
 
   const handleSort = (field) => {
+    setCurrentPage(1);
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
       setSortDirection('asc');
     }
+  };
+
+  const goToPage = (page) => {
+    const p = Math.min(Math.max(page, 1), totalPages);
+    setCurrentPage(p);
+    setSelectedIds(new Set());
   };
 
   const formatValue = (value, key) => {
@@ -655,11 +707,20 @@ const EquipmentList = forwardRef(({
   };
 
   const handleExport = async () => {
-    if (equipment.length === 0) {
-      alert('Немає даних для експорту');
-      return;
+    try {
+      setRefreshing(true);
+      const rows = await fetchAllEquipmentForExport();
+      if (!rows.length) {
+        alert('Немає даних для експорту');
+        return;
+      }
+      await exportEquipmentToExcel(rows, 'equipment');
+    } catch (e) {
+      console.error(e);
+      alert('Помилка експорту');
+    } finally {
+      setRefreshing(false);
     }
-    await exportEquipmentToExcel(equipment, 'equipment');
   };
 
   const renderColumnFilter = (col) => {
@@ -788,7 +849,13 @@ const EquipmentList = forwardRef(({
           )}
         </div>
         <div className="toolbar-info">
-          <span>Знайдено: {filteredAndSortedEquipment.length}</span>
+          <span>
+            {refreshing ? 'Оновлення… ' : ''}
+            Всього: {totalItems.toLocaleString('uk-UA')}
+            {totalPages > 1 && ` · стор. ${currentPage}/${totalPages}`}
+            {filteredAndSortedEquipment.length !== equipment.length &&
+              ` · на сторінці після фільтрів: ${filteredAndSortedEquipment.length}`}
+          </span>
         </div>
       </div>
 
@@ -1046,6 +1113,34 @@ const EquipmentList = forwardRef(({
         </table>
         </div>
       </div>
+
+      {totalPages > 1 && (
+        <div className="equipment-pagination">
+          <button
+            type="button"
+            className="eq-page-btn"
+            disabled={currentPage <= 1 || refreshing}
+            onClick={() => goToPage(currentPage - 1)}
+          >
+            ← Попередня
+          </button>
+          <span className="eq-page-info">
+            Сторінка {currentPage} з {totalPages}
+            {' · '}
+            {((currentPage - 1) * PAGE_SIZE + 1).toLocaleString('uk-UA')}–
+            {Math.min(currentPage * PAGE_SIZE, totalItems).toLocaleString('uk-UA')} з{' '}
+            {totalItems.toLocaleString('uk-UA')}
+          </span>
+          <button
+            type="button"
+            className="eq-page-btn"
+            disabled={currentPage >= totalPages || refreshing}
+            onClick={() => goToPage(currentPage + 1)}
+          >
+            Наступна →
+          </button>
+        </div>
+      )}
 
       {/* Модальні вікна */}
       {showDeleteModal && selectedEquipment && (
