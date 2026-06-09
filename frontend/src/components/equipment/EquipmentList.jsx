@@ -72,14 +72,6 @@ const ALL_COLUMNS = [
   { key: 'reservationEndDate', label: 'Кінцева дата резервування', width: 190 },
   { key: 'testingStatus', label: 'Статус тестування', width: 160 },
   { key: 'testingDate', label: 'Дата тестування', width: 140 },
-  { key: 'standbyPower', label: 'Резервна потужність', width: 150 },
-  { key: 'primePower', label: 'Основна потужність', width: 150 },
-  { key: 'phase', label: 'Фази', width: 100 },
-  { key: 'voltage', label: 'Напруга', width: 120 },
-  { key: 'amperage', label: 'Струм (A)', width: 100 },
-  { key: 'rpm', label: 'RPM', width: 100 },
-  { key: 'dimensions', label: 'Розміри (мм)', width: 150 },
-  { key: 'weight', label: 'Вага (кг)', width: 100 },
   { key: 'manufactureDate', label: 'Дата виробництва', width: 150 }
 ];
 
@@ -1121,14 +1113,6 @@ const EquipmentList = forwardRef(({
                   <td>
                     {item.testingDate ? new Date(item.testingDate).toLocaleDateString('uk-UA') : '—'}
                   </td>
-                  <td>{formatValue(item.standbyPower, 'standbyPower')}</td>
-                  <td>{formatValue(item.primePower, 'primePower')}</td>
-                  <td>{formatValue(item.phase, 'phases')}</td>
-                  <td>{formatValue(item.voltage, 'voltage')}</td>
-                  <td>{formatValue(item.amperage, 'current')}</td>
-                  <td>{formatValue(item.rpm, 'rpm')}</td>
-                  <td>{formatValue(item.dimensions, 'dimensions')}</td>
-                  <td>{formatValue(item.weight, 'weight')}</td>
                   <td>{formatValue(item.manufactureDate, 'manufactureDate')}</td>
                 </tr>
               ))
