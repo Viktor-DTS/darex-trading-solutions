@@ -90,9 +90,16 @@
   width: 1296px;
   min-width: 1152px;
   max-width: 1296px;
+  min-height: 0;
+  max-height: calc(92vh - 52px);
   overflow-x: hidden;
   overflow-y: auto;
   box-sizing: border-box;
+}
+
+/* інакше секції стискаються в «смужки» при split-layout */
+.task-form--split-left > * {
+  flex-shrink: 0;
 }
 
 .modal-header {
