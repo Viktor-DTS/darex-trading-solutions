@@ -22,12 +22,40 @@ function requestNumberSearchVariants(requestNumber) {
     variants.add(`${prefix}-${digits}`);
     variants.add(`${prefix}${digits}`);
     const trimmed = digits.replace(/^0+/, '') || digits;
-    if (trimmed.length >= 3) variants.add(trimmed);
-    if (digits.length >= 4) variants.add(digits);
+    // короткі цифри (напр. «101») дають хибні збіги з іншими KV-номерами
+    if (trimmed.length >= 5) variants.add(trimmed);
+    if (digits.length >= 5) variants.add(digits);
   }
-  const longDigits = raw.match(/\d{4,}/g) || [];
+  const longDigits = raw.match(/\d{5,}/g) || [];
   for (const d of longDigits) variants.add(d);
-  return [...variants].filter((v) => v.length >= 3);
+  return [...variants].filter((v) => v.length >= 3 && (!/^\d+$/.test(v) || v.length >= 5));
+}
+
+/** Чи згадується номер заявки в тексті (без часткових збігів по коротких цифрах). */
+function textMatchesRequestNumber(text, requestNumber) {
+  const hay = String(text || '');
+  if (!hay.trim()) return false;
+  const variants = requestNumberSearchVariants(requestNumber);
+  const upper = hay.toUpperCase();
+  for (const v of variants) {
+    if (/^[A-ZА-ЯІЇЄ]{2}[-]?\d+/u.test(v)) {
+      if (upper.includes(v.toUpperCase())) return true;
+      continue;
+    }
+    if (/^\d+$/.test(v)) {
+      const rx = new RegExp(`(?:^|[^0-9])${escapeRegExp(v)}(?:[^0-9]|$)`);
+      if (rx.test(hay)) return true;
+    }
+  }
+  return false;
+}
+
+function movementMatchesRequest(movement, requestNumber) {
+  return (
+    textMatchesRequestNumber(movement?.comment, requestNumber) ||
+    textMatchesRequestNumber(movement?.docNumber, requestNumber) ||
+    textMatchesRequestNumber(movement?.contractor, requestNumber)
+  );
 }
 
 /**
@@ -86,7 +114,8 @@ async function findMovementsForRequest(OneCMovement, requestNumber, opts = {}) {
   const orFilter = buildMovementsOrFilter(requestNumber);
   if (!orFilter) return { items: [], summary: summarizeMovements([]) };
   const limit = Math.min(200, Math.max(1, opts.limit || 80));
-  const items = await OneCMovement.find(orFilter).sort({ docDate: -1, _id: -1 }).limit(limit).lean();
+  const rawItems = await OneCMovement.find(orFilter).sort({ docDate: -1, _id: -1 }).limit(limit * 3).lean();
+  const items = rawItems.filter((m) => movementMatchesRequest(m, requestNumber)).slice(0, limit);
   return { items, summary: summarizeMovements(items) };
 }
 
@@ -110,6 +139,8 @@ async function statusByRequestNumbers(OneCMovement, requestNumbers) {
 module.exports = {
   requestNumberSearchVariants,
   buildMovementsOrFilter,
+  textMatchesRequestNumber,
+  movementMatchesRequest,
   summarizeMovements,
   findMovementsForRequest,
   statusByRequestNumbers,

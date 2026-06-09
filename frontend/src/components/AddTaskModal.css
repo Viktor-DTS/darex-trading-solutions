@@ -53,9 +53,19 @@
   flex-direction: column;
 }
 
+.modal-overlay:has(.modal-content--warehouse-onec) {
+  overflow: auto;
+  align-items: flex-start;
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
 .modal-content--warehouse-onec {
-  max-width: 1680px !important;
-  min-width: 1180px;
+  /* форма лишається 1152–1296px, справа додається панель 1С */
+  max-width: min(1760px, 98vw) !important;
+  min-width: min(1600px, 98vw);
+  width: auto;
+  flex-shrink: 0;
   overflow: hidden;
 }
 
@@ -63,7 +73,9 @@
   display: flex;
   flex: 1;
   min-height: 0;
+  max-height: calc(92vh - 52px);
   overflow: hidden;
+  align-items: stretch;
 }
 
 .modal-body-single {
@@ -74,11 +86,13 @@
 }
 
 .task-form--split-left {
-  flex: 1 1 58%;
-  min-width: 0;
-  max-width: 58%;
+  flex: 0 0 1296px;
+  width: 1296px;
+  min-width: 1152px;
+  max-width: 1296px;
+  overflow-x: hidden;
   overflow-y: auto;
-  border-right: none;
+  box-sizing: border-box;
 }
 
 .modal-header {
@@ -1288,7 +1302,7 @@
     grid-template-columns: 1fr;
   }
   
-  .modal-content {
+  .modal-content:not(.modal-content--warehouse-onec) {
     max-width: 100% !important;
     min-width: auto !important;
     margin: 10px;

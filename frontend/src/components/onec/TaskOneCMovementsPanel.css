@@ -1,7 +1,8 @@
 .task-onec-panel {
-  flex: 0 0 42%;
-  max-width: 42%;
-  min-width: 320px;
+  flex: 0 0 420px;
+  width: 420px;
+  min-width: 360px;
+  max-width: 440px;
   border-left: 1px solid var(--border, rgba(255, 255, 255, 0.12));
   background: var(--surface-elevated, rgba(0, 0, 0, 0.15));
   display: flex;
