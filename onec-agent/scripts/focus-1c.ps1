@@ -86,6 +86,13 @@ if ($needles.Count -gt 0) {
     }
 }
 
+# FindOnly + needles: не підставляти головне вікно 1С замість діалогу «Сохранение»
+if ($FindOnly -and $needles.Count -gt 0) {
+    $preview = ($found | Select-Object -Unique | Select-Object -First 20) -join ';;'
+    Write-Output ('FAIL|' + $preview)
+    exit 1
+}
+
 if ($MainOnly -or $needles.Count -eq 0) {
     $procNames = @('1cv8', '1cv8c', '1cestart')
     $best = $null

@@ -9,8 +9,8 @@ const path = require('path');
 const crypto = require('crypto');
 const { getAgentRoot } = require('./paths');
 
-const DEFAULT_NEEDLES = ['предприятие', 'ведомость', '1с', '1c', 'утп', '1cv8'];
-const SAVE_DIALOG_NEEDLES = ['сохранение', 'сохранить', 'save'];
+const DEFAULT_NEEDLES = ['предприятие', 'ведомость', 'утп', '1cv8'];
+const SAVE_DIALOG_NEEDLES = ['сохранение', 'сохранить', 'збереження', 'зберегти', 'save as', 'save'];
 
 function normalizeForMatch(s) {
   return String(s || '')
@@ -29,10 +29,24 @@ function needlesFromStep(step, automation) {
   return [...new Set([...list, ...DEFAULT_NEEDLES].map(normalizeForMatch))];
 }
 
+function isExcludedWindow(title) {
+  const t = normalizeForMatch(title);
+  return (
+    (t.includes('dts') && t.includes('agent')) ||
+    t.includes('dts 1c agent') ||
+    t.includes('cursor') ||
+    t.includes('powershell')
+  );
+}
+
 function titleMatches(title, needles) {
   const t = normalizeForMatch(title);
-  if (!t.trim()) return false;
+  if (!t.trim() || isExcludedWindow(title)) return false;
   return needles.some((n) => t.includes(n));
+}
+
+function isSaveDialogTitle(title) {
+  return titleMatches(title, SAVE_DIALOG_NEEDLES.map(normalizeForMatch));
 }
 
 function resolveFocusScript() {
@@ -59,6 +73,7 @@ async function focusViaNut(getWindows, needles, log) {
       /* ignore */
     }
     if (title.trim()) found.push(title);
+    if (isExcludedWindow(title)) continue;
     if (titleMatches(title, needles)) {
       await w.focus();
       log(`✓ Сфокусовано (nut.js): ${title}`);
@@ -123,10 +138,19 @@ async function focusWindow(step, automation, getWindows, log) {
     mainOnly: !!(step.mainOnly || step.dialog === 'main'),
   };
 
-  // Діалог «Сохранение»: спочатку PowerShell (nut.js помилково ловить «DTS 1C Agent» через needle «1c»)
+  // Діалог «Сохранение»: лише PowerShell, заголовок має містити «Сохранение»/«Сохранить»
   if (step.dialog === 'save') {
-    const psFirst = focusViaPowerShell(needles, log, psOpts);
-    if (psFirst.ok) return;
+    const psSave = focusViaPowerShell(needles, log, psOpts);
+    if (psSave.ok && isSaveDialogTitle(psSave.title)) return;
+    throw new Error(
+      'Не знайдено діалог «Сохранение». Переконайтесь, що після Ctrl+S відкрилось вікно збереження файлу.'
+    );
+  }
+
+  // Головне вікно 1С: спочатку PowerShell (nut.js ловить «DTS 1C Agent»)
+  if (psOpts.mainOnly) {
+    const psMain = focusViaPowerShell(needles, log, { ...psOpts, mainOnly: true });
+    if (psMain.ok) return;
   }
 
   const nutResult = await focusViaNut(getWindows, needles, log);
@@ -149,9 +173,20 @@ async function focusWindow(step, automation, getWindows, log) {
 }
 
 function findSaveDialog(log) {
-  const needles = SAVE_DIALOG_NEEDLES;
+  const needles = SAVE_DIALOG_NEEDLES.map(normalizeForMatch);
   const r = focusViaPowerShell(needles, log || (() => {}), { preferShort: true, findOnly: true });
-  return r.ok ? r : { ok: false };
+  if (!r.ok || !r.title || !isSaveDialogTitle(r.title)) {
+    return { ok: false };
+  }
+  return r;
 }
 
-module.exports = { focusWindow, findSaveDialog, normalizeForMatch, needlesFromStep, SAVE_DIALOG_NEEDLES };
+module.exports = {
+  focusWindow,
+  findSaveDialog,
+  normalizeForMatch,
+  needlesFromStep,
+  isSaveDialogTitle,
+  isExcludedWindow,
+  SAVE_DIALOG_NEEDLES,
+};

@@ -196,7 +196,7 @@ async function runSteps(automation, ctx, log) {
           const minWaitMs = step.minWaitMs ?? automation.formWaitMs ?? 30000;
           const maxAttempts = step.maxAttempts ?? automation.saveRetry?.maxAttempts ?? 15;
           const intervalMs = step.intervalMs ?? automation.saveRetry?.intervalMs ?? 5000;
-          const dialogWaitMs = step.dialogWaitMs ?? 2500;
+          const dialogWaitMs = step.dialogWaitMs ?? 4000;
 
           log(`Очікування формування звіту: ${Math.round(minWaitMs / 1000)} с перед першою спробою збереження…`);
           await new Promise((r) => setTimeout(r, minWaitMs));
