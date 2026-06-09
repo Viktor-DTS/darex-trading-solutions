@@ -6,6 +6,7 @@ import FileUpload from './FileUpload';
 import InvoiceRequestBlock from './InvoiceRequestBlock';
 import ClientDataSelectionModal from './ClientDataSelectionModal';
 import EquipmentDataSelectionModal from './EquipmentDataSelectionModal';
+import TaskOneCMovementsPanel from './onec/TaskOneCMovementsPanel';
 import './AddTaskModal.css';
 
 const normalizeEdrpou = (s) => (s || '').toString().trim().toLowerCase();
@@ -2009,10 +2010,15 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   // Визначаємо чи потрібно блокувати всі поля крім debtStatus
   const isApprovedTask = formData.approvedByAccountant === 'Підтверджено' || formData.approvedByAccountant === true;
   const isDebtOnlyMode = debtOnly && isApprovedTask;
+  const showOnecPanel =
+    panelType === 'warehouse' && !isNewTask && String(formData.requestNumber || initialData?.requestNumber || '').trim();
   
   return (
     <div className="modal-overlay" style={overlayStyle} onClick={onClose}>
-      <div className={`modal-content ${isDebtOnlyMode ? 'debt-only-mode' : ''} ${isReadOnly ? 'read-only-mode' : ''} ${isAccountantMode ? 'accountant-mode' : ''}`} onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`modal-content ${isDebtOnlyMode ? 'debt-only-mode' : ''} ${isReadOnly ? 'read-only-mode' : ''} ${isAccountantMode ? 'accountant-mode' : ''} ${showOnecPanel ? 'modal-content--warehouse-onec' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h2>
             {isNewTask ? 'Додати нову заявку' : isReadOnly ? 'Перегляд заявки' : 'Редагувати заявку'}
@@ -2022,7 +2028,8 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
 
-        <form onSubmit={handleSubmit} className="task-form">
+        <div className={showOnecPanel ? 'modal-body-split' : 'modal-body-single'}>
+        <form onSubmit={handleSubmit} className={`task-form ${showOnecPanel ? 'task-form--split-left' : ''}`}>
           {error && (
             <div className="form-error">
               {error}
@@ -3356,6 +3363,10 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
             )}
           </div>
         </form>
+        {showOnecPanel ? (
+          <TaskOneCMovementsPanel requestNumber={formData.requestNumber || initialData?.requestNumber} />
+        ) : null}
+        </div>
       </div>
       
       {/* Модальне вікно автозаповнення даних клієнта */}

@@ -1,0 +1,34 @@
+.inventory-onec-stub {
+  padding: 24px 20px;
+  max-width: 720px;
+}
+
+.inventory-onec-stub-card {
+  background: var(--surface-elevated, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  padding: 28px 32px;
+}
+
+.inventory-onec-stub-icon {
+  font-size: 2.5rem;
+  margin-bottom: 12px;
+}
+
+.inventory-onec-stub h2 {
+  margin: 0 0 14px;
+  font-size: 1.35rem;
+}
+
+.inventory-onec-stub-lead {
+  font-size: 1rem;
+  line-height: 1.55;
+  margin: 0 0 14px;
+}
+
+.inventory-onec-stub p {
+  margin: 0;
+  line-height: 1.5;
+  opacity: 0.88;
+  font-size: 0.95rem;
+}

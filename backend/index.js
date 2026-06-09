@@ -10974,7 +10974,7 @@ app.get('/api/onec/movements', async (req, res) => {
     if (req.query.warehouseId) filter.warehouseId = req.query.warehouseId;
     if (req.query.search) {
       const rx = new RegExp(escapeRegExpForRegion(String(req.query.search)), 'i');
-      filter.$or = [{ nomenclature: rx }, { docNumber: rx }, { contractor: rx }];
+      filter.$or = [{ nomenclature: rx }, { docNumber: rx }, { contractor: rx }, { comment: rx }];
     }
     if (req.query.from || req.query.to) {
       filter.docDate = {};
@@ -10990,6 +10990,44 @@ app.get('/api/onec/movements', async (req, res) => {
     res.json({ items, total, limit, skip });
   } catch (error) {
     console.error('[ERROR] GET /api/onec/movements:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+const {
+  findMovementsForRequest,
+  statusByRequestNumbers,
+} = require('./lib/onecTaskMovements');
+
+// Рух 1С за номером сервісної заявки (KV-… у коментарі/документі)
+app.get('/api/onec/movements/for-request', async (req, res) => {
+  try {
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const requestNumber = String(req.query.requestNumber || '').trim();
+    if (!requestNumber) {
+      return res.status(400).json({ error: 'Потрібен параметр requestNumber' });
+    }
+    const limit = parseInt(req.query.limit, 10) || 80;
+    const out = await findMovementsForRequest(OneCMovement, requestNumber, { limit });
+    res.json(out);
+  } catch (error) {
+    console.error('[ERROR] GET /api/onec/movements/for-request:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/onec/movements/status-by-requests', async (req, res) => {
+  try {
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const numbers = Array.isArray(req.body?.requestNumbers) ? req.body.requestNumbers : [];
+    const statuses = await statusByRequestNumbers(OneCMovement, numbers);
+    res.json({ statuses });
+  } catch (error) {
+    console.error('[ERROR] POST /api/onec/movements/status-by-requests:', error);
     res.status(500).json({ error: error.message });
   }
 });

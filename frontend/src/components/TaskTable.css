@@ -383,6 +383,29 @@
   align-items: center;
 }
 
+.onec-writeoff-badge {
+  width: 100%;
+  max-width: 158px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.onec-writeoff-badge--ok {
+  background: rgba(46, 160, 67, 0.22);
+  border: 1px solid rgba(46, 160, 67, 0.5);
+  color: #3fb950;
+}
+
+.onec-writeoff-badge--missing {
+  background: rgba(248, 81, 73, 0.12);
+  border: 1px solid rgba(248, 81, 73, 0.35);
+  color: #f85149;
+}
+
 .btn-work-order {
   padding: 4px 8px;
   background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);

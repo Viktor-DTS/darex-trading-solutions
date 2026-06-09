@@ -277,6 +277,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [onecStatusByRequest, setOnecStatusByRequest] = useState({});
   const [sortField, setSortField] = useState('requestDate');
   const [sortDirection, setSortDirection] = useState('desc');
   
@@ -673,6 +674,39 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
     }
     return () => abortControllerRef.current?.abort();
   }, [user, status, showRejectedApprovals, showRejectedInvoices, showAllInvoices, onTasksLoaded, enablePagination, page, debouncedFilter, debouncedColumnFilters, sortField, sortDirection, refreshTrigger]);
+
+  useEffect(() => {
+    if (columnsArea !== 'warehouse') {
+      setOnecStatusByRequest({});
+      return;
+    }
+    const numbers = [...new Set(tasks.map((t) => String(t.requestNumber || '').trim()).filter(Boolean))];
+    if (!numbers.length) {
+      setOnecStatusByRequest({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const r = await fetch(`${API_BASE_URL}/onec/movements/status-by-requests`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ requestNumbers: numbers }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!cancelled && r.ok && data.statuses) setOnecStatusByRequest(data.statuses);
+      } catch (_) {
+        if (!cancelled) setOnecStatusByRequest({});
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tasks, columnsArea]);
 
   // Відсортовані та відфільтровані завдання
   // Для оператора з пагінацією: сервер вже відфільтрував і відсортував — використовуємо tasks як є
@@ -1423,6 +1457,25 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                   >
                     {/* Комірка Дії - перша */}
                     <td className="actions-cell">
+                      {columnsArea === 'warehouse' && task.requestNumber && (() => {
+                        const st = onecStatusByRequest[task.requestNumber];
+                        if (!st) return null;
+                        if (st.hasWriteoff) {
+                          return (
+                            <div className="onec-writeoff-badge onec-writeoff-badge--ok" title="Знайдено списання в 1С за цим номером заявки">
+                              ✓ Списано в 1С
+                            </div>
+                          );
+                        }
+                        if (showApproveButtons && task.approvedByWarehouse !== 'Підтверджено') {
+                          return (
+                            <div className="onec-writeoff-badge onec-writeoff-badge--missing" title="Списання в 1С за номером заявки не знайдено">
+                              Немає списання в 1С
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                       {/* Інформація про рахунок для панелей: бух.рахунки, сервісна служба, оператор, зав.склад, бух на затвердженні, регіональний керівник */}
                       {(status === 'accountantInvoiceRequests' || 
                         columnsArea === 'service' || 

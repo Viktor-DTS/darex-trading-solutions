@@ -53,6 +53,34 @@
   flex-direction: column;
 }
 
+.modal-content--warehouse-onec {
+  max-width: 1680px !important;
+  min-width: 1180px;
+  overflow: hidden;
+}
+
+.modal-body-split {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.modal-body-single {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.task-form--split-left {
+  flex: 1 1 58%;
+  min-width: 0;
+  max-width: 58%;
+  overflow-y: auto;
+  border-right: none;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;

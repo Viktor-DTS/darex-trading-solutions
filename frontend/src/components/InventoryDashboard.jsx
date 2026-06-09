@@ -9,12 +9,11 @@ import EquipmentMoveModal from './equipment/EquipmentMoveModal';
 import EquipmentShipModal from './equipment/EquipmentShipModal';
 import EquipmentWriteOffModal from './equipment/EquipmentWriteOffModal';
 import EquipmentStatistics from './equipment/EquipmentStatistics';
-import ReceiptProductCardsTab from './inventory/ReceiptProductCardsTab';
-import InventoryDocuments from './inventory/InventoryDocuments';
 import Reservations from './inventory/Reservations';
 import InventoryReports from './inventory/InventoryReports';
 import InventoryMovementJournal from './inventory/InventoryMovementJournal';
 import OneCReconciliation from './inventory/OneCReconciliation';
+import InventoryOneCStub from './inventory/InventoryOneCStub';
 import ReceiptApproval from './inventory/ReceiptApproval';
 import ManagerNotificationsTab from './manager/ManagerNotificationsTab';
 import './InventoryDashboard.css';
@@ -37,6 +36,9 @@ const INVENTORY_TAB_IDS = new Set([
   'reports',
   'statistics',
 ]);
+
+/** Вкладки, де рух оформлюється в 1С — показуємо заглушку замість форм DTS. */
+const INVENTORY_ONEC_STUB_TABS = new Set(['receipt', 'movement', 'shipment', 'write-off', 'inventory']);
 
 function readStoredInventoryTab() {
   try {
@@ -179,7 +181,7 @@ function InventoryDashboard({ user }) {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'shipment') loadPendingShipRequests();
+    if (activeTab === 'shipment' && !INVENTORY_ONEC_STUB_TABS.has('shipment')) loadPendingShipRequests();
   }, [activeTab, loadPendingShipRequests]);
 
   const openShipmentFromNotification = useCallback((n) => {
@@ -234,33 +236,10 @@ function InventoryDashboard({ user }) {
     { id: 'statistics', label: 'Статистика', icon: '📈' },
   ];
 
-  // Автоматичне відкриття модальних вікон лише при *переході* на вкладку (не після закриття модалки, поки залишились на тій самій вкладці)
+  // Раніше: автовідкриття модалок переміщення/списання. Тимчасово вимкнено — рух в 1С.
   useEffect(() => {
-    const prevTab = prevActiveTabRef.current;
     prevActiveTabRef.current = activeTab;
-
-    if (
-      activeTab === 'movement' &&
-      prevTab !== 'movement' &&
-      !showMoveModal &&
-      !showAddModal &&
-      !showShipModal &&
-      !showWriteOffModal
-    ) {
-      setSelectedEquipment(null);
-      setShowMoveModal(true);
-    } else if (
-      activeTab === 'write-off' &&
-      prevTab !== 'write-off' &&
-      !showWriteOffModal &&
-      !showAddModal &&
-      !showMoveModal &&
-      !showShipModal
-    ) {
-      setSelectedEquipment(null);
-      setShowWriteOffModal(true);
-    }
-  }, [activeTab, showAddModal, showMoveModal, showShipModal, showWriteOffModal]);
+  }, [activeTab]);
 
   const handleEquipmentAdded = () => {
     setShowAddModal(false);
@@ -329,110 +308,13 @@ function InventoryDashboard({ user }) {
         );
 
       case 'receipt':
-        return (
-          <ReceiptProductCardsTab
-            user={user}
-            warehouses={warehouses}
-            onOpenReceiptWithCard={(card) => {
-              setReceiptPresetProductCard(card);
-              setReceiptAddModalKey((k) => k + 1);
-              setShowAddModal(true);
-            }}
-            onOpenReceiptWithoutCard={() => {
-              setReceiptPresetProductCard(null);
-              setReceiptAddModalKey((k) => k + 1);
-              setShowAddModal(true);
-            }}
-          />
-        );
+        return <InventoryOneCStub title="Надходження" icon="📥" />;
 
       case 'movement':
-        return (
-          <div className="inventory-tab-content">
-            <div className="inventory-header">
-              <h2>Переміщення між складами</h2>
-              <p className="inventory-description">
-                Переміщення обладнання між складами
-              </p>
-            </div>
-            <div className="documents-placeholder">
-              <p>Використовуйте модальне вікно для переміщення обладнання</p>
-            </div>
-          </div>
-        );
+        return <InventoryOneCStub title="Переміщення" icon="🔄" />;
 
       case 'shipment':
-        return (
-          <div className="inventory-tab-content">
-            <div className="inventory-header">
-              <h2>Відвантаження замовникам</h2>
-              <p className="inventory-description">
-                Запити від менеджерів на відвантаження та ручне відвантаження зі складу
-              </p>
-              <button
-                type="button"
-                className="btn-primary"
-                style={{ marginTop: 12 }}
-                onClick={() => {
-                  setShipModalFromRequestId(null);
-                  setSelectedEquipment(null);
-                  setShowShipModal(true);
-                }}
-              >
-                Ручне відвантаження
-              </button>
-            </div>
-            <div className="inventory-shipment-requests-block" style={{ marginTop: 24 }}>
-              <h3 style={{ marginBottom: 12 }}>Запити на відвантаження від менеджерів</h3>
-              {shipRequestsLoading ? (
-                <div className="loading-indicator">Завантаження…</div>
-              ) : pendingShipRequests.length === 0 ? (
-                <p className="inventory-description">Немає активних запитів у статусі «Очікує».</p>
-              ) : (
-                <ul className="inventory-shipment-request-list" style={{ listStyle: 'none', padding: 0 }}>
-                  {pendingShipRequests.map((r) => (
-                    <li
-                      key={r._id}
-                      style={{
-                        border: '1px solid var(--border-color, #ddd)',
-                        borderRadius: 8,
-                        padding: 12,
-                        marginBottom: 10,
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        alignItems: 'center',
-                        gap: 12,
-                        justifyContent: 'space-between'
-                      }}
-                    >
-                      <div>
-                        <strong>{r.requestNumber}</strong>
-                        <span style={{ marginLeft: 8, color: 'var(--text-secondary)' }}>{r.clientName || '—'}</span>
-                        <div style={{ fontSize: 13, marginTop: 6, color: 'var(--text-secondary)' }}>
-                          {r.plannedShipmentDate
-                            ? new Date(r.plannedShipmentDate).toLocaleDateString('uk-UA')
-                            : ''}{' '}
-                          · {r.managerName || r.managerLogin || ''}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={() => {
-                          setShipModalFromRequestId(String(r._id));
-                          setSelectedEquipment(null);
-                          setShowShipModal(true);
-                        }}
-                      >
-                        Оформити відвантаження
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        );
+        return <InventoryOneCStub title="Відвантаження" icon="🚚" />;
 
       case 'notifications':
         return (
@@ -449,19 +331,7 @@ function InventoryDashboard({ user }) {
         );
 
       case 'write-off':
-        return (
-          <div className="inventory-tab-content">
-            <div className="inventory-header">
-              <h2>Списання обладнання</h2>
-              <p className="inventory-description">
-                Списання обладнання зі складу
-              </p>
-            </div>
-            <div className="documents-placeholder">
-              <p>Використовуйте модальне вікно для списання обладнання</p>
-            </div>
-          </div>
-        );
+        return <InventoryOneCStub title="Списання" icon="📝" />;
 
       case 'approval':
         return (
@@ -475,7 +345,7 @@ function InventoryDashboard({ user }) {
         );
 
       case 'inventory':
-        return <InventoryDocuments warehouses={warehouses} />;
+        return <InventoryOneCStub title="Інвентаризація" icon="📋" />;
 
       case 'reservations':
         return <Reservations warehouses={warehouses} user={user} />;
