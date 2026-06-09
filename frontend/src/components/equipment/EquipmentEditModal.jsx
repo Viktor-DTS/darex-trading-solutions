@@ -116,7 +116,7 @@ function EquipmentEditModal({
   const effectiveReadOnly = readOnly || regionalForeignReadOnly;
 
   useEffect(() => {
-    if (!effectiveReadOnly || !equipment?._id) {
+    if (isNewEquipment || !equipment?._id) {
       setEquipmentDetail(null);
       setEquipmentDetailLoading(false);
       return;
@@ -141,7 +141,7 @@ function EquipmentEditModal({
     return () => {
       cancelled = true;
     };
-  }, [effectiveReadOnly, equipment?._id]);
+  }, [isNewEquipment, equipment?._id]);
 
   const linkedProductCard = useMemo(() => {
     for (const src of [equipmentDetail, equipment].filter(Boolean)) {
@@ -1221,56 +1221,58 @@ function EquipmentEditModal({
             </div>
           </div>
 
-          {/* Кількісна характеристика - відображається для обох типів */}
-          <div className="form-section">
-            <h3>Кількісна характеристика</h3>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Одиниця виміру <span className="required">*</span></label>
-                <select
-                  name="batchUnit"
-                  value={batchUnitSelectValue}
-                  onChange={handleChange}
-                  required
-                  disabled={effectiveReadOnly}
-                >
-                  <option value="">Виберіть одиницю виміру</option>
-                  {batchUnitOptions.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Ціна закупки в грн. з ПДВ</label>
-                <input
-                  type="number"
-                  name="batchPriceWithVAT"
-                  value={formData.batchPriceWithVAT}
-                  onChange={handleChange}
-                  placeholder="0.00"
-                  step="0.01"
-                  min="0"
-                  readOnly={effectiveReadOnly}
-                  disabled={effectiveReadOnly}
-                />
-              </div>
-              <div className="form-group">
-                <label>Тип валюти</label>
-                <select
-                  name="currency"
-                  value={formData.currency || 'грн.'}
-                  onChange={handleChange}
-                  disabled={effectiveReadOnly}
-                >
-                  <option value="грн.">грн.</option>
-                  <option value="USD">USD</option>
-                  <option value="EURO">EURO</option>
-                </select>
+          {/* Кількісна характеристика — лише при надходженні (нова позиція) */}
+          {isNewEquipment && (
+            <div className="form-section">
+              <h3>Кількісна характеристика</h3>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Одиниця виміру <span className="required">*</span></label>
+                  <select
+                    name="batchUnit"
+                    value={batchUnitSelectValue}
+                    onChange={handleChange}
+                    required
+                    disabled={effectiveReadOnly}
+                  >
+                    <option value="">Виберіть одиницю виміру</option>
+                    {batchUnitOptions.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Ціна закупки в грн. з ПДВ</label>
+                  <input
+                    type="number"
+                    name="batchPriceWithVAT"
+                    value={formData.batchPriceWithVAT}
+                    onChange={handleChange}
+                    placeholder="0.00"
+                    step="0.01"
+                    min="0"
+                    readOnly={effectiveReadOnly}
+                    disabled={effectiveReadOnly}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Тип валюти</label>
+                  <select
+                    name="currency"
+                    value={formData.currency || 'грн.'}
+                    onChange={handleChange}
+                    disabled={effectiveReadOnly}
+                  >
+                    <option value="грн.">грн.</option>
+                    <option value="USD">USD</option>
+                    <option value="EURO">EURO</option>
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {isNewEquipment && !effectiveReadOnly && (
             <div className="form-section">
@@ -1285,13 +1287,13 @@ function EquipmentEditModal({
             </div>
           )}
 
-          {effectiveReadOnly && !isNewEquipment && equipmentDetailLoading && (
+          {!isNewEquipment && equipmentDetailLoading && (
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 12px' }}>
               Завантаження даних карточки продукту…
             </p>
           )}
 
-          {effectiveReadOnly && !isNewEquipment && linkedProductCard && productCardSpecsForView.length > 0 && (
+          {!isNewEquipment && linkedProductCard && productCardSpecsForView.length > 0 && (
             <div className="form-section">
               <h3>Технічні характеристики</h3>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 10px' }}>
@@ -1311,7 +1313,7 @@ function EquipmentEditModal({
             </div>
           )}
 
-          {effectiveReadOnly && !isNewEquipment && linkedProductCard && productCardImagesForView.length > 0 && (
+          {!isNewEquipment && linkedProductCard && productCardImagesForView.length > 0 && (
             <div className="form-section">
               <h3>Фото</h3>
               <div className="equipment-edit-modal__product-card-images">
@@ -1335,144 +1337,6 @@ function EquipmentEditModal({
             </div>
           )}
 
-          {/* Технічні характеристики (legacy) — лише при редагуванні складом */}
-          {!effectiveReadOnly && !isNewEquipment && !(equipmentType === 'batch' || equipment?.isBatch) && (
-            <div className="form-section">
-              <h3>Технічні характеристики</h3>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label>Резервна потужність</label>
-                  <input
-                    type="text"
-                    name="standbyPower"
-                    value={formData.standbyPower}
-                    onChange={handleChange}
-                    readOnly={effectiveReadOnly}
-                    disabled={effectiveReadOnly}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Основна потужність</label>
-                  <input
-                    type="text"
-                    name="primePower"
-                    value={formData.primePower}
-                    onChange={handleChange}
-                    readOnly={effectiveReadOnly}
-                    disabled={effectiveReadOnly}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Фази</label>
-                  <input
-                    type="text"
-                    name="phase"
-                    value={formData.phase}
-                    onChange={handleChange}
-                    readOnly={effectiveReadOnly}
-                    disabled={effectiveReadOnly}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Напруга</label>
-                  <input
-                    type="text"
-                    name="voltage"
-                    value={formData.voltage}
-                    onChange={handleChange}
-                    readOnly={effectiveReadOnly}
-                    disabled={effectiveReadOnly}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Струм (A)</label>
-                  <input
-                    type="text"
-                    name="amperage"
-                    value={formData.amperage}
-                    onChange={handleChange}
-                    readOnly={effectiveReadOnly}
-                    disabled={effectiveReadOnly}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Cos φ</label>
-                  <input
-                    type="text"
-                    name="cosPhi"
-                    value={formData.cosPhi}
-                    onChange={handleChange}
-                    readOnly={effectiveReadOnly}
-                    disabled={effectiveReadOnly}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Частота (Гц)</label>
-                  <input
-                    type="text"
-                    name="frequency"
-                    value={formData.frequency}
-                    onChange={handleChange}
-                    readOnly={effectiveReadOnly}
-                    disabled={effectiveReadOnly}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>RPM</label>
-                  <input
-                    type="text"
-                    name="rpm"
-                    value={formData.rpm}
-                    onChange={handleChange}
-                    readOnly={effectiveReadOnly}
-                    disabled={effectiveReadOnly}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {!effectiveReadOnly && !isNewEquipment && (
-            <div className="form-section">
-              <h3>Фізичні параметри</h3>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label>Розміри (мм)</label>
-                  <input
-                    type="text"
-                    name="dimensions"
-                    value={formData.dimensions}
-                    onChange={handleChange}
-                    readOnly={effectiveReadOnly}
-                    disabled={effectiveReadOnly}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Вага (кг)</label>
-                  <input
-                    type="text"
-                    name="weight"
-                    value={formData.weight}
-                    onChange={handleChange}
-                    readOnly={effectiveReadOnly}
-                    disabled={effectiveReadOnly}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Дата виробництва</label>
-                  <input
-                    type="date"
-                    name="manufactureDate"
-                    value={formData.manufactureDate}
-                    onChange={handleChange}
-                    readOnly={effectiveReadOnly}
-                    disabled={effectiveReadOnly}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
           {!effectiveReadOnly && !isNewEquipment && (
               <div className="form-section">
                 <TechnicalSpecsConstructorBlock
@@ -1481,7 +1345,7 @@ function EquipmentEditModal({
                   onAddRow={addReceiptSpecRow}
                   onRemoveRow={removeReceiptSpecRow}
                   onUpdateRow={updateReceiptSpecRow}
-                  hint="Довільні пари «назва — значення» поруч із класичними полями вище. «Сканувати шильдик» також додає рядки сюди. Порожні рядки при збереженні відкидаються."
+                  hint="Додаткові характеристики саме цієї одиниці на складі (окремо від карточки продукту). «Сканувати шильдик» також додає рядки сюди."
                 />
               </div>
             )}
