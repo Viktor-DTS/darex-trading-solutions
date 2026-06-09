@@ -11216,6 +11216,169 @@ function equipmentStatusFromUiLabel(label) {
   return map[s] || null;
 }
 
+function pushEquipmentQueryAnd(query, clause) {
+  query.$and = (query.$and || []).concat([clause]);
+}
+
+const EQUIPMENT_COLUMN_TEXT_FIELDS = new Set([
+  'manufacturer',
+  'type',
+  'serialNumber',
+  'reservationClientName',
+  'reservedByName',
+  'standbyPower',
+  'primePower',
+  'phase',
+  'voltage',
+  'amperage',
+  'rpm',
+  'dimensions',
+  'weight',
+  'manufactureDate',
+  'testingStatus',
+  'testingNotes',
+  'notes',
+]);
+
+function parseColumnFiltersQuery(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+  try {
+    const parsed = JSON.parse(String(raw));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function applyEquipmentColumnFilters(query, columnFilters, opts = {}) {
+  const cf = columnFilters || {};
+  const fixedAssetsCategoryIds = opts.fixedAssetsCategoryIds || [];
+
+  for (const [key, raw] of Object.entries(cf)) {
+    const filterValue = String(raw ?? '').trim();
+    if (!filterValue || filterValue === 'Всі') continue;
+
+    if (key.endsWith('From')) {
+      const baseKey = key.replace('From', '');
+      const fromDate = new Date(filterValue);
+      if (!Number.isNaN(fromDate.getTime())) {
+        pushEquipmentQueryAnd(query, { [baseKey]: { $gte: fromDate } });
+      }
+      continue;
+    }
+    if (key.endsWith('To')) {
+      const baseKey = key.replace('To', '');
+      const toDate = new Date(filterValue);
+      if (!Number.isNaN(toDate.getTime())) {
+        toDate.setHours(23, 59, 59, 999);
+        pushEquipmentQueryAnd(query, { [baseKey]: { $lte: toDate } });
+      }
+      continue;
+    }
+
+    if (key === 'currentWarehouse') {
+      pushEquipmentQueryAnd(query, {
+        $or: [
+          { currentWarehouseName: filterValue },
+          { currentWarehouse: filterValue },
+        ],
+      });
+      continue;
+    }
+
+    if (key === 'status') {
+      const mapped = equipmentStatusFromUiLabel(filterValue);
+      if (mapped) query.status = mapped;
+      continue;
+    }
+
+    if (key === 'reservationStatus') {
+      if (filterValue === 'Зарезервовано') {
+        pushEquipmentQueryAnd(query, {
+          $or: [
+            { status: 'reserved' },
+            { reservedByName: { $exists: true, $nin: [null, ''] } },
+            { reservationClientName: { $exists: true, $nin: [null, ''] } },
+          ],
+        });
+      } else if (filterValue === 'Вільна') {
+        pushEquipmentQueryAnd(query, {
+          status: { $ne: 'reserved' },
+          $and: [
+            {
+              $or: [
+                { reservedByName: { $exists: false } },
+                { reservedByName: null },
+                { reservedByName: '' },
+              ],
+            },
+            {
+              $or: [
+                { reservationClientName: { $exists: false } },
+                { reservationClientName: null },
+                { reservationClientName: '' },
+              ],
+            },
+          ],
+        });
+      }
+      continue;
+    }
+
+    if (key === 'itemKind') {
+      if (filterValue === 'Товари') {
+        pushEquipmentQueryAnd(query, {
+          $or: [{ itemKind: 'equipment' }, { itemKind: { $exists: false } }, { itemKind: null }],
+        });
+      } else if (filterValue === 'Деталі') {
+        query.itemKind = 'parts';
+      } else if (
+        (filterValue.includes('Необоротні активи') || filterValue.includes('офісно-складське')) &&
+        fixedAssetsCategoryIds.length
+      ) {
+        query.categoryId = { $in: fixedAssetsCategoryIds };
+      }
+      continue;
+    }
+
+    if (key === 'quantity') {
+      const n = Number(filterValue.replace(/\s/g, '').replace(',', '.'));
+      if (Number.isFinite(n)) {
+        pushEquipmentQueryAnd(query, { quantity: n });
+      } else {
+        const safe = escapeRegexForMongo(filterValue);
+        pushEquipmentQueryAnd(query, {
+          $expr: {
+            $regexMatch: { input: { $toString: '$quantity' }, regex: safe, options: 'i' },
+          },
+        });
+      }
+      continue;
+    }
+
+    if (EQUIPMENT_COLUMN_TEXT_FIELDS.has(key)) {
+      const safe = escapeRegexForMongo(filterValue);
+      pushEquipmentQueryAnd(query, { [key]: { $regex: safe, $options: 'i' } });
+    }
+  }
+}
+
+async function getFixedAssetsCategoryIdsFromDb() {
+  const seeds = await Category.find({
+    name: { $regex: /Необоротні активи|офісно-складське/i },
+  })
+    .select('_id')
+    .lean();
+  if (!seeds.length) return [];
+  const merged = new Map();
+  for (const s of seeds) {
+    const desc = await getCategoryDescendantIds(s._id);
+    desc.forEach((d) => merged.set(d.toString(), d));
+  }
+  return Array.from(merged.values());
+}
+
 async function buildEquipmentListQuery(req) {
   const {
     warehouse,
@@ -11228,6 +11391,7 @@ async function buildEquipmentListQuery(req) {
     managerCategoryContext,
     warehouseName,
     statusLabel,
+    columnFilters: columnFiltersRaw,
   } = req.query;
   const query = {};
   const includeDeleted = ['1', 'true'].includes(String(req.query.includeDeleted || '').toLowerCase());
@@ -11312,9 +11476,24 @@ async function buildEquipmentListQuery(req) {
         { currentWarehouseName: { $regex: safe, $options: 'i' } },
       ],
     };
-    if (query.$and) query.$and.push(searchClause);
-    else query.$and = [searchClause];
+    pushEquipmentQueryAnd(query, searchClause);
   }
+
+  const columnFilters = parseColumnFiltersQuery(columnFiltersRaw);
+  const needsFixedAssets =
+    Object.values(columnFilters).some((v) =>
+      String(v || '').includes('Необоротні активи') || String(v || '').includes('офісно-складське')
+    );
+  let fixedAssetsCategoryIds = [];
+  if (needsFixedAssets) {
+    const fromClient = String(req.query.fixedAssetsCategoryIds || '')
+      .split(/[,;]/)
+      .map((s) => s.trim())
+      .filter((id) => mongoose.isValidObjectId(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+    fixedAssetsCategoryIds = fromClient.length ? fromClient : await getFixedAssetsCategoryIdsFromDb();
+  }
+  applyEquipmentColumnFilters(query, columnFilters, { fixedAssetsCategoryIds });
 
   return query;
 }

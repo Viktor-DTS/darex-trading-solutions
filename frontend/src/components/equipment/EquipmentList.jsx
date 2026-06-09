@@ -4,7 +4,6 @@ import { authFetch } from '../../utils/authFetch';
 import {
   ITEM_KIND_FILTER_FIXED_ASSETS_LABEL,
   findFixedAssetsCategoryIdsFromTree,
-  equipmentMatchesItemKindFilter,
   getItemKindFilterSelectOptions
 } from '../../utils/equipmentNomenclatureFilter';
 import { exportEquipmentToExcel } from '../../utils/equipmentExport';
@@ -234,6 +233,7 @@ const EquipmentList = forwardRef(({
     }
   });
   const [debouncedFilter, setDebouncedFilter] = useState(filter);
+  const [debouncedColumnFilters, setDebouncedColumnFilters] = useState(columnFilters);
 
   // Зберігаємо фільтри в localStorage
   useEffect(() => {
@@ -258,16 +258,22 @@ const EquipmentList = forwardRef(({
   }, [filter]);
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedColumnFilters(columnFilters), 400);
+    return () => clearTimeout(timer);
+  }, [columnFilters]);
+
+  const columnFiltersKey = useMemo(() => JSON.stringify(debouncedColumnFilters), [debouncedColumnFilters]);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [
     categoryId,
     includeSubtree,
     managerCategoryContext,
     debouncedFilter,
+    columnFiltersKey,
     showWithoutProductCardOnly,
     showDeleted,
-    columnFilters.currentWarehouse,
-    columnFilters.status,
     sortField,
     sortDirection,
   ]);
@@ -287,10 +293,16 @@ const EquipmentList = forwardRef(({
       if (debouncedFilter.trim()) params.set('search', debouncedFilter.trim());
       if (showWithoutProductCardOnly) params.set('withoutProductCard', '1');
       if (showDeleted) params.set('includeDeleted', '1');
-      const whFilter = columnFilters.currentWarehouse?.trim();
-      if (whFilter) params.set('warehouseName', whFilter);
-      const statusFilter = columnFilters.status?.trim();
-      if (statusFilter) params.set('statusLabel', statusFilter);
+      const activeCf = Object.fromEntries(
+        Object.entries(debouncedColumnFilters).filter(([, v]) => v != null && String(v).trim() !== '')
+      );
+      if (Object.keys(activeCf).length) {
+        params.set('columnFilters', JSON.stringify(activeCf));
+      }
+      const fixedAssetsFilter = debouncedColumnFilters.itemKind === ITEM_KIND_FILTER_FIXED_ASSETS_LABEL;
+      if (fixedAssetsFilter && fixedAssetsCategoryIds?.size) {
+        params.set('fixedAssetsCategoryIds', [...fixedAssetsCategoryIds].join(','));
+      }
       return params;
     },
     [
@@ -301,10 +313,10 @@ const EquipmentList = forwardRef(({
       includeSubtree,
       managerCategoryContext,
       debouncedFilter,
+      debouncedColumnFilters,
       showWithoutProductCardOnly,
       showDeleted,
-      columnFilters.currentWarehouse,
-      columnFilters.status,
+      fixedAssetsCategoryIds,
     ]
   );
 
@@ -471,61 +483,7 @@ const EquipmentList = forwardRef(({
       result = result.filter(item => !item.isDeleted && item.status !== 'deleted');
     }
 
-    // Фільтри колонок (склад/статус — на сервері; решта — у межах поточної сторінки)
-    Object.keys(columnFilters).forEach(key => {
-      if (managerCategoryContext && key === 'itemKind') return;
-      const filterValue = columnFilters[key];
-      if (filterValue && filterValue.trim() !== '') {
-        if (key.endsWith('From')) {
-          const baseKey = key.replace('From', '');
-          const fromDate = new Date(filterValue);
-          result = result.filter(item => {
-            const itemValue = item[baseKey];
-            if (!itemValue) return false;
-            const itemDate = new Date(itemValue);
-            return itemDate >= fromDate;
-          });
-        } else if (key.endsWith('To')) {
-          const baseKey = key.replace('To', '');
-          const toDate = new Date(filterValue);
-          toDate.setHours(23, 59, 59, 999);
-          result = result.filter(item => {
-            const itemValue = item[baseKey];
-            if (!itemValue) return false;
-            const itemDate = new Date(itemValue);
-            return itemDate <= toDate;
-          });
-        } else {
-          // Спеціальна обробка для select фільтрів (точне співпадіння)
-          if (getFilterType(key) === 'select') {
-            result = result.filter(item => {
-              if (key === 'currentWarehouse' || key === 'status') {
-                return true;
-              }
-              if (key === 'reservationStatus') {
-                const reservationStatus = getReservationStatusLabel(item);
-                return reservationStatus === filterValue;
-              }
-              if (key === 'itemKind') {
-                return equipmentMatchesItemKindFilter(item, filterValue, fixedAssetsCategoryIds);
-              }
-              const itemValue = item[key];
-              return String(itemValue || '') === filterValue;
-            });
-          } else {
-            // Текстовий фільтр (часткове співпадіння)
-            const filterLower = filterValue.toLowerCase();
-            result = result.filter(item => {
-              const itemValue = item[key];
-              if (itemValue == null) return false;
-              return String(itemValue).toLowerCase().includes(filterLower);
-            });
-          }
-        }
-      }
-    });
-
-    // Групування партій (у межах поточної сторінки; сортування — на сервері) за batchId + склад; потім — однакові «на складі» позиції без серійника
+    // Групування партій (у межах поточної сторінки; фільтри та сортування — на сервері)
     const batchGroups = {};
     const noSerialGroups = {};
     const singleItems = [];
@@ -572,13 +530,7 @@ const EquipmentList = forwardRef(({
     );
 
     return [...Object.values(batchGroups), ...noSerialMergedRows, ...singleItems];
-  }, [
-    equipment,
-    columnFilters,
-    showDeleted,
-    managerCategoryContext,
-    fixedAssetsCategoryIds
-  ]);
+  }, [equipment, showDeleted]);
 
   const toggleRowSelection = (item, e) => {
     e?.stopPropagation?.();
@@ -851,10 +803,8 @@ const EquipmentList = forwardRef(({
         <div className="toolbar-info">
           <span>
             {refreshing ? 'Оновлення… ' : ''}
-            Всього: {totalItems.toLocaleString('uk-UA')}
+            Знайдено: {totalItems.toLocaleString('uk-UA')}
             {totalPages > 1 && ` · стор. ${currentPage}/${totalPages}`}
-            {filteredAndSortedEquipment.length !== equipment.length &&
-              ` · на сторінці після фільтрів: ${filteredAndSortedEquipment.length}`}
           </span>
         </div>
       </div>
