@@ -7,8 +7,13 @@ import TechnicalSpecsConstructorBlock from './TechnicalSpecsConstructorBlock';
 import { buildPatchesFromProductCard, mergeAttachedFromProductCard, mergeCardSpecsIntoFormRows } from './productCardApply';
 import { parsedEquipmentToTechnicalSpecs } from '../../utils/ocrParser';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
+import ProductCardQuickCreateModal from './ProductCardQuickCreateModal';
 import { useUnitsOfMeasure } from '../../hooks/useUnitsOfMeasure';
 import './EquipmentEditModal.css';
+
+function canCreateProductCardRole(role) {
+  return ['admin', 'administrator', 'warehouse', 'zavsklad'].includes(String(role || '').toLowerCase());
+}
 
 function flattenCategories(nodes, level = 0) {
   let list = [];
@@ -93,6 +98,7 @@ function EquipmentEditModal({
   const [productCardQuery, setProductCardQuery] = useState('');
   const [productCardHits, setProductCardHits] = useState([]);
   const [productCardsLoading, setProductCardsLoading] = useState(false);
+  const [showCreateProductCard, setShowCreateProductCard] = useState(false);
   const presetAppliedForIdRef = useRef(null);
   const isNewEquipment = !equipment;
 
@@ -276,6 +282,32 @@ function EquipmentEditModal({
     else if (card.defaultReceiptMode === 'single') setEquipmentType('single');
     setAttachedFiles((prev) => mergeAttachedFromProductCard(prev, card.attachedFiles));
   }, []);
+
+  const handleProductCardCreated = useCallback(
+    (card) => {
+      if (!card?._id) return;
+      setProductCardHits((prev) => [card, ...prev.filter((c) => String(c._id) !== String(card._id))]);
+      applyProductCard(card);
+      setShowCreateProductCard(false);
+    },
+    [applyProductCard]
+  );
+
+  const productCardCreateInitialValues = useMemo(
+    () => ({
+      type: formData.type || '',
+      manufacturer: formData.manufacturer || '',
+      categoryId: formData.categoryId || '',
+      itemKind: formData.itemKind || 'equipment',
+      materialValueType: formData.materialValueType || '',
+      batchUnit: formData.batchUnit || '',
+      defaultReceiptMode: equipmentType === 'batch' ? 'batch' : 'single',
+      technicalSpecs: formData.technicalSpecs || [],
+    }),
+    [formData, equipmentType]
+  );
+
+  const mayCreateProductCard = canCreateProductCardRole(user?.role);
 
   useEffect(() => {
     if (equipment) {
@@ -764,10 +796,21 @@ function EquipmentEditModal({
                       />
                     </div>
                     <div className="form-group">
-                      <label>
-                        Обрати карточку
-                        {productCardsLoading ? ' (завантаження…)' : ''}
-                      </label>
+                      <div className="equipment-edit-product-card-row">
+                        <label>
+                          Обрати карточку
+                          {productCardsLoading ? ' (завантаження…)' : ''}
+                        </label>
+                        {mayCreateProductCard && (
+                          <button
+                            type="button"
+                            className="btn-secondary equipment-edit-new-card-btn"
+                            onClick={() => setShowCreateProductCard(true)}
+                          >
+                            + Нова карточка
+                          </button>
+                        )}
+                      </div>
                       <select
                         name="productId"
                         value={formData.productId || ''}
@@ -2216,6 +2259,16 @@ function EquipmentEditModal({
             })()}
           </div>
         </div>
+      )}
+
+      {showCreateProductCard && (
+        <ProductCardQuickCreateModal
+          user={user}
+          warehouses={warehouses}
+          initialValues={productCardCreateInitialValues}
+          onClose={() => setShowCreateProductCard(false)}
+          onCreated={handleProductCardCreated}
+        />
       )}
     </div>
   );

@@ -13171,6 +13171,33 @@ app.post('/api/equipment/:id/return-testing', authenticateToken, async (req, res
   }
 });
 
+const { linkEquipmentToProductCardsByName } = require('./lib/linkEquipmentProductCards');
+
+// Прив’язка залишків без карточки до ProductCard за точним збігом назви (type ↔ type/displayName)
+app.post('/api/equipment/link-product-cards-by-name', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const dryRun =
+      req.query.dryRun === '1' ||
+      req.query.dryRun === 'true' ||
+      req.body?.dryRun === true;
+    const summary = await linkEquipmentToProductCardsByName({
+      Equipment,
+      ProductCard,
+      dryRun: !!dryRun,
+    });
+    logPerformance('POST /api/equipment/link-product-cards-by-name', startTime, summary.linked);
+    res.json(summary);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/link-product-cards-by-name:', error);
+    logPerformance('POST /api/equipment/link-product-cards-by-name', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Масове видалення обладнання (тільки для admin/administrator)
 app.post('/api/equipment/bulk-delete', authenticateToken, async (req, res) => {
   const startTime = Date.now();

@@ -43,8 +43,32 @@ function emptyForm() {
   };
 }
 
-export default function ProductCardQuickCreateModal({ user, warehouses, onClose, onCreated }) {
-  const [form, setForm] = useState(emptyForm);
+function buildInitialForm(initialValues) {
+  if (!initialValues) return emptyForm();
+  const base = emptyForm();
+  const specs = Array.isArray(initialValues.technicalSpecs) ? initialValues.technicalSpecs : [];
+  return {
+    ...base,
+    displayName: String(initialValues.displayName || initialValues.type || '').trim(),
+    type: String(initialValues.type || '').trim(),
+    manufacturer: String(initialValues.manufacturer || '').trim(),
+    categoryId: initialValues.categoryId ? String(initialValues.categoryId) : '',
+    itemKind: initialValues.itemKind === 'parts' ? 'parts' : 'equipment',
+    materialValueType: initialValues.materialValueType || '',
+    defaultBatchUnit: String(initialValues.batchUnit || initialValues.defaultBatchUnit || 'шт.').trim() || 'шт.',
+    defaultReceiptMode: initialValues.defaultReceiptMode === 'batch' ? 'batch' : 'single',
+    technicalSpecs: specs.length
+      ? specs.map((s, i) => ({
+          _key: s._key || `pc-spec-init-${i}-${Math.random().toString(36).slice(2, 9)}`,
+          name: s?.name != null ? String(s.name) : '',
+          value: s?.value != null ? String(s.value) : '',
+        }))
+      : [],
+  };
+}
+
+export default function ProductCardQuickCreateModal({ user, warehouses, onClose, onCreated, initialValues = null }) {
+  const [form, setForm] = useState(() => buildInitialForm(initialValues));
   const [categoriesFlat, setCategoriesFlat] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');

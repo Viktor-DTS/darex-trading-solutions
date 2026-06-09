@@ -595,6 +595,27 @@
   color: var(--text-secondary, #8b949e);
 }
 
+.btn-link-product-cards {
+  padding: 6px 12px;
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.1);
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-link-product-cards:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.18);
+}
+
+.btn-link-product-cards:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .equipment-pagination {
   display: flex;
   align-items: center;

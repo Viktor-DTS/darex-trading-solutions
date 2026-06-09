@@ -54,6 +54,10 @@ function getEquipmentRowForProductCardCheck(item) {
 // Визначення всіх колонок
 const PAGE_SIZE = 100;
 
+function canLinkProductCardsByName(role) {
+  return ['admin', 'administrator', 'warehouse', 'zavsklad'].includes(String(role || '').toLowerCase());
+}
+
 const ALL_COLUMNS = [
   { key: 'itemKind', label: 'Тип номенклатури', width: 140 },
   { key: 'status', label: 'Статус на складі', width: 140 },
@@ -179,6 +183,7 @@ const EquipmentList = forwardRef(({
   managerCategoryContext = false,
 }, ref) => {
   const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
+  const mayLinkProductCards = canLinkProductCardsByName(user?.role);
   const showReservationClientColumn = canSeeReservationClient(user?.role || '');
   const visibleColumns = useMemo(
     () =>
@@ -212,6 +217,7 @@ const EquipmentList = forwardRef(({
   /** null — дерево ще не завантажено; Set — id категорій гілки необоротних активів */
   const [fixedAssetsCategoryIds, setFixedAssetsCategoryIds] = useState(null);
   const initialLoadDone = useRef(false);
+  const [linkingProductCards, setLinkingProductCards] = useState(false);
 
   // Фільтри колонок
   const [columnFilters, setColumnFilters] = useState(() => {
@@ -388,6 +394,63 @@ const EquipmentList = forwardRef(({
 
   const refreshEquipment = () => {
     loadEquipment({ silent: true });
+  };
+
+  const handleLinkProductCardsByName = async () => {
+    setLinkingProductCards(true);
+    try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+      const previewRes = await authFetch(`${API_BASE_URL}/equipment/link-product-cards-by-name?dryRun=1`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ dryRun: true }),
+      });
+      const preview = await previewRes.json().catch(() => ({}));
+      if (!previewRes.ok) {
+        throw new Error(preview.error || 'Не вдалося перевірити збіги');
+      }
+      if (!preview.linked) {
+        window.alert(
+          `Збігів для прив’язки не знайдено.\n\n` +
+            `Перевірено позицій без карточки: ${preview.scanned ?? 0}\n` +
+            `Без відповідної карточки в довіднику: ${preview.noMatch ?? 0}\n` +
+            `Декілька карточок на одну назву (пропущено): ${preview.ambiguous ?? 0}`
+        );
+        return;
+      }
+      const ok = window.confirm(
+        `Прив’язати ${preview.linked} поз. за збігом назви з карточкою продукту?\n\n` +
+          `Перевірено: ${preview.scanned ?? 0}\n` +
+          `Без збігу в довіднику: ${preview.noMatch ?? 0}\n` +
+          `Неоднозначно (залишаться без карточки): ${preview.ambiguous ?? 0}\n\n` +
+          `Збіг: назва в залишках = тип або коротка назва карточки (без урахування регістру).`
+      );
+      if (!ok) return;
+
+      const res = await authFetch(`${API_BASE_URL}/equipment/link-product-cards-by-name`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Помилка прив’язки');
+
+      window.alert(
+        `Готово.\n\nПрив’язано: ${data.linked ?? 0}\n` +
+          `Без збігу: ${data.noMatch ?? 0}\n` +
+          `Неоднозначно: ${data.ambiguous ?? 0}`
+      );
+      refreshEquipment();
+    } catch (e) {
+      console.error(e);
+      window.alert(e.message || 'Помилка прив’язки за назвою');
+    } finally {
+      setLinkingProductCards(false);
+    }
   };
 
   const fetchAllEquipmentForExport = async () => {
@@ -755,6 +818,17 @@ const EquipmentList = forwardRef(({
           />
           <span>Показати обладнання без картки</span>
         </label>
+        {mayLinkProductCards && (
+          <button
+            type="button"
+            className="btn-link-product-cards"
+            onClick={handleLinkProductCardsByName}
+            disabled={linkingProductCards || refreshing}
+            title="Прив’язати позиції без карточки до довідника за точним збігом назви"
+          >
+            {linkingProductCards ? 'Прив’язка…' : '🔗 Прив’язати за назвою'}
+          </button>
+        )}
         <div className="toolbar-actions">
           {isAdmin && selectedIds.size > 0 && (
             <button

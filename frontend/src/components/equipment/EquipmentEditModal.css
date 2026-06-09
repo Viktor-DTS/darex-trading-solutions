@@ -251,6 +251,25 @@
   z-index: 2100;
 }
 
+.equipment-edit-product-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.equipment-edit-product-card-row label {
+  margin-bottom: 0;
+}
+
+.equipment-edit-new-card-btn {
+  padding: 4px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 /* Скролбар */
 .equipment-edit-form::-webkit-scrollbar {
   width: 8px;
