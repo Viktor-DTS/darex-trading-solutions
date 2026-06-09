@@ -3367,7 +3367,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           </div>
         </form>
         {showOnecPanel ? (
-          <TaskOneCMovementsPanel requestNumber={requestNumberForOnec} />
+          <TaskOneCMovementsPanel requestNumber={requestNumberForOnec} task={formData} />
         ) : null}
         </div>
       </div>

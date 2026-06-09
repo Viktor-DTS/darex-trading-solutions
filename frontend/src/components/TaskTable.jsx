@@ -3,6 +3,7 @@ import API_BASE_URL from '../config';
 import { authFetch } from '../utils/authFetch';
 import { generateWorkOrder } from '../utils/workOrderGenerator';
 import { getWarehouseApprovedAt } from '../utils/taskStuckRules';
+import { taskRequiresOnecWriteoff } from './onec/taskOnecMaterials';
 import './TaskTable.css';
 
 // Кеш списку заявок на клієнті (TTL 90 с) — менше запитів при перемиканні вкладок
@@ -1461,8 +1462,8 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                         task.requestNumber &&
                         (() => {
                           const st = onecStatusByRequest[task.requestNumber];
-                          if (!st) return null;
-                          if (st.hasMovement) {
+                          const requiresWriteoff = taskRequiresOnecWriteoff(task);
+                          if (st?.hasMovement) {
                             return (
                               <div
                                 className="onec-writeoff-badge onec-writeoff-badge--ok"
@@ -1472,10 +1473,21 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                               </div>
                             );
                           }
+                          if (!requiresWriteoff) {
+                            return (
+                              <div
+                                className="onec-writeoff-badge onec-writeoff-badge--na"
+                                title="У заявці немає витратних матеріалів — списання в 1С не потрібне"
+                              >
+                                Не потребує списання 1С
+                              </div>
+                            );
+                          }
                           const showMissingBadge =
                             columnsArea === 'warehouse'
                               ? showApproveButtons && task.approvedByWarehouse !== 'Підтверджено'
                               : showApproveButtons && task.approvedByAccountant !== 'Підтверджено';
+                          if (!st) return null;
                           if (showMissingBadge) {
                             return (
                               <div

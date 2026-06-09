@@ -406,6 +406,13 @@
   color: #f85149;
 }
 
+.onec-writeoff-badge--na {
+  background: rgba(139, 148, 158, 0.15);
+  border: 1px solid rgba(139, 148, 158, 0.35);
+  color: #adbac7;
+  font-weight: 500;
+}
+
 .btn-work-order {
   padding: 4px 8px;
   background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);

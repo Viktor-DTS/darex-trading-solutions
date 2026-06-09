@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import API_BASE_URL from '../../config';
+import { taskRequiresOnecWriteoff } from './taskOnecMaterials';
 import './TaskOneCMovementsPanel.css';
 
 const OP_LABEL = {
@@ -19,17 +20,25 @@ function fmtDate(d) {
   return Number.isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString('uk-UA');
 }
 
-export default function TaskOneCMovementsPanel({ requestNumber }) {
+export default function TaskOneCMovementsPanel({ requestNumber, task = null }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [items, setItems] = useState([]);
   const [summary, setSummary] = useState(null);
+  const requiresWriteoff = useMemo(() => taskRequiresOnecWriteoff(task), [task]);
 
   const load = useCallback(async () => {
     const rn = String(requestNumber || '').trim();
     if (!rn) {
       setItems([]);
       setSummary(null);
+      return;
+    }
+    if (!taskRequiresOnecWriteoff(task)) {
+      setItems([]);
+      setSummary(null);
+      setError('');
+      setLoading(false);
       return;
     }
     setLoading(true);
@@ -51,7 +60,7 @@ export default function TaskOneCMovementsPanel({ requestNumber }) {
     } finally {
       setLoading(false);
     }
-  }, [requestNumber]);
+  }, [requestNumber, task]);
 
   useEffect(() => {
     load();
@@ -79,7 +88,11 @@ export default function TaskOneCMovementsPanel({ requestNumber }) {
         Списання та реалізація з журналу 1С, де в документі або коментарі згадується <strong>{rn}</strong>.
       </p>
 
-      {summary?.hasMovement ? (
+      {!requiresWriteoff ? (
+        <div className="task-onec-panel__banner task-onec-panel__banner--na">
+          Не потребує списання 1С
+        </div>
+      ) : summary?.hasMovement ? (
         <div className="task-onec-panel__banner task-onec-panel__banner--ok">
           ✓ Є рух в 1С
           {summary.hasWriteoff && summary.hasSale
@@ -96,7 +109,11 @@ export default function TaskOneCMovementsPanel({ requestNumber }) {
 
       {error && <p className="task-onec-panel__error">{error}</p>}
 
-      {loading && !items.length ? (
+      {!requiresWriteoff ? (
+        <p className="task-onec-panel__empty">
+          У заявці немає витратних матеріалів (олива, фільтри, антифриз, додаткові позиції).
+        </p>
+      ) : loading && !items.length ? (
         <p className="task-onec-panel__empty">Завантаження…</p>
       ) : items.length === 0 && !error ? (
         <p className="task-onec-panel__empty">

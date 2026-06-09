@@ -71,6 +71,13 @@
   font-weight: 500;
 }
 
+.task-onec-panel__banner--na {
+  background: rgba(139, 148, 158, 0.15);
+  border: 1px solid rgba(139, 148, 158, 0.35);
+  color: #adbac7;
+  font-weight: 500;
+}
+
 .task-onec-panel__error {
   margin: 0 14px 8px;
   color: #f85149;
