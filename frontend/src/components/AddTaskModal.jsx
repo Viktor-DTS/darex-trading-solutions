@@ -2010,13 +2010,16 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
   // Визначаємо чи потрібно блокувати всі поля крім debtStatus
   const isApprovedTask = formData.approvedByAccountant === 'Підтверджено' || formData.approvedByAccountant === true;
   const isDebtOnlyMode = debtOnly && isApprovedTask;
+  const requestNumberForOnec = String(formData.requestNumber || initialData?.requestNumber || '').trim();
   const showOnecPanel =
-    panelType === 'warehouse' && !isNewTask && String(formData.requestNumber || initialData?.requestNumber || '').trim();
-  
+    !isNewTask &&
+    requestNumberForOnec &&
+    (panelType === 'warehouse' || panelType === 'accountant');
+
   return (
     <div className="modal-overlay" style={overlayStyle} onClick={onClose}>
       <div
-        className={`modal-content ${isDebtOnlyMode ? 'debt-only-mode' : ''} ${isReadOnly ? 'read-only-mode' : ''} ${isAccountantMode ? 'accountant-mode' : ''} ${showOnecPanel ? 'modal-content--warehouse-onec' : ''}`}
+        className={`modal-content ${isDebtOnlyMode ? 'debt-only-mode' : ''} ${isReadOnly ? 'read-only-mode' : ''} ${isAccountantMode ? 'accountant-mode' : ''} ${showOnecPanel ? 'modal-content--with-onec-panel' : ''}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
@@ -3364,7 +3367,7 @@ function AddTaskModal({ open, onClose, user, onSave, initialData = {}, panelType
           </div>
         </form>
         {showOnecPanel ? (
-          <TaskOneCMovementsPanel requestNumber={formData.requestNumber || initialData?.requestNumber} />
+          <TaskOneCMovementsPanel requestNumber={requestNumberForOnec} />
         ) : null}
         </div>
       </div>

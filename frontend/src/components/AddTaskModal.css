@@ -53,15 +53,15 @@
   flex-direction: column;
 }
 
-.modal-overlay:has(.modal-content--warehouse-onec) {
+.modal-overlay:has(.modal-content--with-onec-panel) {
   overflow: auto;
   align-items: flex-start;
   padding-top: 16px;
   padding-bottom: 16px;
 }
 
-.modal-content--warehouse-onec {
-  /* форма лишається 1152–1296px, справа додається панель 1С */
+.modal-content--with-onec-panel {
+  /* форма лишається тієї ж ширини (1296px), модалка розширюється вправо під панель 1С */
   max-width: min(1760px, 98vw) !important;
   min-width: min(1600px, 98vw);
   width: auto;
@@ -1309,7 +1309,7 @@
     grid-template-columns: 1fr;
   }
   
-  .modal-content:not(.modal-content--warehouse-onec) {
+  .modal-content:not(.modal-content--with-onec-panel) {
     max-width: 100% !important;
     min-width: auto !important;
     margin: 10px;
