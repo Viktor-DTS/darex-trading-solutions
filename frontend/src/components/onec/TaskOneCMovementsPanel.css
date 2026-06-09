@@ -115,6 +115,10 @@
   background: rgba(46, 160, 67, 0.08);
 }
 
+.task-onec-row--sale td {
+  background: rgba(56, 139, 253, 0.1);
+}
+
 .task-onec-panel__comment {
   font-size: 11px;
   opacity: 0.75;

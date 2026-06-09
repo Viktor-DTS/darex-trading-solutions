@@ -1462,13 +1462,13 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                         (() => {
                           const st = onecStatusByRequest[task.requestNumber];
                           if (!st) return null;
-                          if (st.hasWriteoff) {
+                          if (st.hasMovement) {
                             return (
                               <div
                                 className="onec-writeoff-badge onec-writeoff-badge--ok"
-                                title="Знайдено списання в 1С за цим номером заявки"
+                                title="Знайдено списання або реалізацію в 1С за цим номером заявки"
                               >
-                                ✓ Списано в 1С
+                                ✓ Є рух в 1С
                               </div>
                             );
                           }
@@ -1480,9 +1480,9 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                             return (
                               <div
                                 className="onec-writeoff-badge onec-writeoff-badge--missing"
-                                title="Списання в 1С за номером заявки не знайдено"
+                                title="Списання або реалізація в 1С за номером заявки не знайдено"
                               >
-                                Немає списання в 1С
+                                Немає руху в 1С
                               </div>
                             );
                           }

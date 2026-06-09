@@ -84,6 +84,13 @@ const DOC_TYPE_UA = {
   other: 'Інше',
 };
 
+/** Типи руху, що враховуються для заявки: списання та реалізація. */
+const REQUEST_RELEVANT_DOC_TYPES = new Set(['writeoff', 'sale']);
+
+function isRelevantRequestDocType(docType) {
+  return REQUEST_RELEVANT_DOC_TYPES.has(docType || 'other');
+}
+
 /**
  * @param {Array} movements lean OneCMovement[]
  */
@@ -96,10 +103,15 @@ function summarizeMovements(movements) {
     byType[t] = (byType[t] || 0) + 1;
     if (t === 'writeoff') writeoffQty += Number(m.qty) || 0;
   }
+  const writeoffCount = byType.writeoff || 0;
+  const saleCount = byType.sale || 0;
   return {
     movementCount: list.length,
-    hasWriteoff: (byType.writeoff || 0) > 0,
-    writeoffCount: byType.writeoff || 0,
+    hasWriteoff: writeoffCount > 0,
+    hasSale: saleCount > 0,
+    hasMovement: writeoffCount > 0 || saleCount > 0,
+    writeoffCount,
+    saleCount,
     writeoffQty,
     byType,
   };
@@ -115,7 +127,10 @@ async function findMovementsForRequest(OneCMovement, requestNumber, opts = {}) {
   if (!orFilter) return { items: [], summary: summarizeMovements([]) };
   const limit = Math.min(200, Math.max(1, opts.limit || 80));
   const rawItems = await OneCMovement.find(orFilter).sort({ docDate: -1, _id: -1 }).limit(limit * 3).lean();
-  const items = rawItems.filter((m) => movementMatchesRequest(m, requestNumber)).slice(0, limit);
+  const items = rawItems
+    .filter((m) => movementMatchesRequest(m, requestNumber))
+    .filter((m) => isRelevantRequestDocType(m.docType))
+    .slice(0, limit);
   return { items, summary: summarizeMovements(items) };
 }
 
@@ -141,8 +156,10 @@ module.exports = {
   buildMovementsOrFilter,
   textMatchesRequestNumber,
   movementMatchesRequest,
+  isRelevantRequestDocType,
   summarizeMovements,
   findMovementsForRequest,
   statusByRequestNumbers,
   DOC_TYPE_UA,
+  REQUEST_RELEVANT_DOC_TYPES,
 };

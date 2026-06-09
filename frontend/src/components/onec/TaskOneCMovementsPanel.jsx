@@ -76,18 +76,22 @@ export default function TaskOneCMovementsPanel({ requestNumber }) {
         </button>
       </div>
       <p className="task-onec-panel__hint">
-        Рядки з журналу 1С, де в документі або коментарі згадується <strong>{rn}</strong> (витратні матеріали,
-        списання тощо).
+        Списання та реалізація з журналу 1С, де в документі або коментарі згадується <strong>{rn}</strong>.
       </p>
 
-      {summary?.hasWriteoff ? (
-        <div className="task-onec-panel__banner task-onec-panel__banner--ok">✓ Списано в 1С</div>
-      ) : summary?.movementCount > 0 ? (
-        <div className="task-onec-panel__banner task-onec-panel__banner--warn">
-          Є рух в 1С, але списання не знайдено
+      {summary?.hasMovement ? (
+        <div className="task-onec-panel__banner task-onec-panel__banner--ok">
+          ✓ Є рух в 1С
+          {summary.hasWriteoff && summary.hasSale
+            ? ' (списання та реалізація)'
+            : summary.hasWriteoff
+              ? ' (списання)'
+              : summary.hasSale
+                ? ' (реалізація)'
+                : ''}
         </div>
       ) : !loading && !error ? (
-        <div className="task-onec-panel__banner task-onec-panel__banner--none">Немає записів у 1С за цим номером</div>
+        <div className="task-onec-panel__banner task-onec-panel__banner--none">Немає руху в 1С за цим номером</div>
       ) : null}
 
       {error && <p className="task-onec-panel__error">{error}</p>}
@@ -96,7 +100,7 @@ export default function TaskOneCMovementsPanel({ requestNumber }) {
         <p className="task-onec-panel__empty">Завантаження…</p>
       ) : items.length === 0 && !error ? (
         <p className="task-onec-panel__empty">
-          Перевірте, що в коментарі документа списання в 1С вказано номер заявки {rn}.
+          Перевірте, що в коментарі документа списання або реалізації в 1С вказано номер заявки {rn}.
         </p>
       ) : (
         <div className="task-onec-panel__table-wrap">
@@ -113,7 +117,16 @@ export default function TaskOneCMovementsPanel({ requestNumber }) {
             </thead>
             <tbody>
               {items.map((row) => (
-                <tr key={row._id} className={row.docType === 'writeoff' ? 'task-onec-row--writeoff' : ''}>
+                <tr
+                  key={row._id}
+                  className={
+                    row.docType === 'writeoff'
+                      ? 'task-onec-row--writeoff'
+                      : row.docType === 'sale'
+                        ? 'task-onec-row--sale'
+                        : ''
+                  }
+                >
                   <td>{OP_LABEL[row.docType] || row.docTypeName || row.docType || '—'}</td>
                   <td title={row.comment || ''}>
                     <div>{row.docNumber || '—'}</div>
