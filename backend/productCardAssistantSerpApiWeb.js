@@ -2,7 +2,8 @@
  * Контекст для LLM асистента карточки товару: уривки з Google organic через SerpApi.
  *
  *   SERPAPI_API_KEY — той самий ключ, що й для зображень
- *   PRODUCT_ASSISTANT_SERPAPI_SPEC_SEARCH=1 — увімкнути (лише коли Вікі не дала результату і далі йде LLM)
+ *   PRODUCT_ASSISTANT_SERPAPI_SPEC_SEARCH — увімкнути явно (1) або вимкнути (0).
+ *     Якщо змінна не задана, а SERPAPI_API_KEY є — web-контекст для LLM увімкнено за замовчуванням.
  *
  *   PRODUCT_ASSISTANT_SERPAPI_SPEC_MAX_QUERIES — скільки запитів до SerpApi за один виклик асистента (1–3, типово 2)
  *   SERPAPI_SPEC_ORGANIC_PER_QUERY — скільки organic-результатів зчитувати з кожної відповіді (типово 6)
@@ -15,8 +16,12 @@ const SERPAPI_ENDPOINT = 'https://serpapi.com/search.json';
 const MAX_CONTEXT_CHARS = 9000;
 
 function serpApiSpecSearchEnabled() {
-  const v = String(process.env.PRODUCT_ASSISTANT_SERPAPI_SPEC_SEARCH || '0').trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'on' || v === 'yes';
+  const apiKey = resolveSerpApiKey();
+  if (!apiKey) return false;
+  const v = String(process.env.PRODUCT_ASSISTANT_SERPAPI_SPEC_SEARCH || '').trim().toLowerCase();
+  if (v === '0' || v === 'false' || v === 'off' || v === 'no') return false;
+  if (v === '1' || v === 'true' || v === 'on' || v === 'yes') return true;
+  return true;
 }
 
 /**

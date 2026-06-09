@@ -1,11 +1,11 @@
 /**
- * Асистент для форми «нова карточка продукту»: Вікіпедія → опційно LLM (див. productCardAssistantLlm.js) → заглушка.
+ * Асистент для форми «нова карточка продукту»: LLM (див. productCardAssistantLlm.js, той самий ключ що чат-асистент) → Вікіпедія → заглушка.
  * Імпорт зображень — лише з дозволених HTTPS-доменів (Wikimedia / Wikipedia; опційно прев’ю через SerpApi).
  *
  * Google Custom Search JSON API **не викликається** (для нових проєктів Google API часто недоступний; змінна PRODUCT_ASSISTANT_GOOGLE_IMAGE_SEARCH ігнорується).
  * Зовнішні прев’ю зображень: PRODUCT_ASSISTANT_SERPAPI_IMAGE_SEARCH=1 та SERPAPI_API_KEY.
- * Підказки характеристик через веб (organic Google → LLM): PRODUCT_ASSISTANT_SERPAPI_SPEC_SEARCH=1 та той самий SERPAPI_API_KEY;
- * спрацьовує лише коли Вікі не дала результату і на сервері є ключ LLM (інакше SerpApi не викликається).
+ * Підказки характеристик через веб (organic Google → LLM): SERPAPI_API_KEY на Render; PRODUCT_ASSISTANT_SERPAPI_SPEC_SEARCH=1 (або не задавати — увімкнеться разом із ключем).
+ * SerpApi web context викликається перед LLM, якщо є ключ LLM і SerpApi spec search увімкнено.
  * Додаткові суфікси хостів (через кому): PRODUCT_ASSISTANT_IMAGE_IMPORT_HOST_SUFFIXES
  * Розширення пошукових рядків: productCardAssistantImageQueries.js (очищення «без АВР», коди моделі, підказки для Commons).
  * Для SerpApi: PRODUCT_ASSISTANT_GOOGLE_UA_FIRST=0 вимикає додаткові UA-підказки в рядках пошуку.
@@ -311,7 +311,7 @@ function mockSuggest(query) {
       id: 'mock-note',
       name: 'Підказка асистента',
       value:
-        'Вікіпедія не дала результату, а LLM на сервері вимкнено або не відповів. У Render додайте змінну PRODUCT_ASSISTANT_LLM_API_KEY або OPENAI_API_KEY (OpenAI-сумісний API), перезапустіть сервіс — тоді з’являться структуровані підказки для складних назв (автомати, кабелі тощо).',
+        'LLM на сервері вимкнено або не відповів, Вікіпедія теж не дала корисного результату. У Render додайте змінну PRODUCT_ASSISTANT_LLM_API_KEY або OPENAI_API_KEY (OpenAI-сумісний API), перезапустіть сервіс — тоді з’являться структуровані підказки для складних назв (автомати, кабелі тощо).',
     },
   ];
   if (/генератор|genset|diesel|ква|kva|квт|kwt|de-|дизел/i.test(q)) {
@@ -477,26 +477,29 @@ async function suggest(query) {
   if (q.length < 2) {
     return { source: 'empty', suggestedName: '', manufacturerHint: '', specs: [], images: [], disclaimer: '' };
   }
-  const wiki = await wikipediaSuggest(q);
-  if (wiki && (wiki.specs.length > 0 || wiki.images.length > 0)) {
-    return enrichWithCommonsImages(q, mergeHeuristicSpecs(q, wiki));
-  }
-  try {
-    let serpWebContext = '';
-    if (resolveLlmApiKey()) {
+
+  if (resolveLlmApiKey()) {
+    try {
+      let serpWebContext = '';
       try {
         serpWebContext = await fetchSerpSpecWebContext(q);
       } catch (e) {
         console.warn('[product-card-assistant] SerpApi web context:', e.message);
       }
+      const llm = await llmSuggest(q, { serpWebContext });
+      if (llmPayloadHasUsefulContent(llm)) {
+        return enrichWithCommonsImages(q, mergeHeuristicSpecs(q, llm));
+      }
+    } catch (e) {
+      console.warn('[product-card-assistant] LLM:', e.message);
     }
-    const llm = await llmSuggest(q, { serpWebContext });
-    if (llmPayloadHasUsefulContent(llm)) {
-      return enrichWithCommonsImages(q, mergeHeuristicSpecs(q, llm));
-    }
-  } catch (e) {
-    console.warn('[product-card-assistant] LLM:', e.message);
   }
+
+  const wiki = await wikipediaSuggest(q);
+  if (wiki && (wiki.specs.length > 0 || wiki.images.length > 0)) {
+    return enrichWithCommonsImages(q, mergeHeuristicSpecs(q, wiki));
+  }
+
   return enrichWithCommonsImages(q, mergeHeuristicSpecs(q, mockSuggest(q)));
 }
 

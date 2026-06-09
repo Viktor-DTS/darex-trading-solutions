@@ -333,7 +333,7 @@ export default function ProductCardQuickCreateModal({ user, warehouses, onClose,
         <p className="product-card-quick-intro">
           Зліва — форма карточки; <strong>скан шильдика</strong> додає відсутні поля. Справа — <strong>асистент</strong>: після
           введення <strong>типу</strong> (або лише <strong>короткої назви</strong>, якщо тип ще порожній) переведіть фокус в інше
-          поле — підвантажаться Вікіпедія, зображення з Commons і за наявності ключа на сервері — LLM. Можна натиснути{' '}
+          поле — підвантажаться підказки від ШІ (той самий ключ, що чат-асистент), зображення з пошуку / Commons; якщо ШІ не відповів — Вікіпедія. Можна натиснути{' '}
           <strong>«Оновити підказки»</strong>, якщо змінили текст після підвантаження. Оберіть чекбоксами і натисніть «Додати обране до форми».
         </p>
         {error && <p className="category-management-message error">{error}</p>}

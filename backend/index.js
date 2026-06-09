@@ -10182,7 +10182,7 @@ app.delete('/api/product-cards/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Асистент карточки продукту (Вікіпедія / заглушка) + імпорт зображення з Wikimedia у Cloudinary
+// Асистент карточки продукту (LLM → Вікіпедія → заглушка) + імпорт зображення у Cloudinary
 app.post('/api/product-card-assistant/suggest', authenticateToken, async (req, res) => {
   try {
     if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import './ProductCardAssistantPanel.css';
 
 /**
- * Права колонка модалки: підказки з бекенду (Вікіпедія / Commons / LLM / заглушка), чекбокси, застосування до форми.
+ * Права колонка модалки: підказки з бекенду (LLM → Вікіпедія / Commons / заглушка), чекбокси, застосування до форми.
  */
 export default function ProductCardAssistantPanel({
   loading,
@@ -91,7 +91,7 @@ export default function ProductCardAssistantPanel({
       <h4 className="product-card-assistant__title">Асистент</h4>
       <p className="product-card-assistant__hint">
         Після введення <strong>Тип / найменування</strong> (або лише <strong>короткої назви</strong>, якщо тип порожній) переведіть
-        фокус у інше поле (Tab або клік) — підвантажаться довідкові дані (Вікіпедія, Commons, за наявності ключа LLM на сервері: PRODUCT_ASSISTANT_LLM_API_KEY або OPENAI_API_KEY). Оберіть чекбоксами, що перенести у
+        фокус у інше поле (Tab або клік) — спочатку підказки від ШІ (PRODUCT_ASSISTANT_LLM_API_KEY або OPENAI_API_KEY — той самий ключ, що чат-асистент), далі Commons / SerpApi для фото; якщо ШІ не відповів — Вікіпедія. Оберіть чекбоксами, що перенести у
         форму зліва.
       </p>
 
