@@ -676,7 +676,7 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
   }, [user, status, showRejectedApprovals, showRejectedInvoices, showAllInvoices, onTasksLoaded, enablePagination, page, debouncedFilter, debouncedColumnFilters, sortField, sortDirection, refreshTrigger]);
 
   useEffect(() => {
-    if (columnsArea !== 'warehouse') {
+    if (columnsArea !== 'warehouse' && columnsArea !== 'accountant-approval') {
       setOnecStatusByRequest({});
       return;
     }
@@ -1457,25 +1457,37 @@ function TaskTable({ user, status, onColumnSettingsClick, showRejectedApprovals 
                   >
                     {/* Комірка Дії - перша */}
                     <td className="actions-cell">
-                      {columnsArea === 'warehouse' && task.requestNumber && (() => {
-                        const st = onecStatusByRequest[task.requestNumber];
-                        if (!st) return null;
-                        if (st.hasWriteoff) {
-                          return (
-                            <div className="onec-writeoff-badge onec-writeoff-badge--ok" title="Знайдено списання в 1С за цим номером заявки">
-                              ✓ Списано в 1С
-                            </div>
-                          );
-                        }
-                        if (showApproveButtons && task.approvedByWarehouse !== 'Підтверджено') {
-                          return (
-                            <div className="onec-writeoff-badge onec-writeoff-badge--missing" title="Списання в 1С за номером заявки не знайдено">
-                              Немає списання в 1С
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+                      {(columnsArea === 'warehouse' || columnsArea === 'accountant-approval') &&
+                        task.requestNumber &&
+                        (() => {
+                          const st = onecStatusByRequest[task.requestNumber];
+                          if (!st) return null;
+                          if (st.hasWriteoff) {
+                            return (
+                              <div
+                                className="onec-writeoff-badge onec-writeoff-badge--ok"
+                                title="Знайдено списання в 1С за цим номером заявки"
+                              >
+                                ✓ Списано в 1С
+                              </div>
+                            );
+                          }
+                          const showMissingBadge =
+                            columnsArea === 'warehouse'
+                              ? showApproveButtons && task.approvedByWarehouse !== 'Підтверджено'
+                              : showApproveButtons && task.approvedByAccountant !== 'Підтверджено';
+                          if (showMissingBadge) {
+                            return (
+                              <div
+                                className="onec-writeoff-badge onec-writeoff-badge--missing"
+                                title="Списання в 1С за номером заявки не знайдено"
+                              >
+                                Немає списання в 1С
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       {/* Інформація про рахунок для панелей: бух.рахунки, сервісна служба, оператор, зав.склад, бух на затвердженні, регіональний керівник */}
                       {(status === 'accountantInvoiceRequests' || 
                         columnsArea === 'service' || 
