@@ -10,7 +10,16 @@ const crypto = require('crypto');
 const { getAgentRoot } = require('./paths');
 
 const DEFAULT_NEEDLES = ['предприятие', 'ведомость', 'утп', '1cv8'];
-const SAVE_DIALOG_NEEDLES = ['сохранение', 'сохранить', 'збереження', 'зберегти', 'save as', 'save'];
+const SAVE_DIALOG_NEEDLES = [
+  'сохранение',
+  'сохранить',
+  'сохранение как',
+  'сохранить как',
+  'збереження',
+  'зберегти',
+  'save as',
+  'save',
+];
 
 function normalizeForMatch(s) {
   return String(s || '')
@@ -46,6 +55,16 @@ function titleMatches(title, needles) {
 }
 
 function isSaveDialogTitle(title) {
+  const t = normalizeForMatch(title);
+  if (!t.trim() || isExcludedWindow(title)) return false;
+  if (
+    t.includes('сохран') ||
+    t.includes('зберег') ||
+    t.includes('save as') ||
+    (t.includes('save') && !t.includes('autosave'))
+  ) {
+    return true;
+  }
   return titleMatches(title, SAVE_DIALOG_NEEDLES.map(normalizeForMatch));
 }
 
@@ -176,14 +195,43 @@ function findSaveDialog(log) {
   const needles = SAVE_DIALOG_NEEDLES.map(normalizeForMatch);
   const r = focusViaPowerShell(needles, log || (() => {}), { preferShort: true, findOnly: true });
   if (!r.ok || !r.title || !isSaveDialogTitle(r.title)) {
-    return { ok: false };
+    return { ok: false, titles: r.titles || [] };
   }
   return r;
+}
+
+function listVisibleWindows(log) {
+  if (os.platform() !== 'win32') return [];
+
+  const script = resolveFocusScript();
+  if (!script) return [];
+
+  try {
+    const out = execFileSync(
+      'powershell',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-ListAll'],
+      { encoding: 'utf8', timeout: 15000, windowsHide: true }
+    ).trim();
+    const line = out.split(/\r?\n/).filter(Boolean).pop() || '';
+    if (!line.startsWith('LIST|')) return [];
+    const titles = line
+      .slice(5)
+      .split(';;')
+      .filter(Boolean)
+      .slice(0, 40);
+    if (log && titles.length) {
+      log(`• Видимі вікна: ${titles.map((t) => `«${t}»`).join(', ')}`);
+    }
+    return titles;
+  } catch (_) {
+    return [];
+  }
 }
 
 module.exports = {
   focusWindow,
   findSaveDialog,
+  listVisibleWindows,
   normalizeForMatch,
   needlesFromStep,
   isSaveDialogTitle,

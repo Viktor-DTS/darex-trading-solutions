@@ -16,14 +16,21 @@
  *   - screenshot { name }             — зберегти скриншот (для діагностики)
  *   - comment { text }                — нічого не робить, лише для читабельності конфігу
  *   - openSaveAs                      — відкрити діалог «Сохранение» (кілька спроб)
- *   - retryOpenSave                   — чекати формування звіту, повторювати Ctrl+S
+ *   - retryOpenSave                   — чекати звіт, повторювати saveOpenAttempts (Ctrl+Shift+S, Ctrl+S, меню…)
  *   - selectFileType                  — Tab → список типу → Excel2007 / Down×N → Enter → зберегти
  *   - keySeq { keys }                 — клавіші по одній (меню Alt, F, S…)
  *
  * Плейсхолдери у text: {{filePath}}, {{fileName}}, {{dir}}, {{ts}}
  */
 
-const { focusWindow, findSaveDialog } = require('./focusWindow');
+const { focusWindow, findSaveDialog, listVisibleWindows } = require('./focusWindow');
+const { withEnglishLayout } = require('./keyboardLayout');
+
+const DEFAULT_SAVE_OPEN_ATTEMPTS = [
+  { label: 'Ctrl+Shift+S (Сохранить как)', keys: ['LeftControl', 'LeftShift', 'S'], waitMs: 3500 },
+  { label: 'Ctrl+S', keys: ['LeftControl', 'S'], waitMs: 3000 },
+  { label: 'Alt, F, S (меню Файл)', keys: ['LeftAlt', 'F', 'S'], sequence: true, waitMs: 4000 },
+];
 const { setClipboardText, needsClipboard } = require('./clipboard');
 
 let nut = null;
@@ -103,19 +110,23 @@ async function runSteps(automation, ctx, log) {
     });
 
   const pressChord = async (keys) => {
-    const mapped = mapKeys(keys);
-    for (const k of mapped) await keyboard.pressKey(k);
-    for (const k of [...mapped].reverse()) await keyboard.releaseKey(k);
+    await withEnglishLayout(log, automation, keys, async () => {
+      const mapped = mapKeys(keys);
+      for (const k of mapped) await keyboard.pressKey(k);
+      for (const k of [...mapped].reverse()) await keyboard.releaseKey(k);
+    });
   };
 
   const pressSequence = async (keys, gapMs = 120) => {
-    for (const name of keys || []) {
-      const k = keyMap[String(name).toLowerCase()];
-      if (k === undefined) throw new Error(`Невідома клавіша: ${name}`);
-      await keyboard.pressKey(k);
-      await keyboard.releaseKey(k);
-      await new Promise((r) => setTimeout(r, gapMs));
-    }
+    await withEnglishLayout(log, automation, keys, async () => {
+      for (const name of keys || []) {
+        const k = keyMap[String(name).toLowerCase()];
+        if (k === undefined) throw new Error(`Невідома клавіша: ${name}`);
+        await keyboard.pressKey(k);
+        await keyboard.releaseKey(k);
+        await new Promise((r) => setTimeout(r, gapMs));
+      }
+    });
   };
 
   const clickReport = async () => {
@@ -125,6 +136,48 @@ async function runSteps(automation, ctx, log) {
     await mouse.click(Button.LEFT);
     log(`✓ Клік у звіт (${rc.x},${rc.y})`);
     await new Promise((r) => setTimeout(r, 400));
+  };
+
+  const saveOpenAttemptsList = (step) =>
+    step?.attempts || automation.saveOpenAttempts || DEFAULT_SAVE_OPEN_ATTEMPTS;
+
+  const tryOpenSaveDialog = async (step, opts = {}) => {
+    const attempts = saveOpenAttemptsList(step);
+    const dialogWaitMs = opts.dialogWaitMs ?? 4000;
+
+    await focusWindow(
+      { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'] },
+      automation,
+      getWindows,
+      log
+    );
+    if (opts.clickReport !== false) await clickReport();
+
+    for (const att of attempts) {
+      if (att.toolbar) {
+        const t = automation.toolbarSaveClick;
+        if (t?.x == null || t?.y == null) {
+          log(`• Пропуск «${att.label || 'toolbar'}» — не задано toolbarSaveClick у config.json`);
+          continue;
+        }
+        await mouse.setPosition(new Point(t.x, t.y));
+        await mouse.click(Button.LEFT);
+        log(`✓ Клік «Зберегти» на панелі (${t.x},${t.y})`);
+      } else if (att.sequence) {
+        await pressSequence(att.keys, att.gapMs || 200);
+        log(`✓ Послідовність: ${(att.keys || []).join(' ')} (${att.label || ''})`);
+      } else if (att.keys?.length) {
+        await pressChord(att.keys);
+        log(`✓ Клавіші: ${att.keys.join('+')} (${att.label || ''})`);
+      }
+      await new Promise((r) => setTimeout(r, att.waitMs ?? dialogWaitMs));
+      if (findSaveDialog(log).ok) {
+        log(`✓ Діалог збереження відкрито (${att.label || 'спроба'})`);
+        return true;
+      }
+      log(`! Після «${att.label || 'спроба'}» діалог не з'явився`);
+    }
+    return false;
   };
 
   for (let i = 0; i < (automation.steps || []).length; i++) {
@@ -152,39 +205,9 @@ async function runSteps(automation, ctx, log) {
           break;
         }
         case 'openSaveAs': {
-          const attempts = step.attempts || automation.saveOpenAttempts || [
-            { label: 'Ctrl+S', keys: ['LeftControl', 'S'], waitMs: 3000 },
-            { label: 'Ctrl+Shift+S', keys: ['LeftControl', 'LeftShift', 'S'], waitMs: 3000 },
-            { label: 'Alt, F, S (меню)', keys: ['LeftAlt', 'F', 'S'], sequence: true, waitMs: 3500 },
-          ];
-          let opened = false;
-          for (const att of attempts) {
-            await focusWindow(
-              { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'] },
-              automation,
-              getWindows,
-              log
-            );
-            if (att.clickReport !== false) await clickReport();
-            if (att.toolbar && automation.toolbarSaveClick) {
-              const t = automation.toolbarSaveClick;
-              await mouse.setPosition(new Point(t.x, t.y));
-              await mouse.click(Button.LEFT);
-              log(`✓ Клік «Зберегти» на панелі (${t.x},${t.y})`);
-            } else if (att.sequence) {
-              await pressSequence(att.keys, att.gapMs || 200);
-            } else {
-              await pressChord(att.keys);
-            }
-            await new Promise((r) => setTimeout(r, att.waitMs || 2500));
-            if (findSaveDialog(log).ok) {
-              log(`✓ Діалог збереження відкрито (${att.label})`);
-              opened = true;
-              break;
-            }
-            log(`! Діалог не відкрився після ${att.label}`);
-          }
+          const opened = await tryOpenSaveDialog(step);
           if (!opened) {
+            listVisibleWindows(log);
             throw new Error(
               'Діалог «Сохранение» не відкрився. Вручну: після Сформировать натисніть кнопку збереження на панелі 1С ' +
                 'і задайте координати toolbarSaveClick у config.json (або напишіть, яка клавіша/меню працює).'
@@ -204,29 +227,27 @@ async function runSteps(automation, ctx, log) {
           let opened = false;
           for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             log(`Спроба відкрити «Сохранение» ${attempt}/${maxAttempts}`);
-            await focusWindow(
-              { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'] },
-              automation,
-              getWindows,
-              log
-            );
-            await clickReport();
-            await pressChord(['LeftControl', 'S']);
-            await new Promise((r) => setTimeout(r, dialogWaitMs));
-            if (findSaveDialog(log).ok) {
-              log(`✓ Діалог збереження відкрито (спроба ${attempt})`);
+            if (await tryOpenSaveDialog(step, { dialogWaitMs })) {
               opened = true;
               break;
             }
+            if (attempt === 1 || attempt % 3 === 0) {
+              listVisibleWindows(log);
+            }
             if (attempt < maxAttempts) {
-              log(`! Звіт ще формується — чекаємо ще ${Math.round(intervalMs / 1000)} с…`);
+              log(
+                `! Діалог збереження не відкрився — чекаємо ще ${Math.round(intervalMs / 1000)} с ` +
+                  '(звіт може ще формуватись або потрібен toolbarSaveClick у config.json)…'
+              );
               await new Promise((r) => setTimeout(r, intervalMs));
             }
           }
           if (!opened) {
+            listVisibleWindows(log);
             throw new Error(
               `Діалог «Сохранение» не відкрився після ${maxAttempts} спроб. ` +
-                `Збільште formWaitMs / saveRetry у config.json (зараз min=${minWaitMs}ms, interval=${intervalMs}ms).`
+                `Перевірте saveOpenAttempts / toolbarSaveClick у config.json; ` +
+                `збільште formWaitMs / saveRetry (зараз min=${minWaitMs}ms, interval=${intervalMs}ms).`
             );
           }
           break;

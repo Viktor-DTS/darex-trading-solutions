@@ -3,7 +3,8 @@ param(
     [string]$NeedlesFile = '',
     [switch]$PreferShort,
     [switch]$MainOnly,
-    [switch]$FindOnly
+    [switch]$FindOnly,
+    [switch]$ListAll
 )
 
 $ErrorActionPreference = 'Continue'
@@ -26,7 +27,24 @@ $found = New-Object System.Collections.Generic.List[string]
 $shell = New-Object -ComObject WScript.Shell
 
 if (-not ('WinFocus' -as [type])) {
-    Add-Type 'using System;using System.Text;using System.Runtime.InteropServices;public class WinFocus{public delegate bool CB(IntPtr h,IntPtr l);[DllImport("user32.dll")]public static extern bool EnumWindows(CB c,IntPtr p);[DllImport("user32.dll")]public static extern int GetWindowText(IntPtr h,StringBuilder s,int m);[DllImport("user32.dll")]public static extern bool IsWindowVisible(IntPtr h);[DllImport("user32.dll")]public static extern bool SetForegroundWindow(IntPtr h);[DllImport("user32.dll")]public static extern bool ShowWindow(IntPtr h,int c);}'
+    Add-Type 'using System;using System.Text;using System.Runtime.InteropServices;public class WinFocus{public delegate bool CB(IntPtr h,IntPtr l);[DllImport("user32.dll")]public static extern bool EnumWindows(CB c,IntPtr p);[DllImport("user32.dll")]public static extern int GetWindowText(IntPtr h,StringBuilder s,int m);[DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetClassName(IntPtr h,StringBuilder s,int m);[DllImport("user32.dll")]public static extern bool IsWindowVisible(IntPtr h);[DllImport("user32.dll")]public static extern bool SetForegroundWindow(IntPtr h);[DllImport("user32.dll")]public static extern bool ShowWindow(IntPtr h,int c);}'
+}
+
+function Get-WindowClass([IntPtr]$hwnd) {
+    $sb = New-Object System.Text.StringBuilder 256
+    [void][WinFocus]::GetClassName($hwnd, $sb, 256)
+    return $sb.ToString()
+}
+
+function Save-Needles-Active($needleList) {
+    foreach ($n in $needleList) {
+        if (-not $n) { continue }
+        $x = $n.ToLowerInvariant()
+        if ($x.Contains('сохран') -or $x.Contains('зберег') -or $x.Contains('save')) {
+            return $true
+        }
+    }
+    return $false
 }
 
 function Title-Matches([string]$title, $needleList) {
@@ -50,8 +68,33 @@ function Activate-Hwnd([IntPtr]$hwnd, [string]$title) {
     return $true
 }
 
+# List all visible window titles (debug)
+if ($ListAll) {
+    $cbList = {
+        param($hWnd, $lParam)
+        if (-not [WinFocus]::IsWindowVisible($hWnd)) { return $true }
+        $sb = New-Object System.Text.StringBuilder 512
+        [void][WinFocus]::GetWindowText($hWnd, $sb, 512)
+        $t = $sb.ToString()
+        if ($t) {
+            $cls = Get-WindowClass $hWnd
+            if ($cls -eq '#32770') {
+                [void]$script:found.Add(('#32770|' + $t))
+            } else {
+                [void]$script:found.Add($t)
+            }
+        }
+        return $true
+    }
+    [WinFocus]::EnumWindows($cbList, [IntPtr]::Zero) | Out-Null
+    $preview = ($found | Select-Object -Unique | Select-Object -First 40) -join ';;'
+    Write-Output ('LIST|' + $preview)
+    exit 0
+}
+
 # 1) Enum all visible windows (finds save dialog "Сохранение")
 if ($needles.Count -gt 0) {
+    $saveMode = Save-Needles-Active $needles
     $bestHwnd = [IntPtr]::Zero
     $bestTitle = ''
     $cb = {
@@ -61,7 +104,23 @@ if ($needles.Count -gt 0) {
         [void][WinFocus]::GetWindowText($hWnd, $sb, 512)
         $t = $sb.ToString()
         if ($t) { [void]$script:found.Add($t) }
-        if (Title-Matches $t $needles) {
+        $matched = Title-Matches $t $needles
+        if (-not $matched -and $saveMode -and $t) {
+            $tl = $t.ToLowerInvariant()
+            if ($tl.Contains('сохран') -or $tl.Contains('зберег') -or $tl.Contains('save as') -or $tl.Contains('save')) {
+                $matched = $true
+            }
+        }
+        if (-not $matched -and $saveMode) {
+            $cls = Get-WindowClass $hWnd
+            if ($cls -eq '#32770' -and $t -and (Title-Matches $t $needles -or $t.Length -le 80)) {
+                $tl = $t.ToLowerInvariant()
+                if ($tl.Contains('сохран') -or $tl.Contains('зберег') -or $tl.Contains('save') -or $tl.Contains('файл') -or $tl.Contains('file')) {
+                    $matched = $true
+                }
+            }
+        }
+        if ($matched) {
             if ($script:PreferShort) {
                 if ($script:bestHwnd -eq [IntPtr]::Zero -or $t.Length -lt $script:bestTitle.Length) {
                     $script:bestHwnd = $hWnd

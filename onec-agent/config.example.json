@@ -30,9 +30,18 @@
     "enabled": true,
     "perStepDelayMs": 400,
     "screenshotOnError": true,
+    "forceEnglishLayout": true,
+    "keyboardLayoutKlid": "00000409",
     "reportClick": { "x": 700, "y": 450 },
     "formWaitMs": 35000,
     "saveRetry": { "maxAttempts": 18, "intervalMs": 5000 },
+    "saveOpenAttempts": [
+      { "label": "Ctrl+Shift+S (Сохранить как)", "keys": ["LeftControl", "LeftShift", "S"], "waitMs": 3500 },
+      { "label": "Ctrl+S", "keys": ["LeftControl", "S"], "waitMs": 3000 },
+      { "label": "Alt, F, S (меню Файл)", "keys": ["LeftAlt", "F", "S"], "sequence": true, "waitMs": 4000 },
+      { "label": "кнопка на панелі", "toolbar": true, "waitMs": 3500 }
+    ],
+    "toolbarSaveClick": null,
     "steps": [
       { "action": "comment", "text": "=== 1. Сформировать ===" },
       { "action": "focusWindow", "dialog": "main", "titleContains": ["Ведомость", "Предприятие"] },

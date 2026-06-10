@@ -467,7 +467,7 @@ async function runVedomostImport({
     movementsParsed: parsed.movements.length,
     movementsByType: {},
     stock: { created: 0, updated: 0, skipped: 0, unmappedWarehouse: 0, serialized: 0 },
-    movements: { inserted: 0, duplicates: 0, unmappedWarehouse: 0 },
+    movements: { inserted: 0, updated: 0, duplicates: 0, unmappedWarehouse: 0 },
     aliases: { created: 0, updated: 0 },
     unmappedWarehouses: [],
     warnings: [],
@@ -707,18 +707,63 @@ async function runVedomostImport({
 
   if (!dryRun && movementDocs.length) {
     try {
-      const res = await OneCMovement.insertMany(movementDocs, { ordered: false });
-      summary.movements.inserted += res.length;
+      const movementDedupFilter = (doc) => ({
+        docType: doc.docType,
+        docNumber: doc.docNumber || '',
+        docDate: doc.docDate,
+        nomenclature: doc.nomenclature,
+        qty: doc.qty,
+        direction: doc.direction,
+        warehouse1c: doc.warehouse1c || '',
+      });
+      const ops = movementDocs.map((doc) => ({
+        updateOne: {
+          filter: movementDedupFilter(doc),
+          update: {
+            $set: {
+              fileHash: doc.fileHash,
+              importedByLogin: doc.importedByLogin,
+              docTypeName: doc.docTypeName,
+              registrarRaw: doc.registrarRaw,
+              posted: doc.posted,
+              unit: doc.unit,
+              serial: doc.serial,
+              incoming: doc.incoming,
+              outgoing: doc.outgoing,
+              warehouseId: doc.warehouseId,
+              fromWarehouse1c: doc.fromWarehouse1c,
+              toWarehouse1c: doc.toWarehouse1c,
+              warehouseMapped: doc.warehouseMapped,
+              contractor: doc.contractor,
+              responsible: doc.responsible,
+              department: doc.department,
+              manager: doc.manager,
+              comment: doc.comment,
+              docSum: doc.docSum,
+              currency: doc.currency,
+              paymentDate: doc.paymentDate,
+            },
+            $setOnInsert: {
+              importedAt: doc.importedAt,
+              docType: doc.docType,
+              docNumber: doc.docNumber || '',
+              docDate: doc.docDate,
+              nomenclature: doc.nomenclature,
+              qty: doc.qty,
+              direction: doc.direction,
+              warehouse1c: doc.warehouse1c || '',
+            },
+          },
+          upsert: true,
+        },
+      }));
+      const res = await OneCMovement.bulkWrite(ops, { ordered: false });
+      summary.movements.inserted += res.upsertedCount || 0;
+      summary.movements.updated = (summary.movements.updated || 0) + (res.modifiedCount || 0);
+      // без змін (той самий коментар/поля) — не «дубль», а unchanged
+      summary.movements.duplicates += Math.max(0, (res.matchedCount || 0) - (res.modifiedCount || 0));
     } catch (err) {
-      // дублікати (унікальний індекс) — очікувані при перекритті періодів
-      if (err && err.writeErrors) {
-        summary.movements.inserted += err.result?.nInserted ?? (movementDocs.length - err.writeErrors.length);
-        summary.movements.duplicates += err.writeErrors.length;
-      } else if (err && err.code === 11000) {
-        summary.movements.duplicates += movementDocs.length;
-      } else {
-        summary.warnings.push(`OneCMovement insert: ${err.message}`);
-      }
+      summary.warnings.push(`OneCMovement bulkWrite: ${err.message}`);
     }
   } else if (dryRun) {
     summary.movements.inserted = movementDocs.length;
@@ -766,6 +811,7 @@ async function runVedomostImport({
         },
         movements: {
           inserted: summary.movements.inserted,
+          updated: summary.movements.updated || 0,
           duplicates: summary.movements.duplicates,
           parsed: summary.movementsParsed,
         },

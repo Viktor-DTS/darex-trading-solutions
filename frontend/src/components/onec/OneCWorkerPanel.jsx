@@ -24,6 +24,20 @@ function formatDt(iso) {
   return new Date(iso).toLocaleString('uk-UA');
 }
 
+/** Виправлення «Ð—Ð°Ð»Ð¸ÑˆÐºÐ¸» → «Залишки» для старих записів журналу. */
+function fixFilenameEncoding(name) {
+  const raw = String(name || '').trim();
+  if (!raw || /[а-яіїєґ]/i.test(raw)) return raw;
+  try {
+    const bytes = Uint8Array.from(raw, (ch) => ch.charCodeAt(0) & 0xff);
+    const decoded = new TextDecoder('utf-8').decode(bytes);
+    if (decoded && /[а-яіїєґ]/i.test(decoded)) return decoded;
+  } catch (_) {
+    /* ignore */
+  }
+  return raw;
+}
+
 function OneCWorkerPanel() {
   const [agentUrl, setAgentUrl] = useState(() => localStorage.getItem(LS_URL) || DEFAULT_URL);
   const [agentToken, setAgentToken] = useState(() => localStorage.getItem(LS_TOKEN) || '');
@@ -293,8 +307,8 @@ function OneCWorkerPanel() {
                 {journal.map((row) => (
                   <tr key={row._id} className={row.status === 'error' ? 'ow-row-err' : ''}>
                     <td className="ow-dt">{formatDt(row.importedAt)}</td>
-                    <td className="ow-file" title={row.fileName || ''}>
-                      {row.fileName || '—'}
+                    <td className="ow-file" title={fixFilenameEncoding(row.fileName) || ''}>
+                      {fixFilenameEncoding(row.fileName) || '—'}
                     </td>
                     <td>{TRIGGER_LABELS[row.trigger] || row.trigger || '—'}</td>
                     <td>
@@ -310,7 +324,7 @@ function OneCWorkerPanel() {
                     </td>
                     <td>
                       {row.status === 'success'
-                        ? `+${row.movements?.inserted ?? 0} (дублі ${row.movements?.duplicates ?? 0})`
+                        ? `+${row.movements?.inserted ?? 0}${(row.movements?.updated ?? 0) > 0 ? ` / ~${row.movements.updated}` : ''} (без змін ${row.movements?.duplicates ?? 0})`
                         : '—'}
                     </td>
                     <td className="ow-details">

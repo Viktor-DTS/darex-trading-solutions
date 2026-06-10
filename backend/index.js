@@ -10833,6 +10833,7 @@ app.post('/api/equipment/import-stock-xlsx', uploadStockXlsx.single('file'), asy
 // Інтеграція 1С: імпорт «Ведомости по товарам на складах» (залишки + рух) та мапінг складів
 // ============================================
 const { runVedomostImport } = require('./lib/vedomostImport');
+const { decodeMultipartFilename } = require('./lib/multipartFilename');
 
 // Імпорт звіту «Ведомость по товарам на складах» (оновлює залишки + журнал руху OneCMovement)
 app.post('/api/onec/import-vedomost', uploadStockXlsx.single('file'), async (req, res) => {
@@ -10850,7 +10851,7 @@ app.post('/api/onec/import-vedomost', uploadStockXlsx.single('file'), async (req
     }
     const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true' || req.body?.dryRun === true;
     const trigger = String(req.get('x-onec-trigger') || req.body?.trigger || 'upload').slice(0, 32);
-    const fileName = req.file.originalname || 'vedomost.xlsx';
+    const fileName = decodeMultipartFilename(req.file.originalname) || 'vedomost.xlsx';
     const nomenclatureCategoryMapFromDb = await loadStockImportNomenclatureMap();
     const summary = await runVedomostImport({
       Equipment,
@@ -10880,7 +10881,7 @@ app.post('/api/onec/import-vedomost', uploadStockXlsx.single('file'), async (req
       await OneCImportLog.create({
         importedByLogin: login,
         importedByName: name,
-        fileName: req.file?.originalname || null,
+        fileName: decodeMultipartFilename(req.file?.originalname) || null,
         trigger,
         dryRun: !!dryRun,
         status: 'error',
