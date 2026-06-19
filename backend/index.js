@@ -1417,7 +1417,9 @@ const warehouseSchema = new mongoose.Schema({
   oneCNames: { type: [String], default: [] },
   oneCRef: { type: String, default: '' },
   // Чи є цей склад джерелом залишків при імпорті «Ведомости» (фізичний склад).
-  isStockSource: { type: Boolean, default: true }
+  isStockSource: { type: Boolean, default: true },
+  // Чи показувати цей склад у панелі менеджера (вибір складів для менеджерів).
+  visibleToManagers: { type: Boolean, default: true }
 }, { timestamps: true });
 
 warehouseSchema.index({ name: 1 }, { unique: true });
@@ -9563,6 +9565,12 @@ app.get('/api/warehouses', authenticateToken, async (req, res) => {
         includeInactive && ['admin', 'administrator'].includes(req.user.role)
           ? {}
           : { isActive: true };
+      // Менеджери бачать лише склади, дозволені до показу (visibleToManagers).
+      // $ne: false — legacy-склади без поля лишаються видимими.
+      const roleLc = String(req.user.role || '').toLowerCase();
+      if (['manager', 'mgradm'].includes(roleLc)) {
+        whFilter.visibleToManagers = { $ne: false };
+      }
       warehouses = await Warehouse.find(whFilter).sort({ name: 1 }).lean();
     }
     logPerformance('GET /api/warehouses', startTime, warehouses.length);
@@ -9583,7 +9591,7 @@ app.post('/api/warehouses', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
 
-    const { name, region, address, oneCNames, oneCRef, isStockSource } = req.body;
+    const { name, region, address, oneCNames, oneCRef, isStockSource, visibleToManagers } = req.body;
     if (
       isRegionalWarehouseStaffRole(req.user.role) &&
       !bypassesRegionalWarehouseInventoryLock(req.user.role)
@@ -9606,6 +9614,7 @@ app.post('/api/warehouses', authenticateToken, async (req, res) => {
       oneCNames: normNames,
       oneCRef: oneCRef ? String(oneCRef).trim() : '',
       isStockSource: isStockSource !== false,
+      visibleToManagers: visibleToManagers !== false,
     });
     logPerformance('POST /api/warehouses', startTime);
     res.status(201).json(warehouse);
@@ -9640,7 +9649,7 @@ app.put('/api/warehouses/:id', authenticateToken, async (req, res) => {
       if (!okWh) return;
     }
 
-    const { name, region, address, isActive, oneCNames, oneCRef, isStockSource } = req.body;
+    const { name, region, address, isActive, oneCNames, oneCRef, isStockSource, visibleToManagers } = req.body;
     const update = { name, region, address, isActive };
     if (oneCNames !== undefined) {
       update.oneCNames = Array.isArray(oneCNames)
@@ -9649,6 +9658,7 @@ app.put('/api/warehouses/:id', authenticateToken, async (req, res) => {
     }
     if (oneCRef !== undefined) update.oneCRef = oneCRef ? String(oneCRef).trim() : '';
     if (isStockSource !== undefined) update.isStockSource = isStockSource !== false;
+    if (visibleToManagers !== undefined) update.visibleToManagers = visibleToManagers !== false;
     const warehouse = await Warehouse.findByIdAndUpdate(
       req.params.id,
       update,
@@ -11226,6 +11236,12 @@ async function getManagerEquipmentCategoryFilterIds() {
   return Array.from(merged.values());
 }
 
+/** Id складів (рядки), дозволених до показу менеджерам (visibleToManagers !== false). */
+async function getManagerVisibleWarehouseIds() {
+  const list = await Warehouse.find({ visibleToManagers: { $ne: false } }).select('_id').lean();
+  return list.map((w) => String(w._id));
+}
+
 /** Поля для таблиці залишків — без важких масивів історії/файлів. */
 const EQUIPMENT_LIST_PROJECTION = {
   type: 1,
@@ -11549,6 +11565,20 @@ async function buildEquipmentListQuery(req) {
     query.categoryId = subtreeIds.length === 1 && includeSubtree !== 'true'
       ? subtreeIds[0]
       : { $in: subtreeIds };
+  }
+
+  // Менеджери бачать залишки лише зі складів, дозволених до показу.
+  if (isManagerStockRole) {
+    const visibleWhIds = await getManagerVisibleWarehouseIds();
+    const visibleSet = new Set(visibleWhIds);
+    const cw = query.currentWarehouse;
+    if (cw == null) {
+      query.currentWarehouse = { $in: visibleWhIds };
+    } else if (typeof cw === 'string') {
+      if (!visibleSet.has(cw)) query.currentWarehouse = { $in: [] };
+    } else if (cw && Array.isArray(cw.$in)) {
+      query.currentWarehouse = { $in: cw.$in.map(String).filter((x) => visibleSet.has(x)) };
+    }
   }
 
   if (search && String(search).trim()) {

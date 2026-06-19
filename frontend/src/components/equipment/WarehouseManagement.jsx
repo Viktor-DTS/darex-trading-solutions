@@ -13,7 +13,8 @@ function WarehouseManagement({ user }) {
     region: '',
     address: '',
     oneCNames: '',
-    isStockSource: true
+    isStockSource: true,
+    visibleToManagers: true
   });
   const [errors, setErrors] = useState([]);
   // Черга мапінгу складів 1С
@@ -169,11 +170,12 @@ function WarehouseManagement({ user }) {
         region: warehouse.region || '',
         address: warehouse.address || '',
         oneCNames: Array.isArray(warehouse.oneCNames) ? warehouse.oneCNames.join('\n') : '',
-        isStockSource: warehouse.isStockSource !== false
+        isStockSource: warehouse.isStockSource !== false,
+        visibleToManagers: warehouse.visibleToManagers !== false
       });
     } else {
       setEditingWarehouse(null);
-      setFormData({ name: '', region: '', address: '', oneCNames: '', isStockSource: true });
+      setFormData({ name: '', region: '', address: '', oneCNames: '', isStockSource: true, visibleToManagers: true });
     }
     setErrors([]);
     setShowModal(true);
@@ -182,7 +184,7 @@ function WarehouseManagement({ user }) {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingWarehouse(null);
-    setFormData({ name: '', region: '', address: '', oneCNames: '', isStockSource: true });
+    setFormData({ name: '', region: '', address: '', oneCNames: '', isStockSource: true, visibleToManagers: true });
     setErrors([]);
   };
 
@@ -216,7 +218,8 @@ function WarehouseManagement({ user }) {
         region: formData.region,
         address: formData.address,
         oneCNames: oneCNamesArr,
-        isStockSource: formData.isStockSource !== false
+        isStockSource: formData.isStockSource !== false,
+        visibleToManagers: formData.visibleToManagers !== false
       };
 
       const response = await fetch(url, {
@@ -564,6 +567,10 @@ function WarehouseManagement({ user }) {
                 <div className="warehouse-info">
                   <span className="info-label">Джерело залишків:</span>
                   <span className="info-value">{warehouse.isStockSource === false ? 'ні' : 'так'}</span>
+                </div>
+                <div className="warehouse-info">
+                  <span className="info-label">Видно менеджерам:</span>
+                  <span className="info-value">{warehouse.visibleToManagers === false ? 'ні' : 'так'}</span>
                 </div>
                 <div className="warehouse-info">
                   <span className="info-label">Створено:</span>
@@ -1119,6 +1126,17 @@ function WarehouseManagement({ user }) {
                     onChange={(e) => handleInputChange('isStockSource', e.target.checked)}
                   />
                   Джерело залишків (фізичний склад — оновлювати залишки при імпорті 1С)
+                </label>
+              </div>
+
+              <div className="form-group">
+                <label className="import-dry-run">
+                  <input
+                    type="checkbox"
+                    checked={formData.visibleToManagers !== false}
+                    onChange={(e) => handleInputChange('visibleToManagers', e.target.checked)}
+                  />
+                  Показувати менеджерам (склад видно в панелі менеджера)
                 </label>
               </div>
 
