@@ -170,20 +170,11 @@ async function runSteps(automation, ctx, log) {
     return closed;
   };
 
-  const dismissOpenMenu = async () => {
-    if (automation.dismissMenuAfterRefocus === false) return;
-    await pressEscapeRaw();
-    await new Promise((r) => setTimeout(r, 150));
-    await pressEscapeRaw();
-    await new Promise((r) => setTimeout(r, 120));
-  };
-
   /** Перед клавішами: refocus 1С; клік лише якщо clickBeforeKeys / opts.click. */
   const ensure1cFocused = async (opts = {}) => {
     if (automation.forceFocusBeforeKeys === false && !opts.force) return;
     if (!opts.skipRefocus) {
       await refocus1cMain(log, automation);
-      await dismissOpenMenu();
     }
     try {
       await focusWindow(
@@ -204,7 +195,6 @@ async function runSteps(automation, ctx, log) {
         await mouse.click(Button.LEFT);
         await new Promise((r) => setTimeout(r, automation.focusClickSettleMs ?? 200));
         await dismissFieldPickerIfOpen();
-        await dismissOpenMenu();
       }
     }
   };
@@ -268,7 +258,6 @@ async function runSteps(automation, ctx, log) {
   };
 
   await prepareDesktopForAutomation(automation, log);
-  await dismissOpenMenu();
 
   for (let i = 0; i < (automation.steps || []).length; i++) {
     const step = automation.steps[i];

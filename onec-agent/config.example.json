@@ -37,7 +37,6 @@
     "forceFocusBeforeKeys": true,
     "clickBeforeKeys": false,
     "clickBeforeSave": false,
-    "dismissMenuAfterRefocus": true,
     "dismissFieldPicker": true,
     "windowActivateClick": null,
     "reportClick": { "x": 700, "y": 450 },

@@ -44,14 +44,11 @@ public class WinDesk {
     [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
     [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
     [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int dwProcessId);
-    [DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
     [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
     [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
     public const int SW_RESTORE = 9;
     public const int SW_MINIMIZE = 6;
     public const int ASFW_ANY = -1;
-    public const byte VK_ESCAPE = 0x1B;
-    public const uint KEYEVENTF_KEYUP = 0x0002;
 }
 "@
 }
@@ -103,14 +100,9 @@ function Minimize-Window([IntPtr]$hwnd) {
     return [WinDesk]::ShowWindow($hwnd, [WinDesk]::SW_MINIMIZE)
 }
 
-function Send-Escape {
-    [WinDesk]::keybd_event([WinDesk]::VK_ESCAPE, 0, 0, [UIntPtr]::Zero) | Out-Null
-    [WinDesk]::keybd_event([WinDesk]::VK_ESCAPE, 0, [WinDesk]::KEYEVENTF_KEYUP, [UIntPtr]::Zero) | Out-Null
-}
-
 function Force-ForegroundWindow([IntPtr]$hwnd) {
     if ($hwnd -eq [IntPtr]::Zero) { return $false }
-    # Do NOT send Alt — it opens 1C menu bar (Правка/Файл).
+    # Do NOT send Alt (opens menu) or Esc (closes report window in 1C).
     [void][WinDesk]::AllowSetForegroundWindow([WinDesk]::ASFW_ANY)
 
     $fg = [WinDesk]::GetForegroundWindow()
@@ -134,13 +126,7 @@ function Force-ForegroundWindow([IntPtr]$hwnd) {
     if ($fgTid -ne 0) { [void][WinDesk]::AttachThreadInput($curTid, $fgTid, $false) }
 
     Start-Sleep -Milliseconds 200
-    if ([WinDesk]::GetForegroundWindow() -eq $hwnd) {
-        Send-Escape
-        Start-Sleep -Milliseconds 120
-        Send-Escape
-        return $true
-    }
-    return $ok
+    return $ok -or ([WinDesk]::GetForegroundWindow() -eq $hwnd)
 }
 
 if (-not $SkipMinimize) {
