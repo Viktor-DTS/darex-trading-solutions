@@ -20,8 +20,26 @@ const EVENT_LABELS = {
   movement_document_completed: 'Документ переміщення (завершено)',
   testing_request_cancelled: 'Скасування заявки на тестування',
   testing_returned_for_retest: 'Повторне тестування',
-  equipment_deleted: 'Видалення позиції'
+  equipment_deleted: 'Видалення позиції',
+  // Рух товару з 1С (OneCMovement)
+  'onec:sale': '1С: Реалізація',
+  'onec:receipt': '1С: Надходження',
+  'onec:move': '1С: Переміщення',
+  'onec:assembly': '1С: Комплектація',
+  'onec:writeoff': '1С: Списання',
+  'onec:return': '1С: Повернення',
+  'onec:inventory': '1С: Інвентаризація',
+  'onec:other': '1С: Документ'
 };
+
+/** Назва події для рядка журналу (з підтримкою рухів 1С). */
+function eventLabel(row) {
+  if (EVENT_LABELS[row.eventType]) return EVENT_LABELS[row.eventType];
+  if (typeof row.eventType === 'string' && row.eventType.startsWith('onec:')) {
+    return row.docTypeName ? `1С: ${row.docTypeName}` : '1С: Документ';
+  }
+  return row.eventType;
+}
 
 function formatDt(d) {
   if (!d) return '—';
@@ -81,7 +99,8 @@ export default function InventoryMovementJournal() {
           Реєстрація надходжень (скан, документи), списань, резервів і їх скасувань, заявок на
           відвантаження та скасувань, відвантажень, переміщень (API та завершення документів
           переміщення), скасування таких документів і документів надходження, змін статусу, прийому з
-          дороги та службових подій (тестування, видалення).
+          дороги та службових подій (тестування, видалення), а також реального руху товару з 1С
+          (реалізація, надходження, переміщення, списання тощо зі звіту «Ведомость по товарам на складах»).
         </p>
         <div className="inventory-movement-journal-toolbar">
           <button type="button" className="btn-secondary" onClick={load} disabled={loading}>
@@ -136,15 +155,17 @@ export default function InventoryMovementJournal() {
               </tr>
             ) : null}
             {data.rows.map((row) => (
-              <tr key={row._id}>
+              <tr key={row._id} className={row.source === 'onec' ? 'inventory-movement-row-onec' : undefined}>
                 <td>{formatDt(row.occurredAt)}</td>
-                <td>{EVENT_LABELS[row.eventType] || row.eventType}</td>
+                <td>{eventLabel(row)}</td>
                 <td>{row.performedByName || row.performedByLogin || '—'}</td>
                 <td>{row.equipmentType || '—'}</td>
                 <td>{row.quantity != null ? row.quantity : '—'}</td>
                 <td>{row.serialNumber || '—'}</td>
                 <td>
-                  {formatMovementStatusValue(row.fromStatus)} → {formatMovementStatusValue(row.toStatus)}
+                  {row.source === 'onec'
+                    ? row.directionLabel || '—'
+                    : `${formatMovementStatusValue(row.fromStatus)} → ${formatMovementStatusValue(row.toStatus)}`}
                 </td>
                 <td>
                   {row.managerName || row.managerLogin

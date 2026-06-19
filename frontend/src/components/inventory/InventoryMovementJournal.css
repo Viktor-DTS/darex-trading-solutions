@@ -81,3 +81,8 @@
   gap: 12px;
   margin-top: 16px;
 }
+
+/* Рядки реального руху товару з 1С — легке виділення */
+.inventory-movement-row-onec td {
+  background: var(--bg-accent-soft, rgba(56, 132, 255, 0.08));
+}

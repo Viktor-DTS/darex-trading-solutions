@@ -5579,6 +5579,36 @@ app.patch('/api/shipment-requests/:id/status', authenticateToken, async (req, re
   }
 });
 
+/** Перетворює рядок руху з 1С (OneCMovement) у формат рядка журналу руху товару. */
+function mapOneCMovementToJournalRow(m) {
+  const directionLabel =
+    m.direction === 'in' ? 'Прихід' : m.direction === 'out' ? 'Видаток' : '—';
+  return {
+    _id: `onec:${m._id}`,
+    source: 'onec',
+    occurredAt: m.docDate || m.importedAt || m.createdAt || null,
+    eventType: `onec:${m.docType || 'other'}`,
+    docTypeName: m.docTypeName || '',
+    performedByName: m.responsible || m.manager || '',
+    performedByLogin: '',
+    equipmentType: m.nomenclature || '',
+    quantity: m.qty != null ? m.qty : null,
+    direction: m.direction || 'none',
+    directionLabel,
+    serialNumber: m.serial || '',
+    managerName: m.manager || '',
+    managerLogin: '',
+    clientName: m.contractor || '',
+    clientEdrpou: '',
+    shipmentAddress: '',
+    sourceWarehouseName: m.fromWarehouse1c || (m.direction === 'out' ? m.warehouse1c : '') || '',
+    destinationWarehouseName: m.toWarehouse1c || (m.direction === 'in' ? m.warehouse1c : '') || '',
+    notes: [m.docNumber ? `Док. ${m.docNumber}` : '', m.docTypeName, m.comment]
+      .filter(Boolean)
+      .join(' · '),
+  };
+}
+
 app.get('/api/inventory-movement-log', authenticateToken, async (req, res) => {
   try {
     if (!canAccessInventoryShipmentRequests(req.user)) {
@@ -5586,18 +5616,34 @@ app.get('/api/inventory-movement-log', authenticateToken, async (req, res) => {
     }
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 150, 1), 500);
     const skip = Math.max(parseInt(req.query.skip, 10) || 0, 0);
-    const [rows, total] = await Promise.all([
-      InventoryMovementLog.find({})
-        .sort({ occurredAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      InventoryMovementLog.countDocuments({})
+    // Чи включати рух товару з 1С (OneCMovement). За замовчуванням — так.
+    const includeOneC = req.query.includeOneC !== '0' && req.query.includeOneC !== 'false';
+    // Для коректної пагінації об'єднаного списку достатньо взяти топ (skip+limit)
+    // з кожного джерела за датою (використовує індекси), злити та відрізати сторінку.
+    const need = skip + limit;
+    const [internalRows, onecRows, internalTotal, onecTotal] = await Promise.all([
+      InventoryMovementLog.find({}).sort({ occurredAt: -1 }).limit(need).lean(),
+      includeOneC
+        ? OneCMovement.find({}).sort({ docDate: -1, _id: -1 }).limit(need).lean()
+        : Promise.resolve([]),
+      InventoryMovementLog.countDocuments({}),
+      includeOneC ? OneCMovement.countDocuments({}) : Promise.resolve(0),
     ]);
+    const mappedInternal = internalRows.map((r) => ({ ...r, source: 'internal' }));
+    const mappedOneC = onecRows.map(mapOneCMovementToJournalRow);
+    const merged = [...mappedInternal, ...mappedOneC]
+      .sort((a, b) => new Date(b.occurredAt || 0) - new Date(a.occurredAt || 0))
+      .slice(skip, skip + limit);
     const journalReadOnly =
       isRegionalWarehouseStaffRole(req.user.role) &&
       !bypassesRegionalWarehouseInventoryLock(req.user.role);
-    res.json({ rows, total, skip, limit, journalReadOnly });
+    res.json({
+      rows: merged,
+      total: internalTotal + onecTotal,
+      skip,
+      limit,
+      journalReadOnly,
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -11653,15 +11699,18 @@ app.get('/api/equipment/statistics', authenticateToken, async (req, res) => {
       { $sort: { total: -1 } }
     ]);
     
-    // Статистика по типах обладнання (з обробкою null)
+    // Статистика по типах обладнання — кількість матеріалів (сума quantity),
+    // а не кількість позицій. Для одиничних позицій quantity=1.
     const byType = await Equipment.aggregate([
       { $match: matchQuery },
-      { 
-        $group: { 
+      {
+        $group: {
           _id: { $ifNull: ['$type', 'Не вказано'] },
-          count: { $sum: 1 }
+          count: { $sum: { $ifNull: ['$quantity', 1] } },
+          positions: { $sum: 1 }
         }
       },
+      { $project: { count: { $round: ['$count', 3] }, positions: 1 } },
       { $sort: { count: -1 } },
       { $limit: 10 }
     ]);

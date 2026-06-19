@@ -204,18 +204,21 @@ function EquipmentStatistics({ warehouses }) {
         <div className="statistics-section">
           <h3>🔧 Популярні типи обладнання</h3>
           <div className="type-stats">
-            {statistics.byType.map((type, index) => (
-              <div key={index} className="type-stat-item">
-                <div className="type-name">{type._id || 'Без типу'}</div>
-                <div className="type-bar">
-                  <div 
-                    className="type-bar-fill" 
-                    style={{ width: `${(type.count / statistics.total) * 100}%` }}
-                  />
+            {(() => {
+              const maxCount = Math.max(...statistics.byType.map((t) => t.count || 0), 1);
+              return statistics.byType.map((type, index) => (
+                <div key={index} className="type-stat-item">
+                  <div className="type-name">{type._id || 'Без типу'}</div>
+                  <div className="type-bar">
+                    <div
+                      className="type-bar-fill"
+                      style={{ width: `${Math.min(100, (type.count / maxCount) * 100)}%` }}
+                    />
+                  </div>
+                  <div className="type-count">{type.count}</div>
                 </div>
-                <div className="type-count">{type.count}</div>
-              </div>
-            ))}
+              ));
+            })()}
           </div>
         </div>
       )}
