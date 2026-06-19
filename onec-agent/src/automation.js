@@ -110,8 +110,8 @@ async function runSteps(automation, ctx, log) {
       return key;
     });
 
-  const pressChord = async (keys) => {
-    await ensure1cFocused();
+  const pressChord = async (keys, focusOpts = {}) => {
+    await ensure1cFocused(focusOpts);
     await withEnglishLayout(log, automation, keys, async () => {
       const mapped = mapKeys(keys);
       for (const k of mapped) await keyboard.pressKey(k);
@@ -119,8 +119,8 @@ async function runSteps(automation, ctx, log) {
     });
   };
 
-  const pressSequence = async (keys, gapMs = 120) => {
-    await ensure1cFocused();
+  const pressSequence = async (keys, gapMs = 120, focusOpts = {}) => {
+    await ensure1cFocused(focusOpts);
     await withEnglishLayout(log, automation, keys, async () => {
       for (const name of keys || []) {
         const k = keyMap[String(name).toLowerCase()];
@@ -171,9 +171,9 @@ async function runSteps(automation, ctx, log) {
     return closed;
   };
 
-  /** Перед кожними клавішами: згорнути агента, активувати 1С, клікнути у вікно. */
-  const ensure1cFocused = async () => {
-    if (automation.forceFocusBeforeKeys === false) return;
+  /** Перед клавішами: refocus 1С; клік лише якщо clickBeforeKeys / opts.click. */
+  const ensure1cFocused = async (opts = {}) => {
+    if (automation.forceFocusBeforeKeys === false && !opts.force) return;
     await refocus1cMain(log, automation);
     try {
       await focusWindow(
@@ -183,19 +183,23 @@ async function runSteps(automation, ctx, log) {
         log
       );
     } catch (_) {
-      /* prepare-desktop вже намагався */
+      /* prepare-desktop / focusWindow fallback */
     }
-    const wc = automation.windowActivateClick || automation.reportClick;
-    if (wc?.x != null && wc?.y != null) {
-      await mouse.setPosition(new Point(wc.x, wc.y));
-      await mouse.click(Button.LEFT);
-      await new Promise((r) => setTimeout(r, automation.focusClickSettleMs ?? 200));
-      await dismissFieldPickerIfOpen();
+    const shouldClick =
+      opts.click === true || (opts.click !== false && automation.clickBeforeKeys === true);
+    if (shouldClick) {
+      const wc = automation.windowActivateClick || automation.reportClick;
+      if (wc?.x != null && wc?.y != null) {
+        await mouse.setPosition(new Point(wc.x, wc.y));
+        await mouse.click(Button.LEFT);
+        await new Promise((r) => setTimeout(r, automation.focusClickSettleMs ?? 200));
+        await dismissFieldPickerIfOpen();
+      }
     }
   };
 
   const clickReport = async () => {
-    await ensure1cFocused();
+    await ensure1cFocused({ click: false });
     const rc = automation.reportClick;
     if (!rc || rc.x == null || rc.y == null) return;
     await mouse.setPosition(new Point(rc.x, rc.y));
@@ -221,7 +225,7 @@ async function runSteps(automation, ctx, log) {
         log
       );
       if (opts.clickReport !== false) await clickReport();
-      else await dismissFieldPickerIfOpen();
+      else await ensure1cFocused({ click: automation.clickBeforeSave !== false });
 
       for (const att of attempts) {
         if (att.toolbar) {
@@ -269,7 +273,10 @@ async function runSteps(automation, ctx, log) {
           await focusWindow(step, automation, getWindows, log);
           break;
         case 'key': {
-          await pressChord(step.keys);
+          const focusOpts = {};
+          if (step.clickBeforeKeys === true) focusOpts.click = true;
+          if (step.clickBeforeKeys === false) focusOpts.click = false;
+          await pressChord(step.keys, focusOpts);
           log(`✓ Клавіші: ${(step.keys || []).join('+')}`);
           break;
         }

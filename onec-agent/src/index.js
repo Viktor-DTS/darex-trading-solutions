@@ -12,7 +12,7 @@ const { runPipeline } = require('./pipeline');
 const { getAgentRoot, loadConfig, getAgentTempDir } = require('./paths');
 const { spawnOnceRun } = require('./spawnOnce');
 
-const AGENT_BUILD = '2026-06-18-field-picker-dismiss';
+const AGENT_BUILD = '2026-06-19-ps1-encoding-fix';
 
 const config = loadConfig();
 const onceMode = process.argv.includes('--once');

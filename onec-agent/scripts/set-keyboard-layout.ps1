@@ -4,11 +4,24 @@ param(
     [ValidateSet('SaveEnglish', 'Restore')]
     [string]$Action,
     [string]$Klid = '00000409',
-    [string]$StateFile = ''
+    [string]$StateFile = '',
+    [string]$NeedlesFile = ''
 )
 
 $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+$script:OneCNeedles = @('Enterprise', '1cv8', 'V8')
+if (-not $NeedlesFile) {
+    $NeedlesFile = Join-Path $PSScriptRoot 'window-needles.json'
+}
+if ($NeedlesFile -and (Test-Path -LiteralPath $NeedlesFile)) {
+    try {
+        $raw = Get-Content -LiteralPath $NeedlesFile -Raw -Encoding UTF8
+        $cfg = $raw | ConvertFrom-Json
+        if ($cfg.onecMain) { $script:OneCNeedles = @($cfg.onecMain) }
+    } catch {}
+}
 
 if (-not ('KbdLayout' -as [type])) {
     Add-Type @"
@@ -57,7 +70,7 @@ function Focus-1cWindow {
         if ($t.IndexOf('DTS', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and $t.IndexOf('Agent', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
             return $true
         }
-        if (Title-Matches $t @('Предприятие', 'Ведомость', 'Управление торговым')) {
+        if (Title-Matches $t $script:OneCNeedles) {
             if ($script:bestHwnd -eq [IntPtr]::Zero -or $t.Length -gt $script:bestTitle.Length) {
                 $script:bestHwnd = $hWnd
                 $script:bestTitle = $t

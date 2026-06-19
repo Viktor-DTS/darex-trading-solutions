@@ -5,7 +5,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { getAgentRoot } = require('./paths');
+const { getAgentRoot, getWindowNeedlesPath } = require('./paths');
 
 function resolveScript(name) {
   const root = getAgentRoot();
@@ -19,16 +19,23 @@ function resolveScript(name) {
   return null;
 }
 
+function psExtraArgs(scriptName) {
+  if (scriptName !== 'prepare-desktop.ps1' && scriptName !== 'set-keyboard-layout.ps1') return [];
+  const needles = getWindowNeedlesPath();
+  return needles ? ['-NeedlesFile', needles] : [];
+}
+
 function runPsScript(scriptName, log, extraArgs = []) {
   const script = resolveScript(scriptName);
   if (!script) {
     log?.(`! ${scriptName} не знайдено`);
     return null;
   }
+  const args = [...psExtraArgs(scriptName), ...extraArgs];
   try {
     const out = execFileSync(
       'powershell',
-      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, ...extraArgs],
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, ...args],
       { encoding: 'utf8',
         timeout: 15000,
         windowsHide: true }
@@ -54,6 +61,8 @@ async function prepareDesktopForAutomation(automation, log) {
     await new Promise((r) => setTimeout(r, automation?.desktopPrepareSettleMs ?? 350));
     return true;
   }
+  const failLine = lines.filter((l) => l.startsWith('FAIL|')).pop();
+  if (failLine) log?.(`! prepare-desktop: ${failLine.slice(5)}`);
   return false;
 }
 
@@ -66,6 +75,8 @@ async function refocus1cMain(log, automation) {
     await new Promise((r) => setTimeout(r, automation?.refocusSettleMs ?? 280));
     return true;
   }
+  const failLine = lines.filter((l) => l.startsWith('FAIL|')).pop();
+  if (failLine) log?.(`! refocus: ${failLine.slice(5)}`);
   return false;
 }
 

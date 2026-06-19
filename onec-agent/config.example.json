@@ -35,6 +35,8 @@
     "keyboardLayoutKlid": "00000409",
     "minimizeAgentConsole": true,
     "forceFocusBeforeKeys": true,
+    "clickBeforeKeys": false,
+    "clickBeforeSave": true,
     "dismissFieldPicker": true,
     "windowActivateClick": { "x": 400, "y": 25 },
     "reportClick": { "x": 700, "y": 450 },

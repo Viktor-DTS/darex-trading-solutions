@@ -1,10 +1,30 @@
-# Minimize agent console, force foreground to 1C (works even if user watches agent window).
+# Minimize agent console, force foreground to 1C. ASCII-only body; needles in UTF-8 JSON.
 param(
-    [switch]$SkipMinimize
+    [switch]$SkipMinimize,
+    [string]$NeedlesFile = ''
 )
 
 $ErrorActionPreference = 'Continue'
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+if (-not $NeedlesFile) {
+    $NeedlesFile = Join-Path $PSScriptRoot 'window-needles.json'
+}
+
+$onecNeedles = @('Enterprise', '1cv8', 'V8')
+$onecExclude = @('DTS', 'Agent', 'Cursor', 'PowerShell', 'cmd.exe')
+$agentNeedles = @('DTS 1C Agent', 'dist-portable')
+
+if ($NeedlesFile -and (Test-Path -LiteralPath $NeedlesFile)) {
+    try {
+        $raw = Get-Content -LiteralPath $NeedlesFile -Raw -Encoding UTF8
+        $cfg = $raw | ConvertFrom-Json
+        if ($cfg.onecMain) { $onecNeedles = @($cfg.onecMain) }
+        if ($cfg.onecExclude) { $onecExclude = @($cfg.onecExclude) }
+        if ($cfg.agentMinimize) { $agentNeedles = @($cfg.agentMinimize) }
+    } catch {
+        Write-Output ('WARN|needles json: ' + $_.Exception.Message)
+    }
+}
 
 if (-not ('WinDesk' -as [type])) {
     Add-Type @"
@@ -37,14 +57,24 @@ public class WinDesk {
 function Title-Matches([string]$title, [string[]]$needles) {
     if (-not $title) { return $false }
     foreach ($n in $needles) {
+        if (-not $n) { continue }
         if ($title.IndexOf($n, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
     }
     return $false
 }
 
+function Title-Excluded([string]$title, [string[]]$exclude) {
+    if (-not $title) { return $true }
+    foreach ($ex in $exclude) {
+        if (-not $ex) { continue }
+        if ($title.IndexOf($ex, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
+    }
+    return $false
+}
+
 function Find-BestWindow([string[]]$needles, [string[]]$exclude) {
-    $bestHwnd = [IntPtr]::Zero
-    $bestTitle = ''
+    $script:bestHwnd = [IntPtr]::Zero
+    $script:bestTitle = ''
     $cb = {
         param($hWnd, $lParam)
         if (-not [WinDesk]::IsWindowVisible($hWnd)) { return $true }
@@ -52,9 +82,7 @@ function Find-BestWindow([string[]]$needles, [string[]]$exclude) {
         [void][WinDesk]::GetWindowText($hWnd, $sb, 512)
         $t = $sb.ToString()
         if (-not $t) { return $true }
-        foreach ($ex in $exclude) {
-            if ($t.IndexOf($ex, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
-        }
+        if (Title-Excluded $t $exclude) { return $true }
         if (Title-Matches $t $needles) {
             if ($script:bestHwnd -eq [IntPtr]::Zero -or $t.Length -gt $script:bestTitle.Length) {
                 $script:bestHwnd = $hWnd
@@ -64,7 +92,7 @@ function Find-BestWindow([string[]]$needles, [string[]]$exclude) {
         return $true
     }
     [WinDesk]::EnumWindows($cb, [IntPtr]::Zero) | Out-Null
-    return @{ Hwnd = $bestHwnd; Title = $bestTitle }
+    return @{ Hwnd = $script:bestHwnd; Title = $script:bestTitle }
 }
 
 function Minimize-Window([IntPtr]$hwnd) {
@@ -75,7 +103,6 @@ function Minimize-Window([IntPtr]$hwnd) {
 
 function Force-ForegroundWindow([IntPtr]$hwnd) {
     if ($hwnd -eq [IntPtr]::Zero) { return $false }
-    # Alt — зняти блокування SetForegroundWindow (користувач дивиться на консоль агента)
     [WinDesk]::keybd_event([WinDesk]::VK_MENU, 0, 0, [UIntPtr]::Zero) | Out-Null
     [WinDesk]::keybd_event([WinDesk]::VK_MENU, 0, [WinDesk]::KEYEVENTF_KEYUP, [UIntPtr]::Zero) | Out-Null
     Start-Sleep -Milliseconds 80
@@ -110,7 +137,7 @@ if (-not $SkipMinimize) {
         [void](Minimize-Window $con)
         Write-Output 'MIN|console'
     }
-    foreach ($needle in @('DTS 1C Agent', 'DTS 1С-агент', 'dist-portable')) {
+    foreach ($needle in $agentNeedles) {
         $agent = Find-BestWindow @($needle) @()
         if ($agent.Hwnd -ne [IntPtr]::Zero) {
             [void](Minimize-Window $agent.Hwnd)
@@ -119,7 +146,7 @@ if (-not $SkipMinimize) {
     }
 }
 
-$onec = Find-BestWindow @('Предприятие', 'Ведомость', 'Управление торговым') @('DTS', 'Agent', 'Cursor', 'PowerShell', 'cmd.exe')
+$onec = Find-BestWindow $onecNeedles $onecExclude
 if ($onec.Hwnd -ne [IntPtr]::Zero) {
     $ok = Force-ForegroundWindow $onec.Hwnd
     if ($ok) {

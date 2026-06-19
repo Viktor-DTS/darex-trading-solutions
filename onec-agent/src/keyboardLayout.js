@@ -6,7 +6,7 @@ const { execFileSync } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { getAgentRoot, getAgentTempDir } = require('./paths');
+const { getAgentRoot, getAgentTempDir, getWindowNeedlesPath } = require('./paths');
 
 const DEFAULT_KLID = '00000409'; // English (United States)
 
@@ -54,6 +54,8 @@ function runLayoutPs(action, log, opts = {}) {
     opts.klid || DEFAULT_KLID,
   ];
   if (opts.stateFile) args.push('-StateFile', opts.stateFile);
+  const needles = getWindowNeedlesPath();
+  if (needles) args.push('-NeedlesFile', needles);
 
   try {
     const out = execFileSync('powershell', args, {

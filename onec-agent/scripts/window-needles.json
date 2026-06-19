@@ -1,0 +1,11 @@
+{
+  "onecMain": [
+    "Предприятие",
+    "Ведомость",
+    "Управление торговым",
+    "1С:Предприятие",
+    "1C:Enterprise"
+  ],
+  "onecExclude": ["DTS", "Agent", "Cursor", "PowerShell", "cmd.exe"],
+  "agentMinimize": ["DTS 1C Agent", "DTS 1С-агент", "dist-portable"]
+}
