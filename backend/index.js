@@ -9565,10 +9565,14 @@ app.get('/api/warehouses', authenticateToken, async (req, res) => {
         includeInactive && ['admin', 'administrator'].includes(req.user.role)
           ? {}
           : { isActive: true };
-      // Менеджери бачать лише склади, дозволені до показу (visibleToManagers).
+      // Менеджери (або будь-хто в контексті панелі менеджера, напр. адмін, що
+      // відкрив вкладку «Менеджери») бачать лише дозволені склади.
       // $ne: false — legacy-склади без поля лишаються видимими.
       const roleLc = String(req.user.role || '').toLowerCase();
-      if (['manager', 'mgradm'].includes(roleLc)) {
+      const managerContext = ['1', 'true', 'yes'].includes(
+        String(req.query.managerContext || '').trim().toLowerCase()
+      );
+      if (['manager', 'mgradm'].includes(roleLc) || managerContext) {
         whFilter.visibleToManagers = { $ne: false };
       }
       warehouses = await Warehouse.find(whFilter).sort({ name: 1 }).lean();
@@ -11567,8 +11571,9 @@ async function buildEquipmentListQuery(req) {
       : { $in: subtreeIds };
   }
 
-  // Менеджери бачать залишки лише зі складів, дозволених до показу.
-  if (isManagerStockRole) {
+  // Менеджери (та контекст панелі менеджера) бачать залишки лише зі складів,
+  // дозволених до показу.
+  if (applyManagerCategoryFilter) {
     const visibleWhIds = await getManagerVisibleWarehouseIds();
     const visibleSet = new Set(visibleWhIds);
     const cw = query.currentWarehouse;

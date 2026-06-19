@@ -138,7 +138,7 @@ function ManagerDashboard({ user }) {
   const loadWarehouses = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/warehouses`, {
+      const response = await fetch(`${API_BASE_URL}/warehouses?managerContext=1`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
