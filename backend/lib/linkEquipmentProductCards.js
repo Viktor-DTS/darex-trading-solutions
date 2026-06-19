@@ -44,6 +44,7 @@ async function linkEquipmentToProductCardsByName({ Equipment, ProductCard, dryRu
     dryRun: !!dryRun,
     scanned: 0,
     linked: 0,
+    groupAssigned: 0,
     noMatch: 0,
     ambiguous: 0,
     emptyType: 0,
@@ -55,7 +56,7 @@ async function linkEquipmentToProductCardsByName({ Equipment, ProductCard, dryRu
   };
 
   const cards = await ProductCard.find({ isActive: { $ne: false } })
-    .select('_id type displayName manufacturer')
+    .select('_id type displayName manufacturer categoryId itemKind materialValueType')
     .lean();
   const cardIndex = buildProductCardIndex(cards);
 
@@ -64,7 +65,7 @@ async function linkEquipmentToProductCardsByName({ Equipment, ProductCard, dryRu
     status: { $ne: 'deleted' },
     $or: [{ productId: null }, { productId: { $exists: false } }],
   })
-    .select('_id type')
+    .select('_id type categoryId itemKind materialValueType')
     .lean();
 
   const bulkOps = [];
@@ -111,16 +112,34 @@ async function linkEquipmentToProductCardsByName({ Equipment, ProductCard, dryRu
       });
     }
 
+    // Група товарів та класифікація з карточки (як при ручному застосуванні
+    // карточки — buildPatchesFromProductCard): не перетираємо вже задану групу.
+    const set = {
+      productId: card._id,
+      lastModified: now,
+    };
+    const rowHasCategory = row.categoryId != null && String(row.categoryId).trim() !== '';
+    if (!rowHasCategory && card.categoryId != null) {
+      set.categoryId = card.categoryId;
+      if (card.itemKind === 'equipment' || card.itemKind === 'parts') {
+        set.itemKind = card.itemKind;
+      }
+      summary.groupAssigned++;
+    }
+    const rowHasMaterialValueType =
+      typeof row.materialValueType === 'string' && row.materialValueType.trim() !== '';
+    if (
+      !rowHasMaterialValueType &&
+      ['service', 'electroinstall', 'internal'].includes(card.materialValueType)
+    ) {
+      set.materialValueType = card.materialValueType;
+    }
+
     if (!dryRun) {
       bulkOps.push({
         updateOne: {
           filter: { _id: row._id },
-          update: {
-            $set: {
-              productId: card._id,
-              lastModified: now,
-            },
-          },
+          update: { $set: set },
         },
       });
     }
