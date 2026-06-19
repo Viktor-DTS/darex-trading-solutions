@@ -39,6 +39,7 @@
     "clickBeforeSave": false,
     "dismissFieldPicker": true,
     "windowActivateClick": null,
+    "saveDialogConfirmClick": null,
     "reportClick": { "x": 700, "y": 450 },
     "formWaitMs": 35000,
     "saveRetry": { "maxAttempts": 18, "intervalMs": 5000 },
@@ -60,11 +61,11 @@
       { "action": "comment", "text": "=== 3. Шлях файлу + зберегти (тип за замовчуванням) ===" },
       { "action": "focusWindow", "dialog": "save", "preferShort": true, "titleContains": ["Сохранение", "Сохранить", "Збереження"] },
       { "action": "wait", "ms": 800 },
-      { "action": "key", "keys": ["LeftControl", "A"] },
+      { "action": "key", "keys": ["LeftControl", "A"], "dialog": "save" },
       { "action": "wait", "ms": 200 },
-      { "action": "paste", "text": "{{filePath}}", "focusAfterClipboard": { "dialog": "save", "preferShort": true, "titleContains": ["Сохранение", "Сохранить"] } },
+      { "action": "paste", "text": "{{filePath}}", "dialog": "save", "focusAfterClipboard": { "dialog": "save", "preferShort": true, "titleContains": ["Сохранение", "Сохранить"] } },
       { "action": "wait", "ms": 400 },
-      { "action": "key", "keys": ["Enter"] },
+      { "action": "confirmSave" },
 
       { "action": "wait", "ms": 5000 }
     ]

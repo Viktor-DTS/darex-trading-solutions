@@ -19,6 +19,7 @@
  *   - retryOpenSave                   — чекати звіт, повторювати saveOpenAttempts (Ctrl+Shift+S, Ctrl+S, меню…)
  *   - selectFileType                  — Tab → список типу → Excel2007 / Down×N → Enter → зберегти
  *   - keySeq { keys }                 — клавіші по одній (меню Alt, F, S…)
+ *   - confirmSave                     — Enter або клік «Сохранить» у діалозі (dialog: save)
  *
  * Плейсхолдери у text: {{filePath}}, {{fileName}}, {{dir}}, {{ts}}
  */
@@ -109,26 +110,16 @@ async function runSteps(automation, ctx, log) {
       return key;
     });
 
-  const pressChord = async (keys, focusOpts = {}) => {
-    await ensure1cFocused(focusOpts);
-    await withEnglishLayout(log, automation, keys, async () => {
-      const mapped = mapKeys(keys);
-      for (const k of mapped) await keyboard.pressKey(k);
-      for (const k of [...mapped].reverse()) await keyboard.releaseKey(k);
-    });
-  };
+  const saveFocusStep = (extra = {}) => ({
+    dialog: 'save',
+    preferShort: true,
+    titleContains: ['Сохранение', 'Сохранить', 'Збереження'],
+    ...extra,
+  });
 
-  const pressSequence = async (keys, gapMs = 120, focusOpts = {}) => {
-    await ensure1cFocused(focusOpts);
-    await withEnglishLayout(log, automation, keys, async () => {
-      for (const name of keys || []) {
-        const k = keyMap[String(name).toLowerCase()];
-        if (k === undefined) throw new Error(`Невідома клавіша: ${name}`);
-        await keyboard.pressKey(k);
-        await keyboard.releaseKey(k);
-        await new Promise((r) => setTimeout(r, gapMs));
-      }
-    });
+  const ensureSaveDialogFocused = async () => {
+    await focusWindow(saveFocusStep(), automation, getWindows, log);
+    await new Promise((r) => setTimeout(r, automation.saveDialogFocusSettleMs ?? 300));
   };
 
   const pressEscapeRaw = async () => {
@@ -138,8 +129,8 @@ async function runSteps(automation, ctx, log) {
     await keyboard.releaseKey(esc);
   };
 
-  /** Закрити «Выбор поля», якщо промах кліком відкрив його замість збереження. */
-  const dismissFieldPickerIfOpen = async () => {
+  /** Закрити «Выбор поля»; returnTo: 'save' — повернути фокус у діалог збереження. */
+  const dismissFieldPickerIfOpen = async (returnTo = 'main') => {
     if (automation.dismissFieldPicker === false) return false;
     const extra = automation.fieldPickerNeedles || [];
     let closed = false;
@@ -155,19 +146,58 @@ async function runSteps(automation, ctx, log) {
       if (!findFieldPickerDialog(log, extra).ok) break;
     }
     if (closed) {
-      await refocus1cMain(log, automation);
-      try {
-        await focusWindow(
-          { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'] },
-          automation,
-          getWindows,
-          log
-        );
-      } catch (_) {
-        /* ignore */
+      if (returnTo === 'save') {
+        try {
+          await ensureSaveDialogFocused();
+        } catch (_) {
+          /* ignore */
+        }
+      } else {
+        await refocus1cMain(log, automation);
+        try {
+          await focusWindow(
+            { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'] },
+            automation,
+            getWindows,
+            log
+          );
+        } catch (_) {
+          /* ignore */
+        }
       }
     }
     return closed;
+  };
+
+  const focusBeforeKeys = async (focusOpts = {}) => {
+    if (focusOpts.dialog === 'save') {
+      await dismissFieldPickerIfOpen('save');
+      await ensureSaveDialogFocused();
+      return;
+    }
+    await ensure1cFocused(focusOpts);
+  };
+
+  const pressChord = async (keys, focusOpts = {}) => {
+    await focusBeforeKeys(focusOpts);
+    await withEnglishLayout(log, automation, keys, async () => {
+      const mapped = mapKeys(keys);
+      for (const k of mapped) await keyboard.pressKey(k);
+      for (const k of [...mapped].reverse()) await keyboard.releaseKey(k);
+    });
+  };
+
+  const pressSequence = async (keys, gapMs = 120, focusOpts = {}) => {
+    await focusBeforeKeys(focusOpts);
+    await withEnglishLayout(log, automation, keys, async () => {
+      for (const name of keys || []) {
+        const k = keyMap[String(name).toLowerCase()];
+        if (k === undefined) throw new Error(`Невідома клавіша: ${name}`);
+        await keyboard.pressKey(k);
+        await keyboard.releaseKey(k);
+        await new Promise((r) => setTimeout(r, gapMs));
+      }
+    });
   };
 
   /** Перед клавішами: refocus 1С; клік лише якщо clickBeforeKeys / opts.click. */
@@ -278,6 +308,10 @@ async function runSteps(automation, ctx, log) {
           if (step.clickBeforeKeys === true) focusOpts.click = true;
           if (step.clickBeforeKeys === false) focusOpts.click = false;
           if (step.skipRefocus === true) focusOpts.skipRefocus = true;
+          if (step.dialog === 'save') {
+            focusOpts.dialog = 'save';
+            focusOpts.skipRefocus = true;
+          }
           await pressChord(step.keys, focusOpts);
           log(`✓ Клавіші: ${(step.keys || []).join('+')}`);
           break;
@@ -415,12 +449,16 @@ async function runSteps(automation, ctx, log) {
         case 'type':
         case 'paste': {
           const text = resolvePlaceholders(step.text, ctx);
+          const inSaveDialog = step.dialog === 'save' || step.focusAfterClipboard?.dialog === 'save';
           const useClip =
             step.action === 'paste' ||
             step.paste === true ||
             step.method === 'paste' ||
             (process.platform === 'win32' && needsClipboard(text));
-          if (step.focusBefore) {
+          if (inSaveDialog) {
+            await dismissFieldPickerIfOpen('save');
+            await ensureSaveDialogFocused();
+          } else if (step.focusBefore) {
             await focusWindow(step.focusBefore, automation, getWindows, log);
             await new Promise((r) => setTimeout(r, 300));
           }
@@ -429,6 +467,8 @@ async function runSteps(automation, ctx, log) {
             if (step.focusAfterClipboard) {
               await focusWindow(step.focusAfterClipboard, automation, getWindows, log);
               await new Promise((r) => setTimeout(r, 300));
+            } else if (inSaveDialog) {
+              await ensureSaveDialogFocused();
             }
             const pasteKeys = mapKeys(['LeftControl', 'V']);
             for (const k of pasteKeys) await keyboard.pressKey(k);
@@ -437,6 +477,20 @@ async function runSteps(automation, ctx, log) {
           } else {
             await keyboard.type(text);
             log(`✓ Введено текст (${text.length} символів)`);
+          }
+          break;
+        }
+        case 'confirmSave': {
+          await dismissFieldPickerIfOpen('save');
+          await ensureSaveDialogFocused();
+          const btn = step.click || automation.saveDialogConfirmClick;
+          if (btn?.x != null && btn?.y != null) {
+            await mouse.setPosition(new Point(btn.x, btn.y));
+            await mouse.click(Button.LEFT);
+            log(`✓ Клік «Сохранить» (${btn.x},${btn.y})`);
+          } else {
+            await pressChord(['Enter'], { dialog: 'save' });
+            log('✓ Enter у діалозі «Сохранение»');
           }
           break;
         }
