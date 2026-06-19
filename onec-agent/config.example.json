@@ -36,16 +36,16 @@
     "minimizeAgentConsole": true,
     "forceFocusBeforeKeys": true,
     "clickBeforeKeys": false,
-    "clickBeforeSave": true,
+    "clickBeforeSave": false,
+    "dismissMenuAfterRefocus": true,
     "dismissFieldPicker": true,
-    "windowActivateClick": { "x": 400, "y": 25 },
+    "windowActivateClick": null,
     "reportClick": { "x": 700, "y": 450 },
     "formWaitMs": 35000,
     "saveRetry": { "maxAttempts": 18, "intervalMs": 5000 },
     "saveOpenAttempts": [
       { "label": "Ctrl+S", "keys": ["LeftControl", "S"], "waitMs": 3500 },
       { "label": "Ctrl+Shift+S (Сохранить как)", "keys": ["LeftControl", "LeftShift", "S"], "waitMs": 3500 },
-      { "label": "Alt, F, S (меню Файл)", "keys": ["LeftAlt", "F", "S"], "sequence": true, "waitMs": 4000 },
       { "label": "кнопка на панелі", "toolbar": true, "waitMs": 3500 }
     ],
     "toolbarSaveClick": null,
@@ -53,7 +53,7 @@
       { "action": "comment", "text": "=== 1. Сформировать ===" },
       { "action": "focusWindow", "dialog": "main", "titleContains": ["Ведомость", "Предприятие"] },
       { "action": "wait", "ms": 500 },
-      { "action": "key", "keys": ["LeftControl", "Enter"] },
+      { "action": "key", "keys": ["LeftControl", "Enter"], "skipRefocus": true },
 
       { "action": "comment", "text": "=== 2. Чекати звіт + Сохранение ===" },
       { "action": "retryOpenSave", "minWaitMs": 35000, "maxAttempts": 18, "intervalMs": 5000, "clickReport": false },

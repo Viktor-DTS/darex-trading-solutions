@@ -30,7 +30,6 @@ const { prepareDesktopForAutomation, refocus1cMain } = require('./agentWindow');
 const DEFAULT_SAVE_OPEN_ATTEMPTS = [
   { label: 'Ctrl+S', keys: ['LeftControl', 'S'], waitMs: 3500 },
   { label: 'Ctrl+Shift+S (Сохранить как)', keys: ['LeftControl', 'LeftShift', 'S'], waitMs: 3500 },
-  { label: 'Alt, F, S (меню Файл)', keys: ['LeftAlt', 'F', 'S'], sequence: true, waitMs: 4000 },
 ];
 const { setClipboardText, needsClipboard } = require('./clipboard');
 
@@ -171,10 +170,21 @@ async function runSteps(automation, ctx, log) {
     return closed;
   };
 
+  const dismissOpenMenu = async () => {
+    if (automation.dismissMenuAfterRefocus === false) return;
+    await pressEscapeRaw();
+    await new Promise((r) => setTimeout(r, 150));
+    await pressEscapeRaw();
+    await new Promise((r) => setTimeout(r, 120));
+  };
+
   /** Перед клавішами: refocus 1С; клік лише якщо clickBeforeKeys / opts.click. */
   const ensure1cFocused = async (opts = {}) => {
     if (automation.forceFocusBeforeKeys === false && !opts.force) return;
-    await refocus1cMain(log, automation);
+    if (!opts.skipRefocus) {
+      await refocus1cMain(log, automation);
+      await dismissOpenMenu();
+    }
     try {
       await focusWindow(
         { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'] },
@@ -194,6 +204,7 @@ async function runSteps(automation, ctx, log) {
         await mouse.click(Button.LEFT);
         await new Promise((r) => setTimeout(r, automation.focusClickSettleMs ?? 200));
         await dismissFieldPickerIfOpen();
+        await dismissOpenMenu();
       }
     }
   };
@@ -257,6 +268,7 @@ async function runSteps(automation, ctx, log) {
   };
 
   await prepareDesktopForAutomation(automation, log);
+  await dismissOpenMenu();
 
   for (let i = 0; i < (automation.steps || []).length; i++) {
     const step = automation.steps[i];
@@ -276,6 +288,7 @@ async function runSteps(automation, ctx, log) {
           const focusOpts = {};
           if (step.clickBeforeKeys === true) focusOpts.click = true;
           if (step.clickBeforeKeys === false) focusOpts.click = false;
+          if (step.skipRefocus === true) focusOpts.skipRefocus = true;
           await pressChord(step.keys, focusOpts);
           log(`✓ Клавіші: ${(step.keys || []).join('+')}`);
           break;

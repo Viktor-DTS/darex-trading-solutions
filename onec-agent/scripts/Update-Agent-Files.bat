@@ -15,7 +15,7 @@ echo   scripts\prepare-desktop.ps1
 echo   scripts\set-keyboard-layout.ps1
 echo.
 echo Після оновлення у Start-Agent.bat має бути:
-echo   Збірка: 2026-06-19-ps1-encoding-fix
+echo   Збірка: 2026-06-19-no-alt-menu
 echo   Temp: ...\dist-portable\temp
 echo   Розклад: ... — запуск як Test-Once (--once)
 echo.
