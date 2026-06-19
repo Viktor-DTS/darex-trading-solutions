@@ -43,7 +43,7 @@ async function runPipeline(config, log, trigger = 'schedule') {
   let finalPath = filePath;
 
   if (config.automation && config.automation.enabled) {
-    log(`Старт емуляції 1С. Файл буде збережено: ${filePath}`);
+    log(`Старт емуляції 1С (${trigger}). Файл буде збережено: ${filePath}`);
     await automation.runSteps(
       config.automation,
       { filePath, fileName, dir, ts, logsDir, save: config.save },

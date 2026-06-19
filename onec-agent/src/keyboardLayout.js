@@ -5,9 +5,8 @@
 const { execFileSync } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { getAgentRoot } = require('./paths');
+const { getAgentRoot, getAgentTempDir } = require('./paths');
 
 const DEFAULT_KLID = '00000409'; // English (United States)
 
@@ -67,14 +66,14 @@ function runLayoutPs(action, log, opts = {}) {
   } catch (e) {
     const combined = [e.stdout, e.stderr, e.message].filter(Boolean).join('\n');
     const line = combined.split(/\r?\n/).filter(Boolean).pop() || '';
-    log?.(`! Розкладка (${action}): ${line || combined.slice(0, 200)}`);
+    log?.(`! Розкладка (${action}): ${line || combined.slice(0, 300)}${opts.stateFile ? ` | file: ${opts.stateFile}` : ''}`);
     return null;
   }
 }
 
 function switchToEnglish(log, automation) {
   const stateFile = path.join(
-    os.tmpdir(),
+    getAgentTempDir(),
     `dts-kbd-${crypto.randomBytes(4).toString('hex')}.json`
   );
   const klid = automation?.keyboardLayoutKlid || DEFAULT_KLID;

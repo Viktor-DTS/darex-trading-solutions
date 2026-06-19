@@ -23,12 +23,13 @@
  * Плейсхолдери у text: {{filePath}}, {{fileName}}, {{dir}}, {{ts}}
  */
 
-const { focusWindow, findSaveDialog, listVisibleWindows } = require('./focusWindow');
+const { focusWindow, findSaveDialog, findFieldPickerDialog, focusFieldPickerDialog, listVisibleWindows } = require('./focusWindow');
 const { withEnglishLayout } = require('./keyboardLayout');
+const { prepareDesktopForAutomation, refocus1cMain } = require('./agentWindow');
 
 const DEFAULT_SAVE_OPEN_ATTEMPTS = [
+  { label: 'Ctrl+S', keys: ['LeftControl', 'S'], waitMs: 3500 },
   { label: 'Ctrl+Shift+S (Сохранить как)', keys: ['LeftControl', 'LeftShift', 'S'], waitMs: 3500 },
-  { label: 'Ctrl+S', keys: ['LeftControl', 'S'], waitMs: 3000 },
   { label: 'Alt, F, S (меню Файл)', keys: ['LeftAlt', 'F', 'S'], sequence: true, waitMs: 4000 },
 ];
 const { setClipboardText, needsClipboard } = require('./clipboard');
@@ -110,6 +111,7 @@ async function runSteps(automation, ctx, log) {
     });
 
   const pressChord = async (keys) => {
+    await ensure1cFocused();
     await withEnglishLayout(log, automation, keys, async () => {
       const mapped = mapKeys(keys);
       for (const k of mapped) await keyboard.pressKey(k);
@@ -118,6 +120,7 @@ async function runSteps(automation, ctx, log) {
   };
 
   const pressSequence = async (keys, gapMs = 120) => {
+    await ensure1cFocused();
     await withEnglishLayout(log, automation, keys, async () => {
       for (const name of keys || []) {
         const k = keyMap[String(name).toLowerCase()];
@@ -129,13 +132,77 @@ async function runSteps(automation, ctx, log) {
     });
   };
 
+  const pressEscapeRaw = async () => {
+    const esc = keyMap.escape;
+    if (esc === undefined) throw new Error('Невідома клавіша: Escape');
+    await keyboard.pressKey(esc);
+    await keyboard.releaseKey(esc);
+  };
+
+  /** Закрити «Выбор поля», якщо промах кліком відкрив його замість збереження. */
+  const dismissFieldPickerIfOpen = async () => {
+    if (automation.dismissFieldPicker === false) return false;
+    const extra = automation.fieldPickerNeedles || [];
+    let closed = false;
+    for (let i = 0; i < 3; i++) {
+      const found = findFieldPickerDialog(log, extra);
+      if (!found.ok) break;
+      log(`! Випадково відкрито «${found.title}» — закриваємо (Esc)`);
+      focusFieldPickerDialog(log, extra);
+      await new Promise((r) => setTimeout(r, 200));
+      await pressEscapeRaw();
+      await new Promise((r) => setTimeout(r, automation.fieldPickerDismissMs ?? 450));
+      closed = true;
+      if (!findFieldPickerDialog(log, extra).ok) break;
+    }
+    if (closed) {
+      await refocus1cMain(log, automation);
+      try {
+        await focusWindow(
+          { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'] },
+          automation,
+          getWindows,
+          log
+        );
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    return closed;
+  };
+
+  /** Перед кожними клавішами: згорнути агента, активувати 1С, клікнути у вікно. */
+  const ensure1cFocused = async () => {
+    if (automation.forceFocusBeforeKeys === false) return;
+    await refocus1cMain(log, automation);
+    try {
+      await focusWindow(
+        { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'] },
+        automation,
+        getWindows,
+        log
+      );
+    } catch (_) {
+      /* prepare-desktop вже намагався */
+    }
+    const wc = automation.windowActivateClick || automation.reportClick;
+    if (wc?.x != null && wc?.y != null) {
+      await mouse.setPosition(new Point(wc.x, wc.y));
+      await mouse.click(Button.LEFT);
+      await new Promise((r) => setTimeout(r, automation.focusClickSettleMs ?? 200));
+      await dismissFieldPickerIfOpen();
+    }
+  };
+
   const clickReport = async () => {
+    await ensure1cFocused();
     const rc = automation.reportClick;
     if (!rc || rc.x == null || rc.y == null) return;
     await mouse.setPosition(new Point(rc.x, rc.y));
     await mouse.click(Button.LEFT);
     log(`✓ Клік у звіт (${rc.x},${rc.y})`);
     await new Promise((r) => setTimeout(r, 400));
+    await dismissFieldPickerIfOpen();
   };
 
   const saveOpenAttemptsList = (step) =>
@@ -145,40 +212,47 @@ async function runSteps(automation, ctx, log) {
     const attempts = saveOpenAttemptsList(step);
     const dialogWaitMs = opts.dialogWaitMs ?? 4000;
 
-    await focusWindow(
-      { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'] },
-      automation,
-      getWindows,
-      log
-    );
-    if (opts.clickReport !== false) await clickReport();
+    for (let attemptIdx = 0; attemptIdx < (opts.maxOuterAttempts || 1); attemptIdx++) {
+      await refocus1cMain(log, automation);
+      await focusWindow(
+        { dialog: 'main', titleContains: ['Ведомость', 'Предприятие'] },
+        automation,
+        getWindows,
+        log
+      );
+      if (opts.clickReport !== false) await clickReport();
+      else await dismissFieldPickerIfOpen();
 
-    for (const att of attempts) {
-      if (att.toolbar) {
-        const t = automation.toolbarSaveClick;
-        if (t?.x == null || t?.y == null) {
-          log(`• Пропуск «${att.label || 'toolbar'}» — не задано toolbarSaveClick у config.json`);
-          continue;
+      for (const att of attempts) {
+        if (att.toolbar) {
+          const t = automation.toolbarSaveClick;
+          if (t?.x == null || t?.y == null) {
+            log(`• Пропуск «${att.label || 'toolbar'}» — не задано toolbarSaveClick у config.json`);
+            continue;
+          }
+          await mouse.setPosition(new Point(t.x, t.y));
+          await mouse.click(Button.LEFT);
+          log(`✓ Клік «Зберегти» на панелі (${t.x},${t.y})`);
+        } else if (att.sequence) {
+          await pressSequence(att.keys, att.gapMs || 200);
+          log(`✓ Послідовність: ${(att.keys || []).join(' ')} (${att.label || ''})`);
+        } else if (att.keys?.length) {
+          await pressChord(att.keys);
+          log(`✓ Клавіші: ${att.keys.join('+')} (${att.label || ''})`);
         }
-        await mouse.setPosition(new Point(t.x, t.y));
-        await mouse.click(Button.LEFT);
-        log(`✓ Клік «Зберегти» на панелі (${t.x},${t.y})`);
-      } else if (att.sequence) {
-        await pressSequence(att.keys, att.gapMs || 200);
-        log(`✓ Послідовність: ${(att.keys || []).join(' ')} (${att.label || ''})`);
-      } else if (att.keys?.length) {
-        await pressChord(att.keys);
-        log(`✓ Клавіші: ${att.keys.join('+')} (${att.label || ''})`);
+        await new Promise((r) => setTimeout(r, att.waitMs ?? dialogWaitMs));
+        if (findSaveDialog(log).ok) {
+          log(`✓ Діалог збереження відкрито (${att.label || 'спроба'})`);
+          return true;
+        }
+        await dismissFieldPickerIfOpen();
+        log(`! Після «${att.label || 'спроба'}» діалог не з'явився`);
       }
-      await new Promise((r) => setTimeout(r, att.waitMs ?? dialogWaitMs));
-      if (findSaveDialog(log).ok) {
-        log(`✓ Діалог збереження відкрито (${att.label || 'спроба'})`);
-        return true;
-      }
-      log(`! Після «${att.label || 'спроба'}» діалог не з'явився`);
     }
     return false;
   };
+
+  await prepareDesktopForAutomation(automation, log);
 
   for (let i = 0; i < (automation.steps || []).length; i++) {
     const step = automation.steps[i];
@@ -227,7 +301,7 @@ async function runSteps(automation, ctx, log) {
           let opened = false;
           for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             log(`Спроба відкрити «Сохранение» ${attempt}/${maxAttempts}`);
-            if (await tryOpenSaveDialog(step, { dialogWaitMs })) {
+            if (await tryOpenSaveDialog(step, { dialogWaitMs, maxOuterAttempts: 1 })) {
               opened = true;
               break;
             }

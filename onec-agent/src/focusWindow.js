@@ -21,6 +21,14 @@ const SAVE_DIALOG_NEEDLES = [
   'save',
 ];
 
+/** Діалог «Выбор поля» — відкривається при промаху кліком по «…» групування. */
+const FIELD_PICKER_NEEDLES = [
+  'выбор поля',
+  'вибір поля',
+  'field selection',
+  'выбор группировки',
+];
+
 function normalizeForMatch(s) {
   return String(s || '')
     .toLowerCase()
@@ -66,6 +74,12 @@ function isSaveDialogTitle(title) {
     return true;
   }
   return titleMatches(title, SAVE_DIALOG_NEEDLES.map(normalizeForMatch));
+}
+
+function isFieldPickerTitle(title) {
+  const t = normalizeForMatch(title);
+  if (!t.trim() || isExcludedWindow(title)) return false;
+  return titleMatches(t, FIELD_PICKER_NEEDLES.map(normalizeForMatch));
 }
 
 function resolveFocusScript() {
@@ -200,6 +214,25 @@ function findSaveDialog(log) {
   return r;
 }
 
+function findFieldPickerDialog(log, extraNeedles = []) {
+  const needles = [...FIELD_PICKER_NEEDLES, ...(extraNeedles || [])].map(normalizeForMatch);
+  const r = focusViaPowerShell(needles, log || (() => {}), { preferShort: true, findOnly: true });
+  if (!r.ok || !r.title || !isFieldPickerTitle(r.title)) {
+    return { ok: false, titles: r.titles || [] };
+  }
+  return r;
+}
+
+/** Сфокусувати модальне «Выбор поля» (не findOnly). */
+function focusFieldPickerDialog(log, extraNeedles = []) {
+  const needles = [...FIELD_PICKER_NEEDLES, ...(extraNeedles || [])].map(normalizeForMatch);
+  const r = focusViaPowerShell(needles, log || (() => {}), { preferShort: true, findOnly: false });
+  if (!r.ok || !r.title || !isFieldPickerTitle(r.title)) {
+    return { ok: false, titles: r.titles || [] };
+  }
+  return r;
+}
+
 function listVisibleWindows(log) {
   if (os.platform() !== 'win32') return [];
 
@@ -231,10 +264,14 @@ function listVisibleWindows(log) {
 module.exports = {
   focusWindow,
   findSaveDialog,
+  findFieldPickerDialog,
+  focusFieldPickerDialog,
   listVisibleWindows,
   normalizeForMatch,
   needlesFromStep,
   isSaveDialogTitle,
+  isFieldPickerTitle,
   isExcludedWindow,
   SAVE_DIALOG_NEEDLES,
+  FIELD_PICKER_NEEDLES,
 };

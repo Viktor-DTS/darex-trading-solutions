@@ -28,6 +28,15 @@ function getLogsDir() {
   return dir;
 }
 
+/** Локальна temp (не RDP Temp\242 — там часто немає папки для state-файлів). */
+function getAgentTempDir() {
+  const dir = path.join(getAgentRoot(), 'temp');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
+
 function loadConfig() {
   const p = getConfigPath();
   if (!fs.existsSync(p)) {
@@ -42,4 +51,4 @@ function loadConfig() {
   return JSON.parse(fs.readFileSync(p, 'utf8'));
 }
 
-module.exports = { getAgentRoot, getConfigPath, getLogsDir, loadConfig };
+module.exports = { getAgentRoot, getConfigPath, getLogsDir, getAgentTempDir, loadConfig };

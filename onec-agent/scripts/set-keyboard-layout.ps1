@@ -1,4 +1,4 @@
-# Switch foreground window keyboard layout (for 1C shortcuts: Ctrl+S needs EN layout).
+# Switch keyboard layout on 1C foreground window (Ctrl+S needs EN layout).
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('SaveEnglish', 'Restore')]
@@ -7,14 +7,19 @@ param(
     [string]$StateFile = ''
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 if (-not ('KbdLayout' -as [type])) {
     Add-Type @"
 using System;
+using System.Text;
 using System.Runtime.InteropServices;
 public class KbdLayout {
+    public delegate bool CB(IntPtr h, IntPtr l);
+    [DllImport("user32.dll")] public static extern bool EnumWindows(CB c, IntPtr p);
+    [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr h, StringBuilder s, int m);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
     [DllImport("user32.dll")] public static extern IntPtr GetKeyboardLayout(uint idThread);
@@ -23,10 +28,51 @@ public class KbdLayout {
     [DllImport("user32.dll")] public static extern IntPtr ActivateKeyboardLayout(IntPtr hkl, uint Flags);
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
     public const uint WM_INPUTLANGCHANGEREQUEST = 0x0050;
     public const uint KLF_ACTIVATE = 1;
 }
 "@
+}
+
+function Title-Matches([string]$title, [string[]]$needles) {
+    if (-not $title) { return $false }
+    foreach ($n in $needles) {
+        if ($title.IndexOf($n, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
+    }
+    return $false
+}
+
+function Focus-1cWindow {
+    $bestHwnd = [IntPtr]::Zero
+    $bestTitle = ''
+    $cb = {
+        param($hWnd, $lParam)
+        if (-not [KbdLayout]::IsWindowVisible($hWnd)) { return $true }
+        $sb = New-Object System.Text.StringBuilder 512
+        [void][KbdLayout]::GetWindowText($hWnd, $sb, 512)
+        $t = $sb.ToString()
+        if (-not $t) { return $true }
+        if ($t.IndexOf('DTS', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and $t.IndexOf('Agent', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            return $true
+        }
+        if (Title-Matches $t @('Предприятие', 'Ведомость', 'Управление торговым')) {
+            if ($script:bestHwnd -eq [IntPtr]::Zero -or $t.Length -gt $script:bestTitle.Length) {
+                $script:bestHwnd = $hWnd
+                $script:bestTitle = $t
+            }
+        }
+        return $true
+    }
+    [KbdLayout]::EnumWindows($cb, [IntPtr]::Zero) | Out-Null
+    if ($bestHwnd -ne [IntPtr]::Zero) {
+        [void][KbdLayout]::ShowWindow($bestHwnd, 9)
+        [void][KbdLayout]::SetForegroundWindow($bestHwnd)
+        Start-Sleep -Milliseconds 150
+        return $bestTitle
+    }
+    return ''
 }
 
 function Get-ForegroundLayout {
@@ -47,8 +93,24 @@ function Set-ForegroundLayout([Int64]$hklValue) {
     return $true
 }
 
+function Ensure-StateDir([string]$filePath) {
+    if (-not $filePath) { return }
+    $dir = Split-Path -Parent $filePath
+    if ($dir -and -not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+}
+
 if ($Action -eq 'SaveEnglish') {
     if (-not $StateFile) { Write-Output 'FAIL|missing StateFile'; exit 1 }
+    Ensure-StateDir $StateFile
+
+    $focused = Focus-1cWindow
+    if (-not $focused) {
+        Write-Output 'FAIL|1C window not found for layout'
+        exit 1
+    }
+
     $fg = Get-ForegroundLayout
     if ($fg.Hkl -eq 0) { Write-Output 'FAIL|no foreground window'; exit 1 }
 
@@ -57,9 +119,14 @@ if ($Action -eq 'SaveEnglish') {
     $enVal = [Int64]$en.ToInt64()
     if (-not (Set-ForegroundLayout $enVal)) { Write-Output 'FAIL|activate english'; exit 1 }
 
-    $state = @{ previousHkl = $fg.Hkl; englishHkl = $enVal; klid = $Klid } | ConvertTo-Json -Compress
-    Set-Content -LiteralPath $StateFile -Value $state -Encoding UTF8 -NoNewline
-    Write-Output ('OK|EN|' + $Klid + '|prev=' + $fg.Hkl)
+    try {
+        $state = @{ previousHkl = $fg.Hkl; englishHkl = $enVal; klid = $Klid } | ConvertTo-Json -Compress
+        Set-Content -LiteralPath $StateFile -Value $state -Encoding UTF8 -NoNewline
+    } catch {
+        Write-Output ('FAIL|write state: ' + $_.Exception.Message)
+        exit 1
+    }
+    Write-Output ('OK|EN|' + $Klid + '|prev=' + $fg.Hkl + '|win=' + $focused)
     exit 0
 }
 
@@ -69,6 +136,7 @@ if ($Action -eq 'Restore') {
         exit 0
     }
     try {
+        [void](Focus-1cWindow)
         $state = Get-Content -LiteralPath $StateFile -Raw -Encoding UTF8 | ConvertFrom-Json
         $prev = [Int64]$state.previousHkl
         if ($prev -ne 0) {
