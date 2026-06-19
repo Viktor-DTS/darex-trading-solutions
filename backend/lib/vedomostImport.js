@@ -529,6 +529,7 @@ async function runVedomostImport({
   // 3) Оновлення залишків (Equipment) по «Конечный остаток» для прив'язаних фізичних складів
   const categories = await Category.find({}).lean();
   const categoryIndex = stock.buildCategoryIndex(categories);
+  const rootCategoryByKind = stock.buildRootCategoryByKind(categories);
 
   for (const b of parsed.balances) {
     const wh = resolveWh(b.warehouse);
@@ -551,6 +552,9 @@ async function runVedomostImport({
     const { categoryId, itemKind } = stock.resolveCategory(nome, rules, categoryIndex);
     const region = whById.get(wh.id)?.region || '';
     const resolvedKind = itemKind || (b.serial ? 'equipment' : 'parts');
+    // Запасна «Група номенклатури» — коренева група дерева 1С за типом, якщо
+    // конкретну категорію не визначено (інакше товар «не визначений» і не видно менеджерам).
+    const effectiveCategoryId = categoryId || rootCategoryByKind[resolvedKind] || null;
 
     // Окрема одиниця з серійним номером (підрядок під номенклатурою в «Ведомости»)
     if (b.serial) {
@@ -574,7 +578,7 @@ async function runVedomostImport({
         }
         if (existing) {
           existing.batchUnit = batchUnit;
-          if (categoryId) existing.categoryId = categoryId;
+          existing.categoryId = categoryId || existing.categoryId || effectiveCategoryId;
           existing.itemKind = resolvedKind;
           existing.currentWarehouse = wh.id;
           existing.currentWarehouseName = wh.name;
@@ -592,7 +596,7 @@ async function runVedomostImport({
             quantity: 1,
             batchUnit,
             batchName: nome,
-            categoryId: categoryId || null,
+            categoryId: effectiveCategoryId,
             itemKind: resolvedKind,
             addedBy: String(adminUser._id),
             addedByName: adminUser.name || adminUser.login,
@@ -624,7 +628,7 @@ async function runVedomostImport({
       if (existing) {
         existing.quantity = qty;
         existing.batchUnit = batchUnit;
-        if (categoryId) existing.categoryId = categoryId;
+        existing.categoryId = categoryId || existing.categoryId || effectiveCategoryId;
         if (itemKind) existing.itemKind = itemKind;
         existing.currentWarehouse = wh.id;
         existing.currentWarehouseName = wh.name;
@@ -645,7 +649,7 @@ async function runVedomostImport({
           quantity: qty,
           batchUnit,
           batchName: nome,
-          categoryId: categoryId || null,
+          categoryId: effectiveCategoryId,
           itemKind: resolvedKind,
           addedBy: String(adminUser._id),
           addedByName: adminUser.name || adminUser.login,

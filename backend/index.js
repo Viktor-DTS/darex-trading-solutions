@@ -13237,6 +13237,36 @@ app.post('/api/equipment/link-product-cards-by-name', authenticateToken, async (
   }
 });
 
+// Разовий backfill кореневої «Групи номенклатури» (дерево 1С) для залишків без групи
+const { backfillEquipmentRootCategory } = require('./lib/backfillEquipmentRootCategory');
+app.post('/api/equipment/backfill-root-category', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!['admin', 'administrator', 'warehouse', 'zavsklad'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const dryRun =
+      req.query.dryRun === '1' ||
+      req.query.dryRun === 'true' ||
+      req.body?.dryRun === true;
+    const summary = await backfillEquipmentRootCategory({
+      Equipment,
+      Category,
+      dryRun: !!dryRun,
+    });
+    logPerformance(
+      'POST /api/equipment/backfill-root-category',
+      startTime,
+      summary.equipmentAssigned + summary.partsAssigned
+    );
+    res.json(summary);
+  } catch (error) {
+    console.error('[ERROR] POST /api/equipment/backfill-root-category:', error);
+    logPerformance('POST /api/equipment/backfill-root-category', startTime);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Масове видалення обладнання (тільки для admin/administrator)
 app.post('/api/equipment/bulk-delete', authenticateToken, async (req, res) => {
   const startTime = Date.now();

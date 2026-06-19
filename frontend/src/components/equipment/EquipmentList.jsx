@@ -210,6 +210,7 @@ const EquipmentList = forwardRef(({
   const [fixedAssetsCategoryIds, setFixedAssetsCategoryIds] = useState(null);
   const initialLoadDone = useRef(false);
   const [linkingProductCards, setLinkingProductCards] = useState(false);
+  const [backfillingRootCategory, setBackfillingRootCategory] = useState(false);
 
   // Фільтри колонок
   const [columnFilters, setColumnFilters] = useState(() => {
@@ -445,6 +446,63 @@ const EquipmentList = forwardRef(({
       window.alert(e.message || 'Помилка прив’язки за назвою');
     } finally {
       setLinkingProductCards(false);
+    }
+  };
+
+  const handleBackfillRootCategory = async () => {
+    setBackfillingRootCategory(true);
+    try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+      const previewRes = await authFetch(`${API_BASE_URL}/equipment/backfill-root-category?dryRun=1`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ dryRun: true }),
+      });
+      const preview = await previewRes.json().catch(() => ({}));
+      if (!previewRes.ok) {
+        throw new Error(preview.error || 'Не вдалося порахувати позиції');
+      }
+      const total = (preview.equipmentAssigned ?? 0) + (preview.partsAssigned ?? 0);
+      if (!total) {
+        window.alert(
+          `Позицій без групи номенклатури не знайдено.\n\n` +
+            `Перевірено без групи: ${preview.scanned ?? 0}\n` +
+            `Без кореневої групи в дереві: ${preview.skippedNoRoot ?? 0}`
+        );
+        return;
+      }
+      const ok = window.confirm(
+        `Проставити кореневу групу номенклатури ${total} поз. без групи?\n\n` +
+          `Товари → коренева група «Товари»: ${preview.equipmentAssigned ?? 0}\n` +
+          `Деталі → коренева група «Деталі»: ${preview.partsAssigned ?? 0}\n` +
+          `Пропущено (немає кореня в дереві): ${preview.skippedNoRoot ?? 0}\n\n` +
+          `Уже задані групи не змінюються.`
+      );
+      if (!ok) return;
+
+      const res = await authFetch(`${API_BASE_URL}/equipment/backfill-root-category`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Помилка backfill');
+
+      window.alert(
+        `Готово.\n\nТовари: ${data.equipmentAssigned ?? 0}\n` +
+          `Деталі: ${data.partsAssigned ?? 0}\n` +
+          `Пропущено: ${data.skippedNoRoot ?? 0}`
+      );
+      refreshEquipment();
+    } catch (e) {
+      console.error(e);
+      window.alert(e.message || 'Помилка backfill групи номенклатури');
+    } finally {
+      setBackfillingRootCategory(false);
     }
   };
 
@@ -818,10 +876,21 @@ const EquipmentList = forwardRef(({
             type="button"
             className="btn-link-product-cards"
             onClick={handleLinkProductCardsByName}
-            disabled={linkingProductCards || refreshing}
+            disabled={linkingProductCards || backfillingRootCategory || refreshing}
             title="Прив’язати позиції без карточки до довідника за точним збігом назви"
           >
             {linkingProductCards ? 'Прив’язка…' : '🔗 Прив’язати за назвою'}
+          </button>
+        )}
+        {mayLinkProductCards && (
+          <button
+            type="button"
+            className="btn-link-product-cards"
+            onClick={handleBackfillRootCategory}
+            disabled={backfillingRootCategory || linkingProductCards || refreshing}
+            title="Проставити кореневу групу номенклатури (дерево 1С) позиціям без групи"
+          >
+            {backfillingRootCategory ? 'Проставлення…' : '🗂️ Проставити групу'}
           </button>
         )}
         <div className="toolbar-actions">

@@ -242,6 +242,25 @@ function buildCategoryIndex(categories) {
   return { byName, byNameLower, all: categories };
 }
 
+/**
+ * Коренева група дерева 1С для кожного типу номенклатури (parentId === null).
+ * Використовується як запасна «Група номенклатури», коли конкретну категорію
+ * не вдалося визначити правилами, але тип (equipment/parts) відомий — щоб позиція
+ * потрапила в дерево (інакше товар «не визначений» і не видно менеджерам).
+ * @returns {{ equipment: import('mongoose').Types.ObjectId|null, parts: import('mongoose').Types.ObjectId|null }}
+ */
+function buildRootCategoryByKind(categories) {
+  const result = { equipment: null, parts: null };
+  const isRoot = (c) => c.parentId === null || c.parentId === undefined;
+  for (const kind of ['equipment', 'parts']) {
+    const roots = (categories || [])
+      .filter((c) => isRoot(c) && c.itemKind === kind)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    if (roots.length) result[kind] = roots[0]._id;
+  }
+  return result;
+}
+
 function isObjectIdString(s) {
   return typeof s === 'string' && /^[a-fA-F0-9]{24}$/.test(s.trim());
 }
@@ -457,6 +476,7 @@ async function runStockImport({
 
   const categories = await Category.find({}).lean();
   const categoryIndex = buildCategoryIndex(categories);
+  const rootCategoryByKind = buildRootCategoryByKind(categories);
 
   const typePool = await Equipment.distinct('type', {
     isDeleted: { $ne: true },
@@ -529,6 +549,13 @@ async function runStockImport({
     const batchUnit = resolveBatchUnit(nome, rules);
     const { categoryId, itemKind, unmatchedRule } = resolveCategory(nome, rules, categoryIndex);
 
+    // Тип номенклатури, який реально буде збережено (як і раніше).
+    const storedKind = itemKind || (item.kind === 'serialized' ? 'equipment' : 'parts');
+    // Запасна «Група номенклатури»: коренева група дерева 1С за типом, якщо
+    // конкретну категорію не визначено. Реальну categoryId (null) лишаємо для
+    // попереджень/навчання відповідностей нижче.
+    const effectiveCategoryId = categoryId || rootCategoryByKind[storedKind] || null;
+
     if (unmatchedRule && !categoryId) {
       summary.warnings.push(`Категорія «${unmatchedRule}» не знайдена в БД для: ${nome}`);
     }
@@ -551,8 +578,8 @@ async function runStockImport({
             type: nome,
             quantity: qty,
             batchUnit,
-            categoryId: categoryId ? String(categoryId) : null,
-            itemKind,
+            categoryId: effectiveCategoryId ? String(effectiveCategoryId) : null,
+            itemKind: storedKind,
           });
           if (existing) summary.updated++;
           else {
@@ -567,8 +594,8 @@ async function runStockImport({
         if (existing) {
           existing.quantity = qty;
           existing.batchUnit = batchUnit;
-          existing.categoryId = categoryId || existing.categoryId;
-          existing.itemKind = itemKind || existing.itemKind;
+          existing.categoryId = categoryId || existing.categoryId || effectiveCategoryId;
+          existing.itemKind = itemKind || existing.itemKind || storedKind;
           existing.currentWarehouse = String(warehouseDoc._id);
           existing.currentWarehouseName = warehouseDoc.name;
           existing.region = region;
@@ -588,8 +615,8 @@ async function runStockImport({
             quantity: qty,
             batchUnit,
             batchName: nome,
-            categoryId: categoryId || null,
-            itemKind: itemKind || 'parts',
+            categoryId: effectiveCategoryId,
+            itemKind: storedKind,
             addedBy: String(adminUser._id),
             addedByName: adminUser.name || adminUser.login,
             currentWarehouse: String(warehouseDoc._id),
@@ -622,8 +649,8 @@ async function runStockImport({
               type: nome,
               serialNumber,
               batchUnit,
-              categoryId: categoryId ? String(categoryId) : null,
-              itemKind,
+              categoryId: effectiveCategoryId ? String(effectiveCategoryId) : null,
+              itemKind: storedKind,
             });
             if (existing) summary.updated++;
             else {
@@ -637,8 +664,8 @@ async function runStockImport({
 
           if (existing) {
             existing.batchUnit = batchUnit;
-            existing.categoryId = categoryId || existing.categoryId;
-            existing.itemKind = itemKind || existing.itemKind;
+            existing.categoryId = categoryId || existing.categoryId || effectiveCategoryId;
+            existing.itemKind = itemKind || existing.itemKind || storedKind;
             existing.currentWarehouse = String(warehouseDoc._id);
             existing.currentWarehouseName = warehouseDoc.name;
             existing.region = region;
@@ -664,8 +691,8 @@ async function runStockImport({
               isBatch: false,
               quantity: 1,
               batchUnit,
-              categoryId: categoryId || null,
-              itemKind: itemKind || 'equipment',
+              categoryId: effectiveCategoryId,
+              itemKind: storedKind,
               addedBy: String(adminUser._id),
               addedByName: adminUser.name || adminUser.login,
               currentWarehouse: String(warehouseDoc._id),
@@ -722,6 +749,7 @@ module.exports = {
   resolveBatchUnit,
   resolveCategory,
   buildCategoryIndex,
+  buildRootCategoryByKind,
   batchSearchQuery,
   runStockImport,
 };
