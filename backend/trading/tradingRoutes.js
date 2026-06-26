@@ -4,7 +4,8 @@ const {
   ensureRiskState,
 } = require('./tradingModels');
 const { runTradingScan } = require('./tradingScan');
-const { notifyTradingAlert } = require('./tradingTelegram');
+const { notifyTradingAlert, sendTelegramTest, isTelegramConfigured } = require('./tradingTelegram');
+const { getIbkrStatus } = require('./ibkrClient');
 
 const TRADING_ADMIN_ROLES = new Set(['admin', 'administrator']);
 
@@ -26,9 +27,34 @@ function registerTradingRoutes(app, { getAssistantConnection }) {
     res.json({
       enabled: process.env.TRADING_MODULE_ENABLED !== '0',
       scanEnabled: process.env.TRADING_SCAN_ENABLED === '1',
-      ibkrConfigured: Boolean(process.env.IBKR_CONSUMER_KEY),
+      cronConfigured: Boolean(process.env.TRADING_CRON_SECRET),
+      telegramConfigured: isTelegramConfigured(),
+      ibkr: getIbkrStatus(),
       settings,
       risk,
+    });
+  });
+
+  app.get('/api/trading/integrations', async (req, res) => {
+    if (!isTradingAdmin(req.user?.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const models = initTradingModels(getAssistantConnection);
+    const risk = models.conn ? await ensureRiskState(models) : null;
+    res.json({
+      cron: {
+        configured: Boolean(process.env.TRADING_CRON_SECRET),
+        lastRunAt: risk?.lastCronAt || null,
+        scheduleHint: 'Render Cron → POST /api/trading/cron/scan · header X-Trading-Cron-Secret · 0 * * * *',
+        backendUrl: process.env.TRADING_CRON_URL || 'https://darex-trading-solutions.onrender.com/api/trading/cron/scan',
+      },
+      telegram: {
+        configured: isTelegramConfigured(),
+        buyOnly: isBuyOnlyTelegram(),
+        chatIdSet: Boolean(process.env.TRADING_TELEGRAM_CHAT_ID || process.env.TELEGRAM_ADMIN_CHAT_ID),
+      },
+      ibkr: getIbkrStatus(),
+      intervalScan: process.env.TRADING_SCAN_ENABLED === '1',
     });
   });
 
@@ -41,11 +67,12 @@ function registerTradingRoutes(app, { getAssistantConnection }) {
       return res.status(503).json({ error: 'Assistant MongoDB недоступна' });
     }
 
-    const [settings, risk, signals, trades, external] = await Promise.all([
+    const [settings, risk, signals, trades, pending, external] = await Promise.all([
       ensureDefaultSettings(models),
       ensureRiskState(models),
       models.TradingSignal.find().sort({ createdAt: -1 }).limit(30).lean(),
       models.TradingTrade.find({ status: 'open' }).sort({ openedAt: -1 }).lean(),
+      models.TradingTrade.find({ status: 'pending_ibkr' }).sort({ createdAt: -1 }).limit(20).lean(),
       models.TradingExternalSnapshot.findOne().sort({ createdAt: -1 }).lean(),
     ]);
 
@@ -53,8 +80,14 @@ function registerTradingRoutes(app, { getAssistantConnection }) {
       settings,
       risk,
       openTrades: trades,
+      pendingTrades: pending,
       recentSignals: signals,
       external: external || null,
+      integrations: {
+        cronConfigured: Boolean(process.env.TRADING_CRON_SECRET),
+        telegramConfigured: isTelegramConfigured(),
+        ibkr: getIbkrStatus(),
+      },
     });
   });
 
@@ -140,6 +173,24 @@ function registerTradingRoutes(app, { getAssistantConnection }) {
     }
 
     res.json({ ok: true, paused, reason });
+  });
+
+  app.post('/api/trading/telegram/test', async (req, res) => {
+    if (!isTradingAdmin(req.user?.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const result = await sendTelegramTest();
+    if (!result.ok) {
+      return res.status(400).json({ error: result.reason || 'Telegram failed' });
+    }
+    res.json({ ok: true });
+  });
+
+  app.get('/api/trading/ibkr/status', async (req, res) => {
+    if (!isTradingAdmin(req.user?.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    res.json(getIbkrStatus());
   });
 
   /** Render Cron: POST з секретом у заголовку X-Trading-Cron-Secret */

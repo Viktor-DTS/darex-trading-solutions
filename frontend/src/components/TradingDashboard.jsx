@@ -28,6 +28,43 @@ export default function TradingDashboard({ user, embedded = false }) {
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
   const [tab, setTab] = useState('dashboard');
+  const [busy, setBusy] = useState('');
+
+  const patchSettings = async (patch) => {
+    setBusy('settings');
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/trading/settings`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify(patch),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Settings failed');
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const testTelegram = async () => {
+    setBusy('telegram');
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/trading/telegram/test`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Telegram test failed');
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy('');
+    }
+  };
 
   const load = useCallback(async () => {
     setError('');
@@ -96,6 +133,8 @@ export default function TradingDashboard({ user, embedded = false }) {
   const external = data?.external || {};
   const signals = data?.recentSignals || [];
   const openTrades = data?.openTrades || [];
+  const pendingTrades = data?.pendingTrades || [];
+  const integrations = data?.integrations || {};
 
   return (
     <div className={`trading-page${embedded ? ' trading-page-embedded' : ''}`}>
@@ -132,6 +171,7 @@ export default function TradingDashboard({ user, embedded = false }) {
           ['signals', 'Signals'],
           ['external', 'External'],
           ['risk', 'Risk'],
+          ['settings', 'Settings'],
         ].map(([id, label]) => (
           <button
             key={id}
@@ -169,11 +209,29 @@ export default function TradingDashboard({ user, embedded = false }) {
             <div className="trading-card-value trading-card-value-sm">
               {risk.lastScanAt ? new Date(risk.lastScanAt).toLocaleString('uk-UA') : '—'}
               {risk.lastScanStatus ? ` · ${risk.lastScanStatus}` : ''}
+              {risk.lastTriggeredBy ? ` · ${risk.lastTriggeredBy}` : ''}
             </div>
+            {risk.lastCronAt && (
+              <div className="trading-card-value trading-card-value-sm trading-muted">
+                Cron: {new Date(risk.lastCronAt).toLocaleString('uk-UA')}
+              </div>
+            )}
             {risk.tradingPaused && (
               <div className="trading-paused-banner">⏸ PAUSED: {risk.pauseReason || 'manual'}</div>
             )}
           </div>
+          {pendingTrades.length > 0 && (
+            <div className="trading-card trading-card-wide">
+              <div className="trading-card-label">Pending IBKR ({pendingTrades.length})</div>
+              <ul className="trading-pending-list">
+                {pendingTrades.map((t) => (
+                  <li key={t._id}>
+                    <strong>{t.symbol}</strong> · {t.quantity} @ {t.entryPrice} · SL {t.stopLoss} · TP {t.takeProfit}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
@@ -266,6 +324,63 @@ export default function TradingDashboard({ user, embedded = false }) {
                 <span key={s} className="trading-tag">{s}</span>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'settings' && (
+        <div className="trading-settings">
+          <div className="trading-card trading-card-wide">
+            <div className="trading-card-label">Auto trading</div>
+            <div className="trading-settings-row">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!settings.autoEnabled}
+                  onChange={(e) => patchSettings({ autoEnabled: e.target.checked })}
+                  disabled={busy === 'settings'}
+                />
+                {' '}Auto ON (BUY → черга IBKR)
+              </label>
+              <select
+                value={settings.mode || 'paper'}
+                onChange={(e) => patchSettings({ mode: e.target.value })}
+                disabled={busy === 'settings'}
+              >
+                <option value="paper">paper</option>
+                <option value="live">live</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="trading-card trading-card-wide">
+            <div className="trading-card-label">1 · Render Cron</div>
+            <p className="trading-muted">
+              {integrations.cronConfigured ? '✅ TRADING_CRON_SECRET задано' : '❌ Додай TRADING_CRON_SECRET на Render'}
+            </p>
+            <p className="trading-hint">
+              Render → Cron Jobs → POST <code>/api/trading/cron/scan</code> · header{' '}
+              <code>X-Trading-Cron-Secret</code> · schedule <code>0 * * * *</code>
+            </p>
+          </div>
+
+          <div className="trading-card trading-card-wide">
+            <div className="trading-card-label">2 · Telegram BUY alerts</div>
+            <p className="trading-muted">
+              {integrations.telegramConfigured ? '✅ Telegram налаштовано' : '❌ TELEGRAM_BOT_TOKEN + TRADING_TELEGRAM_CHAT_ID'}
+            </p>
+            <button type="button" className="trading-btn" onClick={testTelegram} disabled={busy === 'telegram'}>
+              {busy === 'telegram' ? '…' : 'Test Telegram'}
+            </button>
+          </div>
+
+          <div className="trading-card trading-card-wide">
+            <div className="trading-card-label">3 · IBKR OAuth</div>
+            <p className="trading-muted">{integrations.ibkr?.message || '—'}</p>
+            <p className="trading-hint">
+              IBKR Portal → OAuth keys → Render env: IBKR_CONSUMER_KEY, IBKR_ACCESS_TOKEN, IBKR_ACCESS_SECRET,
+              IBKR_ACCOUNT_ID. Потім IBKR_LIVE_ORDERS=1.
+            </p>
           </div>
         </div>
       )}

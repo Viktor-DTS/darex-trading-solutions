@@ -7,12 +7,17 @@ const {
 const { analyzeWatchlist } = require('./tradingAnalysis');
 const { fetchMacroSnapshot } = require('./tradingExternal');
 const { applyRiskToSignals, evaluateCircuitBreaker } = require('./tradingRisk');
-const { notifyTradingScan } = require('./tradingTelegram');
+const { notifyTradingScan, notifyBuySignals, isTelegramConfigured, isBuyOnlyTelegram } = require('./tradingTelegram');
+const { processBuySignals } = require('./ibkrOrders');
 
 let scanRunning = false;
 
 function newScanId() {
   return crypto.randomBytes(8).toString('hex');
+}
+
+function isCronTrigger(triggeredBy) {
+  return String(triggeredBy || '').includes('cron');
 }
 
 async function runTradingScan(getAssistantConnection, options = {}) {
@@ -28,6 +33,7 @@ async function runTradingScan(getAssistantConnection, options = {}) {
   scanRunning = true;
   const scanId = newScanId();
   const startedAt = Date.now();
+  const triggeredBy = options.triggeredBy || 'manual';
 
   try {
     const settings = await ensureDefaultSettings(models);
@@ -45,7 +51,9 @@ async function runTradingScan(getAssistantConnection, options = {}) {
     const watchlist = Array.isArray(settings.watchlist) ? settings.watchlist : [];
     let signals = await analyzeWatchlist(watchlist, macro);
 
-    const openCount = await models.TradingTrade.countDocuments({ status: 'open' });
+    const openCount = await models.TradingTrade.countDocuments({
+      status: { $in: ['open', 'pending_ibkr'] },
+    });
     signals = applyRiskToSignals(signals, settings, { ...riskState, regime: macro.regime }, openCount);
 
     const savedSignals = [];
@@ -58,32 +66,51 @@ async function runTradingScan(getAssistantConnection, options = {}) {
       savedSignals.push(doc.toObject());
     }
 
-    const riskUpdates = evaluateCircuitBreaker(riskState, settings, settings.equityUsd ?? 1700);
-    await models.TradingRiskState.updateOne(
-      { key: 'global' },
-      {
-        $set: {
-          ...riskUpdates,
-          vix: macro.vix,
-          regime: macro.regime,
-          openPositionsCount: openCount,
-          lastScanAt: new Date(),
-          lastScanStatus: 'ok',
-        },
-      },
-      { upsert: true },
-    );
-
     const buySignals = savedSignals.filter((s) => s.action === 'BUY');
-    if (buySignals.length && process.env.TRADING_TELEGRAM_NOTIFY !== '0') {
-      await notifyTradingScan({
-        scanId,
-        regime: macro.regime,
-        vix: macro.vix,
-        signals: savedSignals,
-        mode: settings.mode,
-        autoEnabled: settings.autoEnabled,
-      });
+    let tradesCreated = [];
+
+    if (buySignals.length && settings.autoEnabled && !riskState.tradingPaused) {
+      tradesCreated = await processBuySignals(models, buySignals, settings);
+    }
+
+    const riskUpdates = evaluateCircuitBreaker(riskState, settings, settings.equityUsd ?? 1700);
+    const riskSet = {
+      ...riskUpdates,
+      vix: macro.vix,
+      regime: macro.regime,
+      openPositionsCount: openCount + tradesCreated.length,
+      lastScanAt: new Date(),
+      lastScanStatus: 'ok',
+      lastTriggeredBy: triggeredBy,
+    };
+    if (isCronTrigger(triggeredBy)) {
+      riskSet.lastCronAt = new Date();
+    }
+
+    await models.TradingRiskState.updateOne({ key: 'global' }, { $set: riskSet }, { upsert: true });
+
+    if (process.env.TRADING_TELEGRAM_NOTIFY !== '0') {
+      if (buySignals.length) {
+        await notifyBuySignals({
+          scanId,
+          regime: macro.regime,
+          vix: macro.vix,
+          buys: buySignals,
+          mode: settings.mode,
+          autoEnabled: settings.autoEnabled,
+          triggeredBy,
+        });
+      } else if (!isBuyOnlyTelegram()) {
+        await notifyTradingScan({
+          scanId,
+          regime: macro.regime,
+          vix: macro.vix,
+          signals: savedSignals,
+          mode: settings.mode,
+          autoEnabled: settings.autoEnabled,
+          triggeredBy,
+        });
+      }
     }
 
     return {
@@ -94,15 +121,22 @@ async function runTradingScan(getAssistantConnection, options = {}) {
       vix: macro.vix,
       signalCount: savedSignals.length,
       buyCount: buySignals.length,
+      tradesCreated: tradesCreated.length,
       signals: savedSignals,
-      triggeredBy: options.triggeredBy || 'manual',
+      triggeredBy,
     };
   } catch (e) {
     console.error('[trading-scan]', e);
     try {
       await models.TradingRiskState.updateOne(
         { key: 'global' },
-        { $set: { lastScanAt: new Date(), lastScanStatus: `error: ${e.message}` } },
+        {
+          $set: {
+            lastScanAt: new Date(),
+            lastScanStatus: `error: ${e.message}`,
+            lastTriggeredBy: triggeredBy,
+          },
+        },
         { upsert: true },
       );
     } catch (_) {

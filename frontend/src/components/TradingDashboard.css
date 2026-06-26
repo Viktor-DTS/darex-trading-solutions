@@ -215,3 +215,41 @@
   font-size: 0.8rem;
   font-weight: 600;
 }
+
+.trading-settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.trading-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.trading-hint {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #666);
+  margin: 0.5rem 0 0;
+  line-height: 1.45;
+}
+
+.trading-hint code {
+  font-size: 0.8rem;
+  background: var(--background, #f5f5f5);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+}
+
+.trading-pending-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+}
+
+.trading-pending-list li {
+  margin-bottom: 0.35rem;
+}

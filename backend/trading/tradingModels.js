@@ -59,7 +59,7 @@ function initTradingModels(getAssistantConnection) {
       {
         symbol: String,
         side: { type: String, enum: ['long', 'short'], default: 'long' },
-        status: { type: String, enum: ['open', 'closed', 'cancelled'], default: 'open' },
+        status: { type: String, enum: ['open', 'closed', 'cancelled', 'pending_ibkr'], default: 'open' },
         entryPrice: Number,
         exitPrice: Number,
         quantity: Number,
@@ -89,6 +89,8 @@ function initTradingModels(getAssistantConnection) {
         openPositionsCount: { type: Number, default: 0 },
         lastScanAt: Date,
         lastScanStatus: String,
+        lastTriggeredBy: String,
+        lastCronAt: Date,
         vix: Number,
         regime: { type: String, default: 'unknown' },
       },
