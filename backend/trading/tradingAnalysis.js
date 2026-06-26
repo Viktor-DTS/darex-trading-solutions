@@ -1,4 +1,4 @@
-const { fetchYahooChart, sma, ema, rsi, atr } = require('./tradingMarketData');
+const { fetchChart, sma, ema, rsi, atr } = require('./tradingMarketData');
 
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
@@ -117,13 +117,19 @@ async function analyzeWatchlist(symbols, externalContext) {
   const results = [];
   for (const symbol of symbols) {
     try {
-      const chart = await fetchYahooChart(symbol);
+      const chart = await fetchChart(symbol);
       const symExternal = {
         ...externalContext,
         externalScore: externalContext.symbolScores?.[symbol] ?? externalContext.externalScore,
         sentimentScore: externalContext.symbolSentiment?.[symbol] ?? externalContext.sentimentScore,
       };
-      results.push(scoreSymbol(chart, symExternal));
+      const scored = scoreSymbol(chart, symExternal);
+      if (chart.source === 'stooq') {
+        scored.reason = `${scored.reason}; data: stooq`;
+      } else if (chart.fallbackFrom) {
+        scored.reason = `${scored.reason}; data: stooq (yahoo blocked)`;
+      }
+      results.push(scored);
     } catch (e) {
       results.push({
         symbol,
