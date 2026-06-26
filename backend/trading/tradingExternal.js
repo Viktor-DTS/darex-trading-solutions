@@ -1,4 +1,4 @@
-const { fetchChart } = require('./tradingMarketData');
+const { fetchMacroQuote } = require('./tradingMarketData');
 
 function regimeFromVix(vix) {
   if (vix == null || Number.isNaN(vix)) return 'unknown';
@@ -20,7 +20,7 @@ async function fetchMacroSnapshot() {
   let us10y = null;
 
   try {
-    const vixChart = await fetchChart('^VIX', '5d', '1d');
+    const vixChart = await fetchMacroQuote('^VIX');
     vix = vixChart.lastPrice;
     if (vixChart.source) notes.push(`VIX source: ${vixChart.source}`);
   } catch (e) {
@@ -28,7 +28,7 @@ async function fetchMacroSnapshot() {
   }
 
   try {
-    const tnx = await fetchChart('^TNX', '1mo', '1d');
+    const tnx = await fetchMacroQuote('^TNX');
     us10y = tnx.lastPrice;
     if (tnx.source) notes.push(`US10Y source: ${tnx.source}`);
   } catch (e) {

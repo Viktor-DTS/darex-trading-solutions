@@ -38,7 +38,7 @@ async function throttle() {
   lastFetchAt = Date.now();
 }
 
-async function fetchYahooChartOnce(symbol, range = '1y', interval = '1d') {
+async function fetchYahooChartOnce(symbol, range = '1y', interval = '1d', minBars = 30) {
   await throttle();
   const url = `${YAHOO_CHART}/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`;
   const res = await fetch(url, {
@@ -78,7 +78,7 @@ async function fetchYahooChartOnce(symbol, range = '1y', interval = '1d') {
       volume: volumes[i] ?? 0,
     });
   }
-  if (bars.length < 30) {
+  if (bars.length < minBars) {
     throw new Error(`Yahoo chart ${symbol}: insufficient bars (${bars.length})`);
   }
   return {
@@ -91,13 +91,13 @@ async function fetchYahooChartOnce(symbol, range = '1y', interval = '1d') {
   };
 }
 
-async function fetchYahooChart(symbol, range = '1y', interval = '1d') {
+async function fetchYahooChart(symbol, range = '1y', interval = '1d', minBars = 30) {
   const retries = [0, 2500, 6000, 12000];
   let lastErr;
   for (let i = 0; i < retries.length; i += 1) {
     if (retries[i] > 0) await sleep(retries[i]);
     try {
-      return await fetchYahooChartOnce(symbol, range, interval);
+      return await fetchYahooChartOnce(symbol, range, interval, minBars);
     } catch (e) {
       lastErr = e;
       const status = e.status || 0;
@@ -107,7 +107,7 @@ async function fetchYahooChart(symbol, range = '1y', interval = '1d') {
   throw lastErr;
 }
 
-async function fetchStooqChart(symbol) {
+async function fetchStooqChart(symbol, minBars = 30) {
   await throttle();
   const stooqSym = toStooqSymbol(symbol);
   const url = `${STOOQ_DAILY}?s=${encodeURIComponent(stooqSym)}&i=d`;
@@ -143,7 +143,7 @@ async function fetchStooqChart(symbol) {
     });
   }
 
-  if (bars.length < 30) {
+  if (bars.length < minBars) {
     throw new Error(`Stooq ${symbol}: insufficient bars (${bars.length})`);
   }
 
@@ -161,17 +161,18 @@ async function fetchStooqChart(symbol) {
 /**
  * Unified chart fetch: memory cache → Yahoo (retry) → Stooq fallback.
  */
-async function fetchChart(symbol, range = '1y', interval = '1d') {
-  const key = `${symbol}:${range}:${interval}`;
+async function fetchChart(symbol, range = '1y', interval = '1d', options = {}) {
+  const minBars = options.minBars ?? 30;
+  const key = `${symbol}:${range}:${interval}:${minBars}`;
   const cached = cacheGet(key);
   if (cached) return { ...cached, cached: true };
 
   let chart;
   try {
-    chart = await fetchYahooChart(symbol, range, interval);
+    chart = await fetchYahooChart(symbol, range, interval, minBars);
   } catch (yahooErr) {
     try {
-      chart = await fetchStooqChart(symbol);
+      chart = await fetchStooqChart(symbol, minBars);
       chart.fallbackFrom = yahooErr.message;
     } catch (stooqErr) {
       throw new Error(`${yahooErr.message}; Stooq: ${stooqErr.message}`);
@@ -180,6 +181,11 @@ async function fetchChart(symbol, range = '1y', interval = '1d') {
 
   cacheSet(key, chart);
   return chart;
+}
+
+/** Остання ціна мacro-індикатора (VIX, TNX) — достатньо 1 бару. */
+async function fetchMacroQuote(symbol) {
+  return fetchChart(symbol, '6mo', '1d', { minBars: 1 });
 }
 
 function sma(values, period) {
@@ -226,6 +232,7 @@ function atr(bars, period = 14) {
 
 module.exports = {
   fetchChart,
+  fetchMacroQuote,
   fetchYahooChart,
   sma,
   ema,
