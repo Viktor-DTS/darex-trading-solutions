@@ -54,6 +54,7 @@ const {
   scheduleCashlessPendingJob,
 } = require('./assistantCashlessPending');
 const { initAssistantAccountantRelay } = require('./assistantAccountantRelay');
+const { registerTradingRoutes, scheduleTradingScanJob } = require('./trading');
 
 // Cloudinary конфігурація
 console.log('[CLOUDINARY] CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET');
@@ -225,7 +226,7 @@ function logPerformance(endpoint, startTime, resultCount = null) {
 // Автентифікація
 function authenticateToken(req, res, next) {
   // Використовуємо originalUrl для правильного визначення шляху
-  const publicPaths = ['/api/auth', '/api/ping', '/api/system-status'];
+  const publicPaths = ['/api/auth', '/api/ping', '/api/system-status', '/api/trading/cron'];
   const requestPath = req.originalUrl || req.path;
   const isPublicPath = publicPaths.some(path => requestPath.startsWith(path));
   
@@ -16954,6 +16955,9 @@ initAssistantAccountantRelay({
   createManagerNotificationDeduped,
 });
 scheduleCashlessPendingJob();
+
+registerTradingRoutes(app, { getAssistantConnection });
+scheduleTradingScanJob(getAssistantConnection);
 
 // ============================================
 // СТАРТ СЕРВЕРА

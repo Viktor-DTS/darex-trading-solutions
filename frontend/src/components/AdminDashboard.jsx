@@ -5,6 +5,7 @@ import CategoryManagement from './equipment/CategoryManagement';
 import ProductCardManagement from './equipment/ProductCardManagement';
 import SystemCoefficientsSettings from './SystemCoefficientsSettings';
 import OneCWorkerPanel from './onec/OneCWorkerPanel';
+import TradingDashboard from './TradingDashboard';
 import './AdminDashboard.css';
 
 /** Ключі панелей у матриці (як у App.jsx) */
@@ -63,9 +64,12 @@ const ADMIN_TABS = [
   { id: 'productCards', label: '📇 Карточки продуктів', icon: '📇' },
   { id: 'systemCoefficients', label: '🔢 Системні коефіцієнти', icon: '🔢' },
   { id: 'onecAgent', label: '🤖 Агент 1С', icon: '🤖' },
+  { id: 'trading', label: '📈 Trading (IBKR)', icon: '📈', superAdminOnly: true },
 ];
 
 function AdminDashboard({ user }) {
+  const isSuperAdmin = SUPERADMIN_ACCESS_ROLES.includes(String(user?.role || '').toLowerCase());
+  const visibleTabs = ADMIN_TABS.filter((tab) => !tab.superAdminOnly || isSuperAdmin);
   const [activeTab, setActiveTab] = useState('users');
   const [loading, setLoading] = useState(false);
   
@@ -2080,6 +2084,7 @@ function AdminDashboard({ user }) {
       case 'productCards': return <ProductCardManagement />;
       case 'systemCoefficients': return <SystemCoefficientsSettings />;
       case 'onecAgent': return <OneCWorkerPanel />;
+      case 'trading': return isSuperAdmin ? <TradingDashboard user={user} embedded /> : renderUsersTab();
       default: return renderUsersTab();
     }
   };
@@ -2091,7 +2096,7 @@ function AdminDashboard({ user }) {
   return (
     <div className="admin-dashboard">
       <div className="admin-tabs">
-        {ADMIN_TABS.map(tab => (
+        {visibleTabs.map(tab => (
           <button
             key={tab.id}
             className={`admin-tab ${activeTab === tab.id ? 'active' : ''}`}
