@@ -4,8 +4,8 @@ const {
   ensureRiskState,
 } = require('./tradingModels');
 const { runTradingScan } = require('./tradingScan');
-const { notifyTradingAlert, sendTelegramTest, isTelegramConfigured } = require('./tradingTelegram');
-const { getIbkrStatus } = require('./ibkrClient');
+const { notifyTradingAlert, sendTelegramTest, isTelegramConfigured, isBuyOnlyTelegram } = require('./tradingTelegram');
+const { getIbkrStatus, testIbkrConnection } = require('./ibkrClient');
 
 const TRADING_ADMIN_ROLES = new Set(['admin', 'administrator']);
 
@@ -191,6 +191,17 @@ function registerTradingRoutes(app, { getAssistantConnection }) {
       return res.status(403).json({ error: 'Доступ заборонено' });
     }
     res.json(getIbkrStatus());
+  });
+
+  app.post('/api/trading/ibkr/test', async (req, res) => {
+    if (!isTradingAdmin(req.user?.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const result = await testIbkrConnection();
+    if (!result.ok) {
+      return res.status(400).json(result);
+    }
+    res.json(result);
   });
 
   /** Render Cron: POST з секретом у заголовку X-Trading-Cron-Secret */

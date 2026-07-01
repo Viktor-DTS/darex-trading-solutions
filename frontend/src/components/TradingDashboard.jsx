@@ -66,6 +66,26 @@ export default function TradingDashboard({ user, embedded = false }) {
     }
   };
 
+  const testIbkr = async () => {
+    setBusy('ibkr');
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/trading/ibkr/test`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || json.error || 'IBKR test failed');
+      await load();
+      setError('');
+      window.alert(`IBKR OK: ${json.message}${json.accountIds?.length ? `\nAccounts: ${json.accountIds.join(', ')}` : ''}`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy('');
+    }
+  };
+
   const load = useCallback(async () => {
     setError('');
     try {
@@ -377,10 +397,20 @@ export default function TradingDashboard({ user, embedded = false }) {
           <div className="trading-card trading-card-wide">
             <div className="trading-card-label">3 · IBKR OAuth</div>
             <p className="trading-muted">{integrations.ibkr?.message || '—'}</p>
+            {integrations.ibkr?.missingEnv?.length > 0 && (
+              <p className="trading-hint trading-hint-warn">
+                Не вистачає: {integrations.ibkr.missingEnv.join(', ')}
+              </p>
+            )}
             <p className="trading-hint">
-              IBKR Portal → OAuth keys → Render env: IBKR_CONSUMER_KEY, IBKR_ACCESS_TOKEN, IBKR_ACCESS_SECRET,
-              IBKR_ACCOUNT_ID. Потім IBKR_LIVE_ORDERS=1.
+              IBKR Self-Service Portal → OAuth keys → Render env:
+              IBKR_CONSUMER_KEY, IBKR_ACCESS_TOKEN, IBKR_ACCESS_SECRET_HEX,
+              IBKR_SIGNATURE_PRIVATE_KEY_B64, IBKR_DH_PRIME_HEX, IBKR_ACCOUNT_ID.
+              Потім IBKR_LIVE_ORDERS=1.
             </p>
+            <button type="button" className="trading-btn" onClick={testIbkr} disabled={busy === 'ibkr'}>
+              {busy === 'ibkr' ? '…' : 'Test IBKR connection'}
+            </button>
           </div>
         </div>
       )}

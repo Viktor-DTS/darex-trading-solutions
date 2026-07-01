@@ -13,6 +13,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@quentinadam/ibkr": "^0.1.6",
     "cloudinary": "^1.41.0",
     "cors": "^2.8.5",
     "debug": "2.6.9",

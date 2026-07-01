@@ -244,6 +244,10 @@
   border-radius: 3px;
 }
 
+.trading-hint-warn {
+  color: #b45309;
+}
+
 .trading-pending-list {
   margin: 0.5rem 0 0;
   padding-left: 1.1rem;

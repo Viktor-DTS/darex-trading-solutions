@@ -33,6 +33,7 @@ async function processBuySignals(models, buySignals, settings) {
       openedAt: new Date(),
       source: 'scan',
       signalId: sig._id,
+      ibkrOrderId: ibkrResult.ibkr?.parentId || ibkrResult.ibkr?.response?.order_id || null,
       notes: `[${ibkrResult.mode}] ${ibkrResult.message}${ibkrResult.orderPreview ? ` | preview: ${JSON.stringify(ibkrResult.orderPreview)}` : ''}`,
     });
 

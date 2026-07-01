@@ -1,15 +1,16 @@
 /**
- * IBKR Web API — підготовка OAuth (фаза 2).
- * Повна підпис OAuth 1.0a + DH — коли ключі задані в Render env.
- * Документація: https://www.interactivebrokers.com/campus/ibkr-api-page/cpapi-v1/
+ * IBKR Web API — публічний фасад для trading-модуля.
  */
 
+const {
+  getIbkrConfig,
+  isIbkrFullyConfigured,
+  testIbkrConnection,
+  submitBracketOrderToIbkr,
+} = require('./ibkrApi');
+
 function isIbkrConfigured() {
-  return Boolean(
-    process.env.IBKR_CONSUMER_KEY &&
-      process.env.IBKR_ACCESS_TOKEN &&
-      process.env.IBKR_ACCESS_SECRET,
-  );
+  return isIbkrFullyConfigured();
 }
 
 function isIbkrLiveOrdersEnabled() {
@@ -17,32 +18,53 @@ function isIbkrLiveOrdersEnabled() {
 }
 
 function getIbkrStatus() {
-  const configured = isIbkrConfigured();
+  const cfg = getIbkrConfig();
+  const configured = cfg.ok;
+  const liveOrders = isIbkrLiveOrdersEnabled();
+
+  let message;
+  if (!configured) {
+    message = `Додайте IBKR OAuth ключі в Render: ${cfg.missing.join(', ')}`;
+  } else if (!cfg.accountId) {
+    message = 'OAuth ключі є. Додайте IBKR_ACCOUNT_ID (paper DU… або live U…)';
+  } else if (!liveOrders) {
+    message = 'Ключі є. Увімкніть IBKR_LIVE_ORDERS=1 для відправки ордерів';
+  } else {
+    message = 'Готово до відправки ордерів (paper/live за IBKR_ACCOUNT_ID)';
+  }
+
   return {
     configured,
-    liveOrders: isIbkrLiveOrdersEnabled(),
-    accountId: process.env.IBKR_ACCOUNT_ID || null,
-    apiBase: process.env.IBKR_API_BASE || 'https://api.ibkr.com/v1/api',
-    ready: configured && isIbkrLiveOrdersEnabled(),
-    message: !configured
-      ? 'Додайте IBKR OAuth ключі в Render Environment'
-      : !isIbkrLiveOrdersEnabled()
-        ? 'Ключі є. Увімкніть IBKR_LIVE_ORDERS=1 для відправки ордерів'
-        : 'Готово до відправки ордерів (paper/live за IBKR_ACCOUNT_ID)',
+    oauthComplete: configured,
+    liveOrders,
+    accountId: cfg.accountId,
+    apiBase: cfg.apiBase,
+    realm: cfg.realm,
+    ready: configured && Boolean(cfg.accountId) && liveOrders,
+    missingEnv: cfg.missing,
+    message,
   };
 }
 
-/**
- * Bracket order через IBKR API (stub → pending_ibkr у БД до повної OAuth-реалізації).
- */
 async function submitBracketOrder(signal, settings) {
   const status = getIbkrStatus();
+  const preview = buildOrderPreview(signal, settings);
 
   if (!status.configured) {
     return {
       ok: false,
       mode: 'pending_manual',
       message: status.message,
+      orderPreview: preview,
+    };
+  }
+
+  if (!status.accountId) {
+    return {
+      ok: false,
+      mode: 'pending_config',
+      message: status.message,
+      orderPreview: preview,
     };
   }
 
@@ -50,18 +72,45 @@ async function submitBracketOrder(signal, settings) {
     return {
       ok: false,
       mode: 'dry_run',
-      message: 'IBKR_LIVE_ORDERS=0 — ордер лише в черзі pending',
-      orderPreview: buildOrderPreview(signal, settings),
+      message: 'IBKR_LIVE_ORDERS=0 — ордер лише в черзі pending_ibkr',
+      orderPreview: preview,
     };
   }
 
-  // TODO: OAuth 1.0a signed request to /iserver/account/{id}/orders
-  return {
-    ok: false,
-    mode: 'oauth_pending',
-    message: 'OAuth signing — наступний реліз; ордер збережено в pending_ibkr',
-    orderPreview: buildOrderPreview(signal, settings),
-  };
+  if (settings?.mode === 'paper' && !String(status.accountId).startsWith('DU')) {
+    return {
+      ok: false,
+      mode: 'paper_guard',
+      message: 'mode=paper, але IBKR_ACCOUNT_ID не paper (DU…). Перевірте налаштування.',
+      orderPreview: preview,
+    };
+  }
+
+  try {
+    const result = await submitBracketOrderToIbkr({
+      symbol: signal.symbol,
+      quantity: preview.quantity,
+      entryPrice: signal.entryPrice,
+      stopLoss: signal.stopLoss,
+      takeProfit: signal.takeProfit,
+      accountId: status.accountId,
+    });
+
+    return {
+      ok: true,
+      mode: 'submitted',
+      message: `IBKR bracket submitted · conid ${result.conid} · ${result.parentId}`,
+      orderPreview: preview,
+      ibkr: result,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      mode: 'ibkr_error',
+      message: err.message || String(err),
+      orderPreview: preview,
+    };
+  }
 }
 
 function buildOrderPreview(signal, settings) {
@@ -75,7 +124,7 @@ function buildOrderPreview(signal, settings) {
     stopLoss: signal.stopLoss,
     takeProfit: signal.takeProfit,
     tif: 'GTC',
-    mode: settings.mode || 'paper',
+    mode: settings?.mode || 'paper',
   };
 }
 
@@ -85,4 +134,5 @@ module.exports = {
   getIbkrStatus,
   submitBracketOrder,
   buildOrderPreview,
+  testIbkrConnection,
 };

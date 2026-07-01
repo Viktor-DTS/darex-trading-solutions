@@ -71,6 +71,7 @@ function initTradingModels(getAssistantConnection) {
         closedAt: Date,
         source: { type: String, default: 'scan' },
         signalId: { type: mongoose.Schema.Types.ObjectId, ref: 'TradingSignal' },
+        ibkrOrderId: String,
         notes: String,
       },
       { timestamps: true },
