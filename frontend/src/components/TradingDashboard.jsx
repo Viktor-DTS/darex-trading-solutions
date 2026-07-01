@@ -16,9 +16,9 @@ function actionClass(action) {
 }
 
 function regimeLabel(regime) {
-  if (regime === 'risk_on') return 'RISK-ON';
-  if (regime === 'risk_off') return 'RISK-OFF';
-  if (regime === 'elevated') return 'ELEVATED';
+  if (regime === 'risk_on') return 'РИЗИК-ON';
+  if (regime === 'risk_off') return 'РИЗИК-OFF';
+  if (regime === 'elevated') return 'ПІДВИЩЕНИЙ';
   return regime || '—';
 }
 
@@ -160,22 +160,22 @@ export default function TradingDashboard({ user, embedded = false }) {
     <div className={`trading-page${embedded ? ' trading-page-embedded' : ''}`}>
       <header className="trading-header">
         <div>
-          <h1>Trading — IBKR Capital Growth</h1>
+          <h1>Торгівля — IBKR (зростання капіталу)</h1>
           <p className="trading-sub">
-            {user?.login} · режим <strong>{settings.mode || 'paper'}</strong>
-            · auto <strong>{settings.autoEnabled ? 'ON' : 'OFF'}</strong>
+            {user?.login} · режим <strong>{settings.mode === 'live' ? 'live' : 'paper'}</strong>
+            · авто <strong>{settings.autoEnabled ? 'УВІМК' : 'ВИМК'}</strong>
           </p>
         </div>
         <div className="trading-header-actions">
           <button type="button" className="trading-btn" onClick={runScan} disabled={scanning}>
-            {scanning ? 'Сканування…' : '▶ Scan now'}
+            {scanning ? 'Сканування…' : '▶ Сканувати'}
           </button>
           <button
             type="button"
             className={risk.tradingPaused ? 'trading-btn trading-btn-warn' : 'trading-btn trading-btn-danger'}
             onClick={togglePause}
           >
-            {risk.tradingPaused ? '▶ Resume' : '⏸ Pause'}
+            {risk.tradingPaused ? '▶ Продовжити' : '⏸ Пауза'}
           </button>
           <button type="button" className="trading-btn trading-btn-ghost" onClick={load}>
             ↻
@@ -187,11 +187,11 @@ export default function TradingDashboard({ user, embedded = false }) {
 
       <nav className="trading-tabs">
         {[
-          ['dashboard', 'Dashboard'],
-          ['signals', 'Signals'],
-          ['external', 'External'],
-          ['risk', 'Risk'],
-          ['settings', 'Settings'],
+          ['dashboard', 'Огляд'],
+          ['signals', 'Сигнали'],
+          ['external', 'Макро'],
+          ['risk', 'Ризик'],
+          ['settings', 'Налаштування'],
         ].map(([id, label]) => (
           <button
             key={id}
@@ -207,25 +207,25 @@ export default function TradingDashboard({ user, embedded = false }) {
       {tab === 'dashboard' && (
         <div className="trading-grid">
           <div className="trading-card">
-            <div className="trading-card-label">Equity (config)</div>
+            <div className="trading-card-label">Капітал (config)</div>
             <div className="trading-card-value">${settings.equityUsd ?? '—'}</div>
           </div>
           <div className="trading-card">
-            <div className="trading-card-label">Regime / VIX</div>
+            <div className="trading-card-label">Режим / VIX</div>
             <div className="trading-card-value">
               {regimeLabel(risk.regime || external.regime)} · {risk.vix ?? external.vix ?? '—'}
             </div>
           </div>
           <div className="trading-card">
-            <div className="trading-card-label">Drawdown</div>
+            <div className="trading-card-label">Просадка</div>
             <div className="trading-card-value">{risk.currentDrawdownPct ?? 0}%</div>
           </div>
           <div className="trading-card">
-            <div className="trading-card-label">Open positions</div>
+            <div className="trading-card-label">Відкриті позиції</div>
             <div className="trading-card-value">{openTrades.length}</div>
           </div>
           <div className="trading-card trading-card-wide">
-            <div className="trading-card-label">Last scan</div>
+            <div className="trading-card-label">Останній скан</div>
             <div className="trading-card-value trading-card-value-sm">
               {risk.lastScanAt ? new Date(risk.lastScanAt).toLocaleString('uk-UA') : '—'}
               {risk.lastScanStatus ? ` · ${risk.lastScanStatus}` : ''}
@@ -237,12 +237,12 @@ export default function TradingDashboard({ user, embedded = false }) {
               </div>
             )}
             {risk.tradingPaused && (
-              <div className="trading-paused-banner">⏸ PAUSED: {risk.pauseReason || 'manual'}</div>
+              <div className="trading-paused-banner">⏸ ПАУЗА: {risk.pauseReason || 'вручну'}</div>
             )}
           </div>
           {pendingTrades.length > 0 && (
             <div className="trading-card trading-card-wide">
-              <div className="trading-card-label">Pending IBKR ({pendingTrades.length})</div>
+              <div className="trading-card-label">Очікують IBKR ({pendingTrades.length})</div>
               <ul className="trading-pending-list">
                 {pendingTrades.map((t) => (
                   <li key={t._id}>
@@ -261,11 +261,11 @@ export default function TradingDashboard({ user, embedded = false }) {
             <thead>
               <tr>
                 <th>Час</th>
-                <th>Symbol</th>
-                <th>Action</th>
-                <th>Scores</th>
-                <th>Entry / SL / TP</th>
-                <th>Reason</th>
+                <th>Тикер</th>
+                <th>Дія</th>
+                <th>Бали</th>
+                <th>Вхід / SL / TP</th>
+                <th>Причина</th>
               </tr>
             </thead>
             <tbody>
@@ -282,7 +282,7 @@ export default function TradingDashboard({ user, embedded = false }) {
                 </tr>
               ))}
               {!signals.length && (
-                <tr><td colSpan={6} className="trading-muted">Немає сигналів — натисни Scan now</td></tr>
+                <tr><td colSpan={6} className="trading-muted">Немає сигналів — натисни «Сканувати»</td></tr>
               )}
             </tbody>
           </table>
@@ -300,7 +300,7 @@ export default function TradingDashboard({ user, embedded = false }) {
             <div className="trading-card-value">{external.us10y ?? '—'}</div>
           </div>
           <div className="trading-card">
-            <div className="trading-card-label">Regime</div>
+            <div className="trading-card-label">Режим ринку</div>
             <div className="trading-card-value">{regimeLabel(external.regime || risk.regime)}</div>
           </div>
           {Array.isArray(external.macroNotes) && external.macroNotes.length > 0 && (
@@ -316,29 +316,29 @@ export default function TradingDashboard({ user, embedded = false }) {
       {tab === 'risk' && (
         <div className="trading-risk-grid">
           <div className="trading-card">
-            <div className="trading-card-label">Risk / trade</div>
+            <div className="trading-card-label">Ризик / угода</div>
             <div className="trading-card-value">{settings.riskPerTradePct}%</div>
           </div>
           <div className="trading-card">
-            <div className="trading-card-label">Max positions</div>
+            <div className="trading-card-label">Макс. позицій</div>
             <div className="trading-card-value">{settings.maxOpenPositions}</div>
           </div>
           <div className="trading-card">
-            <div className="trading-card-label">Daily loss limit</div>
+            <div className="trading-card-label">Денний ліміт збитку</div>
             <div className="trading-card-value">{settings.dailyLossLimitPct}%</div>
           </div>
           <div className="trading-card">
-            <div className="trading-card-label">Max drawdown</div>
+            <div className="trading-card-label">Макс. просадка</div>
             <div className="trading-card-value">{settings.maxDrawdownPct}%</div>
           </div>
           <div className="trading-card trading-card-wide">
-            <div className="trading-card-label">Portfolio split</div>
+            <div className="trading-card-label">Розподіл портфеля</div>
             <div className="trading-card-value trading-card-value-sm">
               Core {settings.coreAllocationPct}% · Growth {settings.growthAllocationPct}% · Cash {settings.cashAllocationPct}%
             </div>
           </div>
           <div className="trading-card trading-card-wide">
-            <div className="trading-card-label">Watchlist</div>
+            <div className="trading-card-label">Список спостереження</div>
             <div className="trading-watchlist">
               {(settings.watchlist || []).map((s) => (
                 <span key={s} className="trading-tag">{s}</span>
@@ -351,7 +351,7 @@ export default function TradingDashboard({ user, embedded = false }) {
       {tab === 'settings' && (
         <div className="trading-settings">
           <div className="trading-card trading-card-wide">
-            <div className="trading-card-label">Auto trading</div>
+            <div className="trading-card-label">Авто-торгівля</div>
             <div className="trading-settings-row">
               <label>
                 <input
@@ -360,7 +360,7 @@ export default function TradingDashboard({ user, embedded = false }) {
                   onChange={(e) => patchSettings({ autoEnabled: e.target.checked })}
                   disabled={busy === 'settings'}
                 />
-                {' '}Auto ON (BUY → черга IBKR)
+                {' '}Авто УВІМК (BUY → черга IBKR)
               </label>
               <select
                 value={settings.mode || 'paper'}
@@ -385,12 +385,12 @@ export default function TradingDashboard({ user, embedded = false }) {
           </div>
 
           <div className="trading-card trading-card-wide">
-            <div className="trading-card-label">2 · Telegram BUY alerts</div>
+            <div className="trading-card-label">2 · Telegram BUY-алерти</div>
             <p className="trading-muted">
               {integrations.telegramConfigured ? '✅ Telegram налаштовано' : '❌ TELEGRAM_BOT_TOKEN + TRADING_TELEGRAM_CHAT_ID'}
             </p>
             <button type="button" className="trading-btn" onClick={testTelegram} disabled={busy === 'telegram'}>
-              {busy === 'telegram' ? '…' : 'Test Telegram'}
+              {busy === 'telegram' ? '…' : 'Тест Telegram'}
             </button>
           </div>
 
@@ -409,7 +409,7 @@ export default function TradingDashboard({ user, embedded = false }) {
               Потім IBKR_LIVE_ORDERS=1.
             </p>
             <button type="button" className="trading-btn" onClick={testIbkr} disabled={busy === 'ibkr'}>
-              {busy === 'ibkr' ? '…' : 'Test IBKR connection'}
+              {busy === 'ibkr' ? '…' : 'Тест з’єднання IBKR'}
             </button>
           </div>
         </div>
