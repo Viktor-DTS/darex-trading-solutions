@@ -11,6 +11,47 @@ function calcPositionSizeUsd(equityUsd, riskPerTradePct, entry, stopLoss) {
   };
 }
 
+/** Не більше акцій, ніж дозволяє капітал (long-only). */
+function capQuantityByEquity(quantity, equityUsd, entryPrice, bufferPct = 0.98) {
+  const qty = Number(quantity) || 0;
+  const equity = Number(equityUsd) || 0;
+  const entry = Number(entryPrice) || 0;
+  if (qty <= 0 || entry <= 0 || equity <= 0) return 0;
+  const maxQty = Math.floor((equity * bufferPct) / entry);
+  if (maxQty < 1) return 0;
+  return Math.min(qty, maxQty);
+}
+
+/** Active на малому рахунку: 1 акція; sizing за targetRiskPerTradeUsd. */
+function calcActivePositionSize(settings, entry, stopLoss) {
+  const equity = Number(settings?.equityUsd) || 1700;
+  const entryPrice = Number(entry) || 0;
+  const stop = Number(stopLoss) || 0;
+  if (entryPrice <= 0) return { quantity: 0, positionSizeUsd: 0, riskUsd: 0 };
+
+  const maxByEquity = capQuantityByEquity(Number.MAX_SAFE_INTEGER, equity, entryPrice);
+  if (maxByEquity < 1) return { quantity: 0, positionSizeUsd: 0, riskUsd: 0 };
+
+  if (equity < 10000) {
+    return {
+      quantity: 1,
+      positionSizeUsd: round2(entryPrice),
+      riskUsd: round2(Math.abs(entryPrice - stop)),
+    };
+  }
+
+  const riskUsd = Number(settings?.targetRiskPerTradeUsd) || 4;
+  const perShareRisk = Math.abs(entryPrice - stop);
+  let quantity = perShareRisk > 0 ? Math.floor(riskUsd / perShareRisk) : 1;
+  quantity = Math.max(1, quantity);
+  quantity = capQuantityByEquity(quantity, equity, entryPrice);
+  return {
+    quantity,
+    positionSizeUsd: round2(quantity * entryPrice),
+    riskUsd: round2(riskUsd),
+  };
+}
+
 function applyDailyEntryBlocks(signals, dailyLimits, sessionOpen) {
   if (!dailyLimits?.blockNewEntries && sessionOpen !== false) return signals;
 
@@ -40,12 +81,22 @@ function applyRiskToSignals(signals, settings, riskState, openTradesCount) {
       return copy;
     }
     if (copy.action === 'BUY' && copy.entryPrice && copy.stopLoss) {
-      const sizing = calcPositionSizeUsd(
-        settings.equityUsd ?? 1700,
-        effectiveRiskPct,
-        copy.entryPrice,
-        copy.stopLoss,
-      );
+      const sizing = settings?.strategyProfile === 'active'
+        ? calcActivePositionSize(settings, copy.entryPrice, copy.stopLoss)
+        : calcPositionSizeUsd(
+          settings.equityUsd ?? 1700,
+          effectiveRiskPct,
+          copy.entryPrice,
+          copy.stopLoss,
+        );
+      if (settings?.strategyProfile !== 'active') {
+        sizing.quantity = capQuantityByEquity(
+          sizing.quantity,
+          settings.equityUsd ?? 1700,
+          copy.entryPrice,
+        );
+        sizing.positionSizeUsd = round2(sizing.quantity * copy.entryPrice);
+      }
       copy.riskPct = round2(effectiveRiskPct);
       copy.positionSizeUsd = sizing.positionSizeUsd;
       copy.quantity = sizing.quantity;
@@ -84,6 +135,8 @@ function round2(n) {
 
 module.exports = {
   calcPositionSizeUsd,
+  capQuantityByEquity,
+  calcActivePositionSize,
   applyRiskToSignals,
   applyDailyEntryBlocks,
   evaluateCircuitBreaker,

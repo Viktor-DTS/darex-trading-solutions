@@ -1,7 +1,7 @@
 const { fetchChart } = require('./tradingMarketData');
 const { fetchMacroSnapshot } = require('./tradingExternal');
 const { scoreSymbol } = require('./tradingAnalysis');
-const { calcPositionSizeUsd } = require('./tradingRisk');
+const { calcPositionSizeUsd, calcActivePositionSize, capQuantityByEquity } = require('./tradingRisk');
 const { isEodFlattenTime } = require('./tradingSession');
 
 const SIM_SOURCE = 'simulation';
@@ -46,7 +46,18 @@ function resolveSimulationQuantity(settings, entry, stopLoss, riskPctOverride) {
   const equity = Number(settings?.equityUsd) || 1700;
   const riskPct = riskPctOverride ?? settings?.riskPerTradePct ?? 0.8;
   const entryPrice = Number(entry) || 0;
+
+  if (settings?.strategyProfile === 'active') {
+    const active = calcActivePositionSize(settings, entry, stopLoss);
+    if (active.quantity >= 1) {
+      return { ...active, minLotApplied: active.quantity === 1 && equity < 10000 };
+    }
+    return { ...active, quantity: 0, minLotApplied: false };
+  }
+
   const sizing = calcPositionSizeUsd(equity, riskPct, entry, stopLoss);
+  sizing.quantity = capQuantityByEquity(sizing.quantity, equity, entryPrice);
+  sizing.positionSizeUsd = round2(sizing.quantity * entryPrice);
 
   if (sizing.quantity >= 1) {
     return { ...sizing, minLotApplied: false };
