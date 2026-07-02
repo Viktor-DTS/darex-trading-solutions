@@ -67,16 +67,27 @@ function initTradingModels(getAssistantConnection) {
         takeProfit: Number,
         pnlUsd: Number,
         pnlPct: Number,
+        commissionUsd: { type: Number, default: 0 },
+        feesUsd: { type: Number, default: 0 },
+        exitReason: {
+          type: String,
+          enum: ['stop', 'take_profit', 'manual', 'unknown', ''],
+          default: '',
+        },
         openedAt: Date,
         closedAt: Date,
         source: { type: String, default: 'scan' },
         signalId: { type: mongoose.Schema.Types.ObjectId, ref: 'TradingSignal' },
         ibkrOrderId: String,
+        ibkrBuyExecId: String,
+        ibkrSellExecId: String,
+        ibkrSyncedAt: Date,
         notes: String,
       },
       { timestamps: true },
     );
     tradeSchema.index({ status: 1, openedAt: -1 });
+    tradeSchema.index({ closedAt: -1 });
 
     const riskSchema = new mongoose.Schema(
       {
@@ -92,6 +103,8 @@ function initTradingModels(getAssistantConnection) {
         lastScanStatus: String,
         lastTriggeredBy: String,
         lastCronAt: Date,
+        lastIbkrSyncAt: Date,
+        lastIbkrSyncStatus: String,
         vix: Number,
         regime: { type: String, default: 'unknown' },
       },

@@ -9,6 +9,8 @@ const { fetchMacroSnapshot } = require('./tradingExternal');
 const { applyRiskToSignals, evaluateCircuitBreaker } = require('./tradingRisk');
 const { notifyTradingScan, notifyBuySignals, isTelegramConfigured, isBuyOnlyTelegram } = require('./tradingTelegram');
 const { processBuySignals } = require('./ibkrOrders');
+const { syncTradesFromIbkr } = require('./ibkrTradeSync');
+const { isIbkrFullyConfigured } = require('./ibkrApi');
 
 let scanRunning = false;
 
@@ -73,12 +75,21 @@ async function runTradingScan(getAssistantConnection, options = {}) {
       tradesCreated = await processBuySignals(models, buySignals, settings);
     }
 
+    let ibkrSync = null;
+    if (isIbkrFullyConfigured()) {
+      ibkrSync = await syncTradesFromIbkr(models, { triggeredBy });
+    }
+
+    const openCountAfter = await models.TradingTrade.countDocuments({
+      status: { $in: ['open', 'pending_ibkr'] },
+    });
+
     const riskUpdates = evaluateCircuitBreaker(riskState, settings, settings.equityUsd ?? 1700);
     const riskSet = {
       ...riskUpdates,
       vix: macro.vix,
       regime: macro.regime,
-      openPositionsCount: openCount + tradesCreated.length,
+      openPositionsCount: openCountAfter,
       lastScanAt: new Date(),
       lastScanStatus: 'ok',
       lastTriggeredBy: triggeredBy,
@@ -122,6 +133,7 @@ async function runTradingScan(getAssistantConnection, options = {}) {
       signalCount: savedSignals.length,
       buyCount: buySignals.length,
       tradesCreated: tradesCreated.length,
+      ibkrSync,
       signals: savedSignals,
       triggeredBy,
     };

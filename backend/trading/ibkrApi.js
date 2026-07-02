@@ -148,6 +148,41 @@ async function fetchAccounts() {
   return ibkrRequest('/iserver/accounts', { parseFn: (b) => b });
 }
 
+async function selectIbkrAccount(accountId) {
+  if (!accountId) throw new Error('IBKR account id required');
+  await ensureBrokerageSession();
+  return ibkrRequest('/iserver/account', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ acctId: accountId }),
+    parseFn: (b) => b,
+  });
+}
+
+async function warmupPortfolioSession() {
+  await ensureBrokerageSession();
+  try {
+    await ibkrRequest('/portfolio/accounts', { parseFn: (b) => b });
+  } catch (_) {
+    /* optional prefetch */
+  }
+}
+
+async function fetchIbkrTrades() {
+  await ensureBrokerageSession();
+  const data = await ibkrRequest('/iserver/account/trades', { parseFn: (b) => b });
+  return Array.isArray(data) ? data : [];
+}
+
+async function fetchIbkrPositions(accountId) {
+  await warmupPortfolioSession();
+  const data = await ibkrRequest(
+    `/portfolio/${encodeURIComponent(accountId)}/positions/0`,
+    { parseFn: (b) => b },
+  );
+  return Array.isArray(data) ? data : [];
+}
+
 async function resolveUsStockConid(symbol) {
   const sym = String(symbol || '').trim().toUpperCase();
   if (!sym) throw new Error('Symbol required');
@@ -327,6 +362,9 @@ module.exports = {
   testIbkrConnection,
   ensureBrokerageSession,
   fetchAccounts,
+  selectIbkrAccount,
+  fetchIbkrTrades,
+  fetchIbkrPositions,
   resolveUsStockConid,
   submitBracketOrderToIbkr,
   resetIbkrSessionCache,

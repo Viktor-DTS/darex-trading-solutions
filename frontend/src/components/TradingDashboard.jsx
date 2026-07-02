@@ -22,6 +22,44 @@ function regimeLabel(regime) {
   return regime || '—';
 }
 
+function fmtMoney(n) {
+  if (n == null || Number.isNaN(Number(n))) return '—';
+  return `$${Number(n).toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtPct(n) {
+  if (n == null || Number.isNaN(Number(n))) return '—';
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${Number(n).toFixed(2)}%`;
+}
+
+function fmtDateTime(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('uk-UA');
+}
+
+function tradeStatusClass(status) {
+  if (status === 'open') return 'trading-trade-open';
+  if (status === 'closed') return 'trading-trade-closed';
+  if (status === 'pending_ibkr') return 'trading-trade-pending';
+  if (status === 'cancelled') return 'trading-trade-cancelled';
+  return '';
+}
+
+function exitReasonLabel(reason) {
+  if (reason === 'stop') return 'Stop-loss';
+  if (reason === 'take_profit') return 'Take-profit';
+  if (reason === 'manual') return 'Вручну';
+  return reason || '—';
+}
+
+function pnlClass(n) {
+  if (n == null || Number.isNaN(Number(n))) return '';
+  if (n > 0) return 'trading-pnl-pos';
+  if (n < 0) return 'trading-pnl-neg';
+  return '';
+}
+
 export default function TradingDashboard({ user, embedded = false }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -29,6 +67,10 @@ export default function TradingDashboard({ user, embedded = false }) {
   const [scanning, setScanning] = useState(false);
   const [tab, setTab] = useState('dashboard');
   const [busy, setBusy] = useState('');
+  const [tradesData, setTradesData] = useState(null);
+  const [tradesFilter, setTradesFilter] = useState('all');
+  const [tradesLoading, setTradesLoading] = useState(false);
+  const [tradesSyncing, setTradesSyncing] = useState(false);
 
   const patchSettings = async (patch) => {
     setBusy('settings');
@@ -86,6 +128,43 @@ export default function TradingDashboard({ user, embedded = false }) {
     }
   };
 
+  const loadTrades = useCallback(async (status = tradesFilter) => {
+    setTradesLoading(true);
+    try {
+      const qs = status && status !== 'all' ? `?status=${encodeURIComponent(status)}&limit=200` : '?limit=200';
+      const res = await fetch(`${API_BASE_URL}/trading/trades${qs}`, { headers: authHeaders() });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      setTradesData(await res.json());
+    } catch (e) {
+      setError(e.message || 'Помилка завантаження угод');
+    } finally {
+      setTradesLoading(false);
+    }
+  }, [tradesFilter]);
+
+  const syncTrades = async () => {
+    setTradesSyncing(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/trading/trades/sync`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok && !json.skipped) {
+        throw new Error(json.error || json.message || `HTTP ${res.status}`);
+      }
+      await loadTrades(tradesFilter);
+    } catch (e) {
+      setError(e.message || 'Помилка синхронізації IBKR');
+    } finally {
+      setTradesSyncing(false);
+    }
+  };
+
   const load = useCallback(async () => {
     setError('');
     try {
@@ -107,6 +186,12 @@ export default function TradingDashboard({ user, embedded = false }) {
     const id = setInterval(load, 60000);
     return () => clearInterval(id);
   }, [load]);
+
+  useEffect(() => {
+    if (tab === 'trades') {
+      loadTrades(tradesFilter);
+    }
+  }, [tab, tradesFilter, loadTrades]);
 
   const runScan = async () => {
     setScanning(true);
@@ -189,6 +274,7 @@ export default function TradingDashboard({ user, embedded = false }) {
         {[
           ['dashboard', 'Огляд'],
           ['signals', 'Сигнали'],
+          ['trades', 'Угоди'],
           ['external', 'Макро'],
           ['risk', 'Ризик'],
           ['settings', 'Налаштування'],
@@ -286,6 +372,147 @@ export default function TradingDashboard({ user, embedded = false }) {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {tab === 'trades' && (
+        <div className="trading-trades">
+          <div className="trading-trades-toolbar">
+            <select
+              className="trading-trades-filter"
+              value={tradesFilter}
+              onChange={(e) => setTradesFilter(e.target.value)}
+            >
+              <option value="all">Усі угоди</option>
+              <option value="open">Відкриті</option>
+              <option value="closed">Закриті</option>
+              <option value="pending_ibkr">Очікують IBKR</option>
+              <option value="cancelled">Скасовані</option>
+            </select>
+            <button
+              type="button"
+              className="trading-btn"
+              onClick={syncTrades}
+              disabled={tradesSyncing || tradesLoading}
+            >
+              {tradesSyncing ? 'Синх…' : '⟳ IBKR sync'}
+            </button>
+            <button
+              type="button"
+              className="trading-btn trading-btn-ghost"
+              onClick={() => loadTrades(tradesFilter)}
+              disabled={tradesLoading}
+            >
+              {tradesLoading ? '…' : '↻ Оновити'}
+            </button>
+          </div>
+
+          {(tradesData?.lastIbkrSyncAt || tradesData?.lastIbkrSyncStatus) && (
+            <p className="trading-hint trading-trades-sync-meta">
+              Останній IBKR sync:{' '}
+              {tradesData.lastIbkrSyncAt
+                ? fmtDateTime(tradesData.lastIbkrSyncAt)
+                : '—'}
+              {tradesData.lastIbkrSyncStatus ? ` · ${tradesData.lastIbkrSyncStatus}` : ''}
+            </p>
+          )}
+
+          {tradesData?.summary && (
+            <div className="trading-grid trading-trades-summary">
+              <div className="trading-card">
+                <div className="trading-card-label">Усього угод</div>
+                <div className="trading-card-value">{tradesData.summary.total}</div>
+              </div>
+              <div className="trading-card">
+                <div className="trading-card-label">Закриті / відкриті</div>
+                <div className="trading-card-value trading-card-value-sm">
+                  {tradesData.summary.closed} / {tradesData.summary.open}
+                </div>
+              </div>
+              <div className="trading-card">
+                <div className="trading-card-label">Очікують IBKR</div>
+                <div className="trading-card-value">{tradesData.summary.pending}</div>
+              </div>
+              <div className="trading-card">
+                <div className="trading-card-label">Сумарний P/L</div>
+                <div className={`trading-card-value ${pnlClass(tradesData.summary.totalPnlUsd)}`}>
+                  {fmtMoney(tradesData.summary.totalPnlUsd)}
+                </div>
+              </div>
+              <div className="trading-card">
+                <div className="trading-card-label">Комісії / збори</div>
+                <div className="trading-card-value trading-card-value-sm">
+                  {fmtMoney(tradesData.summary.totalFeesUsd)}
+                </div>
+              </div>
+              <div className="trading-card">
+                <div className="trading-card-label">Win / Loss</div>
+                <div className="trading-card-value trading-card-value-sm">
+                  {tradesData.summary.winners} / {tradesData.summary.losers}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="trading-table-wrap">
+            <table className="trading-table trading-table-trades">
+              <thead>
+                <tr>
+                  <th>Статус</th>
+                  <th>Купівля</th>
+                  <th>Тикер</th>
+                  <th>К-сть</th>
+                  <th>Ціна входу</th>
+                  <th>Сума покупки</th>
+                  <th>Продаж</th>
+                  <th>Ціна виходу</th>
+                  <th>Сума продажу</th>
+                  <th>Комісія</th>
+                  <th>P/L</th>
+                  <th>P/L %</th>
+                  <th>Вихід</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(tradesData?.trades || []).map((t) => (
+                  <tr key={t._id}>
+                    <td>
+                      <span className={`trading-badge ${tradeStatusClass(t.status)}`}>
+                        {t.statusLabel || t.status}
+                      </span>
+                    </td>
+                    <td>{fmtDateTime(t.openedAt)}</td>
+                    <td><strong>{t.symbol}</strong></td>
+                    <td>{t.quantity ?? '—'}</td>
+                    <td>{t.entryPrice != null ? fmtMoney(t.entryPrice) : '—'}</td>
+                    <td>{fmtMoney(t.buyTotalUsd)}</td>
+                    <td>{fmtDateTime(t.closedAt)}</td>
+                    <td>{t.exitPrice != null ? fmtMoney(t.exitPrice) : '—'}</td>
+                    <td>{fmtMoney(t.sellTotalUsd)}</td>
+                    <td>{fmtMoney(t.totalFeesUsd)}</td>
+                    <td className={pnlClass(t.pnlUsd)}>{fmtMoney(t.pnlUsd)}</td>
+                    <td className={pnlClass(t.pnlPct)}>{fmtPct(t.pnlPct)}</td>
+                    <td>{exitReasonLabel(t.exitReason)}</td>
+                  </tr>
+                ))}
+                {!tradesLoading && !(tradesData?.trades || []).length && (
+                  <tr>
+                    <td colSpan={13} className="trading-muted">
+                      Ще немає угод. Увімкни авто-торгівлю та запусти скан — записи з’являться тут.
+                    </td>
+                  </tr>
+                )}
+                {tradesLoading && !(tradesData?.trades || []).length && (
+                  <tr><td colSpan={13} className="trading-muted">Завантаження угод…</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="trading-hint trading-trades-hint">
+            Після кожного скану бот автоматично синхронізує угоди з IBKR (fills + позиції, ~7 днів).
+            Кнопка «IBKR sync» — вручну. Закриті угоди отримують реальну ціну виходу, комісію та P/L.
+          </p>
         </div>
       )}
 

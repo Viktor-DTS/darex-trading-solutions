@@ -6,6 +6,8 @@ const {
 const { runTradingScan } = require('./tradingScan');
 const { notifyTradingAlert, sendTelegramTest, isTelegramConfigured, isBuyOnlyTelegram } = require('./tradingTelegram');
 const { getIbkrStatus, testIbkrConnection } = require('./ibkrClient');
+const { enrichTrade, summarizeTrades } = require('./tradingTrades');
+const { syncTradesFromIbkr } = require('./ibkrTradeSync');
 
 const TRADING_ADMIN_ROLES = new Set(['admin', 'administrator']);
 
@@ -101,6 +103,56 @@ function registerTradingRoutes(app, { getAssistantConnection }) {
     const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 200);
     const rows = await models.TradingSignal.find().sort({ createdAt: -1 }).limit(limit).lean();
     res.json({ signals: rows });
+  });
+
+  app.get('/api/trading/trades', async (req, res) => {
+    if (!isTradingAdmin(req.user?.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const models = initTradingModels(getAssistantConnection);
+    if (!models.conn) return res.status(503).json({ error: 'Assistant MongoDB недоступна' });
+
+    const limit = Math.min(parseInt(String(req.query.limit || '100'), 10) || 100, 500);
+    const statusFilter = String(req.query.status || 'all').toLowerCase();
+
+    const query = {};
+    if (statusFilter !== 'all') {
+      const allowed = new Set(['open', 'closed', 'pending_ibkr', 'cancelled']);
+      if (!allowed.has(statusFilter)) {
+        return res.status(400).json({ error: 'status must be open|closed|pending_ibkr|cancelled|all' });
+      }
+      query.status = statusFilter;
+    }
+
+    const rows = await models.TradingTrade.find(query)
+      .sort({ openedAt: -1, createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    const trades = rows.map(enrichTrade);
+    const risk = await ensureRiskState(models);
+    res.json({
+      trades,
+      summary: summarizeTrades(trades),
+      limit,
+      status: statusFilter,
+      lastIbkrSyncAt: risk?.lastIbkrSyncAt || null,
+      lastIbkrSyncStatus: risk?.lastIbkrSyncStatus || null,
+    });
+  });
+
+  app.post('/api/trading/trades/sync', async (req, res) => {
+    if (!isTradingAdmin(req.user?.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const models = initTradingModels(getAssistantConnection);
+    if (!models.conn) return res.status(503).json({ error: 'Assistant MongoDB недоступна' });
+
+    const result = await syncTradesFromIbkr(models, { triggeredBy: `manual:${req.user?.login || 'api'}` });
+    if (!result.ok && !result.skipped) {
+      return res.status(400).json(result);
+    }
+    res.json(result);
   });
 
   app.patch('/api/trading/settings', async (req, res) => {
