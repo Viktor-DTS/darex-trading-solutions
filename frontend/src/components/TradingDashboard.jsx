@@ -200,6 +200,25 @@ export default function TradingDashboard({ user, embedded = false }) {
     }
   }, [tab, tradesFilter, loadTrades]);
 
+  const cancelTrade = async (tradeId) => {
+    setBusy(`cancel-${tradeId}`);
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/trading/trades/${tradeId}/cancel`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Cancel failed');
+      await loadTrades(tradesFilter);
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy('');
+    }
+  };
+
   const runDemoSimTrade = async () => {
     setBusy('demoSim');
     setError('');
@@ -508,6 +527,7 @@ export default function TradingDashboard({ user, embedded = false }) {
                   <th>P/L</th>
                   <th>P/L %</th>
                   <th>Вихід</th>
+                  {isSimMode && <th />}
                 </tr>
               </thead>
               <tbody>
@@ -530,17 +550,31 @@ export default function TradingDashboard({ user, embedded = false }) {
                     <td className={pnlClass(t.pnlUsd)}>{fmtMoney(t.pnlUsd)}</td>
                     <td className={pnlClass(t.pnlPct)}>{fmtPct(t.pnlPct)}</td>
                     <td>{exitReasonLabel(t.exitReason)}</td>
+                    {isSimMode && (
+                      <td>
+                        {['open', 'pending_sim'].includes(t.status) && t.source === 'simulation' && (
+                          <button
+                            type="button"
+                            className="trading-btn trading-btn-ghost trading-btn-xs"
+                            disabled={busy === `cancel-${t._id}`}
+                            onClick={() => cancelTrade(t._id)}
+                          >
+                            {busy === `cancel-${t._id}` ? '…' : '✕'}
+                          </button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
                 {!tradesLoading && !(tradesData?.trades || []).length && (
                   <tr>
-                    <td colSpan={13} className="trading-muted">
+                    <td colSpan={isSimMode ? 14 : 13} className="trading-muted">
                       Ще немає угод. Увімкни авто-торгівлю та запусти скан — записи з’являться тут.
                     </td>
                   </tr>
                 )}
                 {tradesLoading && !(tradesData?.trades || []).length && (
-                  <tr><td colSpan={13} className="trading-muted">Завантаження угод…</td></tr>
+                  <tr><td colSpan={isSimMode ? 14 : 13} className="trading-muted">Завантаження угод…</td></tr>
                 )}
               </tbody>
             </table>

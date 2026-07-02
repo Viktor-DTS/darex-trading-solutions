@@ -258,6 +258,36 @@ function registerTradingRoutes(app, { getAssistantConnection }) {
     res.json(result);
   });
 
+  app.post('/api/trading/trades/:id/cancel', async (req, res) => {
+    if (!isTradingAdmin(req.user?.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const models = initTradingModels(getAssistantConnection);
+    if (!models.conn) return res.status(503).json({ error: 'Assistant MongoDB недоступна' });
+
+    const trade = await models.TradingTrade.findById(req.params.id);
+    if (!trade) return res.status(404).json({ error: 'Угоду не знайдено' });
+
+    const cancellable = new Set(['open', 'pending_sim', 'pending_ibkr']);
+    if (!cancellable.has(trade.status)) {
+      return res.status(400).json({ error: `Неможна скасувати статус ${trade.status}` });
+    }
+
+    const note = `[${req.user?.login || 'admin'}] cancelled manually`;
+    await models.TradingTrade.updateOne(
+      { _id: trade._id },
+      {
+        $set: {
+          status: 'cancelled',
+          closedAt: new Date(),
+          notes: trade.notes ? `${trade.notes} | ${note}` : note,
+        },
+      },
+    );
+
+    res.json({ ok: true, id: trade._id, symbol: trade.symbol });
+  });
+
   app.post('/api/trading/simulate/demo', async (req, res) => {
     if (!isTradingAdmin(req.user?.role)) {
       return res.status(403).json({ error: 'Доступ заборонено' });

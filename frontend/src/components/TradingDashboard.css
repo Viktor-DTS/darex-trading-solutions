@@ -319,6 +319,12 @@
   padding: 0.25rem 0.4rem;
 }
 
+.trading-btn-xs {
+  min-width: 2rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.75rem;
+}
+
 .trading-card-muted {
   opacity: 0.85;
 }

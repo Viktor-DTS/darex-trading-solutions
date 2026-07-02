@@ -223,6 +223,34 @@ async function simulateOpenExits(models, settings) {
   return closed;
 }
 
+/** Старі сим-угоди без quantity (до fix) — ставимо 1 акцію, якщо можливо. */
+async function repairIncompleteSimTrades(models, settings) {
+  const broken = await models.TradingTrade.find({
+    source: SIM_SOURCE,
+    status: { $in: ACTIVE_STATUSES },
+    $or: [{ quantity: { $exists: false } }, { quantity: null }, { quantity: 0 }],
+  });
+
+  let repaired = 0;
+  for (const trade of broken) {
+    const entry = Number(trade.entryPrice) || 0;
+    const equity = Number(settings?.equityUsd) || 1700;
+    if (entry <= 0 || equity < entry) continue;
+
+    await models.TradingTrade.updateOne(
+      { _id: trade._id },
+      {
+        $set: {
+          quantity: 1,
+          notes: appendNote(trade.notes, 'SIM repair: quantity=1'),
+        },
+      },
+    );
+    repaired += 1;
+  }
+  return repaired;
+}
+
 async function processSimBuySignals(models, buySignals, settings) {
   const created = [];
   if (!buySignals?.length) return created;
@@ -288,8 +316,10 @@ async function runSimulationCycle(models, settings, options = {}) {
     pendingFilled: 0,
     exitsClosed: 0,
     buysCreated: 0,
+    repaired: 0,
   };
 
+  stats.repaired = await repairIncompleteSimTrades(models, settings);
   stats.pendingFilled = await simulatePendingEntries(models, settings);
   stats.exitsClosed = await simulateOpenExits(models, settings);
 
