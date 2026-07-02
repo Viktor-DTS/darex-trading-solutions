@@ -38,6 +38,76 @@ function calcClosedPnl(entryPrice, exitPrice, quantity, commissionUsd) {
   return { pnlUsd, pnlPct };
 }
 
+/**
+ * Risk-based sizing; for simulation allow min 1 share if equity covers entry.
+ */
+function resolveSimulationQuantity(settings, entry, stopLoss, riskPctOverride) {
+  const equity = Number(settings?.equityUsd) || 1700;
+  const riskPct = riskPctOverride ?? settings?.riskPerTradePct ?? 0.8;
+  const entryPrice = Number(entry) || 0;
+  const sizing = calcPositionSizeUsd(equity, riskPct, entry, stopLoss);
+
+  if (sizing.quantity >= 1) {
+    return { ...sizing, minLotApplied: false };
+  }
+
+  if (entryPrice > 0 && equity >= entryPrice) {
+    return {
+      riskUsd: sizing.riskUsd,
+      positionSizeUsd: round2(entryPrice),
+      quantity: 1,
+      minLotApplied: true,
+    };
+  }
+
+  return {
+    ...sizing,
+    quantity: 0,
+    minLotApplied: false,
+  };
+}
+
+function simulationSizingError(settings, entry) {
+  const equity = Number(settings?.equityUsd) || 1700;
+  const entryPrice = Number(entry) || 0;
+  return `Розмір позиції 0 — капітал $${equity} не вистачає на 1 акцію (~$${round2(entryPrice)}). Збільш «Капітал» в Огляді/налаштуваннях.`;
+}
+
+/** Після applyRiskToSignals: у simulate дозволяємо min 1 акцію. */
+function applySimulationSizingToSignals(signals, settings, riskState) {
+  const riskMultiplier = riskState?.regime === 'elevated' ? 0.5 : 1;
+  const effectiveRiskPct = (settings.riskPerTradePct ?? 0.8) * riskMultiplier;
+
+  return signals.map((sig) => {
+    if (sig.action !== 'BUY') return sig;
+
+    const sizing = resolveSimulationQuantity(
+      settings,
+      sig.entryPrice,
+      sig.stopLoss,
+      effectiveRiskPct,
+    );
+
+    if (sizing.quantity >= 1) {
+      return {
+        ...sig,
+        quantity: sizing.quantity,
+        positionSizeUsd: sizing.positionSizeUsd,
+        riskPct: round2(effectiveRiskPct),
+        reason: sizing.minLotApplied
+          ? `${sig.reason}; sim min 1 share`
+          : sig.reason,
+      };
+    }
+
+    return {
+      ...sig,
+      action: 'SKIP',
+      reason: `${sig.reason}; ${simulationSizingError(settings, sig.entryPrice)}`,
+    };
+  });
+}
+
 function detectSimExit(trade, price, barLow, barHigh) {
   const stop = Number(trade.stopLoss);
   const tp = Number(trade.takeProfit);
@@ -161,7 +231,16 @@ async function processSimBuySignals(models, buySignals, settings) {
 
   for (const sig of buySignals) {
     const symbol = String(sig.symbol || '').trim().toUpperCase();
-    if (!symbol || sig.quantity <= 0) continue;
+    if (!symbol) continue;
+
+    const sizing = resolveSimulationQuantity(
+      settings,
+      sig.entryPrice,
+      sig.stopLoss,
+      sig.riskPct ?? settings.riskPerTradePct,
+    );
+    const quantity = sig.quantity > 0 ? sig.quantity : sizing.quantity;
+    if (quantity <= 0) continue;
 
     const existing = await models.TradingTrade.findOne({
       symbol,
@@ -180,12 +259,13 @@ async function processSimBuySignals(models, buySignals, settings) {
       fillNow = true;
     }
 
+    const minLotNote = sizing.minLotApplied ? ' · min 1 share (sim)' : '';
     const trade = await models.TradingTrade.create({
       symbol,
       side: 'long',
       status: fillNow ? 'open' : 'pending_sim',
       entryPrice: sig.entryPrice,
-      quantity: sig.quantity,
+      quantity,
       stopLoss: sig.stopLoss,
       takeProfit: sig.takeProfit,
       openedAt: fillNow ? new Date() : undefined,
@@ -193,8 +273,8 @@ async function processSimBuySignals(models, buySignals, settings) {
       source: SIM_SOURCE,
       signalId: sig._id,
       notes: fillNow
-        ? `[simulation] BUY filled @ ${sig.entryPrice} · SL ${sig.stopLoss} · TP ${sig.takeProfit}`
-        : `[simulation] LMT pending @ ${sig.entryPrice} · market ${marketPrice ?? '—'}`,
+        ? `[simulation] BUY filled @ ${sig.entryPrice} · SL ${sig.stopLoss} · TP ${sig.takeProfit}${minLotNote}`
+        : `[simulation] LMT pending @ ${sig.entryPrice} · market ${marketPrice ?? '—'}${minLotNote}`,
     });
 
     created.push(trade.toObject());
@@ -229,60 +309,77 @@ async function createDemoSimulationTrade(models, settings, symbolInput) {
     throw err;
   }
 
-  const symbol = String(symbolInput || settings.watchlist?.[0] || 'SPY').trim().toUpperCase();
-  if (!symbol) {
-    throw new Error('Symbol required');
-  }
-
-  const existing = await models.TradingTrade.findOne({
-    symbol,
-    source: SIM_SOURCE,
-    status: { $in: ACTIVE_STATUSES },
-  }).lean();
-  if (existing) {
-    const err = new Error(`Вже є активна сим-угода по ${symbol}`);
-    err.code = 'DUPLICATE';
-    throw err;
-  }
+  const candidates = symbolInput
+    ? [String(symbolInput).trim().toUpperCase()]
+    : (Array.isArray(settings.watchlist) && settings.watchlist.length
+      ? settings.watchlist.map((s) => String(s).trim().toUpperCase())
+      : ['SPY']);
 
   const macro = await fetchMacroSnapshot();
-  const chart = await fetchChart(symbol);
-  const scored = scoreSymbol(chart, macro);
   const perSide = simCommissionPerSide(settings);
   const effectiveRiskPct = macro.regime === 'elevated'
     ? (settings.riskPerTradePct ?? 0.8) * 0.5
     : (settings.riskPerTradePct ?? 0.8);
 
-  const sizing = calcPositionSizeUsd(
-    settings.equityUsd ?? 1700,
-    effectiveRiskPct,
-    scored.entryPrice,
-    scored.stopLoss,
-  );
+  let lastError = null;
 
-  if (sizing.quantity <= 0) {
-    throw new Error('Розмір позиції 0 — перевір equity / stop');
+  for (const symbol of candidates) {
+    if (!symbol) continue;
+
+    const existing = await models.TradingTrade.findOne({
+      symbol,
+      source: SIM_SOURCE,
+      status: { $in: ACTIVE_STATUSES },
+    }).lean();
+    if (existing) {
+      lastError = new Error(`Вже є активна сим-угода по ${symbol}`);
+      lastError.code = 'DUPLICATE';
+      continue;
+    }
+
+    try {
+      const chart = await fetchChart(symbol);
+      const scored = scoreSymbol(chart, macro);
+      const sizing = resolveSimulationQuantity(
+        settings,
+        scored.entryPrice,
+        scored.stopLoss,
+        effectiveRiskPct,
+      );
+
+      if (sizing.quantity <= 0) {
+        lastError = new Error(simulationSizingError(settings, scored.entryPrice));
+        continue;
+      }
+
+      const minLotNote = sizing.minLotApplied ? ' · min 1 share (sim)' : '';
+      const trade = await models.TradingTrade.create({
+        symbol,
+        side: 'long',
+        status: 'open',
+        entryPrice: scored.entryPrice,
+        quantity: sizing.quantity,
+        stopLoss: scored.stopLoss,
+        takeProfit: scored.takeProfit,
+        openedAt: new Date(),
+        commissionUsd: perSide,
+        source: SIM_SOURCE,
+        notes: `[simulation demo] score ${scored.finalScore} · ${scored.reason}${minLotNote}`,
+      });
+
+      return {
+        trade: trade.toObject(),
+        analysis: scored,
+        commissionPerSide: perSide,
+        sizing,
+      };
+    } catch (e) {
+      lastError = e;
+    }
   }
 
-  const trade = await models.TradingTrade.create({
-    symbol,
-    side: 'long',
-    status: 'open',
-    entryPrice: scored.entryPrice,
-    quantity: sizing.quantity,
-    stopLoss: scored.stopLoss,
-    takeProfit: scored.takeProfit,
-    openedAt: new Date(),
-    commissionUsd: perSide,
-    source: SIM_SOURCE,
-    notes: `[simulation demo] score ${scored.finalScore} · ${scored.reason}`,
-  });
-
-  return {
-    trade: trade.toObject(),
-    analysis: scored,
-    commissionPerSide: perSide,
-  };
+  if (lastError) throw lastError;
+  throw new Error('Не вдалося створити тестову сим-угоду');
 }
 
 function appendNote(existing, line) {
@@ -295,6 +392,8 @@ function appendNote(existing, line) {
 module.exports = {
   isSimulationMode,
   simCommissionPerSide,
+  resolveSimulationQuantity,
+  applySimulationSizingToSignals,
   runSimulationCycle,
   processSimBuySignals,
   createDemoSimulationTrade,

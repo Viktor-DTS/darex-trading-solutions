@@ -11,7 +11,7 @@ const { notifyTradingScan, notifyBuySignals, isTelegramConfigured, isBuyOnlyTele
 const { processBuySignals } = require('./ibkrOrders');
 const { syncTradesFromIbkr } = require('./ibkrTradeSync');
 const { isIbkrFullyConfigured } = require('./ibkrApi');
-const { isSimulationMode, runSimulationCycle } = require('./tradeSimulator');
+const { isSimulationMode, runSimulationCycle, applySimulationSizingToSignals } = require('./tradeSimulator');
 
 const ACTIVE_TRADE_STATUSES = ['open', 'pending_ibkr', 'pending_sim'];
 
@@ -60,6 +60,9 @@ async function runTradingScan(getAssistantConnection, options = {}) {
       status: { $in: ACTIVE_TRADE_STATUSES },
     });
     signals = applyRiskToSignals(signals, settings, { ...riskState, regime: macro.regime }, openCount);
+    if (isSimulationMode(settings)) {
+      signals = applySimulationSizingToSignals(signals, settings, { regime: macro.regime });
+    }
 
     const savedSignals = [];
     for (const sig of signals) {
