@@ -9,6 +9,7 @@ function tradeStatusLabel(status) {
     open: 'Відкрита',
     closed: 'Закрита',
     pending_ibkr: 'Очікує IBKR',
+    pending_sim: 'Очікує LMT',
     cancelled: 'Скасована',
   };
   return map[status] || status || '—';
@@ -57,7 +58,9 @@ function enrichTrade(trade) {
 function summarizeTrades(enriched) {
   const closed = enriched.filter((t) => t.status === 'closed');
   const open = enriched.filter((t) => t.status === 'open');
-  const pending = enriched.filter((t) => t.status === 'pending_ibkr');
+  const pendingIbkr = enriched.filter((t) => t.status === 'pending_ibkr');
+  const pendingSim = enriched.filter((t) => t.status === 'pending_sim');
+  const simulation = enriched.filter((t) => t.source === 'simulation');
 
   const totalPnlUsd = round2(closed.reduce((s, t) => s + (t.pnlUsd || 0), 0));
   const totalFeesUsd = round2(enriched.reduce((s, t) => s + (t.totalFeesUsd || 0), 0));
@@ -68,7 +71,10 @@ function summarizeTrades(enriched) {
     total: enriched.length,
     closed: closed.length,
     open: open.length,
-    pending: pending.length,
+    pending: pendingIbkr.length + pendingSim.length,
+    pendingIbkr: pendingIbkr.length,
+    pendingSim: pendingSim.length,
+    simulation: simulation.length,
     totalPnlUsd,
     totalFeesUsd,
     winners,

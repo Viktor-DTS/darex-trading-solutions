@@ -8,6 +8,7 @@ const { notifyTradingAlert, sendTelegramTest, isTelegramConfigured, isBuyOnlyTel
 const { getIbkrStatus, testIbkrConnection } = require('./ibkrClient');
 const { enrichTrade, summarizeTrades } = require('./tradingTrades');
 const { syncTradesFromIbkr } = require('./ibkrTradeSync');
+const { createDemoSimulationTrade, isSimulationMode } = require('./tradeSimulator');
 
 const TRADING_ADMIN_ROLES = new Set(['admin', 'administrator']);
 
@@ -74,7 +75,7 @@ function registerTradingRoutes(app, { getAssistantConnection }) {
       ensureRiskState(models),
       models.TradingSignal.find().sort({ createdAt: -1 }).limit(30).lean(),
       models.TradingTrade.find({ status: 'open' }).sort({ openedAt: -1 }).lean(),
-      models.TradingTrade.find({ status: 'pending_ibkr' }).sort({ createdAt: -1 }).limit(20).lean(),
+      models.TradingTrade.find({ status: { $in: ['pending_ibkr', 'pending_sim'] } }).sort({ createdAt: -1 }).limit(20).lean(),
       models.TradingExternalSnapshot.findOne().sort({ createdAt: -1 }).lean(),
     ]);
 
@@ -117,9 +118,9 @@ function registerTradingRoutes(app, { getAssistantConnection }) {
 
     const query = {};
     if (statusFilter !== 'all') {
-      const allowed = new Set(['open', 'closed', 'pending_ibkr', 'cancelled']);
+      const allowed = new Set(['open', 'closed', 'pending_ibkr', 'pending_sim', 'cancelled']);
       if (!allowed.has(statusFilter)) {
-        return res.status(400).json({ error: 'status must be open|closed|pending_ibkr|cancelled|all' });
+        return res.status(400).json({ error: 'status must be open|closed|pending_ibkr|pending_sim|cancelled|all' });
       }
       query.status = statusFilter;
     }
@@ -172,6 +173,7 @@ function registerTradingRoutes(app, { getAssistantConnection }) {
       'weeklyLossLimitPct',
       'maxDrawdownPct',
       'equityUsd',
+      'simCommissionPerSideUsd',
     ];
     const patch = {};
     for (const key of allowed) {
@@ -254,6 +256,28 @@ function registerTradingRoutes(app, { getAssistantConnection }) {
       return res.status(400).json(result);
     }
     res.json(result);
+  });
+
+  app.post('/api/trading/simulate/demo', async (req, res) => {
+    if (!isTradingAdmin(req.user?.role)) {
+      return res.status(403).json({ error: 'Доступ заборонено' });
+    }
+    const models = initTradingModels(getAssistantConnection);
+    if (!models.conn) return res.status(503).json({ error: 'Assistant MongoDB недоступна' });
+
+    const settings = await ensureDefaultSettings(models);
+    if (!isSimulationMode(settings)) {
+      return res.status(400).json({ error: 'Увімкніть режим simulate в налаштуваннях' });
+    }
+
+    try {
+      const symbol = req.body?.symbol;
+      const result = await createDemoSimulationTrade(models, settings, symbol);
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      const status = err.code === 'DUPLICATE' ? 409 : 400;
+      res.status(status).json({ ok: false, error: err.message });
+    }
   });
 
   /** Render Cron: POST з секретом у заголовку X-Trading-Cron-Secret */

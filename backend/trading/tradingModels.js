@@ -17,8 +17,9 @@ function initTradingModels(getAssistantConnection) {
     const settingsSchema = new mongoose.Schema(
       {
         key: { type: String, default: 'global', unique: true },
-        mode: { type: String, enum: ['paper', 'live'], default: 'paper' },
+        mode: { type: String, enum: ['paper', 'live', 'simulate'], default: 'paper' },
         autoEnabled: { type: Boolean, default: false },
+        simCommissionPerSideUsd: { type: Number, default: 1 },
         watchlist: { type: [String], default: ['VOO', 'SPY', 'AAPL', 'MSFT', 'NVDA'] },
         riskPerTradePct: { type: Number, default: 0.8 },
         maxOpenPositions: { type: Number, default: 2 },
@@ -59,7 +60,11 @@ function initTradingModels(getAssistantConnection) {
       {
         symbol: String,
         side: { type: String, enum: ['long', 'short'], default: 'long' },
-        status: { type: String, enum: ['open', 'closed', 'cancelled', 'pending_ibkr'], default: 'open' },
+        status: {
+          type: String,
+          enum: ['open', 'closed', 'cancelled', 'pending_ibkr', 'pending_sim'],
+          default: 'open',
+        },
         entryPrice: Number,
         exitPrice: Number,
         quantity: Number,

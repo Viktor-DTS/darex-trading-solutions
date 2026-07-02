@@ -22,6 +22,12 @@ function regimeLabel(regime) {
   return regime || '—';
 }
 
+function modeLabel(mode) {
+  if (mode === 'live') return 'live';
+  if (mode === 'simulate') return 'симуляція';
+  return 'paper';
+}
+
 function fmtMoney(n) {
   if (n == null || Number.isNaN(Number(n))) return '—';
   return `$${Number(n).toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -42,6 +48,7 @@ function tradeStatusClass(status) {
   if (status === 'open') return 'trading-trade-open';
   if (status === 'closed') return 'trading-trade-closed';
   if (status === 'pending_ibkr') return 'trading-trade-pending';
+  if (status === 'pending_sim') return 'trading-trade-pending-sim';
   if (status === 'cancelled') return 'trading-trade-cancelled';
   return '';
 }
@@ -193,6 +200,27 @@ export default function TradingDashboard({ user, embedded = false }) {
     }
   }, [tab, tradesFilter, loadTrades]);
 
+  const runDemoSimTrade = async () => {
+    setBusy('demoSim');
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/trading/simulate/demo`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({}),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Demo trade failed');
+      await load();
+      if (tab === 'trades') await loadTrades(tradesFilter);
+      window.alert(`Сим-угода відкрита: ${json.trade?.symbol} · ${json.trade?.quantity} @ ${json.trade?.entryPrice}`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy('');
+    }
+  };
+
   const runScan = async () => {
     setScanning(true);
     setError('');
@@ -204,6 +232,7 @@ export default function TradingDashboard({ user, embedded = false }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Scan failed');
       await load();
+      if (tab === 'trades') await loadTrades(tradesFilter);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -240,6 +269,7 @@ export default function TradingDashboard({ user, embedded = false }) {
   const openTrades = data?.openTrades || [];
   const pendingTrades = data?.pendingTrades || [];
   const integrations = data?.integrations || {};
+  const isSimMode = settings.mode === 'simulate';
 
   return (
     <div className={`trading-page${embedded ? ' trading-page-embedded' : ''}`}>
@@ -247,8 +277,9 @@ export default function TradingDashboard({ user, embedded = false }) {
         <div>
           <h1>Торгівля — IBKR (зростання капіталу)</h1>
           <p className="trading-sub">
-            {user?.login} · режим <strong>{settings.mode === 'live' ? 'live' : 'paper'}</strong>
+            {user?.login} · режим <strong>{modeLabel(settings.mode)}</strong>
             · авто <strong>{settings.autoEnabled ? 'УВІМК' : 'ВИМК'}</strong>
+            {isSimMode && <span className="trading-sim-badge"> без IBKR</span>}
           </p>
         </div>
         <div className="trading-header-actions">
@@ -328,11 +359,12 @@ export default function TradingDashboard({ user, embedded = false }) {
           </div>
           {pendingTrades.length > 0 && (
             <div className="trading-card trading-card-wide">
-              <div className="trading-card-label">Очікують IBKR ({pendingTrades.length})</div>
+              <div className="trading-card-label">Очікують виконання ({pendingTrades.length})</div>
               <ul className="trading-pending-list">
                 {pendingTrades.map((t) => (
                   <li key={t._id}>
                     <strong>{t.symbol}</strong> · {t.quantity} @ {t.entryPrice} · SL {t.stopLoss} · TP {t.takeProfit}
+                    {t.status === 'pending_sim' ? ' · SIM LMT' : ' · IBKR'}
                   </li>
                 ))}
               </ul>
@@ -387,16 +419,19 @@ export default function TradingDashboard({ user, embedded = false }) {
               <option value="open">Відкриті</option>
               <option value="closed">Закриті</option>
               <option value="pending_ibkr">Очікують IBKR</option>
+              <option value="pending_sim">Очікують LMT (sim)</option>
               <option value="cancelled">Скасовані</option>
             </select>
-            <button
-              type="button"
-              className="trading-btn"
-              onClick={syncTrades}
-              disabled={tradesSyncing || tradesLoading}
-            >
-              {tradesSyncing ? 'Синх…' : '⟳ IBKR sync'}
-            </button>
+            {!isSimMode && (
+              <button
+                type="button"
+                className="trading-btn"
+                onClick={syncTrades}
+                disabled={tradesSyncing || tradesLoading}
+              >
+                {tradesSyncing ? 'Синх…' : '⟳ IBKR sync'}
+              </button>
+            )}
             <button
               type="button"
               className="trading-btn trading-btn-ghost"
@@ -407,7 +442,7 @@ export default function TradingDashboard({ user, embedded = false }) {
             </button>
           </div>
 
-          {(tradesData?.lastIbkrSyncAt || tradesData?.lastIbkrSyncStatus) && (
+          {(tradesData?.lastIbkrSyncAt || tradesData?.lastIbkrSyncStatus) && !isSimMode && (
             <p className="trading-hint trading-trades-sync-meta">
               Останній IBKR sync:{' '}
               {tradesData.lastIbkrSyncAt
@@ -430,8 +465,10 @@ export default function TradingDashboard({ user, embedded = false }) {
                 </div>
               </div>
               <div className="trading-card">
-                <div className="trading-card-label">Очікують IBKR</div>
-                <div className="trading-card-value">{tradesData.summary.pending}</div>
+                <div className="trading-card-label">{isSimMode ? 'Очікують LMT' : 'Очікують IBKR'}</div>
+                <div className="trading-card-value">
+                  {isSimMode ? (tradesData.summary.pendingSim ?? 0) : (tradesData.summary.pendingIbkr ?? tradesData.summary.pending)}
+                </div>
               </div>
               <div className="trading-card">
                 <div className="trading-card-label">Сумарний P/L</div>
@@ -510,8 +547,9 @@ export default function TradingDashboard({ user, embedded = false }) {
           </div>
 
           <p className="trading-hint trading-trades-hint">
-            Після кожного скану бот автоматично синхронізує угоди з IBKR (fills + позиції, ~7 днів).
-            Кнопка «IBKR sync» — вручну. Закриті угоди отримують реальну ціну виходу, комісію та P/L.
+            {isSimMode
+              ? 'Симуляція: ціни з Yahoo/Stooq, limit-вхід, stop/take-profit на кожному скані. IBKR не використовується.'
+              : 'Після кожного скану бот автоматично синхронізує угоди з IBKR (fills + позиції, ~7 днів). Кнопка «IBKR sync» — вручну.'}
           </p>
         </div>
       )}
@@ -587,17 +625,49 @@ export default function TradingDashboard({ user, embedded = false }) {
                   onChange={(e) => patchSettings({ autoEnabled: e.target.checked })}
                   disabled={busy === 'settings'}
                 />
-                {' '}Авто УВІМК (BUY → черга IBKR)
+                {' '}Авто УВІМК ({isSimMode ? 'BUY → сим-угоди' : 'BUY → черга IBKR'})
               </label>
               <select
                 value={settings.mode || 'paper'}
                 onChange={(e) => patchSettings({ mode: e.target.value })}
                 disabled={busy === 'settings'}
               >
+                <option value="simulate">simulate (без IBKR)</option>
                 <option value="paper">paper</option>
                 <option value="live">live</option>
               </select>
             </div>
+            {isSimMode && (
+              <div className="trading-settings-row">
+                <label>
+                  Комісія / сторона ($):
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={settings.simCommissionPerSideUsd ?? 1}
+                    onChange={(e) => patchSettings({ simCommissionPerSideUsd: Number(e.target.value) })}
+                    disabled={busy === 'settings'}
+                    className="trading-input-num"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="trading-btn"
+                  onClick={runDemoSimTrade}
+                  disabled={busy === 'demoSim'}
+                >
+                  {busy === 'demoSim' ? '…' : '▶ Тестова сим-угода'}
+                </button>
+              </div>
+            )}
+            {isSimMode && (
+              <p className="trading-hint">
+                1) Увімкни <strong>simulate</strong> + <strong>Авто</strong> → «Сканувати» для реальних BUY-сигналів.
+                2) Або «Тестова сим-угода» — одразу відкриває позицію по SPY/watchlist з SL/TP.
+                3) Кожен наступний скан перевіряє stop/take-profit по Yahoo-ціні.
+              </p>
+            )}
           </div>
 
           <div className="trading-card trading-card-wide">
@@ -621,23 +691,29 @@ export default function TradingDashboard({ user, embedded = false }) {
             </button>
           </div>
 
-          <div className="trading-card trading-card-wide">
+          <div className={`trading-card trading-card-wide${isSimMode ? ' trading-card-muted' : ''}`}>
             <div className="trading-card-label">3 · IBKR OAuth</div>
-            <p className="trading-muted">{integrations.ibkr?.message || '—'}</p>
-            {integrations.ibkr?.missingEnv?.length > 0 && (
-              <p className="trading-hint trading-hint-warn">
-                Не вистачає: {integrations.ibkr.missingEnv.join(', ')}
-              </p>
+            {isSimMode ? (
+              <p className="trading-muted">⏸ Не потрібно в режимі simulate</p>
+            ) : (
+              <>
+                <p className="trading-muted">{integrations.ibkr?.message || '—'}</p>
+                {integrations.ibkr?.missingEnv?.length > 0 && (
+                  <p className="trading-hint trading-hint-warn">
+                    Не вистачає: {integrations.ibkr.missingEnv.join(', ')}
+                  </p>
+                )}
+                <p className="trading-hint">
+                  IBKR Self-Service Portal → OAuth keys → Render env:
+                  IBKR_CONSUMER_KEY, IBKR_ACCESS_TOKEN, IBKR_ACCESS_SECRET_HEX,
+                  IBKR_SIGNATURE_PRIVATE_KEY_B64, IBKR_DH_PRIME_HEX, IBKR_ACCOUNT_ID.
+                  Потім IBKR_LIVE_ORDERS=1.
+                </p>
+                <button type="button" className="trading-btn" onClick={testIbkr} disabled={busy === 'ibkr'}>
+                  {busy === 'ibkr' ? '…' : 'Тест з’єднання IBKR'}
+                </button>
+              </>
             )}
-            <p className="trading-hint">
-              IBKR Self-Service Portal → OAuth keys → Render env:
-              IBKR_CONSUMER_KEY, IBKR_ACCESS_TOKEN, IBKR_ACCESS_SECRET_HEX,
-              IBKR_SIGNATURE_PRIVATE_KEY_B64, IBKR_DH_PRIME_HEX, IBKR_ACCOUNT_ID.
-              Потім IBKR_LIVE_ORDERS=1.
-            </p>
-            <button type="button" className="trading-btn" onClick={testIbkr} disabled={busy === 'ibkr'}>
-              {busy === 'ibkr' ? '…' : 'Тест з’єднання IBKR'}
-            </button>
           </div>
         </div>
       )}

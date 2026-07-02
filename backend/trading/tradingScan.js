@@ -11,6 +11,9 @@ const { notifyTradingScan, notifyBuySignals, isTelegramConfigured, isBuyOnlyTele
 const { processBuySignals } = require('./ibkrOrders');
 const { syncTradesFromIbkr } = require('./ibkrTradeSync');
 const { isIbkrFullyConfigured } = require('./ibkrApi');
+const { isSimulationMode, runSimulationCycle } = require('./tradeSimulator');
+
+const ACTIVE_TRADE_STATUSES = ['open', 'pending_ibkr', 'pending_sim'];
 
 let scanRunning = false;
 
@@ -54,7 +57,7 @@ async function runTradingScan(getAssistantConnection, options = {}) {
     let signals = await analyzeWatchlist(watchlist, macro);
 
     const openCount = await models.TradingTrade.countDocuments({
-      status: { $in: ['open', 'pending_ibkr'] },
+      status: { $in: ACTIVE_TRADE_STATUSES },
     });
     signals = applyRiskToSignals(signals, settings, { ...riskState, regime: macro.regime }, openCount);
 
@@ -69,19 +72,27 @@ async function runTradingScan(getAssistantConnection, options = {}) {
     }
 
     const buySignals = savedSignals.filter((s) => s.action === 'BUY');
-    let tradesCreated = [];
+    let tradesCreatedCount = 0;
+    let simulation = null;
+    let ibkrSync = null;
 
-    if (buySignals.length && settings.autoEnabled && !riskState.tradingPaused) {
-      tradesCreated = await processBuySignals(models, buySignals, settings);
+    if (isSimulationMode(settings)) {
+      simulation = await runSimulationCycle(models, settings, {
+        buySignals,
+        autoEnabled: settings.autoEnabled && !riskState.tradingPaused,
+      });
+      tradesCreatedCount = simulation.buysCreated;
+    } else if (buySignals.length && settings.autoEnabled && !riskState.tradingPaused) {
+      const tradesCreated = await processBuySignals(models, buySignals, settings);
+      tradesCreatedCount = tradesCreated.length;
     }
 
-    let ibkrSync = null;
-    if (isIbkrFullyConfigured()) {
+    if (!isSimulationMode(settings) && isIbkrFullyConfigured()) {
       ibkrSync = await syncTradesFromIbkr(models, { triggeredBy });
     }
 
     const openCountAfter = await models.TradingTrade.countDocuments({
-      status: { $in: ['open', 'pending_ibkr'] },
+      status: { $in: ACTIVE_TRADE_STATUSES },
     });
 
     const riskUpdates = evaluateCircuitBreaker(riskState, settings, settings.equityUsd ?? 1700);
@@ -132,7 +143,8 @@ async function runTradingScan(getAssistantConnection, options = {}) {
       vix: macro.vix,
       signalCount: savedSignals.length,
       buyCount: buySignals.length,
-      tradesCreated: tradesCreated.length,
+      tradesCreated: tradesCreatedCount,
+      simulation,
       ibkrSync,
       signals: savedSignals,
       triggeredBy,
