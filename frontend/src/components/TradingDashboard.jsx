@@ -519,6 +519,9 @@ export default function TradingDashboard({ user, embedded = false }) {
                   <th>Тикер</th>
                   <th>К-сть</th>
                   <th>Ціна входу</th>
+                  <th>SL</th>
+                  <th>TP</th>
+                  <th>Ціна (скан)</th>
                   <th>Сума покупки</th>
                   <th>Продаж</th>
                   <th>Ціна виходу</th>
@@ -542,6 +545,27 @@ export default function TradingDashboard({ user, embedded = false }) {
                     <td><strong>{t.symbol}</strong></td>
                     <td>{t.quantity ?? '—'}</td>
                     <td>{t.entryPrice != null ? fmtMoney(t.entryPrice) : '—'}</td>
+                    <td>{t.stopLoss != null ? fmtMoney(t.stopLoss) : '—'}</td>
+                    <td>{t.takeProfit != null ? fmtMoney(t.takeProfit) : '—'}</td>
+                    <td className="trading-mark-cell">
+                      {['open', 'pending_sim', 'pending_ibkr'].includes(t.status) ? (
+                        t.lastMarkPrice != null ? (
+                          <>
+                            <div className={pnlClass(t.markVsEntryPct)}>{fmtMoney(t.lastMarkPrice)}</div>
+                            {t.markVsEntryPct != null && (
+                              <div className={`trading-mark-delta ${pnlClass(t.markVsEntryPct)}`}>
+                                {fmtPct(t.markVsEntryPct)} vs вхід
+                              </div>
+                            )}
+                            <div className="trading-mark-time">{fmtDateTime(t.lastMarkPriceAt)}</div>
+                          </>
+                        ) : (
+                          <span className="trading-muted">запусти скан</span>
+                        )
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                     <td>{fmtMoney(t.buyTotalUsd)}</td>
                     <td>{fmtDateTime(t.closedAt)}</td>
                     <td>{t.exitPrice != null ? fmtMoney(t.exitPrice) : '—'}</td>
@@ -568,13 +592,13 @@ export default function TradingDashboard({ user, embedded = false }) {
                 ))}
                 {!tradesLoading && !(tradesData?.trades || []).length && (
                   <tr>
-                    <td colSpan={isSimMode ? 14 : 13} className="trading-muted">
+                    <td colSpan={isSimMode ? 17 : 16} className="trading-muted">
                       Ще немає угод. Увімкни авто-торгівлю та запусти скан — записи з’являться тут.
                     </td>
                   </tr>
                 )}
                 {tradesLoading && !(tradesData?.trades || []).length && (
-                  <tr><td colSpan={isSimMode ? 14 : 13} className="trading-muted">Завантаження угод…</td></tr>
+                  <tr><td colSpan={isSimMode ? 17 : 16} className="trading-muted">Завантаження угод…</td></tr>
                 )}
               </tbody>
             </table>

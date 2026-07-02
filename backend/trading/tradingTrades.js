@@ -42,11 +42,22 @@ function enrichTrade(trade) {
   const openedAt = t.openedAt || t.createdAt || null;
   const closedAt = t.closedAt || null;
 
+  const markPrice = t.lastMarkPrice != null ? round2(t.lastMarkPrice) : null;
+  let markVsEntryPct = null;
+  if (['open', 'pending_sim', 'pending_ibkr'].includes(t.status) && entry > 0 && markPrice != null) {
+    markVsEntryPct = round2(((markPrice - entry) / entry) * 100);
+  }
+
   return {
     ...t,
     statusLabel: tradeStatusLabel(t.status),
     openedAt,
     closedAt,
+    stopLoss: t.stopLoss != null ? round2(t.stopLoss) : null,
+    takeProfit: t.takeProfit != null ? round2(t.takeProfit) : null,
+    lastMarkPrice: markPrice,
+    lastMarkPriceAt: t.lastMarkPriceAt || null,
+    markVsEntryPct,
     buyTotalUsd,
     sellTotalUsd,
     totalFeesUsd: commission,

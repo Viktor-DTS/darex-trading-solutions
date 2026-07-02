@@ -283,6 +283,22 @@
   margin-bottom: 0.25rem;
 }
 
+.trading-mark-cell {
+  min-width: 7.5rem;
+  line-height: 1.35;
+}
+
+.trading-mark-delta {
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.trading-mark-time {
+  font-size: 0.72rem;
+  color: var(--text-secondary, #888);
+  margin-top: 0.15rem;
+}
+
 .trading-table-trades {
   font-size: 0.8rem;
 }

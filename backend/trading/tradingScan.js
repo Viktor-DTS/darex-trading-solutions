@@ -12,6 +12,7 @@ const { processBuySignals } = require('./ibkrOrders');
 const { syncTradesFromIbkr } = require('./ibkrTradeSync');
 const { isIbkrFullyConfigured } = require('./ibkrApi');
 const { isSimulationMode, runSimulationCycle, applySimulationSizingToSignals } = require('./tradeSimulator');
+const { refreshOpenTradeMarkPrices } = require('./tradingMarkPrices');
 
 const ACTIVE_TRADE_STATUSES = ['open', 'pending_ibkr', 'pending_sim'];
 
@@ -94,6 +95,8 @@ async function runTradingScan(getAssistantConnection, options = {}) {
       ibkrSync = await syncTradesFromIbkr(models, { triggeredBy });
     }
 
+    const markPrices = await refreshOpenTradeMarkPrices(models, scanId);
+
     const openCountAfter = await models.TradingTrade.countDocuments({
       status: { $in: ACTIVE_TRADE_STATUSES },
     });
@@ -149,6 +152,7 @@ async function runTradingScan(getAssistantConnection, options = {}) {
       tradesCreated: tradesCreatedCount,
       simulation,
       ibkrSync,
+      markPrices,
       signals: savedSignals,
       triggeredBy,
     };
